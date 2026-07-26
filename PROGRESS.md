@@ -28,9 +28,42 @@
       doesn't exist there at all -- confirmed out of scope, not the same gap.
 - [x] Wrote ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml with full findings.
 
+- [x] Opened PR #563 (this branch)
+- [x] Registered ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml in ai-os/OS.yaml's
+      governance index (health_and_compliance section) -- was failing the
+      Metadata Index Coverage Check.
+- [x] Corrected drizzle/0140*.sql and drizzle/0199*.sql to target
+      platform.dynamic_chains (matching migration 0245's relocation) and
+      drizzle/0253*.sql's ai_provider enum reference to compliance.ai_provider --
+      these .sql files were only fixed live against production during the audit,
+      never updated in the repo itself, so a fresh bootstrap replay would have
+      failed. No further live-database action taken; this was repo-file-only.
+
 ## Remaining
-- [ ] Open PR
 - [ ] Note in PR: bun/npm unavailable in this sandbox, so `bun run db:migrate` was
       not literally re-run as a final smoke test -- safety established via direct
       drizzle-orm source inspection instead (documented in the audit yaml). A
       session with a working bun env should still do a final live confirmation run.
+
+## New finding (out of scope for this follow-up task, flagged not fixed)
+Registering the one MIGRATION_DRIFT_AUDIT_2026-07-26.yaml entry makes the
+Metadata Index Coverage Check pass **for that specific file** (verified locally:
+removing just that OS.yaml entry reproduces exactly 1 extra missing item; with
+it, that file no longer appears in the missing list). But the check still fails
+overall -- there are 56 pre-existing, unrelated ai-os/ governance files/scripts
+(ai-os/scripts/*.py/.sh/.mjs, ai-os/AI_ENGINEERING_POLICY.yaml,
+ai-os/MASTER_INDEX.yaml, ai-os/STANDING_DIRECTIVE.yaml, and more -- full list in
+the script's own output) never indexed or exempted in OS.yaml. Confirmed via
+`git worktree add` at this PR's merge-base (51b7cccc) that this gap already
+existed there, and via `gh run view` on main's own latest CI run (commit
+9bcdb108) that "Metadata Index Coverage Check" is failing on main HEAD right
+now for the same reason -- this is not something PR #563 introduced.
+Deliberately NOT bulk-registering 56 files with guessed one-line descriptions
+here: this repo's own OS.yaml entries are evidence-researched (each `covers:`
+cites real file content/history), and fabricating descriptions for files this
+task never read would be the kind of unverified governance content the
+Metadata Index Coverage Check exists to prevent. Recommend a dedicated
+follow-up claim to research and register/exempt these 56 items properly.
+`gh pr checks 563` will still show this job red after this task's push, but
+for this separate, pre-existing, already-on-main reason -- not the
+migration-drift-audit-file gap this task fixed.
