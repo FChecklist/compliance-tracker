@@ -1,95 +1,60 @@
-# PROGRESS -- task-20260726-074124-status-monitor-and-remediation-dispatche
-
-Redispatch of task-20260726-053322-status-monitor-and-remediation-dispatche
-("crontab was stale" in the dispatch title -- investigation found this was not
-actually true; see below for the real gap that was found and closed instead).
+# PROGRESS -- task-20260726-081117-fix-pr563-ci---stale-migration-files--do
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml context, and this
-      task's own prior task_dir (task-20260726-053322-...) before doing anything.
-- [x] Confirmed the prior task (053322) had already done all the real
-      implementation + testing work correctly:
-  - scripts/veridian_status_monitor.py + scripts/veridian_remediation_dispatcher.py
-    written (claude-control repo -- the established home for ops/cron scripts,
-    no PR/CI gate there, per this file's own phase_3 precedent and this task's
-    own EXPECTED_OUTPUT which names claude-control explicitly).
-  - Both deployed live to /opt/veridian/scripts/ (byte-identical to the repo
-    copies, re-verified this session).
-  - Real cron entry live (`crontab -l | grep -c veridian_status_monitor` = 1,
-    */10 * * * *, run-logged.sh wrapper, monitor + dispatcher --apply chained).
-  - ai-os/LIVE_STATUS_2026-07-26.yaml regenerating fresh every cron cycle with
-    real current data (re-verified this session: generated_at within the last
-    cron cycle, real tasks_in_progress/tasks_blocked_recent/remediation sections).
-  - Both remediation paths real-tested with real evidence: mechanical
-    (compliance-tracker PR #410, ci_timing_race, `gh run rerun --failed` applied
-    via --apply, confirmed via fresh `gh run view`) and judgment (compliance-tracker
-    PR #562, real finding, drafted prompt written to
-    ai-os/pending_remediation/audit-fail-compliance-tracker-562.md,
-    tight_task_validation.py-passing, NOT auto-dispatched).
-  - ai-os/MASTER_INDEX.yaml registries.status_monitor_and_remediation present
-    (on the prior task's own branch) with real test evidence recorded.
-  - Registered via `python3 scripts/superboss-register.py index-add`
-    (IDX-20260726-055513-eb14) -- verified present in the live sqlite DB
-    (`/opt/veridian/ai-os/memory/superboss-register.sqlite`, system_index table).
-  - OWNER_DECISIONS_NEEDED_2026-07-23.yaml entry filed and approved.
-- [x] **Found the real gap**: the prior task's own completion self-report was
-      rejected by task-gateway.py (`"no matching approved plan for this
-      task_id/increment"`), so its 2 real commits (c16da91 "Add real status
-      monitor + remediation dispatcher", ad76ad4 "Wire status monitor +
-      remediation dispatcher into cron, MASTER_INDEX, Owner decisions log")
-      were stranded on `worker/task-20260726-053322-status-monitor-and-
-      remediation-dispatche` and never reached claude-control's `master`. The
-      live deployment and crontab were never actually stale -- both were
-      already running this exact code correctly the whole time. The real risk
-      this left behind: git (the source of truth) didn't match what was
-      actually live, so a future `deploy-live-scripts.sh` run off `master`
-      would not have restored these two scripts.
-- [x] Fixed: merged the worker branch into claude-control `master`
-      (commit c913d33, clean auto-merge -- MASTER_INDEX.yaml and
-      OWNER_DECISIONS_NEEDED_2026-07-23.yaml both auto-merged with no
-      conflicts, no data loss) and pushed directly to `origin/master`.
-      claude-control has no branch-protection apparatus of its own (confirmed:
-      `gh api repos/.../branches/master/protection` returns 403, and every
-      precedent in ACTIVE-CLAIMS.yaml commits there directly) -- direct push
-      is the established, correct mechanism for this repo, distinct from this
-      workspace's own Rule 6 PR/CI gate.
-- [x] Re-verified post-merge: `/opt/veridian/scripts/veridian_status_monitor.py`
-      and `veridian_remediation_dispatcher.py` are byte-identical to the
-      now-merged master copies (`diff` clean on both).
-- [x] Registered this session's work in `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      `recently_completed:` (this compliance-tracker workspace).
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml + AGENTS.md/CLAUDE.md governance docs.
+- [x] Located PR #563 (`gh pr view 563`), branch
+      `worker/task-20260726-071400-migration-drift-audit-and-reconciliation`,
+      already checked out in another task's worktree -- worked via a local
+      branch built on `FETCH_HEAD` of that remote branch instead, then pushed
+      straight back to the same remote branch name (never touched the other
+      worktree).
+- [x] Registered `ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml` in
+      `ai-os/OS.yaml`'s `index.health_and_compliance` section. Verified locally
+      (via a temp `js-yaml`/`argparse` node_modules symlink, since `bun` was
+      not usable in this sandbox): without the entry the check reports 57
+      missing items including this file; with it, 56, and this file is no
+      longer in the missing list.
+- [x] Read migration `0245_create_platform_schema_compartment.sql` to confirm
+      the real relocation target (`ALTER TABLE compliance.dynamic_chains SET
+      SCHEMA platform;`), then corrected:
+      - `drizzle/0140_wave166_monitoring_tool_health.sql` line 39 ->
+        `platform.dynamic_chains`
+      - `drizzle/0199_gap_dcmd_rich_schema_slice.sql` (all 7 ALTER TABLE
+        lines) -> `platform.dynamic_chains`
+      - `drizzle/0253_tenant_ai_config.sql` line 27 `provider ai_provider` ->
+        `provider compliance.ai_provider` (confirmed `compliance.ai_provider`
+        is the real enum, defined in `drizzle/0004_ai_configurations_and_indexes.sql`)
+      Verified via grep: `compliance.dynamic_chains` no longer appears in
+      0140/0199; `platform.dynamic_chains` does.
+- [x] Fixed PR #563's own `PROGRESS.md` stale `[ ] Open PR` line (PR is
+      confirmed open) and documented the CI-fix work there.
+- [x] Registered this follow-up task + closed it in
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed:` (added directly,
+      since the fix was already complete by the time of registration).
+- [x] Committed + pushed both fixes directly to PR #563's branch (2 commits):
+      `92887462` (the 3 real fixes) and `2ea99ee0` (ACTIVE-CLAIMS entry).
+- [x] Found and flagged (NOT fixed -- out of scope, needs real per-file
+      research this task didn't have time/budget for): Metadata Index
+      Coverage Check has a much larger pre-existing gap, 56 unrelated
+      `ai-os/` files/scripts never indexed or exempted in `OS.yaml`. Confirmed
+      via `git worktree add` at PR #563's merge-base commit (`51b7cccc`) that
+      this gap already existed there (not introduced by PR #563), and via
+      `gh run view` on main's own latest CI run (commit `9bcdb108`) that
+      "Metadata Index Coverage Check" is failing on main HEAD right now for
+      the same reason. Deliberately did not bulk-register 56 files with
+      guessed descriptions -- this repo's own `OS.yaml` `covers:` entries are
+      all evidence-researched; fabricating them would undermine the exact
+      thing this check exists to catch. Recommend a dedicated follow-up claim.
 
 ## Remaining
-- [ ] None for this task. Nothing further required in compliance-tracker
-      itself -- the deliverable's canonical home is claude-control per the
-      established cross-repo pattern, and that repo is now caught up with
-      what has been live and tested since 2026-07-26T05:52 UTC.
-
-## What is now proactively monitored vs. what still needs an assistant's own judgment
-
-**Proactively monitored (real software, cron-driven, no AI/LLM calls in the run
-path)**: every real `task.yaml` under `ai-os/tasks/*` (in_progress with real
-elapsed time, blocked within the last 24h with the real reason read from its
-own checkpoint note / `review.json`), every real open PR across
-claude-control/compliance-tracker/projexa (`gh pr list` +
-`gh api .../issues/<pr>/comments` for real `AUDIT: FAIL` comments with no
-corrective commit since), and `auto_phase_continuation.py`'s own real
-`--dry-run` output for phases ready to auto-advance. Refreshed every 10
-minutes into one live, overwritten artifact:
-`/opt/veridian/ai-os/LIVE_STATUS_2026-07-26.yaml`.
-
-The remediation dispatcher auto-applies real fixes (no human/AI needed) for
-exactly 2 narrow, proven-safe mechanical classes: a confirmed CI-timing race
-(re-run via `gh run rerun --failed`) and a confirmed transient merge failure
-that has since gone clean (retried via `gh pr merge`).
-
-**Still needs an assistant's (or the Owner's) own judgment**: every file that
-accumulates under `ai-os/pending_remediation/` -- as of this session's real
-run, 6 real `AUDIT: FAIL` findings and 16 real non-transient (`DIRTY`) merge
-conflicts, each drafted as a corrective task prompt but deliberately NOT
-auto-dispatched, per this task's own CONSTRAINTS: the dispatcher never merges
-a PR or resolves a genuine security/correctness finding on its own. A human
-or assistant has to read each drafted prompt, confirm the finding is real
-(not a false positive -- the dispatcher itself found and fixed one such false
-positive during its own original testing, PR #484), and decide whether to
-dispatch it via `task-gateway.py`.
+- [ ] Owner sign-off on PR #563 (constitutionally required per this task's
+      own constraints -- prior live-DDL-before-review exception -- not
+      merged by this session under any circumstance).
+- [ ] `gh pr checks 563` will still show "Metadata Index Coverage Check" red
+      after this push, but for the separate pre-existing reason above, not
+      the migration-drift-audit-file gap this task fixed. A future session
+      should open a dedicated task to research and register/exempt the 56
+      flagged items.
+- [ ] No live database action was taken in this task (by design, per SPEC) --
+      the live DB was already correct per the prior audit; only repo files
+      were changed to match it.
