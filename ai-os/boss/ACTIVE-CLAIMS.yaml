@@ -40,7 +40,96 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260725-231836-phase2-prompt-compiler-pipeline-core-non) -- VERIDIAN_Architecture_v2.0 phase_2: compiler pipeline core (Layer 2-5, non-browser) + Intelligence/Matching engines"
+  - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      phase_3_governance_policy_cost_engines of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in repo
+      claude-control, target_repo: compliance-tracker per that phase's own
+      target_repo_note). Wires the approval-gate ENFORCEMENT on top of
+      phase_1's bare Draft/Review/Staging/Production/Deprecated state machine
+      (prompt-os-service.ts's transitionPromptLifecycle, currently a single
+      undifferentiated hasRole(veridian_admin) check + legal-transition check,
+      no real gate) -- plus the 7 Business/Policy-domain engines the gap
+      analysis confirmed have no real prior art under this domain (Business
+      Rule, Dependency, Policy, Compliance, Governance, Audit, Cost
+      Optimization -- explicitly distinct from same-named
+      20-Engines/compliance-tracker-product mechanisms, see gap analysis
+      items engine-business-rule/-dependency/-policy/-compliance/-governance/
+      -audit/-cost-optimization). Reuses rather than rebuilds: permission-
+      service.ts's ERP_ACTION_ROLES pattern (extended with a sibling
+      PROMPT_ACTION_ROLES table, same fail-closed roleFor()/requireRole()
+      wrapper shape, no role bar lowered vs. today's veridian_admin floor),
+      module_rule_configs/module-rule-service.ts (Business Rule Engine,
+      moduleKey='prompt_lifecycle' rows for eval-pass-threshold/canary-
+      duration/eval-budget), abac.ts/abac-policy-service.ts (Policy Engine,
+      resourceType='prompt_version' deny overlay), audit-event-triggers.ts's
+      recordAuditTrigger + audit.ts's logActivity/audit_logs (Audit Engine,
+      extended from CHANGE-only to lifecycle-transition/execution events --
+      no 3rd audit log), and llm-client.ts's estimateCostUsd (Cost
+      Optimization Engine, cumulative daily-budget guardrail on
+      prompt_eval_runs spend, not a new pricing model). New, previously-
+      absent code: PII/compliance content scan gate before Production
+      promotion, ownerId/stewardId governance-assignment gate, maker-checker
+      (approver != author) gate, canary-duration timestamp tracking, and a
+      live grep-based prompt-dependency lookup (Dependency Engine) -- no
+      static duplicate of WIRING_ENGINE_REGISTRY_2026-07-25.json. Also
+      produces a claude-control-native (config/schema only) deliverable:
+      ai-os/VERIDIAN_V2_LIFECYCLE_GOVERNANCE_SCHEMA_2026-07-25.yaml, mirroring
+      CAPABILITY_REGISTRY_SCHEMA_2026-07-24.yaml's Phase-0-schema/
+      Phase-1-live-wiring split -- schema design there, live enforcement code
+      here in compliance-tracker.
+
+      File scope (compliance-tracker, this repo): src/lib/db/schema.ts
+      (additive columns on promptTemplates/promptVersions only -- ownerId,
+      approvedById/approvedAt, stagingEnteredAt -- no existing column
+      changed), one new drizzle/*.sql migration (not applied live, same
+      "left for the supervising session" convention as drizzle/0262),
+      src/lib/services/permission-service.ts (additive PROMPT_ACTION_ROLES
+      block), a new src/lib/services/prompt-governance-service.ts (the new
+      engines), src/lib/services/prompt-os-service.ts and
+      src/lib/services/prompt-eval-service.ts (wire the new gates into
+      existing functions, no new HTTP routes required). Does not touch ERP_
+      ACTION_ROLES, abac.ts's evaluator, audit.ts's logActivity signature, or
+      any phase_1/phase_2 file's existing behavior for already-shipped call
+      sites. Also touches claude-control (separate repo, coordinate-not-run-
+      inside per this plan's own meta.cross_repo_dispatch_note): phase_3's
+      status in ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml plus
+      the new schema-design YAML above -- both config/YAML, no application
+      code, committed directly to that repo's master per the same precedent
+      already set there for phase_1/phase_2's own backfilled status entries
+      (claude-control has no AGENTS.md/branch-protection apparatus of its
+      own; compliance-tracker's Rule 6 PR/CI gate applies in full to every
+      compliance-tracker file above).
+
+      Collision check before starting: grepped this file for "phase_3"/
+      "governance"/"permission-service"/"prompt-governance" -- no other
+      active entry claims these paths. `gh pr list --state open` checked,
+      none found touching src/lib/services/prompt-os-service.ts,
+      permission-service.ts, or prompt-eval-service.ts. Known constraint
+      carried into this claim from memory: this session's gh token lacks
+      `workflow` scope, so governance-gitops-workflow's own CI-blocking sub-
+      item (making .github/workflows/ai-prompt-evals.yml''s existing eval
+      job a merge-blocking check) cannot be pushed this session -- documented
+      as an honest limitation in this phase's own evidence rather than
+      silently dropped or attempted-and-failed.
+
+      ADDENDUM (task-20260726-042710-fix-pr561-cross-tenant-governance-bypass,
+      2026-07-26T, corrective-fix session on this SAME branch/PR #561, not a
+      new claim): PR #561's AUDIT: FAIL found a real cross-tenant privilege-
+      escalation bug -- getPromptLifecycleRule() resolved prompt_lifecycle
+      thresholds through module-rules-resolver.ts's org-override chain even
+      though prompt_templates/prompt_versions/prompt_eval_runs have no orgId
+      column, letting any org's rank-5 admin weaken canary/eval-pass-rate
+      gates for a same-org veridian_admin to exploit against ANY platform-
+      wide template. Fixed: getPromptLifecycleRule()/checkPromptEvalBudget()
+      are now platform-only (no orgId param, read only scope_type='platform').
+      Also tightened the PII credit-card regex (real Luhn check) and added
+      DB-mocked test coverage for runLifecycleTransitionGates/
+      checkPromptEvalBudget (previously untested), incl. regression tests for
+      the cross-tenant scenario. Pushed as commits b97bdac5/8001e478 to the
+      same worker/task-20260726-035742-... branch. bun test: 2029 pass / 0
+      fail. Re-audit pending as of this addendum.
     claimed_at: "2026-07-25T (this session)"
     claim: |
       phase_2_compiler_pipeline_intelligence_engines of
