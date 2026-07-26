@@ -51,3 +51,5 @@ Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
 - [ ] None for this task's three sub-asks. PR open at
       https://github.com/FChecklist/compliance-tracker/pull/580 -- not
       self-merged (per this task's own constraint); left for CI + Owner review.
+- [x] Merged `origin/main` (PR #572, unrelated PROGRESS.md-only change from a sibling
+      task) to resolve a CONFLICTING merge state on PR #580. No source-code overlap.
