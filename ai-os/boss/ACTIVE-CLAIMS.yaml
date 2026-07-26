@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-171954-storage-rls---backup-pitr---supabase-mon) -- V2-15: Storage RLS + backup PITR + Supabase monitoring audit"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      Redispatch of V2-15-SUPABASE-DR-AUDIT (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md,
+      CSV rows #40/#41/#42 in claude-control's VERIDIAN_Review_Framework_evaluated_2045rows.csv).
+      `get_advisors` (security) audit on storage.objects RLS for the compliance-documents and
+      voice-memos buckets via the live Supabase project (pcrjmlpuqsbocqfwoxod), PITR/backup
+      verification via Supabase MCP, an RTO/RPO statement, and a Sentry-activation confirmation
+      check. Read-only against the live DB (get_advisors/execute_sql/get_project/get_organization),
+      docs-only deliverable in this repo -- no schema/RLS/code change (see the audit doc's own
+      verification section for why no storage.objects policy fix was needed).
+    scope_note: |
+      File scope: ai-os/V2_15_SUPABASE_DR_STORAGE_AUDIT_2026-07-26.md (new), PROGRESS.md.
+      No src/**, no drizzle/**, no .env changes. Collision check before starting: grepped
+      ACTIVE-CLAIMS.yaml for "storage.objects"/"pitr"/"backup"/"sentry"/"V2-15" -- no other
+      active entry claims this scope (one closed V2-10 Sentry-DSN-check entry exists under
+      recently_completed/history, no overlap: that task built the startup-warning code, this
+      task only reads/confirms activation status). `gh pr list --state open` checked, none
+      found touching storage RLS, PITR, or Sentry config files.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
