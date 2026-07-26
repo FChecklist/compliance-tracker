@@ -3095,6 +3095,11 @@ active:
     claim schema.ts index changes, a new migration, or a CRM-specific
     load-test harness. No open PR touches drizzle/*.sql for these tables or
     scripts/crm-perf-load-test.ts.
+
+    UPDATE (same session): PR #576 opened
+    (https://github.com/FChecklist/compliance-tracker/pull/576). Migration
+    NOT applied live (Tier2 hold, per protocol). Awaiting CI + Owner
+    sign-off.
 recently_completed:
   - session_label: "claude-code (task-20260726-105214-correct-stale-pr-state-claims-in-engine) -- Corrected stale claude-control PR #81 claims in PR #566 (compliance-tracker) + PR #83 (claude-control) [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
