@@ -38,6 +38,11 @@
       `tenant_ai_config`), 0 removed; 0 enum changes.
 - [x] Regenerated `ai-os/DATABASE_CATALOG.json` from that real run, committed.
 
+- [x] Opened PR #567 for the `ai-os/DATABASE_CATALOG.json` regeneration (not merged).
+      `gh pr view 567 --json mergeable` -> `MERGEABLE`.
+- [x] Registered this task's completion in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s
+      `recently_completed:` list.
+
 ## Remaining
-- [ ] Open a real PR for the `ai-os/DATABASE_CATALOG.json` regeneration (do not merge).
-- [ ] Final honest report to the user.
+- [ ] Owner sign-off / merge on both PR #563 and PR #567 (neither merged by this
+      session, per CONSTRAINTS).
