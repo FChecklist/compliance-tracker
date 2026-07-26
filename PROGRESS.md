@@ -7,6 +7,8 @@
   - Results: narrow/realistic search terms (a specific filing reference) went from **108-147ms Seq Scan** to **0.3-1.3ms Bitmap Heap Scan** (80-140x) across all three tables. A broad/unselective term ("GST", ~19% of rows) showed **no regression** — the planner correctly keeps using Seq Scan there.
 - [x] Wrote `drizzle/0264_search_perf_gin_trgm_indexes.sql` — adds the 4 missing GIN trgm indexes (`compliance_items.description`, `tasks.title`, `tasks.description`, `clients.name`) plus captures one pre-existing but **undocumented** live index (`idx_ct2_ci_title_trgm` on `compliance_items.title`) under its existing name so a fresh environment matches production. **Not applied live** — Tier2 (migration + live DB) holds for Owner sign-off per this task's constraints.
 - [x] No `search-service.ts` code change needed: `pg_trgm`'s opclass registers support for the `ILIKE` (`~~*`) operator directly, so the existing `ilike()` calls become index-eligible the moment the index exists — no query rewrite required.
+- [x] Committed the `ai-os/OS.yaml` index entry pointing at the EXPLAIN doc (was left uncommitted at the prior checkpoint).
+- [x] Opened PR #582 (https://github.com/FChecklist/compliance-tracker/pull/582) — CI running at time of this update (Guardrail Presence Check, Documentation Sentinel Check, Secret Scanning, Security Pattern Check already passing; rest pending).
 ## Live-DB drift found (flagged, not fixed — out of scope for V2-20)
 While checking for existing indexes on `compliance_items`, found it already carries, live on the `verdian-ai` Supabase project, with **zero matching migration file in this repo**:
 - `idx_ct2_ci_title_trgm` — a `gin(title gin_trgm_ops)` index (captured under its existing name in the new migration since it overlaps this task's scope)
@@ -15,5 +17,5 @@ While checking for existing indexes on `compliance_items`, found it already carr
 - `idx_ct2_ci_dept`, `idx_ct2_ci_status`, `idx_ct2_ci_due` (plain btree indexes)
 A repo-wide grep of `src/` found **no application code** referencing `search_vector`, `embedding`, or any `ct2_` symbol — this looks like a different, orphaned full-text/semantic-search experiment applied directly to the live DB outside of `drizzle/` and never committed or wired up. Not this task's objective to reconcile (V2-20 is specifically about `search-service.ts`'s plain-ilike path) — noting it here and in the EXPLAIN doc so it's visible for a future task rather than silently left as invisible drift.
 ## Remaining
-- [ ] Owner sign-off + live `apply_migration` of `drizzle/0264_search_perf_gin_trgm_indexes.sql` (Tier2 hold — not done by this session).
-- [ ] Open PR.
+- [ ] CI to finish on PR #582 and merge (no direct-to-main push per Rule 6).
+- [ ] Owner sign-off + live `apply_migration` of `drizzle/0264_search_perf_gin_trgm_indexes.sql` (Tier2 hold — not done by this session; can happen independent of / after PR merge since the migration file itself is inert until applied).
