@@ -130,10 +130,11 @@ const GEMINI_25_PRO = "google/gemini-2.5-pro" // deep research/analysis, kept fr
 // wanted again later, scope it as an explicit, rate-limited escalation
 // path, not a standing model assignment.
 // DEEPSEEK_V4_PRO (added 2026-07-10, founder decision): available model option, not yet
-// assigned to a role. Founder discarded the plan to fund a direct ANTHROPIC_API_KEY for a
-// headless "Claude" dispatch agent (AGENTS.md's claude-task path, which never had a working
-// job behind it anyway -- ai-dispatch.yml only implements a zai-agent stub) in favor of
-// this OpenRouter-routed model, verified live against openrouter.ai/api/v1/models 2026-07-10.
+// assigned to a role. Founder discarded the plan to fund a direct Anthropic API key for a
+// headless "Claude" dispatch agent (AGENTS.md's Claude dispatch event, which never had a
+// working job behind it anyway -- ai-dispatch.yml only implemented a zai-agent stub; pending
+// removal in V2-23-REMOVE-DEAD-ANTHROPIC-PATH) in favor of this OpenRouter-routed model,
+// verified live against openrouter.ai/api/v1/models 2026-07-10.
 const DEEPSEEK_V4_PRO = "deepseek/deepseek-v4-pro" // Wired to governance_backend_engineer as of Wave 161 (Boss directive, DMP-DCF implementation: "take help of DeepSeek model and OSS GPT"). Pinned to OpenRouter provider "DeepSeek" (founder directive, 2026-07-10) -- see OPENROUTER_PROVIDER_PREFERENCE in llm-client.ts.
 // Founder directive, 2026-07-10 (6-tool infra integration: PaddleOCR,
 // Docling, Meilisearch, Whisper.cpp, LibreOffice Headless, Temporal):

@@ -20,13 +20,9 @@
 - **Cannot**: push or merge directly to `main` (see Operating Rule 6, added 2026-07-10)
 - **API key**: stored as `ZAI_API_KEY` in GitHub Secrets
 
-### Claude Code (Secondary Agent)
-- **Authority**: FULL_ACCESS — all repositories, all files, all operations
+### Claude Code (Secondary Agent) — PENDING REMOVAL 2026-07-26 (V2-23-REMOVE-DEAD-ANTHROPIC-PATH)
+- **Status**: this role's dispatch path (a `repository_dispatch` event type in `ai-dispatch.yml`, authenticated via an `ANTHROPIC_API_KEY` GitHub Secret) never had a working job behind it — `ai-dispatch.yml` only ever implemented the Z.ai stub, and the founder explicitly discarded funding this key (see `src/lib/ai-team/roster.ts`'s `DEEPSEEK_V4_PRO` comment, 2026-07-10). A PR removing this dead trigger event and the separately-dead `@claude`-comment GitHub Action workflow that also referenced this same never-funded key (both real dead code per V2-23) is open, but the workflow-file half of that diff is blocked on this session's `gh` token lacking the `workflow` OAuth scope GitHub requires to push any `.github/workflows/*.yml` change — see PROGRESS.md on the V2-23 branch for the exact pending patch. This is a distinct concept from the "Super Boss" role above (an interactive local session authenticated via the Owner's own `CLAUDE_CODE_OAUTH_TOKEN` Claude Code subscription, which remains fully live) and from `src/lib/orchestra-model-resolver.ts`'s unrelated, live `anthropic` provider option (a customer-facing bring-your-own-key LLM provider choice, not an agent-dispatch mechanism — left untouched).
 - **Owner**: raajat.agarwal@gmail.com
-- **Trigger**: `repository_dispatch` event type `claude-task`
-- **Can**: read/write all code, create branches, open PRs, architecture decisions, code review
-- **Cannot**: push or merge directly to `main` (see Operating Rule 6, added 2026-07-10)
-- **API key**: stored as `ANTHROPIC_API_KEY` in GitHub Secrets
 
 ## Operating Rules
 1. Zero human coding — all changes made by AI agents only
