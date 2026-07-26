@@ -45,8 +45,8 @@ branch/PR, not a new PR.
 - [x] Added 2 PII Luhn tests to prompt-governance-service.test.ts (Visa test PAN flagged; non-card 16-digit ID not flagged)
 - [x] bun install (bun wasn't present in this task's sandbox -- installed via bun.sh/install), tsc --noEmit clean, eslint clean on all touched files
 - [x] bun test: full suite 2029 pass / 0 fail across 166 files (includes the new/modified files)
-- [ ] Commit + push corrective commits to the existing PR #561 branch (worker/task-20260726-035742-phase3-business-rule-permission-policy-c) -- do not open a new PR
-- [ ] Final checkpoint to user: chosen remediation direction (platform-only rules, not org-scoped resources) + why, and confirm PR ready for re-audit
+- [x] Commit + push corrective commits to the existing PR #561 branch (worker/task-20260726-035742-phase3-business-rule-permission-policy-c) -- pushed as b97bdac5, did not open a new PR
+- [x] Final checkpoint to user: chosen remediation direction (platform-only rules, not org-scoped resources) + why -- see below, PR ready for re-audit (CI running as of push)
 
 ## Remediation direction chosen: platform-only rules (not org-scoped resources)
 
