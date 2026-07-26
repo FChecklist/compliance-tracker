@@ -13,5 +13,5 @@
 - [x] Wrote audit doc: `ai-os/DELEGATION_EXPIRY_ENFORCEMENT_AUDIT_2026-07-26.md` (methodology, findings, what was wired vs. deliberately left alone and why, verification commands).
 
 ## Remaining
-- [ ] Open PR against `compliance-tracker` (this is auth-logic -- Tier2, holds for Owner sign-off per task constraints, no autonomous merge regardless of CI outcome).
+- [x] Open PR against `compliance-tracker`: [#579](https://github.com/FChecklist/compliance-tracker/pull/579) (this is auth-logic -- Tier2, holds for Owner sign-off per task constraints, no autonomous merge regardless of CI outcome).
 - Documented-not-actioned follow-ups (see audit doc's "no delegation scope applies" section and closing note): `permission-service.ts`'s `ERP_ACTION_ROLES` (a much larger, separate RBAC primitive spanning ~51 routes -- out of scope for this task's blast radius), and `createDelegation()` not currently verifying the delegator holds the authority they're handing off (a delegation-*creation* gap, distinct from this task's delegation-*expiry-at-consumption* scope).
