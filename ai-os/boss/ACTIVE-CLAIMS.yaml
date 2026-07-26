@@ -2986,8 +2986,7 @@ active:
       (line ~1773), MERGED PR #353+projexa#23, projexa-repo scope -- no
       file overlap with this compliance-tracker build. No other active
       claim touches compliance-engine-registry.ts, src/lib/engines/ae/,
-      erp-einvoice-service.ts, or the statutory-rule enum. Will move to
-      recently_completed once the PR merges.
+      erp-einvoice-service.ts, or the statutory-rule enum.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
@@ -3048,6 +3047,45 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260726-172009-e-invoicing-per-line-gstrt-fix---irp-for) -- V2-21 E-invoicing per-line GstRt fix + IRP format scaffolding: re-verified ALREADY SHIPPED, moved stale V2-1 claim below, no code change needed"
+    claimed_at: "2026-07-26T (this session)"
+    claim: >-
+      Redispatch of a task pre-emptively blocked by a spend-governance gate
+      before any work started, re-triaged 2026-07-26 as GENUINELY_STILL_OPEN
+      based on `src/lib/services/erp-einvoice-service.ts:77` on `origin/main`
+      allegedly still hardcoding `GstRt: 0`. Live re-verification this
+      session (HEAD == origin/main == 7d8c6f28) found that claim stale: the
+      fix landed 2026-07-21 in commit 3dfc0aa1/b4220392 ("V2-1: finish UAE
+      country pack"), merged via PR #492 -- already an ancestor of this
+      session's starting HEAD. `grep GstRt src/lib/services/erp-einvoice-service.ts`
+      shows no hardcoded stub; the per-line rate is now resolved from
+      `erpTaxTemplateItems.rate` via the line's `taxTemplateId`, combined and
+      split into CGST/SGST/IGST, and passed to
+      `src/lib/engines/einvoice-format.ts`'s `buildEInvoicePayload()`, which
+      routes IN (IRP JSON, `GstRt: Number(item.taxRatePercent)`) vs AE (FTA
+      Peppol UBL) off `organisations.country` with no India hardcoding.
+      Covered by `einvoice-format.test.ts` (asserts `GstRt` is 18, not 0, on
+      the IN path). GSP-sandbox live-IRP-submission stays deferred on
+      Owner-provisioned creds, exactly as V2-21 always specified -- unchanged
+      by this session. Per the task's own instruction ("if the finding turns
+      out to already be resolved... say so in PROGRESS.md rather than making
+      an unnecessary change"), made NO source code change. Docs-only PR:
+      moved the V2-1 claim below (line ~2943 prior, active since 2026-07-20,
+      never cleared after PR #492 merged) from `active:` to here, and
+      annotated V2-21/C12 in
+      `ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md` as RE-SCORED
+      CLOSED (code half) to match the C1 precedent's annotation style.
+  - session_label: "claude-code (task-20260720-022700-superboss-v2-plan--finish-the-uae-countr) -- SUPERBOSS v2 TASK V2-1: Finish the UAE country pack (Multi-Country pluggability proof) [MERGED PR #492 -- also closed V2-21's code half, see the compliance-tracker entry above]"
+    claimed_at: "2026-07-20T (original session; moved from active: to here 2026-07-26 by task-20260726-172009-e-invoicing-per-line-gstrt-fix---irp-for after confirming the merge -- this entry had sat unmoved in active: for 6 days past merge)"
+    claim: >-
+      See the original claim text (preserved in git history at this file's
+      prior revision) for full detail. Summary: built src/lib/engines/ae/
+      (vat-engine.ts + corporate-tax-engine.ts), registered UAE in
+      compliance-engine-registry.ts, added the country-config e-invoice
+      FORMAT path (einvoice-format.ts, IN IRP JSON vs AE FTA Peppol UBL) with
+      the V2-21 per-line GstRt fix folded in, plus country-config.test.ts +
+      einvoice-format.test.ts. Merged as PR #492 (commits 3dfc0aa1/b4220392),
+      2026-07-21T14:22:40Z, ancestor of origin/main as of this note.
   - session_label: "claude-code (task-20260726-105214-correct-stale-pr-state-claims-in-engine) -- Corrected stale claude-control PR #81 claims in PR #566 (compliance-tracker) + PR #83 (claude-control) [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
     claim: >-

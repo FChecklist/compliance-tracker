@@ -98,7 +98,7 @@ This is why the CSV Status column cannot be trusted alone: it predates #433/#483
 | C9 | #61 Multi-office selector correctness | Audit each major module for `branchId` filtering (currency-audit precedent). Code. | V2-18 |
 | C10 | #62/#63 Cache hit-rate + cost-savings metrics | Wire real production metrics recording into the Prompt & Cache framework (the framework exists; metrics emission doesn't). Code. | V2-19 |
 | C11 | #67 Search performance at scale | `EXPLAIN ANALYZE` + add `pg_trgm`/GIN index if needed. Code. | V2-20 |
-| C12 | #70 E-invoicing (UAE/India) + per-line GstRt | Fix the per-line GstRt gap in code; GSP sandbox creds = Owner-provisioned (that half deferred), but the GstRt fix + IRP-format scaffolding is code. | V2-21 |
+| C12 | #70 E-invoicing (UAE/India) + per-line GstRt | Fix the per-line GstRt gap in code; GSP sandbox creds = Owner-provisioned (that half deferred), but the GstRt fix + IRP-format scaffolding is code. **RE-SCORED CLOSED 2026-07-26 (code half, PR #492):** shipped inside V2-1's UAE-country-pack PR -- see V2-21 for detail. GSP-sandbox live-test half stays deferred (V2-6). | V2-21 ✅ (code half) |
 | C13 | #71 Bank credential storage security | Reuse `ai-config-crypto.ts`'s encryption for any future bank-API config; **target lowered to 3** (the row's own recommendation) -- no action until live bank-API is prioritized. Close by recording the lowered target. | V2-6 |
 | C14 | #73/#74/#75 Executive reporting (scoring/drill-down/cadence) | Domain-expert scoring review = real-external reviewer (deferred); **drill-down UI walkthrough + cadence scheduled-job** are code. | V2-22 |
 | C15 | #01 ANTHROPIC_API_KEY dead code path | **DECIDED: remove the dead code path** (the key is not being activated; per AGENTS.md the secondary `claude-task` path "has never had a working job behind it"). Removing dead code is a code decision, not a money decision. | V2-23 |
@@ -344,6 +344,17 @@ This is why the CSV Status column cannot be trusted alone: it predates #433/#483
 - DONE CRITERIA: Index applied + EXPLAIN doc; row re-scored; PR open.
 
 ### V2-21 — E-invoicing per-line GstRt fix + IRP format scaffolding [C12]
+- **RE-SCORED CLOSED 2026-07-26 (code half, PR #492, merged 2026-07-21):** the GstRt fix and IN/AE
+  format scaffolding shipped as part of V2-1's UAE-country-pack PR rather than a separate PR --
+  `src/lib/engines/einvoice-format.ts` resolves `GstRt` from each line's real tax-template rate
+  (`erpTaxTemplateItems.rate`, combined + CGST/SGST/IGST-split in `erp-einvoice-service.ts`) instead
+  of the old hardcoded `GstRt: 0`, and routes IN vs AE through `buildEInvoicePayload()` with no India
+  hardcoding. Covered by `einvoice-format.test.ts`. The per-line tax-rate column on
+  `erp_sales_invoice_items` was NOT needed -- the rate is derived from the existing `taxTemplateId`
+  link, so no Tier2 schema change was required for this half. The GSP-sandbox live-IRP-submission
+  half stays deferred on Owner-provisioned creds, unchanged, tracked under V2-6 as this row always
+  said. Re-verified live against `origin/main` HEAD 2026-07-26 (task
+  task-20260726-172009-e-invoicing-per-line-gstrt-fix---irp-for) -- no further code change needed.
 - READY: yes (GstRt half); GSP-sandbox half blocked on Owner-provisioned creds
 - SOFTWARE TEAM LEVEL: L3 Feature Worker
 - TASK ID: V2-21-EINVOICING-GSTRT
