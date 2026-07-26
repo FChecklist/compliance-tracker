@@ -17,6 +17,14 @@
 - [x] Opened PR #581: https://github.com/FChecklist/compliance-tracker/pull/581
 
 ## Remaining
-- [ ] CI to run and confirm green on PR #581 (could not run bun/check-*.mjs/tsc/eslint locally in this sandboxed environment -- no bun binary, no node_modules; flagged honestly in the PR body rather than asserted)
+- [ ] CI to run and confirm green on PR #581 -- **observed anomaly**: GitHub Actions has not
+      triggered at all on this PR as of this session (zero workflow runs for this branch via
+      `gh api .../actions/runs?branch=...`; head commit's check-suites list Vercel/Supabase/
+      Cursor/Fly.io/Claude only, no "GitHub Actions" entry, unlike e.g. PR #570's commit which
+      shows 5). Tried an empty-commit nudge (908f8008) to force a `synchronize` event; still
+      nothing after that. Flagged honestly via a PR comment rather than silently assumed green
+      or worked around -- this looks like a real dispatch gap on GitHub's/repo's side, not a
+      content problem (docs-only diff, hand-verified as valid YAML/Markdown in-session since
+      this sandboxed environment has no bun/node_modules to run the real check scripts).
 - [ ] Owner/reviewer sign-off, then merge (not done by this session per Rule 6)
 - [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed once merged
