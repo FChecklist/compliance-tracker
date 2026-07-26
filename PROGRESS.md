@@ -46,10 +46,16 @@ Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
 - [x] No schema/migration change -- all columns used
       (dynamicChainId/chainSelectorSkipped/contextEntityType/contextEntityId/
       businessTerminologyGlossary) already existed. Tier1, additive-only.
+- [x] Re-checked on resume (invocation 2/20): PR #580 had gone CONFLICTING against
+      `main` (main picked up PR #572, an unrelated PROGRESS.md-only change from a
+      sibling task). Merged `origin/main` into this branch, resolved the PROGRESS.md
+      conflict by keeping this task's own log (the other side was a different task's
+      workspace content, no source-code overlap), re-ran `bunx tsc --noEmit -p .`
+      (clean) and `bun test` (exit 0) post-merge, pushed. PR #580 is now
+      `mergeable: MERGEABLE` / `mergeStateStatus: BLOCKED` (CI running fresh off the
+      push, not self-merged per this task's own constraint).
 
 ## Remaining
 - [ ] None for this task's three sub-asks. PR open at
       https://github.com/FChecklist/compliance-tracker/pull/580 -- not
       self-merged (per this task's own constraint); left for CI + Owner review.
-- [x] Merged `origin/main` (PR #572, unrelated PROGRESS.md-only change from a sibling
-      task) to resolve a CONFLICTING merge state on PR #580. No source-code overlap.
