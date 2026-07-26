@@ -16,15 +16,17 @@
 - [x] Committed doc + OS.yaml + plan re-score (ca1c7aa9), pushed
 - [x] Opened PR #581: https://github.com/FChecklist/compliance-tracker/pull/581
 
+- [x] CI dispatch anomaly resolved on its own -- GitHub Actions has now run on PR #581.
+      All branch-protection **required** checks pass: Lint, Type Check, Build, audit-check,
+      Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests (confirmed via
+      `gh api repos/.../branches/main/protection --jq '.required_status_checks.contexts'`).
+      One non-required check, "Metadata Index Coverage Check", shows failing -- verified this
+      is pre-existing on `main` itself (same check fails on `main`'s own head commit, over
+      ~40 unrelated files under ai-os/scripts/* and ai-os/registry/*, none of which this PR
+      touches; the new V2-12 doc is already correctly indexed in ai-os/OS.yaml). Left that
+      pre-existing gap out of scope rather than a drive-by fix. Posted a PR comment explaining
+      both findings: https://github.com/FChecklist/compliance-tracker/pull/581#issuecomment-5084984271
+
 ## Remaining
-- [ ] CI to run and confirm green on PR #581 -- **observed anomaly**: GitHub Actions has not
-      triggered at all on this PR as of this session (zero workflow runs for this branch via
-      `gh api .../actions/runs?branch=...`; head commit's check-suites list Vercel/Supabase/
-      Cursor/Fly.io/Claude only, no "GitHub Actions" entry, unlike e.g. PR #570's commit which
-      shows 5). Tried an empty-commit nudge (908f8008) to force a `synchronize` event; still
-      nothing after that. Flagged honestly via a PR comment rather than silently assumed green
-      or worked around -- this looks like a real dispatch gap on GitHub's/repo's side, not a
-      content problem (docs-only diff, hand-verified as valid YAML/Markdown in-session since
-      this sandboxed environment has no bun/node_modules to run the real check scripts).
 - [ ] Owner/reviewer sign-off, then merge (not done by this session per Rule 6)
 - [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed once merged
