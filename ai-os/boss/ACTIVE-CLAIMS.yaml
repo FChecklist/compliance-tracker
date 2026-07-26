@@ -3048,6 +3048,26 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260726-102520-analyze-update--supabase-schema-migratio) -- Live Supabase schema/migration analysis: resolved PR #563 conflict, regenerated DATABASE_CATALOG.json [CLOSED, compliance-tracker PR #567 open]"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      Resolved PR #563's real CONFLICTING/DIRTY merge conflict against main
+      (PROGRESS.md narrative -- took main's more-current side; ACTIVE-CLAIMS.yaml
+      recently_completed: list -- kept both real sides' entries) via a scratch
+      worktree/branch pushed straight back to PR #563's own remote branch (never
+      touched that other task's live worktree). Verified `gh pr view 563
+      --json mergeable` now MERGEABLE. Re-verified live state matches PR #563's
+      prior fix, no new drift: drizzle.__drizzle_migrations on compliance-tracker
+      (pcrjmlpuqsbocqfwoxod) still 261 rows matching 261 real migration files;
+      projexa (evpckeuxgvahguwsaeul) confirmed to still have no `drizzle` schema
+      at all (out of scope). Re-ran ai-os/scripts/extract-db-schema-catalog.mjs
+      against current schema.ts (installed just drizzle-orm + @paralleldrive/cuid2
+      into a scratch node_modules -- no bun/existing install in this sandbox) and
+      regenerated ai-os/DATABASE_CATALOG.json: 449 tables / 124 enums, real growth
+      from the 2026-07-20 baseline (444/124) -- 5 tables added (crm_activities,
+      crm_campaigns, crm_lost_reasons, ops_dev_tasks, tenant_ai_config), 0 removed,
+      0 enum changes. Opened PR #567 for the catalog regeneration; did not merge
+      either PR (#563 or #567) per this task's own CONSTRAINTS.
   - session_label: "claude-code (task-20260726-074124-status-monitor-and-remediation-dispatche, redispatch of 053322) -- Status monitor + remediation dispatcher: landed stranded work on claude-control master [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
     claim: |
