@@ -128,3 +128,36 @@
 - C16 and the paid half of C19 are *deferred*, not *closed* — they are recorded as decisions ("not now" / "not without spend authorization") rather than left ambiguously pending.
 - C17 is *blocked on an Owner action*, not closed — this doc surfaces the request but cannot perform the provisioning.
 - The frozen-2026-07-16 CSV `Status` column is stale (per v2 §1); the "Re-score" lines above are the intended post-decision statuses, to be applied when the CSV is re-scored. This doc does not edit the CSV itself (it lives in `claude-control/`, a separate repo outside this task's scope).
+
+---
+
+## C8 (V2-17) — Payroll rate CA/payroll-specialist verification: **DEFERRED — real external reviewer required**
+
+- **CSV rows**: `#52-#58` HR "Performance/Error-handling Under Load" (7 rows), specifically the payroll rate-table
+  audit half of V2-17-HR-PERF-VALIDATION.
+- **Decision**: **Defer the CA/payroll-specialist verification half.** The code half (confirming no hardcoded
+  rate-seed table exists, flagging the genuinely-hardcoded statutory constants that do exist in
+  `src/lib/engines/payroll-engine.ts` for review, confirming the admin-editable master-data design hasn't
+  regressed) is done — see `ai-os/PAYROLL_RATE_SEED_AUDIT_2026-07-26.md` for the full audit. Whether
+  `STATUTORY_CAP` (₹20,00,000 Gratuity Act ceiling), `EPS_WAGE_CEILING` (₹15,000 EPFO wage ceiling), the
+  Payment of Bonus Act 8.33–20% bounds, and any given org's own configured `erp_statutory_rules`/
+  `erp_income_tax_slabs` rows are still current for FY2026-27 requires a real external CA/payroll-specialist
+  reviewer — this is a domain-verification task, not a code task, and V2-17's own stated constraint names it
+  as deferred-on-real-external-reviewer.
+- **Rationale**: This codebase has no CA/payroll-specialist role or credential to consult, and guessing at
+  current statutory rates rather than deferring to a real professional would risk shipping an incorrect
+  statutory-deduction claim — the same class of risk `erp-payroll-service.ts`'s own design already refuses to
+  take (fail to manual entry, never fail to a silently-wrong guessed rate). This is a domain-expertise gap,
+  not an engineering one, matching this doc's own C14 precedent (executive-reporting scoring review =
+  real-external-reviewer, same disposition).
+- **Authority basis**: Within granted decision authority to *recognize and defer* a real-external-reviewer
+  requirement (no money spent, no code shipped that pretends to be CA-verified when it isn't). Does not
+  authorize skipping the review — the deferred status stays open until a real CA/payroll specialist is
+  engaged.
+- **Re-score**: rows #52-#58's payroll-rate-audit sub-item moves to *Decided – code half done, CA-verification
+  half blocked on a real external reviewer (not an Owner config action, not a money decision)*. No code written
+  for this half; the code half (§1-§3 of the audit doc) **is** written and closes the code-closable portion of
+  these rows.
+- **Plan ref**: §2(c) C8/V2-17 → V2-6.
+
+---
