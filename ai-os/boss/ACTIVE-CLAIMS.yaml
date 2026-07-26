@@ -40,6 +40,53 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-172000-hr-performance-error-handling---payroll) -- V2-17 HR performance/error-handling + payroll rate audit"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      V2-17-HR-PERF-VALIDATION (redispatch of a task originally created
+      2026-07-20, pre-emptively blocked by a spend-governance gate before any
+      work started; re-verified GENUINELY_STILL_OPEN by a 2026-07-26 triage
+      pass, ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-26.md, objective key
+      hr-performance-payroll). Closes CSV rows #52-#58 (C8 in
+      SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md).
+
+      Checked this file for collisions before starting: no other active or
+      recently_completed entry names V2-17, payroll rate audit, HR dashboard
+      caching, or a payroll/recruitment/attendance/vendor-scorecard load-test
+      harness. The only adjacent entries are the already-merged HR Attendance
+      wave (hr-attendance-service.ts et al, distinct concept, not touched
+      here except as an import for its isValidDateString/assertNotFutureDate
+      helpers) and V2-1's UAE country-pack claim (payroll-engine.ts mentioned
+      there only as an unrelated file in a list, not actually touched by that
+      claim).
+
+      Scope delivered (code halves; CA-review half deferred per this task's
+      own constraint, recorded in ai-os/REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md):
+      (1) ai-os/PAYROLL_RATE_SEED_AUDIT_2026-07-26.md -- confirmed no
+      hardcoded rate-seed table exists (erp_statutory_rules/erp_income_tax_slabs
+      are admin-editable master data by design), flagged the 3 genuinely-
+      hardcoded statutory constants in payroll-engine.ts for CA verification;
+      (2) employee/onboarding validation UX fixes: employmentType enum check
+      + dateOfJoining/dateOfBirth sanity checks in hr-service.ts's
+      upsertEmployeeProfile (extracted as validateEmployeeProfileInput for
+      testability), stage validation in
+      src/app/api/me/onboarding-stage/route.ts; (3) new
+      src/lib/services/hr-dashboard-service.ts -- HR dashboard KPI
+      aggregation + in-process TTL cache (asset-registry-cache.ts's
+      convention), new GET /api/hr/dashboard route, wired into the existing
+      HR page UI; (4) scripts/hr-payroll-load-test.ts -- service-layer load
+      test harness for payroll/recruitment/attendance/vendor-scorecard reads
+      (NOT executed in this sandbox -- no bun/DATABASE_URL available; see
+      docs/testing/HR_PAYROLL_LOAD_TEST_RESULTS.md for that honest
+      disclosure + exact run command); (5) a real N+1 performance fix found
+      while building the harness: erp-buying-service.ts's
+      listSupplierScorecards batched from 3N sequential queries down to 3
+      total, with a test proving the batch math matches the original
+      per-supplier math. File scope: hr-service.ts, hr-dashboard-service.ts
+      (new), erp-buying-service.ts, src/app/api/hr/dashboard/route.ts (new),
+      src/app/api/me/onboarding-stage/route.ts, src/app/(app)/hr/page.tsx,
+      scripts/hr-payroll-load-test.ts (new), 3 new .test.ts files, the 2 docs
+      above. Will move this entry to recently_completed once the PR merges.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |

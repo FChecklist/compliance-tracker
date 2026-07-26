@@ -5,11 +5,24 @@ import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { checkAndUnlockAchievements } from "@/lib/services/veri-reward-service"
 
+// V2-17 HR validation UX cross-check (2026-07-26): keep in sync with
+// OnboardingChecklist.tsx's STEPS ids -- that component is the only real
+// caller and always sends one of these 4 (see its toggleStep/autoComplete
+// fetch calls). Previously this route accepted ANY string (or none at all,
+// which would have set onboardingStage to undefined/null) with zero
+// validation; rejecting anything else stops a malformed direct API call
+// from silently corrupting users.onboardingStage.
+const VALID_ONBOARDING_STAGES = ["profile", "compliance", "connectors", "invite"]
+
 export async function PATCH(request: NextRequest) {
   const { user, dbUser, orgId, response } = await requireAuth()
   if (!user || !dbUser) return response!
 
   const { stage, allComplete } = await request.json() as { stage?: string; allComplete?: boolean }
+
+  if (typeof stage !== "string" || !VALID_ONBOARDING_STAGES.includes(stage)) {
+    return NextResponse.json({ error: `stage must be one of: ${VALID_ONBOARDING_STAGES.join(", ")}` }, { status: 400 })
+  }
 
   const updateData: Record<string, unknown> = { onboardingStage: stage }
   // VERI Reward / onboarding_complete: users.onboardingCompleted is set to

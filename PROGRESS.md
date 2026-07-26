@@ -1,56 +1,96 @@
-# PROGRESS -- task-20260726-115425-resolve-pr563-merge-conflict--supabase-m
+# PROGRESS -- task-20260726-172000-hr-performance-error-handling---payroll
+
+V2-17-HR-PERF-VALIDATION: "HR performance/error-handling + payroll rate audit" (CSV rows
+#52-#58). Redispatch of a task originally blocked by a spend-governance gate before any
+work started; re-verified GENUINELY_STILL_OPEN by the 2026-07-26 triage pass. Claim
+registered in `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no collision found with any other active
+claim or open PR.
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- confirmed no other active claim
-      overlaps PR #563's branch/file scope.
-- [x] Confirmed PR #563 (`worker/task-20260726-071400-migration-drift-audit-and-reconciliation`)
-      was CONFLICTING/DIRTY against `main`, reintroduced by PR #568 (a later,
-      unrelated stale-PR-state correction) touching the same
-      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` files after the prior
-      session's "resolved -> MERGEABLE" claim (task-20260726-102520) had
-      already stopped holding.
-- [x] Merged `origin/main` into PR #563's existing branch, in its existing
-      worktree (`/opt/veridian/ai-os/tasks/task-20260726-071400-.../workspace`)
-      -- did not create a duplicate worktree, did not touch any other task's
-      checkout.
-- [x] Resolved both real conflicts:
-      - `PROGRESS.md` -- combined every prior task's real narrative on this
-        branch instead of dropping either side.
-      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- union-merged both sides'
-        `recently_completed` entries (same pattern used repeatedly on this
-        file this session), plus added this task's own entry.
-- [x] While validating the merged YAML (`python3 -c "import yaml;
-      yaml.safe_load(...)"`), found the parse still failed on a
-      **pre-existing bug already on `main`**, unrelated to this merge: 3 list
-      entries (2026-07-19/07-21 claims) and 5 `scope_note:` keys were
-      mis-indented by 2 spaces, going back as far as the 2026-07-20 V2-7
-      entry. Fixed via whitespace-only re-indentation (verified via a Python
-      script operating on exact line ranges, no content altered) -- file now
-      parses (75 `active` + 65 `recently_completed` entries).
-- [x] Verified live, read-only (no DDL/migration executed, per CONSTRAINTS):
-      `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` on compliance-tracker
-      (project `pcrjmlpuqsbocqfwoxod`, via Supabase MCP `execute_sql`) still
-      returns 261 rows, matching PR #563's original fix -- no drift.
-- [x] Pushed the resolved merge commit (`d6ceb270`) directly to PR #563's
-      existing branch. Did not open a new PR, did not merge PR #563.
-- [x] Updated PR #563's body (via `gh api ... -X PATCH -F body=@...`, since
-      `gh pr edit`/`gh pr view` both hit an unrelated GitHub GraphQL
-      Projects-classic deprecation error / silent line-truncation
-      respectively) with the conflict-resolution summary and the live
-      verification result.
-- [x] Confirmed `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
+
+- [x] Re-verified the redispatch's triage evidence against the live tree before writing
+      any code: confirmed `payroll-engine.ts` takes rates as caller-supplied parameters
+      (no hardcoded seed table), confirmed zero HR-dashboard-caching hits under
+      `src/lib/services`/`src/app/api/hr`, confirmed no payroll/recruitment/attendance/
+      vendor-scorecard load-test script existed anywhere in the tree. All three findings
+      still held true.
+- [x] Payroll rate-table seed audit: `ai-os/PAYROLL_RATE_SEED_AUDIT_2026-07-26.md`.
+      Confirmed there is no hardcoded rate-*seed table* in code (erp_statutory_rules/
+      erp_income_tax_slabs are admin-editable master data by design, per Wave 56/68's own
+      schema.ts comments) -- the real audit surface is 3 genuinely-hardcoded statutory
+      constants in `payroll-engine.ts` (STATUTORY_CAP ₹20L Gratuity Act ceiling,
+      EPS_WAGE_CEILING ₹15,000, Bonus Act 8.33-20% bounds), flagged with file:line for a
+      real CA/payroll-specialist to verify against the current FY2026-27 notification.
+      Also explicitly recorded that the redispatch prompt's "GstRt parity" phrase is a
+      cross-reference bleed from an adjacent, separately-tracked decision-log row (C12 /
+      CSV #70, e-invoicing) -- not a real V2-17 ask -- rather than silently acting on an
+      ambiguous instruction or silently dropping it.
+- [x] CA/payroll-specialist verification recorded as deferred in
+      `ai-os/REVIEW_FRAMEWORK_DECISIONS_2026-07-19.md` (new "C8 (V2-17)" entry), per this
+      task's own constraint that this half stays deferred on a real external reviewer.
+- [x] Employees invite/onboarding validation UX cross-check -- 2 real gaps found and fixed:
+  - `hr-service.ts`'s `upsertEmployeeProfile` had zero validation on `employmentType`
+    (unlike `employmentStatus`, which was already checked) and zero validation on
+    `dateOfJoining`/`dateOfBirth` format/sanity. Fixed: extracted a pure
+    `validateEmployeeProfileInput()` (testable without a DB, matching this repo's
+    established convention) that checks `employmentType` against the 4 documented values,
+    validates `dateOfJoining`'s format (future dates legitimately allowed -- onboarding
+    ahead of a start date), and rejects a malformed or future `dateOfBirth` (reusing
+    `hr-attendance-service.ts`'s existing `isValidDateString`/`assertNotFutureDate`
+    helpers rather than reinventing them).
+  - `PATCH /api/me/onboarding-stage` accepted any string (or none at all) for `stage`
+    with zero validation. Fixed: validates against the 4 known step ids from
+    `OnboardingChecklist.tsx`'s own `STEPS` (kept in sync via an explicit code comment,
+    UI component itself left untouched since this sandbox has no way to browser-test a
+    frontend change -- see the "Load-test harness" note below on the same runtime
+    limitation).
+  - Added `src/lib/services/hr-service.test.ts` covering every branch of
+    `validateEmployeeProfileInput`.
+- [x] Caching for HR dashboard KPIs -- there was no HR dashboard KPI aggregation of any
+      kind before this task (confirmed by grep across `src/lib/services`/`src/app/api/hr`
+      for "kpi"/"dashboard", zero hits). Built:
+  - `src/lib/services/hr-dashboard-service.ts` (new): headcount, pending leave requests,
+    open job openings, candidates in active pipeline, today's attendance rate, pending
+    performance reviews -- behind an in-process 60s TTL cache following
+    `asset-registry-cache.ts`'s established convention (in-flight-load dedup, explicit
+    invalidation hook, stats observability).
+  - `src/app/api/hr/dashboard/route.ts` (new): `GET`, `requireAuth()`-gated.
+  - Wired into the existing `src/app/(app)/hr/page.tsx` UI as a KPI card row.
+  - `src/lib/services/hr-dashboard-service.test.ts`: unit tests for the extracted pure
+    `computeAttendanceRate()` helper (0-headcount → null, not a misleading "0%").
+- [x] Load-test harnesses for payroll/recruitment/attendance/vendor scorecards:
+      `scripts/hr-payroll-load-test.ts` (new) -- service-layer + DB timing only, no LLM
+      calls (unlike `veridian-full-load-test.ts`'s orchestra-layer harness), reusing the
+      same shared demo org convention. Covers `listAttendance`/`getMonthlySummaries`
+      (attendance), `listApplications`/`listCandidates` (recruitment),
+      `listPayrollRuns`/`listPayslips` (payroll -- read paths only; see the doc below for
+      why the write path isn't synthesized), `listSupplierScorecards` (vendor), and
+      `getHrDashboardKpis` (the new cache, cold vs. warm). **Honest limitation, disclosed
+      in `docs/testing/HR_PAYROLL_LOAD_TEST_RESULTS.md`**: this sandbox has no `bun`
+      runtime, no `node_modules`, and no `DATABASE_URL` (all confirmed directly) -- the
+      harness was authored and reviewed line-by-line against the real current
+      service-layer signatures but was **not executed**; no fabricated timing numbers are
+      reported. This is a tooling/environment constraint, distinct from the
+      spend-governance gate this redispatch specifically checked for -- the harness
+      itself costs zero LLM tokens.
+- [x] Real finding while building the harness (not just measured, fixed): `erp-buying-
+      service.ts`'s `listSupplierScorecards` called `getSupplierScorecard()` in a loop --
+      3N sequential queries for N suppliers. Rewritten to fetch each of the 3 source
+      tables once for the whole org and group in memory, reusing a shared pure
+      `computeSupplierScorecardFromRows()` core. Added
+      `src/lib/services/erp-buying-service.test.ts` proving the batched math matches the
+      original per-supplier math exactly.
+- [x] Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml` before opening the PR.
 
 ## Remaining
-- [ ] None -- task complete. `mergeStateStatus` shows `BLOCKED` only because
-      CI checks are pending/required, not because of any conflict.
 
-## Note for future sessions
-`gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
-files were observed silently truncating output in this sandbox (per-line
-~120-char cutoff with a literal `...`, and whole-file cutoffs respectively) --
-use `gh api repos/<owner>/<repo>/pulls/<n> --jq '.body'` and
-`git cat-file -p <blob-sha>` instead when the content matters. Likely the
-`snip` shell-output filter (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s snip
-integration entries) intercepting recognized "verbose" commands, not a
-general/silent corruption of file writes made directly by tools (Write/Edit)
-or by Python's own `open()/write()`.
+- [ ] Open the PR (WIP-labeled if CI hasn't run yet in this environment).
+- [ ] Owner/CA: the deferred rate-verification half (see
+      `ai-os/PAYROLL_RATE_SEED_AUDIT_2026-07-26.md` §6 and the V2-6 decisions doc) needs a
+      real external CA/payroll-specialist reviewer -- not actionable by this task.
+- [ ] Whoever has a real dev environment (bun + DATABASE_URL): run
+      `bun run scripts/hr-payroll-load-test.ts` for real and append actual p50/p95 numbers
+      to `docs/testing/HR_PAYROLL_LOAD_TEST_RESULTS.md` -- this sandbox could not run it.
+- [ ] `src/app/(app)/hr/page.tsx`'s new KPI row was written but not browser-tested (no dev
+      server available in this sandbox, per this task's own "start the dev server" UI
+      guidance -- honestly flagged as untested-in-browser rather than claimed working).
