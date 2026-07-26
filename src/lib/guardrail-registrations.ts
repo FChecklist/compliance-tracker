@@ -98,6 +98,29 @@ export const GST_SPLIT_ENGINE_LEAVES = [
 export const LOAN_ENGINE_LEAVES = ["emi_calculator", "loan_schedule_generator", "amortization_engine"]
 export const GRATUITY_CALCULATOR_LEAF = "gratuity_calculator"
 export const COMMISSION_CALCULATOR_LEAF = "commission_calculator"
+// ai-os/GUARDRAIL_COVERAGE_CANDIDATES_2026-07-24.yaml (Phase 2 of VERIDIAN's
+// 20-Engine/10-Gateway plan, Rule Engine (6)) prioritized 106 real
+// capability-tree leaves with typed input fields but zero registerGuardrail()
+// registration. This batch registers a first, financially-material slice of
+// those candidates (real field shapes read directly from
+// capability-tree-service.ts's WIRED_ENGINE_INPUT_FIELDS blocks, not
+// invented) using the same "process"-phase sanity-bound pattern as the GST/
+// loan/gratuity/commission leaves above -- generic plausibility ceilings, not
+// precise regulatory limits, same honest framing those checks already use.
+// The remaining ~94 candidates are unactioned -- see that file's own
+// uncovered_candidate_count for the real, current remainder.
+export const BONUS_CALCULATOR_LEAF = "bonus_calculator"
+export const ARREAR_CALCULATOR_LEAF = "arrear_calculator"
+export const ATTRITION_CALCULATOR_LEAF = "attrition_calculator"
+export const ATTENDANCE_CALCULATOR_LEAF = "attendance_calculator"
+export const ADVANCE_TAX_CALCULATOR_LEAF = "advance_tax_calculator"
+export const CAPITAL_GAINS_CALCULATOR_LEAF = "capital_gains_calculator"
+export const BANKING_INTEREST_CALCULATOR_LEAF = "banking_interest_calculator"
+export const CREDIT_LIMIT_CALCULATOR_LEAF = "credit_limit_calculator"
+export const TCS_CALCULATOR_LEAF = "tcs_calculator"
+export const MATERIALITY_CALCULATOR_LEAF = "materiality_calculator"
+export const COMPLIANCE_INTEREST_CALCULATOR_LEAF = "compliance_interest_calculator"
+export const INCREMENT_CALCULATOR_LEAF = "increment_calculator"
 // Post-generation AI Output Validation by Business Rules: the one "output"-
 // phase leaf in this registry. Gates /api/documents/extract/route.ts's
 // AI-extracted fields (demandAmount/gstin/pan/complianceType) BEFORE they
@@ -343,6 +366,105 @@ function commissionRateSanityCheck(context: Record<string, unknown>) {
   return { passed: true as const }
 }
 
+// Generic reusable factory for the same "finite, in-range, or reject with a
+// named reason" shape every check above already hand-writes -- used for the
+// batch of new leaves below so 12 near-identical bound checks don't become
+// 12 near-identical hand-copied functions. Bounds are plausibility sanity
+// ceilings (same honest framing as MAX_LOAN_PRINCIPAL/MAX_GST_RATE_PERCENT
+// above), not precise regulatory limits, unless a field's own label in
+// capability-tree-service.ts states a real statutory range (e.g. the
+// Payment of Bonus Act's 8.33-20% band, used for bonusPercent below).
+type NumericFieldBound = { key: string; min: number; max: number; reason: string; label: string }
+function numericBoundsCheck(fields: NumericFieldBound[]) {
+  return (context: Record<string, unknown>) => {
+    for (const field of fields) {
+      const raw = context[field.key]
+      if (raw === undefined || raw === null) continue // optional fields: absence is not a violation
+      const value = Number(raw)
+      if (!Number.isFinite(value) || value < field.min || value > field.max) {
+        return {
+          passed: false as const, reason: field.reason,
+          guidance: `${field.label} (${raw}) is outside the ${field.min}-${field.max} sanity range.`,
+        }
+      }
+    }
+    return { passed: true as const }
+  }
+}
+
+const bonusSanityCheck = numericBoundsCheck([
+  // 8.33% is the Payment of Bonus Act's statutory minimum, 20% its statutory
+  // maximum -- a real regulatory range, not a generic plausibility ceiling.
+  { key: "bonusPercent", min: 8.33, max: 20, reason: "bonus_percent_out_of_bounds", label: "Bonus percent" },
+  { key: "annualBasicPlusDa", min: 0, max: 1_000_000_000, reason: "bonus_basic_out_of_bounds", label: "Annual basic + DA" },
+])
+
+const arrearSanityCheck = numericBoundsCheck([
+  { key: "revisedMonthlyPay", min: 0, max: 100_000_000, reason: "arrear_pay_out_of_bounds", label: "Revised monthly pay" },
+  { key: "originalMonthlyPay", min: 0, max: 100_000_000, reason: "arrear_pay_out_of_bounds", label: "Original monthly pay" },
+  { key: "affectedMonths", min: 0, max: 600, reason: "arrear_months_out_of_bounds", label: "Affected months" },
+])
+
+const attritionSanityCheck = numericBoundsCheck([
+  { key: "separations", min: 0, max: 10_000_000, reason: "attrition_count_out_of_bounds", label: "Separations" },
+  { key: "openingHeadcount", min: 0, max: 10_000_000, reason: "attrition_count_out_of_bounds", label: "Opening headcount" },
+  { key: "closingHeadcount", min: 0, max: 10_000_000, reason: "attrition_count_out_of_bounds", label: "Closing headcount" },
+])
+
+const attendanceSanityCheck = numericBoundsCheck([
+  // 366 -- no single reporting period exceeds a calendar year of days.
+  { key: "presentDays", min: 0, max: 366, reason: "attendance_days_out_of_bounds", label: "Present days" },
+  { key: "totalWorkingDays", min: 0, max: 366, reason: "attendance_days_out_of_bounds", label: "Total working days" },
+])
+
+const advanceTaxSanityCheck = numericBoundsCheck([
+  { key: "estimatedAnnualTax", min: 0, max: 1_000_000_000, reason: "advance_tax_amount_out_of_bounds", label: "Estimated annual tax" },
+  { key: "alreadyPaid", min: 0, max: 1_000_000_000, reason: "advance_tax_amount_out_of_bounds", label: "Already paid this year" },
+])
+
+const capitalGainsSanityCheck = numericBoundsCheck([
+  { key: "saleValue", min: 0, max: 1_000_000_000, reason: "capital_gains_amount_out_of_bounds", label: "Sale value" },
+  { key: "costOfAcquisition", min: 0, max: 1_000_000_000, reason: "capital_gains_amount_out_of_bounds", label: "Cost of acquisition" },
+  { key: "costOfImprovement", min: 0, max: 1_000_000_000, reason: "capital_gains_amount_out_of_bounds", label: "Cost of improvement" },
+  { key: "expensesOnTransfer", min: 0, max: 1_000_000_000, reason: "capital_gains_amount_out_of_bounds", label: "Expenses on transfer" },
+])
+
+const bankingInterestSanityCheck = numericBoundsCheck([
+  { key: "principal", min: 0, max: 1_000_000_000, reason: "banking_interest_principal_out_of_bounds", label: "Principal" },
+  { key: "annualRatePercent", min: 0, max: 60, reason: "banking_interest_rate_out_of_bounds", label: "Annual interest rate" },
+  { key: "days", min: 0, max: 3650, reason: "banking_interest_days_out_of_bounds", label: "Number of days" },
+])
+
+const creditLimitSanityCheck = numericBoundsCheck([
+  { key: "monthlyIncome", min: 0, max: 100_000_000, reason: "credit_limit_income_out_of_bounds", label: "Monthly income" },
+  { key: "multiplier", min: 0, max: 100, reason: "credit_limit_multiplier_out_of_bounds", label: "Income multiplier" },
+  { key: "existingMonthlyObligations", min: 0, max: 100_000_000, reason: "credit_limit_income_out_of_bounds", label: "Existing monthly obligations" },
+])
+
+const tcsSanityCheck = numericBoundsCheck([
+  { key: "saleValue", min: 0, max: 1_000_000_000, reason: "tcs_amount_out_of_bounds", label: "Sale value" },
+  { key: "ratePercent", min: 0, max: 100, reason: "tcs_rate_out_of_bounds", label: "TCS rate" },
+  { key: "thresholdAmount", min: 0, max: 1_000_000_000, reason: "tcs_amount_out_of_bounds", label: "Threshold amount" },
+])
+
+const materialitySanityCheck = numericBoundsCheck([
+  { key: "baseAmount", min: 0, max: 1_000_000_000_000, reason: "materiality_amount_out_of_bounds", label: "Base amount" },
+])
+
+const complianceInterestSanityCheck = numericBoundsCheck([
+  { key: "amount", min: 0, max: 1_000_000_000, reason: "compliance_interest_amount_out_of_bounds", label: "Amount" },
+  { key: "annualRatePercent", min: 0, max: 60, reason: "compliance_interest_rate_out_of_bounds", label: "Annual interest rate" },
+  { key: "daysLate", min: 0, max: 3650, reason: "compliance_interest_days_out_of_bounds", label: "Days late" },
+])
+
+const incrementSanityCheck = numericBoundsCheck([
+  { key: "currentSalary", min: 0, max: 1_000_000_000, reason: "increment_salary_out_of_bounds", label: "Current salary" },
+  // 500% ceiling -- generous enough to never false-flag a real promotion,
+  // still catches a percent typed as a decimal fraction (e.g. "50000"
+  // instead of "50") or an obvious data-entry error.
+  { key: "incrementPercent", min: 0, max: 500, reason: "increment_percent_out_of_bounds", label: "Increment percent" },
+])
+
 // Sanity ceiling for a single notice/demand amount -- Rs 100 crore. Not a
 // real regulatory limit, just a bound past which an AI-hallucinated or
 // misread figure (e.g. an extra digit, or a total confused with a per-unit
@@ -494,6 +616,22 @@ export function registerAllGuardrails(): void {
   for (const leaf of LOAN_ENGINE_LEAVES) registerGuardrail(leaf, { phase: "process", check: loanInputSanityCheck })
   registerGuardrail(GRATUITY_CALCULATOR_LEAF, { phase: "process", check: gratuityInputSanityCheck })
   registerGuardrail(COMMISSION_CALCULATOR_LEAF, { phase: "process", check: commissionRateSanityCheck })
+
+  // Guardrail Coverage expansion (ai-os/GUARDRAIL_COVERAGE_CANDIDATES_2026-07-24.yaml,
+  // VERIDIAN Phase 2 Rule Engine follow-up) -- first financially-material
+  // slice of the 106 real, prioritized, previously-uncovered leaves.
+  registerGuardrail(BONUS_CALCULATOR_LEAF, { phase: "process", check: bonusSanityCheck })
+  registerGuardrail(ARREAR_CALCULATOR_LEAF, { phase: "process", check: arrearSanityCheck })
+  registerGuardrail(ATTRITION_CALCULATOR_LEAF, { phase: "process", check: attritionSanityCheck })
+  registerGuardrail(ATTENDANCE_CALCULATOR_LEAF, { phase: "process", check: attendanceSanityCheck })
+  registerGuardrail(ADVANCE_TAX_CALCULATOR_LEAF, { phase: "process", check: advanceTaxSanityCheck })
+  registerGuardrail(CAPITAL_GAINS_CALCULATOR_LEAF, { phase: "process", check: capitalGainsSanityCheck })
+  registerGuardrail(BANKING_INTEREST_CALCULATOR_LEAF, { phase: "process", check: bankingInterestSanityCheck })
+  registerGuardrail(CREDIT_LIMIT_CALCULATOR_LEAF, { phase: "process", check: creditLimitSanityCheck })
+  registerGuardrail(TCS_CALCULATOR_LEAF, { phase: "process", check: tcsSanityCheck })
+  registerGuardrail(MATERIALITY_CALCULATOR_LEAF, { phase: "process", check: materialitySanityCheck })
+  registerGuardrail(COMPLIANCE_INTEREST_CALCULATOR_LEAF, { phase: "process", check: complianceInterestSanityCheck })
+  registerGuardrail(INCREMENT_CALCULATOR_LEAF, { phase: "process", check: incrementSanityCheck })
 
   // AI Output Validation by Business Rules (VERIDIAN Review Framework) --
   // "output" phase, gating the AI-extracted fields from
