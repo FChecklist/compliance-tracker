@@ -1,141 +1,133 @@
-# PROGRESS -- rebase-sweep2-582 (replacement for PR #582)
+# PROGRESS -- rebase-sweep2-583 (replacement for PR #583)
 
 ## Scope
 
-Replacement PR for #582 ("V2-20: search performance EXPLAIN ANALYZE +
-pg_trgm GIN index", branch
-`worker/task-20260726-172004-search-performance-explain-analyze---gin`).
-Triage confirmed a real, additive, well-evidenced migration+doc PR: no
-application code touched, migration is `CREATE INDEX IF NOT EXISTS`
-(idempotent), and cites real `EXPLAIN (ANALYZE, BUFFERS)` numbers
-(108-147ms Seq Scan -> 0.3-1.3ms Bitmap Heap Scan, 80-140x) from a
-rolled-back live-DB transaction. Independently re-confirmed via
-`gh api .../contents/drizzle?ref=main` that no pg_trgm/GIN-trgm migration
-existed anywhere on main before this merge -- the gap was genuinely real.
+Replacement PR for #583 ("V2-17: HR validation UX + payroll rate-seed audit +
+HR dashboard caching + load-test harness", branch
+`worker/task-20260726-172000-hr-performance-error-handling---payroll`).
+Triage confirmed a real, additive PR: `src/lib/services/hr-dashboard-service.ts`,
+`src/app/api/hr/dashboard/route.ts`, and `scripts/hr-payroll-load-test.ts` all
+404'd on `main` (independently re-confirmed via `gh api contents/...?ref=main`);
+`hr-service.ts` exists on main but the PR only modifies it (+37/-8), doesn't
+duplicate it. Real diff: 15 files, +987/-66, 3 real commits
+(2026-07-26T18:17-19:02Z).
 
-`audit-check` had shown FAIL on the original PR, but the posted audit
-comment was a confirmed misattribution: it reviewed an unrelated, empty
-RCA/watchdog task branch that got auto-linked to PR #582 via the known
-`adopted_existing_pr` fuzzy-match bug (same class as the real PR #84
-incident), and the audit's own text recommended letting PR #582 be
-reviewed/merged under its own correct identity. Not a real rejection of
-this PR's content.
+`audit-check` had shown FAIL on the original PR, but the posted comment
+described a different prior branch state ("zero commits ahead of master",
+empty PROGRESS.md) that contradicts this branch's actual 3-commit, 987-line
+diff -- the FAIL verdict is stale/pre-redispatch, same misattribution pattern
+already confirmed independently on PR #582.
+
+Type Check failed on `gh pr checks 583`; root-caused via the raw job log to
+14 `error TS2345/TS2339` errors all confined to
+`scripts/hr-payroll-load-test.ts` lines 126-146 (a standalone load-test
+harness script). Lint, Unit Tests, and the core `hr-dashboard-service.ts`/
+`hr-service.ts`/HR page changes were not implicated.
 
 ## Completed
 
-- [x] Worktree: attempted a real `git merge origin/main` onto PR #582's
+- [x] Worktree: attempted a real `git merge origin/main` onto PR #583's
       actual branch first, per this repo's standard rebase-sweep protocol.
       The branch's own git history turned out to be genuinely diverged from
-      current main -- its merge-base predates roughly 325 subsequent
-      migrations and hundreds of unrelated service-layer changes on main.
-      A literal merge produced 20+ conflicts in files (erp-*,
-      task-execution-engine, webhook-deliver, vercel.json, etc.) this PR
-      never touched -- not real, resolvable conflicts, just noise from
-      stale ancestry. Aborted that merge. Instead, independently confirmed
-      the PR's real content via `gh pr diff 582 --name-only` / `gh pr diff
-      582` (GitHub's own computed diff, not local git history): exactly 5
-      files -- `PROGRESS.md`, `ai-os/EXPLAIN_ANALYZE_SEARCH_PERF_2026-07-26.md`,
-      `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
-      `drizzle/0264_search_perf_gin_trgm_indexes.sql`. Reset a fresh branch
-      to `origin/main` and replayed that real diff by hand.
-- [x] **First migration renumbering: 0264 -> 0503.** `drizzle/0264_...` was
-      since taken by an unrelated, already-merged migration
-      (`0264_helpdesk_tiered_sla_team_routing.sql`). Checked the TRUE
-      current highest via `git ls-tree -r origin/main -- drizzle/` (0502,
-      328 real migration files) rather than trusting a stale local
-      checkout, and renumbered to 0503.
-- [x] Pushed, opened replacement PR #1513, closed original #582 as
-      superseded. Ran real local validation (see below) and watched real CI
-      on #1513 to green (Lint/Type Check/Unit Tests/Build/Migration
-      Collision/Migration Integrity/Migration Schema Drift/Governance YAML
-      Parse/Test Coverage checks all passed; only the documented-ambient
-      Vercel platform-block was red, E2E still running).
-- [x] **`gh pr merge 1513 --squash` failed for real**: "not mergeable: the
-      merge commit cannot be cleanly created". Re-checked
-      `gh pr view 1513 --json mergeable,mergeStateStatus`: `CONFLICTING` /
-      `DIRTY`. Root cause: a **different, concurrent rebase-sweep session**
-      (working the same repo, doing the identical rebase-merge task for PR
-      #576 -> replacement PR #1514, "V2-16 CRM performance-under-load
-      composite indexes") had independently computed the same "next free"
-      migration number (0503) around the same time, and merged to main
-      (`6f748f37`, then `fd30c906` on top) a few minutes before this PR's
-      merge attempt -- a real, textbook instance of the exact race
-      condition `scripts/check-migration-collision.mjs`'s own header
-      already documents as a known, unsolved limitation of concurrent
-      agents ("this job only guarantees the collision is caught... not
-      that it can never happen"). `git fetch origin main` confirmed
-      `drizzle/0503_v2_16_crm_perf_indexes.sql` now real and merged.
-- [x] **Second migration renumbering: 0503 -> 0504.** Reset the branch to
-      the fresh post-#1514 `origin/main`, re-verified the new true highest
-      via `git ls-tree` (0503, now taken), and replayed all 5 real file
-      changes again on top of it, renumbering to 0504 (confirmed free).
-      Re-added the `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed`
-      entry and the `ai-os/OS.yaml` index entry at their same insertion
-      points (both files were untouched by the concurrent #1514 merge,
-      confirmed via unchanged line counts before/after its merge). Fixed
-      the internal `0264`/`0503` self-references in the migration's own
-      header and the EXPLAIN doc's header to `0504`, and documented the
-      double-renumber (and its real cause) in both files plus in
-      `ACTIVE-CLAIMS.yaml`'s claim entry.
-      - `PROGRESS.md` (this file): replaced wholesale again, this repo's
-        own established convention -- holds only the current active entry.
-      - `ai-os/boss/ACTIVE-CLAIMS.yaml`: re-checked for a live collision
-        first (grepped for search-service/search-perf/V2-20/gin_trgm on
-        the fresh main -- still none). Entry lives under
-        `recently_completed:`, matching this repo's own established
-        pattern for other same-day rebase-sweep sessions (e.g. the
-        `task-20260718-072002` entry: "rebased onto main and re-opened,
-        this rebase session").
-      - `ai-os/EXPLAIN_ANALYZE_SEARCH_PERF_2026-07-26.md`: content
-        unchanged apart from the migration filename fix.
-      - `ai-os/OS.yaml`: same insertion point as before (next to the other
-        2026-07-26 V2-* index entries), unaffected by #1514.
-- [x] No `search-service.ts` or other application code touched, confirming
-      the original triage, on both renumbering passes.
+      current main (`git rev-list --left-right --count origin/main...HEAD`:
+      1331/309) -- its own internal "merge origin/main into worker branch"
+      commit (`68f24877`, done 2026-07-26T19:02Z) has since fallen out of
+      sync with main's squash-merge history. A literal merge produced 123
+      conflicting files this PR never touched (CRM, ERP invoicing/selling/
+      contract, chat-service, prompt-compiler, orchestra-model-resolver,
+      package.json, bun.lock, `.github/workflows/ci.yml`, `db/schema.ts`,
+      etc.) -- not real, resolvable conflicts, just noise from stale
+      ancestry. Aborted that merge.
+- [x] Instead: reset a fresh branch to `origin/main` (tip `243b0660`, "V2-20
+      ... [was #582] (#1513)") and cherry-picked just the real work commit
+      (`5d80ab90`, 15 files, +986/-91 per `git show --stat`, matching the
+      triage's `gh pr diff`-based count closely). Only 2 real conflicts
+      resulted:
+      - `PROGRESS.md`: replaced wholesale (this repo's own established
+        convention -- holds only the current active entry).
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml`: union-merged -- kept every existing
+        `active:` entry unchanged, moved this task's own claim to
+        `recently_completed:` since the work completes within this same
+        session (checked first for a live collision: no other entry names
+        V2-17, payroll rate audit, HR dashboard caching, or the
+        payroll/recruitment/attendance/vendor-scorecard load-test harness).
+      - Everything else auto-merged cleanly: `src/app/(app)/hr/page.tsx`,
+        `src/lib/services/erp-buying-service.ts`, `src/lib/services/hr-service.ts`.
+- [x] No migration files touched by this PR (confirmed via the commit's own
+      file list) -- `drizzle/meta/_journal.json` renumbering not applicable
+      here.
+- [x] **Fixed the real Type Check failure for real** (root-caused by the
+      original triage to `scripts/hr-payroll-load-test.ts` lines 126-146,
+      14x `TS2345`/`TS2339`): `const results = []` (no type annotation) was
+      inferred as `never[]`, so every subsequent `.push(await timeCalls(...))`
+      failed. Added an explicit `LoadTestResult` interface and annotated
+      `const results: LoadTestResult[] = []`. Zero other application-code
+      issues found in the original diff.
+- [x] **New gotcha found while resolving the `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      conflict, worth recording**: `git diff`/`git diff --diff-algorithm=
+      histogram`/`patience` all render this file's ~44-line real edit
+      (1 stale blank-line removal + 1 new `recently_completed:` entry
+      inserted) as a single pathological whole-file hunk (`@@ -1,11923
+      +1,11966 @@`, "23889 changed lines") -- NOT real content divergence.
+      Independently verified byte-for-byte via `Get-Content`-array
+      comparison with the correct line-offset applied: every line outside
+      the two real edit points matches origin/main exactly (confirmed a
+      constant-shift resync both before and after the insertion point, plus
+      the file re-parses clean via the governance check). Diffing two real
+      adjacent main-only commits that both touch this same file produces a
+      normal small diff (31 insertions, no pathology) -- so this is a
+      diff-algorithm limitation specific to very large, highly-repetitive
+      YAML files like this one at ~12k lines, not something introduced by
+      this session's edit. Likely to render the same way in GitHub's own PR
+      diff view for this file -- do not mistake that cosmetic appearance for
+      a bad merge on future sessions touching this file.
 
 ## Validation run
 
 - [x] `node scripts/check-governance-yaml-parse.mjs` -- passed (all 5
-      governance YAML files parse cleanly, including the two touched here).
-- [x] Migration collision check: `node scripts/check-migration-collision.mjs
-      --base origin/main` hit a local-Windows-only artifact (its execSync
-      calls use `2>/dev/null`, which `cmd.exe` -- Node's default shell for
-      `execSync` on win32 regardless of the invoking shell -- can't parse;
-      real CI runs on `ubuntu-latest`, unaffected). Manually replicated its
-      actual logic via plain git commands against real `origin/main`
-      instead, both renumbering passes: zero collision each time (the real
-      0503 collision that DID exist was caught not by this script locally,
-      but by the real `gh pr merge` failure -- see above). Real CI's own
-      "Migration Number Collision Check" job passed for real on PR #1513's
-      first push (10s) -- correctly, since 0503 was still genuinely free at
-      that exact moment; the race happened after that check ran and before
-      merge, which is exactly the documented gap in what a pre-merge CI
-      check alone can catch.
-- [x] `bunx tsc --noEmit` (via `node_modules/.bin/tsc.exe --noEmit`, this
-      repo's own documented Windows fallback): first attempt hit a JS
-      heap OOM after ~392s -- this exact signature is pre-documented in
-      this repo's own `.github/workflows/ci.yml` (a real, already-fixed CI
-      incident: "R60 T7 follow-up... crashed with the same V8 OOM/core-dump
-      signature... under concurrent CI load", fixed via
-      `NODE_OPTIONS: --max-old-space-size=8192`) -- not something this PR's
-      5-file, zero-`.ts`-touching diff introduces. Retried locally with
-      `NODE_OPTIONS=--max-old-space-size=6144`: passed clean, zero errors,
-      real exit code 0. Real CI's own "Type Check" job also passed (1m11s).
-- [x] `bun test` -- no test files touched by this PR, nothing to run here.
-- [x] `docs/master/TEST_COVERAGE_GAP.md` -- not regenerated: this PR does
-      not touch `src/lib/services`, so no regeneration is needed. Real CI's
-      "Test Coverage Gap Report Check" and "New Test Coverage Check" both
-      passed.
+      governance YAML files parse cleanly, including the merged
+      `ACTIVE-CLAIMS.yaml`).
+- [x] `NODE_OPTIONS=--max-old-space-size=8192 node_modules/.bin/tsc.exe
+      --noEmit` (Windows fallback; default heap hit the same pre-documented
+      V8 OOM signature this repo's CI already works around) -- passed clean,
+      exit code 0, zero errors, after the `hr-payroll-load-test.ts` fix
+      above.
+- [x] `bun test` on the 3 touched test files
+      (`hr-dashboard-service.test.ts`, `hr-service.test.ts`,
+      `erp-buying-service.test.ts`) -- 20 pass, 0 fail, 29 expect() calls.
+- [x] `bun run lint` (full repo) -- 0 errors, 138 pre-existing complexity
+      warnings unrelated to this PR (including one already on
+      `hr-service.ts:110` before this PR), exit code 0.
+- [x] `docs/master/TEST_COVERAGE_GAP.md` regenerated (this PR touches
+      `src/lib/services`, so required) via a one-off script importing
+      `buildStats`/`renderReport` directly from a `file://` URL and doing
+      the fs read/write itself -- the committed script's own `isMain`
+      self-invocation check silently no-ops on Windows (backslash
+      `process.argv[1]` vs `file:///` `import.meta.url` never string-equal),
+      confirmed pre-existing and matching this repo's own documented
+      gotcha. Result: 102/229 -> 105/230 tested service files (44.5% ->
+      45.7%); `erp-buying-service.ts` correctly drops off the untested-top-20
+      list (it gained a test in this PR), `hr-dashboard-service.ts` is new
+      and tested.
+- [x] No migration files touched by this PR -- `drizzle/meta/_journal.json`
+      renumbering not applicable here.
 
 ## Remaining
 
-- [x] Push `rebase-sweep2-582` (twice -- once per renumbering pass), open
-      the replacement PR (https://github.com/FChecklist/compliance-tracker/pull/1513),
-      close #582 as superseded.
-- [ ] Re-verify real CI fully green on PR #1513's second push (post-0504
-      renumber), then merge for real -- confirmed via `gh pr view
-      --json state,mergedAt` afterward, not assumed.
-- [ ] Owner sign-off + live `apply_migration` of
-      `drizzle/0504_search_perf_gin_trgm_indexes.sql` (Tier2 hold -- not
-      done by this session; independent of the PR merge since the migration
-      file itself is inert until applied).
+- [ ] Push `rebase-sweep2-583`, open the replacement PR, close #583 as
+      superseded.
+- [ ] Verify real CI green on the replacement PR (modulo documented-ambient
+      E2E/Vercel/Secret-Scanning-predates-PR/Promptfoo), then merge for real
+      -- confirmed via `gh pr view --json state,mergedAt` afterward, not
+      assumed.
+- [ ] Owner/CA: the deferred rate-verification half (see
+      `ai-os/PAYROLL_RATE_SEED_AUDIT_2026-07-26.md` and the original PR's
+      own review-framework decision doc) still needs a real external
+      CA/payroll-specialist reviewer -- unchanged from the original PR,
+      not actionable by this rebase-sweep session.
+- [ ] Whoever has a real dev environment with `DATABASE_URL`: run
+      `bun run scripts/hr-payroll-load-test.ts` for real and append actual
+      p50/p95 numbers to `docs/testing/HR_PAYROLL_LOAD_TEST_RESULTS.md` --
+      this session validated the script compiles and lints clean but did
+      not execute it against a live DB (out of scope for a rebase-sweep;
+      unchanged limitation from the original PR).

@@ -208,6 +208,42 @@ export type SupplierScorecard = {
   returnRate: number | null // returns per receipt
 }
 
+// Pure -- no DB access -- the aggregation math both getSupplierScorecard
+// (one supplier, rows already filtered to it) and listSupplierScorecards
+// (every supplier, rows grouped in memory -- see that function's own note
+// on why) share, so the two can never compute this differently.
+export function computeSupplierScorecardFromRows(
+  supplierId: string,
+  orders: (typeof erpPurchaseOrders.$inferSelect)[],
+  receipts: (typeof erpPurchaseReceipts.$inferSelect)[],
+  returns: (typeof erpPurchaseReturns.$inferSelect)[]
+): SupplierScorecard {
+  const totalSpend = orders.reduce((sum, o) => sum + Number(o.grandTotal), 0)
+
+  // On-time delivery: for each receipt linked to a PO with an expected
+  // delivery date, compare the receipt's posting date against it.
+  const ordersById = new Map(orders.map((o) => [o.id, o]))
+  let measurable = 0
+  let onTime = 0
+  for (const receipt of receipts) {
+    const po = receipt.purchaseOrderId ? ordersById.get(receipt.purchaseOrderId) : undefined
+    if (!po?.expectedDeliveryDate) continue
+    measurable++
+    if (receipt.postingDate <= po.expectedDeliveryDate) onTime++
+  }
+
+  const dispatchedOrRejectedReturns = returns.length
+  const returnRate = receipts.length > 0 ? dispatchedOrRejectedReturns / receipts.length : null
+
+  return {
+    supplierId,
+    totalOrders: orders.length,
+    totalSpend,
+    onTimeDeliveryRate: measurable > 0 ? onTime / measurable : null,
+    returnRate,
+  }
+}
+
 export async function getSupplierScorecard(ctx: { orgId: string }, supplierId: string): Promise<SupplierScorecard> {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -224,39 +260,43 @@ export async function getSupplierScorecard(ctx: { orgId: string }, supplierId: s
       where: and(eq(erpPurchaseReturns.orgId, ctx.orgId), eq(erpPurchaseReturns.supplierId, supplierId)),
     })
 
-    const totalSpend = orders.reduce((sum, o) => sum + Number(o.grandTotal), 0)
-
-    // On-time delivery: for each receipt linked to a PO with an expected
-    // delivery date, compare the receipt's posting date against it.
-    const ordersById = new Map(orders.map((o) => [o.id, o]))
-    let measurable = 0
-    let onTime = 0
-    for (const receipt of receipts) {
-      const po = receipt.purchaseOrderId ? ordersById.get(receipt.purchaseOrderId) : undefined
-      if (!po?.expectedDeliveryDate) continue
-      measurable++
-      if (receipt.postingDate <= po.expectedDeliveryDate) onTime++
-    }
-
-    const dispatchedOrRejectedReturns = returns.length
-    const returnRate = receipts.length > 0 ? dispatchedOrRejectedReturns / receipts.length : null
-
-    return {
-      supplierId,
-      totalOrders: orders.length,
-      totalSpend,
-      onTimeDeliveryRate: measurable > 0 ? onTime / measurable : null,
-      returnRate,
-    }
+    return computeSupplierScorecardFromRows(supplierId, orders, receipts, returns)
   })
 }
 
+// V2-17 load-test finding (2026-07-26): this previously called
+// getSupplierScorecard() in a loop -- N suppliers meant N sequential round
+// trips of 3 queries each (3N total), every one re-fetching the FULL
+// org-wide purchase-order/receipt/return tables filtered down to one
+// supplier at a time. Rewritten to fetch each of the 3 tables ONCE for the
+// whole org, then group in memory and reuse the same pure
+// computeSupplierScorecardFromRows() math per supplier -- 3 queries total
+// regardless of supplier count, not 3N.
 export async function listSupplierScorecards(ctx: { orgId: string }): Promise<SupplierScorecard[]> {
   await requireErpEnabled(ctx.orgId)
   const suppliers = await listSuppliers(ctx)
-  const scorecards: SupplierScorecard[] = []
-  for (const s of suppliers) {
-    scorecards.push(await getSupplierScorecard(ctx, s.id))
-  }
-  return scorecards
+  if (suppliers.length === 0) return []
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [allOrders, allReceipts, allReturns] = await Promise.all([
+      db.query.erpPurchaseOrders.findMany({
+        where: and(eq(erpPurchaseOrders.orgId, ctx.orgId), ne(erpPurchaseOrders.status, "draft"), ne(erpPurchaseOrders.status, "cancelled")),
+      }),
+      db.query.erpPurchaseReceipts.findMany({
+        where: and(eq(erpPurchaseReceipts.orgId, ctx.orgId), eq(erpPurchaseReceipts.status, "submitted")),
+      }),
+      db.query.erpPurchaseReturns.findMany({ where: eq(erpPurchaseReturns.orgId, ctx.orgId) }),
+    ])
+
+    const ordersBySupplier = new Map<string, typeof allOrders>()
+    for (const o of allOrders) ordersBySupplier.set(o.supplierId, [...(ordersBySupplier.get(o.supplierId) ?? []), o])
+    const receiptsBySupplier = new Map<string, typeof allReceipts>()
+    for (const r of allReceipts) receiptsBySupplier.set(r.supplierId, [...(receiptsBySupplier.get(r.supplierId) ?? []), r])
+    const returnsBySupplier = new Map<string, typeof allReturns>()
+    for (const r of allReturns) returnsBySupplier.set(r.supplierId, [...(returnsBySupplier.get(r.supplierId) ?? []), r])
+
+    return suppliers.map((s) => computeSupplierScorecardFromRows(
+      s.id, ordersBySupplier.get(s.id) ?? [], receiptsBySupplier.get(s.id) ?? [], returnsBySupplier.get(s.id) ?? []
+    ))
+  })
 }
