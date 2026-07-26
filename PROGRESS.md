@@ -64,9 +64,38 @@ layer, not CRM-table query performance).
       `find scripts -iname "*crm*load*test*"` now finds
       `scripts/crm-perf-load-test.ts`.
 
+- [x] PR #576 opened, then found `main` had moved on (PR #572 merged) leaving
+      PROGRESS.md in merge conflict. Resolved by keeping this task's entry --
+      confirmed via `git show origin/main:PROGRESS.md` that this file is a
+      per-task scratch log each merged PR overwrites wholesale (not an
+      append-only history), so dropping the unrelated prior task's entry
+      matches established convention, not data loss (merge commit `66adfb37`).
+- [x] Post-merge CI run surfaced a real `Type Check` failure in this PR's
+      own new file: `before`/`after` result arrays in
+      `scripts/crm-perf-load-test.ts` had no type annotation, so `tsc`
+      inferred `never[]` and rejected every `push()`/property access
+      (TS2345/TS2339). Fixed with an explicit
+      `({ label: string; query: string } & PlanResult)[]` annotation on
+      both arrays (commit `6e4e51e9`). Re-ran `tsc --noEmit` locally after
+      the fix -- zero `error TS` output anywhere in the tree.
+- [x] Confirmed the two remaining non-green PR checks are both
+      out-of-scope for this task, not caused by this diff:
+      `Metadata Index Coverage Check` fails identically on `main`'s own
+      last several CI runs (56 pre-existing ungoverned `ai-os/` files,
+      none touched by this PR) and is not in branch protection's
+      `required_status_checks` list -- doesn't block merge.
+      `audit-check` requires a separate `AUDIT: PASS`/`FAIL` comment per
+      AGENTS.md Rule 7c ("whichever agent did not implement a task is the
+      mandatory auditor -- no self-certification"); since this session
+      implemented the change, posting that comment itself would be
+      self-certification, so it's correctly left for a separate
+      supervising session to audit and comment before merge.
+
 ## Remaining
-- [ ] None for this task's scope. Live application of
+- [ ] None for this task's implementation scope. Live application of
       `drizzle/0264_v2_16_crm_perf_indexes.sql` against the real Supabase
       database is intentionally left for the supervising session /
       Owner sign-off (Tier2 hold, not an oversight).
-- [ ] Open the PR (this session does not merge).
+- [ ] PR #576 is open, mergeable, and all required CI checks green except
+      `audit-check`, which needs a non-implementer session's audit comment
+      before merge (Rule 7c) -- this session does not merge.
