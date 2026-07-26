@@ -1,60 +1,31 @@
-# PROGRESS -- task-20260726-081117-fix-pr563-ci---stale-migration-files--do
+# PROGRESS -- task-20260726-094625-re-verify-20-engine-inventory---confirm
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml + AGENTS.md/CLAUDE.md governance docs.
-- [x] Located PR #563 (`gh pr view 563`), branch
-      `worker/task-20260726-071400-migration-drift-audit-and-reconciliation`,
-      already checked out in another task's worktree -- worked via a local
-      branch built on `FETCH_HEAD` of that remote branch instead, then pushed
-      straight back to the same remote branch name (never touched the other
-      worktree).
-- [x] Registered `ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml` in
-      `ai-os/OS.yaml`'s `index.health_and_compliance` section. Verified locally
-      (via a temp `js-yaml`/`argparse` node_modules symlink, since `bun` was
-      not usable in this sandbox): without the entry the check reports 57
-      missing items including this file; with it, 56, and this file is no
-      longer in the missing list.
-- [x] Read migration `0245_create_platform_schema_compartment.sql` to confirm
-      the real relocation target (`ALTER TABLE compliance.dynamic_chains SET
-      SCHEMA platform;`), then corrected:
-      - `drizzle/0140_wave166_monitoring_tool_health.sql` line 39 ->
-        `platform.dynamic_chains`
-      - `drizzle/0199_gap_dcmd_rich_schema_slice.sql` (all 7 ALTER TABLE
-        lines) -> `platform.dynamic_chains`
-      - `drizzle/0253_tenant_ai_config.sql` line 27 `provider ai_provider` ->
-        `provider compliance.ai_provider` (confirmed `compliance.ai_provider`
-        is the real enum, defined in `drizzle/0004_ai_configurations_and_indexes.sql`)
-      Verified via grep: `compliance.dynamic_chains` no longer appears in
-      0140/0199; `platform.dynamic_chains` does.
-- [x] Fixed PR #563's own `PROGRESS.md` stale `[ ] Open PR` line (PR is
-      confirmed open) and documented the CI-fix work there.
-- [x] Registered this follow-up task + closed it in
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed:` (added directly,
-      since the fix was already complete by the time of registration).
-- [x] Committed + pushed both fixes directly to PR #563's branch (2 commits):
-      `92887462` (the 3 real fixes) and `2ea99ee0` (ACTIVE-CLAIMS entry).
-- [x] Found and flagged (NOT fixed -- out of scope, needs real per-file
-      research this task didn't have time/budget for): Metadata Index
-      Coverage Check has a much larger pre-existing gap, 56 unrelated
-      `ai-os/` files/scripts never indexed or exempted in `OS.yaml`. Confirmed
-      via `git worktree add` at PR #563's merge-base commit (`51b7cccc`) that
-      this gap already existed there (not introduced by PR #563), and via
-      `gh run view` on main's own latest CI run (commit `9bcdb108`) that
-      "Metadata Index Coverage Check" is failing on main HEAD right now for
-      the same reason. Deliberately did not bulk-register 56 files with
-      guessed descriptions -- this repo's own `OS.yaml` `covers:` entries are
-      all evidence-researched; fabricating them would undermine the exact
-      thing this check exists to catch. Recommend a dedicated follow-up claim.
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, ai-os/CONSTITUTION.yaml context, registered claim (commit 7f8d5c64)
+- [x] Located real target repo: claude-control (`/opt/veridian/repos/claude-control`), not this
+      compliance-tracker workspace -- the 20-engine/Auditor-Engine files live there
+- [x] Re-ran claude-control's `ai-os-scripts/generate_engines_gateways_inventory.py` against live disk:
+      18/20 engine_inventory rows re-verified with zero drift
+- [x] Traced this session's 4 new dispatch-gate files to real, currently-open PRs via `gh`:
+      #79 (ddl_authorization_check.py), #80 (interactive-session-guard.bashrc-snippet),
+      #81 (branch-resolution + HOLD_FOR_OWNER_SIGNOFF), #82 (credit-accountant.py <-> task-gateway.py fix)
+- [x] Updated Engine 8 (Workflow Engine) exists_as (+veridian-task.py, +supervisor-entrypoint.sh) and
+      gap_description (HOLD_FOR_OWNER_SIGNOFF + credit-accountant fixes, both open/unmerged)
+- [x] Updated Engine 5 (Policy Engine) gap_description documenting the DDL gate + write-gate (deliberately
+      NOT added to exists_as -- not yet live-deployed, would falsely flip verified_on_disk for the row's
+      other real paths)
+- [x] Found + reported (not fixed) genuine duplication: preflight-guard.py and PR #82's task-gateway.py
+      cmd_start both independently call `credit-accountant.py propose` for the same task_id
+- [x] Read AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml in full; cross-referenced all 9 phases (0-8) against
+      8 real PRs via `gh pr view --json state,mergedAt` -- all MERGED, confirmed not just self-reported
+- [x] Added `meta.reverification_log` entry to the phase-plan file (no pre-existing changelog convention
+      found; minimal additive entry in the file's own style)
+- [x] Verified SUCCESS_CRITERIA: `engine_inventory` still has 20 rows; grep for
+      `ddl_authorization_check|credit-accountant` returns 4 (nonzero)
+- [x] Ran claude-control's test suite (`pytest tests/`, excluding the 4 sibling PRs' own new test files
+      this PR doesn't touch): 11 passed
+- [x] Opened PR https://github.com/FChecklist/claude-control/pull/83 (OPEN, not self-merged)
+- [x] Moved ACTIVE-CLAIMS.yaml entry to recently_completed
 
 ## Remaining
-- [ ] Owner sign-off on PR #563 (constitutionally required per this task's
-      own constraints -- prior live-DDL-before-review exception -- not
-      merged by this session under any circumstance).
-- [ ] `gh pr checks 563` will still show "Metadata Index Coverage Check" red
-      after this push, but for the separate pre-existing reason above, not
-      the migration-drift-audit-file gap this task fixed. A future session
-      should open a dedicated task to research and register/exempt the 56
-      flagged items.
-- [ ] No live database action was taken in this task (by design, per SPEC) --
-      the live DB was already correct per the prior audit; only repo files
-      were changed to match it.
+- [ ] None -- task complete. PR #83 left open per CONSTRAINTS (no self-merge).
