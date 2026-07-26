@@ -40,6 +40,68 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-171420-phase5-browser-execution-lite-llm-npu-bu) -- VERIDIAN_Architecture_v2.0 phase_5: tiered Browser Execution Engine (NPU/Built-in-AI/Lite-LLM/Transformers.js/Server) + browser-to-server handoff"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      phase_5_browser_execution_tiers of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in repo
+      claude-control at /opt/veridian/repos/claude-control, target_repo:
+      compliance-tracker per that phase's own target_repo_note). Extends
+      src/app/litert-spike/ + litert-spike-embeddings/ (unregistered debug
+      spikes) into a real tiered Browser Execution Engine.
+
+      KEY FINDING before writing any code (collision/duplication check): a
+      full end-user chat surface already exists and is already mounted in
+      the authenticated app -- src/components/veri-chat/VeriComposer.tsx +
+      ChainSelector.tsx, using FIXED_MODES from
+      @fchecklist/veridian-ui-kit/context. This already IS the Owner's
+      "dynamic mode pills + dynamic option chain" (Option 1) and free-text
+      chat (Option 2) UX per BROWSER_NATIVE_END_USER_ARCHITECTURE_2026-07-25.txt
+      -- confirmed by reading the full component, not assumed. Per this
+      repo's zero-duplication rule, this task does NOT build new duplicate
+      input components. The real gap: VeriComposer sends straight to
+      server APIs (/api/tasks, /api/conversations/*/messages) with zero
+      browser-native execution tier today. This task builds
+      src/lib/browser-execution/ (capability detection for NPU/WebNN,
+      Built-in AI/window.ai, Lite LLM via WebLLM, Transformers.js, with
+      real fallback ordering + an execution planner keyed off phase_2's
+      runPipeline()/VerificationResult.modelSelection.complexityTier) and
+      wires it as an additive pre-send step in VeriComposer, producing
+      phase_2's CompiledPrompt (src/lib/prompt-compiler/) as the
+      machine-language-output contract before the existing server dispatch
+      (task-service.ts) runs as the real second pass -- no change to
+      existing server dispatch logic itself. LiteRT.js is kept only for
+      its already-spiked vision use case; WebLLM is adopted for the Lite
+      LLM (browser-side chat-capable LLM) tier instead, since
+      ai-os/MASTER-TRACKER.yaml's own GAP-LITERT-EDGE-INFERENCE entry
+      already confirmed LiteRT-LM.js (LLM chat) is a separate, unevaluated
+      product and LiteRT.js's own embeddings spike hit real, documented
+      int64/dynamic-shape API walls -- Transformers.js is adopted for the
+      embeddings/classification tier for the same documented reason.
+      llm-client.ts remains this phase's existing Tier-5
+      escalation-on-insufficiency target (engine-server-escalation) --
+      not a new mandatory AI hop, per the phase's own credit-governance
+      reconciliation.
+
+      File scope (compliance-tracker, this repo): new
+      src/lib/browser-execution/ directory (module + colocated tests), an
+      additive integration point in
+      src/components/veri-chat/VeriComposer.tsx (no removal/rework of its
+      existing dispatch logic), ai-os/MASTER_INDEX.yaml (register
+      litert-spike/litert-spike-embeddings, this phase's own first step),
+      new package.json deps @mlc-ai/web-llm + @huggingface/transformers,
+      a new e2e/ Playwright test proving capability-detection/fallback
+      executes in a real browser context. Also touches claude-control
+      (separate repo, coordinate-not-run-inside per this plan's own
+      meta.cross_repo_dispatch_note, no branch protection there per
+      phase_2/phase_3's own precedent): phase_5's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml.
+
+      Collision check before starting: grepped this file for "phase_5"/
+      "browser-execution"/"litert"/"VeriComposer" -- no other active entry
+      claims these paths. `gh pr list --state open` checked, none found
+      touching src/app/litert-spike*, src/components/veri-chat/, or
+      src/lib/browser-execution/.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
