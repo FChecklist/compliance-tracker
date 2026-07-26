@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-171939-delegation-expiry-enforcement-audit---te) -- V2-11 Delegation expiry enforcement audit + test"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      V2-11-DELEGATION-EXPIRY. Redispatch of a task blocked pre-work by a
+      spend-governance gate on 2026-07-20; re-verified GENUINELY_STILL_OPEN
+      by the 2026-07-26 relevance-triage pass
+      (ai-os/TIER3_RELEVANCE_TRIAGE_REPORT_2026-07-26.md, key
+      `delegation-expiry`). delegation-service.ts's isDelegated()/
+      isDelegationActive() (Wave 173, GAP-DELEGATION-AUTHORITY) are real,
+      tested, expiry-correct functions with ZERO consumers anywhere outside
+      that file -- confirmed by `grep -rn "isDelegated(" src` before
+      starting. Auditing every requireRole()/ROLE_RANK authorization
+      checkpoint against the 6 DELEGATION_SCOPE_TYPES (task/workflow/
+      project/module/communication_type/approval_type) to find the real,
+      non-listing checkpoint(s) that should consult it, wiring it in
+      additively (no behavior change for a user with no delegation), and
+      adding a regression test proving an EXPIRED delegation is rejected
+      there.
+
+      File scope (compliance-tracker, this repo): audit doc (new, under
+      ai-os/), src/lib/services/delegation-service.ts (pure-logic
+      refactor only, no behavior change -- splitting isDelegated()'s
+      decision logic into a separately-testable exported function, same
+      shape as its own existing isDelegationActive/delegationGrantsUser
+      split), src/lib/services/approval-workflow-service.ts
+      (decideApprovalStep's existing role-rank gate, additive
+      delegation-authority fallback), and both files' *.test.ts. Does not
+      touch schema.ts/migrations (scopedDelegations table already exists),
+      permission-service.ts's ERP_ACTION_ROLES (a much larger, separate,
+      not-delegation-scoped RBAC primitive -- out of scope per the audit
+      doc's own findings), or any other service.
+
+      Collision check before starting: grepped this file for "delegat" --
+      no other active entry claims delegation-service.ts,
+      approval-workflow-service.ts, or scopedDelegations. `gh pr list
+      --state open` checked, none found touching these paths.
+
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
