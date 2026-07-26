@@ -3048,6 +3048,38 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260726-105214-correct-stale-pr-state-claims-in-engine) -- Corrected stale claude-control PR #81 claims in PR #566 (compliance-tracker) + PR #83 (claude-control) [CLOSED]"
+    claimed_at: "2026-07-26T (this session)"
+    claim: >-
+      Narrow factual correction, not a rework: PR #566 and PR #83 (both from
+      task-20260726-094625-re-verify-20-engine-inventory---confirm) described
+      claude-control PR #81 (HOLD_FOR_OWNER_SIGNOFF fix) as "currently-open"/
+      "not yet merged" -- fresh `gh pr view 81 --repo FChecklist/claude-control
+      --json state,mergedAt,closedAt` showed `{"state":"CLOSED","mergedAt":null,
+      "closedAt":"2026-07-26T09:52:13Z"}`, already stale by 9 minutes at the
+      time PR #566's own closing commit was made. Read #81's full AUDIT: FAIL
+      comment: closed as a byte-identical stale duplicate redispatch of
+      task-20260726-083946, whose real fix had already landed at commit
+      e6c7049 before #81 was even audited. e6c7049 was then mistakenly deleted
+      from claude-control's master and recovered via PR #84 ("Recover
+      lifecycle-fix commit e6c7049"), MERGED 2026-07-26T10:19:37Z --
+      confirmed live today via `grep HOLD_FOR_OWNER_SIGNOFF
+      /opt/veridian/scripts/veridian-task.py supervisor-entrypoint.sh`.
+      Also freshly reconfirmed #79/#80/#82 OPEN and #87 MERGED (not directly
+      cited by the original stale claims, no action needed). Pushed
+      corrections directly to both existing PR branches (no new PRs opened
+      per task CONSTRAINTS): compliance-tracker PR #566's PROGRESS.md +
+      ai-os/boss/ACTIVE-CLAIMS.yaml (commit 180d268a), claude-control PR #83's
+      ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml Engine 8
+      gap_description (commit f47a59a, YAML re-validated with
+      yaml.safe_load). No other conclusion in either PR changed -- the
+      underlying practical takeaway (HOLD_FOR_OWNER_SIGNOFF not live at the
+      moment PR #566/#83 were originally written) was already correct; only
+      the PR-number/PR-state attribution was wrong. Noted but did not fix (out
+      of scope): PR #566 has a pre-existing merge conflict against main on
+      PROGRESS.md, unrelated to this change (predates this branch's fork
+      point; confirmed via `git merge-tree` the only conflicting hunk is an
+      unrelated task's PROGRESS.md header/body).
   - session_label: "claude-code (task-20260726-102520-analyze-update--supabase-schema-migratio) -- Live Supabase schema/migration analysis: resolved PR #563 conflict, regenerated DATABASE_CATALOG.json [CLOSED, compliance-tracker PR #567 open]"
     claimed_at: "2026-07-26T (this session)"
     claim: |
