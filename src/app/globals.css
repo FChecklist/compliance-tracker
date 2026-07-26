@@ -195,6 +195,20 @@
   .text-balance {
     text-wrap: balance;
   }
+  /* V2-2 unified bottom-nav strip: the strip scrolls horizontally on a
+     narrow viewport (see BottomNavStrip.tsx header) but a visible scrollbar
+     there would clutter the shell's bottom edge -- hide it. kit's own
+     globals.css doesn't define this (the kit's sidebar is vertical, never
+     needs to hide a horizontal scrollbar), so it lives here as a
+     product-local utility, the same place the other product-local
+     .shadow-* / .text-gradient-* utilities above live. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
   .text-gradient-navy {
     background: linear-gradient(135deg, #1C2B3A, #2D3F52);
     -webkit-background-clip: text;

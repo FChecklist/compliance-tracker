@@ -7,6 +7,14 @@
       "connectors": "कनेक्टर्स",
       "agents": "अपने एजेंट बनाएं"
     },
+    "bottomNav": {
+      "chat": "चैट",
+      "todo": "करने के लिए",
+      "analytics": "विश्लेषण",
+      "approval": "स्वीकृति",
+      "email": "ईमेल",
+      "new": "नया"
+    },
     "poweredBy": "VERIDIAN AI द्वारा संचालित",
     "sections": {
       "overview": {

@@ -2908,6 +2908,48 @@ active:
       (every other active entry is a specific implementation/test gap), so
       no scope collision. Will move this entry to recently_completed once
       the plan's PR is merged.
+  - session_label: "claude-code (task-20260720-022703-superboss-v2-plan--unified-bottom-nav-st) -- V2-2 Unified bottom-nav strip"
+    claimed_at: "2026-07-20T (this session)"
+    claim: |
+      Super Boss v2 plan TASK V2-2-UNIFIED-NAV (CSV row #05 / Navigation
+      tranche): build the unified bottom-nav strip the design law
+      (PLATFORM_STRATEGY.md line 178/216) calls for -- "One navigation
+      system only -- Chat / To Do / Analytics / Approval / Email / New as a
+      single strip above the compose bar" -- on top of veridian-ui-kit
+      v0.2.2's shell. Checked this file's active: section in full before
+      starting: no other active entry claims AppShell.tsx, AppSidebar.tsx,
+      or any nav-surface scope -- the 3 PROJEXA E2E batch claims are
+      disjoint (work in FChecklist/projexa repo, not this repo's nav); the
+      other active entries are ai-router / gap-closure / calc-engine /
+      controller, none touching the app nav surface. No collision.
+
+      DECISION (honest, will be in PROGRESS.md): building the BottomNavStrip
+      in THIS repo (compliance-tracker), not in the kit repo, reusing the
+      kit's NavItem type + the .veri-nav-item token class the kit's
+      globals.css already defines (no new token system). Rationale: the
+      kit's own README scope boundary is "the product owns its nav DATA;
+      this owns the shared shell only" -- a bottom strip bound to
+      product-specific routes (/chat, /approvals, /home, /dashboard) is
+      product nav-data + a thin horizontal layout, not a multi-product
+      shared primitive the kit needs to own. If a second FChecklist product
+      later needs the same strip, that's the trigger to promote it into the
+      kit (same additive-when-justified pattern the kit's other shells
+      followed) -- not preemptive.
+
+      File scope: src/components/AppShell.tsx (wire the strip in, both the
+      veriChatV2Enabled and legacy branches), new
+      src/components/BottomNavStrip.tsx (+ .test.tsx), and a PROGRESS.md
+      entry. Tier2 (AppShell = the app-shell schema) -- holds for Owner
+      sign-off per the tiered trust model, NOT self-merged even if CI is
+      green.
+
+      SUPERSEDED 2026-07-26 by this file's own newer entry above
+      (task-20260726-171157-redispatch--land-unified-bottom-nav-stri) --
+      that entry's PR #489 went stale awaiting merge; this redispatch
+      reconciles the same branch onto current main. Left here (not deleted)
+      per this file's own "combine, don't drop either side" merge
+      convention; will move to recently_completed together with the newer
+      entry once the reconciled PR actually merges.
   - session_label: "claude-code (task-20260720-034002-superboss-v2-plan--mobile-field-ux-cross) -- SUPERBOSS v2 TASK V2-8: Mobile field UX cross-reference to projexa (docs-only close of CSV row #1790)"
     claimed_at: "2026-07-20T03:45:00Z (this session)"
     claim: |
