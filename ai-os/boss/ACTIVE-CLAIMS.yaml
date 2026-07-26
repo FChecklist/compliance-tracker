@@ -40,6 +40,36 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-171157-redispatch--land-unified-bottom-nav-stri) -- V2-2-UNIFIED-NAV redispatch: land unified bottom-nav strip"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      Redispatch of task-20260720-022703-superboss-v2-plan--unified-bottom-nav-st
+      (SUPERBOSS_V2_PLAN item V2-2-UNIFIED-NAV, closes CSV row #05 + the
+      Navigation tranche). That prior session did real work -- BottomNavStrip.tsx,
+      bottom-nav-items.ts/test.ts, AppShell.tsx wiring, i18n strings -- and opened
+      PR #489, but the PR went stale waiting for merge: 6 days of master drift
+      left it mergeStateStatus=DIRTY/mergeable=CONFLICTING with real CI failures
+      on "E2E Tests" and "audit-check" (all else -- Build/Lint/TypeCheck/Unit
+      Tests -- passing). This session reconciles PR #489's branch
+      (worker/task-20260720-022703-superboss-v2-plan--unified-bottom-nav-st) onto
+      current main, fixes the two real check failures, and re-verifies against
+      veridian-ui-kit's current version + the design law doc before pushing.
+
+      File scope: src/components/BottomNavStrip.tsx,
+      src/components/bottom-nav-items.ts(+.test.ts), src/components/AppShell.tsx
+      (nav wiring only), associated i18n string files, plus whatever E2E
+      spec(s) and audit-check config the CI failures point to. No schema/auth/
+      RLS/payment/billing/.env changes expected (additive UI feature).
+
+      Collision check before starting: grepped this file for "bottom-nav" /
+      "unified-nav" / "BottomNavStrip" / "V2-2" / "489" -- no other active
+      entry claims this path (one passing mention of "V2-2 nav" at line ~286
+      is a disjoint-scope note in an unrelated claim's own collision-check
+      section, not a competing claim). `gh pr list --repo FChecklist/
+      compliance-tracker --state open --search nav` returns only PR #489
+      itself, no newer competing PR. `grep -rl "bottom-nav\|BottomNavStrip"
+      src/components` against current main returns nothing else, confirming
+      no other task has since rebuilt this feature.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
