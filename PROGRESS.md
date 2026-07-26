@@ -1,56 +1,35 @@
-# PROGRESS -- task-20260726-115425-resolve-pr563-merge-conflict--supabase-m
+# PROGRESS -- task-20260726-171420-phase5-browser-execution-lite-llm-npu-bu
+
+VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers
+(claude-control's ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml).
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- confirmed no other active claim
-      overlaps PR #563's branch/file scope.
-- [x] Confirmed PR #563 (`worker/task-20260726-071400-migration-drift-audit-and-reconciliation`)
-      was CONFLICTING/DIRTY against `main`, reintroduced by PR #568 (a later,
-      unrelated stale-PR-state correction) touching the same
-      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` files after the prior
-      session's "resolved -> MERGEABLE" claim (task-20260726-102520) had
-      already stopped holding.
-- [x] Merged `origin/main` into PR #563's existing branch, in its existing
-      worktree (`/opt/veridian/ai-os/tasks/task-20260726-071400-.../workspace`)
-      -- did not create a duplicate worktree, did not touch any other task's
-      checkout.
-- [x] Resolved both real conflicts:
-      - `PROGRESS.md` -- combined every prior task's real narrative on this
-        branch instead of dropping either side.
-      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- union-merged both sides'
-        `recently_completed` entries (same pattern used repeatedly on this
-        file this session), plus added this task's own entry.
-- [x] While validating the merged YAML (`python3 -c "import yaml;
-      yaml.safe_load(...)"`), found the parse still failed on a
-      **pre-existing bug already on `main`**, unrelated to this merge: 3 list
-      entries (2026-07-19/07-21 claims) and 5 `scope_note:` keys were
-      mis-indented by 2 spaces, going back as far as the 2026-07-20 V2-7
-      entry. Fixed via whitespace-only re-indentation (verified via a Python
-      script operating on exact line ranges, no content altered) -- file now
-      parses (75 `active` + 65 `recently_completed` entries).
-- [x] Verified live, read-only (no DDL/migration executed, per CONSTRAINTS):
-      `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` on compliance-tracker
-      (project `pcrjmlpuqsbocqfwoxod`, via Supabase MCP `execute_sql`) still
-      returns 261 rows, matching PR #563's original fix -- no drift.
-- [x] Pushed the resolved merge commit (`d6ceb270`) directly to PR #563's
-      existing branch. Did not open a new PR, did not merge PR #563.
-- [x] Updated PR #563's body (via `gh api ... -X PATCH -F body=@...`, since
-      `gh pr edit`/`gh pr view` both hit an unrelated GitHub GraphQL
-      Projects-classic deprecation error / silent line-truncation
-      respectively) with the conflict-resolution summary and the live
-      verification result.
-- [x] Confirmed `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
 
-## Remaining
-- [ ] None -- task complete. `mergeStateStatus` shows `BLOCKED` only because
-      CI checks are pending/required, not because of any conflict.
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting work.
+- [x] FIRST STEP per spec: registered `litert-spike` + `litert-spike-embeddings` prior art in `ai-os/MASTER_INDEX.yaml` (`litert_spike_prior_art` entry).
+- [x] **Key scoping finding** (avoided duplicate build): `src/components/veri-chat/VeriComposer.tsx` + `ChainSelector.tsx` already realize the Owner's "dynamic mode pills + dynamic option chain" (Option 1) and free-text chat (Option 2) UX, already mounted in `(app)/home`. Did not build new duplicate input components.
+- [x] Technology decisions made and justified (not silently kept LiteRT by default): WebLLM (`@mlc-ai/web-llm`) adopted for the Lite-LLM tier (LiteRT-LM.js is a separate, unevaluated product per `ai-os/MASTER-TRACKER.yaml` GAP-LITERT-EDGE-INFERENCE); Transformers.js (`@huggingface/transformers`) adopted for the embeddings/classification tier, sidestepping litert-spike-embeddings' documented int64/dynamic-shape API blocker. Both added as real `package.json` dependencies.
+- [x] **Portability fix required for phase_2's compiler to run in-browser at all**: extracted `estimateCostUsd`/`estimateCacheSavingsUsd`/`MODEL_PRICING`/`LLMUsage` out of `llm-client.ts` (a ~750-line, 5-provider server module) into a new dependency-free `src/lib/llm-pricing.ts`, re-exported unchanged from `llm-client.ts` for every existing call site. `src/lib/prompt-compiler/verification-pipeline.ts` now imports from `llm-pricing.ts` instead.
+- [x] Replaced Node's `crypto.createHash` (unavailable in a browser bundle) with a new dependency-free, synchronous `src/lib/universal-hash.ts` (`sha256Hex`), verified byte-for-byte against Node's own `crypto` for many inputs incl. block-boundary edge cases (`universal-hash.test.ts`). Wired into `prompt-compiler/prompt-construction.ts`'s `hashContent`/`computeFingerprint`. This was the real, concrete blocker preventing phase_2's `runPipeline()` from executing client-side; confirmed the full call chain (`pipeline.ts` → `context-assembly.ts`/`prompt-construction.ts`/`verification-pipeline.ts`/`confidence-engine.ts`/`intent-classifier.ts`/`entity-variable-extraction.ts`) has zero remaining Node-only imports.
+- [x] Built `src/lib/browser-execution/` (new module, imports `prompt-compiler` submodules directly, never the barrel, since the barrel re-exports DB-backed/Node-crypto modules unsafe for a client bundle):
+  - `types.ts` -- shared types incl. the `"deterministic"` pseudo-tier (phase_2's compiler runs first, at zero AI cost, for every request).
+  - `tier-capabilities.ts` -- real feature detection (WebNN/`navigator.ml`, Chrome Prompt API/`LanguageModel`, WebGPU/`navigator.gpu`), unit tested by stubbing globals.
+  - `model-selection.ts` -- engine-model-selection + engine-execution-planner: deterministic tier-order policy keyed off phase_2's `ModelSelection.complexityTier`; `MIN_CONFIDENT_COMPOSITE` threshold calibrated against `confidence-engine.ts`'s real weights (browser calls have no cache-match signal, so ceiling is ~0.75, not 1.0).
+  - `tier-runners.ts` -- real on-device model calls (WebLLM `CreateMLCEngine`/`chat.completions.create`, Transformers.js `pipeline("zero-shot-classification", ...)` with `device: "webnn-npu"` for the NPU tier, Chrome `LanguageModel.create()`/`.prompt()` for Built-in AI), each verified against the installed packages' real `.d.ts` signatures, not guessed. Output-parsing logic (`parseCategoryFromModelOutput`) is pure and unit tested.
+  - `storage-cache.ts` -- engine-browser-storage / browser-cache-check sub-scope only (full L0-L9 hierarchy is phase_6): IndexedDB-backed, in-memory fallback for non-browser contexts, fail-open.
+  - `sync-queue.ts` -- engine-browser-sync: offline retry queue, localStorage-persisted.
+  - `function-tools.ts` -- engine-browser-function + engine-browser-mcp (deliberately distinct from `ai-os/BROWSER_AUTOMATION_PROFILE_2026-07-25.yaml`'s session-tooling scope): a minimal real tool-calling contract for the on-device tiers.
+  - `engine.ts` -- the orchestrator (`runBrowserExecutionTiers`): runs phase_2's deterministic compiler first always; only attempts on-device AI tiers when `needsRefinement()` is true; falls through to `"server"` (the existing, unchanged server dispatch path) when local tiers are unavailable/insufficient or decline.
+  - `index.ts` -- barrel (does NOT re-export `@/lib/prompt-compiler`'s own barrel).
+- [x] Found and fixed a real cross-test bug during verification: the in-memory cache fallback is module-scope and persisted across tests in the same file/process (since `contentHash` depends only on normalized text, not on tier-refined classification) -- added `resetInMemoryCacheForTests()` and wired it into `beforeEach` in the affected test files.
 
-## Note for future sessions
-`gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
-files were observed silently truncating output in this sandbox (per-line
-~120-char cutoff with a literal `...`, and whole-file cutoffs respectively) --
-use `gh api repos/<owner>/<repo>/pulls/<n> --jq '.body'` and
-`git cat-file -p <blob-sha>` instead when the content matters. Likely the
-`snip` shell-output filter (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s snip
-integration entries) intercepting recognized "verbose" commands, not a
-general/silent corruption of file writes made directly by tools (Write/Edit)
-or by Python's own `open()/write()`.
+## Remaining (not completed this session -- budget exhausted mid-task)
+
+- [ ] **Re-run the full `src/lib/browser-execution/` test suite after the cache-pollution fix above and confirm green.** The suite was run once before the fix (32 pass / 7 fail, all 7 attributable to either the cache-pollution bug just fixed, or a one-time ~300s module-resolution cost `bun test` incurs the first time it statically analyzes the dynamic `import()` targets in `tier-runners.ts` for `@mlc-ai/web-llm`/`@huggingface/transformers`, tripping several unrelated tests' default 5000ms timeouts). Needs a re-run (likely with a longer `--timeout`) to confirm the logic fix actually resolves it and to characterize the real one-time cost.
+- [ ] Wire `src/lib/browser-execution/`'s `runBrowserExecutionTiers()` into `VeriComposer.tsx`'s send/dispatch path as an additive pre-send step (per spec: "the browser-to-server handoff itself"). Not started -- `VeriComposer.tsx` is untouched this session.
+- [ ] Playwright proof (`e2e/browser-execution.spec.ts`) of capability-detection/fallback executing in a real headless-Chromium context, per this phase's own success_criteria ("A real command proving at least a 2-tier fallback... executes end to end in a browser context"). Not started. `@playwright/test` is already a devDependency; `e2e/` is currently empty.
+- [ ] Full repo `tsc`/lint pass has NOT been run this session -- only the new/touched files' own `bun test` suite. Must run before merge.
+- [ ] `ai-os/MASTER_INDEX.yaml`: add a second registries entry for the new `src/lib/browser-execution/` engine itself (only the prior-art litert-spike entry was added so far).
+- [ ] `ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml` (claude-control repo, `/opt/veridian/repos/claude-control/`) phase_5 status has NOT been updated yet -- still `not_started`. Do not mark `status: done` until the above items are complete and a real PR exists (see phase_4's own corrected-status entry in that file for why: a prior session's premature "done" claim citing an unmerged/conflicting PR was reverted -- don't repeat that).
+- [ ] No PR opened yet for this branch (`worker/task-20260726-171420-phase5-browser-execution`). Only the ACTIVE-CLAIMS registration commit has been pushed so far; the browser-execution module itself is uncommitted in the working tree as of this PROGRESS.md update.
+- [ ] engine-browser-worker (deepen): not addressed this session -- the litert-spike esbuild-separate-worker-bundling pattern was not reused/extended for the new tiers (WebLLM/Transformers.js manage their own internal worker/WASM threading, which may make a dedicated custom worker unnecessary, but this was not investigated).

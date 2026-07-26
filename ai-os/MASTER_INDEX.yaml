@@ -1988,6 +1988,62 @@ registries:
       pure isLegalLifecycleTransition/nextSemanticVersion/diffContentLines
       logic without a live DB, same pattern as esignature-service.test.ts.
 
+  - id: litert_spike_prior_art
+    type: experimental_spike
+    path: >-
+      src/app/litert-spike/ (page.tsx, types.ts,
+      worker-src/inference-worker.ts, public/litert-spike/), and
+      src/app/litert-spike-embeddings/ (page.tsx, types.ts,
+      worker-src/wordpiece-tokenizer.ts, worker-src/inference-worker.ts)
+    scope: >-
+      Registered 2026-07-26 as the FIRST STEP of
+      VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers
+      (claude-control's ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+      target_repo: compliance-tracker) -- closes gap-analysis item
+      litert-spike-unregistered, which flagged this as the ONLY real
+      browser-native prior art anywhere in this system, present but never
+      indexed here. TWO isolated, unauthenticated, non-nav-linked app-router
+      debug routes evaluating Google's LiteRT.js (@litertjs/core,
+      package.json dependency) edge-inference WASM runtime -- neither is a
+      product feature; both are safe to delete per their own page.tsx
+      header comments. (1) litert-spike (WAVE-172/PR #253, 2026-07-13):
+      MobileNetV2 blur/sharp image classifier, real measured numbers
+      (2,398ms cold load, ~19.6MB payload, confirmed WebGPU full
+      acceleration, 5/5 correct). (2) litert-spike-embeddings (2026-07-14,
+      same day as ai-os/MASTER-TRACKER.yaml's GAP-LITERT-EDGE-INFERENCE
+      Phase 0b): embeddings/vector-search variant, real measured numbers
+      (WASM CPU fallback in test browser, 1.4-25s wasm load, 7-43s
+      model fetch+compile, 384-dim embeddings confirmed), but hit a real,
+      documented, UNRESOLVED blocker -- @litertjs/core v2.5.2's JS API
+      cannot run either of two tried public tflite embeddings conversions
+      (dynamic-shape resize-input-tensor gap; native INT64 dtype
+      unsupported). Both spikes reuse the same esbuild-separate-worker-
+      bundling fix (classic non-module Worker, NOT Turbopack-bundled --
+      see litert-spike/worker-src/inference-worker.ts's header for the
+      real errors that approach hit first) -- load-bearing prior art for
+      any future browser-side WASM/WebGPU worker code in this repo,
+      reused as-is (not re-solved) by phase_5's browser-execution engine.
+      Full detail: ai-os/MASTER-TRACKER.yaml GAP-LITERT-EDGE-INFERENCE.
+    status: >-
+      experimental, superseded for the Lite-LLM tier specifically --
+      phase_5's tiered Browser Execution Engine
+      (src/lib/browser-execution/) adopts WebLLM (@mlc-ai/web-llm) for
+      actual in-browser LLM/chat inference instead of LiteRT.js, because
+      LiteRT-LM.js (the LLM-chat variant of this same Google product
+      family) is a separate, unevaluated product per
+      GAP-LITERT-EDGE-INFERENCE's own finding, and adopts Transformers.js
+      (@huggingface/transformers) for the embeddings/classification tier
+      instead of pushing further on litert-spike-embeddings' documented
+      API blocker above. LiteRT.js itself is not removed and remains real,
+      working prior art for its own already-proven use case (client-side
+      vision-model inference via WebGPU/WASM).
+    do_not_rebuild: >-
+      Do not re-spike LiteRT.js's WASM/WebGPU worker-bundling problem --
+      reuse the esbuild-separate-worker pattern both spikes already
+      solved. Do not re-attempt the embeddings blocker above without
+      either a tflite conversion with BOTH fixed shape AND int32 dtype,
+      or a newer @litertjs/core release with a resize-input-tensor path.
+
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/

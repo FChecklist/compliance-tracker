@@ -13,7 +13,14 @@
 // Owner's 2026-07-25 UX directive reconciliation: it is the
 // machine-language-output CONTRACT phase_5's browser input surfaces will
 // later compile into, not a second AI pass.
-import { createHash } from "crypto"
+// VERIDIAN_Architecture_v2.0 phase_5 (2026-07-26): sha256Hex, not Node's
+// crypto.createHash -- this module is called directly from the browser
+// (src/lib/browser-execution/), and Node's `crypto` module does not exist
+// in a client bundle. See universal-hash.ts's header for why a
+// dependency-free sync implementation was written rather than the async
+// Web Crypto API. contentHash/fingerprint are cache keys, never a security
+// boundary, so the algorithm swap is safe.
+import { sha256Hex } from "@/lib/universal-hash"
 import { normalizeForLlm } from "@/lib/prompt-normalizer"
 import { classify, extractIntent } from "./intent-classifier"
 import { extractEntities, extractVariables } from "./entity-variable-extraction"
@@ -123,7 +130,7 @@ export function estimateTokenReduction(original: string, machinePrompt: string) 
 
 /** sha256 of the exact cleaned text -- PROMPT_METADATA_SCHEMA's `version.diff_hash` field. */
 export function hashContent(text: string): string {
-  return createHash("sha256").update(text).digest("hex")
+  return sha256Hex(text)
 }
 
 /**
@@ -140,7 +147,7 @@ export function computeFingerprint(classification: Classification, intent: Inten
   const entityTypes = [...new Set(entities.map((e) => e.type))].sort()
   const variableNames = [...new Set(variables.map((v) => v.name))].sort()
   const shape = `${classification.category}|${intent.primary}|${entityTypes.join(",")}|${variableNames.join(",")}`
-  return createHash("sha256").update(shape).digest("hex")
+  return sha256Hex(shape)
 }
 
 /**

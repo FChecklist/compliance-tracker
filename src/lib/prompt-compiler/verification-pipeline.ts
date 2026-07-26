@@ -4,7 +4,12 @@
 // capability/permission checks + cost estimation + model selection, wired
 // onto real existing mechanisms (llm-client.ts's estimateCostUsd,
 // ComplexityTier from task-tightening.ts) rather than new parallel ones.
-import { estimateCostUsd } from "@/lib/llm-client"
+// VERIDIAN_Architecture_v2.0 phase_5 (2026-07-26): imports from
+// llm-pricing.ts (a dependency-free extraction), not llm-client.ts itself
+// -- this pipeline is called directly from the browser (see
+// src/lib/browser-execution/), and llm-client.ts's ~750-line provider-call
+// surface must never enter a client bundle.
+import { estimateCostUsd } from "@/lib/llm-pricing"
 import { computeConfidence, type ConfidenceInputs } from "./confidence-engine"
 import type { AssembledContext, Classification, CompiledPrompt, IntentLevel, ModelSelection, VerificationCheck, VerificationResult } from "./types"
 
