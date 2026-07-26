@@ -13,8 +13,7 @@
 // comment deferring exactly that question to phase_3.
 import { db, promptEvalRuns, promptTemplates, promptVersions, moduleRuleConfigs, users } from "@/lib/db"
 import { and, eq, gte, sql } from "drizzle-orm"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { resolveModuleRule } from "@/lib/module-rules-resolver"
+import { type TenantDb } from "@/lib/db/tenant-scoped"
 import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"
 import { logActivity } from "@/lib/audit"
 import { ServiceError } from "./compliance-service"
@@ -24,10 +23,38 @@ const MODULE_KEY = "prompt_lifecycle"
 
 // ─── Business Rule Engine (engine-business-rule) ─────────────────────────
 // Reuses module_registry/module_rule_configs (Wave 21) -- see
-// drizzle/0263's seeded platform defaults -- rather than a parallel rules
-// table. Every threshold below is overridable per-org through the SAME
-// setModuleRule()/module-rule-service.ts API every other module rule
-// already uses (scope_type='org'), not a bespoke prompt-only settings path.
+// drizzle/0263's seeded platform defaults -- for storage, but DELIBERATELY
+// PLATFORM-ONLY, unlike every other module_rule_configs consumer.
+//
+// Corrective fix (PR #561 audit, AUDIT: FAIL, 2026-07-26): the original
+// version of this file resolved these thresholds through module-rules-
+// resolver.ts's org/project/client override chain, keyed on the acting
+// user's own orgId, exactly like an ordinary org-scoped module rule. That
+// was a real cross-tenant privilege-escalation bug: prompt_templates/
+// prompt_versions/prompt_eval_runs are platform-wide, global-read catalogs
+// with NO orgId column at all (see prompt-os-service.ts's own header and
+// schema.ts's comments on those tables -- "prompt content is a
+// platform-governed asset... only service_role may write"), so there is no
+// such thing as "this org's" canary duration or eval-pass-rate requirement.
+// Any org's own rank-5 'admin' could call setModuleRule() (module-rule-
+// service.ts, scope_type='org', gated only on hasRole(dbUser,'admin')) to
+// zero out min_canary_duration_hours/min_eval_pass_rate for their own org,
+// after which a same-org veridian_admin (rank 6) could promote ANY
+// platform-wide prompt template straight to Production, bypassing the
+// canary/eval gates every other tenant relies on for that same shared
+// content -- not merely weakening their own org's data.
+//
+// getPromptLifecycleRule() below therefore reads ONLY the scope_type=
+// 'platform' row (never org/project/client/user) -- setModuleRule()'s own
+// WRITABLE_SCOPE_TYPES set (module-rule-service.ts) can never write
+// scope_type='platform' in the first place (only a migration/service_role
+// can), so this is a genuine floor, not a role check that could itself be
+// routed around. If a future requirement genuinely needs per-org
+// customization of these thresholds, the correct fix is giving
+// prompt_templates/prompt_versions/prompt_eval_runs a real orgId column
+// first (making the underlying resource actually org-scoped) -- resolving
+// a shared resource's gates through a per-org override chain is the bug,
+// not an acceptable tradeoff.
 export type PromptLifecycleRuleKey = "min_eval_pass_rate" | "min_canary_duration_hours" | "eval_daily_budget_usd"
 
 // Mirrors drizzle/0263's seeded platform-scope values -- used only if the
@@ -49,19 +76,15 @@ function coerceRuleNumber(raw: unknown, fallback: number): number {
 }
 
 /**
- * Resolves a prompt-lifecycle business-rule threshold. Prompt templates/
- * versions are platform-wide (no orgId of their own -- see prompt-os-
- * service.ts's own header), so an acting admin's orgId (when they have one)
- * is used to walk module-rules-resolver.ts's real org->platform chain,
- * exactly like every other module_rule_configs consumer; an orgless
- * platform admin reads the platform default directly.
+ * Resolves a prompt-lifecycle business-rule threshold. PLATFORM-ONLY (see
+ * this section's header comment above) -- reads ONLY the scope_type=
+ * 'platform' module_rule_configs row (drizzle/0263's seeded defaults),
+ * never module-rules-resolver.ts's org/project/client override chain.
+ * Takes no orgId/scope parameter at all -- there is no per-org variant of
+ * this value to resolve.
  */
-export async function getPromptLifecycleRule(orgId: string | null | undefined, ruleKey: PromptLifecycleRuleKey): Promise<number> {
+export async function getPromptLifecycleRule(ruleKey: PromptLifecycleRuleKey): Promise<number> {
   const fallback = RULE_FALLBACK_DEFAULTS[ruleKey]
-  if (orgId) {
-    const resolved = await resolveModuleRule(MODULE_KEY, ruleKey, { orgId })
-    if (resolved) return coerceRuleNumber(resolved.value, fallback)
-  }
   const platformRow = await db.query.moduleRuleConfigs.findFirst({
     where: and(
       eq(moduleRuleConfigs.moduleKey, MODULE_KEY),
@@ -104,17 +127,54 @@ export async function recordPromptGovernanceEvent(
 // than a data-classification platform.
 export type PiiScanResult = { clean: boolean; findings: string[] }
 
-const PII_PATTERNS: Array<{ label: string; pattern: RegExp }> = [
-  { label: "email address", pattern: /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/ },
-  { label: "US Social Security Number", pattern: /\b\d{3}-\d{2}-\d{4}\b/ },
-  { label: "credit card number", pattern: /\b(?:\d[ -]?){13,16}\b/ },
-  { label: "phone number", pattern: /\b(?:\+?\d{1,3}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}\b/ },
+// Standard credit-card Luhn checksum (ISO/IEC 7812-1). Applied only to
+// digit runs already shaped like a card number (13-19 digits, the real
+// range every card network uses, optionally separated by spaces/hyphens --
+// matching PCI DSS's own definition of a PAN) -- narrows the prior bare
+// `\b(?:\d[ -]?){13,16}\b` regex, which matched almost any long digit run
+// (order/ticket/reference IDs, hashes, concatenated dates) and would
+// false-positive-block legitimate Production promotions (PR #561 audit
+// finding). A Luhn-invalid digit run is never a real card number, so
+// rejecting those removes a large class of false positives without
+// weakening real detection -- every real card number is Luhn-valid by
+// construction.
+function isLuhnValid(digitsOnly: string): boolean {
+  let sum = 0
+  let doubleNext = false
+  for (let i = digitsOnly.length - 1; i >= 0; i--) {
+    let digit = digitsOnly.charCodeAt(i) - 48
+    if (doubleNext) {
+      digit *= 2
+      if (digit > 9) digit -= 9
+    }
+    sum += digit
+    doubleNext = !doubleNext
+  }
+  return sum % 10 === 0
+}
+
+const CARD_CANDIDATE_PATTERN = /\b(?:\d[ -]?){13,19}\b/g
+
+function containsLuhnValidCardNumber(content: string): boolean {
+  const candidates = content.match(CARD_CANDIDATE_PATTERN) ?? []
+  for (const candidate of candidates) {
+    const digitsOnly = candidate.replace(/[ -]/g, "")
+    if (digitsOnly.length >= 13 && digitsOnly.length <= 19 && isLuhnValid(digitsOnly)) return true
+  }
+  return false
+}
+
+const PII_PATTERNS: Array<{ label: string; test: (content: string) => boolean }> = [
+  { label: "email address", test: (c) => /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/.test(c) },
+  { label: "US Social Security Number", test: (c) => /\b\d{3}-\d{2}-\d{4}\b/.test(c) },
+  { label: "credit card number", test: containsLuhnValidCardNumber },
+  { label: "phone number", test: (c) => /\b(?:\+?\d{1,3}[ -]?)?\(?\d{3}\)?[ -]?\d{3}[ -]?\d{4}\b/.test(c) },
 ]
 
 export function scanPromptContentForPii(content: string): PiiScanResult {
   const findings: string[] = []
-  for (const { label, pattern } of PII_PATTERNS) {
-    if (pattern.test(content)) findings.push(label)
+  for (const { label, test } of PII_PATTERNS) {
+    if (test(content)) findings.push(label)
   }
   return { clean: findings.length === 0, findings }
 }
@@ -239,8 +299,16 @@ export type EvalBudgetDecision = { allowed: boolean; reason?: string; spentToday
 // of cost-policy.ts's per-call MAX_COST_PER_CALL_USD check -- a genuinely
 // different guard (cumulative vs. single-call), scoped to a different
 // spend domain (prompt evals vs. the platform's own AI-router calls).
-export async function checkPromptEvalBudget(orgId: string | null | undefined): Promise<EvalBudgetDecision> {
-  const budgetUsd = await getPromptLifecycleRule(orgId, "eval_daily_budget_usd")
+//
+// Takes no orgId: spend is aggregated globally across prompt_eval_runs (the
+// table has no orgId column -- it's a platform-wide shared pool, see
+// prompt-os-service.ts's header), and getPromptLifecycleRule() is now
+// PLATFORM-ONLY for the same reason (see this file's Business Rule Engine
+// header comment) -- the original org-parameterized version of this
+// function let one org's setModuleRule() override inflate/distort the
+// shared budget every other org drew against (PR #561 audit finding).
+export async function checkPromptEvalBudget(): Promise<EvalBudgetDecision> {
+  const budgetUsd = await getPromptLifecycleRule("eval_daily_budget_usd")
 
   const spentRow = await db
     .select({ total: sql<string>`coalesce(sum(${promptEvalRuns.estimatedCostUsd}), 0)` })
@@ -269,6 +337,35 @@ function startOfTodayUtc(): Date {
 // rule language. An org can define a deny policy on
 // {resourceType:'prompt_version', action:'promote_production'|
 // 'promote_staging'} keyed on any attribute this function supplies.
+//
+// Known, INTENTIONAL architectural limitation (PR #561 audit, carried
+// as-documented rather than "fixed" -- see this function's own analysis
+// below for why a full fix is out of scope here): abac_policies is a
+// genuinely org-scoped table (abacPolicies.orgId NOT NULL, RLS-enforced,
+// the single general-purpose ABAC overlay every other resource in this
+// codebase -- including genuinely org-owned resources like
+// approval_workflow/erp_payment_entry -- already uses) evaluated here
+// against a platform-wide resource (prompt_version) that has no real org
+// ownership. The result: the SAME transition on the SAME shared prompt
+// version can be allowed or denied differently depending on which acting
+// org's independently-configured deny policies happen to apply -- e.g. Org
+// A's compliance team can require its own admins to clear an extra deny
+// gate before promoting shared content that Org B's admins can promote
+// unimpeded. This is judged ACCEPTABLE, not a bug, for two reasons: (1) it
+// is deny-only (abacEffectEnum defaults to 'deny', no 'allow' effect
+// exists anywhere in this system -- see abac-policy-service.ts's own
+// header), so the asymmetry can only let an org impose STRICTER limits on
+// its own actors, never grant one org's actor a permission another org's
+// identical actor lacks -- the actual privilege-escalation direction this
+// whole PR exists to close stays closed; (2) giving prompt_version a real
+// platform-scoped ABAC concept (a policy that applies to every org's
+// actors uniformly) would be a genuine new ABAC capability -- a
+// scope_type='platform' policy row plus resolution-chain changes touching
+// every other ABAC consumer in this codebase, not a one-function fix --
+// and is out of this PR's scope. If a future requirement needs coherent,
+// org-independent policy enforcement on prompt-lifecycle transitions, add
+// that as a real platform-scope ABAC capability rather than special-casing
+// prompt_version's org resolution here.
 export async function checkPromptPolicyDeny(
   tx: TenantDb,
   orgId: string,
@@ -330,7 +427,7 @@ export async function runLifecycleTransitionGates(tx: TenantDb, input: Lifecycle
 
   if (input.toState === "Staging") {
     const passRate = await computeEvalPassRate(input.versionId)
-    const threshold = await getPromptLifecycleRule(input.actingOrgId, "min_eval_pass_rate")
+    const threshold = await getPromptLifecycleRule("min_eval_pass_rate")
     if (passRate === null) {
       throw new ServiceError(`Business rule gate: version has no completed eval runs -- at least one is required before Review -> Staging.`, 403)
     }
@@ -340,7 +437,7 @@ export async function runLifecycleTransitionGates(tx: TenantDb, input: Lifecycle
   }
 
   if (input.toState === "Production") {
-    const canaryHours = await getPromptLifecycleRule(input.actingOrgId, "min_canary_duration_hours")
+    const canaryHours = await getPromptLifecycleRule("min_canary_duration_hours")
     if (!input.stagingEnteredAt) {
       throw new ServiceError(`Business rule gate: version has no recorded Staging entry time -- cannot verify the ${canaryHours}h canary duration.`, 403)
     }

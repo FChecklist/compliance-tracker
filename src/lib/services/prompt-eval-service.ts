@@ -82,7 +82,7 @@ export async function runEval(
   // Cost Optimization Engine (engine-cost-optimization) budget guardrail --
   // fails closed once today's accumulated prompt-eval spend hits the
   // configured cap, before any LLM call is made.
-  const budget = await checkPromptEvalBudget(ctx.dbUser.orgId)
+  const budget = await checkPromptEvalBudget()
   if (!budget.allowed) throw new ServiceError(budget.reason ?? "Prompt eval daily budget exceeded", 429)
 
   const evalCase = await db.query.promptEvalCases.findFirst({ where: eq(promptEvalCases.id, input.evalCaseId) })
