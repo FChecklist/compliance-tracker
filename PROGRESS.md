@@ -26,12 +26,19 @@
       Owner recommendations, CSV re-score guidance for rows #40/#41/#42)
 - [x] Registered the new doc in `ai-os/OS.yaml`'s `health_and_compliance` index
 
+- [x] Opened PR #575 (`V2-15: Storage RLS + backup PITR + Supabase monitoring audit`), docs-only,
+      not merged -- left for the supervising session's review per this task's own instruction
+
 ## Remaining
-- [ ] Open PR (WIP if needed) -- docs-only, Tier1, no schema/auth/RLS/.env changes; do not merge
-      (left for the supervising session's review per this task's own instruction)
 - [ ] CSV rows #40/#41/#42 re-score itself lives in the separate `claude-control` repo -- out of this
       repo's PR scope; the audit doc's §5 supplies the exact re-score text for whoever does that there
 - [ ] Owner decision needed on: (a) Supabase org plan upgrade (Free -> Pro) + PITR add-on for real
       backup/DR coverage, (b) completing Sentry DSN provisioning (sentry.io signup + Vercel/GitHub
       secrets) -- both are billing/dashboard actions, not code, consistent with this task's own
       constraint carving out the DSN-provisioning half as Owner-side
+
+---
+
+Note: this branch merged `origin/main` (2026-07-26) to resolve a PROGRESS.md conflict with an unrelated,
+already-merged task's PR (`task-20260726-171200-tier2-fix--pr-566-pr-83-stale-pr-81-stil`, whose own
+commits are already on `main` independent of this file's contents). No other files conflicted.
