@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-171926-remove-anthropic-api-key-dead-code-path) -- V2-23-REMOVE-DEAD-ANTHROPIC-PATH"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      PR: https://github.com/FChecklist/compliance-tracker/pull/578 (WIP -- blocked on
+      gh workflow OAuth scope, see PROGRESS.md on that branch for the pending local
+      follow-up commit).
+
+      V2-23-REMOVE-DEAD-ANTHROPIC-PATH: remove the dead ANTHROPIC_API_KEY /
+      claude-task agent-dispatch path (AGENTS.md's "Claude Code (Secondary
+      Agent)" -- never had a working job behind it). File scope: removed
+      claude-task from .github/workflows/ai-dispatch.yml's
+      repository_dispatch types (+ trimmed the matching workflow_dispatch
+      engine description), deleted the dead .github/workflows/claude.yml
+      (@claude-comment workflow, same never-funded ANTHROPIC_API_KEY
+      secret, confirmed via `gh run list` that its job has only ever been
+      "skipped"), reworded the two remaining comment references
+      (src/lib/ai-team/roster.ts, .github/workflows/ai-team-workforce.yml)
+      that named the removed event/secret literally, updated AGENTS.md's
+      Secondary Agent entry to record the removal, and added
+      scripts/no-dead-anthropic-dispatch-path.test.ts as a regression
+      guard. Explicitly did NOT touch
+      src/lib/orchestra-model-resolver.ts's `case "anthropic"` (or its
+      siblings in llm-client.ts/prompt-eval-service.ts/
+      prompt-portability.ts/the settings API routes) -- that's a separate,
+      live, customer-facing bring-your-own-key LLM provider feature that
+      happens to share the same env var name; removing it would delete
+      real product functionality, not dead code. See PROGRESS.md for the
+      full writeup.
+
+      Collision check before starting: grepped this file for
+      "claude-task"/"ANTHROPIC_API_KEY"/"ai-dispatch.yml"/"claude.yml" --
+      no other active entry claims these files. `gh pr list --state open`
+      checked, none found touching .github/workflows/ai-dispatch.yml,
+      .github/workflows/claude.yml, or src/lib/ai-team/roster.ts.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
