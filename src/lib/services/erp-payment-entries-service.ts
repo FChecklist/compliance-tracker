@@ -42,6 +42,7 @@ import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { findControlAccount } from "./erp-invoicing-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { isSelfApproval } from "./approval-workflow-service"
+import { isDelegated } from "./delegation-service"
 import { createFraudCaseTx } from "./fraud-case-service"
 import { recordAndEscalateAnomaly } from "./risk-escalation-service"
 import {
@@ -87,13 +88,27 @@ export type DecisionGateResult = { ok: true } | { ok: false; reason: string }
  * The mandatory approval gate: an independent (non-self) approver at
  * manager rank or above. Pure so it's unit-testable without a DB -- mirrors
  * decideApprovalStep()'s identical two checks (self-approval, then rank).
+ *
+ * V2-11 delegation-expiry-enforcement-audit: `hasDelegatedAuthority`
+ * (default false, so every existing caller/test is unaffected) mirrors
+ * decideApprovalStep()'s own isDelegated()-backed fallback -- an
+ * already-expiry/revocation-checked "does an active approval_type
+ * delegation grant this actor authority" boolean, computed by the caller
+ * (decidePaymentEntry, DB-touching) and passed in here so this function
+ * itself stays pure and DB-free. This does NOT weaken this file's own
+ * documented mandatory-approval design: self-approval is still always
+ * blocked, and skipping approval entirely (the "no workflow configured"
+ * auto-approve fallback this file's header explicitly rejects) is still
+ * impossible -- a rank-insufficient actor is only ever let through if a
+ * real, currently-active delegation record already grants them that
+ * specific authority.
  */
-export function canDecidePaymentEntry(actorRole: string, createdById: string | null, actorId: string): DecisionGateResult {
+export function canDecidePaymentEntry(actorRole: string, createdById: string | null, actorId: string, hasDelegatedAuthority = false): DecisionGateResult {
   if (isSelfApproval(createdById, actorId)) {
     return { ok: false, reason: "You cannot approve or reject a payment entry you submitted yourself -- an independent approver is required" }
   }
   const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
-  if (actorRank < MANAGER_RANK) {
+  if (actorRank < MANAGER_RANK && !hasDelegatedAuthority) {
     return { ok: false, reason: "This action requires manager role or higher" }
   }
   return { ok: true }
@@ -385,7 +400,10 @@ export async function decidePaymentEntry(ctx: ErpContext, id: string, decision: 
       throw new ServiceError(entry.status === "draft" ? "This payment entry must be submitted before it can be decided" : "This payment entry has already been decided", 409)
     }
 
-    const gate = canDecidePaymentEntry(ctx.dbUser.role, entry.createdById, ctx.userId)
+    const actorRank = ROLE_RANK[ctx.dbUser.role as UserRole] ?? 0
+    const hasDelegatedAuthority = actorRank < MANAGER_RANK
+      && await isDelegated(db, ctx.orgId, "approval_type", "erp_payment_entry", ctx.userId, [ctx.dbUser.role])
+    const gate = canDecidePaymentEntry(ctx.dbUser.role, entry.createdById, ctx.userId, hasDelegatedAuthority)
     if (!gate.ok) throw new ServiceError(gate.reason, 403)
 
     if (decision === "rejected") {

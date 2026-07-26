@@ -124,6 +124,24 @@ export async function listMyDelegations(ctx: { orgId: string; userId: string }) 
 }
 
 /**
+ * Pure: given already-fetched candidate delegation rows for a scope, does
+ * ANY of them, once its own revoked/expired status is checked, grant
+ * `userId` (holding `userRoleKeys`) authority? Split out from isDelegated()
+ * below so the DB fetch and the actual expiry-aware decision are
+ * independently testable without a DB, same split this file already uses
+ * for isDelegationActive/delegationGrantsUser themselves (see V2-11
+ * delegation-expiry-enforcement-audit: this is also the exact function a
+ * non-listing authorization checkpoint's own test exercises to prove an
+ * expired delegation is rejected there, without touching a live DB).
+ */
+export function resolveDelegatedAuthority(
+  candidates: { revokedAt: Date | null; expiresAt: Date | null; delegateUserId: string | null; delegateRoleKey: string | null }[],
+  userId: string, userRoleKeys: string[] = [], now: Date = new Date()
+): boolean {
+  return candidates.some((d) => isDelegationActive(d, now) && delegationGrantsUser(d, userId, userRoleKeys))
+}
+
+/**
  * The real check function other code can call before treating a delegate's
  * action as authorized on the delegator's behalf: does ANY active
  * delegation grant `userId` (holding `userRoleKeys`, typically just
@@ -145,7 +163,6 @@ export async function isDelegated(
   scopeType: DelegationScopeType, scopeId: string | undefined,
   userId: string, userRoleKeys: string[] = []
 ): Promise<boolean> {
-  const now = new Date()
   const candidates = await db.query.scopedDelegations.findMany({
     where: and(
       eq(scopedDelegations.orgId, orgId),
@@ -154,5 +171,5 @@ export async function isDelegated(
       scopeId ? or(eq(scopedDelegations.scopeId, scopeId), isNull(scopedDelegations.scopeId)) : isNull(scopedDelegations.scopeId)
     ),
   })
-  return candidates.some((d) => isDelegationActive(d, now) && delegationGrantsUser(d, userId, userRoleKeys))
+  return resolveDelegatedAuthority(candidates, userId, userRoleKeys)
 }
