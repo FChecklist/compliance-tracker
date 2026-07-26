@@ -40,6 +40,69 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-043023-phase4-defense-in-depth-prompt-security) -- VERIDIAN_Architecture_v2.0 phase_4: Defense-in-Depth, Prompt Security, Red Team, Quality Engines + 4-layer security architecture"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      phase_4_defense_in_depth_security_quality of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
+      repo claude-control, target_repo: compliance-tracker per that
+      phase's own target_repo_note). Depends on phase_2 (done, PR #560
+      merged). Builds the 4-layer defense-in-depth security architecture
+      (2.8) as a new src/lib/prompt-security/ module wired at the real
+      Gateway G05 boundary (llm-client.ts's callLLM, the function
+      mother-router.ts's resolveModel() hands off to -- NOT a new,
+      separate security choke point): Layer 1 Input Sanitization
+      (deterministic regex/invisible-unicode-anomaly detection +
+      Groq-hosted Prompt Guard 2 classifier, model id
+      meta-llama/llama-prompt-guard-2-86m, confirmed live via Groq docs
+      2026-07-26 -- zero new install, same "groq" provider llm-client.ts
+      already dispatches to), Layer 2 System Prompt Hardening (XML
+      delimiter + instruction-hierarchy wrapper around
+      prompt-construction.ts's existing buildCompiledPrompt() output),
+      Layer 3 Runtime Guardrails (Groq-hosted Llama Guard 4, model id
+      meta-llama/llama-guard-4-12b, confirmed live via Groq docs
+      2026-07-26, evaluating both compiled prompt and model output), Layer
+      4 Output Filtering (deterministic PII-scrub regex + leaked-system-
+      instruction detection + Layer 3's Llama Guard call reused for
+      output-side content moderation) -- plus a Quality Engine
+      (engine-quality: heuristic accuracy/hallucination/refusal scoring,
+      no LLM-self-grading, matching guardrail-engine.ts's own "deterministic
+      only" precedent) and a Red Team Engine (custom deterministic
+      adversarial-prompt battery, payload categories sourced from Garak's
+      own public probe taxonomy -- Garak v0.15.1 itself confirmed real
+      pip-installable/runnable this session in a scratch venv, same
+      standalone-CLI class as auditor_engine's gitleaks/trivy/checkov, but
+      NOT adopted as a live cron-wired scanner this pass, see tool
+      evaluation doc for why). Tool evaluation table (NeMo Guardrails,
+      Llama Guard, Prompt Guard, Garak, PyRIT, Presidio) written to
+      ai-os/VERIDIAN_V2_DEFENSE_IN_DEPTH_TOOL_EVALUATION_2026-07-26.yaml
+      before any install, per this phase's own KNOWN_CONTEXT
+      stack-confirmation requirement.
+
+      File scope (compliance-tracker, this repo): new
+      src/lib/prompt-security/ directory (module + colocated *.test.ts
+      files, no new DB tables/migrations, no new npm/pip dependency added
+      to this repo -- Llama Guard/Prompt Guard are API model calls through
+      the existing "groq" provider), new
+      ai-os/VERIDIAN_V2_DEFENSE_IN_DEPTH_TOOL_EVALUATION_2026-07-26.yaml,
+      new scripts/defense-in-depth-smoke-test.ts (this phase's own
+      SUCCESS_CRITERIA command) and scripts/red-team-prompt-security.ts.
+      Does not touch prompt-compiler/'s existing files, llm-client.ts
+      itself (wraps callLLM, doesn't modify it, matching mother-router.ts's
+      own "existing callers unaffected" precedent), or any phase_1/phase_2
+      file. Also touches claude-control (separate repo,
+      coordinate-not-run-inside per this plan's own
+      meta.cross_repo_dispatch_note): phase_4's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml.
+
+      Collision check before starting: grepped this file for "phase_4"/
+      "prompt-security"/"defense-in-depth" -- one unrelated closed entry
+      (task-20260724-143013-phase4-migrate-existing-hardcoded-exampl, a
+      different initiative's phase_4, terminology migration, not this
+      one) found and ruled out as non-conflicting. `gh pr list --state
+      open` checked, none found on src/lib/prompt-security/ or this
+      phase's tool-evaluation doc path. `git pull origin main` run fresh
+      immediately before this entry -- up to date, no new commits.
   - session_label: "claude-code (task-20260725-231836-phase2-prompt-compiler-pipeline-core-non) -- VERIDIAN_Architecture_v2.0 phase_2: compiler pipeline core (Layer 2-5, non-browser) + Intelligence/Matching engines"
     claimed_at: "2026-07-25T (this session)"
     claim: |
