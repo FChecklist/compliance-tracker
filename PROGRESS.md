@@ -1,56 +1,30 @@
-# PROGRESS -- task-20260726-115425-resolve-pr563-merge-conflict--supabase-m
+# PROGRESS -- task-20260726-171200-tier2-fix--pr-566-pr-83-stale-pr-81-stil
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- confirmed no other active claim
-      overlaps PR #563's branch/file scope.
-- [x] Confirmed PR #563 (`worker/task-20260726-071400-migration-drift-audit-and-reconciliation`)
-      was CONFLICTING/DIRTY against `main`, reintroduced by PR #568 (a later,
-      unrelated stale-PR-state correction) touching the same
-      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` files after the prior
-      session's "resolved -> MERGEABLE" claim (task-20260726-102520) had
-      already stopped holding.
-- [x] Merged `origin/main` into PR #563's existing branch, in its existing
-      worktree (`/opt/veridian/ai-os/tasks/task-20260726-071400-.../workspace`)
-      -- did not create a duplicate worktree, did not touch any other task's
-      checkout.
-- [x] Resolved both real conflicts:
-      - `PROGRESS.md` -- combined every prior task's real narrative on this
-        branch instead of dropping either side.
-      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- union-merged both sides'
-        `recently_completed` entries (same pattern used repeatedly on this
-        file this session), plus added this task's own entry.
-- [x] While validating the merged YAML (`python3 -c "import yaml;
-      yaml.safe_load(...)"`), found the parse still failed on a
-      **pre-existing bug already on `main`**, unrelated to this merge: 3 list
-      entries (2026-07-19/07-21 claims) and 5 `scope_note:` keys were
-      mis-indented by 2 spaces, going back as far as the 2026-07-20 V2-7
-      entry. Fixed via whitespace-only re-indentation (verified via a Python
-      script operating on exact line ranges, no content altered) -- file now
-      parses (75 `active` + 65 `recently_completed` entries).
-- [x] Verified live, read-only (no DDL/migration executed, per CONSTRAINTS):
-      `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` on compliance-tracker
-      (project `pcrjmlpuqsbocqfwoxod`, via Supabase MCP `execute_sql`) still
-      returns 261 rows, matching PR #563's original fix -- no drift.
-- [x] Pushed the resolved merge commit (`d6ceb270`) directly to PR #563's
-      existing branch. Did not open a new PR, did not merge PR #563.
-- [x] Updated PR #563's body (via `gh api ... -X PATCH -F body=@...`, since
-      `gh pr edit`/`gh pr view` both hit an unrelated GitHub GraphQL
-      Projects-classic deprecation error / silent line-truncation
-      respectively) with the conflict-resolution summary and the live
-      verification result.
-- [x] Confirmed `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
+- [x] Found the real target branches: `worker/task-20260726-094625-re-verify-20-engine-inventory---confirm`
+      already existed (and was checked out) in both `/opt/veridian/repos/compliance-tracker`'s sibling
+      task workspace and `/opt/veridian/repos/claude-control` (via a temp worktree) -- did not create
+      new branches/PRs, per CONSTRAINTS.
+- [x] Discovered a prior session (`task-20260726-105214-correct-stale-pr-state-claims-in-engine`) had
+      already corrected the original "PR #81 currently-open" false claim in all 3 locations (PROGRESS.md,
+      ACTIVE-CLAIMS.yaml, claude-control's Engine 8 gap_description) -- but that correction's own
+      "PR #79/#80/#82 remain OPEN and unmerged" replacement text had itself gone stale by the time this
+      task ran: fresh `gh pr view 79/82 --repo FChecklist/claude-control --json state,mergedAt` showed
+      both had since merged (#79 2026-07-26T11:59:10Z, #82 2026-07-26T11:02:41Z). #80 confirmed still
+      genuinely OPEN, #81 confirmed still CLOSED/unmerged (unchanged).
+- [x] compliance-tracker (PR #566, commit `cbf5ba82`, pushed): corrected the stale PR #79/#82
+      open/unmerged claims in `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed`
+      entry, appending a dated correction rather than rewriting history, matching this file's own
+      established pattern.
+- [x] claude-control (PR #83, commit `0fae212`, pushed): corrected the same stale PR #79/#82 claims in
+      `ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`'s Engine 8 `gap_description`.
+- [x] Validated both changed YAML files still parse after edits (`ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`
+      parses clean, 20 engine rows; `ai-os/boss/ACTIVE-CLAIMS.yaml` has a pre-existing, unrelated parse
+      error at line 43/276 that predates this task's edit -- confirmed via `git cat-file -p` on the
+      pre-edit blob -- left untouched per CONSTRAINTS).
+- [x] Re-ran `gh pr view <n> --json state,mergedAt` for PRs #79/#80/#81/#82 immediately before pushing
+      each commit to confirm text matches live state at commit time (see SUCCESS_CRITERIA).
+- [x] Did not merge either PR #566 or #83. Did not re-run the 20-engine inventory itself.
 
 ## Remaining
-- [ ] None -- task complete. `mergeStateStatus` shows `BLOCKED` only because
-      CI checks are pending/required, not because of any conflict.
-
-## Note for future sessions
-`gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
-files were observed silently truncating output in this sandbox (per-line
-~120-char cutoff with a literal `...`, and whole-file cutoffs respectively) --
-use `gh api repos/<owner>/<repo>/pulls/<n> --jq '.body'` and
-`git cat-file -p <blob-sha>` instead when the content matters. Likely the
-`snip` shell-output filter (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s snip
-integration entries) intercepting recognized "verbose" commands, not a
-general/silent corruption of file writes made directly by tools (Write/Edit)
-or by Python's own `open()/write()`.
+- [ ] None -- both commits pushed to their existing branches/PRs.
