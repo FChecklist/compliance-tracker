@@ -149,6 +149,66 @@ landed.
       `worker/task-20260726-071400-migration-drift-audit-and-reconciliation`.
 - [ ] Confirm `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
 
+## task-20260726-171129-tier2-fix--pr-563-migration-drift-ci-fai (this task)
+
+Dispatched off task-20260726-071400's own `review.json` (AUDIT: REJECT),
+which found 2 real, still-open defects after the 08:17 follow-up fix above.
+
+### Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, registered this task's own claim.
+- [x] Re-verified both disclosed defects: issue 1 (missing
+      `ai-os/OS.yaml` index entry for `MIGRATION_DRIFT_AUDIT_2026-07-26.yaml`)
+      and issue 2 (stale `compliance.dynamic_chains`/unqualified `ai_provider`
+      in migrations 0140/0199/0253) were **already fixed** on this branch by
+      the 08:17 follow-up commit (`9288746`, task-081117) -- confirmed via
+      `git show` diff, not just the commit message.
+- [x] Re-ran `gh pr checks 563`: `Metadata Index Coverage Check` and
+      `audit-check` were still both FAILING despite that. Root-caused why:
+      the check fails not because of either disclosed defect, but because of
+      the **56-file pre-existing `ai-os/OS.yaml` index drift** that
+      task-081117 had already found and explicitly deferred ("flagged for a
+      follow-up task rather than bulk-registered with unresearched
+      descriptions"). Confirmed this drift is real and pre-existing on `main`
+      itself, independent of PR #563's diff, by running the exact same check
+      script (`node scripts/check-metadata-index-coverage.mjs`, after
+      installing a local `js-yaml@4.3.0` since `bun` is unavailable in this
+      sandbox) against a clean `git worktree` of `origin/main` HEAD
+      (`7d8c6f28`) -- identical 56-item failure list there too.
+- [x] Since the task's SUCCESS_CRITERIA requires this named check to pass,
+      and since leaving 56 real governance files/dirs permanently unindexed
+      isn't a defensible steady state either, did the deferred research: read
+      each of the 56 files' own header/docstring (all had one) and added a
+      real, honestly-derived one-line `covers` entry for each to
+      `ai-os/OS.yaml` (two new sections, `reference_docs_and_catalogs` for
+      14 top-level docs/catalogs and `operational_scripts` for 39 scripts +
+      1 directory under `ai-os/scripts/`, plus
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` into the
+      existing `health_and_compliance` section) -- no fabricated
+      descriptions, no bulk copy-paste of a single reason across unrelated
+      files.
+- [x] Verified locally: `node scripts/check-metadata-index-coverage.mjs` ->
+      `Metadata Index Coverage Check passed -- all 101 governance items
+      accounted for (102 indexed, 3 exempted).` Also verified
+      `ai-os/OS.yaml` still parses (`python3 -c "import yaml; ..."`).
+- [x] Did NOT touch `audit-check`: that gate requires an independent
+      `AUDIT: PASS` PR comment per AGENTS.md Rule 7(c) (whoever did **not**
+      implement a fix must be its auditor -- no self-certification) and Rule
+      10's real CI enforcement of that norm. This session is the one that
+      just made the fix, so it cannot also be the auditor without violating
+      that explicit, CI-enforced rule -- this is analogous to, and left
+      alone for the same reason as, the SPEC's own "issue 3" (live-DDL
+      governance) carve-out. A separate agent/session (or the Owner) needs
+      to review this diff and post a real structured `AUDIT: PASS` (or
+      `FAIL`) comment before that check can legitimately go green.
+
+### Remaining
+- [ ] Independent audit of this fix + a resulting `AUDIT: PASS` PR comment
+      from a different agent/session (not this one) -- required before
+      `audit-check` can pass without violating Rule 7(c)'s no-self-
+      certification norm.
+- [ ] PR #563 merge itself -- explicitly out of scope for this task
+      (CONSTRAINTS: "Do not merge the PR yourself").
+
 ## Note for future sessions
 `gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
 files were observed silently truncating output in this sandbox (per-line
