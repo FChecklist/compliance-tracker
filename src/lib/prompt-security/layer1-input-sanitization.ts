@@ -18,6 +18,20 @@
 // callers without a GROQ_API_KEY, or that want zero added latency/cost, get
 // the full deterministic verdict with promptGuardClassification left null.
 import { callLLM } from "@/lib/llm-client"
+// Cross-reference with the existing pre-call policy gate (Wave 46,
+// VERIDIAN_AI_CONSTITUTION.md's Constitution Sec 18 -- already
+// production-wired on every real LLM call site via enforcePolicy()) instead
+// of maintaining a fully independent, silently-divergent pattern list. The
+// phase_4 audit found this file's THREAT_PATTERNS never referenced
+// checkPromptInjection() at all, so the two could drift apart with no way
+// to notice. This module's own patterns still exist and cover categories
+// checkPromptInjection() doesn't attempt (role-play variants,
+// system-prompt-exfiltration phrasings, encoding/invisible-unicode
+// anomalies, XML delimiter injection) -- checkPromptInjection() is added as
+// a floor: anything the production pre-call gate already blocks is
+// guaranteed to also surface here, even on a future request whose exact
+// wording only matches one list.
+import { checkPromptInjection } from "@/lib/policy-enforcement-engine"
 import type { Layer1Result, PromptGuardClassification, ThreatCategory, ThreatMatch } from "./types"
 
 const PROMPT_GUARD_MODEL = "meta-llama/llama-prompt-guard-2-86m"
@@ -57,6 +71,17 @@ function classifyDeterministic(text: string): ThreatMatch[] {
   }
   if (INVISIBLE_UNICODE_RANGE.test(text)) {
     matches.push({ category: "invisible_unicode", matchedText: "[non-printable]", detail: "invisible Unicode / zero-width / bidi-control character(s) present" })
+  }
+  // Floor check against the existing production pre-call gate -- see the
+  // import comment above. Only adds a match if THREAT_PATTERNS above missed
+  // it entirely, so this never double-counts a real Layer 1 pattern hit.
+  const policyCheck = checkPromptInjection(text)
+  if (!policyCheck.allowed && !matches.some((m) => m.category === "instruction_override")) {
+    matches.push({
+      category: "instruction_override",
+      matchedText: text.slice(0, 120),
+      detail: `policy-enforcement-engine cross-check: ${policyCheck.reason}`,
+    })
   }
   return matches
 }

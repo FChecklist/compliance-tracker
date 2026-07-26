@@ -3,6 +3,7 @@
 // Engine. See ai-os/VERIDIAN_V2_DEFENSE_IN_DEPTH_TOOL_EVALUATION_2026-07-26.yaml
 // for which named tool (if any) backs each layer, and each sibling module's
 // own header for which gap-analysis engine/pipeline item it closes.
+import type { LLMUsage } from "@/lib/llm-client"
 
 // Layer 1 (Input Sanitization) threat categories -- mirrors the document's
 // own Layer 1 description (line 481-483 of the extracted source: "regex-based
@@ -57,7 +58,14 @@ export type Layer3Result = {
   outputGuard: LlamaGuardVerdict | null
 }
 
-export type PiiMatch = { type: "EMAIL" | "PHONE" | "SSN" | "CREDIT_CARD"; matchedText: string }
+// PII types this layer detects. EMAIL/PHONE/CREDIT_CARD/GSTIN/PAN/IFSC/AADHAAR
+// come straight from pii-redaction.ts's shared PATTERNS (see findPii() there)
+// -- reused, not duplicated, per the phase_4 audit finding that this layer's
+// own PII list diverged from and regressed on that existing engine's
+// India-specific GSTIN/PAN/IFSC/Aadhaar coverage. SSN is the one genuinely
+// new category layered on top: pii-redaction.ts is India-focused and has no
+// US SSN pattern.
+export type PiiMatch = { type: "EMAIL" | "PHONE" | "SSN" | "CREDIT_CARD" | "GSTIN" | "PAN" | "IFSC" | "AADHAAR"; matchedText: string }
 
 export type Layer4Result = {
   piiMatches: PiiMatch[]
@@ -81,6 +89,11 @@ export type DefenseInDepthResult = {
   quality: QualityScore
   blocked: boolean
   blockReason: string | null
+  // null when blocked (no real LLM call was ever made -- Layer 1/3 rejected
+  // before callLLM ran, so there is no usage to report). Populated from the
+  // real callLLM() result otherwise, so a caller integrating this module
+  // doesn't lose its own cost/latency observability by switching to it.
+  usage: LLMUsage | null
 }
 
 export type RedTeamSample = {

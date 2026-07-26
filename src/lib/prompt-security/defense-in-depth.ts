@@ -11,7 +11,7 @@
 // additive, opt-in wrapper for call sites that want the 4-layer defense
 // (chat/prompt-execution surfaces), not a mandatory hop every LLM call must
 // now take.
-import { callLLM, type LLMProvider } from "@/lib/llm-client"
+import { callLLM, type CallLLMOptions, type LLMFallback, type LLMProvider } from "@/lib/llm-client"
 import { classifyInput } from "./layer1-input-sanitization"
 import { hardenSystemPrompt } from "./layer2-system-prompt-hardening"
 import { evaluateWithLlamaGuard } from "./layer3-runtime-guardrails"
@@ -33,6 +33,12 @@ export type DefenseInDepthOptions = {
   // network-free deterministic Layer 1/4 checks (Layer 3 is skipped
   // entirely -- see blockReason on the returned result).
   groqApiKey: string | null
+  // Forwarded verbatim to the real callLLM() call -- optional and additive,
+  // so a caller migrating an existing callLLM() call site onto this wrapper
+  // (e.g. api/help/ask/route.ts's enablePromptCache/fallback usage) doesn't
+  // lose that behavior by switching.
+  llmOptions?: CallLLMOptions
+  fallback?: LLMFallback
 }
 
 /**
@@ -61,6 +67,7 @@ export async function runDefenseInDepth(
       blocked: true,
       blockReason: `Layer 1 rejected input as malicious: ${layer1.deterministicMatches.map((m) => m.detail).join("; ") || "Prompt Guard classifier flagged this input"}`,
       content: "",
+      usage: null,
     }
   }
 
@@ -68,33 +75,71 @@ export async function runDefenseInDepth(
   if (options.groqApiKey) {
     try {
       layer3.inputGuard = await evaluateWithLlamaGuard(layer2.wrappedUserMessage, options.groqApiKey)
-    } catch {
-      // Network/API failure on the Layer 3 input-side check does not block
-      // the request -- Layer 1's deterministic check already ran and passed;
-      // Layer 3 degrades to "not evaluated" (inputGuard.safe stays the
-      // permissive default above) rather than failing the whole request on
-      // an unrelated network error.
+    } catch (err) {
+      // Audit fix (phase_4 defense-in-depth, AGENTS.md Rule 9 "no silent
+      // guardrail bypass"): a network/API failure here used to leave
+      // inputGuard defaulted to permissive "safe" above, silently treating
+      // an UNEVALUATED input as though Llama Guard had actually cleared it
+      // -- directly contradicting this module's own docstring claim of no
+      // silent bypass. Fail CLOSED instead (block the request) and log the
+      // failure explicitly, matching evaluateWithLlamaGuard()'s own stated
+      // contract (layer3-runtime-guardrails.ts: "Network/API failures throw
+      // rather than fail open").
+      console.error("[defense-in-depth] Layer 3 input-guard call failed -- failing closed (blocking the request), not defaulting to safe:", err)
+      layer3.inputGuard = { safe: false, categories: ["LAYER3_UNAVAILABLE"], raw: err instanceof Error ? err.message : String(err) }
     }
   }
 
   if (!layer3.inputGuard.safe) {
+    const unavailable = layer3.inputGuard.categories.includes("LAYER3_UNAVAILABLE")
     return {
       layer1, layer2, layer3,
       layer4: { piiMatches: [], scrubbedText: "", leakedSystemInstruction: false, contentModeration: null },
       quality: { composite: 0, signals: [] },
       blocked: true,
-      blockReason: `Layer 3 (Llama Guard) flagged input as unsafe: categories ${layer3.inputGuard.categories.join(",") || "unspecified"}`,
+      blockReason: unavailable
+        ? "Layer 3 (Llama Guard) input-side check failed (network/API error) -- failing closed rather than assuming the input is safe"
+        : `Layer 3 (Llama Guard) flagged input as unsafe: categories ${layer3.inputGuard.categories.join(",") || "unspecified"}`,
       content: "",
+      usage: null,
     }
   }
 
-  const llmResult = await callLLM(options.provider, options.model, options.apiKey, layer2.wrappedSystemPrompt, layer2.wrappedUserMessage)
+  const llmResult = await callLLM(
+    options.provider,
+    options.model,
+    options.apiKey,
+    layer2.wrappedSystemPrompt,
+    layer2.wrappedUserMessage,
+    options.llmOptions,
+    options.fallback
+  )
 
   if (options.groqApiKey) {
     try {
       layer3.outputGuard = await evaluateWithLlamaGuard(llmResult.content, options.groqApiKey)
-    } catch {
-      // Same degrade-not-block reasoning as the input-side call above.
+    } catch (err) {
+      // Same fail-closed reasoning as the input-side call above -- the real
+      // model call already happened (its cost is sunk), but that does not
+      // mean an un-vetted reply gets to reach the user under a false "safe"
+      // label just because the output-side check itself failed.
+      console.error("[defense-in-depth] Layer 3 output-guard call failed -- failing closed (blocking the reply), not defaulting to safe:", err)
+      layer3.outputGuard = { safe: false, categories: ["LAYER3_UNAVAILABLE"], raw: err instanceof Error ? err.message : String(err) }
+    }
+  }
+
+  if (layer3.outputGuard && !layer3.outputGuard.safe) {
+    const unavailable = layer3.outputGuard.categories.includes("LAYER3_UNAVAILABLE")
+    return {
+      layer1, layer2, layer3,
+      layer4: { piiMatches: [], scrubbedText: "", leakedSystemInstruction: false, contentModeration: layer3.outputGuard },
+      quality: { composite: 0, signals: [] },
+      blocked: true,
+      blockReason: unavailable
+        ? "Layer 3 (Llama Guard) output-side check failed (network/API error) -- failing closed rather than assuming the reply is safe"
+        : `Layer 3 (Llama Guard) flagged output as unsafe: categories ${layer3.outputGuard.categories.join(",")}`,
+      content: "",
+      usage: llmResult.usage,
     }
   }
 
@@ -111,6 +156,7 @@ export async function runDefenseInDepth(
   return {
     layer1, layer2, layer3, layer4, quality,
     blocked: false,
+    usage: llmResult.usage,
     blockReason: null,
     content: layer4.scrubbedText,
   }

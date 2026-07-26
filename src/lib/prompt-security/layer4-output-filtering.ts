@@ -8,45 +8,48 @@
 // content moderation using Llama Guard 3 ..., and logs all outputs to the
 // Audit Engine for compliance review."
 //
-// PII scrubbing here is a deterministic regex baseline, NOT Presidio --
-// ai-os/VERIDIAN_V2_DEFENSE_IN_DEPTH_TOOL_EVALUATION_2026-07-26.yaml's
-// presidio row explains why (real, pip-installable, session-confirmed
-// working, but a genuine "browser-adapted" build is phase_5/phase_6 scope,
-// and its 400MB spaCy model is a real server-deployment-footprint concern
-// not resolved this pass). Content moderation reuses layer3's
+// PII scrubbing here REUSES pii-redaction.ts (Wave 146, already the
+// production-wired PII engine for orchestra_executions logging -- see
+// src/app/api/help/ask/route.ts) instead of maintaining a second, divergent
+// regex baseline: the phase_4 audit found the original version of this file
+// had its own EMAIL/PHONE/CREDIT_CARD/SSN list that never referenced
+// pii-redaction.ts and, worse, regressed on it -- missing that file's
+// India-specific GSTIN/PAN/IFSC/Aadhaar coverage entirely, a real gap on a
+// compliance platform whose primary market is India. SSN is the one
+// genuinely new category kept here: pii-redaction.ts is India-focused and
+// has no US SSN pattern of its own. Content moderation reuses layer3's
 // evaluateWithLlamaGuard against the model's OUTPUT (the document's own
 // "output-side guardrails" framing) rather than a second classifier.
+import { findPii, redactPii } from "@/lib/pii-redaction"
 import type { PiiMatch } from "./types"
 
-// Deliberately simple, high-precision patterns -- a false negative here
-// (PII this regex misses) is a real, honestly-scoped gap (see the tool
-// evaluation doc's presidio row for the Named Entity Recognition coverage
-// this regex baseline does NOT have, e.g. names/addresses); a false
-// positive only over-redacts, never under-protects.
-const PII_PATTERNS: { type: PiiMatch["type"]; pattern: RegExp }[] = [
-  { type: "EMAIL", pattern: /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g },
-  { type: "SSN", pattern: /\b\d{3}-\d{2}-\d{4}\b/g },
-  { type: "CREDIT_CARD", pattern: /\b(?:\d[ -]*?){13,16}\b/g },
-  { type: "PHONE", pattern: /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g },
-]
+// Two categories absent from pii-redaction.ts's India-focused pattern list --
+// genuine additive gaps this layer still needs to cover, not duplicates of
+// anything that file already does: a US SSN pattern (that file has none),
+// and a US-format phone number (that file's PHONE pattern only matches
+// India's +91/10-digit-starting-6-9 mobile format).
+const SSN_PATTERN = /\b\d{3}-\d{2}-\d{4}\b/g
+const US_PHONE_PATTERN = /\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b/g
 
-const REDACTION_TOKEN: Record<PiiMatch["type"], string> = {
-  EMAIL: "[REDACTED_EMAIL]",
-  PHONE: "[REDACTED_PHONE]",
-  SSN: "[REDACTED_SSN]",
-  CREDIT_CARD: "[REDACTED_CARD]",
-}
+// pii-redaction.ts's label vocabulary already matches this layer's PiiMatch
+// "type" union 1:1 except CARD -> CREDIT_CARD.
+const LABEL_TO_TYPE: Record<string, PiiMatch["type"]> = { CARD: "CREDIT_CARD" }
 
-/** Detects + scrubs PII in model output text. Order matters: EMAIL first so a digit-run inside an email local-part (e.g. "j.smith2024@...") can't later be mis-matched as a credit-card/phone number. */
+/** Detects + scrubs PII in model output text, delegating to pii-redaction.ts's shared engine (see this file's header) and adding only the SSN/US-phone categories that engine doesn't cover. */
 export function scrubPii(text: string): { piiMatches: PiiMatch[]; scrubbedText: string } {
-  const piiMatches: PiiMatch[] = []
-  let scrubbedText = text
-  for (const { type, pattern } of PII_PATTERNS) {
-    scrubbedText = scrubbedText.replace(pattern, (match) => {
-      piiMatches.push({ type, matchedText: match })
-      return REDACTION_TOKEN[type]
-    })
-  }
+  const piiMatches: PiiMatch[] = findPii(text).map((m) => ({
+    type: (LABEL_TO_TYPE[m.label] ?? m.label) as PiiMatch["type"],
+    matchedText: m.matchedText,
+  }))
+  let scrubbedText = redactPii(text)
+  scrubbedText = scrubbedText.replace(SSN_PATTERN, (match) => {
+    piiMatches.push({ type: "SSN", matchedText: match })
+    return "[REDACTED:SSN]"
+  })
+  scrubbedText = scrubbedText.replace(US_PHONE_PATTERN, (match) => {
+    piiMatches.push({ type: "PHONE", matchedText: match })
+    return "[REDACTED:PHONE]"
+  })
   return { piiMatches, scrubbedText }
 }
 
