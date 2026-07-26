@@ -1,30 +1,19 @@
-# PROGRESS -- task-20260726-171200-tier2-fix--pr-566-pr-83-stale-pr-81-stil
-
+# PROGRESS -- task-20260726-172004-search-performance-explain-analyze---gin
 ## Completed
-- [x] Found the real target branches: `worker/task-20260726-094625-re-verify-20-engine-inventory---confirm`
-      already existed (and was checked out) in both `/opt/veridian/repos/compliance-tracker`'s sibling
-      task workspace and `/opt/veridian/repos/claude-control` (via a temp worktree) -- did not create
-      new branches/PRs, per CONSTRAINTS.
-- [x] Discovered a prior session (`task-20260726-105214-correct-stale-pr-state-claims-in-engine`) had
-      already corrected the original "PR #81 currently-open" false claim in all 3 locations (PROGRESS.md,
-      ACTIVE-CLAIMS.yaml, claude-control's Engine 8 gap_description) -- but that correction's own
-      "PR #79/#80/#82 remain OPEN and unmerged" replacement text had itself gone stale by the time this
-      task ran: fresh `gh pr view 79/82 --repo FChecklist/claude-control --json state,mergedAt` showed
-      both had since merged (#79 2026-07-26T11:59:10Z, #82 2026-07-26T11:02:41Z). #80 confirmed still
-      genuinely OPEN, #81 confirmed still CLOSED/unmerged (unchanged).
-- [x] compliance-tracker (PR #566, commit `cbf5ba82`, pushed): corrected the stale PR #79/#82
-      open/unmerged claims in `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed`
-      entry, appending a dated correction rather than rewriting history, matching this file's own
-      established pattern.
-- [x] claude-control (PR #83, commit `0fae212`, pushed): corrected the same stale PR #79/#82 claims in
-      `ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`'s Engine 8 `gap_description`.
-- [x] Validated both changed YAML files still parse after edits (`ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`
-      parses clean, 20 engine rows; `ai-os/boss/ACTIVE-CLAIMS.yaml` has a pre-existing, unrelated parse
-      error at line 43/276 that predates this task's edit -- confirmed via `git cat-file -p` on the
-      pre-edit blob -- left untouched per CONSTRAINTS).
-- [x] Re-ran `gh pr view <n> --json state,mergedAt` for PRs #79/#80/#81/#82 immediately before pushing
-      each commit to confirm text matches live state at commit time (see SUCCESS_CRITERIA).
-- [x] Did not merge either PR #566 or #83. Did not re-run the 20-engine inventory itself.
-
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (no collision found — grepped for search-service/search-perf/V2-20/gin_trgm, none active).
+- [x] Re-verified the gap is still real: `search-service.ts`'s `searchAll()` uses plain `ilike()` against `compliance_items.title/description`, `tasks.title/description`, `clients.name`, org-scoped. No GIN/trgm index existed for any of these in git, and (surprisingly) mostly not live either — see drift note below.
+- [x] Ran real `EXPLAIN (ANALYZE, BUFFERS)` against the live `verdian-ai` Supabase DB (project `pcrjmlpuqsbocqfwoxod`) at realistic org-scale volume (30k `compliance_items` / 50k `tasks` / 5k `clients` under real org `org_001`, vs. this DB's actual live counts of 178/1899/16), both before and after adding `pg_trgm` GIN indexes. Full plans and methodology in `ai-os/EXPLAIN_ANALYZE_SEARCH_PERF_2026-07-26.md`.
+  - All synthetic data and all 5 indexes were created and measured inside a single Postgres transaction, then explicitly `ROLLBACK`'d — verified afterwards via row counts, `pg_stat_activity`, and `pg_indexes` that the live DB was left completely unchanged.
+  - Results: narrow/realistic search terms (a specific filing reference) went from **108-147ms Seq Scan** to **0.3-1.3ms Bitmap Heap Scan** (80-140x) across all three tables. A broad/unselective term ("GST", ~19% of rows) showed **no regression** — the planner correctly keeps using Seq Scan there.
+- [x] Wrote `drizzle/0264_search_perf_gin_trgm_indexes.sql` — adds the 4 missing GIN trgm indexes (`compliance_items.description`, `tasks.title`, `tasks.description`, `clients.name`) plus captures one pre-existing but **undocumented** live index (`idx_ct2_ci_title_trgm` on `compliance_items.title`) under its existing name so a fresh environment matches production. **Not applied live** — Tier2 (migration + live DB) holds for Owner sign-off per this task's constraints.
+- [x] No `search-service.ts` code change needed: `pg_trgm`'s opclass registers support for the `ILIKE` (`~~*`) operator directly, so the existing `ilike()` calls become index-eligible the moment the index exists — no query rewrite required.
+## Live-DB drift found (flagged, not fixed — out of scope for V2-20)
+While checking for existing indexes on `compliance_items`, found it already carries, live on the `verdian-ai` Supabase project, with **zero matching migration file in this repo**:
+- `idx_ct2_ci_title_trgm` — a `gin(title gin_trgm_ops)` index (captured under its existing name in the new migration since it overlaps this task's scope)
+- `search_vector` (tsvector column) + `idx_ct2_ci_search_vector` (GIN index) + `tsv_ct2_compliance_items` (trigger, function `tsv_update_ct2_compliance_items`)
+- `embedding` (vector column) + `idx_ct2_ci_embedding_hnsw` (HNSW index)
+- `idx_ct2_ci_dept`, `idx_ct2_ci_status`, `idx_ct2_ci_due` (plain btree indexes)
+A repo-wide grep of `src/` found **no application code** referencing `search_vector`, `embedding`, or any `ct2_` symbol — this looks like a different, orphaned full-text/semantic-search experiment applied directly to the live DB outside of `drizzle/` and never committed or wired up. Not this task's objective to reconcile (V2-20 is specifically about `search-service.ts`'s plain-ilike path) — noting it here and in the EXPLAIN doc so it's visible for a future task rather than silently left as invisible drift.
 ## Remaining
-- [ ] None -- both commits pushed to their existing branches/PRs.
+- [ ] Owner sign-off + live `apply_migration` of `drizzle/0264_search_perf_gin_trgm_indexes.sql` (Tier2 hold — not done by this session).
+- [ ] Open PR.

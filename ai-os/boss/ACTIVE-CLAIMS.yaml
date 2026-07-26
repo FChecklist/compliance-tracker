@@ -40,6 +40,22 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-172004-search-performance-explain-analyze---gin) -- V2-20 Search performance EXPLAIN ANALYZE + GIN index"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      V2-20-SEARCH-PERF (CSV row #67): EXPLAIN ANALYZE on search-service.ts's
+      searchAll() (the plain-ilike Standard search behind /api/search) at
+      realistic org-scale volume (benchmarked via a rolled-back live-DB
+      transaction, not a permanent change), confirming a Seq Scan on
+      compliance_items/tasks/clients and adding a pg_trgm GIN index per
+      searched column. File scope: drizzle/0264_search_perf_gin_trgm_indexes.sql
+      (new migration, NOT applied live -- Tier2 hold),
+      ai-os/EXPLAIN_ANALYZE_SEARCH_PERF_2026-07-26.md (new results doc). No
+      changes to search-service.ts itself (pg_trgm accelerates the existing
+      ilike() calls transparently). Also flagged (not fixed -- out of scope):
+      undocumented live-DB drift on compliance_items (search_vector/embedding/
+      ct2_-prefixed indexes+trigger with no migration file and no code
+      references) discovered while checking for existing indexes.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
