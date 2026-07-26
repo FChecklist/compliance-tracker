@@ -19,10 +19,18 @@
       ("Recover lifecycle-fix commit e6c7049"), MERGED 2026-07-26T10:19:37Z. `HOLD_FOR_OWNER_SIGNOFF`
       is confirmed present in the live-deployed `/opt/veridian/scripts/veridian-task.py` and
       `supervisor-entrypoint.sh` today. #81 itself never merged -- the fix shipped via #84, not #81.
+      **Further correction 2026-07-26 by task-20260726-171200**: #79 and #82 above were also OPEN
+      only "as of this pass" -- both have since merged: `gh pr view 79/82 --repo
+      FChecklist/claude-control --json state,mergedAt` now returns #79 MERGED 2026-07-26T11:59:10Z
+      and #82 MERGED 2026-07-26T11:02:41Z. #80 remains OPEN (unrelated bypass-hardening work,
+      re-confirmed at the same check).
 - [x] Updated Engine 8 (Workflow Engine) exists_as (+veridian-task.py, +supervisor-entrypoint.sh) and
       gap_description (HOLD_FOR_OWNER_SIGNOFF + credit-accountant fixes, both open/unmerged **as of
       this session's original pass -- see 2026-07-26 correction above: HOLD_FOR_OWNER_SIGNOFF is now
-      live via e6c7049/PR #84; the credit-accountant fix, PR #82, remains open/unmerged**)
+      live via e6c7049/PR #84; the credit-accountant fix, PR #82, is now MERGED
+      (2026-07-26T11:02:41Z, confirmed live via `gh pr view 82 --json state,mergedAt` by
+      task-20260726-171200, re-correcting the "remains open/unmerged" claim above, which was
+      accurate when task-20260726-105214 wrote it but went stale as PR #82 merged afterward)**)
 - [x] Updated Engine 5 (Policy Engine) gap_description documenting the DDL gate + write-gate (deliberately
       NOT added to exists_as -- not yet live-deployed, would falsely flip verified_on_disk for the row's
       other real paths)

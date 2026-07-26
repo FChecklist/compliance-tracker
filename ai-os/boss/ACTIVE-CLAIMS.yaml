@@ -3095,6 +3095,14 @@ recently_completed:
       shipped via e6c7049/PR #84, not PR #81, which never merged. PR #82 remains
       open/unmerged, PR #79/#80 remain open/unmerged, all reconfirmed fresh via `gh`
       as of this correction.
+      FURTHER CORRECTED 2026-07-26 (task-20260726-171200-tier2-fix--pr-566-pr-83-stale-pr-81-stil):
+      the "PR #82 remains open/unmerged, PR #79/#80 remain open/unmerged" line immediately
+      above was accurate at the moment task-20260726-105214 wrote it, but both PR #79 and
+      PR #82 have since merged: fresh `gh pr view 79/82 --repo FChecklist/claude-control
+      --json state,mergedAt` returns #79 MERGED 2026-07-26T11:59:10Z and #82 MERGED
+      2026-07-26T11:02:41Z. PR #80 remains OPEN (unrelated bypass-hardening work,
+      re-confirmed at the same check). PR #81 remains CLOSED/unmerged as already
+      established above -- unchanged by this correction.
   - session_label: "claude-code (task-20260726-074124-status-monitor-and-remediation-dispatche, redispatch of 053322) -- Status monitor + remediation dispatcher: landed stranded work on claude-control master [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
     claim: |
