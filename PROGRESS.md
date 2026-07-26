@@ -55,7 +55,23 @@ Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
       `mergeable: MERGEABLE` / `mergeStateStatus: BLOCKED` (CI running fresh off the
       push, not self-merged per this task's own constraint).
 
+- [x] Re-checked on resume (invocation 4/20): PR #580's `statusCheckRollup` shows
+      "Metadata Index Coverage Check" FAILED (56 governance files/dirs added by
+      *other* tasks' merges into main, e.g. ai-os/scripts/*.py,
+      ai-os/*.yaml/*.json, not indexed in ai-os/OS.yaml) and "Promptfoo Evals"
+      CANCELLED. Verified via `gh api .../branches/main/protection` that neither
+      is in `required_status_checks.contexts` (only Lint/Type Check/Build/
+      audit-check/Guardrail Presence Check/Asset Registry Coverage Check/Unit
+      Tests are required, and all 7 are SUCCESS on #580). Verified via
+      `gh api .../commits/<origin/main sha>/check-runs` that Metadata Index
+      Coverage Check already fails on `main` itself (pre-existing drift from
+      sibling tasks, not introduced by this task's diff) -- out of this task's
+      three-sub-ask scope, not fixing it here. mergeStateStatus is UNSTABLE
+      (non-required check failing) not BLOCKED -- PR remains genuinely
+      mergeable.
+
 ## Remaining
 - [ ] None for this task's three sub-asks. PR open at
-      https://github.com/FChecklist/compliance-tracker/pull/580 -- not
-      self-merged (per this task's own constraint); left for CI + Owner review.
+      https://github.com/FChecklist/compliance-tracker/pull/580 -- all required
+      CI checks green; not self-merged (per this task's own constraint); left
+      for Owner review/merge.
