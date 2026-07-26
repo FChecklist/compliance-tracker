@@ -1,42 +1,56 @@
-# PROGRESS -- task-20260726-105214-correct-stale-pr-state-claims-in-engine
+# PROGRESS -- task-20260726-115425-resolve-pr563-merge-conflict--supabase-m
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml + AGENTS.md/CLAUDE.md governance docs.
-- [x] Fresh-verified real current state of claude-control PRs #79/#80/#81/#82/#83/#84/#87 via
-      `gh pr view <n> --repo FChecklist/claude-control --json state,mergedAt,closedAt`:
-      #79 OPEN, #80 OPEN, #81 **CLOSED** (mergedAt null, closedAt 2026-07-26T09:52:13Z), #82 OPEN,
-      #83 OPEN, #84 **MERGED** (2026-07-26T10:19:37Z), #87 **MERGED** (2026-07-26T10:42:57Z).
-- [x] Read PR #81's full AUDIT: FAIL comment (`gh api repos/FChecklist/claude-control/issues/81/comments`):
-      closed as a byte-identical stale duplicate redispatch of task-20260726-083946, whose real
-      HOLD_FOR_OWNER_SIGNOFF + branch-resolution fix had already landed at commit e6c7049
-      ("Fix stale PR branch + prose-only hold-for-signoff in task lifecycle") before #81 was even
-      audited. e6c7049 was then mistakenly deleted from claude-control's master and recovered via
-      PR #84 ("Recover lifecycle-fix commit e6c7049"), MERGED 2026-07-26T10:19:37Z.
-- [x] Confirmed live: `grep HOLD_FOR_OWNER_SIGNOFF /opt/veridian/scripts/veridian-task.py
-      /opt/veridian/scripts/supervisor-entrypoint.sh` -- present in both, today. The
-      HOLD_FOR_OWNER_SIGNOFF fix is real and live, shipped via e6c7049/PR #84, not PR #81.
-- [x] Corrected compliance-tracker PR #566 (branch
-      `worker/task-20260726-094625-re-verify-20-engine-inventory---confirm`, workspace at
-      `/opt/veridian/ai-os/tasks/task-20260726-094625-re-verify-20-engine-inventory---confirm/workspace`):
-      fixed PROGRESS.md and ai-os/boss/ACTIVE-CLAIMS.yaml's `recently_completed` entry, both of which
-      described PR #81 as "currently-open"/"not yet merged". Pushed directly to the existing PR branch
-      (commit 180d268a). Did not touch any other conclusion.
-      Note: `gh pr view 566 --json mergeable` now shows CONFLICTING -- pre-existing, not caused by this
-      push (PR #566's fork point predates main's PR #567 merge, which rewrote PROGRESS.md for an
-      unrelated task; confirmed via `git merge-tree` that the only conflicting hunk is that unrelated
-      PROGRESS.md header/body, not any line this task touched). Out of scope for this narrow correction
-      per CONSTRAINTS; left for the owning task/session to resolve.
-- [x] Corrected claude-control PR #83 (same branch name, repo `/opt/veridian/repos/claude-control`):
-      fixed Engine 8 (Workflow Engine)'s `gap_description` in
-      `ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`, which described PR #81 as "open ...
-      not yet merged" and closed with "None of PR #79/#80/#81/#82 are merged ... all OPEN". Replaced
-      with the real, fresh PR-81-closed / e6c7049-via-PR-84-merged narrative; PR #79/#80/#82 states
-      unchanged (still open, reconfirmed). Verified YAML still parses (`yaml.safe_load`). Pushed
-      directly to the existing PR branch (commit f47a59a). `gh pr view 83 --json mergeable` -> MERGEABLE.
-- [x] Did not change any other conclusion in either PR -- the underlying practical takeaway (the
-      HOLD_FOR_OWNER_SIGNOFF gap was not live at the moment PR #566/#83 were originally written) is
-      still correct; only the PR-number/PR-state attribution was wrong.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- confirmed no other active claim
+      overlaps PR #563's branch/file scope.
+- [x] Confirmed PR #563 (`worker/task-20260726-071400-migration-drift-audit-and-reconciliation`)
+      was CONFLICTING/DIRTY against `main`, reintroduced by PR #568 (a later,
+      unrelated stale-PR-state correction) touching the same
+      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` files after the prior
+      session's "resolved -> MERGEABLE" claim (task-20260726-102520) had
+      already stopped holding.
+- [x] Merged `origin/main` into PR #563's existing branch, in its existing
+      worktree (`/opt/veridian/ai-os/tasks/task-20260726-071400-.../workspace`)
+      -- did not create a duplicate worktree, did not touch any other task's
+      checkout.
+- [x] Resolved both real conflicts:
+      - `PROGRESS.md` -- combined every prior task's real narrative on this
+        branch instead of dropping either side.
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- union-merged both sides'
+        `recently_completed` entries (same pattern used repeatedly on this
+        file this session), plus added this task's own entry.
+- [x] While validating the merged YAML (`python3 -c "import yaml;
+      yaml.safe_load(...)"`), found the parse still failed on a
+      **pre-existing bug already on `main`**, unrelated to this merge: 3 list
+      entries (2026-07-19/07-21 claims) and 5 `scope_note:` keys were
+      mis-indented by 2 spaces, going back as far as the 2026-07-20 V2-7
+      entry. Fixed via whitespace-only re-indentation (verified via a Python
+      script operating on exact line ranges, no content altered) -- file now
+      parses (75 `active` + 65 `recently_completed` entries).
+- [x] Verified live, read-only (no DDL/migration executed, per CONSTRAINTS):
+      `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` on compliance-tracker
+      (project `pcrjmlpuqsbocqfwoxod`, via Supabase MCP `execute_sql`) still
+      returns 261 rows, matching PR #563's original fix -- no drift.
+- [x] Pushed the resolved merge commit (`d6ceb270`) directly to PR #563's
+      existing branch. Did not open a new PR, did not merge PR #563.
+- [x] Updated PR #563's body (via `gh api ... -X PATCH -F body=@...`, since
+      `gh pr edit`/`gh pr view` both hit an unrelated GitHub GraphQL
+      Projects-classic deprecation error / silent line-truncation
+      respectively) with the conflict-resolution summary and the live
+      verification result.
+- [x] Confirmed `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
 
 ## Remaining
-- [ ] None -- task complete. Did not merge PR #566 or #83 (per CONSTRAINTS). PR #566's pre-existing
-      merge conflict is a separate, unrelated issue left for its owning task.
+- [ ] None -- task complete. `mergeStateStatus` shows `BLOCKED` only because
+      CI checks are pending/required, not because of any conflict.
+
+## Note for future sessions
+`gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
+files were observed silently truncating output in this sandbox (per-line
+~120-char cutoff with a literal `...`, and whole-file cutoffs respectively) --
+use `gh api repos/<owner>/<repo>/pulls/<n> --jq '.body'` and
+`git cat-file -p <blob-sha>` instead when the content matters. Likely the
+`snip` shell-output filter (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s snip
+integration entries) intercepting recognized "verbose" commands, not a
+general/silent corruption of file writes made directly by tools (Write/Edit)
+or by Python's own `open()/write()`.
