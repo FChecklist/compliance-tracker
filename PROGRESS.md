@@ -19,8 +19,9 @@ ai-os/boss/ACTIVE-CLAIMS.yaml for full scope/design writeup.
 - governance-gitops-workflow's "branch protection requiring passing evals before merge" sub-item is NOT done: needs a .github/workflows/ai-prompt-evals.yml edit, and this session's gh token lacks `workflow` OAuth scope (cannot push a branch touching that path). Documented in the export script's own header and ACTIVE-CLAIMS entry. Needs a future session with `workflow` scope, or the Owner pushing that one-line edit.
 
 ## Remaining
-- [ ] claude-control: ai-os/VERIDIAN_V2_LIFECYCLE_GOVERNANCE_SCHEMA_2026-07-25.yaml (schema-only design doc)
-- [ ] claude-control: register-knowledge + query-knowledge success criteria
-- [ ] claude-control: update phase_3 entry in VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml to status: done
-- [ ] compliance-tracker: commit, push, open PR
-- [ ] Move ACTIVE-CLAIMS entry to recently_completed
+- [x] claude-control: ai-os/VERIDIAN_V2_LIFECYCLE_GOVERNANCE_SCHEMA_2026-07-25.yaml (schema-only design doc) -- committed directly to claude-control master (config-only repo, no PR/CI gate there, matches phase_1/phase_2 backfill precedent)
+- [x] claude-control: register-knowledge (KE-20260726-041920-ec24) + query-knowledge success criteria (found=1)
+- [x] claude-control: phase_3 entry status: done, completed_by_task + evidence set
+- [x] compliance-tracker: committed, pushed, PR #561 opened (https://github.com/FChecklist/compliance-tracker/pull/561)
+- [ ] Move ACTIVE-CLAIMS entry to recently_completed -- NOT done (budget exhausted this session); next session touching this repo should do so once PR #561 merges, or verify CI status first
+- [ ] Watch PR #561 CI and merge once green (not done this session)
