@@ -3059,10 +3059,11 @@ recently_completed:
       drift. Engine 8 (Workflow Engine) gained 2 real, live exists_as paths
       (scripts/veridian-task.py, scripts/supervisor-entrypoint.sh) and a
       gap_description update documenting 2 real fixes this session made in
-      still-open PRs #81 (HOLD_FOR_OWNER_SIGNOFF made a real enforced field)
-      and #82 (task-gateway.py cmd_start now calls credit-accountant.py
-      propose, fixing worker checkpoint reports that always failed "no
-      matching approved plan"). Engine 5 (Policy Engine) gap_description
+      PR #81 (HOLD_FOR_OWNER_SIGNOFF made a real enforced field, described
+      here as "still-open" -- STALE, see correction note below) and
+      still-open PR #82 (task-gateway.py cmd_start now calls
+      credit-accountant.py propose, fixing worker checkpoint reports that
+      always failed "no matching approved plan"). Engine 5 (Policy Engine) gap_description
       documented 2 more real gates (scripts/ddl_authorization_check.py PR
       #79, ai-os/OWNER_DIRECTIVES/interactive-session-guard.bashrc-snippet PR
       #80) but deliberately did NOT add them to exists_as since neither is
@@ -3079,6 +3080,21 @@ recently_completed:
       self-reported. No 21st engine added, no new tracking file created.
       PR: https://github.com/FChecklist/claude-control/pull/83 (OPEN, not
       self-merged per task CONSTRAINTS).
+      CORRECTED 2026-07-26 (task-20260726-105214-correct-stale-pr-state-claims-in-engine):
+      the "still-open PRs #81" framing above went stale before this entry was even
+      written -- fresh `gh pr view 81 --repo FChecklist/claude-control
+      --json state,mergedAt,closedAt` returns `{"state":"CLOSED","mergedAt":null,
+      "closedAt":"2026-07-26T09:52:13Z"}` (closed 9 minutes before this entry's own
+      closing commit). AUDIT: FAIL closed #81 as a byte-identical stale duplicate
+      redispatch of a diff already landed at commit e6c7049 ("Fix stale PR branch +
+      prose-only hold-for-signoff in task lifecycle"); e6c7049 was then mistakenly
+      deleted from claude-control's master and recovered via PR #84 ("Recover
+      lifecycle-fix commit e6c7049"), MERGED 2026-07-26T10:19:37Z.
+      HOLD_FOR_OWNER_SIGNOFF is confirmed live today in
+      /opt/veridian/scripts/veridian-task.py and supervisor-entrypoint.sh -- the fix
+      shipped via e6c7049/PR #84, not PR #81, which never merged. PR #82 remains
+      open/unmerged, PR #79/#80 remain open/unmerged, all reconfirmed fresh via `gh`
+      as of this correction.
   - session_label: "claude-code (task-20260726-074124-status-monitor-and-remediation-dispatche, redispatch of 053322) -- Status monitor + remediation dispatcher: landed stranded work on claude-control master [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
     claim: |

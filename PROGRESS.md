@@ -6,11 +6,23 @@
       compliance-tracker workspace -- the 20-engine/Auditor-Engine files live there
 - [x] Re-ran claude-control's `ai-os-scripts/generate_engines_gateways_inventory.py` against live disk:
       18/20 engine_inventory rows re-verified with zero drift
-- [x] Traced this session's 4 new dispatch-gate files to real, currently-open PRs via `gh`:
-      #79 (ddl_authorization_check.py), #80 (interactive-session-guard.bashrc-snippet),
-      #81 (branch-resolution + HOLD_FOR_OWNER_SIGNOFF), #82 (credit-accountant.py <-> task-gateway.py fix)
+- [x] Traced this session's 4 new dispatch-gate files to real PRs via `gh`:
+      #79 (ddl_authorization_check.py, OPEN), #80 (interactive-session-guard.bashrc-snippet, OPEN),
+      #81 (branch-resolution + HOLD_FOR_OWNER_SIGNOFF), #82 (credit-accountant.py <-> task-gateway.py
+      fix, OPEN). **STALE, corrected 2026-07-26 by task-20260726-105214**: #81 was described above as
+      "currently-open" -- fresh `gh pr view 81 --repo FChecklist/claude-control
+      --json state,mergedAt,closedAt` now returns `{"state":"CLOSED","mergedAt":null,
+      "closedAt":"2026-07-26T09:52:13Z"}`. It was closed via an `AUDIT: FAIL` comment as a
+      byte-identical stale duplicate redispatch of a diff that had already landed at commit
+      `e6c7049` ("Fix stale PR branch + prose-only hold-for-signoff in task lifecycle"); `e6c7049`
+      was then mistakenly deleted from claude-control's master and recovered via PR #84
+      ("Recover lifecycle-fix commit e6c7049"), MERGED 2026-07-26T10:19:37Z. `HOLD_FOR_OWNER_SIGNOFF`
+      is confirmed present in the live-deployed `/opt/veridian/scripts/veridian-task.py` and
+      `supervisor-entrypoint.sh` today. #81 itself never merged -- the fix shipped via #84, not #81.
 - [x] Updated Engine 8 (Workflow Engine) exists_as (+veridian-task.py, +supervisor-entrypoint.sh) and
-      gap_description (HOLD_FOR_OWNER_SIGNOFF + credit-accountant fixes, both open/unmerged)
+      gap_description (HOLD_FOR_OWNER_SIGNOFF + credit-accountant fixes, both open/unmerged **as of
+      this session's original pass -- see 2026-07-26 correction above: HOLD_FOR_OWNER_SIGNOFF is now
+      live via e6c7049/PR #84; the credit-accountant fix, PR #82, remains open/unmerged**)
 - [x] Updated Engine 5 (Policy Engine) gap_description documenting the DDL gate + write-gate (deliberately
       NOT added to exists_as -- not yet live-deployed, would falsely flip verified_on_disk for the row's
       other real paths)
