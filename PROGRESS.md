@@ -1,36 +1,26 @@
-# PROGRESS -- task-20260725-231836-phase2-prompt-compiler-pipeline-core-non
+# PROGRESS -- task-20260726-035742-phase3-business-rule-permission-policy-c
 
-VERIDIAN_Architecture_v2.0 phase_2_compiler_pipeline_intelligence_engines.
-Extends scripts/prompt_gateway/engine/{classifier,prompt_engine,context_engine}.py
-into compliance-tracker's own src/lib/prompt-compiler/ TypeScript module.
+VERIDIAN_Architecture_v2.0 phase_3_governance_policy_cost_engines. See
+ai-os/boss/ACTIVE-CLAIMS.yaml for full scope/design writeup.
 
 ## Completed
-- [x] Read governance docs (ACTIVE-CLAIMS, CONSTITUTION, phase plan, gap analysis, owner directive)
-- [x] Confirmed OWNER_DECISIONS_NEEDED_2026-07-23.yaml veridian-architecture-v2-target-repo-anchor is `approved`
-- [x] Read scripts/prompt_gateway/engine/{classifier,prompt_engine,context_engine}.py in full
-- [x] Read phase_1 deliverables (prompt-os-service.ts, schema.ts promptVersions) + existing real prior art (embeddings.ts, capability-registry-service.ts prompt_pattern precedent, prompt-eval-service.ts, prompt-normalizer.ts, llm-client.ts cost functions)
-- [x] Registered ACTIVE-CLAIMS entry + closed phase_1's entry to recently_completed (pushed)
+- [x] Read governance docs (ACTIVE-CLAIMS, phase plan, gap analysis) + researched real prior art
+- [x] Registered ACTIVE-CLAIMS entry, pushed standalone commit
+- [x] schema.ts: additive columns (promptTemplates.ownerId; promptVersions.approvedById/approvedAt/stagingEnteredAt) + drizzle/0263 migration (seeds module_registry/module_rule_configs platform defaults too)
+- [x] permission-service.ts: PROMPT_ACTION_ROLES (engine-permission)
+- [x] prompt-governance-service.ts (new): business-rule accessors, PII scan, ownership assignment, dependency lookup, ABAC wiring, eval budget guardrail, audit event helper, orchestrating gate function
+- [x] prompt-os-service.ts: named permissions + full gate stack wired into transitionPromptLifecycle (governance-lifecycle-state-machine)
+- [x] prompt-eval-service.ts: named permissions + budget guardrail + audit trigger extension (engine-audit)
+- [x] scripts/export-prompt-versions-gitops.ts: prompts-as-versioned-git-files half of governance-gitops-workflow
+- [x] Tests: prompt-governance-service.test.ts (new) + existing prompt-os-service.test.ts/permission-service.test.ts still pass (81 pass, 0 fail)
+- [x] tsc --noEmit clean, eslint clean on all touched/new files
+
+## Known, honestly-carried limitation
+- governance-gitops-workflow's "branch protection requiring passing evals before merge" sub-item is NOT done: needs a .github/workflows/ai-prompt-evals.yml edit, and this session's gh token lacks `workflow` OAuth scope (cannot push a branch touching that path). Documented in the export script's own header and ACTIVE-CLAIMS entry. Needs a future session with `workflow` scope, or the Owner pushing that one-line edit.
 
 ## Remaining
-- [x] src/lib/prompt-compiler/types.ts -- shared types
-- [x] entity-variable-extraction.ts (engine-entity, engine-variable)
-- [x] intent-classifier.ts (engine-intent deepen: multi-level primary/secondary/implicit)
-- [x] context-assembly.ts (pipeline-context-assembly deepen: session history + business + user context)
-- [x] prompt-construction.ts (engine-prompt-compiler deepen + pipeline-prompt-construction deepen: noise removal reuse, compression, hash/fingerprint, semantic-cache lookup, writes compiled contract to prompt_versions)
-- [x] prompt-optimizer-expansion.ts (engine-prompt-optimizer, engine-prompt-expansion)
-- [x] capability-registry-service.ts: add `prompt_version` entity type + indexPromptVersion/findSimilarPromptVersions
-- [x] prompt-similarity.ts (engine-prompt-similarity, wraps the above)
-- [x] prompt-ranking-recommendation.ts (engine-prompt-ranking, engine-prompt-recommendation)
-- [x] confidence-engine.ts (engine-confidence deepen: multi-signal)
-- [x] verification-pipeline.ts (pipeline-verification: business/workflow/capability/permission + cost + model selection)
-- [x] prompt-portability.ts (engine-prompt-portability)
-- [x] prompt-ab-testing.ts (engine-prompt-ab)
-- [x] prompt-testing-benchmark.ts (engine-prompt-testing deepen, engine-prompt-benchmark deepen -- shadow comparison, no new eval schema)
-- [x] pipeline.ts (Layer 2-5 orchestrator with per-stage latency vs 15/25/30/30ms budgets)
-- [x] index.ts barrel export
-- [x] Colocated *.test.ts for every pure/deterministic function (bun test)
-- [x] scripts/prompt-compiler-smoke-test.ts (this phase's SUCCESS_CRITERIA command)
-- [x] bunx tsc --noEmit clean, bun test clean, eslint clean
-- [x] Register knowledge_engine entry ("veridian_v2_compiler_pipeline", domain:veridian_architecture_v2) via /opt/veridian/scripts/superboss-register.py
-- [x] Update claude-control's VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml phase_2 status -> done with evidence
-- [x] Commit + push, open PR
+- [ ] claude-control: ai-os/VERIDIAN_V2_LIFECYCLE_GOVERNANCE_SCHEMA_2026-07-25.yaml (schema-only design doc)
+- [ ] claude-control: register-knowledge + query-knowledge success criteria
+- [ ] claude-control: update phase_3 entry in VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml to status: done
+- [ ] compliance-tracker: commit, push, open PR
+- [ ] Move ACTIVE-CLAIMS entry to recently_completed

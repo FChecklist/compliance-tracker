@@ -4,12 +4,13 @@
 // something any org admin can edit.
 import { db, promptTemplates, promptVersions } from "@/lib/db"
 import { and, eq } from "drizzle-orm"
-import { hasRole } from "@/lib/supabase/auth-guard"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { requirePromptPermissionForUser } from "./permission-service"
+import { runLifecycleTransitionGates, recordPromptGovernanceEvent } from "./prompt-governance-service"
 
 export type PromptOsContext = { userId: string; dbUser: typeof users.$inferSelect }
 
@@ -31,9 +32,7 @@ export async function createPromptVersion(
   ctx: PromptOsContext,
   input: { templateKey: string; content: string; label?: string; bump?: PromptVersionBump }
 ) {
-  if (!hasRole(ctx.dbUser, "veridian_admin")) {
-    throw new ServiceError("Creating a prompt version requires veridian_admin", 403)
-  }
+  requirePromptPermissionForUser(ctx.dbUser, "prompt.version.create")
   const content = input.content?.trim()
   if (!content) throw new ServiceError("content is required", 400)
 
@@ -149,13 +148,26 @@ export function isLegalLifecycleTransition(from: PromptLifecycleState, to: Promp
   return (ALLOWED_LIFECYCLE_TRANSITIONS[from] ?? []).includes(to)
 }
 
+// VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): the approval-gate
+// PERMISSION_ACTION_FOR_TRANSITION below is the named, per-transition
+// permission phase_1's own comment deferred here ("distinct access/edit/
+// approve/deploy permissions rather than one coarse admin role" --
+// engine-permission). Role bar is unchanged (still veridian_admin -- see
+// permission-service.ts's own header for why this session doesn't lower
+// it); what governs whether a SPECIFIC transition is allowed right now is
+// prompt-governance-service.ts's runLifecycleTransitionGates() below.
+function permissionActionForTransition(toState: PromptLifecycleState): "prompt.version.transition_review" | "prompt.version.approve_staging" | "prompt.version.promote_production" | "prompt.version.deprecate" {
+  if (toState === "Staging") return "prompt.version.approve_staging"
+  if (toState === "Production") return "prompt.version.promote_production"
+  if (toState === "Deprecated") return "prompt.version.deprecate"
+  return "prompt.version.transition_review" // Review or back to Draft
+}
+
 export async function transitionPromptLifecycle(
   ctx: PromptOsContext,
   input: { versionId: string; toState: PromptLifecycleState }
 ) {
-  if (!hasRole(ctx.dbUser, "veridian_admin")) {
-    throw new ServiceError("Transitioning a prompt version's lifecycle requires veridian_admin", 403)
-  }
+  requirePromptPermissionForUser(ctx.dbUser, permissionActionForTransition(input.toState))
 
   const version = await db.query.promptVersions.findFirst({ where: eq(promptVersions.id, input.versionId) })
   if (!version) throw new ServiceError("Unknown prompt version", 404)
@@ -165,12 +177,65 @@ export async function transitionPromptLifecycle(
     throw new ServiceError(`Illegal lifecycle transition: ${fromState} -> ${input.toState}`, 400)
   }
 
+  const template = await db.query.promptTemplates.findFirst({ where: eq(promptTemplates.id, version.promptTemplateId) })
+  if (!template) throw new ServiceError("Prompt template for this version no longer exists", 404)
+
+  // The full governance-lifecycle-state-machine gate stack (business rule,
+  // policy/ABAC, compliance/PII, governance/ownership, maker-checker) --
+  // read-only advisory dependents list + which timestamp fields this
+  // transition should set on success, per runLifecycleTransitionGates'
+  // own contract. Runs OUTSIDE withTenantContext (this function has none
+  // open) since prompt lifecycle objects are platform-wide -- ABAC checks
+  // inside the gate function only fire when ctx.dbUser.orgId is real,
+  // matching the exact same best-effort-when-orgless posture
+  // createPromptVersion's audit write already established.
+  const gateResult = await withTenantContextOrPlain(ctx, (tx) =>
+    runLifecycleTransitionGates(tx, {
+      versionId: version.id, templateId: template.id, templateKey: template.templateKey, content: version.content,
+      createdById: version.createdById, fromState, toState: input.toState, stagingEnteredAt: version.stagingEnteredAt,
+      actingUserId: ctx.userId, actingOrgId: ctx.dbUser.orgId ?? null,
+    })
+  )
+
+  const updateValues: Partial<typeof promptVersions.$inferInsert> = { lifecycleState: input.toState }
+  if (gateResult.setStagingEnteredAt) updateValues.stagingEnteredAt = new Date()
+  if (gateResult.setApproval) {
+    updateValues.approvedById = ctx.userId
+    updateValues.approvedAt = new Date()
+  }
+
   const [row] = await db.update(promptVersions)
-    .set({ lifecycleState: input.toState })
+    .set(updateValues)
     .where(eq(promptVersions.id, input.versionId))
     .returning()
 
-  return { id: row.id, lifecycleState: row.lifecycleState, previousState: fromState }
+  if (ctx.dbUser.orgId) {
+    await withTenantContext({ orgId: ctx.dbUser.orgId, userId: ctx.userId }, (tx) =>
+      recordPromptGovernanceEvent(tx, {
+        orgId: ctx.dbUser.orgId!, dbUser: ctx.dbUser, entityId: row.id,
+        action: "prompt_lifecycle.transition",
+        details: `Prompt template "${template.templateKey}" version ${version.version}: ${fromState} -> ${input.toState}.${gateResult.dependents.length ? ` ${gateResult.dependents.length} known call site(s): ${gateResult.dependents.map((d) => d.file).join(", ")}` : ""}`,
+      })
+    ).catch((err) => console.error(`[audit] failed to record prompt_lifecycle.transition for version ${row.id}:`, err))
+  }
+
+  return { id: row.id, lifecycleState: row.lifecycleState, previousState: fromState, dependents: gateResult.dependents }
+}
+
+// runLifecycleTransitionGates needs a TenantDb (checkAbacDenyPoliciesWithDb/
+// tx.query.promptTemplates require it), but this function has no tenant
+// context open for an orgless platform admin. withTenantContext requires a
+// real orgId, so this opens one only when ctx.dbUser.orgId is real;
+// otherwise runs the gate function against the raw `db` client cast as
+// TenantDb -- safe here because every gate that actually needs org-scoped
+// RLS (the ABAC check) is itself skipped internally when actingOrgId is
+// null, and promptTemplates/promptVersions are platform-wide tables with no
+// RLS policy gating this read either way.
+async function withTenantContextOrPlain<T>(ctx: PromptOsContext, fn: (tx: TenantDb) => Promise<T>): Promise<T> {
+  if (ctx.dbUser.orgId) {
+    return withTenantContext({ orgId: ctx.dbUser.orgId, userId: ctx.userId }, fn)
+  }
+  return fn(db as unknown as TenantDb)
 }
 
 export type PromptVersionDiffLine = { type: "context" | "added" | "removed"; value: string }
@@ -228,9 +293,7 @@ export async function rollbackPromptVersion(
   ctx: PromptOsContext,
   input: { templateKey: string; toVersion: number; label?: string }
 ) {
-  if (!hasRole(ctx.dbUser, "veridian_admin")) {
-    throw new ServiceError("Rolling back a prompt version requires veridian_admin", 403)
-  }
+  requirePromptPermissionForUser(ctx.dbUser, "prompt.version.rollback")
 
   const template = await db.query.promptTemplates.findFirst({ where: eq(promptTemplates.templateKey, input.templateKey) })
   if (!template) throw new ServiceError("Unknown templateKey", 404)
