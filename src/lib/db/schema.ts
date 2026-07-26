@@ -2123,6 +2123,14 @@ export const promptTemplates = complianceSchemaDB.table('prompt_templates', {
   description: text('description'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): Governance Engine
+  // (prompt-lifecycle sense) -- gap analysis item engine-governance,
+  // "ownership tracking, stewardship assignment". Nullable: a template with
+  // no assigned owner is a real, valid (if incomplete) state today; the
+  // governance gate in prompt-governance-service.ts requires this to be set
+  // before any of that template's versions may promote to Production, but
+  // does not retroactively invent an owner for existing rows.
+  ownerId: text('owner_id'),
 })
 
 // VERIDIAN_Architecture_v2.0 phase_1 (2026-07-25): semantic versioning +
@@ -2157,6 +2165,22 @@ export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   lifecycleState: text('lifecycle_state').notNull().default('Draft'),
   metadata: jsonb('metadata').notNull().default({}), // PROMPT_METADATA_SCHEMA_2026-07-25.schema.json -- optional, additive structured fields per category; {} means none supplied
   rolledBackFromVersionId: text('rolled_back_from_version_id'), // set only on a version created by rollbackPromptVersion() -- points at the version it was requested to restore, never mutated onto history
+  // VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): approval-gate +
+  // canary-duration columns the bare state machine above deferred (see this
+  // table's own phase_1 comment) -- enforced by
+  // prompt-governance-service.ts, set by transitionPromptLifecycle().
+  // approvedById/approvedAt record who approved the most recent Review->
+  // Staging or Staging->Production promotion (maker-checker: must differ
+  // from createdById, checked at the service layer, not by a DB
+  // constraint -- self-referential CHECK constraints against another row's
+  // column aren't expressible in Postgres). stagingEnteredAt is set the
+  // moment a version first reaches Staging and is what the canary-duration
+  // business rule (module_rule_configs, moduleKey='prompt_lifecycle',
+  // ruleKey='min_canary_duration_hours') measures elapsed time against
+  // before allowing Staging->Production.
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  stagingEnteredAt: timestamp('staging_entered_at'),
 })
 
 // ─── Wave 94 (Comparison CSV 3 gap analysis: AI011 "Prompt/Model Evaluation
