@@ -3047,41 +3047,38 @@ active:
       claims (PRs #387/#391 already merged, 3-4 days stale, well past the
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
-
-- session_label: >-
-    claude-code (task-20260726-094625-re-verify-20-engine-inventory---confirm)
-    -- re-verify 20-Engine inventory + Auditor Engine status against live
-    claude-control repo state
-  claimed_at: "2026-07-26T (this session)"
-  claim: >-
-    Re-verify claude-control's ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml
-    engine_inventory (20 entries) against current on-disk state -- it was 2
-    days stale as of today and this session's own new files
-    (scripts/ddl_authorization_check.py, the interactive-session write-gate,
-    task-gateway.py/veridian-task.py/supervisor-entrypoint.sh branch-
-    resolution + HOLD_FOR_OWNER_SIGNOFF fixes, and the credit-accountant.py
-    <-> task-gateway.py dispatch integration fix) are not yet reflected.
-    Update exists_as/coverage/gap_description in place per-entry as
-    warranted, fold the new files into whichever existing engine role they
-    genuinely belong to (no 21st engine entry), run a real duplication grep
-    across the repo, and separately read+report claude-control's ai-os/
-    AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml real phase-completion status
-    (cross-referenced against gh pr view on any cited PR). Explicitly NOT
-    creating a new inventory file, new engine, or new tracking mechanism --
-    update-in-place only, report-only on duplication (no fix), no self-merge.
-  scope_note: >-
-    File scope: claude-control repo only (a separate repo from this
-    compliance-tracker checkout) -- ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml
-    updated in place, ai-os/AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml read
-    only (no edits). Checked this file for collisions before starting: grepped
-    for "20_ENGINES", "engine_inventory", "AUDITOR_ENGINE" -- no other active
-    entry claims these paths. claude-control has no ACTIVE-CLAIMS.yaml of its
-    own; this compliance-tracker registry is the cross-repo coordination point
-    per precedent set by the phase_3 governance claim above (its own
-    cross-repo note). Registering here per this file's own protocol before
-    starting real work in the claude-control checkout at
-    /opt/veridian/repos/claude-control.
 recently_completed:
+  - session_label: >-
+      claude-code (task-20260726-094625-re-verify-20-engine-inventory---confirm)
+      -- re-verify 20-Engine inventory + Auditor Engine status against live
+      claude-control repo state [CLOSED]
+    claimed_at: "2026-07-26T (this session)"
+    claim: >-
+      Re-ran claude-control's ai-os-scripts/generate_engines_gateways_inventory.py
+      against live disk: 18/20 engine_inventory rows re-verified with zero
+      drift. Engine 8 (Workflow Engine) gained 2 real, live exists_as paths
+      (scripts/veridian-task.py, scripts/supervisor-entrypoint.sh) and a
+      gap_description update documenting 2 real fixes this session made in
+      still-open PRs #81 (HOLD_FOR_OWNER_SIGNOFF made a real enforced field)
+      and #82 (task-gateway.py cmd_start now calls credit-accountant.py
+      propose, fixing worker checkpoint reports that always failed "no
+      matching approved plan"). Engine 5 (Policy Engine) gap_description
+      documented 2 more real gates (scripts/ddl_authorization_check.py PR
+      #79, ai-os/OWNER_DIRECTIVES/interactive-session-guard.bashrc-snippet PR
+      #80) but deliberately did NOT add them to exists_as since neither is
+      live-deployed yet (both PRs open/unmerged) -- folding an unmerged path
+      into that row would have incorrectly flipped verified_on_disk to false
+      for preflight-guard.py/policy-enforcement-engine.ts too. Found and
+      reported (not fixed, per task CONSTRAINTS) a genuine duplication risk:
+      preflight-guard.py and PR #82's task-gateway.py cmd_start both
+      independently call credit-accountant.py propose for the same task_id.
+      Separately read ai-os/AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml in full
+      and cross-referenced its phase-completion status against 8 real PRs via
+      `gh pr view --json state,mergedAt` (#24/#34/#37/#44/#50/#52/#55/#64,
+      all MERGED) -- confirmed all 9 phases (0-8) genuinely done, not just
+      self-reported. No 21st engine added, no new tracking file created.
+      PR: https://github.com/FChecklist/claude-control/pull/83 (OPEN, not
+      self-merged per task CONSTRAINTS).
   - session_label: "claude-code (task-20260726-074124-status-monitor-and-remediation-dispatche, redispatch of 053322) -- Status monitor + remediation dispatcher: landed stranded work on claude-control master [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
     claim: |
