@@ -244,10 +244,14 @@ next MERGEABLE confirmation rather than leaving it open indefinitely.
       matching the established pattern on this file.
 
 ### Remaining
-- [ ] Push this merge commit to
-      `worker/task-20260726-071400-migration-drift-audit-and-reconciliation`.
-- [ ] Re-confirm `gh pr view 563 --json mergeable -q '.mergeable'` ->
+- [x] Push this merge commit to
+      `worker/task-20260726-071400-migration-drift-audit-and-reconciliation`
+      (commit `5890fc78`).
+- [x] Re-confirmed `gh pr view 563 --json mergeable -q '.mergeable'` ->
       `MERGEABLE`.
+- [ ] CI re-triggered by this push (`gh pr checks 563`) was still `pending`
+      across all jobs at push time -- not yet re-verified green. Next
+      invocation should re-check `gh pr checks 563` once the run completes.
 - [ ] Independent audit / `AUDIT: PASS` comment (per Rule 7(c)) and PR #563's
       own merge remain out of scope for this task, as noted above.
 
