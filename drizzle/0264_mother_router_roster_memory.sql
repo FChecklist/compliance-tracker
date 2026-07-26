@@ -7,7 +7,7 @@
 -- table is a write-once RESOLUTION log. mother_router_memory rows start at
 -- resolution time and are UPDATED once the dispatch's real outcome/cost are
 -- known -- see mother-router.ts's recordMotherRouterMemory()/
--- updateMotherRouterMemoryOutcome().
+-- recordMotherRouterOutcome().
 --
 -- Genuinely distinct from platform.task_register (drizzle/0249): that table
 -- carries full Instruction Contract/Execution Report jsonb content for
