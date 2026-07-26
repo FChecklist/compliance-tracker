@@ -3,9 +3,11 @@ name: AI Workforce (repo-write)
 # Gives a VERIDIAN AI Workforce role (any OpenRouter model in
 # src/lib/ai-team/roster.ts) real read/write access to this repo. Always
 # lands on a new branch + PR — never pushes to main directly. This is
-# separate from ai-dispatch.yml's zai-task/claude-task events (those are
-# AGENTS.md's two full-access authorized agents); ai-team-task is a more
-# constrained, file-tools-only agent for the broader AI Workforce roster.
+# separate from ai-dispatch.yml's zai-task event (one of AGENTS.md's two
+# full-access authorized agents; the sibling Claude dispatch event was
+# removed -- see V2-23-REMOVE-DEAD-ANTHROPIC-PATH -- it never had a job
+# behind it); ai-team-task is a more constrained, file-tools-only agent for
+# the broader AI Workforce roster.
 on:
   repository_dispatch:
     types: [ai-team-task]

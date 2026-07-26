@@ -1,10 +1,10 @@
 name: AI Engine Dispatch
 on:
   repository_dispatch:
-    types: [ai-task, claude-task, zai-task, codex-task, sentinel-task]
+    types: [ai-task, zai-task, codex-task, sentinel-task]
   workflow_dispatch:
     inputs:
-      engine: { description: "AI engine (claude|zai|codex)", required: true, default: "zai" }
+      engine: { description: "AI engine (zai|codex)", required: true, default: "zai" }
       task: { description: "Task for the AI agent", required: true }
       branch: { description: "Branch to work on", required: false, default: "main" }
 jobs:
