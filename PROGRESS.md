@@ -1,56 +1,72 @@
-# PROGRESS -- task-20260726-115425-resolve-pr563-merge-conflict--supabase-m
+# PROGRESS -- task-20260726-171957-crm-performance-under-load-indexes---loa
+
+V2-16 -- CRM performance-under-load indexes + load-test harness.
+Redispatch of a task originally blocked 2026-07-20 by a spend-governance
+gate before any work started. Re-verified live against schema.ts/
+drizzle/*.sql before starting: confirmed genuinely still open (no composite
+index on crm_leads/crm_opportunities anywhere, no CRM-specific load-test
+harness existed -- scripts/veridian-full-load-test.ts and
+scripts/projexa-load-test.ts both exercise the orchestra/task-dispatch
+layer, not CRM-table query performance).
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- confirmed no other active claim
-      overlaps PR #563's branch/file scope.
-- [x] Confirmed PR #563 (`worker/task-20260726-071400-migration-drift-audit-and-reconciliation`)
-      was CONFLICTING/DIRTY against `main`, reintroduced by PR #568 (a later,
-      unrelated stale-PR-state correction) touching the same
-      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` files after the prior
-      session's "resolved -> MERGEABLE" claim (task-20260726-102520) had
-      already stopped holding.
-- [x] Merged `origin/main` into PR #563's existing branch, in its existing
-      worktree (`/opt/veridian/ai-os/tasks/task-20260726-071400-.../workspace`)
-      -- did not create a duplicate worktree, did not touch any other task's
-      checkout.
-- [x] Resolved both real conflicts:
-      - `PROGRESS.md` -- combined every prior task's real narrative on this
-        branch instead of dropping either side.
-      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- union-merged both sides'
-        `recently_completed` entries (same pattern used repeatedly on this
-        file this session), plus added this task's own entry.
-- [x] While validating the merged YAML (`python3 -c "import yaml;
-      yaml.safe_load(...)"`), found the parse still failed on a
-      **pre-existing bug already on `main`**, unrelated to this merge: 3 list
-      entries (2026-07-19/07-21 claims) and 5 `scope_note:` keys were
-      mis-indented by 2 spaces, going back as far as the 2026-07-20 V2-7
-      entry. Fixed via whitespace-only re-indentation (verified via a Python
-      script operating on exact line ranges, no content altered) -- file now
-      parses (75 `active` + 65 `recently_completed` entries).
-- [x] Verified live, read-only (no DDL/migration executed, per CONSTRAINTS):
-      `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` on compliance-tracker
-      (project `pcrjmlpuqsbocqfwoxod`, via Supabase MCP `execute_sql`) still
-      returns 261 rows, matching PR #563's original fix -- no drift.
-- [x] Pushed the resolved merge commit (`d6ceb270`) directly to PR #563's
-      existing branch. Did not open a new PR, did not merge PR #563.
-- [x] Updated PR #563's body (via `gh api ... -X PATCH -F body=@...`, since
-      `gh pr edit`/`gh pr view` both hit an unrelated GitHub GraphQL
-      Projects-classic deprecation error / silent line-truncation
-      respectively) with the conflict-resolution summary and the live
-      verification result.
-- [x] Confirmed `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (no collision --
+      existing CRM-area claims all touch application/UI logic, none claim
+      schema.ts index changes or a CRM-specific load-test harness).
+- [x] Grepped real service-layer query patterns (crm-service.ts,
+      crm-accounts-service.ts, sales-engine-service.ts, veri-reward-service.ts)
+      to determine which composite indexes actually matter, rather than
+      guessing. Confirmed `getSalesPipelineOverview()`'s overdue-follow-up
+      counts filter `(org_id, next_action_date)` with zero index support
+      today -- this is the real "pipeline/dashboard" gap named in the spec.
+- [x] Wrote `drizzle/0264_v2_16_crm_perf_indexes.sql`: 8 additive
+      `CREATE INDEX IF NOT EXISTS` statements --
+      `crm_leads(org_id,status,created_at)`,
+      `crm_opportunities(org_id,stage)`,
+      `crm_leads(org_id,next_action_date) WHERE next_action_date IS NOT NULL`,
+      `crm_opportunities(org_id,next_action_date) WHERE next_action_date IS NOT NULL`,
+      `crm_accounts(org_id,lifecycle_stage,created_at)`,
+      `crm_contacts(org_id,account_id)`,
+      `sales_referrals(org_id,status)`,
+      `veri_reward_referrals(org_id,referrer_user_id)`.
+      **Not applied against any live/shared database this session** -- Tier2
+      (schema change) holds for Owner sign-off per this task's own
+      constraints, same "left for the supervising session" convention as
+      drizzle/0262 and others (see this session's ACTIVE-CLAIMS entry).
+- [x] Wrote `scripts/crm-perf-load-test.ts`: a real, runnable synthetic
+      load-test harness. Seeds 110,000 rows (50k leads + proportional
+      opportunities/accounts/contacts/sales_referrals/veri_reward_referrals)
+      into a throwaway `compliance` schema on a **disposable local Postgres
+      container** (never the shared `supabase_db_verdian-ai`/
+      `supabase_db_projexa` containers already running on this host, and
+      never a real `DATABASE_URL` -- guarded by requiring a distinct
+      `CRM_LOADTEST_DATABASE_URL` env var plus a hostname-pattern refusal
+      check). Runs the 8 real query patterns via `EXPLAIN (ANALYZE,
+      BUFFERS)` before/after applying `drizzle/0264_v2_16_crm_perf_indexes.sql`
+      verbatim (read from disk, not re-typed).
+- [x] **Actually ran the harness** (spun up a disposable `postgres:17`
+      Docker container, installed the `postgres` npm package in an isolated
+      temp dir since this sandbox had neither `bun` nor a project
+      `node_modules` install, ran via `node --experimental-strip-types`,
+      then discarded the container) -- this is real measured data, not
+      hypothetical. Results: 6 of 8 query patterns measurably faster
+      (up to 103.8x, with `rowsRemovedByFilter` dropping to 0 on every
+      improved query -- the planner stops post-filtering entirely), 2 of 8
+      neutral (~1x, honestly reported with root-cause explanation, not
+      hidden -- see results doc §4).
+- [x] Wrote `docs/testing/CRM_PERF_LOAD_TEST_RESULTS.md` -- full
+      methodology, per-query before/after table, and the honest
+      still-worth-it explanation for the two ~1x results.
+- [x] Verification command from the task spec re-run against the current
+      tree, passes:
+      `grep -n "org_id.*status.*created_at\|org_id.*stage" drizzle/*.sql src/lib/db/schema.ts`
+      now matches `drizzle/0264_v2_16_crm_perf_indexes.sql`;
+      `find scripts -iname "*crm*load*test*"` now finds
+      `scripts/crm-perf-load-test.ts`.
 
 ## Remaining
-- [ ] None -- task complete. `mergeStateStatus` shows `BLOCKED` only because
-      CI checks are pending/required, not because of any conflict.
-
-## Note for future sessions
-`gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
-files were observed silently truncating output in this sandbox (per-line
-~120-char cutoff with a literal `...`, and whole-file cutoffs respectively) --
-use `gh api repos/<owner>/<repo>/pulls/<n> --jq '.body'` and
-`git cat-file -p <blob-sha>` instead when the content matters. Likely the
-`snip` shell-output filter (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s snip
-integration entries) intercepting recognized "verbose" commands, not a
-general/silent corruption of file writes made directly by tools (Write/Edit)
-or by Python's own `open()/write()`.
+- [ ] None for this task's scope. Live application of
+      `drizzle/0264_v2_16_crm_perf_indexes.sql` against the real Supabase
+      database is intentionally left for the supervising session /
+      Owner sign-off (Tier2 hold, not an oversight).
+- [ ] Open the PR (this session does not merge).
