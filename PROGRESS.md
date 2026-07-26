@@ -1,56 +1,37 @@
-# PROGRESS -- task-20260726-115425-resolve-pr563-merge-conflict--supabase-m
+# PROGRESS -- task-20260726-171954-storage-rls---backup-pitr---supabase-mon
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- confirmed no other active claim
-      overlaps PR #563's branch/file scope.
-- [x] Confirmed PR #563 (`worker/task-20260726-071400-migration-drift-audit-and-reconciliation`)
-      was CONFLICTING/DIRTY against `main`, reintroduced by PR #568 (a later,
-      unrelated stale-PR-state correction) touching the same
-      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` files after the prior
-      session's "resolved -> MERGEABLE" claim (task-20260726-102520) had
-      already stopped holding.
-- [x] Merged `origin/main` into PR #563's existing branch, in its existing
-      worktree (`/opt/veridian/ai-os/tasks/task-20260726-071400-.../workspace`)
-      -- did not create a duplicate worktree, did not touch any other task's
-      checkout.
-- [x] Resolved both real conflicts:
-      - `PROGRESS.md` -- combined every prior task's real narrative on this
-        branch instead of dropping either side.
-      - `ai-os/boss/ACTIVE-CLAIMS.yaml` -- union-merged both sides'
-        `recently_completed` entries (same pattern used repeatedly on this
-        file this session), plus added this task's own entry.
-- [x] While validating the merged YAML (`python3 -c "import yaml;
-      yaml.safe_load(...)"`), found the parse still failed on a
-      **pre-existing bug already on `main`**, unrelated to this merge: 3 list
-      entries (2026-07-19/07-21 claims) and 5 `scope_note:` keys were
-      mis-indented by 2 spaces, going back as far as the 2026-07-20 V2-7
-      entry. Fixed via whitespace-only re-indentation (verified via a Python
-      script operating on exact line ranges, no content altered) -- file now
-      parses (75 `active` + 65 `recently_completed` entries).
-- [x] Verified live, read-only (no DDL/migration executed, per CONSTRAINTS):
-      `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` on compliance-tracker
-      (project `pcrjmlpuqsbocqfwoxod`, via Supabase MCP `execute_sql`) still
-      returns 261 rows, matching PR #563's original fix -- no drift.
-- [x] Pushed the resolved merge commit (`d6ceb270`) directly to PR #563's
-      existing branch. Did not open a new PR, did not merge PR #563.
-- [x] Updated PR #563's body (via `gh api ... -X PATCH -F body=@...`, since
-      `gh pr edit`/`gh pr view` both hit an unrelated GitHub GraphQL
-      Projects-classic deprecation error / silent line-truncation
-      respectively) with the conflict-resolution summary and the live
-      verification result.
-- [x] Confirmed `gh pr view 563 --json mergeable -q '.mergeable'` -> `MERGEABLE`.
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (pushed ahead of real work, no collision found)
+- [x] `get_advisors` (security) audit on `storage.objects` via Supabase MCP against the live project
+      `pcrjmlpuqsbocqfwoxod` -- zero findings reference storage RLS for either `compliance-documents`
+      or `voice-memos`
+- [x] Direct `pg_catalog`/`pg_policies`/`pg_roles` verification of the RLS state on `storage.objects`
+      (RLS enabled, zero explicit policies, `anon`/`authenticated` confirmed not `BYPASSRLS` --> real
+      default-deny; `service_role` confirmed `BYPASSRLS` --> policies are structurally irrelevant to it)
+- [x] Code-level grep of every call site touching either bucket -- confirmed 100% service-role-only,
+      org-scoped-path access, no anon/authenticated client ever used for storage
+- [x] **Finding: no RLS policy fix needed** -- the assumed gap does not hold up under verification;
+      documented why in the audit doc rather than making an unnecessary Tier2 schema change (per this
+      task's own "if the finding doesn't match current code, say so" instruction)
+- [x] PITR/backup verification via `get_organization` -- org `gycrthstsbvkojggzkjk` is on the **Free**
+      plan, which does not support PITR and lacks Pro's baseline daily-backup guarantee. **Real, severe,
+      code-unfixable gap.**
+- [x] RTO/RPO statement written (both effectively undefined today; what a Pro upgrade + PITR add-on
+      would change)
+- [x] Sentry monitoring activation re-confirmed still unconfirmed (code done since V2-10/PR #497; DSN
+      provisioning is an Owner sentry.io-account action, no Vercel MCP access this session to check the
+      secret directly) -- matches `docs/SEV1_INCIDENT_RUNBOOK.md`'s existing honest gap, independently
+      re-verified rather than assumed
+- [x] Wrote `ai-os/V2_15_SUPABASE_STORAGE_RLS_PITR_RTO_AUDIT_2026-07-26.md` (full audit doc, RTO/RPO statement,
+      Owner recommendations, CSV re-score guidance for rows #40/#41/#42)
+- [x] Registered the new doc in `ai-os/OS.yaml`'s `health_and_compliance` index
 
 ## Remaining
-- [ ] None -- task complete. `mergeStateStatus` shows `BLOCKED` only because
-      CI checks are pending/required, not because of any conflict.
-
-## Note for future sessions
-`gh pr view <n> --json body -q '.body'` and `gh show <ref>:<path>` for large
-files were observed silently truncating output in this sandbox (per-line
-~120-char cutoff with a literal `...`, and whole-file cutoffs respectively) --
-use `gh api repos/<owner>/<repo>/pulls/<n> --jq '.body'` and
-`git cat-file -p <blob-sha>` instead when the content matters. Likely the
-`snip` shell-output filter (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s snip
-integration entries) intercepting recognized "verbose" commands, not a
-general/silent corruption of file writes made directly by tools (Write/Edit)
-or by Python's own `open()/write()`.
+- [ ] Open PR (WIP if needed) -- docs-only, Tier1, no schema/auth/RLS/.env changes; do not merge
+      (left for the supervising session's review per this task's own instruction)
+- [ ] CSV rows #40/#41/#42 re-score itself lives in the separate `claude-control` repo -- out of this
+      repo's PR scope; the audit doc's §5 supplies the exact re-score text for whoever does that there
+- [ ] Owner decision needed on: (a) Supabase org plan upgrade (Free -> Pro) + PITR add-on for real
+      backup/DR coverage, (b) completing Sentry DSN provisioning (sentry.io signup + Vercel/GitHub
+      secrets) -- both are billing/dashboard actions, not code, consistent with this task's own
+      constraint carving out the DSN-provisioning half as Owner-side
