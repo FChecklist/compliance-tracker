@@ -48,5 +48,6 @@ Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
       businessTerminologyGlossary) already existed. Tier1, additive-only.
 
 ## Remaining
-- [ ] None for this task's three sub-asks. Left for reviewer/CI: PR open, not
-      self-merged (per this task's own constraint).
+- [ ] None for this task's three sub-asks. PR open at
+      https://github.com/FChecklist/compliance-tracker/pull/580 -- not
+      self-merged (per this task's own constraint); left for CI + Owner review.
