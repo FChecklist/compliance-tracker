@@ -13,7 +13,10 @@
 - [x] Registered the new doc in ai-os/OS.yaml's metadata index (required by scripts/check-metadata-index-coverage.mjs -- new top-level ai-os/ file)
 - [x] Re-scored CSV row #13 in ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (C3/V2-12 row, RE-SCORED CLOSED)
 
+- [x] Committed doc + OS.yaml + plan re-score (ca1c7aa9), pushed
+- [x] Opened PR #581: https://github.com/FChecklist/compliance-tracker/pull/581
+
 ## Remaining
-- [ ] Commit doc + OS.yaml + plan re-score, push
-- [ ] Open PR (WIP-labeled if CI can't be verified green from this environment -- bun/node_modules unavailable here, could not run check-*.mjs/tsc/eslint/bun test locally; note this honestly in the PR body)
-- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed once merged (not done by this session per Rule 6 -- Owner/CI merges)
+- [ ] CI to run and confirm green on PR #581 (could not run bun/check-*.mjs/tsc/eslint locally in this sandboxed environment -- no bun binary, no node_modules; flagged honestly in the PR body rather than asserted)
+- [ ] Owner/reviewer sign-off, then merge (not done by this session per Rule 6)
+- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed once merged
