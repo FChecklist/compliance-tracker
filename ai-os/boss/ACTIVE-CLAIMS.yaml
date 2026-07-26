@@ -113,7 +113,23 @@ active:
       job a merge-blocking check) cannot be pushed this session -- documented
       as an honest limitation in this phase's own evidence rather than
       silently dropped or attempted-and-failed.
-  - session_label: "claude-code (task-20260725-231836-phase2-prompt-compiler-pipeline-core-non) -- VERIDIAN_Architecture_v2.0 phase_2: compiler pipeline core (Layer 2-5, non-browser) + Intelligence/Matching engines"
+
+      ADDENDUM (task-20260726-042710-fix-pr561-cross-tenant-governance-bypass,
+      2026-07-26T, corrective-fix session on this SAME branch/PR #561, not a
+      new claim): PR #561's AUDIT: FAIL found a real cross-tenant privilege-
+      escalation bug -- getPromptLifecycleRule() resolved prompt_lifecycle
+      thresholds through module-rules-resolver.ts's org-override chain even
+      though prompt_templates/prompt_versions/prompt_eval_runs have no orgId
+      column, letting any org's rank-5 admin weaken canary/eval-pass-rate
+      gates for a same-org veridian_admin to exploit against ANY platform-
+      wide template. Fixed: getPromptLifecycleRule()/checkPromptEvalBudget()
+      are now platform-only (no orgId param, read only scope_type='platform').
+      Also tightened the PII credit-card regex (real Luhn check) and added
+      DB-mocked test coverage for runLifecycleTransitionGates/
+      checkPromptEvalBudget (previously untested), incl. regression tests for
+      the cross-tenant scenario. Pushed as commits b97bdac5/8001e478 to the
+      same worker/task-20260726-035742-... branch. bun test: 2029 pass / 0
+      fail. Re-audit pending as of this addendum.
     claimed_at: "2026-07-25T (this session)"
     claim: |
       phase_2_compiler_pipeline_intelligence_engines of
