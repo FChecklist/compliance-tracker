@@ -1,60 +1,48 @@
-# PROGRESS -- task-20260726-081117-fix-pr563-ci---stale-migration-files--do
+# PROGRESS -- task-20260726-102520-analyze-update--supabase-schema-migratio
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml + AGENTS.md/CLAUDE.md governance docs.
-- [x] Located PR #563 (`gh pr view 563`), branch
-      `worker/task-20260726-071400-migration-drift-audit-and-reconciliation`,
-      already checked out in another task's worktree -- worked via a local
-      branch built on `FETCH_HEAD` of that remote branch instead, then pushed
-      straight back to the same remote branch name (never touched the other
-      worktree).
-- [x] Registered `ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml` in
-      `ai-os/OS.yaml`'s `index.health_and_compliance` section. Verified locally
-      (via a temp `js-yaml`/`argparse` node_modules symlink, since `bun` was
-      not usable in this sandbox): without the entry the check reports 57
-      missing items including this file; with it, 56, and this file is no
-      longer in the missing list.
-- [x] Read migration `0245_create_platform_schema_compartment.sql` to confirm
-      the real relocation target (`ALTER TABLE compliance.dynamic_chains SET
-      SCHEMA platform;`), then corrected:
-      - `drizzle/0140_wave166_monitoring_tool_health.sql` line 39 ->
-        `platform.dynamic_chains`
-      - `drizzle/0199_gap_dcmd_rich_schema_slice.sql` (all 7 ALTER TABLE
-        lines) -> `platform.dynamic_chains`
-      - `drizzle/0253_tenant_ai_config.sql` line 27 `provider ai_provider` ->
-        `provider compliance.ai_provider` (confirmed `compliance.ai_provider`
-        is the real enum, defined in `drizzle/0004_ai_configurations_and_indexes.sql`)
-      Verified via grep: `compliance.dynamic_chains` no longer appears in
-      0140/0199; `platform.dynamic_chains` does.
-- [x] Fixed PR #563's own `PROGRESS.md` stale `[ ] Open PR` line (PR is
-      confirmed open) and documented the CI-fix work there.
-- [x] Registered this follow-up task + closed it in
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed:` (added directly,
-      since the fix was already complete by the time of registration).
-- [x] Committed + pushed both fixes directly to PR #563's branch (2 commits):
-      `92887462` (the 3 real fixes) and `2ea99ee0` (ACTIVE-CLAIMS entry).
-- [x] Found and flagged (NOT fixed -- out of scope, needs real per-file
-      research this task didn't have time/budget for): Metadata Index
-      Coverage Check has a much larger pre-existing gap, 56 unrelated
-      `ai-os/` files/scripts never indexed or exempted in `OS.yaml`. Confirmed
-      via `git worktree add` at PR #563's merge-base commit (`51b7cccc`) that
-      this gap already existed there (not introduced by PR #563), and via
-      `gh run view` on main's own latest CI run (commit `9bcdb108`) that
-      "Metadata Index Coverage Check" is failing on main HEAD right now for
-      the same reason. Deliberately did not bulk-register 56 files with
-      guessed descriptions -- this repo's own `OS.yaml` `covers:` entries are
-      all evidence-researched; fabricating them would undermine the exact
-      thing this check exists to catch. Recommend a dedicated follow-up claim.
+- [x] Read AGENTS.md/CLAUDE.md governance docs; confirmed PR #563 is real and CONFLICTING (DIRTY) via fresh `gh pr view`.
+- [x] Resolved PR #563's merge conflict against current main: used a scratch worktree +
+      local branch tracking `worker/task-20260726-071400-migration-drift-audit-and-reconciliation`
+      (never touched the other task's own live worktree checked out elsewhere), merged
+      `origin/main`. Two real conflicts: `PROGRESS.md` (narrative -- took main's more-current
+      side, per PR #565's already-merged CI-fix content) and
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed:` list (structured registry --
+      kept both real sides' entries, no drops). Pushed the merge commit back to the PR's
+      remote branch. Verified: `gh pr view 563 --json mergeable` now returns `MERGEABLE`
+      (was `CONFLICTING`). `mergeStateStatus: BLOCKED` remains -- that's the normal
+      CI/required-checks gate, not a conflict; not merged by this session per CONSTRAINTS.
+      (Note: pyyaml fails to parse ACTIVE-CLAIMS.yaml at line 276 on a `?` explicit-key
+      token -- confirmed via direct `git show` diff against both `origin/main` and the PR's
+      original HEAD that this is pre-existing on both sides, not introduced by this merge.)
+- [x] Confirmed live `drizzle.__drizzle_migrations` row count on compliance-tracker's
+      real Supabase project (pcrjmlpuqsbocqfwoxod) via Supabase MCP `execute_sql`:
+      **261 rows**, matching the 261 real migration files in `drizzle/*.sql` (264 possible
+      numbers 0000-0263, minus 3 known gap numbers 166/167/168 -- already-documented
+      parallel-agent numbering collisions, not missing DDL). Matches the prior audit's
+      applied-fix state exactly; no drift since.
+- [x] Checked projexa's own Supabase project (evpckeuxgvahguwsaeul) for a `drizzle` schema:
+      **does not exist at all** -- confirmed out of scope for this gap class, consistent
+      with the prior audit's finding (same conclusion, independently re-verified).
+- [x] Re-ran `ai-os/scripts/extract-db-schema-catalog.mjs` (real path; SPEC said
+      `ai-os-scripts/`, actual location is `ai-os/scripts/`) against the current
+      `src/lib/db/schema.ts` on this task's branch (forked from main HEAD after PR #565
+      merged). Sandbox had no `bun`/`node_modules` -- installed just `drizzle-orm` +
+      `@paralleldrive/cuid2` (the schema's only external imports) via `npm install
+      --no-save` into a scratch prefix, copied into a real `node_modules/` here (node 24's
+      native TS type-stripping ran the plain-`.mjs` script against the `.ts` schema file
+      directly, no `tsx` needed). Script exited 0.
+      Real current counts: **449 tables, 124 enums** (baseline 2026-07-20: 444/124) --
+      genuine growth, not regression. Diffed table names old vs new: 5 tables added
+      (`crm_activities`, `crm_campaigns`, `crm_lost_reasons`, `ops_dev_tasks`,
+      `tenant_ai_config`), 0 removed; 0 enum changes.
+- [x] Regenerated `ai-os/DATABASE_CATALOG.json` from that real run, committed.
+
+- [x] Opened PR #567 for the `ai-os/DATABASE_CATALOG.json` regeneration (not merged).
+      `gh pr view 567 --json mergeable` -> `MERGEABLE`.
+- [x] Registered this task's completion in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s
+      `recently_completed:` list.
 
 ## Remaining
-- [ ] Owner sign-off on PR #563 (constitutionally required per this task's
-      own constraints -- prior live-DDL-before-review exception -- not
-      merged by this session under any circumstance).
-- [ ] `gh pr checks 563` will still show "Metadata Index Coverage Check" red
-      after this push, but for the separate pre-existing reason above, not
-      the migration-drift-audit-file gap this task fixed. A future session
-      should open a dedicated task to research and register/exempt the 56
-      flagged items.
-- [ ] No live database action was taken in this task (by design, per SPEC) --
-      the live DB was already correct per the prior audit; only repo files
-      were changed to match it.
+- [ ] Owner sign-off / merge on both PR #563 and PR #567 (neither merged by this
+      session, per CONSTRAINTS).
