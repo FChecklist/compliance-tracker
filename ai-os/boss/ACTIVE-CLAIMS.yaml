@@ -3048,6 +3048,24 @@ active:
       4-hour abandonment threshold) -- no open PR touches any of these files.
       Will not self-merge; left for CI green (Tier1 additive tests+docs).
 recently_completed:
+  - session_label: "claude-code (task-20260726-081117-fix-pr563-ci---stale-migration-files--do) -- PR #563 CI fix: OS.yaml index registration + stale migration-file schema refs"
+    claimed_at: "2026-07-26T (this session)"
+    claim: |
+      Follow-up to the migration-drift-audit task below, fixing the real
+      review findings on PR #563 (docs/code-only, no further live-DB
+      action): registered ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml in
+      ai-os/OS.yaml's index (was failing Metadata Index Coverage Check for
+      that one file); corrected drizzle/0140*.sql + drizzle/0199*.sql to
+      reference platform.dynamic_chains (matching migration 0245's live
+      relocation, previously only fixed against production, not in the repo
+      files) and drizzle/0253*.sql's unqualified ai_provider enum to
+      compliance.ai_provider; fixed PROGRESS.md's stale "[ ] Open PR" line.
+      Separately found and flagged (not fixed -- needs real per-file
+      research, not guessed): Metadata Index Coverage Check has a much
+      larger pre-existing gap (56 unrelated ai-os/ files never indexed),
+      already failing on main HEAD (commit 9bcdb108) before this PR, not
+      introduced by it. Held for Owner sign-off per this task's own
+      constraint (prior live-DDL-before-review exception); not merged.
   - session_label: "claude-code (task-20260726-071400-migration-drift-audit-and-reconciliation) -- Migration drift audit + reconciliation: drizzle/__drizzle_migrations tracking gap [CLOSED, compliance-tracker PR #563 open]"
     claimed_at: "2026-07-26T (this session)"
     claim: |
