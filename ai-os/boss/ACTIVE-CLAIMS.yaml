@@ -64,9 +64,12 @@ active:
     scope_note: >-
       File scope: compliance-tracker only --
       src/app/api/v1/construction/boq/route.ts (GET handler only, additive
-      lineItems field). No schema changes, no service-layer changes. Branch:
-      feat/boq-line-items-in-v1-list. Not self-merged -- this task's own PR
-      requires a fresh supervisor audit before merge.
+      lineItems field) and
+      src/app/api/v1/projexa/work-progress/activities/route.ts (GET handler
+      only, additive categories field). No schema changes, no
+      service-layer changes. Branch: feat/boq-line-items-in-v1-list. Not
+      self-merged -- this task's own PR requires a fresh supervisor audit
+      before merge.
   - session_label: "claude-code (task-20260727-122632-projexa-e2e--hierarchical-boq-breakdown) -- Hierarchical BoQ breakdown-%, interim-billing/valuation/retention engine, Excel BoQ importer"
     claimed_at: "2026-07-27T (this session)"
     claim: |
