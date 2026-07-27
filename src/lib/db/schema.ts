@@ -664,7 +664,7 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   keyHash: text('key_hash').notNull().unique(),
   keyPrefix: text('key_prefix').notNull(), // first 8 chars for display
   orgId: text('org_id').notNull(),
-  scopes: text('scopes').notNull().default('read'), // comma-separated: read,write
+  scopes: text('scopes').notNull().default('read'), // comma-separated: read,write,read:reports (task-20260727-101145)
   isActive: boolean('is_active').notNull().default(true),
   lastUsedAt: timestamp('last_used_at'),
   // Wave 17 (Purpose-Bound AI): null = unconstrained (every pre-existing key's
