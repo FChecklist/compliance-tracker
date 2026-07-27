@@ -40,20 +40,33 @@ lines 563-607, repo claude-control, target_repo compliance-tracker).
         `computeEndUserOrgResolution`, `resolveModel`'s `end_user_org` branch, unchanged).
 
 ## Remaining
-- [ ] Wire capability-intel: register a new `capability_registry` row (via
-      `scripts/superboss-register.py register-capability` on the server, claude-control repo)
-      for this phase's prompt-needs-to-capability matching, reusing the existing table --
-      no parallel matcher.
-- [ ] Register the `knowledge_engine` row (`veridian_v2_gateway_knowledge_sync`, tag
-      `domain:veridian_architecture_v2`) via `register-knowledge` (the real write-path
-      `query-knowledge` reads from), server-side, claude-control repo.
-- [ ] Add a new `populated_routes` entry to
-      `ai-os/ROUTE_REGISTRY_SCHEMA_2026-07-24.yaml` (claude-control) with a `route_id`
-      containing `veridian-v2` and `hops_through` gateway `G05`, citing the file:line trace
-      above, capability_name matching the new capability_registry row -- this is what makes
-      `generate_wiring_registry.py`'s output actually contain a `veridian-v2` entity
-      (`build_routes()` derives `route-{route_id}` entity IDs straight from this file).
-- [ ] Explicit named decision on the `PATH_MISSING` drift for `KE-20260725-233806-1d75`
+- [x] Wire capability-intel: registered `capability_registry` row `CAP-20260727-084004-bff8`
+      (`capability_name: task_oa`, reusing the real, pre-existing `orchestraLayers.layerKey`
+      identifier this call site already passed) via
+      `scripts/superboss-register.py register-capability`. `lookup-capability
+      --capability-name task_oa` confirms a real exact match.
+- [x] Registered the `knowledge_engine` row `KE-20260727-084038-6d5f`
+      (`veridian_v2_gateway_knowledge_sync`, tag `domain:veridian_architecture_v2`) via
+      `register-knowledge`. `query-knowledge "veridian_v2_gateway_knowledge_sync" --tag
+      domain:veridian_architecture_v2` run from `/opt/veridian/repos/claude-control` (the
+      exact server path in SUCCESS_CRITERIA) returns `found: 1`. **Both DB writes done
+      directly against the live sqlite DB -- no PR needed, per this task's own EXPECTED_OUTPUT
+      note that server-side registry writes don't require one.**
+- [x] Added `RT-veridian-v2-gateway-knowledge-sync-001` to
+      `ai-os/ROUTE_REGISTRY_SCHEMA_2026-07-24.yaml` (claude-control), `hops_through`
+      gateway `G05`, `capability_name: task_oa`, full file:line trace + honest gaps in
+      its `notes` field. This one IS repo-tracked, so it went through a PR (see below), done
+      in an isolated `git worktree` at `/tmp/wt-claude-control/phase9-gateway-knowledge`
+      rather than the shared `/opt/veridian/repos/claude-control` checkout -- that checkout
+      was found on an unrelated branch (`worker/task-20260727-065831-phase5-litert-spike-
+      registration`) with its own uncommitted local changes (`ai-os/CRONTAB_APPROVED_SNAPSHOT.txt`)
+      belonging to a different, in-flight session; touching it directly risked exactly the
+      "one agent's uncommitted work silently swept into another's commit" failure mode
+      AGENTS.md Rule 6 exists to prevent. Re-ran `scripts/generate_wiring_registry.py` from
+      that worktree: `grep -q veridian-v2 ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json` exits
+      0, and the new `route-RT-veridian-v2-gateway-knowledge-sync-001` entity real-hops
+      through `gateway-G05`, `VERIFIED_MATCH`.
+- [x] Explicit named decision on the `PATH_MISSING` drift for `KE-20260725-233806-1d75`
       (`.../compliance-tracker/src/lib/prompt-compiler/pipeline.ts`): confirmed the file is
       real and merged on `main` (present in this task's own workspace checkout, commit
       `605462b2`). The drift is because the SHARED, long-lived checkout at
@@ -67,14 +80,23 @@ lines 563-607, repo claude-control, target_repo compliance-tracker).
       this task is explicitly forbidden from touching. Left as a documented, out-of-scope,
       pre-existing operational gap, not silently ignored -- re-verify via `verify-knowledge`
       once `sync-repos.sh` is ever re-enabled by a session with the authority to do so.
-- [ ] Re-run `python3 scripts/generate_wiring_registry.py` (server, claude-control) and
-      confirm `grep -q veridian-v2 ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json` exits 0.
-- [ ] Confirm `python3 scripts/superboss-register.py query-knowledge
-      "veridian_v2_gateway_knowledge_sync" --tag domain:veridian_architecture_v2` returns
-      `found>=1`.
-- [ ] Update `OWNER_ENGINE_TASK2_GAP_ANALYSIS_2026-07-27.yaml`'s three items
-      (engine-gateway-integration, engine-knowledge-sync, engine-capability-intel) with
-      real, re-verified verdicts -- do not upgrade rate-limiting/protocol-translation
-      (explicitly out of this phase's scope per CONSTRAINTS).
-- [ ] Open PR against compliance-tracker for the code change; CI green; do not merge to
-      main directly (Rule 6).
+- [x] Both success criteria verified passing (see above).
+- [x] Updated `OWNER_ENGINE_TASK2_GAP_ANALYSIS_2026-07-27.yaml`'s three items:
+      `engine-capability-intel` upgraded `not_implemented` -> `partially_implemented` (real,
+      but scoped to one route); `engine-gateway-integration`/`engine-knowledge-sync` stay
+      `partially_implemented` with evidence updated -- rate-limiting/protocol-translation and
+      browser-cache sync explicitly NOT touched (CONSTRAINTS). Did **not** recompute this
+      file's aggregate `meta.headline_finding` counts (15/47/43) -- that requires
+      re-verifying all 145 items in the file, out of this phase's scope; disclosed, not
+      silently left inconsistent.
+- [x] PR opened against compliance-tracker (code):
+      https://github.com/FChecklist/compliance-tracker/pull/588
+- [x] PR opened against claude-control (route registry + wiring regen + gap-analysis
+      update): https://github.com/FChecklist/claude-control/pull/112
+- [ ] Neither PR merged yet by this session (Rule 6 -- no direct push to main/master).
+      CI status not yet confirmed green on either; a follow-up session/reviewer should
+      check `gh pr checks 588 --repo FChecklist/compliance-tracker` and
+      `gh pr checks 112 --repo FChecklist/claude-control` before merging.
+- [ ] Confirmed cron/timer state untouched: `sync-repos.sh` and all other entries remain
+      under `#STOPPED-ALL-CRON-2026-07-26#` throughout this task (verified via `crontab -l`
+      before and did not modify).

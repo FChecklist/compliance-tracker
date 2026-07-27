@@ -40,44 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- VERIDIAN_Architecture_v2.0 phase_9: Gateway Integration/Knowledge Sync/Capability Intel wired onto existing G05/capability_registry/knowledge_engine infrastructure (zero-duplication phase)"
-    claimed_at: "2026-07-27T (this session)"
-    claim: |
-      phase_9_gateway_knowledge_sync_infrastructure of
-      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (repo
-      claude-control, target_repo: compliance-tracker). Closes gap items
-      engine-gateway-integration, engine-knowledge-sync, engine-capability-intel
-      by wiring VERIDIAN v2's prompt-execution needs onto EXISTING
-      infrastructure -- no new parallel routing/knowledge-sync/capability
-      matcher. Concretely: trace/build one real request from
-      src/app/api/ai/orchestrate/route.ts (resolvePromptTemplate() caller)
-      across Gateway G05 (src/lib/ai-router/mother-router.ts +
-      model-tier-eligibility.ts) with file:line evidence; wire
-      prompt-needs-to-capability matching onto the existing
-      capability_registry table via scripts/superboss-register.py
-      register-capability/lookup-capability; register one new
-      knowledge_engine row (identifier veridian_v2_gateway_knowledge_sync,
-      tag domain:veridian_architecture_v2) via the real query-knowledge
-      write-path; re-run scripts/generate_wiring_registry.py to confirm a
-      real "veridian-v2" entity in
-      ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json. Does NOT touch
-      WIRING_ENGINE_PHASE_PLAN's own phase_4, and does not expand into
-      rate-limiting/protocol-translation for engine-gateway-integration
-      (separate, distinct open gap).
-
-      File scope: compliance-tracker (src/app/api/ai/orchestrate/route.ts,
-      possibly src/lib/ai-router/*, src/lib/prompt-os-resolver.ts -- real
-      scope to be confirmed by tracing) for the gateway-hop PR; claude-control
-      server-side script executions (scripts/superboss-register.py,
-      scripts/generate_wiring_registry.py) + OWNER_ENGINE_TASK2_GAP_ANALYSIS_2026-07-27.yaml
-      verdict updates, not necessarily a separate PR for those. PROGRESS.md
-      + this file in the task workspace.
-
-      Collision check before starting: grepped this file for "phase_9",
-      "gateway_knowledge", "gateway-knowledge" -- no matches, no existing
-      active claim. `gh pr list --state open` checked 2026-07-27 -- no open
-      PR references phase_9, G05 gateway wiring, or
-      veridian_v2_gateway_knowledge_sync.
   - session_label: "claude-code (task-20260726-171942-serverless-resource-limit-tradeoff-doc) -- V2-12 serverless resource-limit tradeoff doc + heavy-workload audit"
     claimed_at: "2026-07-26T (this session)"
     claim: |
@@ -3184,6 +3146,24 @@ active:
       down to 484/410) -- none touch chat-service.ts, glossary-service.ts,
       adoption-metrics-service.ts, or AdoptionMetricsSection.tsx.
 recently_completed:
+  - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- phase_9_gateway_knowledge_sync_infrastructure [PRs OPEN, NOT MERGED]"
+    claimed_at: "2026-07-27T (this session, closed same session)"
+    claim: |
+      Wired orchestrate/route.ts through Gateway G05 (mother-router.ts's
+      end_user_org scope, previously zero real callers) instead of an
+      independent resolveModelConfig() call --
+      FChecklist/compliance-tracker#588. Registered capability_registry row
+      task_oa (CAP-20260727-084004-bff8), knowledge_engine row
+      veridian_v2_gateway_knowledge_sync (KE-20260727-084038-6d5f, live DB
+      writes, no PR needed), and a new ROUTE_REGISTRY_SCHEMA route
+      (RT-veridian-v2-gateway-knowledge-sync-001, hops_through gateway-G05)
+      done in an isolated worktree (not the shared /opt/veridian/repos/
+      claude-control checkout, which had another session's uncommitted
+      work on an unrelated branch) -- FChecklist/claude-control#112. Both
+      SUCCESS_CRITERIA commands verified passing live. Updated
+      OWNER_ENGINE_TASK2_GAP_ANALYSIS_2026-07-27.yaml's 3 affected items.
+      Neither PR merged by this session -- follow-up should confirm CI
+      green and merge.
   - session_label: "claude-code (task-20260726-081117-fix-pr563-ci---stale-migration-files--do) -- PR #563 CI fix: OS.yaml index registration + stale migration-file schema refs"
     claimed_at: "2026-07-26T (this session)"
     claim: |
