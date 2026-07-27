@@ -21,7 +21,8 @@
 // NOT by itself mean "call Gateway G05" (see ../llm-client.ts /
 // model-tier-eligibility.ts for the separate, existing decision of whether
 // a given server-side request needs an actual AI call).
-import { detectAllTiers, type BrowserExecutionTier, type TierAvailability } from "./tier-detection"
+import { detectAllTiers, detectLiteLlmTier, type BrowserExecutionTier, type TierAvailability } from "./tier-detection"
+import { recommendPoolSize, type ParallelismEnv } from "./worker-pool"
 
 export const TIER_PRIORITY: BrowserExecutionTier[] = ["npu", "builtin-ai", "lite-llm", "transformers", "server"]
 
@@ -82,4 +83,37 @@ export function planExecution(env?: Parameters<typeof detectAllTiers>[0]): Execu
  */
 export function requiresServerEscalation(plan: ExecutionPlan): boolean {
   return plan.selectedTier === "server"
+}
+
+/**
+ * engine-browser-lite-llm (increment 2, real model wiring): the real gate
+ * deciding whether the lite-llm tier's actual WebLLM inference (see
+ * webllm-engine.ts's startLiteLlmSession) should run for this plan, vs.
+ * falling back one tier further. True only when BOTH (a) this plan's own
+ * selection already landed on "lite-llm" (i.e. no faster/more-private tier
+ * beat it) AND (b) real WebGPU is present (`navigator.gpu`) --
+ * unlike litert-spike's LiteRT.js pipeline, WebLLM has no WASM fallback
+ * path of its own, so "lite-llm tier selected but WASM-only" must fall
+ * back to a lower tier rather than attempt a WebLLM load that would fail.
+ * Kept here (not duplicated in webllm-engine.ts) so tier selection stays
+ * this module's single source of truth, per this file's own header note.
+ */
+export function shouldAttemptWebLlm(plan: ExecutionPlan, env?: Parameters<typeof detectLiteLlmTier>[0]): boolean {
+  if (plan.selectedTier !== "lite-llm") return false
+  return detectLiteLlmTier(env).gpuAccelerated
+}
+
+/**
+ * stack-browser-compute / stack-parallelism (deepening): the real
+ * parallelism plan for a BATCH of independent browser-tier tasks (e.g.
+ * embedding N chunks via the transformers tier, see
+ * transformers-engine.ts) dispatched through worker-pool.ts's WorkerPool.
+ * Generalizes beyond increment 1's single-task-at-a-time orchestration and
+ * litert-spike's own one-worker-per-page precedent -- sizing is a pure
+ * function of the real environment's navigator.hardwareConcurrency (see
+ * worker-pool.ts#recommendPoolSize for the heuristic and its cap), reusable
+ * by any tier, not just lite-llm.
+ */
+export function planParallelism(env?: ParallelismEnv): { recommendedWorkers: number } {
+  return { recommendedWorkers: recommendPoolSize(env) }
 }
