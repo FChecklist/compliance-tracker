@@ -72,6 +72,37 @@ active:
       service + API route under src/app/api/. No changes to
       pms-invoice-service.ts, pms-time-service.ts, or any PM-gaps file.
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
+  - session_label: "claude-code (task-20260727-132826-fix-pr-597--budget-undercount-roster-gap) -- fixing 3 audit-confirmed issues on PR #597 before merge (does not replace the PR's own claim, this is a fix-forward on the same branch)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      PR #597 (branch worker/task-20260727-122935-timesheet-budget-vs-actual,
+      "Timesheet report: Category/Designer/Project/Status Budget-vs-Actual")
+      got an AUDIT: FAIL verdict on issue #597: (1) budget-undercount bug --
+      aggregateDesignerTimesheetCosts()'s designerStatusByUser built only
+      from time entries, dropping any budgeted-but-entryless designer from
+      byDesignerStatus; (2) real N+1 -- designerTimesheetReport() called
+      resolveBillableRate() (a DB round-trip) once per time entry in the
+      entire org instead of fetching pms_billable_rates once and using the
+      existing pure resolvePmsBillableRatePure(); (3) response mixed
+      project-scoped and org-wide fields under one flat object with no
+      scope indication. Fixing all 3 directly on the SAME branch/PR (not
+      opening a new one), per this task's own EXPECTED_OUTPUT.
+
+      File scope: src/lib/services/construction-reports-service.ts (the 3
+      fixes above only -- not rewriting the already-correct parts of
+      aggregateDesignerTimesheetCosts() per this task's own CONSTRAINTS),
+      src/lib/services/construction-reports-service.test.ts (new tests
+      proving each fix), ai-os/registry/terminology-guardrail-exemptions.yaml
+      (test-fixture date-literal exemption), PROGRESS.md.
+
+      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
+      "597"/"timesheet-budget-vs-actual"/"construction-reports-service" --
+      only this PR's own original build claim (already moved out of
+      `active:` by the time this session started; confirmed via
+      `gh pr view 597` showing state OPEN, mergeable). No other session
+      currently claims this file. `git pull origin main` run fresh
+      immediately before this entry (this file itself lives on `main`;
+      the actual fix commits go to the PR's own branch, not main).
   - session_label: "claude-code (task-20260727-122821-projexa-e2e--pwa-offline-sync---real-tas) -- pms-issue-service.ts real dependency-blocking enforcement"
     claimed_at: "2026-07-27T (this session)"
     claim: |
