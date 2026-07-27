@@ -24,7 +24,7 @@
 CREATE TABLE IF NOT EXISTS compliance.tenant_ai_config (
   id text PRIMARY KEY DEFAULT gen_random_uuid()::text,
   org_id text NOT NULL REFERENCES compliance.organisations(id),
-  provider ai_provider NOT NULL,
+  provider compliance.ai_provider NOT NULL,
   encrypted_api_key text,
   model_name text,
   base_url text,
