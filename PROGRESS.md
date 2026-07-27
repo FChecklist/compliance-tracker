@@ -1,77 +1,16 @@
-# PROGRESS -- task-20260726-171946-chat-context---terminology---mode-pill-a
-
-V2-13-CHAT-CONTEXT-ANALYTICS -- Chat context + terminology + mode-pill analytics.
-Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+# PROGRESS -- task-20260727-044732-rca-task-20260727-034439-re-verify-20-en
 
 ## Completed
-- [x] Re-verified live repo state: `contextEntityId`/`contextEntityType` (conversations
-      table) plumbed by veri-chat-service.ts/veri-meeting-service.ts but never read in
-      chat-service.ts's generateAiReply()/generateVeriGroupReply(). Glossary feature
-      (glossary-service.ts) is UI-tooltip-only, no system-prompt hook. No mode-pill vs
-      free-text analytics anywhere. Confirms 2026-07-26 triage evidence still accurate.
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (collision-checked against
-      `gh pr list --state open` and existing active claims -- no overlap).
-- [x] Wired `contextEntityType`/`contextEntityId` fetch into the AI reply prompt:
-      chat-service.ts gained `fetchContextEntitySummary()` (real DB fetch, best-effort,
-      known types: policy/pms_issue/project/veri_meeting; unknown/internal types like
-      `shared_in_inbox` are an honest no-op) + `formatContextEntityBlock()` (pure
-      formatter). Wired into both `generateAiReply()` (1:1 AI thread) and
-      `generateVeriGroupReply()` (group @veri mentions) via a new
-      `ConversationContextRef` parameter; `sendMessage()`/`regenerateAiReply()` pass it
-      through from the conversation row they already fetch (no extra query).
-      Verification: `grep -n "contextEntityId" src/lib/services/chat-service.ts` now
-      shows it consulted inside fetchContextEntitySummary (called from
-      generateAiReply/generateVeriGroupReply), not just plumbed at the write side.
-- [x] Added an org-glossary hook into the same system prompt: `formatGlossaryBlock()`
-      (pure, char-budget-capped at 2000 chars so a large org glossary can't silently
-      balloon token cost) + a `listGlossaryTerms()` call (glossary-service.ts, already
-      existed for the UI hover-tooltip -- reused, not duplicated), appended to the
-      static system prompt before `compileStaticPrefix()` so prompt-cache fingerprinting
-      still reflects exactly what's sent.
-- [x] Added mode-pill vs free-text usage analytics, reusing existing infra (no new
-      analytics vendor): `computeModePillUsageRate()` (pure) + one new aggregation
-      query in `adoption-metrics-service.ts`'s `computeOrgAdoptionMetrics()`, counting
-      `conversations.dynamicChainId IS NOT NULL` (mode-pill used) vs
-      `conversations.chainSelectorSkipped = true` (explicit free-text skip -- only ever
-      set by createWorkflowThread()'s Chain Selector gate, so it never conflates with
-      conversation flows where that gate was never offered). Surfaced through the
-      existing AdoptionMetricsSection.tsx dashboard (new "Mode-Pill Usage" stat tile) --
-      no new UI page, no new vendor.
-- [x] Tests: new pure-function tests in chat-service.test.ts
-      (formatContextEntityBlock/formatGlossaryBlock, all 4 entity types + null/empty/
-      budget-cap edge cases) and a new adoption-metrics-service.test.ts
-      (computeModePillUsageRate: null-when-undecided, 0%, 50%, 100%, rounded mixed).
-- [x] `bun install` + `bunx tsc --noEmit -p .` clean (0 errors) + `bun test`: 2043 pass,
-      0 fail (full suite, includes the 35 new/updated tests in the two touched files).
-- [x] No schema/migration change -- all columns used
-      (dynamicChainId/chainSelectorSkipped/contextEntityType/contextEntityId/
-      businessTerminologyGlossary) already existed. Tier1, additive-only.
-- [x] Re-checked on resume (invocation 2/20): PR #580 had gone CONFLICTING against
-      `main` (main picked up PR #572, an unrelated PROGRESS.md-only change from a
-      sibling task). Merged `origin/main` into this branch, resolved the PROGRESS.md
-      conflict by keeping this task's own log (the other side was a different task's
-      workspace content, no source-code overlap), re-ran `bunx tsc --noEmit -p .`
-      (clean) and `bun test` (exit 0) post-merge, pushed. PR #580 is now
-      `mergeable: MERGEABLE` / `mergeStateStatus: BLOCKED` (CI running fresh off the
-      push, not self-merged per this task's own constraint).
-
-- [x] Re-checked on resume (invocation 4/20): PR #580's `statusCheckRollup` shows
-      "Metadata Index Coverage Check" FAILED (56 governance files/dirs added by
-      *other* tasks' merges into main, e.g. ai-os/scripts/*.py,
-      ai-os/*.yaml/*.json, not indexed in ai-os/OS.yaml) and "Promptfoo Evals"
-      CANCELLED. Verified via `gh api .../branches/main/protection` that neither
-      is in `required_status_checks.contexts` (only Lint/Type Check/Build/
-      audit-check/Guardrail Presence Check/Asset Registry Coverage Check/Unit
-      Tests are required, and all 7 are SUCCESS on #580). Verified via
-      `gh api .../commits/<origin/main sha>/check-runs` that Metadata Index
-      Coverage Check already fails on `main` itself (pre-existing drift from
-      sibling tasks, not introduced by this task's diff) -- out of this task's
-      three-sub-ask scope, not fixing it here. mergeStateStatus is UNSTABLE
-      (non-required check failing) not BLOCKED -- PR remains genuinely
-      mergeable.
+- [x] Read task-20260727-034439's task.yaml/worker.log/systemd.log in full.
+- [x] Confirmed the stalled task's own real work was already done (all 20 engine-inventory items re-verified, committed to claude-control PR #83 by checkpoint 03:59:46) -- the stall happened AFTER that, in the post-completion quality-gate phase, not in the AI's own task logic.
+- [x] Root cause found via live process inspection (`systemctl --user status`, `ps`, `free -h`) while the unit was still active, not guessed from logs alone: `bun run build` -> `next build` (PID 1205932) had been running 54+ minutes, grown to 2.2G RSS, and driven the host's swap to full exhaustion (4.0Gi/4.0Gi used, <10Mi free). This is a genuine hang under memory pressure, not an OOM kill (systemd showed the unit still `active (running)`, contrast the 2026-07-26 OOM-kill incident that motivated the existing `NODE_OPTIONS --max-old-space-size=2048` fix in the same file -- that fix bounds V8 heap only, not off-heap/native/worker-thread RSS, so it did not prevent this).
+- [x] Traced the structural gap: `quality-gate.sh`'s `run_gate()` ran every gate command (install/lint/build/test) via a bare `eval "$cmd"` with no wall-clock bound. Combined with 2026-07-24's deliberate decision to keep the periodic-checkpoint heartbeat alive through the whole gate phase (so a long-but-real gate run isn't misdiagnosed as stalled), a genuinely hung gate command now runs forever undetected -- the heartbeat keeps ticking cheap `git status`/`git log` calls that don't depend on the hung build, making a real permanent hang look identical to healthy slow progress until the swap-thrashing side effect (system-wide, affecting every concurrent worker's own checkpoint timing) eventually pushed the checkpoint gap past `veridian-task-watchdog.py`'s `STALL_MINUTES` (20) -- which is why the watchdog escalated, correctly, but with no self-healing mechanism anywhere in the pipeline.
+- [x] Found (not caused by this task) that a **parallel session, task-20260727-043407, had already applied the correct fix** to `/opt/veridian/scripts/quality-gate.sh` moments earlier -- confirmed by an `Edit` conflict ("file has been modified since read") when attempting the identical change independently, then reading the file and finding `run_gate()` now wraps every gate command (and the `install` step) in `timeout -k 30 "$GATE_STEP_TIMEOUT_SECONDS"` (default 900s), converting a hang into an ordinary reported gate failure instead of an infinite stall. Did not re-apply or alter this fix -- verified it is correct and complete, avoided duplicating task-20260727-043407's work (two more sibling RCA tasks, -043407 and -044231, were independently spawned for this same signature by repeated watchdog escalations before any of them finished; -043407's code fix is the one that landed on disk).
+- [x] `quality-gate.sh` is NOT a tracked git repo (`/opt/veridian/scripts` has no `.git`) -- it is live orchestrator infrastructure edited directly on disk, consistent with every other dated fix-comment already in that file. No commit was possible or expected for that file; this workspace's own PROGRESS.md is what's committed here.
+- [x] Restarted the still-hung live unit (`systemctl --user restart veridian-worker@task-20260727-034439-...service`) to free the ~2.2G RSS / exhausted swap and let the original task resume cleanly from its last real checkpoint (all engine-inventory work already committed) under the now-fixed, timeout-bounded quality-gate.sh.
+- [x] Registered the real fix in `known_fixes` (superboss-register.sqlite) via `python3 /opt/veridian/scripts/superboss-register.py log-fix --signature "periodic checkpoint" --fix-action "quality_gate_run_gate_timeout: ..."` -- succeeded, `success_count: 14` (row previously existed at count 13 under a different, no-op fix_action `skip_escalation_when_activating`; upserted by signature per `superboss-register.py`'s own `log_fix()` semantics).
+- [x] Separately confirmed (read `veridian-task-watchdog.py` in full) a second, real but secondary bug: `lookup_known_fix()` is only ever called when `search_prior_occurrence()` (a narrow ATTENTION.md/task_audits substring search) returns `found=True` -- so a perfectly good, previously-successful `known_fixes` row can be structurally unreachable whenever that unrelated search misses, exactly what this RCA task's own dispatch prompt's KNOWN_CONTEXT claim ("step_1 and step_2 ... found no existing recorded fix") shows happened here, since the DB row for this exact signature already existed at 13 successes before this task ran. Documenting this honestly per this task's own CONSTRAINTS, but leaving it unfixed: out of this task's scope (`veridian-task-watchdog.py` itself, a third file, and a design question about whether known_fixes should ever gate on search_prior_occurrence at all) and not the proximate cause of task-20260727-034439's actual stall, which was the genuine `next build` hang above.
 
 ## Remaining
-- [ ] None for this task's three sub-asks. PR open at
-      https://github.com/FChecklist/compliance-tracker/pull/580 -- all required
-      CI checks green; not self-merged (per this task's own constraint); left
-      for Owner review/merge.
+- [ ] Out of this task's scope, reported not fixed: `veridian-task-watchdog.py`'s `process_task()` gates `lookup_known_fix()` behind `search_prior_occurrence()` finding the signature in ATTENTION.md/task_audits first -- this can strand valid, working `known_fixes` rows (this exact signature's row sat unused at 13 successes because of it). A follow-up task should look `known_fixes` up unconditionally (or at minimum whenever `search_prior_occurrence` misses) so step_2 can apply an already-proven fix without a redundant RCA escalation.
+- [ ] Owner/human note: 3 RCA tasks (-043407, -044231, -044732/this one) were spawned back-to-back for the identical stalled task/signature before any of them finished -- a watchdog-escalation-rate issue (it re-evaluates and re-escalates every ~60s cycle without checking for an already-in-flight RCA task for the same original task_id), not something this task's scope covers fixing.
