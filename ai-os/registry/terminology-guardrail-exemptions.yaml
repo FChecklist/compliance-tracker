@@ -50,7 +50,11 @@ exemptions:
   - file: src/app/api/ai/orchestrate/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
+  - file: src/lib/ai-router/mother-router.ts
+    reason: "phase_9_gateway_knowledge_sync_infrastructure (2026-07-27): confirmed false positive on direct read -- 7 real dated comments documenting genuine prior Gateway G05 (Mother Router) history (Owner directive AIROUTER-01, re-verification 2026-07-20, software_team dispatch org scoping, AI-model registry-backed resolution follow-ups, per-org BYO AI model V2-5), never previously exempted because this is the first PR to touch mother-router.ts's diff since the exemptions manifest was seeded."
+    findings_by_category:
+      hardcoded_iso_date: 7
   - file: src/app/api/ai/team/controls-health/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:

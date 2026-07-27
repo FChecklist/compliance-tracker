@@ -3258,6 +3258,24 @@ active:
       down to 484/410) -- none touch chat-service.ts, glossary-service.ts,
       adoption-metrics-service.ts, or AdoptionMetricsSection.tsx.
 recently_completed:
+  - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- phase_9_gateway_knowledge_sync_infrastructure [PRs OPEN, NOT MERGED]"
+    claimed_at: "2026-07-27T (this session, closed same session)"
+    claim: |
+      Wired orchestrate/route.ts through Gateway G05 (mother-router.ts's
+      end_user_org scope, previously zero real callers) instead of an
+      independent resolveModelConfig() call --
+      FChecklist/compliance-tracker#588. Registered capability_registry row
+      task_oa (CAP-20260727-084004-bff8), knowledge_engine row
+      veridian_v2_gateway_knowledge_sync (KE-20260727-084038-6d5f, live DB
+      writes, no PR needed), and a new ROUTE_REGISTRY_SCHEMA route
+      (RT-veridian-v2-gateway-knowledge-sync-001, hops_through gateway-G05)
+      done in an isolated worktree (not the shared /opt/veridian/repos/
+      claude-control checkout, which had another session's uncommitted
+      work on an unrelated branch) -- FChecklist/claude-control#112. Both
+      SUCCESS_CRITERIA commands verified passing live. Updated
+      OWNER_ENGINE_TASK2_GAP_ANALYSIS_2026-07-27.yaml's 3 affected items.
+      Neither PR merged by this session -- follow-up should confirm CI
+      green and merge.
   - session_label: "claude-code (task-20260726-081117-fix-pr563-ci---stale-migration-files--do) -- PR #563 CI fix: OS.yaml index registration + stale migration-file schema refs"
     claimed_at: "2026-07-26T (this session)"
     claim: |
