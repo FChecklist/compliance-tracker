@@ -3257,6 +3257,44 @@ active:
       open` checked (571/570/566/563/562/558/557/556/555/554/551/539...
       down to 484/410) -- none touch chat-service.ts, glossary-service.ts,
       adoption-metrics-service.ts, or AdoptionMetricsSection.tsx.
+
+  - session_label: "claude-code (task-20260727-101134-erp-helpdesk-gaps--tiered-sla---team-rou) -- Helpdesk gap-closure: tiered SLA policy + team routing, email-to-ticket ingestion (verify-first), self-service portal (verify-first)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE,
+      Phase 0 investigation dated 2026-07-27. Closing 3 confirmed-real
+      Helpdesk gaps (compliance-tracker's Helpdesk already exceeds Odoo
+      stock in several respects -- ITIL problem management, AI ticket
+      intelligence, voice-to-ticket -- this is narrow gap-closure, not a
+      rebuild): (1) tiered SLA-policy + escalation-rule + team/queue tables,
+      wiring ticket creation to resolve slaDeadline from policy instead of
+      only the current manual input.slaHours override (confirmed absent:
+      zero grep matches for slaPolic/sla_polic/escalationRule/businessHours
+      in schema.ts); (2) email-to-ticket ingestion (verify-first --
+      emailIntelligenceItems promotes to tasks today, not confirmed whether
+      it or anything else promotes to tickets); (3) public self-service
+      portal -- anonymous KB browse + raise-a-ticket without a pre-issued
+      guest link (verify-first -- knowledgeBasePages publish-flag and
+      portal-without-token status unconfirmed at UI layer per Phase 0).
+
+      File scope (compliance-tracker, this repo): src/lib/db/schema.ts
+      (additive tables: sla policies/escalation rules/teams, ticket
+      teamId/queueId column), src/lib/services/ticket-service.ts (SLA
+      policy resolution, additive/backward-compatible), new
+      src/lib/services/ email-to-ticket ingestion module (only if step 2
+      confirms genuinely absent, reusing existing email-ingestion
+      infra behind emailIntelligenceItems rather than building a second
+      one), new public self-service KB/ticket routes reusing
+      conversationGuestAccess (only if step 3 confirms genuinely absent),
+      colocated *.test.ts for all of the above. Does not touch
+      problemRecords/ticketIntelligenceItems/knowledgeBasePages' existing
+      hierarchy, or field-service/CSAT code.
+
+      Collision check before starting: grepped this file for "helpdesk"/
+      "ticket"/"SLA" (case-insensitive) -- matches are all unrelated
+      (voice-tickets GAP-MOM-VOICE-TICKETS, already closed; payroll/tax
+      "slabs"; generic cron-timing "SLA" mentions). No other active entry
+      claims schema.ts's tickets/SLA area or a Helpdesk gap.
 recently_completed:
   - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- phase_9_gateway_knowledge_sync_infrastructure [PRs OPEN, NOT MERGED]"
     claimed_at: "2026-07-27T (this session, closed same session)"
