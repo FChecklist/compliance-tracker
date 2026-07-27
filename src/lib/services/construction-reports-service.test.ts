@@ -3,12 +3,24 @@
 // live DB. Matches this repo's established convention of unit-testing only
 // DB-free aggregation/pure logic (see resolvePmsBillableRatePure in
 // pms-time-service.ts, nextPaymentEntryStatus in
-// erp-payment-entries-service.ts); designerTimesheetReport() itself is a
-// withTenantContext()-wrapped DB read, deliberately left untested here per
-// that same convention.
+// erp-payment-entries-service.ts).
+//
+// PR #597 audit fix (N+1 + response-shape regressions): designerTimesheetReport()
+// itself is a withTenantContext()-wrapped DB read, but proving "billable
+// rates are fetched once, not once per time entry" and "the response
+// separates project-scoped from org-wide fields" needs the real function's
+// DB-call behavior under test, not just the pure aggregator. The bottom
+// describe block below mocks only the DB layer (withTenantContext +
+// requireConstructionEnabled), matching this repo's tenant-isolation.test.ts
+// pattern -- no live DB, but the real designerTimesheetReport() code path.
 /// <reference types="bun-types" />
-import { describe, expect, test } from "bun:test"
-import { aggregateDesignerTimesheetCosts, type DesignerTimesheetBudgetLine, type DesignerTimesheetEntry } from "./construction-reports-service"
+import { describe, expect, test, mock, afterEach } from "bun:test"
+import {
+  aggregateDesignerTimesheetCosts,
+  type DesignerTimesheetBudgetLine,
+  type DesignerTimesheetEntry,
+  type DesignerTimesheetRosterUser,
+} from "./construction-reports-service"
 
 // Fixture: 3 designers across 2 projects and 3 categories.
 // u1 (Alice, active) and u2 (Bob, active) are budgeted; u3 (Carol,
@@ -79,5 +91,143 @@ describe("aggregateDesignerTimesheetCosts", () => {
       ],
       overallBudget: 0, overallActual: 0, overallVariance: 0,
     })
+  })
+})
+
+// Budget-undercount regression (PR #597 audit fix): a designer with a real
+// pms_budget_line_items row but zero time entries anywhere in the org (e.g.
+// newly budgeted, hasn't logged hours yet) must still resolve an
+// active/inactive status via the full user roster, not be silently
+// excluded from byDesignerStatus.
+describe("aggregateDesignerTimesheetCosts: roster-inclusion (budget-undercount fix)", () => {
+  // u1 has logged time; u4 (Dana) has a real budget line but never logged
+  // a single time entry -- the exact scenario the audit flagged.
+  const rosterEntries: DesignerTimesheetEntry[] = [
+    { userId: "u1", userName: "Alice", userIsActive: true, projectId: "pA", projectName: "Project A", category: "Design Development", hours: 10, cost: 1000 },
+  ]
+  const rosterBudgetLines: DesignerTimesheetBudgetLine[] = [
+    { projectId: "pA", userId: "u1", amount: 1200 },
+    { projectId: "pA", userId: "u4", amount: 800 },
+  ]
+  const roster: DesignerTimesheetRosterUser[] = [
+    { userId: "u1", isActive: true },
+    { userId: "u4", isActive: true },
+  ]
+
+  test("without a roster, an entryless budgeted designer's budget is dropped from byDesignerStatus (pre-fix behavior, still true when roster is omitted)", () => {
+    const result = aggregateDesignerTimesheetCosts(rosterEntries, rosterBudgetLines)
+    const sumByStatus = result.byDesignerStatus.reduce((s, r) => s + r.budget, 0)
+    expect(sumByStatus).toBe(1200) // u4's 800 is missing
+    expect(sumByStatus).not.toBe(result.overallBudget)
+  })
+
+  test("with the full roster passed in, u4's budget is included in byDesignerStatus and sum(byDesignerStatus.budget) === overallBudget", () => {
+    const result = aggregateDesignerTimesheetCosts(rosterEntries, rosterBudgetLines, roster)
+    expect(result.overallBudget).toBe(2000)
+    const sumByStatus = result.byDesignerStatus.reduce((s, r) => s + r.budget, 0)
+    expect(sumByStatus).toBe(result.overallBudget)
+    expect(result.byDesignerStatus).toEqual([
+      { status: "active", budget: 2000, actual: 1000, variance: 1000 },
+      { status: "inactive", budget: 0, actual: 0, variance: 0 },
+    ])
+  })
+
+  test("a roster user who logged zero entries and has no budget line does not appear anywhere -- roster alone never fabricates activity", () => {
+    const rosterOnly: DesignerTimesheetRosterUser[] = [...roster, { userId: "u5", isActive: false }]
+    const result = aggregateDesignerTimesheetCosts(rosterEntries, rosterBudgetLines, rosterOnly)
+    expect(result.byDesigner.some((d) => d.userId === "u5")).toBe(false)
+    expect(result.byDesignerStatus.find((s) => s.status === "inactive")).toEqual({ status: "inactive", budget: 0, actual: 0, variance: 0 })
+  })
+})
+
+// PR #597 audit fix -- exercises the real designerTimesheetReport() (not a
+// re-implementation), mocking only the DB layer: @/lib/db/tenant-scoped's
+// withTenantContext (supplies a fake drizzle-shaped db) and
+// requireConstructionEnabled. Same "capture real modules, restore in
+// afterEach" pattern as tenant-isolation.test.ts, to avoid mock.module()
+// leaking into other test files sharing this bun test process.
+const realTenantScoped = await import("@/lib/db/tenant-scoped")
+const realEnablementService = await import("./construction-enablement-service")
+
+describe("designerTimesheetReport: N+1 fix + scope-labeled response (PR #597 audit fix)", () => {
+  afterEach(async () => {
+    mock.restore()
+    await mock.module("@/lib/db/tenant-scoped", () => realTenantScoped)
+    await mock.module("./construction-enablement-service", () => realEnablementService)
+  })
+
+  test("fetches billable rates once regardless of time-entry count, and returns a response with project-scoped/org-wide fields explicitly separated", async () => {
+    const ORG_ID = "org-designer-timesheet-test"
+    const PROJECT_ID = "proj-1"
+
+    // 30 time entries for a single billable-designer (u1) -- if the N+1
+    // bug were still present, resolving each would be its own DB call.
+    const timeEntries = Array.from({ length: 30 }, (_, i) => ({
+      id: `entry-${i}`, orgId: ORG_ID, issueId: "issue-1", userId: "u1",
+      hours: "2", spentOn: "2026-01-15", activityType: "Design Development",
+    }))
+
+    // u2 (Bob) has a real budget line but never logged a single time entry
+    // -- the exact roster-gap scenario from PR #597's audit.
+    const users = [
+      { id: "u1", name: "Alice", isActive: true },
+      { id: "u2", name: "Bob", isActive: true },
+    ]
+    const budgetLineItems = [
+      { budgetId: "budget-1", userId: "u1", amount: "1000" },
+      { budgetId: "budget-1", userId: "u2", amount: "500" },
+    ]
+
+    const ratesFindMany = mock(async () => [{ userId: null, hourlyRate: "50", validFrom: "2020-01-01" }])
+
+    const fakeDb = {
+      query: {
+        pmsIssues: { findMany: mock(async () => [{ id: "issue-1", projectId: PROJECT_ID }]) },
+        projects: { findMany: mock(async () => [{ id: PROJECT_ID, name: "Project One" }]) },
+        users: { findMany: mock(async () => users) },
+        pmsTimeEntries: { findMany: mock(async () => timeEntries) },
+        pmsBillableRates: { findMany: ratesFindMany },
+        pmsBudgets: { findMany: mock(async () => [{ id: "budget-1", projectId: PROJECT_ID }]) },
+        pmsBudgetLineItems: { findMany: mock(async () => budgetLineItems) },
+      },
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({
+              groupBy: () => Promise.resolve([{ userId: "u1", userName: "Alice", totalHours: 60 }]),
+            }),
+          }),
+        }),
+      }),
+    }
+
+    await mock.module("@/lib/db/tenant-scoped", () => ({
+      ...realTenantScoped,
+      withTenantContext: mock(async (_ctx: { orgId: string }, fn: (db: unknown) => Promise<unknown>) => fn(fakeDb)),
+    }))
+    await mock.module("./construction-enablement-service", () => ({
+      ...realEnablementService,
+      requireConstructionEnabled: mock(async () => {}),
+    }))
+
+    const { designerTimesheetReport } = await import("./construction-reports-service")
+    const result = await designerTimesheetReport({ orgId: ORG_ID }, PROJECT_ID)
+
+    // N+1 fix: rates fetched exactly once upfront, never per time entry.
+    expect(ratesFindMany.mock.calls.length).toBe(1)
+
+    // Roster-inclusion fix: u2's entryless budget line still lands in
+    // byDesignerStatus, so sum(byDesignerStatus.budget) === overallBudget.
+    expect(result.projectScoped.overallBudget).toBe(1500)
+    const sumByStatus = result.projectScoped.byDesignerStatus.reduce((s, r) => s + r.budget, 0)
+    expect(sumByStatus).toBe(result.projectScoped.overallBudget)
+
+    // Scope-mixing fix: project-scoped and org-wide breakdowns are returned
+    // under explicit, separate keys -- not merged into one flat object.
+    expect(Object.keys(result).sort()).toEqual(["orgWide", "projectScoped"])
+    expect(Object.keys(result.projectScoped).sort()).toEqual(
+      ["byCategory", "byDesignerStatus", "byUser", "overallActual", "overallBudget", "overallVariance"].sort()
+    )
+    expect(Object.keys(result.orgWide).sort()).toEqual(["byDesigner", "byProject"])
   })
 })

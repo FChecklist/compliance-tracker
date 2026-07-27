@@ -8,7 +8,7 @@ import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionSiteDiaries,
   constructionBoqs, constructionBoqLineItems, constructionAttendance, constructionLabourRoster,
   constructionKpiDefinitions, constructionKpiEntries, constructionExpenseEntries, erpStockLedgerEntries, erpItems, erpSalesInvoices,
-  documents, pmsIssues, pmsTimeEntries, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
+  documents, pmsIssues, pmsTimeEntries, pmsBillableRates, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
   pmsBudgets, pmsBudgetLineItems, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -16,7 +16,7 @@ import { and, eq, inArray, sql, gte, lt } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { getExpenseSummaryByHead } from "./construction-expense-service"
 import { getProjectDashboard } from "./construction-dashboard-service"
-import { resolveBillableRate } from "./pms-time-service"
+import { resolvePmsBillableRatePure } from "./pms-time-service"
 // Priority 12 (OPEN-07 point 8 follow-on, 2026-07-14): these 17 functions
 // were the same "zero branch-check" gap PR #282 closed for ERP's
 // erp-financial-report-service.ts -- gated here the identical way, first
@@ -232,6 +232,10 @@ export type DesignerTimesheetBudgetLine = {
   userId: string | null
   amount: number
 }
+export type DesignerTimesheetRosterUser = {
+  userId: string
+  isActive: boolean
+}
 
 function sumBy<T>(items: T[], keyFn: (item: T) => string, valueFn: (item: T) => number) {
   const totals = new Map<string, number>()
@@ -250,8 +254,20 @@ function sumBy<T>(items: T[], keyFn: (item: T) => string, valueFn: (item: T) => 
  * caller (designerTimesheetReport below), matching this repo's convention
  * of keeping DB-free aggregation logic separately unit-testable (see
  * resolvePmsBillableRatePure in pms-time-service.ts).
+ *
+ * `roster` (optional, defaults to []) is the full set of org users with
+ * their isActive flag -- pass it so a designer with a real budget line but
+ * zero time entries anywhere (e.g. newly budgeted, hasn't logged hours yet)
+ * still resolves an active/inactive status and isn't silently dropped from
+ * byDesignerStatus. Without it, designerStatusByUser only knows about users
+ * who logged at least one entry, so sum(byDesignerStatus.budget) can fall
+ * short of overallBudget.
  */
-export function aggregateDesignerTimesheetCosts(entries: DesignerTimesheetEntry[], budgetLines: DesignerTimesheetBudgetLine[]) {
+export function aggregateDesignerTimesheetCosts(
+  entries: DesignerTimesheetEntry[],
+  budgetLines: DesignerTimesheetBudgetLine[],
+  roster: DesignerTimesheetRosterUser[] = []
+) {
   const actualByCategory = sumBy(entries, (e) => e.category, (e) => e.cost)
   const hoursByCategory = sumBy(entries, (e) => e.category, (e) => e.hours)
 
@@ -267,7 +283,10 @@ export function aggregateDesignerTimesheetCosts(entries: DesignerTimesheetEntry[
 
   const statusKey = (isActive: boolean) => (isActive ? "active" : "inactive")
   const actualByDesignerStatus = sumBy(entries, (e) => statusKey(e.userIsActive), (e) => e.cost)
-  const designerStatusByUser = new Map(entries.map((e) => [e.userId, e.userIsActive]))
+  const designerStatusByUser = new Map<string, boolean>(roster.map((u) => [u.userId, u.isActive]))
+  for (const e of entries) {
+    if (!designerStatusByUser.has(e.userId)) designerStatusByUser.set(e.userId, e.userIsActive)
+  }
   const budgetByDesignerStatus = sumBy(
     budgetLines.filter((b) => b.userId !== null && designerStatusByUser.has(b.userId as string)),
     (b) => statusKey(designerStatusByUser.get(b.userId as string)!),
@@ -305,14 +324,39 @@ export function aggregateDesignerTimesheetCosts(entries: DesignerTimesheetEntry[
   }
 }
 
-export async function designerTimesheetReport(ctx: { orgId: string }, projectId: string) {
+// Response shape note (audit fix, PR #597): byDesigner/byProject are
+// necessarily org-wide (a project comparison needs more than 1 project;
+// a designer's total budget/actual isn't naturally scoped to one project
+// either -- see the comment below), while byUser/byCategory/
+// byDesignerStatus/overall* are scoped to the requested project. Rather
+// than mixing both under one flat object with no field-level indication
+// of scope (the audited bug -- likely to mislead a per-project report UI
+// into showing org-wide totals as if they belonged to the requested
+// project), the two scopes are returned under explicit `projectScoped`/
+// `orgWide` keys.
+export type DesignerTimesheetReport = {
+  projectScoped: {
+    byUser: { userId: string; userName: string; totalHours: number }[]
+    byCategory: ReturnType<typeof aggregateDesignerTimesheetCosts>["byCategory"]
+    byDesignerStatus: ReturnType<typeof aggregateDesignerTimesheetCosts>["byDesignerStatus"]
+    overallBudget: number
+    overallActual: number
+    overallVariance: number
+  }
+  orgWide: {
+    byDesigner: ReturnType<typeof aggregateDesignerTimesheetCosts>["byDesigner"]
+    byProject: ReturnType<typeof aggregateDesignerTimesheetCosts>["byProject"]
+  }
+}
+
+export async function designerTimesheetReport(ctx: { orgId: string }, projectId: string): Promise<DesignerTimesheetReport> {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
     if (issueIds.length === 0) {
       return {
-        byUser: [], byCategory: [], byDesigner: [], byProject: [], byDesignerStatus: [],
-        overallBudget: 0, overallActual: 0, overallVariance: 0,
+        projectScoped: { byUser: [], byCategory: [], byDesignerStatus: [], overallBudget: 0, overallActual: 0, overallVariance: 0 },
+        orgWide: { byDesigner: [], byProject: [] },
       }
     }
     const rows = await db.select({
@@ -335,17 +379,22 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     const allIssues = await db.query.pmsIssues.findMany({ where: eq(pmsIssues.orgId, ctx.orgId), columns: { id: true, projectId: true } })
     const allUsers = await db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true, isActive: true } })
     const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: eq(pmsTimeEntries.orgId, ctx.orgId) })
+    // Fetched once upfront (not once per time entry, see resolvePmsBillableRatePure
+    // below) -- same pattern pms-invoice-service.ts's buildInvoiceLinesFromTimeEntries
+    // already uses to avoid the equivalent N+1 on this same table.
+    const orgBillableRates = await db.query.pmsBillableRates.findMany({ where: eq(pmsBillableRates.orgId, ctx.orgId) })
 
     const projectNameById = new Map(allProjects.map((p) => [p.id, p.name]))
     const projectIdByIssue = new Map(allIssues.map((i) => [i.id, i.projectId]))
     const userById = new Map(allUsers.map((u) => [u.id, u]))
+    const roster: DesignerTimesheetRosterUser[] = allUsers.map((u) => ({ userId: u.id, isActive: u.isActive }))
 
     const priced: DesignerTimesheetEntry[] = []
     for (const entry of allTimeEntries) {
       const entryProjectId = projectIdByIssue.get(entry.issueId)
       if (!entryProjectId) continue
       const user = userById.get(entry.userId)
-      const rate = await resolveBillableRate({ orgId: ctx.orgId }, entry.userId, entry.spentOn)
+      const rate = resolvePmsBillableRatePure(orgBillableRates, entry.userId, entry.spentOn) ?? 0
       priced.push({
         userId: entry.userId,
         userName: user?.name ?? entry.userId,
@@ -373,18 +422,22 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     }
     const thisProjectBudgetLines = orgBudgetLines.filter((b) => b.projectId === projectId)
 
-    const orgWide = aggregateDesignerTimesheetCosts(priced, orgBudgetLines)
-    const scoped = aggregateDesignerTimesheetCosts(pricedThisProject, thisProjectBudgetLines)
+    const orgWide = aggregateDesignerTimesheetCosts(priced, orgBudgetLines, roster)
+    const scoped = aggregateDesignerTimesheetCosts(pricedThisProject, thisProjectBudgetLines, roster)
 
     return {
-      byUser: rows,
-      byCategory: scoped.byCategory,
-      byDesigner: orgWide.byDesigner,
-      byProject: orgWide.byProject,
-      byDesignerStatus: scoped.byDesignerStatus,
-      overallBudget: scoped.overallBudget,
-      overallActual: scoped.overallActual,
-      overallVariance: scoped.overallVariance,
+      projectScoped: {
+        byUser: rows,
+        byCategory: scoped.byCategory,
+        byDesignerStatus: scoped.byDesignerStatus,
+        overallBudget: scoped.overallBudget,
+        overallActual: scoped.overallActual,
+        overallVariance: scoped.overallVariance,
+      },
+      orgWide: {
+        byDesigner: orgWide.byDesigner,
+        byProject: orgWide.byProject,
+      },
     }
   })
 }
