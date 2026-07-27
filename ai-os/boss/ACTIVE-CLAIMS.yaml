@@ -40,6 +40,45 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan) -- Phase 0 HR gap closure: employee expense/reimbursement, employee loans/salary advances, KRA/weighted-goal + 360 performance appraisal, shift management/roster"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      4 real, code-verified HR gaps per DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE
+      Phase 0 investigation (2026-07-27): (1) employee expense claims/
+      reimbursement -- confirmed constructionExpenseEntries (schema.ts:9661)
+      is project-cost tracking, not employee reimbursement, zero overlap;
+      (2) employee loans/salary advances -- confirmed absent (grepped
+      "loan"/"advance" across schema.ts); (3) KRA/weighted-goal +
+      multi-rater (360) performance appraisal, extending (not replacing)
+      performanceReviews/performance-service.ts; (4) shift-type/roster
+      table + attendance deriving expected-shift context, extending (not
+      replacing) hrAttendanceRecords/hr-attendance-service.ts. Loan and
+      expense-reimbursement both integrate into erp-payroll-service.ts's
+      processPayrollRun() (deduction/earning lines), per this task's own
+      SUCCESS_CRITERIA.
+
+      File scope: new hr-expense-service.ts, hr-loan-service.ts,
+      hr-shift-service.ts (+ .test.ts each), schema.ts additions (new
+      tables only, no existing table altered), erp-payroll-service.ts
+      (processPayrollRun extended, additive), performance-service.ts
+      (extended, additive), hr-attendance-service.ts (shift-context lookup
+      added, additive), new src/app/api/hr/expenses/**,
+      src/app/api/hr/loans/**, src/app/api/hr/shifts/**,
+      src/app/api/performance-reviews/reviews/[id]/goals/**,
+      src/app/api/performance-reviews/reviews/[id]/raters/**, new
+      drizzle/ migration SQL, PROGRESS.md. Also fixing the stale
+      hr-service.ts:1-6 "Payroll deliberately out of scope" comment (now
+      wrong -- erp-payroll-service.ts is a real 513-line payroll engine)
+      per this task's own KNOWN_CONTEXT instruction.
+
+      Collision check before starting: grepped this file for "expense"/
+      "reimburs"/"loan"/"advance"/"shift"/"roster"/"kra"/"360" -- only
+      unrelated hits found (a banking-domain loan_schedule_generator/
+      amortization_engine Chain Selector fix, task-20260718-084004, and
+      roster.ts AI-team-model-roster entries, both a different domain
+      entirely). No open PR found via `gh pr list --state open` touching
+      any of this task's file scope. `git pull origin main` run fresh
+      immediately before this entry.
   - session_label: "claude-code (task-20260726-043023-phase4-defense-in-depth-prompt-security) -- VERIDIAN_Architecture_v2.0 phase_4: Defense-in-Depth, Prompt Security, Red Team, Quality Engines + 4-layer security architecture"
     claimed_at: "2026-07-26T (this session)"
     claim: |
