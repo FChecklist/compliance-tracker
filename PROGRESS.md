@@ -1,77 +1,75 @@
-# PROGRESS -- task-20260726-171946-chat-context---terminology---mode-pill-a
-
-V2-13-CHAT-CONTEXT-ANALYTICS -- Chat context + terminology + mode-pill analytics.
-Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+# PROGRESS -- task-20260727-044632-rca-task-20260727-034439-re-verify-20-en
 
 ## Completed
-- [x] Re-verified live repo state: `contextEntityId`/`contextEntityType` (conversations
-      table) plumbed by veri-chat-service.ts/veri-meeting-service.ts but never read in
-      chat-service.ts's generateAiReply()/generateVeriGroupReply(). Glossary feature
-      (glossary-service.ts) is UI-tooltip-only, no system-prompt hook. No mode-pill vs
-      free-text analytics anywhere. Confirms 2026-07-26 triage evidence still accurate.
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (collision-checked against
-      `gh pr list --state open` and existing active claims -- no overlap).
-- [x] Wired `contextEntityType`/`contextEntityId` fetch into the AI reply prompt:
-      chat-service.ts gained `fetchContextEntitySummary()` (real DB fetch, best-effort,
-      known types: policy/pms_issue/project/veri_meeting; unknown/internal types like
-      `shared_in_inbox` are an honest no-op) + `formatContextEntityBlock()` (pure
-      formatter). Wired into both `generateAiReply()` (1:1 AI thread) and
-      `generateVeriGroupReply()` (group @veri mentions) via a new
-      `ConversationContextRef` parameter; `sendMessage()`/`regenerateAiReply()` pass it
-      through from the conversation row they already fetch (no extra query).
-      Verification: `grep -n "contextEntityId" src/lib/services/chat-service.ts` now
-      shows it consulted inside fetchContextEntitySummary (called from
-      generateAiReply/generateVeriGroupReply), not just plumbed at the write side.
-- [x] Added an org-glossary hook into the same system prompt: `formatGlossaryBlock()`
-      (pure, char-budget-capped at 2000 chars so a large org glossary can't silently
-      balloon token cost) + a `listGlossaryTerms()` call (glossary-service.ts, already
-      existed for the UI hover-tooltip -- reused, not duplicated), appended to the
-      static system prompt before `compileStaticPrefix()` so prompt-cache fingerprinting
-      still reflects exactly what's sent.
-- [x] Added mode-pill vs free-text usage analytics, reusing existing infra (no new
-      analytics vendor): `computeModePillUsageRate()` (pure) + one new aggregation
-      query in `adoption-metrics-service.ts`'s `computeOrgAdoptionMetrics()`, counting
-      `conversations.dynamicChainId IS NOT NULL` (mode-pill used) vs
-      `conversations.chainSelectorSkipped = true` (explicit free-text skip -- only ever
-      set by createWorkflowThread()'s Chain Selector gate, so it never conflates with
-      conversation flows where that gate was never offered). Surfaced through the
-      existing AdoptionMetricsSection.tsx dashboard (new "Mode-Pill Usage" stat tile) --
-      no new UI page, no new vendor.
-- [x] Tests: new pure-function tests in chat-service.test.ts
-      (formatContextEntityBlock/formatGlossaryBlock, all 4 entity types + null/empty/
-      budget-cap edge cases) and a new adoption-metrics-service.test.ts
-      (computeModePillUsageRate: null-when-undecided, 0%, 50%, 100%, rounded mixed).
-- [x] `bun install` + `bunx tsc --noEmit -p .` clean (0 errors) + `bun test`: 2043 pass,
-      0 fail (full suite, includes the 35 new/updated tests in the two touched files).
-- [x] No schema/migration change -- all columns used
-      (dynamicChainId/chainSelectorSkipped/contextEntityType/contextEntityId/
-      businessTerminologyGlossary) already existed. Tier1, additive-only.
-- [x] Re-checked on resume (invocation 2/20): PR #580 had gone CONFLICTING against
-      `main` (main picked up PR #572, an unrelated PROGRESS.md-only change from a
-      sibling task). Merged `origin/main` into this branch, resolved the PROGRESS.md
-      conflict by keeping this task's own log (the other side was a different task's
-      workspace content, no source-code overlap), re-ran `bunx tsc --noEmit -p .`
-      (clean) and `bun test` (exit 0) post-merge, pushed. PR #580 is now
-      `mergeable: MERGEABLE` / `mergeStateStatus: BLOCKED` (CI running fresh off the
-      push, not self-merged per this task's own constraint).
-
-- [x] Re-checked on resume (invocation 4/20): PR #580's `statusCheckRollup` shows
-      "Metadata Index Coverage Check" FAILED (56 governance files/dirs added by
-      *other* tasks' merges into main, e.g. ai-os/scripts/*.py,
-      ai-os/*.yaml/*.json, not indexed in ai-os/OS.yaml) and "Promptfoo Evals"
-      CANCELLED. Verified via `gh api .../branches/main/protection` that neither
-      is in `required_status_checks.contexts` (only Lint/Type Check/Build/
-      audit-check/Guardrail Presence Check/Asset Registry Coverage Check/Unit
-      Tests are required, and all 7 are SUCCESS on #580). Verified via
-      `gh api .../commits/<origin/main sha>/check-runs` that Metadata Index
-      Coverage Check already fails on `main` itself (pre-existing drift from
-      sibling tasks, not introduced by this task's diff) -- out of this task's
-      three-sub-ask scope, not fixing it here. mergeStateStatus is UNSTABLE
-      (non-required check failing) not BLOCKED -- PR remains genuinely
-      mergeable.
+- [x] Read task-20260727-034439's task.yaml/worker.log/systemd.log in full.
+- [x] Established the real root cause is NOT in task-20260727-034439's own
+      code/PR work (that task substantively succeeded: PR #83 re-verification
+      committed, engine inventory confirmed at 20 entries, zero duplication).
+      Its worker unit ran a long quality-gate phase (bun install/lint/build)
+      whose periodic-checkpoint heartbeat is the literal string "periodic
+      checkpoint" -- an intentionally loop-detection-excluded, benign note
+      (see LOOP_EXCLUDED_NOTES in scripts/veridian-task-watchdog.py).
+- [x] Found the REAL bug one level up, in the watchdog itself
+      (scripts/veridian-task-watchdog.py, host-level, not in this git repo):
+      `escalate()` had no memory of its own prior escalations, so every ~60s
+      watchdog tick that still saw task-20260727-034439 stalled created a
+      BRAND NEW billed RCA task for it. Confirmed live: SEVEN separate rca-
+      task dirs (task-20260727-{043407,044231,044331,044431,044531,044632,
+      044732}-rca-task-20260727-034439-...) existed simultaneously, in_progress,
+      one created almost exactly every 60s, matching the watchdog timer.
+- [x] Found the second, compounding bug: `lookup_known_fix(signature)` (the
+      permanent known_fixes table) was only ever consulted when
+      `search_prior_occurrence` (step_1, grepping the much more volatile
+      ATTENTION.md/task_audits) returned found=True. A real known_fixes row
+      for signature "periodic checkpoint" already existed
+      (fix_action="skip_escalation_when_activating", success_count=13 as of
+      2026-07-26) but ATTENTION.md contained zero occurrences of that string,
+      so step_2 was structurally unreachable -- exactly matching this RCA
+      task's own KNOWN_CONTEXT claim that "step_2 ... found no existing
+      recorded fix for this signature," which was true only because of this
+      bug, not because no fix existed.
+- [x] Confirmed several sibling RCA sessions (escalated concurrently against
+      the same signature/task_id, per Rule 11's known multi-session risk)
+      independently reached and fixed the same two root causes in
+      scripts/veridian-task-watchdog.py before this task's own edit landed
+      (Edit tool detected the on-disk file had changed since my last read).
+      Verified their implementation directly:
+      - `find_active_rca_for(task_id)` dedup check added, wired into
+        `escalate()` (returns "skipped: RCA task X already active..." instead
+        of creating a duplicate) -- confirmed via veridian-task.py's new
+        `--rca-target-id` flag (writes `rca_target_id` into task.yaml) and
+        via live evidence: zero new rca-task-*-034439 dirs created after
+        04:47:33, vs. one nearly every minute before the fix landed.
+      - `process_task()` now calls `lookup_known_fix(signature)`
+        unconditionally (not gated behind step_1's `found`).
+      - `skip_escalation_when_activating` wired into the real FIX_ACTIONS
+        registry (previously an unrecognized-action no-op, which is why its
+        success_count had already climbed to 13 without ever fixing anything).
+      Did NOT re-implement any of this myself -- would have duplicated work
+      already done and pushed working code. Only cleaned up a docstring
+      addition of my own that briefly misattributed authorship before I
+      re-read the concurrently-modified file.
+- [x] Ran `python3 scripts/superboss-register.py log-fix --signature "periodic
+      checkpoint" --fix-action "skip_escalation_when_activating"` myself,
+      per this task's own SUCCESS_CRITERIA. Confirmed row:
+      `{"signature": "periodic checkpoint", "fix_action":
+      "skip_escalation_when_activating", "last_applied":
+      "2026-07-27T04:57:35.601840+00:00", "success_count": 20}`.
+- [x] Verified no new duplicate rca-task-*-034439 dirs were created after the
+      fix landed (still exactly 7, timestamps 04:34-04:47), and directly
+      called `find_active_rca_for()` against the live watchdog module to
+      confirm it runs without error.
+- [x] Noted (out of this task's scope, unrelated code path): a separate,
+      already-dispatched task task-20260727-045626 is independently fixing an
+      unrelated backlog-dedup mislabeling bug in plan_backlog_completion.py.
+      Confirmed zero overlap with this task's scope and did not touch it.
 
 ## Remaining
-- [ ] None for this task's three sub-asks. PR open at
-      https://github.com/FChecklist/compliance-tracker/pull/580 -- all required
-      CI checks green; not self-merged (per this task's own constraint); left
-      for Owner review/merge.
+- [ ] Owner review of the now-pending-review sibling RCA branches that carry
+      the actual code fix (this task intentionally does not open a
+      second/rival PR for the same already-fixed file).
+- [ ] Original task task-20260727-034439 itself: still shows status
+      in_progress as of this checkpoint; its own quality-gate/PR-83 work was
+      already substantively complete before the watchdog started looping on
+      it. Its own terminal status (pending_review/blocked) is for its own
+      worker unit to reach, not this RCA task's concern.
