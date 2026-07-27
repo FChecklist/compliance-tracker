@@ -956,3 +956,7 @@ exempted:
     reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
   - table: ticket_escalation_events
     reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): append-only escalation audit log, same class as other append-only audit-log exemptions above, not a platform business asset requiring the generic active-record registration pattern."
+  - table: construction_interim_bills
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: construction_interim_bill_line_items
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
