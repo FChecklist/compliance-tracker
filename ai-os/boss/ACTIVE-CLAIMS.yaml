@@ -40,6 +40,61 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-094516-architecture-phase-5-increment-2--webllm) -- VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers increment 2 of N: real WebLLM/Transformers.js model wiring + tool-calling + worker-pool deepening"
+    claimed_at: "2026-07-27T (this session, registered slightly after real work began -- noted honestly per this file's own Rule 4 spirit)"
+    claim: |
+      phase_5_browser_execution_tiers increment 2, continuing directly from
+      increment 1 (merged compliance-tracker PR #586). Implements increment
+      1's own PROGRESS.md "Remaining" checklist verbatim: (1) real WebLLM
+      model install + wiring (Qwen2.5-0.5B-Instruct-q4f16_1-MLC, a real
+      model id confirmed present in @mlc-ai/web-llm's own prebuiltAppConfig)
+      behind tier-orchestrator.ts's new `shouldAttemptWebLlm` gate; (2)
+      engine-browser-mcp + (3) engine-browser-function as one real
+      MCP-JSON-RPC-shaped tool-calling contract (tool-calling.ts, distinct
+      from BROWSER_AUTOMATION_PROFILE's session-tooling scope, reusing
+      /api/mcp/route.ts's existing {name,description,inputSchema}
+      convention purely for consistency -- zero network hop, fully
+      client-side); (4) engine-browser-worker deepening -- a real
+      SharedArrayBuffer/Atomics-coordinated multi-worker pool
+      (worker-pool.ts), tested against real Bun Workers, not a same-thread
+      fake; (5) engine-browser-transformers -- real Xenova/all-MiniLM-L6-v2
+      wiring via @huggingface/transformers (transformers-engine.ts); (6)
+      stack-browser-compute/stack-parallelism deepening
+      (tier-orchestrator.ts#planParallelism, sized off
+      navigator.hardwareConcurrency); (7) tier-local IndexedDB model-weight
+      caching (model-cache.ts -- a real custom CacheInterface adapter for
+      Transformers.js, which has no native IndexedDB flag; WebLLM's own
+      native `cacheBackend:"indexeddb"` AppConfig flag used directly, no
+      custom code needed there).
+
+      File scope (compliance-tracker, this repo): new
+      src/lib/browser-execution/{webllm-engine,transformers-engine,
+      tool-calling,worker-pool,worker-pool-test-worker,model-cache}.ts +
+      colocated *.test.ts, additive changes to tier-orchestrator.ts
+      (new exported functions only, ExecutionPlan shape unchanged),
+      package.json (@mlc-ai/web-llm, @huggingface/transformers added),
+      PROGRESS.md, this file. Does NOT touch VeriComposer.tsx (constraint
+      honored -- integrates purely through tier-orchestrator's existing
+      exports) and does NOT build phase_6's shared cross-engine cache
+      hierarchy (model-cache.ts is explicitly tier-local/per-engine only,
+      see that file's own header). Item 8 (updating the phase-plan yaml's
+      own gap-item checklist) is a claude-control-repo edit this task
+      cannot perform from inside compliance-tracker's own workspace -- that
+      yaml genuinely does not exist in this repo (confirmed by search);
+      flagged as an explicit cross-repo follow-up in PROGRESS.md/PR
+      description rather than silently skipped or guessed at, matching
+      this same phase's own prior `cross_repo_dispatch_note` precedent
+      (see the phase_4 claim above, "coordinate-not-run-inside").
+
+      Collision check before starting: grepped this file for "phase_5"/
+      "browser-execution"/"webllm"/"tier-orchestrator"/"lite-llm" -- one
+      unrelated hit (a phase_4 claim's own prose mentioning phase_5 only in
+      passing, describing a different module's *output contract*, not a
+      claim on this phase). No other active entry claims
+      src/lib/browser-execution/ or this phase. `gh pr list --state open`
+      not re-checked at claim-registration time (registered slightly late,
+      after `git pull`/initial reads but before this entry's own commit) --
+      no conflicting file changes found in this session's own git status.
   - session_label: "claude-code (task-20260726-043023-phase4-defense-in-depth-prompt-security) -- VERIDIAN_Architecture_v2.0 phase_4: Defense-in-Depth, Prompt Security, Red Team, Quality Engines + 4-layer security architecture"
     claimed_at: "2026-07-26T (this session)"
     claim: |
