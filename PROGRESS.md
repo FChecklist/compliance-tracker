@@ -47,6 +47,48 @@
       default heap OOMs on this project's size), bun test: 2128 pass / 0 fail (full suite,
       no regressions), eslint clean on all new/changed files
 
+## Corrective fix (task-20260727-132748, post-audit, 2026-07-27)
+- [x] **Disclosure gap (audit finding, not caught/flagged at the time):** the original
+      generateInterimBill() built invoice line items (billable BoQ lines + a negative
+      "Retention held" line) that never set taxTemplateId, and erp-invoicing-service.ts's
+      computeInvoiceTotals() only applies tax when a line explicitly carries one -- no
+      company/customer-level fallback exists anywhere in this codebase (checked
+      erpCustomers/erpCompanies/erp-invoicing-service.ts). Every interim/RA bill this
+      feature generated therefore posted with $0 GST/tax by default. Not caught by the
+      original pure-function unit tests (they never asserted on tax fields) and not
+      disclosed in this file's Remaining section at the time, unlike the migration-not-
+      applied and get_advisors gaps below which were. Confirmed by an independent audit
+      (AGENTS.md Rule 7(c)/10) on PR #596, verdict FAIL.
+- [x] Fix: `GenerateInterimBillInput` now requires a real `taxTemplateId`
+      (`construction-valuation-service.ts`), validated to exist and belong to the org before
+      any bill is generated (no silent zero-tax default, no invented company/customer-level
+      fallback since none exists in this codebase). Every billable invoice line now carries
+      it via the new pure `buildInterimBillInvoiceItems()` helper.
+- [x] Fix: retention is no longer emitted as a negative invoice line item (which reduced the
+      invoice's taxable subtotal, compounding the tax gap once wired in). GST is due on the
+      full value of work certified regardless of retention terms, so every invoice is now
+      raised for the full gross amount with tax computed on that same gross value; the
+      retention holdback continues to be tracked exactly where it already was --
+      `constructionInterimBills.retentionAmount`/`netPayable` -- entirely separate from the
+      invoice. No new schema/migration needed: that holdback tracking already existed, the
+      bug was double-encoding it into the invoice too.
+- [x] `erp-invoicing-service.ts`'s `computeInvoiceTotals()` split into a pure
+      `computeInvoiceTaxTotals()` (tax math over already-resolved rates) + a thin DB-fetching
+      wrapper, mirroring this repo's existing pure-function-core convention -- makes the tax
+      math independently testable without a live DB (same reasoning as
+      `computeInterimBillLines`/`applyRetention`).
+- [x] Tests: `construction-valuation-service.test.ts` (`buildInterimBillInvoiceItems` -- no
+      negative retention line, every item carries the real taxTemplateId, sum of item rates
+      equals the undiminished gross) + new `erp-invoicing-service.test.ts`
+      (`computeInvoiceTaxTotals` -- real nonzero tax on a real template's rates, and proof
+      that removing the retention line keeps the taxable subtotal at the full gross instead
+      of the old negative-line amount). `npx tsc --noEmit` clean, `bun test` full suite
+      passing, no regressions.
+- [x] Minor pre-existing-pattern gap (bill numbering race, `max(billNumber)+1` read-then-
+      insert) intentionally NOT touched this pass -- matches an existing convention elsewhere
+      (`erpSalesInvoices.invoiceNumber`), not a regression introduced by this feature, and
+      explicitly out of this task's scope per its own CONSTRAINTS.
+
 ## Remaining / handed back to the Owner
 - [ ] This task's migration (drizzle/0265_*.sql) has NOT been applied to any live Supabase
       project (verdian-ai / evpckeuxgvahguwsaeul). Applying a migration to production is a
@@ -61,4 +103,7 @@
       (tenant-isolation policy on construction_interim_bills directly by org_id; EXISTS-join
       policy on construction_interim_bill_line_items via its parent, matching
       construction_boq_line_items' own policy shape).
-- [ ] Open PR
+- [x] Open PR -- PR #596, `worker/task-20260727-122632-projexa-e2e--hierarchical-boq-breakdown`
+- [ ] This corrective push needs a fresh supervisor audit (the original audit's FAIL verdict
+      required a re-audit after corrective changes, per this task's own protocol) before it
+      can go to Owner sign-off -- tier2, do not merge without that.

@@ -13,7 +13,7 @@
 // CA-firm-billing-specific table).
 import {
   constructionBoqs, constructionBoqLineItems,
-  constructionInterimBills, constructionInterimBillLineItems, users,
+  constructionInterimBills, constructionInterimBillLineItems, erpTaxTemplates, users,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql } from "drizzle-orm"
@@ -74,6 +74,24 @@ export function applyRetention(grossAmount: number, retentionPercent: number): {
   return { retentionAmount, netPayable: Math.round((grossAmount - retentionAmount) * 100) / 100 }
 }
 
+/**
+ * Pure. Builds the sales-invoice line items for a set of billable interim-
+ * bill lines. GST is due on the full value of work certified, not the
+ * retention-reduced amount -- retention is a payment-term holdback tracked
+ * separately on constructionInterimBills.retentionAmount/netPayable, NOT a
+ * discount on what's taxable. So every line goes onto the invoice at its
+ * full currentBillAmount, carrying the real taxTemplateId the caller
+ * resolved -- no negative "Retention held" line is added here (that used to
+ * reduce the invoice's own taxable subtotal, silently understating GST by
+ * the retention percentage on top of the separate zero-tax bug).
+ */
+export function buildInterimBillInvoiceItems(
+  billableLines: InterimBillLine[],
+  taxTemplateId: string
+): { description: string; quantity: number; rate: number; taxTemplateId: string }[] {
+  return billableLines.map((l) => ({ description: l.description, quantity: 1, rate: l.currentBillAmount, taxTemplateId }))
+}
+
 async function latestPercentCompleteByActivity(db: TenantDb, orgId: string, projectId: string): Promise<Map<string, number>> {
   // DISTINCT ON (activity_id) ... ORDER BY entry_date DESC -- one row per
   // activity, the most recent entry, matching percentComplete's own
@@ -106,22 +124,38 @@ export type GenerateInterimBillInput = {
   customerId: string
   billDate: string
   retentionPercent: number
+  // Required, not defaulted: this codebase has no company/customer-level
+  // default tax template to fall back to (checked erp-invoicing-service.ts
+  // and erpCustomers/erpCompanies -- neither carries one), and silently
+  // defaulting to zero tax is exactly the correctness gap this field closes.
+  // The caller must resolve/select a real erp_tax_templates row (e.g. an 18%
+  // GST template) same as any other GST-compliance invoice on this platform.
+  taxTemplateId: string
 }
 
 /**
  * Generates one interim/RA bill from the BoQ's current work-progress %,
- * insert its line items, then emits the net-payable amount (gross minus
- * retention) as a real erp_sales_invoices row -- one invoice line per billed
- * BoQ line item at its currentBillAmount, plus a final negative "Retention
- * held" line so the invoice's own grandTotal equals netPayable exactly.
+ * inserts its line items, then emits a real erp_sales_invoices row for the
+ * FULL gross (pre-retention) value of work certified, with real GST/tax
+ * computed on that same gross value -- one invoice line per billed BoQ line
+ * item at its currentBillAmount, each carrying input.taxTemplateId. GST is
+ * due on the full value of work certified regardless of retention terms, so
+ * retention is never applied as an invoice line; it stays what it already
+ * is elsewhere in this function -- a payment-term holdback tracked on
+ * constructionInterimBills.retentionAmount/netPayable, entirely separate
+ * from the invoice's own taxable subtotal.
  */
 export async function generateInterimBill(ctx: ValuationContext & { dbUser: typeof users.$inferSelect }, input: GenerateInterimBillInput) {
   if (!input.boqId) throw new ServiceError("boqId is required", 400)
   if (!input.customerId) throw new ServiceError("customerId is required", 400)
   if (!input.billDate) throw new ServiceError("billDate is required", 400)
   if (input.retentionPercent < 0 || input.retentionPercent > 100) throw new ServiceError("retentionPercent must be between 0 and 100", 400)
+  if (!input.taxTemplateId) throw new ServiceError("taxTemplateId is required", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const taxTemplate = await db.query.erpTaxTemplates.findFirst({ where: and(eq(erpTaxTemplates.id, input.taxTemplateId), eq(erpTaxTemplates.orgId, ctx.orgId)) })
+    if (!taxTemplate) throw new ServiceError("Tax template not found", 404)
+
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, input.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!boq) throw new ServiceError("BOQ not found", 404)
     if (boq.projectId !== input.projectId) throw new ServiceError("boqId does not belong to projectId", 400)
@@ -158,10 +192,7 @@ export async function generateInterimBill(ctx: ValuationContext & { dbUser: type
       }))
     )
 
-    const invoiceItems = [
-      ...billableLines.map((l) => ({ description: l.description, quantity: 1, rate: l.currentBillAmount })),
-      ...(retentionAmount > 0 ? [{ description: `Retention held @ ${input.retentionPercent}%`, quantity: 1, rate: -retentionAmount }] : []),
-    ]
+    const invoiceItems = buildInterimBillInvoiceItems(billableLines, input.taxTemplateId)
 
     const invoice = await createSalesInvoice(
       { orgId: ctx.orgId, userId: ctx.userId, dbUser: ctx.dbUser },

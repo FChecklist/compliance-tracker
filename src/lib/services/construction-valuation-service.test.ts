@@ -6,7 +6,7 @@
 // .test.ts convention.
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { computeInterimBillLines, applyRetention, type BillableLineItem } from "./construction-valuation-service"
+import { computeInterimBillLines, applyRetention, buildInterimBillInvoiceItems, type BillableLineItem, type InterimBillLine } from "./construction-valuation-service"
 
 describe("applyRetention", () => {
   test("10% retention on a 5000 gross bill", () => {
@@ -94,5 +94,28 @@ describe("end-to-end interim bill math: bill lines -> gross -> retention -> net 
     const { retentionAmount, netPayable } = applyRetention(gross, 10)
     expect(retentionAmount).toBe(350)
     expect(netPayable).toBe(3150)
+  })
+})
+
+// PR #596 audit fix (zero-tax interim bills, 2026-07-27): generateInterimBill
+// used to build invoice items with no taxTemplateId and a final negative
+// "Retention held" line, so every interim/RA bill posted with $0 GST and
+// (once tax was wired in) retention would additionally shrink the taxable
+// base. buildInterimBillInvoiceItems is the pure line-item builder that
+// replaces that logic -- tested directly here, matching this file's existing
+// pure-function convention.
+describe("buildInterimBillInvoiceItems -- retention is a holdback, never a taxable-value-reducing invoice line", () => {
+  const billableLines: InterimBillLine[] = [
+    { boqLineItemId: "li-1", description: "Excavation", cumulativePercentComplete: 40, cumulativeAmount: 2000, previousBilledAmount: 0, currentBillAmount: 2000 },
+    { boqLineItemId: "li-2", description: "Foundation", cumulativePercentComplete: 50, cumulativeAmount: 1500, previousBilledAmount: 0, currentBillAmount: 1500 },
+  ]
+
+  test("every billable line becomes an invoice item at its full currentBillAmount, carrying the real tax template -- no extra retention line", () => {
+    const items = buildInterimBillInvoiceItems(billableLines, "tax-template-gst-18")
+
+    expect(items).toHaveLength(billableLines.length) // no negative "Retention held" line appended
+    expect(items.every((i) => i.taxTemplateId === "tax-template-gst-18")).toBe(true) // real tax, not the zero-tax default
+    expect(items.every((i) => i.rate > 0)).toBe(true) // never a negative-rate line
+    expect(items.reduce((sum, i) => sum + i.rate, 0)).toBe(3500) // full gross (2000 + 1500), unreduced by retention
   })
 })
