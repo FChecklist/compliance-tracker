@@ -289,6 +289,42 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
   return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories }
 }
 
+// 18. Category BOQ Amounts Report -- BOQ line-item `amount` totaled per
+// category, for the PROJEXA Company/Department/Project drill-down's
+// category-distribution chart (pie share-of-total + completed-vs-total
+// bar). Category attribution goes lineItem.activityId -> activity.categoryId
+// -> category.name (constructionBoqLineItems has no direct category column
+// of its own -- see its schema.ts comment); a line item with no activityId,
+// or one whose activity's category was deleted, falls into a synthetic
+// "Uncategorized" bucket rather than being silently dropped, so
+// sum(byCategory.totalAmount) + uncategorizedAmount always equals the BOQ's
+// real total, matching scopeReport's totalValue for the same project.
+export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => desc(t.version) })
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    if (!latest) return { categories: [], uncategorizedAmount: 0, totalAmount: 0 }
+
+    const [lineItems, categories, activities] = await Promise.all([
+      db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id), columns: { activityId: true, amount: true } }),
+      db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) }),
+      activityIdsForProject(db, ctx.orgId, projectId),
+    ])
+    const categoryIdByActivity = new Map(activities.map((a) => [a.id, a.categoryId]))
+    const amountByCategory = new Map<string, number>()
+    let uncategorizedAmount = 0
+    for (const item of lineItems) {
+      const categoryId = item.activityId ? categoryIdByActivity.get(item.activityId) : undefined
+      if (!categoryId) { uncategorizedAmount += Number(item.amount); continue }
+      amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + Number(item.amount))
+    }
+    const byCategory = categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 }))
+    const totalAmount = byCategory.reduce((s, c) => s + c.totalAmount, 0) + uncategorizedAmount
+    return { categories: byCategory, uncategorizedAmount, totalAmount }
+  })
+}
+
 export const REPORT_REGISTRY = {
   "work-progress": workProgressReport,
   "weekly-project": weeklyProjectReport,
@@ -307,6 +343,7 @@ export const REPORT_REGISTRY = {
   "expense": expenseReport,
   "category-progress": categoryProgressReport,
   "project-completion": projectCompletionReport,
+  "category-boq-amounts": categoryBoqAmountsReport,
 } as const
 
 export type ReportName = keyof typeof REPORT_REGISTRY
