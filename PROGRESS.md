@@ -16,10 +16,11 @@ per this task's own EXPECTED_OUTPUT.
 - [x] `ai-os/registry/terminology-guardrail-exemptions.yaml`: added exemption for the 2 new hardcoded-ISO-date test-fixture findings in `construction-reports-service.test.ts` (per Phase 2's established `*.test.ts` directory-scoped exemption).
 - [x] Verification: `bun test` -- 2129 pass / 0 fail, full suite (10 pass in `construction-reports-service.test.ts` itself, up from 6). `npx tsc --noEmit` -- 0 errors, full repo (`NODE_OPTIONS=--max-old-space-size=8192`, default heap OOMs on this repo's size). `check-guardrail-presence.mjs` (88/88 markers), `check-terminology-guardrail.mjs --diff-only`, `check-asset-registry-coverage.mjs` -- all pass.
 
+- [x] Pushed both commits (`91c670f3` claim registration, `46d6967d` the actual fix) to `worker/task-20260727-122935-timesheet-budget-vs-actual`. PR #597's head now points at `46d6967d`. Confirmed CI green: `CI`, `Sentinel Governance Checks`, `CodeQL Security Scan` all `success`. `Mandatory Audit Check` shows `failure` -- expected, not a real failure: it's gating on a fresh `AUDIT: PASS`/`AUDIT: FAIL` comment against this new head commit, which hasn't been re-triggered yet.
+
 ## Remaining
-- [ ] Push the fix commit(s) to `worker/task-20260727-122935-timesheet-budget-vs-actual` (PR #597 already open -- do not open a new PR).
-- [ ] Move this session's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry to `recently_completed:` once pushed.
-- [ ] Requires a fresh supervisor audit before merge (`veridian-task.py adopt`) -- this PR was already adopted once as task-20260727-131559; needs re-triggering after this fix lands, per this task's own EXPECTED_OUTPUT.
+- [ ] Requires a fresh supervisor audit before merge (`veridian-task.py adopt`) -- this PR was already adopted once as task-20260727-131559; needs re-triggering after this fix lands, per this task's own EXPECTED_OUTPUT. `Mandatory Audit Check` will stay red until that lands.
+- [ ] Move this session's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry to `recently_completed:` once the re-audit passes and the PR merges.
 
 # PROGRESS -- task-20260727-101123-erp-project-management-gaps--timesheet-t
 
