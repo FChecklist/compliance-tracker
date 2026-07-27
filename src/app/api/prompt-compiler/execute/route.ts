@@ -27,6 +27,7 @@ import { db, organisations } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { runPipeline } from "@/lib/prompt-compiler/pipeline"
 import type { BrowserExecutionTier } from "@/lib/browser-execution/tier-detection"
+import { exploreUnknownPrompt, shouldExploreAsUnknownPrompt } from "@/lib/services/capability-learning-service"
 
 type ExecuteBody = {
   rawText?: unknown
@@ -81,6 +82,20 @@ export async function POST(request: NextRequest) {
   // tier-orchestrator.ts's requiresServerEscalation() doc comment draws.
   const browserTier = typeof body.browserCompiled?.tier === "string" ? (body.browserCompiled.tier as BrowserExecutionTier) : null
   const needsServerEscalation = browserTier === "server" || !result.verification.allPassed
+
+  // engine-ai-learning (phase_8): autonomous exploration/evaluation/
+  // registration of a prompt Layer 4 couldn't match to a real template and
+  // Layer 5 wasn't confident about -- see capability-learning-service.ts's
+  // header comment on shouldExploreAsUnknownPrompt for why this is a
+  // distinct gap from that file's business-task learning loop above it.
+  if (shouldExploreAsUnknownPrompt(result.compiled.matchedTemplate, result.verification.confidence.composite)) {
+    await exploreUnknownPrompt({
+      category: result.analysis.classification.category,
+      primaryIntent: result.analysis.intent.primary,
+      rawText,
+      orgId,
+    })
+  }
 
   return NextResponse.json({
     compiled: result.compiled,
