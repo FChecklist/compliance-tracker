@@ -3602,6 +3602,23 @@ active:
       (voice-tickets GAP-MOM-VOICE-TICKETS, already closed; payroll/tax
       "slabs"; generic cron-timing "SLA" mentions). No other active entry
       claims schema.ts's tickets/SLA area or a Helpdesk gap.
+  - session_label: "claude-code (task-20260727-153025-re-audit-owner-engine--phases-4-5-8-9-f) -- independent re-verification of OWNER_ENGINE phases 4/5/8/9 completion claims"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive: verification-only re-audit of OWNER_ENGINE phases 4
+      (PR #562, prompt-security defense-in-depth), 5 (PRs #586/#590,
+      browser-execution increments 1-2 -- open question whether more
+      increments remain undispatched), 8 (PR #589, dspy-e increment 1), 9
+      (PR #588, gateway/knowledge-sync wiring). Re-derives completeness from
+      real main-branch code, real `bun test`/`tsc --noEmit` output, and real
+      PR comment history -- not from PROGRESS.md self-reports.
+
+      No fix work. Output is a single new report file,
+      ai-os/audits/owner_engine_reaudit_2026-07-27.md, on its own branch/PR.
+      No other file in the repo is touched.
+
+      Collision check: no other active entry names prompt-security,
+      browser-execution, dspy-e, or gateway/knowledge-sync for OWNER_ENGINE.
 recently_completed:
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
