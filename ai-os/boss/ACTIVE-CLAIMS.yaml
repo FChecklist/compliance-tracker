@@ -75,6 +75,25 @@ active:
       touches this file/directory scope. `git pull origin main` run fresh
       immediately before this entry.
 
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Fix GitHub Dependabot security alert #34 on FChecklist/compliance-tracker
+      (main): npm package sharp at ^0.34.3 is affected by GHSA-f88m-g3jw-g9cj
+      (CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591 --
+      inherited libvips vulnerabilities), severity high. Bumping to ^0.35.3
+      (first_patched_version 0.35.0, advisory names 0.35.3 as latest,
+      libvips 8.18.3) in package.json, updating bun.lock via `bun install`.
+      Implementation-only task per Rule 7(c) -- a separate supervising
+      session audits and merges; this session does not self-certify.
+
+      File scope: package.json (sharp dependency line only), bun.lock
+      (sharp + its own transitive tree only). No other files touched.
+
+      Collision check before starting: grepped this file for "sharp"/
+      "dependabot" -- only unrelated hits (image blur-detection feature,
+      an older unrelated Dependabot/recharts PR triage entry). No active
+      claim on this alert or on package.json's sharp line.
   - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
     claimed_at: "2026-07-27T (this session)"
     claim: |
