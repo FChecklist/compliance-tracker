@@ -4,7 +4,7 @@
 // chain -- this phase's own success-criteria "2-tier fallback... executes
 // end to end" claim, exercised deterministically via injected envs.
 import { describe, expect, test } from "bun:test"
-import { planExecution, requiresServerEscalation, TIER_PRIORITY } from "./tier-orchestrator"
+import { planExecution, planParallelism, requiresServerEscalation, shouldAttemptWebLlm, TIER_PRIORITY } from "./tier-orchestrator"
 
 describe("planExecution", () => {
   test("selects npu first when every tier is available", () => {
@@ -38,5 +38,39 @@ describe("requiresServerEscalation", () => {
   })
   test("false when a real browser tier was selected", () => {
     expect(requiresServerEscalation(planExecution({ navigator: { gpu: {} } }))).toBe(false)
+  })
+})
+
+describe("shouldAttemptWebLlm", () => {
+  test("true when lite-llm is selected and real WebGPU is present", () => {
+    const env = { navigator: { gpu: {} } }
+    expect(shouldAttemptWebLlm(planExecution(env), env)).toBe(true)
+  })
+
+  test("false (real, honest fallback) when lite-llm is selected but WebGPU is absent -- WASM-only, WebLLM has no WASM path", () => {
+    const env = { navigator: {} }
+    const plan = planExecution(env)
+    expect(plan.selectedTier).toBe("lite-llm")
+    expect(shouldAttemptWebLlm(plan, env)).toBe(false)
+  })
+
+  test("false when a higher-priority tier (npu) was selected instead of lite-llm", () => {
+    const env = { navigator: { ml: {}, gpu: {} } }
+    expect(shouldAttemptWebLlm(planExecution(env), env)).toBe(false)
+  })
+
+  test("false when the plan bottomed out at server (no navigator at all)", () => {
+    expect(shouldAttemptWebLlm(planExecution({}), {})).toBe(false)
+  })
+})
+
+describe("planParallelism", () => {
+  test("recommends hardwareConcurrency - 1, capped at 4, matching worker-pool.ts's own heuristic", () => {
+    expect(planParallelism({ navigator: { hardwareConcurrency: 8 } })).toEqual({ recommendedWorkers: 4 })
+    expect(planParallelism({ navigator: { hardwareConcurrency: 2 } })).toEqual({ recommendedWorkers: 1 })
+  })
+
+  test("falls back to 1 worker (no parallelism) when hardwareConcurrency is unreported", () => {
+    expect(planParallelism({})).toEqual({ recommendedWorkers: 1 })
   })
 })
