@@ -40,6 +40,49 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      phase_8_dspy_learning_distribution_engines increment 1 of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
+      repo claude-control, target_repo: compliance-tracker). Depends on
+      phase_2_compiler_pipeline_intelligence_engines (done) and
+      phase_4_defense_in_depth_security_quality (done, PR #562 merged
+      2026-07-27) -- both satisfied.
+
+      Increment 1 scope: (1) engine-dspy-integration -- evaluate DSPy
+      Python-package installability against services/doc-processing/'s
+      real existing Python microservice stack, make a real justified
+      adopt/reject decision (doc template:
+      ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md), and if adopted
+      wire a minimal signature-based compilation path alongside (not
+      replacing) phase_2's keyword-based compiler with a real before/after
+      quality/token-count comparison on one real prompt. (2) engine-ai-
+      learning -- re-verify capability-learning-service.ts's current real
+      state (file:line) and wire this gap item onto it, extending only if
+      genuinely needed, not duplicating. (3) Scoping-only pass (NOT
+      implementation) for the 5 zero-prior-art engines (engine-prompt-
+      translation, engine-prompt-localization, engine-prompt-marketplace,
+      engine-prompt-export, engine-prompt-import) -- schema/table design +
+      build estimate per engine, registered as planned (status: planned,
+      not built) MASTER_INDEX.yaml entries in claude-control.
+
+      File scope (compliance-tracker): possible new
+      src/lib/prompt-compiler/ or adjacent dspy-integration module (only
+      if DSPy is adopted), extension of the existing capability-learning-
+      service.ts (not a new file), new
+      ai-os/VERIDIAN_V2_DSPY_TECH_DECISION_2026-07-27.md-equivalent doc.
+      Does not touch phase_4's src/lib/prompt-security/ or phase_9's
+      Gateway G05 wiring files. Also touches claude-control (separate
+      repo, coordinate-not-run-inside): phase_8's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+      ai-os/MASTER_INDEX.yaml (5 planned entries).
+
+      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
+      "phase_8"/"dspy"/"DSPy"/"capability-learning" -- zero matches, no
+      active or recent collision. query-knowledge
+      "veridian_v2_dspy_learning" --tag domain:veridian_architecture_v2
+      confirmed found=0 live before starting.
   - session_label: "claude-code (task-20260726-043023-phase4-defense-in-depth-prompt-security) -- VERIDIAN_Architecture_v2.0 phase_4: Defense-in-Depth, Prompt Security, Red Team, Quality Engines + 4-layer security architecture"
     claimed_at: "2026-07-26T (this session)"
     claim: |
