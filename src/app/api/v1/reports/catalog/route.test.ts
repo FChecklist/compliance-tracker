@@ -57,6 +57,20 @@ describe("GET /api/v1/reports/catalog", () => {
     expect(await res.json()).toEqual({ catalog: [{ id: "r1" }] })
   })
 
+  test("an authenticated caller with no organisation gets 400, matching the /run route's contract", async () => {
+    // Previously returned 200 { catalog: [] } here -- inconsistent with
+    // .../run's 400 "No organisation found" for the identical condition.
+    mockAuth({ orgId: null })
+    const getFullReportCatalog = mockCatalog([])
+
+    const { GET } = await import("./route")
+    const res = await GET(getRequest() as any)
+
+    expect(res.status).toBe(400)
+    expect(await res.json()).toEqual({ error: "No organisation found" })
+    expect(getFullReportCatalog).not.toHaveBeenCalled()
+  })
+
   test("an invalid/missing API key never reaches getFullReportCatalog", async () => {
     mockAuth({ orgId: null, response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) })
     const getFullReportCatalog = mockCatalog([])

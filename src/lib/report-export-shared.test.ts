@@ -36,6 +36,33 @@ describe("rowsToCSV", () => {
   test("returns just an empty header line for zero rows", () => {
     expect(rowsToCSV([])).toBe("")
   })
+
+  test("neutralizes CSV/formula-injection payloads with a leading single quote", () => {
+    // Real-world shape: a vendor/supplier name or AI-recipe note containing
+    // a formula-like value that Excel/Sheets would otherwise execute on open.
+    const payloads = ["=1+1", "@SUM(A1:A9)", "-2+3", "+5", "=cmd|'/C calc'!A0"]
+    const csv = rowsToCSV(payloads.map((Note) => ({ Note })))
+    const lines = csv.split("\n").slice(1)
+
+    payloads.forEach((original, i) => {
+      // Neutralized: no longer starts with a formula-triggering character.
+      expect(/^[=+\-@]/.test(lines[i])).toBe(false)
+      expect(lines[i]).toBe(`'${original}`)
+      // Recoverable: stripping the safe prefix restores the exact original
+      // text -- neutralized, not corrupted.
+      expect(lines[i].slice(1)).toBe(original)
+    })
+  })
+
+  test("leaves normal, non-formula-shaped text completely unaffected", () => {
+    const rows: ExportRow[] = [
+      { Department: "Legal", "Open Items": 3, Status: "On Track" },
+      { Department: "R&D (Phase 2)", "Open Items": 0, Status: "Complete" },
+    ]
+    expect(rowsToCSV(rows)).toBe(
+      "Department,Open Items,Status\nLegal,3,On Track\nR&D (Phase 2),0,Complete"
+    )
+  })
 })
 
 describe("rowsToXLSXBuffer", () => {

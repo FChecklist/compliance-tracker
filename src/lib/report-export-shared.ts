@@ -13,8 +13,20 @@ import * as XLSX from "xlsx"
 
 export type ExportRow = Record<string, string | number>
 
+// OWASP CSV/formula injection: a cell value starting with =, +, -, or @ is
+// interpreted as a live formula by Excel/Sheets on open. Since this route is
+// designed for external AI agents/resellers to consume report rows containing
+// user-controlled free text (vendor names, custom fields, AI-recipe notes),
+// every cell gets the standard leading-single-quote mitigation -- it forces
+// spreadsheet software to treat the value as text while leaving the original
+// characters after it fully intact (recoverable, not corrupted).
+const FORMULA_INJECTION_PREFIX = /^[=+\-@]/
+
 function csvEscape(value: string | number): string {
-  const s = String(value)
+  let s = String(value)
+  if (FORMULA_INJECTION_PREFIX.test(s)) {
+    s = `'${s}`
+  }
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s
 }
 

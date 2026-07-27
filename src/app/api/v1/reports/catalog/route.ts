@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   if (ctx.response) return ctx.response
   const scopeErr = requireReportsReadAccess(ctx)
   if (scopeErr) return scopeErr
-  if (!ctx.orgId) return NextResponse.json({ catalog: [] })
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   try {
     const catalog = await getFullReportCatalog({ orgId: ctx.orgId })
