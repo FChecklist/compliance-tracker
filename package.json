@@ -33,7 +33,7 @@
     "@hookform/resolvers": "^5.1.1",
     "@huggingface/transformers": "^4.2.0",
     "@litertjs/core": "^2.5.2",
-    "@mdxeditor/editor": "^3.39.1",
+    "@mdxeditor/editor": "^4.1.0",
     "@memvid/sdk": "^2.0.160",
     "@mlc-ai/web-llm": "^0.2.84",
     "@node-saml/node-saml": "^5.1.0",
