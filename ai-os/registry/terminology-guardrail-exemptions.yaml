@@ -47,6 +47,10 @@
 # Phase 5 retires this file once every remaining count is itself resolved.
 
 exemptions:
+  - file: src/lib/supabase/auth-guard.ts
+    reason: "PR 598 dependency-blocking work + PR 599 CSV-injection fix (2026-07-27): 3 real dated comments documenting prior gap-closure history in this file, never previously exempted."
+    findings_by_category:
+      hardcoded_iso_date: 3
   - file: src/lib/services/performance-service.ts
     reason: "Phase 0 HR gap-closure (2026-07-27): real dated comments documenting the new KRA/360-feedback extension."
     findings_by_category:
