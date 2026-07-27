@@ -1,3 +1,27 @@
+# PROGRESS -- task-20260727-132826-fix-pr-597--budget-undercount-roster-gap
+
+Fixing 3 audit-confirmed issues on PR #597 (`worker/task-20260727-122935-timesheet-budget-vs-actual`,
+`construction-reports-service.ts`'s new `designerTimesheetReport()`/`aggregateDesignerTimesheetCosts()`),
+per the AUDIT: FAIL comment on issue #597. Working directly on that same branch (not a new PR),
+per this task's own EXPECTED_OUTPUT.
+
+## Completed
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (no conflicting active claim found for PR #597 / this file scope).
+- [x] Fetched and re-confirmed the audit verdict (`gh api repos/FChecklist/compliance-tracker/issues/597/comments --jq '.[-1].body'`) -- matches this task's KNOWN_CONTEXT exactly.
+- [x] Checked out the PR's actual branch (`worker/task-20260727-122935-timesheet-budget-vs-actual`, commit `d08000ce`) to push the fix to the same branch/PR, not open a new one.
+- [x] **Fix 1 (budget-undercount / roster-inclusion, the primary blocker):** `aggregateDesignerTimesheetCosts()` now takes an optional 3rd `roster: DesignerTimesheetRosterUser[]` param (`{userId, isActive}[]`, default `[]` for backward compat). `designerStatusByUser` is seeded from `roster` first, then filled in from `entries` for any user not already present -- so a designer with a real `pms_budget_line_items` row but zero time entries anywhere resolves a real active/inactive status and is no longer dropped from `byDesignerStatus`. `designerTimesheetReport()` now passes `allUsers` (already fetched, just mapped to `{userId, isActive}`) into both the org-wide and project-scoped `aggregateDesignerTimesheetCosts()` calls. No other part of the aggregator touched.
+- [x] **Fix 2 (N+1 billable-rate resolution):** `designerTimesheetReport()` now fetches `pmsBillableRates` ONCE upfront (`db.query.pmsBillableRates.findMany`) and uses the pure `resolvePmsBillableRatePure(rates, userId, spentOn) ?? 0` inside the per-entry pricing loop, instead of `await resolveBillableRate(...)` (a DB round-trip) once per time entry. Same pattern `pms-invoice-service.ts`'s `buildInvoiceLinesFromTimeEntries` already established. Removed the now-unused `resolveBillableRate` import.
+- [x] **Fix 3 (project-scoped vs org-wide field mixing):** chose explicit labeling over full re-scoping (justification: `byDesigner`/`byProject` are inherently org-wide -- a project comparison needs >1 project, and a designer's total budget/actual isn't naturally scoped to one project either -- so full project-scoping would either be meaningless or require a different, narrower feature). Response shape changed from one flat object to `{ projectScoped: { byUser, byCategory, byDesignerStatus, overallBudget, overallActual, overallVariance }, orgWide: { byDesigner, byProject } }`. Confirmed no consumer depends on the old flat shape (report is dispatched generically via `REPORT_REGISTRY`/`report-catalog-service.ts`, which itself notes "No dedicated UI page renders it yet").
+- [x] Tests added to `construction-reports-service.test.ts`: 3 new pure-aggregator tests proving the roster-inclusion fix (sum(byDesignerStatus.budget) === overallBudget with an entryless budgeted user; roster doesn't fabricate activity for users with neither entries nor budget lines), plus 1 new DB-mocked integration test (mocks only `withTenantContext` + `requireConstructionEnabled`, same pattern as `tenant-isolation.test.ts`) proving: billable rates fetched exactly once for 30 time entries (not once per entry), the roster fix holds end-to-end, and the response shape is `{projectScoped, orgWide}` not a flat mixed object.
+- [x] `ai-os/registry/terminology-guardrail-exemptions.yaml`: added exemption for the 2 new hardcoded-ISO-date test-fixture findings in `construction-reports-service.test.ts` (per Phase 2's established `*.test.ts` directory-scoped exemption).
+- [x] Verification: `bun test` -- 2129 pass / 0 fail, full suite (10 pass in `construction-reports-service.test.ts` itself, up from 6). `npx tsc --noEmit` -- 0 errors, full repo (`NODE_OPTIONS=--max-old-space-size=8192`, default heap OOMs on this repo's size). `check-guardrail-presence.mjs` (88/88 markers), `check-terminology-guardrail.mjs --diff-only`, `check-asset-registry-coverage.mjs` -- all pass.
+
+- [x] Pushed both commits (`91c670f3` claim registration, `46d6967d` the actual fix) to `worker/task-20260727-122935-timesheet-budget-vs-actual`. PR #597's head now points at `46d6967d`. Confirmed CI green: `CI`, `Sentinel Governance Checks`, `CodeQL Security Scan` all `success`. `Mandatory Audit Check` shows `failure` -- expected, not a real failure: it's gating on a fresh `AUDIT: PASS`/`AUDIT: FAIL` comment against this new head commit, which hasn't been re-triggered yet.
+
+## Remaining
+- [ ] Requires a fresh supervisor audit before merge (`veridian-task.py adopt`) -- this PR was already adopted once as task-20260727-131559; needs re-triggering after this fix lands, per this task's own EXPECTED_OUTPUT. `Mandatory Audit Check` will stay red until that lands.
+- [ ] Move this session's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry to `recently_completed:` once the re-audit passes and the PR merges.
+
 # PROGRESS -- task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan
 
 ## Completed
