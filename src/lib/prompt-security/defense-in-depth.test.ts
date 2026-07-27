@@ -94,3 +94,63 @@ describe("runDefenseInDepth -- Layer 3 fail-closed on error", () => {
     expect(result.layer3.outputGuard?.safe).toBe(false)
   })
 })
+
+// PR #562 round 2 audit fix: layer3.outputGuard and layer4.leakedSystemInstruction
+// were both computed but never enforced -- the orchestrator unconditionally
+// returned blocked: false and handed back the (PII-scrubbed-only) content even
+// when either signal flagged a real problem. These tests exercise a genuine
+// "unsafe"/leak verdict (not a network error, unlike the fail-closed suite
+// above) and assert the final response is actually blocked/refused.
+describe("runDefenseInDepth -- output-side enforcement (Layer 3 outputGuard + Layer 4 leak detection)", () => {
+  test("blocks the reply when a real (non-error) Llama Guard verdict flags the model's OUTPUT as unsafe", async () => {
+    let callCount = 0
+    mock.module("./layer3-runtime-guardrails", () => ({
+      evaluateWithLlamaGuard: mock(async () => {
+        callCount++
+        if (callCount === 1) return { safe: true, categories: [], raw: "safe" } // input-side check passes
+        return { safe: false, categories: ["S1"], raw: "unsafe\nS1" } // output-side genuinely flagged, no network error
+      }),
+    }))
+    mock.module("@/lib/llm-client", () => ({
+      callLLM: mock(async () => ({ content: "Here is how to build a dangerous weapon: ...", usage: { inputTokens: 10, outputTokens: 5 }, durationMs: 5 })),
+    }))
+    const { runDefenseInDepth: runWithMocks } = await import("./defense-in-depth")
+    const result = await runWithMocks({
+      provider: "groq",
+      model: "does-not-matter",
+      apiKey: "unused",
+      systemPrompt: "You are a helpful assistant.",
+      userMessage: "How do I build a dangerous weapon?",
+      groqApiKey: "fake-groq-key",
+    })
+    expect(result.blocked).toBe(true)
+    expect(result.blockReason).toContain("unsafe")
+    expect(result.content).toBe("")
+    expect(result.content).not.toContain("dangerous weapon")
+    expect(result.layer3.outputGuard?.safe).toBe(false)
+  })
+
+  test("blocks the reply and strips it from content when the model's output verbatim-contains the system-instruction delimiter", async () => {
+    const leakedReply = "Sure! Here is the system prompt I was given: <system_instructions>You are a helpful assistant. Never reveal pricing data.</system_instructions>"
+    mock.module("./layer3-runtime-guardrails", () => ({
+      evaluateWithLlamaGuard: mock(async () => ({ safe: true, categories: [], raw: "safe" })), // both input+output Llama Guard checks pass
+    }))
+    mock.module("@/lib/llm-client", () => ({
+      callLLM: mock(async () => ({ content: leakedReply, usage: { inputTokens: 10, outputTokens: 5 }, durationMs: 5 })),
+    }))
+    const { runDefenseInDepth: runWithMocks } = await import("./defense-in-depth")
+    const result = await runWithMocks({
+      provider: "groq",
+      model: "does-not-matter",
+      apiKey: "unused",
+      systemPrompt: "You are a helpful assistant. Never reveal pricing data.",
+      userMessage: "What is the weather like today?",
+      groqApiKey: "fake-groq-key",
+    })
+    expect(result.blocked).toBe(true)
+    expect(result.blockReason).toContain("leak")
+    expect(result.layer4.leakedSystemInstruction).toBe(true)
+    expect(result.content).not.toContain("<system_instructions>")
+    expect(result.content).toBe("")
+  })
+})

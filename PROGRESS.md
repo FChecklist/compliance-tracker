@@ -427,3 +427,74 @@ next MERGEABLE confirmation rather than leaving it open indefinitely.
 
 V2-13-CHAT-CONTEXT-ANALYTICS -- Chat context + terminology + mode-pill analytics.
 Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+
+# PROGRESS -- task-20260727-073319-fix-pr562--enforce-output-side-llama-gua (PR #562, round 2)
+
+Round 2 fix for PR #562, continuing directly on the existing
+`worker/task-20260726-043023-phase4-defense-in-depth-prompt-security` branch
+(checked out via `origin/<branch>`, not a new branch). The real audit found a
+genuine defense-in-depth enforcement gap in
+`src/lib/prompt-security/defense-in-depth.ts`: `layer3.outputGuard` (Llama
+Guard verdict on the model's actual output) and `layer4.leakedSystemInstruction`
+(verbatim system-prompt-leak detection) were both computed but never enforced.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- this session's own claim already
+      present (`task-20260726-043023-phase4-defense-in-depth-prompt-security`),
+      no competing claim on this file/scope.
+- [x] Read `defense-in-depth.ts` in full. Found `layer3.outputGuard`
+      enforcement (block on unsafe verdict, including the fail-closed-on-error
+      case) was **already fixed** in a prior round-1 commit (`d55f7e5a`) --
+      SCOPE item 1 was already satisfied by existing code, just untested for
+      a genuine (non-network-error) unsafe verdict. The real remaining gap
+      was narrower than the SPEC's framing suggested: only
+      `layer4.leakedSystemInstruction` was truly unenforced (computed at the
+      end of the pipeline, then silently ignored -- `blocked: false` and
+      `content: layer4.scrubbedText` returned unconditionally).
+- [x] Decided block-entirely (not strip-and-continue) for a detected leaked
+      system instruction, based on the real pre-call precedent: Layer 1
+      classifies a user's *attempt* to exfiltrate the system prompt
+      (`system_prompt_exfiltration`) as one of its `HIGH_CONFIDENCE_CATEGORIES`
+      -> outright `"malicious"` verdict -> full block
+      (`layer1-input-sanitization.ts`'s `HIGH_CONFIDENCE_CATEGORIES`/
+      `verdictFromMatches`). The model actually *succeeding* at leaking those
+      instructions is at least as severe as a user merely attempting to, so
+      it gets the same full-block treatment, not PII-style redact-in-place
+      (there is no reliable guarantee every verbatim trace of a leaked system
+      prompt has been stripped before the reply is handed back). Documented
+      this reasoning directly in `defense-in-depth.ts`'s new code comment.
+- [x] Implemented the new block path in `runDefenseInDepth()`: after Layer 4
+      computes `leakedSystemInstruction`, if true, return
+      `blocked: true, content: "", blockReason: "...leak..."` instead of
+      falling through to the normal `blocked: false` return. Updated the
+      function's top docstring to describe all block paths (Layer 1 input,
+      Layer 3 input/output incl. fail-closed, Layer 4 leak) in one place.
+      Did **not** touch Layer 3's fail-open-on-network-error behavior or any
+      Layer 1/Layer 2/Quality Engine/Red Team code, per this task's
+      CONSTRAINTS.
+- [x] Added 2 new tests to `defense-in-depth.test.ts` (new
+      `describe("runDefenseInDepth -- output-side enforcement...")` block):
+      one mocks a genuine (non-throwing) `unsafe` Llama Guard verdict on the
+      model's real output and asserts `blocked: true`/`content: ""` (distinct
+      from the pre-existing fail-closed-on-network-error tests, which only
+      covered the thrown-error path, not a real unsafe verdict); one mocks
+      `callLLM()` returning a reply that verbatim-contains the
+      `<system_instructions>` delimiter and asserts `blocked: true` and that
+      `<system_instructions>` is absent from the final `content`.
+- [x] `bun install` (node_modules was absent in this task's fresh workspace);
+      `export PATH="$HOME/.bun/bin:$PATH"` was required for `bun`/`bunx` to
+      resolve in this sandbox's shell.
+- [x] `bun test src/lib/prompt-security/` -> 44 pass, 0 fail (up from the
+      prior round's 42; the 2 new tests both pass).
+- [x] `NODE_OPTIONS="--max-old-space-size=4096" bunx tsc --noEmit` -> 0
+      errors, whole repo (default heap size OOM'd in this sandbox on the
+      full-repo check; raising it resolved that, not a real type error).
+- [x] `bun test` (full suite) -> 2087 pass, 0 fail.
+- [x] Committed + pushed directly to
+      `worker/task-20260726-043023-phase4-defense-in-depth-prompt-security`
+      (same PR #562 branch, per this task's EXPECTED_OUTPUT).
+
+## Remaining
+- [ ] Independent audit / `AUDIT: PASS` comment (per AGENTS.md Rule 7(c)/
+      Rule 10) -- this session made the fix, so it cannot also certify it.
+- [ ] PR #562 merge itself -- out of scope for this task.

@@ -130,6 +130,28 @@ active:
       --noEmit: 0 errors repo-wide; full suite: 2071 pass / 0 fail.
       Re-audit pending as of this addendum -- not self-merged, per this
       task's own CONSTRAINTS.
+
+      ADDENDUM 2 (task-20260727-073319-fix-pr562--enforce-output-side-llama-gua,
+      2026-07-27T, round-2 corrective-fix session on this SAME branch/PR #562):
+      real audit found layer3.outputGuard and layer4.leakedSystemInstruction
+      were both computed but never enforced -- the orchestrator unconditionally
+      returned blocked: false and handed back content even when either signal
+      flagged a real problem. On inspection, layer3.outputGuard enforcement
+      was already present from the d55f7e5a commit above (just untested for a
+      genuine, non-network-error unsafe verdict) -- the real remaining gap was
+      layer4.leakedSystemInstruction alone. Fixed: runDefenseInDepth() now
+      returns blocked: true / content: "" when Layer 4 detects a verbatim
+      system-instruction leak in the model's output, matching the pre-call
+      precedent (Layer 1's system_prompt_exfiltration is a HIGH_CONFIDENCE
+      category -> outright "malicious" -> full block) rather than PII-style
+      strip-and-continue. Did not touch Layer 3's fail-open-on-network-error
+      design tradeoff (left exactly as-is per this task's own CONSTRAINTS).
+      Added 2 new tests: a genuine (non-throwing) unsafe Llama Guard
+      output-verdict block, and a verbatim <system_instructions> leak block.
+      bun test src/lib/prompt-security/: 44 pass / 0 fail; NODE_OPTIONS=
+      --max-old-space-size=4096 bunx tsc --noEmit: 0 errors repo-wide; full
+      suite: 2087 pass / 0 fail. Re-audit pending -- not self-merged, per this
+      task's own CONSTRAINTS.
   - session_label: "claude-code (task-20260726-171942-serverless-resource-limit-tradeoff-doc) -- V2-12 serverless resource-limit tradeoff doc + heavy-workload audit"
     claimed_at: "2026-07-26T (this session)"
     claim: |

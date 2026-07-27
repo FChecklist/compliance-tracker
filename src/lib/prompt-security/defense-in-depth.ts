@@ -45,11 +45,14 @@ export type DefenseInDepthOptions = {
  * Runs the full 4-layer defense-in-depth pipeline around one real LLM call:
  * Layer 1 (classify input) -> Layer 2 (harden the prompt) -> [block here if
  * Layer 1 verdict is "malicious"] -> real callLLM() -> Layer 3 output-side
- * guard + Layer 4 output filtering/quality scoring. A "malicious" Layer 1
- * verdict blocks BEFORE the real model call is ever made (the document's own
- * "Inputs classified as malicious are rejected immediately", line 483) --
- * the returned result's `content` is empty and `blocked` is true; callers
- * must check `blocked` before using `content`.
+ * guard [block here if unsafe] -> Layer 4 output filtering/quality scoring
+ * [block here if the reply leaks a verbatim system instruction]. Every block
+ * path -- Layer 1 malicious input, Layer 3 unsafe input/output (including its
+ * own fail-closed-on-network-error case), and Layer 4's leaked-system-
+ * instruction detection -- returns `content: ""` with `blocked: true`;
+ * callers must check `blocked` before using `content`. Only PII is
+ * scrubbed-and-continued rather than blocked (see Layer 4's own comment on
+ * why a leaked system prompt doesn't get the same treatment).
  */
 export async function runDefenseInDepth(
   options: DefenseInDepthOptions
@@ -149,6 +152,32 @@ export async function runDefenseInDepth(
     scrubbedText,
     leakedSystemInstruction: detectLeakedSystemInstruction(llmResult.content),
     contentModeration: layer3.outputGuard,
+  }
+
+  // Audit fix (PR #562 round 2, same class as the Layer 3 output-guard
+  // enforcement above): a verbatim system-instruction leak in the model's
+  // reply is at least as severe as the pre-call equivalent -- Layer 1
+  // classifies a *user attempt* to exfiltrate the system prompt as
+  // "system_prompt_exfiltration", one of the HIGH_CONFIDENCE_CATEGORIES that
+  // gets an outright "malicious" verdict and a full block
+  // (layer1-input-sanitization.ts's HIGH_CONFIDENCE_CATEGORIES). The model
+  // actually SUCCEEDING at leaking those instructions is a strictly worse
+  // outcome than a user merely attempting to, so it gets the same
+  // block-entirely treatment, not a strip-and-continue like PII (PII scrubbing
+  // handles values that are safe to redact in place; a leaked system prompt is
+  // the confidential asset itself, and there is no reliable way to guarantee
+  // every verbatim trace of it has been stripped before handing the reply
+  // back). blocked stays true and content stays empty here, exactly like
+  // every other block path in this file.
+  if (layer4.leakedSystemInstruction) {
+    return {
+      layer1, layer2, layer3, layer4,
+      quality: { composite: 0, signals: [] },
+      blocked: true,
+      blockReason: "Layer 4 detected the model's reply verbatim-leaking system instructions -- blocking the reply rather than returning it (PII-style scrubbing is not sufficient for a leaked system prompt)",
+      content: "",
+      usage: llmResult.usage,
+    }
   }
 
   const quality = scoreQuality(llmResult.content, layer1.deterministicMatches.map((m) => m.matchedText))
