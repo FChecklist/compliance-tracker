@@ -866,6 +866,22 @@ exemptions:
     reason: "phase_1_prompt_registry_lifecycle_foundation (2026-07-25): confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as task-execution-engine.ts's already-exempted changelog-date comments -- not human example/sample data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/app/api/prompt-compiler/execute/route.ts
+    reason: "Real dated comment (2026-07-25) referencing the Owner's UX-directive reconciliation, same genre as other dated fix-comments elsewhere in this registry."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/components/veri-chat/VeriComposer.tsx
+    reason: "5 real dated comments (2026-07-10/14/18) documenting prior Owner-spec/gap-closure work in this file's own history, same genre as other dated fix-comments elsewhere in this registry."
+    findings_by_category:
+      hardcoded_iso_date: 5
+  - file: src/lib/browser-execution/client-compile.ts
+    reason: "Real dated comment (2026-07-25) referencing the Owner's UX-directive reconciliation (phase_5 browser-to-server handoff contract)."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/prompt-compiler/prompt-construction.ts
+    reason: "Real dated comment (2026-07-25) referencing the Owner's UX-directive reconciliation."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: scripts/defense-in-depth-smoke-test.ts
     reason: "Real PII-scrubbing smoke test (Phase 4 defense-in-depth, 2026-07-26) -- deliberately uses a realistic placeholder email so scrubPii() has real PII-shaped input to scrub and assert against; not accidental hardcoding."
     findings_by_category:

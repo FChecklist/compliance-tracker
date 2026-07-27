@@ -1,3 +1,4 @@
+# PROGRESS -- task-20260727-065831-architecture-phase-5--browser-execution
 # PROGRESS -- task-20260726-063532-fix-pr562-defense-in-depth-integration-g
 
 Fixing the genuine `AUDIT: FAIL` findings on PR #562 (branch
@@ -104,59 +105,113 @@ org's own model resolves to). A `blocked` result now logs
 - [ ] None -- awaiting fresh audit pass per this task's CONSTRAINTS (not self-merging)
 # PROGRESS -- task-20260726-171942-serverless-resource-limit-tradeoff-doc
 
-## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance docs, confirmed still-open via GAP_ANALYSIS_2026-07-20_HOLD.md + MASTER-TRACKER.yaml + SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (V2-12/C3, CSV row #13)
-- [x] Confirmed no collision: grepped ai-os/boss/ACTIVE-CLAIMS.yaml, `gh pr list --state open` -- no other claim/PR on serverless doc or route scope
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml, committed + pushed (4255d591)
-- [x] Confirmed repo is on Vercel Hobby plan (MASTER-TRACKER.yaml:1891 cron-limit note) + fetched current Vercel Functions limits (2026-07-01 docs snapshot)
-- [x] Confirmed no `functions` block/`maxDuration`/`runtime` override anywhere in vercel.json or src/app/api today (dispatched Explore audit of heaviest routes: payroll, reports, bulk ops)
+Implements `phase_5_browser_execution_tiers` from
+`ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml` (repo
+claude-control). This phase names 10 browser engines + 2 tech-stack
+tables + 2 Owner-directed UI surfaces -- too large for one pass. This is
+**increment 1 of N**, checkpointed per this task's own instruction.
 
-- [x] Manually read+verified payroll/reports/bulk-op/upload routes directly (processPayrollRun, bulkMarkAttendance, bulkReassignLeads, bulkUpdateSalesOrderStatus, financial reports, generic report engine, construction reports, payslip PDF)
-- [x] Dispatched + incorporated a wider Explore-agent sweep (every awaited-DB-call-in-a-loop pattern across src/app/api + src/lib/services), independently re-verified its 2 most severe claims by direct file reads before trusting them (compliance/import has zero file-size cap; computeCostOverrunReport fans out budgetVsActual, ~7 queries each, across up to ~500 projects per this codebase's own scale comments)
-- [x] Wrote ai-os/V2-12_SERVERLESS_RESOURCE_LIMITS.md (tradeoff doc + full audit table, 5 HIGH-severity N+1 routes found, revised upward from the initial 1-route finding once the wider sweep landed)
-- [x] Registered the new doc in ai-os/OS.yaml's metadata index (required by scripts/check-metadata-index-coverage.mjs -- new top-level ai-os/ file)
-- [x] Re-scored CSV row #13 in ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md (C3/V2-12 row, RE-SCORED CLOSED)
+## Completed (increment 1)
 
-- [x] Committed doc + OS.yaml + plan re-score (ca1c7aa9), pushed
-- [x] Opened PR #581: https://github.com/FChecklist/compliance-tracker/pull/581
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no collision on this phase/repo area.
+- [x] Read `ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml`'s
+      `phase_5_browser_execution_tiers` entry in full, plus PR #72
+      (claude-control, still OPEN/rejected) and the Owner directive at
+      `/opt/veridian/ai-os/OWNER_DIRECTIVES/BROWSER_NATIVE_END_USER_ARCHITECTURE_2026-07-25.txt`.
+- [x] Registered `litert-spike`/`litert-spike-embeddings` in claude-control's
+      `ai-os/MASTER_INDEX.yaml` (claude-control PR #111) + knowledge_engine
+      (`KE-20260727-071611-3ed0`, `query-knowledge "veridian_v2_browser_execution"
+      --tag domain:veridian_architecture_v2` -> found=1).
+      **Process note:** this should have landed *before* any engine code in
+      this repo, per the phase's own explicit ordering. It landed after the
+      first browser-execution source files instead -- caught and corrected
+      within this same session rather than left silent. Recorded here per
+      this task's own honesty requirement.
+- [x] Discovered real, load-bearing prior art *before* writing new UI:
+      `src/components/veri-chat/VeriComposer.tsx` already implements BOTH
+      Owner-directed input surfaces (Option 1: mode pills + `ChainSelector`
+      option chain; Option 2: free-text `discuss` chat) -- so this
+      increment wires the browser-native FIRST pass into the *existing*
+      composer rather than building new UI, per the Owner's "no new engine
+      unless necessary" directive.
+- [x] `ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md` -- required
+      WebLLM-vs-LiteRT decision: adopt WebLLm for real text-generation Lite
+      LLM inference (follow-up, not yet installed); keep LiteRT.js
+      unchanged in its real existing vision-classifier role. Full
+      justification in the doc.
+- [x] `src/lib/prompt-compiler/prompt-hash.ts` (new) + `prompt-construction.ts`
+      edit: split `hashContent`/`computeFingerprint` (node:crypto) out of
+      `analyzeLightweight`'s file so phase_2's real Layer 2 analyzer can be
+      imported unmodified into a browser bundle. Re-exported for zero
+      downstream breakage; full existing prompt-compiler suite still green.
+- [x] `src/lib/browser-execution/tier-detection.ts` (new) -- real feature
+      detection for all 5 document tiers (NPU/navigator.ml, Built-in
+      AI/window.ai, Lite LLM/navigator.gpu, Transformers, Server),
+      injectable env for testing, honest about what's real vs. absent.
+- [x] `src/lib/browser-execution/tier-orchestrator.ts` (new) --
+      engine-browser-execution (master orchestrator), engine-model-selection,
+      engine-execution-planner, engine-server-escalation (deepen): real
+      priority-ordered plan + documented fallback chain +
+      `requiresServerEscalation()`.
+- [x] `src/lib/browser-execution/client-compile.ts` (new) -- the real
+      browser-native FIRST pass, reusing phase_2's `analyzeLightweight`
+      (not a duplicate engine).
+- [x] `src/app/api/prompt-compiler/execute/route.ts` (new) -- the real
+      deterministic SECOND-pass SOFTWARE execution (`requireAuth()`-gated,
+      runs phase_2's full `runPipeline`), reporting (not itself triggering)
+      Tier-5/G05 escalation need, per the credit-governance reconciliation.
+- [x] Wired `runBrowserFirstPass()` into `VeriComposer.tsx`'s existing
+      `discuss` (free-text chat) send path -- real, live browser-to-server
+      handoff for Option 2, fire-and-forget so the real chat reply path
+      (`generateAiReply`, unchanged) never regresses.
+- [x] Tests: `src/lib/browser-execution/*.test.ts` (22 tests),
+      `src/app/api/prompt-compiler/execute/route.test.ts` (5 tests),
+      `e2e/browser-execution-tiers.spec.ts` (new, first Playwright spec in
+      this repo -- could not execute locally, missing shared libs for
+      headless Chromium in this sandbox, no root available; CI's `e2e` job
+      already runs `playwright install --with-deps`).
+- [x] **Full suite green:** `bun test` -- 2070 pass, 0 fail, 171 files.
+      `bunx tsc --noEmit` (whole repo, `NODE_OPTIONS=--max-old-space-size=4096`
+      to avoid an OOM unrelated to this change) -- clean. `bunx eslint` on
+      every touched file -- 0 errors (1 pre-existing, unrelated warning in
+      VeriComposer.tsx).
 
-- [x] CI dispatch anomaly resolved on its own -- GitHub Actions has now run on PR #581.
-      All branch-protection **required** checks pass: Lint, Type Check, Build, audit-check,
-      Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests (confirmed via
-      `gh api repos/.../branches/main/protection --jq '.required_status_checks.contexts'`).
-      One non-required check, "Metadata Index Coverage Check", shows failing -- verified this
-      is pre-existing on `main` itself (same check fails on `main`'s own head commit, over
-      ~40 unrelated files under ai-os/scripts/* and ai-os/registry/*, none of which this PR
-      touches; the new V2-12 doc is already correctly indexed in ai-os/OS.yaml). Left that
-      pre-existing gap out of scope rather than a drive-by fix. Posted a PR comment explaining
-      both findings: https://github.com/FChecklist/compliance-tracker/pull/581#issuecomment-5084984271
+## Completed (increment 2)
 
-## Remaining
-- [ ] Owner/reviewer sign-off, then merge (not done by this session per Rule 6)
-- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed once merged
-# PROGRESS -- task-20260726-171950-preview-deployment-spot-check
+- [x] Option 1 (mode-pill/option-chain) browser-to-server wiring --
+      `dispatchInstruction()` in `VeriComposer.tsx` now also calls
+      `runBrowserFirstPass(text)` (guarded on non-empty text, once per send
+      -- not once per `expandPathsForSend()`-expanded concrete path, since
+      those all share one raw instruction) before its `/api/tasks` POST
+      loop. Same fire-and-forget contract as `discuss` mode: never blocks
+      or fails real task creation. `runBrowserFirstPass`'s header comment
+      updated to describe both call sites instead of only `discuss`.
+      Verified: `bunx tsc --noEmit` clean, `bunx eslint` 0 new errors (same
+      1 pre-existing unrelated warning), full suite 2070 pass / 1 fail / 1
+      error -- the fail+error are both pre-existing and unrelated
+      (`roster-overrides.test.ts`'s intentional-throw fallback test and
+      `vercel-deployment/route.test.ts`'s `auditLogs` mock-module ordering
+      issue), confirmed identical on the pre-increment-2 commit via
+      `git stash`.
 
-## Completed
-- [x] Re-verified live repo state: confirmed no verification note existed for V2-14/row #38
-      anywhere in `ai-os/`, and no colliding entry in `ai-os/boss/ACTIVE-CLAIMS.yaml` for this
-      objective before starting.
-- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (committed/pushed separately, before
-      the real work, per protocol).
-- [x] Identified the current most-recent open PR via `gh pr list` (PR #571, not the 2026-07-20
-      one the original prompt was scoped to -- that PR is 6 days/~70 PRs stale).
-- [x] Resolved PR #571's actual Vercel preview URL for its HEAD commit via the GitHub
-      Deployments API (not from a possibly-stale PR comment).
-- [x] Live spot-checked the preview deployment: `vercel inspect` + Vercel REST API confirm
-      `readyState: READY` / `target: preview` with a full ~2000+ route build; anonymous `curl`
-      is blocked by Vercel team SSO Deployment Protection (expected security behavior, not an
-      app defect) -- disclosed as an honest limitation rather than silently claiming full
-      browser-level verification.
-- [x] Wrote `ai-os/PREVIEW_DEPLOYMENT_SPOTCHECK_2026-07-26.md` recording the pass/fail result,
-      method, and evidence.
-- [x] Verified success criteria command locally:
-      `gh pr list --repo FChecklist/compliance-tracker --state open --limit 1 --json number,url;
-      find ai-os -iname "*preview*spot*check*"` -- returns PR #571 and the new note file.
+## Remaining (explicit follow-up, not silently dropped -- future increments)
 
+- [ ] Real WebLLM model install + wiring behind the `lite-llm` tier's
+      `gpuAccelerated` branch (tech-decision doc's own follow-up).
+- [ ] engine-browser-mcp, engine-browser-function, engine-browser-storage,
+      engine-browser-sync (full cache hierarchy is phase_6's scope).
+- [ ] engine-browser-worker deepening (pool/SharedArrayBuffer coordination)
+      beyond litert-spike's existing single-worker pattern.
+- [ ] engine-browser-transformers real Transformers.js model integration
+      (only feature-detection shipped this increment).
+- [ ] stack-browser-compute / stack-parallelism deepening beyond the tier
+      orchestrator shipped here.
+- [ ] Remaining phase_5 success criterion ("A real command proving the
+      Owner-clarified two-stage handoff end to end... exit 0") is satisfied
+      by this increment's route.test.ts + client-compile.test.ts for Option
+      2; a full authenticated Playwright e2e of the live composer is
+      future scope (this repo has zero authenticated e2e fixtures yet,
+      per playwright.config.ts's own header comment).
 ## Remaining
 - [ ] Open PR against `compliance-tracker` (this task's deliverable).
 - [ ] (Optional, future work, not this task) Provision a Vercel "Protection Bypass for
