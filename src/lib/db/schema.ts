@@ -4213,6 +4213,16 @@ export const pmsTimeEntries = complianceSchemaDB.table('pms_time_entries', {
   comments: text('comments'),
   isRunning: boolean('is_running').notNull().default(false),
   startedAt: timestamp('started_at'),
+  // Gap closure (2026-07-27, DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE):
+  // mirrors firm_time_entries' billable/hourlyRateSnapshot/invoiceLineItemId
+  // trio -- the anti-double-billing mechanism pms-invoice-service.ts's
+  // generateInvoiceFromUnbilledProjectTime() relies on. invoiceItemId is
+  // nullable and points at erp_sales_invoice_items (FK added via ALTER
+  // TABLE in the migration, same forward-reference pattern as
+  // firm_time_entries.invoice_line_item_id).
+  billable: boolean('billable').notNull().default(true),
+  hourlyRateSnapshot: numeric('hourly_rate_snapshot'), // captured at billing time, not creation time
+  invoiceItemId: text('invoice_item_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -5121,6 +5131,132 @@ export const leaveBalances = complianceSchemaDB.table('leave_balances', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN HR Expense Claims / Reimbursement (Phase 0 HR gap-closure,
+// 2026-07-27) ──────────────────────────────────────────────────────────
+// Real gap re-confirmed by reading this schema fresh before writing a
+// single line: `constructionExpenseEntries` (PROJEXA section, below) is
+// PROJECT-COST tracking against a construction project's budget -- a
+// distinct domain from a general employee reimbursement claim, and
+// nothing here touches it. There was no way for a general office employee
+// to submit "I spent money on the company's behalf, pay me back."
+//
+// Employee linkage mirrors leaveRequests/hrAttendanceRecords: `userId`
+// (bare text, references users.id by convention, no DB-level FK), not
+// employeeProfiles.id -- an employee can submit a claim before HR has
+// created their employeeProfiles row, same posture leave/attendance
+// already take. `companyId` mirrors the same nullable office-attribution
+// convention as leaveRequests.companyId.
+//
+// Payroll integration decision (this task's own SUCCESS_CRITERIA leaves it
+// as a judgment call, documented here): an approved-but-unpaid claim is
+// picked up by erp-payroll-service.ts's processPayrollRun() as a real
+// payslip EARNING line (reimbursements are money owed TO the employee, the
+// mirror image of a loan deduction below) rather than a separate payment
+// record -- this reuses the payroll run's existing net-pay/payslip
+// machinery instead of inventing a second payout path, and gives finance a
+// single place (the payslip) that reflects everything the employee is
+// actually paid that month. `payrollRunId`/`reimbursedAt` are set at that
+// point; a claim never gets a payroll-run link until it is genuinely
+// picked up by a processed run, matching this schema's own "set only when
+// actually true" discipline (e.g. hrAttendanceRecords.leaveRequestId).
+export const hrExpenseClaimStatusEnum = complianceSchemaDB.enum('hr_expense_claim_status', ['pending', 'approved', 'rejected', 'paid'])
+
+export const hrExpenseClaims = complianceSchemaDB.table('hr_expense_claims', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  companyId: text('company_id'),
+  userId: text('user_id').notNull(),
+  category: text('category').notNull(), // free text: 'travel' | 'meals' | 'supplies' | 'other'
+  amount: numeric('amount').notNull(),
+  expenseDate: date('expense_date').notNull(),
+  description: text('description'),
+  receiptUrl: text('receipt_url'), // nullable -- URL/path of an uploaded receipt attachment
+  status: hrExpenseClaimStatusEnum('status').notNull().default('pending'),
+  approverId: text('approver_id'),
+  approvedAt: timestamp('approved_at'),
+  rejectionReason: text('rejection_reason'),
+  // Set only once a processPayrollRun() picks this claim up as a payslip
+  // earning line -- see erp-payroll-service.ts.
+  payrollRunId: text('payroll_run_id'),
+  reimbursedAt: timestamp('reimbursed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── VERIDIAN HR Employee Loans / Salary Advances (Phase 0 HR gap-closure,
+// 2026-07-27) ──────────────────────────────────────────────────────────
+// Confirmed absent by grepping "loan"/"advance" across this entire schema
+// before writing this -- the only "loan" hit anywhere is the banking-domain
+// EMI/amortization calculation engine (capability-tree-service.ts), a
+// generic financial-math tool, not an actual employee-loan ledger.
+//
+// Employee linkage uses `employeeId` (references employeeProfiles.id),
+// NOT `userId` -- deliberately matching erpSalaryStructures/erpPayslips'
+// convention rather than leaveRequests', because a loan's whole purpose is
+// to be deducted from that employee's payslip during processPayrollRun(),
+// which already keys everything off employeeProfiles.id. An employee must
+// have an employeeProfiles row before a loan can be requested against
+// them (unlike leave/expense claims, which key off the bare login
+// identity) -- a real, deliberate constraint, not an oversight.
+//
+// Workflow: request (pending) -> approve (approved -- schedule generated,
+// see createLoanInstallments in hr-loan-service.ts) -> first payroll run
+// on/after disbursement actually deducts the first installment (active) ->
+// outstandingBalance reaches 0 (closed). Rejection is terminal, same as
+// leaveRequests.
+export const hrLoanTypeEnum = complianceSchemaDB.enum('hr_loan_type', ['loan', 'advance'])
+export const hrLoanStatusEnum = complianceSchemaDB.enum('hr_loan_status', ['pending', 'approved', 'rejected', 'active', 'closed'])
+export const hrLoanInstallmentStatusEnum = complianceSchemaDB.enum('hr_loan_installment_status', ['pending', 'deducted', 'skipped'])
+
+export const hrEmployeeLoans = complianceSchemaDB.table('hr_employee_loans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  employeeId: text('employee_id').notNull().references(() => employeeProfiles.id),
+  loanType: hrLoanTypeEnum('loan_type').notNull().default('loan'),
+  principalAmount: numeric('principal_amount').notNull(),
+  reason: text('reason'),
+  numInstallments: integer('num_installments').notNull(),
+  // Computed at approval time (principalAmount / numInstallments) --
+  // snapshotted rather than re-derived, same discipline as
+  // erpPurchaseInvoices.withholdingTaxAmount.
+  installmentAmount: numeric('installment_amount'),
+  outstandingBalance: numeric('outstanding_balance'),
+  status: hrLoanStatusEnum('status').notNull().default('pending'),
+  approverId: text('approver_id'),
+  approvedAt: timestamp('approved_at'),
+  rejectionReason: text('rejection_reason'),
+  disbursedAt: timestamp('disbursed_at'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// One row per installment, generated in full at approval time so the whole
+// repayment schedule is visible up front (matches erpPayslipLines' "the
+// schedule/breakdown is real rows, not just a running total" precedent).
+export const hrLoanInstallments = complianceSchemaDB.table('hr_loan_installments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  loanId: text('loan_id').notNull().references(() => hrEmployeeLoans.id, { onDelete: 'cascade' }),
+  installmentNumber: integer('installment_number').notNull(),
+  dueMonth: integer('due_month').notNull(),
+  dueYear: integer('due_year').notNull(),
+  amount: numeric('amount').notNull(),
+  status: hrLoanInstallmentStatusEnum('status').notNull().default('pending'),
+  // Set only once processPayrollRun() actually deducts this installment.
+  payrollRunId: text('payroll_run_id'),
+  deductedAt: timestamp('deducted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const hrEmployeeLoansRelations = relations(hrEmployeeLoans, ({ one, many }) => ({
+  employee: one(employeeProfiles, { fields: [hrEmployeeLoans.employeeId], references: [employeeProfiles.id] }),
+  installments: many(hrLoanInstallments),
+}))
+
+export const hrLoanInstallmentsRelations = relations(hrLoanInstallments, ({ one }) => ({
+  loan: one(hrEmployeeLoans, { fields: [hrLoanInstallments.loanId], references: [hrEmployeeLoans.id] }),
+}))
+
 // ─── VERIDIAN HR Attendance (VERIDIAN Review Framework remediation, Wave B,
 // 2026-07-17) ───────────────────────────────────────────────────────────
 // Real gap re-confirmed by reading this schema fresh before writing a
@@ -5188,9 +5324,57 @@ export const hrAttendanceRecords = complianceSchemaDB.table('hr_attendance_recor
   // mark-attendance API call.
   source: text('source').notNull().default('self'),
   notes: text('notes'),
+  // Phase 0 HR gap-closure (2026-07-27): nullable snapshot of the shift
+  // this employee was rostered onto for this date, resolved at
+  // mark-attendance time from hrShiftRosterAssignments (see
+  // resolveExpectedShift in hr-attendance-service.ts) -- never hand-picked
+  // from a dropdown, same "system-derived, not manually entered" posture
+  // as leaveRequestId above. Null means no roster assignment covered this
+  // employee/date, which is the common case until an org starts using
+  // shift rostering at all.
+  shiftTypeId: text('shift_type_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── VERIDIAN HR Shift Management / Roster (Phase 0 HR gap-closure,
+// 2026-07-27) ──────────────────────────────────────────────────────────
+// Real gap re-confirmed by reading hrAttendanceRecords fresh before
+// writing this: it has daily present/absent/half_day/on_leave/holiday
+// status only -- no concept of *which shift* an employee was expected to
+// work at all (a "Morning" vs "Night" shift office, or a manufacturing
+// floor running two shifts, has no way to model that today). Two tables:
+// a shift-type master (start/end time) and a roster assignment linking an
+// employee to a shift type for a date range -- deliberately NOT a
+// per-date-per-employee row (that would mean re-writing the whole roster
+// every time a shift pattern repeats); a manager sets "Priya: Night shift,
+// 2026-08-01 through 2026-08-31" once, and hr-attendance-service.ts
+// resolves the shift covering any specific date from that range at read
+// time, the same "derive at read time, don't persist a redundant row"
+// discipline hrAttendanceStatusEnum's own comment uses for `weekend`.
+export const hrShiftTypes = complianceSchemaDB.table('hr_shift_types', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(), // e.g. "Morning", "Night", "General"
+  startTime: text('start_time').notNull(), // 'HH:MM', 24-hour -- no timezone concept beyond the org's own, matching this schema's existing date/time columns
+  endTime: text('end_time').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const hrShiftRosterAssignments = complianceSchemaDB.table('hr_shift_roster_assignments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // same bare-userId convention as hrAttendanceRecords.userId
+  shiftTypeId: text('shift_type_id').notNull().references(() => hrShiftTypes.id),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date'), // nullable -- an open-ended/ongoing roster assignment
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const hrShiftRosterAssignmentsRelations = relations(hrShiftRosterAssignments, ({ one }) => ({
+  shiftType: one(hrShiftTypes, { fields: [hrShiftRosterAssignments.shiftTypeId], references: [hrShiftTypes.id] }),
+}))
 
 // Org-wide holiday calendar, needed so monthly attendance summaries can
 // exclude declared holidays from the "working days" denominator. Searched
@@ -7883,9 +8067,74 @@ export const performanceReviews = complianceSchemaDB.table('performance_reviews'
   status: performanceReviewStatusEnum('status').notNull().default('pending'),
   submittedAt: timestamp('submitted_at'),
   acknowledgedAt: timestamp('acknowledged_at'), // set when the reviewed employee acknowledges having read it
+  // Phase 0 HR gap-closure (2026-07-27): nullable -- computed from
+  // performanceReviewGoals' weighted ratings at submit time (see
+  // computeWeightedScore in performance-service.ts), null until this
+  // review has at least one goal recorded and is submitted. selfRating/
+  // managerRating above are UNCHANGED -- this is an additive, richer
+  // score alongside them, not a replacement.
+  weightedScore: numeric('weighted_score'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── VERIDIAN HR Performance: KRA/Weighted Goals + Multi-Rater (360)
+// Feedback (Phase 0 HR gap-closure, 2026-07-27) ───────────────────────────
+// Extends (does not replace) performanceReviews above -- confirmed by
+// reading it fresh before writing this: it models exactly one self+manager
+// rating pair per cycle with free-text goalsForNextPeriod, no per-goal
+// weighting and no rater beyond self/manager. Two additive tables:
+//
+// performanceReviewGoals: a KRA/goal is scoped to one performanceReviews
+// row (not the cycle) since weighting is set per-employee, not org-wide --
+// a Sales KRA weighted 40% for one role is a different weight than for
+// another. weightPercent across a review's goals is expected to sum to
+// 100 -- enforced in performance-service.ts before submit, not at the DB
+// level (matching this schema's own "business rule in the service layer,
+// not a CHECK constraint" convention used throughout, e.g. leaveRequests
+// date-range validation).
+//
+// performanceReviewRaters: additional raters BEYOND self/manager (peer,
+// subordinate, or other) -- self/managerRating stay exactly where they
+// are on performanceReviews itself, this table is purely additive 360
+// coverage, not a re-model of the existing pair.
+export const performanceGoalRatingEnum = complianceSchemaDB.enum('performance_goal_status', ['pending', 'rated'])
+export const performanceRaterRoleEnum = complianceSchemaDB.enum('performance_rater_role', ['peer', 'subordinate', 'other'])
+export const performanceRaterStatusEnum = complianceSchemaDB.enum('performance_rater_status', ['pending', 'submitted'])
+
+export const performanceReviewGoals = complianceSchemaDB.table('performance_review_goals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reviewId: text('review_id').notNull().references(() => performanceReviews.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(), // e.g. "Revenue Growth", "Code Quality"
+  weightPercent: numeric('weight_percent').notNull(),
+  rating: integer('rating'), // 1-5, nullable until rated
+  comments: text('comments'),
+  status: performanceGoalRatingEnum('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const performanceReviewRaters = complianceSchemaDB.table('performance_review_raters', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reviewId: text('review_id').notNull().references(() => performanceReviews.id, { onDelete: 'cascade' }),
+  raterId: text('rater_id').notNull(),
+  raterRole: performanceRaterRoleEnum('rater_role').notNull(),
+  rating: integer('rating'), // 1-5, nullable until submitted
+  feedback: text('feedback'),
+  status: performanceRaterStatusEnum('status').notNull().default('pending'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const performanceReviewGoalsRelations = relations(performanceReviewGoals, ({ one }) => ({
+  review: one(performanceReviews, { fields: [performanceReviewGoals.reviewId], references: [performanceReviews.id] }),
+}))
+
+export const performanceReviewRatersRelations = relations(performanceReviewRaters, ({ one }) => ({
+  review: one(performanceReviews, { fields: [performanceReviewRaters.reviewId], references: [performanceReviews.id] }),
+}))
 
 // ─── Wave 63: RMA/Returns Workflow (Tier 3 #11 remainder) ────────────────
 // ERPNext itself only flags returns with no real workflow -- this is a
