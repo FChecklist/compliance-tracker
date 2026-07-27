@@ -3633,6 +3633,11 @@ active:
       iterating on those in-flight, this re-audit's findings reflect
       whatever is on main at read time and will note the commit SHA
       verified against.
+
+      STATUS UPDATE: verification work complete. All 5 PRs independently
+      re-confirmed COMPLETE (report: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md).
+      PR #603 opened (compliance-tracker), awaiting CI + merge -- will move
+      this entry to recently_completed once merged.
 recently_completed:
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
