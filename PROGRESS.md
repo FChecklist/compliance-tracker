@@ -1,77 +1,15 @@
-# PROGRESS -- task-20260726-171946-chat-context---terminology---mode-pill-a
-
-V2-13-CHAT-CONTEXT-ANALYTICS -- Chat context + terminology + mode-pill analytics.
-Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+# PROGRESS -- task-20260727-044531-rca-task-20260727-034439-re-verify-20-en
 
 ## Completed
-- [x] Re-verified live repo state: `contextEntityId`/`contextEntityType` (conversations
-      table) plumbed by veri-chat-service.ts/veri-meeting-service.ts but never read in
-      chat-service.ts's generateAiReply()/generateVeriGroupReply(). Glossary feature
-      (glossary-service.ts) is UI-tooltip-only, no system-prompt hook. No mode-pill vs
-      free-text analytics anywhere. Confirms 2026-07-26 triage evidence still accurate.
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (collision-checked against
-      `gh pr list --state open` and existing active claims -- no overlap).
-- [x] Wired `contextEntityType`/`contextEntityId` fetch into the AI reply prompt:
-      chat-service.ts gained `fetchContextEntitySummary()` (real DB fetch, best-effort,
-      known types: policy/pms_issue/project/veri_meeting; unknown/internal types like
-      `shared_in_inbox` are an honest no-op) + `formatContextEntityBlock()` (pure
-      formatter). Wired into both `generateAiReply()` (1:1 AI thread) and
-      `generateVeriGroupReply()` (group @veri mentions) via a new
-      `ConversationContextRef` parameter; `sendMessage()`/`regenerateAiReply()` pass it
-      through from the conversation row they already fetch (no extra query).
-      Verification: `grep -n "contextEntityId" src/lib/services/chat-service.ts` now
-      shows it consulted inside fetchContextEntitySummary (called from
-      generateAiReply/generateVeriGroupReply), not just plumbed at the write side.
-- [x] Added an org-glossary hook into the same system prompt: `formatGlossaryBlock()`
-      (pure, char-budget-capped at 2000 chars so a large org glossary can't silently
-      balloon token cost) + a `listGlossaryTerms()` call (glossary-service.ts, already
-      existed for the UI hover-tooltip -- reused, not duplicated), appended to the
-      static system prompt before `compileStaticPrefix()` so prompt-cache fingerprinting
-      still reflects exactly what's sent.
-- [x] Added mode-pill vs free-text usage analytics, reusing existing infra (no new
-      analytics vendor): `computeModePillUsageRate()` (pure) + one new aggregation
-      query in `adoption-metrics-service.ts`'s `computeOrgAdoptionMetrics()`, counting
-      `conversations.dynamicChainId IS NOT NULL` (mode-pill used) vs
-      `conversations.chainSelectorSkipped = true` (explicit free-text skip -- only ever
-      set by createWorkflowThread()'s Chain Selector gate, so it never conflates with
-      conversation flows where that gate was never offered). Surfaced through the
-      existing AdoptionMetricsSection.tsx dashboard (new "Mode-Pill Usage" stat tile) --
-      no new UI page, no new vendor.
-- [x] Tests: new pure-function tests in chat-service.test.ts
-      (formatContextEntityBlock/formatGlossaryBlock, all 4 entity types + null/empty/
-      budget-cap edge cases) and a new adoption-metrics-service.test.ts
-      (computeModePillUsageRate: null-when-undecided, 0%, 50%, 100%, rounded mixed).
-- [x] `bun install` + `bunx tsc --noEmit -p .` clean (0 errors) + `bun test`: 2043 pass,
-      0 fail (full suite, includes the 35 new/updated tests in the two touched files).
-- [x] No schema/migration change -- all columns used
-      (dynamicChainId/chainSelectorSkipped/contextEntityType/contextEntityId/
-      businessTerminologyGlossary) already existed. Tier1, additive-only.
-- [x] Re-checked on resume (invocation 2/20): PR #580 had gone CONFLICTING against
-      `main` (main picked up PR #572, an unrelated PROGRESS.md-only change from a
-      sibling task). Merged `origin/main` into this branch, resolved the PROGRESS.md
-      conflict by keeping this task's own log (the other side was a different task's
-      workspace content, no source-code overlap), re-ran `bunx tsc --noEmit -p .`
-      (clean) and `bun test` (exit 0) post-merge, pushed. PR #580 is now
-      `mergeable: MERGEABLE` / `mergeStateStatus: BLOCKED` (CI running fresh off the
-      push, not self-merged per this task's own constraint).
-
-- [x] Re-checked on resume (invocation 4/20): PR #580's `statusCheckRollup` shows
-      "Metadata Index Coverage Check" FAILED (56 governance files/dirs added by
-      *other* tasks' merges into main, e.g. ai-os/scripts/*.py,
-      ai-os/*.yaml/*.json, not indexed in ai-os/OS.yaml) and "Promptfoo Evals"
-      CANCELLED. Verified via `gh api .../branches/main/protection` that neither
-      is in `required_status_checks.contexts` (only Lint/Type Check/Build/
-      audit-check/Guardrail Presence Check/Asset Registry Coverage Check/Unit
-      Tests are required, and all 7 are SUCCESS on #580). Verified via
-      `gh api .../commits/<origin/main sha>/check-runs` that Metadata Index
-      Coverage Check already fails on `main` itself (pre-existing drift from
-      sibling tasks, not introduced by this task's diff) -- out of this task's
-      three-sub-ask scope, not fixing it here. mergeStateStatus is UNSTABLE
-      (non-required check failing) not BLOCKED -- PR remains genuinely
-      mergeable.
+- [x] Read task-20260727-034439's task.yaml/worker.log/systemd.log; confirmed it's genuinely stuck (last_checkpoint_at frozen at 2026-07-27T04:13:36Z, ~40min stale as of investigation).
+- [x] Determined real root cause (not a guess, confirmed live on the running box):
+  - The stalled task's `veridian-worker@task-20260727-034439-*.service` cgroup has `MemoryHigh=2G`/`MemoryMax=3G` (added by prior RCA task-20260726-175957 to contain OOM-killer blast radius to one unit).
+  - A separate prior RCA (task-20260726-175009) deliberately keeps the periodic-checkpoint heartbeat (`worker-entrypoint.sh`'s background `while true; sleep 300; veridian-task.py checkpoint ...` loop) running for the *entire* script, including the long, memory-heavy quality-gate phase (`bun run build` / `next build`), specifically so a long build wouldn't look like a stall.
+  - Those two correct, independently-merged fixes combine into a new bug: the heartbeat's own checkpoint subprocess is a plain child of the SAME cgroup as the heavy build, so once the unit's real memory usage crosses `MemoryHigh=2G` (confirmed: `systemctl --user status` showed `Memory: 2.1G (high: 2.0G ...)` with a live `next build` process at ~2.2G RSS), the kernel throttles *every* process in that cgroup trying to force reclaim -- including the ~4MB checkpoint script. Confirmed live: `ps -o stat,wchan -p <checkpoint-pid>` showed `D` state, `wchan=mem_cgroup_handle_over_high`, for the actual periodic-checkpoint subprocess of the stalled task. This silently reintroduces the exact "periodic checkpoint" stall signature that task-20260726-175009's fix was written to prevent, via a different mechanism (cgroup throttling instead of an early `kill $CHECKPOINT_PID`).
+  - This is a genuinely new root cause, not a duplicate of either prior fix (confirmed via `known_fixes` history: the NODE_OPTIONS heap cap and the "don't kill the heartbeat early" fix are both already present and correctly in effect on this exact stalled task -- neither alone explains the stall).
+- [x] Applied a real, reusable fix to `/opt/veridian/scripts/worker-entrypoint.sh` (backed up as `worker-entrypoint.sh.bak-2026-07-27-cgroup-heartbeat-throttle` per this file's existing `.bak-*` convention -- it is not tracked in any of the app git repos): the periodic-checkpoint loop now launches its `veridian-task.py checkpoint` call via `systemd-run --user --scope --slice=veridian-checkpoint-heartbeat.slice --property=MemoryHigh=infinity --property=MemoryMax=infinity --property=MemorySwapMax=infinity`, which creates a *sibling* transient unit outside the task's own memory-constrained cgroup -- verified live that this actually escapes (`/proc/self/cgroup` inside the test scope showed a path under `veridian-checkpoint-heartbeat.slice`, not nested under the worker service, with `memory.high=max`). Falls back to a direct in-cgroup call if `systemd-run` itself fails, so the heartbeat never goes silent outright.
+- [x] Verified the fix: `bash -n` syntax check passes; a real `systemd-run ... -- python3 veridian-task.py checkpoint --help` smoke test executed successfully from inside the escaped scope.
+- [x] Registered the fix so this exact signature auto-resolves via the watchdog's own step_2 lookup next time, without spawning a second RCA task: `python3 scripts/superboss-register.py log-fix --signature "periodic checkpoint" --fix-action "restart_unit"` -> `known_fixes` row: `('periodic checkpoint', 'restart_unit', '2026-07-27T04:54:29.202239+00:00', 15)` (success_count=15; `restart_unit` is correct and safe here because restarting picks up the now-fixed script on the next invocation and the worker already resumes cleanly from its last checkpoint).
 
 ## Remaining
-- [ ] None for this task's three sub-asks. PR open at
-      https://github.com/FChecklist/compliance-tracker/pull/580 -- all required
-      CI checks green; not self-merged (per this task's own constraint); left
-      for Owner review/merge.
+- [ ] Not this task's job, explicitly out of scope: manually intervening in the still-running task-20260727-034439 itself. Its stuck checkpoint subprocess is in an uninterruptible kernel sleep (D-state) tied to real memory pressure from its own legitimate `next build`, not a code-level infinite loop -- it will self-heal the same way task-20260726-175009's RCA documented (systemd `Restart=on-failure` / eventual reclaim / resume-from-checkpoint), and now additionally benefits from the fix above once/if it restarts.
