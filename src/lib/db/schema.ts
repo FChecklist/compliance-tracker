@@ -4902,6 +4902,24 @@ export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
   changedAt: timestamp('changed_at').notNull().defaultNow(),
 })
 
+// Sales Pipeline Interactive Dashboard (2026-07-27): the Monthly Revenue
+// Trend Analysis chart needs 3 series (Target/Achieved/Shortfall). Achieved
+// and Shortfall are both derivable from real crmOpportunities data (Awarded
+// deals summed by month), but "Target" has no existing source anywhere in
+// this schema -- it's a genuine new per-org, per-month input, not a
+// renaming of anything. Small, additive, no FK (same bare-text-id
+// convention as crmOpportunities.accountId above) -- does not touch
+// crm_leads/crm_opportunities.
+export const crmSalesTargets = complianceSchemaDB.table('crm_sales_targets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  month: date('month', { mode: 'string' }).notNull(), // first-of-month, e.g. '2026-01-01'
+  targetValue: numeric('target_value').notNull(),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // ─── VERIDIAN CRM Accounts & Contacts (Review Framework Wave B, 2026-07-17) ─
 // Real gap confirmed via a fresh grep of src/ immediately before this wave:
 // crm_leads/crm_opportunities (Wave 41) never had a persistent company-level

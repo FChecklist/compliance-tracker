@@ -902,6 +902,18 @@ exemptions:
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/app/(app)/crm/sales-pipeline/page.tsx
+    reason: "Sales Pipeline Interactive Dashboard task (2026-07-27): real dated comment documenting when this feature was built, same class as every other changelog/gap-closure-date comment in this file."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/sales-pipeline-dashboard-service.ts
+    reason: "Sales Pipeline Interactive Dashboard task (2026-07-27): real dated comment documenting when this service was built."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/sales-pipeline-dashboard-service.test.ts
+    reason: "Sales Pipeline Interactive Dashboard task (2026-07-27): 1 real dated changelog comment plus 6 seeded test-fixture expectedCloseDate literals proving multi-month KPI/trend aggregation -- same *.test.ts fixture-directory carve-out as the rest of this exemption file (Phase 2's own 'explicitly out of scope' classification for src/db/seed.ts + *.test.ts), not human example/sample data needing a variable-dictionary placeholder."
+    findings_by_category:
+      hardcoded_iso_date: 7
   - file: src/lib/services/sales-engine-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
