@@ -17,6 +17,101 @@
 - [ ] `get_advisors(security)` via Supabase MCP -- not run this pass (no live Supabase project connected in this session; the MCP server requires interactive OAuth authorization this non-interactive session cannot complete). RLS+FORCE+policies were hand-written to mirror `drizzle/0050`'s already-audited pattern exactly, but the SUCCESS_CRITERIA's explicit zero-new-findings check itself is unverified -- flag for the merging session/owner to run before/at merge.
 - [ ] Push commits, open the PR, and get the mandatory independent audit-verdict comment (AGENTS.md Rule 6/7(c)/10) -- this session must not self-merge.
 - [ ] Optional follow-up (not required by this task's SUCCESS_CRITERIA, noted honestly): no UI screens were built for any of the 4 features (API + service + schema only, matching this task's own SCOPE wording) -- a real, separate future gap if the Owner wants employee-facing UI for these before the next HR wave.
+# PROGRESS -- task-20260727-101123-erp-project-management-gaps--timesheet-t
+
+## Completed
+- [x] Gap 1 -- PMS timesheet -> client invoice: `src/lib/services/pms-invoice-service.ts`
+  (`generateInvoiceFromUnbilledProjectTime`), modeled on
+  `firm-billing-service.ts`'s `generateInvoiceFromUnbilledTime()`. Reuses the
+  existing `erp_sales_invoices`/`erp_sales_invoice_items` schema/service --
+  no new invoice table. Added 3 additive columns to `pms_time_entries`
+  (`billable`, `hourlyRateSnapshot`, `invoiceItemId`) mirroring
+  `firm_time_entries`'s existing trio, migration
+  `drizzle/0264_pms_timesheet_invoice_link.sql` (hand-authored -- see note
+  below on why `drizzle-kit generate` wasn't used). `requireAuth()`-gated
+  route: `POST /api/pms/invoices/generate`. Pure-function unit tests:
+  `pms-time-service.test.ts` (rate resolution), `pms-invoice-service.test.ts`
+  (line-building, rounding, missing-rate error, org-default fallback).
+- [x] Gap 2 -- Gantt/critical-path UI: **already existed, no changes made.**
+  Confirmed `getGanttData()` (`schedule-service.ts`) already returns
+  `isCritical`/`floatDays` per task via `calculateCriticalPath()` -- did NOT
+  extend it. Confirmed PROJEXA (`FChecklist/projexa`) already has a real,
+  merged Gantt UI consuming `GET /api/v1/projexa/schedule/gantt`:
+  `src/components/ScheduleGanttClient.tsx` + `src/app/(app)/schedule/page.tsx`
+  (Timeline tab), proxied via `src/app/api/schedule/gantt/route.ts`, merged
+  2026-07-09 as commit `e1572a4` on `origin/main` -- shows critical path as a
+  grid column (isCritical/floatDays), a stats bar, and Capture Baseline.
+  The task SPEC's KNOWN_CONTEXT claim of "zero .tsx Gantt matches" was based
+  on grepping compliance-tracker itself, which has no UI at all (correct,
+  but not the relevant repo) -- the real UI lives in the separate PROJEXA
+  repo and was already shipped 18 days before this task's Phase 0
+  investigation. No PROJEXA PR opened -- there is nothing to change.
+- [x] Gap 3 -- Resource-allocation conflict/over-allocation detection:
+  `detectResourceConflicts()`/`getResourceConflicts()` added to
+  `schedule-service.ts`. Existing `getWorkload()` was scoped to a SINGLE
+  project only -- the real, previously-undetected gap is a user who looks
+  fine in every individual project's workload view while being double-/
+  triple-booked once their allocations across ALL of an org's projects are
+  summed for the same day. New pure function sums `allocatedHoursPerDay`
+  per user per calendar day across every project passed in. Wired to:
+  - `GET /api/pms/schedule/resource-conflicts` (compliance-tracker,
+    `requireAuthOrApiKey`, which calls `requireAuth()` internally --
+    same convention as every other route in `/api/pms/schedule/*`)
+  - `GET /api/v1/projexa/schedule/resource-conflicts` (PROJEXA-facing v1
+    surface, same convention as sibling `gantt`/`workload` routes)
+  - `POST /api/pms/schedule/resource-allocations` and
+    `POST /api/v1/projexa/schedule/workload` now both return a `conflicts`
+    array in their response immediately after creating an allocation.
+  Unit tests: `schedule-service.test.ts` -- deliberately-constructed
+  overlapping over-allocation (flagged, correct total + project attribution,
+  correct date-range boundary), non-overlapping legitimate case (not
+  flagged), two-under-capacity-users case (not flagged), exactly-at-capacity
+  boundary (not flagged, only strictly over), custom capacity override.
+
+- `bunx tsc --noEmit` clean (0 errors) across the whole compliance-tracker
+  repo -- confirmed via `NODE_OPTIONS="--max-old-space-size=8192"` (default
+  heap OOMs on this repo's size in this sandbox; that's a sandbox-memory
+  fact, not a code issue).
+- `bun test` on all new/touched service test files: 17 pass / 0 fail.
+- Migration numbering: `drizzle-kit generate` produced a full-schema dump
+  (not an incremental diff) because this repo's `drizzle/meta/` only keeps
+  a `0000_snapshot.json` baseline -- migrations 0001-0263 are hand-authored
+  SQL with journal entries only, no per-migration snapshot. Followed that
+  established convention: hand-wrote `drizzle/0264_pms_timesheet_invoice_link.sql`
+  (ALTER TABLE + forward-referenced FK + index, same shape as
+  `drizzle/0086`'s `firm_time_entries.invoice_line_item_id`), manually
+  appended `drizzle/meta/_journal.json`. `node scripts/check-migration-collision.mjs`
+  passes. **Not applied live** -- left for the supervising session/owner,
+  same convention drizzle/0262 and drizzle/0263 already used for untested
+  migrations in this repo.
+
+## Remaining
+- [ ] Real live-DB verification of the migration + invoice generation flow
+  (this session only has pure-function unit coverage, per this repo's own
+  "no live DB in .test.ts" convention -- confirmed via
+  `erp-payment-entries-service.test.ts`'s own header note).
+- [ ] Open the compliance-tracker PR (branch already pushed) and get the
+  independent (non-self) audit comment per AGENTS.md Rule 7(c)/Rule 10.
+- [ ] No PROJEXA PR needed (see Gap 2 above) -- confirm with owner this is
+  understood as "nothing to build," not "skipped."
+# PROGRESS -- task-20260727-093117-fix-dependabot-alert34-sharp-cve
+
+## Completed
+- [x] Read AGENTS.md / CLAUDE.md / ACTIVE-CLAIMS.yaml, confirmed no conflicting claim for sharp/alert-34
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (committed+pushed separately)
+- [x] Created branch `fix/dependabot-alert-34-sharp-cve` off main
+- [x] Bumped `sharp` `^0.34.3` -> `^0.35.3` in package.json
+- [x] Ran `bun install` to update bun.lock; confirmed diff is scoped to sharp + `@img/sharp-*` + `@img/colour` transitive tree only (no unrelated drift). Reverted an unrelated `bun run db:generate` migration artifact that got generated as a side effect of exercising `db:generate` (pre-existing schema drift, out of scope).
+- [x] Grepped codebase for direct `sharp(` / `from "sharp"` usages -- none found in src/ or scripts/; it's consumed only via version pinning (Next.js image optimization / OCR dep chain), no app code changes needed.
+- [x] `bun run lint` -- 0 errors, 3 pre-existing warnings unrelated to sharp (exit 0)
+- [x] `bunx tsc --noEmit` (with NODE_OPTIONS=--max-old-space-size=6144; default heap OOMs in this environment regardless of branch, unrelated to this change) -- 0 errors (exit 0)
+
+## Remaining
+- [ ] `bun run build` (running in background, environment-large repo takes >10min)
+- [ ] `bun test` with placeholder DATABASE_URL/APP_RUNTIME_DATABASE_URL (matching CI's own env, running in background)
+- [ ] Commit sharp bump + lockfile, push branch
+- [ ] Open PR against main referencing alert #34 / GHSA-f88m-g3jw-g9cj
+- [ ] Move claim to recently_completed in ACTIVE-CLAIMS.yaml
 # PROGRESS -- task-20260727-101134-erp-helpdesk-gaps--tiered-sla---team-rou
 
 Owner directive DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE,
