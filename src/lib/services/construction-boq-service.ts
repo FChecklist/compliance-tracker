@@ -20,6 +20,14 @@ export type BoqContext = { orgId: string; userId: string }
 export type BoqLineItemInput = {
   activityId?: string
   itemCode?: string
+  // Hierarchical BoQ breakdown (Owner directive, PROJEXA_ERP_END_TO_END_
+  // REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION, 2026-07-27): when set,
+  // must reference another item's itemCode within this SAME submission
+  // (createBoq/createBoqRevision insert all lineItems together, so parents
+  // are always resolvable within one call -- no cross-BoQ parent refs).
+  // breakdownPercentage is required whenever parentItemCode is set.
+  parentItemCode?: string
+  breakdownPercentage?: number
   description: string
   unit: string
   quantity: number
@@ -41,8 +49,36 @@ export type BoqInput = {
   lineItems: BoqLineItemInput[]
 }
 
-function withAmount(item: BoqLineItemInput) {
-  return { ...item, amount: item.quantity * item.rate }
+/**
+ * Sub-Task Amount = Main QTY * Main RATE * Breakdown % -- the Owner's exact
+ * formula. "Main" is the ROOT ancestor of the parentItemCode chain (found by
+ * walking parentItemCode links until one has none), not necessarily the
+ * immediate parent -- so a 3-level BoQ (Main -> Sub -> Sub-sub) still prices
+ * every descendant off the same top-level quantity/rate. Pure, no DB access
+ * -- independently unit-testable, matching this repo's convention (see
+ * firm-billing-service.ts's resolveBillableRate).
+ */
+export function computeHierarchicalAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): number {
+  if (!item.parentItemCode) return item.quantity * item.rate
+
+  const seen = new Set<string>()
+  let current = item
+  while (current.parentItemCode) {
+    if (current.itemCode) {
+      if (seen.has(current.itemCode)) throw new ServiceError(`Circular parentItemCode reference detected at "${current.itemCode}"`, 400)
+      seen.add(current.itemCode)
+    }
+    const parent = byItemCode.get(current.parentItemCode)
+    if (!parent) throw new ServiceError(`parentItemCode "${current.parentItemCode}" does not match any itemCode in this submission`, 400)
+    current = parent
+  }
+
+  if (item.breakdownPercentage == null) throw new ServiceError(`breakdownPercentage is required for line item "${item.description}" (has a parentItemCode)`, 400)
+  return current.quantity * current.rate * (item.breakdownPercentage / 100)
+}
+
+function withAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>) {
+  return { ...item, amount: computeHierarchicalAmount(item, byItemCode) }
 }
 
 /** material+labour+equipment costs, then +overhead%, then +profit% -- the standard construction rate-buildup order. Returns null when no cost-component fields are set (a plain BOQ line item with just a quoted rate). */
@@ -54,25 +90,53 @@ function computedRate(item: { materialCost: string | null; labourCost: string | 
   return withProfit
 }
 
+/**
+ * Inserts items in parent-before-child order so parentLineItemId can be set
+ * to a real DB id (not just the input's own itemCode) -- items are grouped
+ * into "resolvable now" batches: first everything with no parentItemCode,
+ * then everything whose parent was resolved in a prior batch, and so on.
+ * Detects both an unresolvable parentItemCode and a circular chain the same
+ * way computeHierarchicalAmount does, so the error surfaces before any rows
+ * are written rather than partway through.
+ */
 async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
-  await db.insert(constructionBoqLineItems).values(
-    items.map((item) => ({
-      boqId,
-      activityId: item.activityId || null,
-      itemCode: item.itemCode || null,
-      description: item.description,
-      unit: item.unit,
-      quantity: String(item.quantity),
-      rate: String(item.rate),
-      amount: String(withAmount(item).amount),
-      materialCost: item.materialCost !== undefined ? String(item.materialCost) : null,
-      labourCost: item.labourCost !== undefined ? String(item.labourCost) : null,
-      equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
-      overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
-      profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
-    }))
-  )
+  const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
+
+  const idByItemCode = new Map<string, string>()
+  let remaining = items
+  while (remaining.length > 0) {
+    const [ready, notReady] = [
+      remaining.filter((i) => !i.parentItemCode || idByItemCode.has(i.parentItemCode)),
+      remaining.filter((i) => i.parentItemCode && !idByItemCode.has(i.parentItemCode)),
+    ]
+    if (ready.length === 0) {
+      throw new ServiceError(`Unresolvable parentItemCode reference(s) among: ${notReady.map((i) => i.itemCode || i.description).join(", ")}`, 400)
+    }
+
+    const inserted = await db.insert(constructionBoqLineItems).values(
+      ready.map((item) => ({
+        boqId,
+        activityId: item.activityId || null,
+        itemCode: item.itemCode || null,
+        parentLineItemId: item.parentItemCode ? idByItemCode.get(item.parentItemCode)! : null,
+        breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
+        description: item.description,
+        unit: item.unit,
+        quantity: String(item.quantity),
+        rate: String(item.rate),
+        amount: String(withAmount(item, byItemCode).amount),
+        materialCost: item.materialCost !== undefined ? String(item.materialCost) : null,
+        labourCost: item.labourCost !== undefined ? String(item.labourCost) : null,
+        equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
+        overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
+        profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
+      }))
+    ).returning({ id: constructionBoqLineItems.id, itemCode: constructionBoqLineItems.itemCode })
+
+    for (const row of inserted) if (row.itemCode) idByItemCode.set(row.itemCode, row.id)
+    remaining = notReady
+  }
 }
 
 function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
@@ -138,15 +202,59 @@ export async function createBoqRevision(ctx: BoqContext, parentBoqId: string, in
   })
 }
 
+export type BoqLineItemRow = typeof constructionBoqLineItems.$inferSelect
+
+export type ChangedLineItem = {
+  key: string
+  previous: BoqLineItemRow
+  current: BoqLineItemRow
+  quantityChange: number
+  rateChange: number
+  breakdownPercentageChange: number
+  netVariation: number
+  isSubItem: boolean
+}
+
 export type BoqComparison = {
-  added: (typeof constructionBoqLineItems.$inferSelect)[]
-  removed: (typeof constructionBoqLineItems.$inferSelect)[]
-  changed: { key: string; previous: typeof constructionBoqLineItems.$inferSelect; current: typeof constructionBoqLineItems.$inferSelect; quantityChange: number; rateChange: number; netVariation: number }[]
+  added: BoqLineItemRow[]
+  removed: BoqLineItemRow[]
+  changed: ChangedLineItem[]
   warnings: string[]
 }
 
-function lineItemKey(item: typeof constructionBoqLineItems.$inferSelect) {
+function lineItemKey(item: BoqLineItemRow) {
   return item.itemCode || item.description
+}
+
+/**
+ * Pure diff between two revisions' line items, no DB access -- independently
+ * unit-testable (matching this repo's convention, e.g. esignature-service.ts's
+ * extracted transition helpers). Hierarchy-aware: `changed` also flags a
+ * breakdownPercentage-only edit (qty/rate unchanged but a sub-task's slice of
+ * the main item moved), and `isSubItem` lets a caller distinguish a main-item
+ * change from a sub-task change without a second lookup.
+ */
+export function diffLineItems(previousItems: BoqLineItemRow[], currentItems: BoqLineItemRow[]): { added: BoqLineItemRow[]; removed: BoqLineItemRow[]; changed: ChangedLineItem[] } {
+  const previousByKey = new Map(previousItems.map((i) => [lineItemKey(i), i]))
+  const currentByKey = new Map(currentItems.map((i) => [lineItemKey(i), i]))
+
+  const added = currentItems.filter((i) => !previousByKey.has(lineItemKey(i)))
+  const removed = previousItems.filter((i) => !currentByKey.has(lineItemKey(i)))
+  const changed: ChangedLineItem[] = []
+
+  for (const [key, curr] of currentByKey) {
+    const prev = previousByKey.get(key)
+    if (!prev) continue
+    const quantityChange = Number(curr.quantity) - Number(prev.quantity)
+    const rateChange = Number(curr.rate) - Number(prev.rate)
+    const breakdownPercentageChange = Number(curr.breakdownPercentage ?? 0) - Number(prev.breakdownPercentage ?? 0)
+    if (quantityChange !== 0 || rateChange !== 0 || breakdownPercentageChange !== 0) {
+      const netVariation = Number(curr.amount) - Number(prev.amount)
+      changed.push({ key, previous: prev, current: curr, quantityChange, rateChange, breakdownPercentageChange, netVariation, isSubItem: curr.parentLineItemId !== null })
+    }
+  }
+
+  return { added, removed, changed }
 }
 
 /** Compares `boqId` against its immediate parent revision. Diff key is itemCode when present, else description. */
@@ -159,31 +267,17 @@ export async function compareBoq(ctx: { orgId: string }, boqId: string): Promise
     const currentItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, current.id) })
     const previousItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, current.parentBoqId) })
 
-    const previousByKey = new Map(previousItems.map((i) => [lineItemKey(i), i]))
-    const currentByKey = new Map(currentItems.map((i) => [lineItemKey(i), i]))
-
-    const added = currentItems.filter((i) => !previousByKey.has(lineItemKey(i)))
-    const removed = previousItems.filter((i) => !currentByKey.has(lineItemKey(i)))
-    const changed: BoqComparison["changed"] = []
+    const { added, removed, changed } = diffLineItems(previousItems, currentItems)
     const warnings: string[] = []
 
-    for (const [key, curr] of currentByKey) {
-      const prev = previousByKey.get(key)
-      if (!prev) continue
-      const quantityChange = Number(curr.quantity) - Number(prev.quantity)
-      const rateChange = Number(curr.rate) - Number(prev.rate)
-      if (quantityChange !== 0 || rateChange !== 0) {
-        const netVariation = Number(curr.amount) - Number(prev.amount)
-        changed.push({ key, previous: prev, current: curr, quantityChange, rateChange, netVariation })
-
-        if (curr.activityId) {
-          const latestProgress = await db.query.constructionWorkProgressEntries.findFirst({
-            where: and(eq(constructionWorkProgressEntries.activityId, curr.activityId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
-            orderBy: (t, { desc }) => desc(t.entryDate),
-          })
-          if (latestProgress && latestProgress.percentComplete > 0) {
-            warnings.push(`"${curr.description}" is already ${latestProgress.percentComplete}% complete on site -- this revision changes its scope.`)
-          }
+    for (const change of changed) {
+      if (change.current.activityId) {
+        const latestProgress = await db.query.constructionWorkProgressEntries.findFirst({
+          where: and(eq(constructionWorkProgressEntries.activityId, change.current.activityId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
+          orderBy: (t, { desc }) => desc(t.entryDate),
+        })
+        if (latestProgress && latestProgress.percentComplete > 0) {
+          warnings.push(`"${change.current.description}" is already ${latestProgress.percentComplete}% complete on site -- this revision changes its scope.`)
         }
       }
     }

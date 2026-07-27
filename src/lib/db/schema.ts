@@ -9567,6 +9567,16 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   quantity: numeric('quantity').notNull().default('0'),
   rate: numeric('rate').notNull().default('0'),
   amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (not a DB generated column, matching this codebase's convention elsewhere)
+  // Hierarchical BoQ breakdown (Owner directive, PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
+  // 2026-07-27): self-FK to another row in the SAME boqId, matching the
+  // constructionCategories.parentCategoryId precedent above. When set,
+  // `amount` above is computed by construction-boq-service.ts as
+  // `Sub-Task Amount = Main QTY * Main RATE * Breakdown %` -- "Main" is the
+  // ROOT ancestor of the parent chain (not necessarily the immediate
+  // parent), per the Owner's exact formula wording. breakdownPercentage is
+  // required when parentLineItemId is set, ignored (null) otherwise.
+  parentLineItemId: text('parent_line_item_id'),
+  breakdownPercentage: numeric('breakdown_percentage'),
   // Wave 125 (OpenConstructionERP-style rate analysis/cost buildup, studied
   // the concept only -- OpenConstructionERP is AGPL-3.0, no code copied):
   // all nullable, so plain BOQ line items (no rate breakdown) keep working
@@ -9621,6 +9631,40 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Interim/RA (Running Account) billing against a BoQ's work-progress %
+// (Owner directive, PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
+// 2026-07-27). One row per bill run; construction-valuation-service.ts
+// computes grossAmount/retentionAmount/netPayable from
+// constructionWorkProgressEntries and emits netPayable (minus retention) as
+// a real erp_sales_invoices row via erp-invoicing-service.ts's
+// createSalesInvoice -- salesInvoiceId is set once that invoice is created,
+// matching firm_invoices' own "no parallel invoice table" discipline.
+export const constructionInterimBills = complianceSchemaDB.table('construction_interim_bills', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  boqId: text('boq_id').notNull(),
+  billNumber: integer('bill_number').notNull(), // per-project sequence, same convention as erpSalesInvoices.invoiceNumber
+  billDate: date('bill_date', { mode: 'string' }).notNull(),
+  retentionPercent: numeric('retention_percent').notNull().default('0'), // configurable per bill -- real contracts renegotiate retention % over a project's life
+  grossAmount: numeric('gross_amount').notNull().default('0'),
+  retentionAmount: numeric('retention_amount').notNull().default('0'),
+  netPayable: numeric('net_payable').notNull().default('0'),
+  salesInvoiceId: text('sales_invoice_id'), // set once the erp_sales_invoices row is created in the same call
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionInterimBillLineItems = complianceSchemaDB.table('construction_interim_bill_line_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  interimBillId: text('interim_bill_id').notNull(),
+  boqLineItemId: text('boq_line_item_id').notNull(),
+  cumulativePercentComplete: integer('cumulative_percent_complete').notNull().default(0),
+  cumulativeAmount: numeric('cumulative_amount').notNull().default('0'), // lineItem.amount * cumulativePercentComplete / 100, as of this bill
+  previousBilledAmount: numeric('previous_billed_amount').notNull().default('0'), // sum of currentBillAmount across all earlier interim bills for this line item
+  currentBillAmount: numeric('current_bill_amount').notNull().default('0'), // cumulativeAmount - previousBilledAmount, floored at 0
+})
+
 // One row per project per day. Unique(projectId, diaryDate) enforced in the
 // migration SQL -- this table's Drizzle definition doesn't model composite
 // constraints, matching this codebase's convention of keeping RLS and
@@ -9648,6 +9692,15 @@ export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) 
 
 export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one }) => ({
   boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
+}))
+
+export const constructionInterimBillsRelations = relations(constructionInterimBills, ({ many }) => ({
+  lineItems: many(constructionInterimBillLineItems),
+}))
+
+export const constructionInterimBillLineItemsRelations = relations(constructionInterimBillLineItems, ({ one }) => ({
+  interimBill: one(constructionInterimBills, { fields: [constructionInterimBillLineItems.interimBillId], references: [constructionInterimBills.id] }),
+  boqLineItem: one(constructionBoqLineItems, { fields: [constructionInterimBillLineItems.boqLineItemId], references: [constructionBoqLineItems.id] }),
 }))
 
 export const constructionCategoriesRelations = relations(constructionCategories, ({ many }) => ({
