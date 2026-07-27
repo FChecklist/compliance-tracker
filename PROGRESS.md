@@ -48,6 +48,9 @@
       all in this task). Did not touch Customer/Vendor chain-selector code paths beyond adding
       the regression test specified by the task spec.
 
+- [x] Committed, pushed, opened PR #607 against main:
+      https://github.com/FChecklist/compliance-tracker/pull/607. Not merged (requires fresh
+      supervisor audit first, per task spec / Rule 6).
+
 ## Remaining
-- [ ] Commit + push branch, open PR against main per EXPECTED_OUTPUT. Do NOT merge (requires
-      fresh supervisor audit first, per task spec).
+- [ ] Fresh supervisor audit of PR #607, then merge (not by this session).
