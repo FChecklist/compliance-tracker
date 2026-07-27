@@ -1,3 +1,24 @@
+# PROGRESS -- task-20260727-094843-architecture-phase-8-increment-1--dspy-e
+
+## Completed
+- [x] Read governance docs, registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (pushed standalone before real work)
+- [x] Confirmed `python3 scripts/superboss-register.py query-knowledge "veridian_v2_dspy_learning" --tag domain:veridian_architecture_v2` returns found=0 (live, before starting)
+- [x] Investigated real state: `src/lib/prompt-compiler/` (phase_2, deterministic/zero-LLM by explicit Owner directive), `services/doc-processing/` (real Python surface, confirmed OCR/PDF/whisper only -- zero prompt-compilation logic), `src/lib/services/capability-learning-service.ts` (re-verified real and current, 295 lines, 10 live callers)
+- [x] engine-dspy-integration: confirmed `dspy` pip-installs cleanly (dry-run) alongside doc-processing's pinned `numpy==1.26.4`/`PyMuPDF==1.20.2`, no conflict -- installability is real
+- [x] engine-dspy-integration: made a real, justified **reject** decision -- `ai-os/VERIDIAN_V2_DSPY_TECH_DECISION_2026-07-27.md` (every real candidate integration point either contradicts the Owner's existing 2026-07-25 "no second AI pass" directive on phase_2's pipeline, or requires a fresh Python deployment this task explicitly forbids)
+- [x] Success-criteria before/after command satisfied via the justified alternative (phase_2's own existing compiler, no new engine built): `bun run scripts/prompt-compiler-smoke-test.ts` -- real sample prompt, 22->9 estimated tokens (-59.1%), exit 0
+- [x] engine-ai-learning: re-verified the phase plan's own gap analysis (`ai-os/VERIDIAN_ARCHITECTURE_V2_GAP_ANALYSIS_2026-07-25.yaml:807-815`, claude-control) -- its verdict is "not_implemented / no functional match" against the existing business-task learning loop, which is a DIFFERENT concern (task-execution routing) from the real requirement ("learn from unknown prompts through autonomous exploration/evaluation/registration"). Wired a genuine, minimal extension rather than duplicating: `shouldExploreAsUnknownPrompt()` (pure, unit-tested evaluate step) + `exploreUnknownPrompt()` (DB-touching, reuses `findOrCreateCapability`/`extendPromptWordIndex`) added to `src/lib/services/capability-learning-service.ts`, wired into the real live caller `src/app/api/prompt-compiler/execute/route.ts` (fires when Layer 4 found no template match AND Layer 5 confidence is low). 4 new unit tests, all pass (27/27 total in that test file). `bunx tsc --noEmit` clean on touched files.
+
+- [x] Scope-only pass (schema/table design + build estimate, NOT implementation) for the 5 zero-prior-art engines: `ai-os/VERIDIAN_V2_PROMPT_LIFECYCLE_ENGINES_SCOPING_2026-07-27.md` (claude-control) -- real schema per engine, ~17-19.5 build-days total, no migration/service/route code written (explicit hard boundary honored)
+- [x] Registered each of the 5 as a planned (status: planned, not built) entry under `MASTER_INDEX.yaml`'s new `veridian_v2_dspy_learning_distribution_engines` registries entry (claude-control)
+- [x] `python3 scripts/superboss-register.py register-knowledge` for `veridian_v2_dspy_learning` -- `query-knowledge "veridian_v2_dspy_learning" --tag domain:veridian_architecture_v2` now returns found=1 (artifact_id `KE-20260727-100048-b8fe`)
+- [x] Opened compliance-tracker PR #589 (DSPy decision doc + engine-ai-learning code changes) -- subject to AGENTS.md Rule 6/7(c), awaiting CI + `AUDIT: PASS`/`AUDIT: FAIL` comment before merge
+- [x] Opened claude-control PR #113 (phase_8 MASTER_INDEX.yaml registration + 5-engine scoping doc), matching PR #112 precedent
+
+## Remaining
+- [ ] compliance-tracker PR #589 and claude-control PR #113 need CI green + (for #589) the mandatory audit comment before merge -- out of this session's hands once opened
+- [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:` once both PRs merge (left `active:` for now since neither has merged yet)
+- [ ] Full phase_8 remains open beyond this increment: the phase plan's own `status` field is intentionally left at `not_started` (matching phase_5's own increment-1 precedent of not fabricating an interim status value) -- a future increment should build the 5 scoped-but-unbuilt engines and re-evaluate whether to close out phase_8's `status` field
 # PROGRESS -- task-20260727-094516-architecture-phase-5-increment-2--webllm
 
 phase_5_browser_execution_tiers increment 2 of N (claude-control repo's
