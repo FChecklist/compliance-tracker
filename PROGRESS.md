@@ -1,3 +1,99 @@
+# PROGRESS -- task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan
+
+## Completed
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting (no conflicting active claims found).
+- [x] Fixed the stale `hr-service.ts:1-6` "Payroll deliberately out of scope" comment (was already wrong -- `erp-payroll-service.ts` is a real, live payroll engine).
+- [x] **Gap 1: Employee expense claims/reimbursement.** New `hrExpenseClaims` table (schema.ts), `hr-expense-service.ts` (create/list/decide), `src/app/api/hr/expenses/route.ts` + `[id]/route.ts`. Payroll integration decision: an approved-but-unpaid claim is picked up by `processPayrollRun()` as a real payslip **earning** line (not a separate payment record) -- reuses the existing payslip/net-pay machinery, documented in schema.ts's own comment.
+- [x] **Gap 2: Employee loans/salary advances.** New `hrEmployeeLoans` + `hrLoanInstallments` tables, `hr-loan-service.ts` (request/approve-generates-full-schedule/reject), `src/app/api/hr/loans/route.ts` + `[id]/route.ts` + `[id]/installments/route.ts`. Payroll integration: `processPayrollRun()` deducts the earliest still-pending installment on every processed run (one per run, in installment-number order -- documented simplification, does not match calendar dueMonth/dueYear against the run's own month/year), decrements `outstandingBalance`, closes the loan at 0.
+- [x] **Gap 3: KRA/weighted-goal + multi-rater (360) appraisal.** Extended (not replaced) `performanceReviews`/`performance-service.ts`: new `performanceReviewGoals` (per-goal weight+rating, `computeWeightedScore` pure helper enforces weights sum to 100), new `performanceReviewRaters` (peer/subordinate/other, additive to the existing self+manager pair), new nullable `performanceReviews.weightedScore` column (computed on submit only if goals exist -- zero-goal reviews unchanged). Routes: `.../reviews/[id]/goals/route.ts` + `[goalId]/route.ts`, `.../reviews/[id]/raters/route.ts` + `[raterId]/route.ts`.
+- [x] **Gap 4: Shift management/roster.** New `hrShiftTypes` + `hrShiftRosterAssignments` tables, `hr-shift-service.ts` (`resolveShiftForDate` pure helper + CRUD), new nullable `hrAttendanceRecords.shiftTypeId` column -- `checkIn`/`markAttendance` in `hr-attendance-service.ts` now snapshot the resolved expected shift at write time. Routes: `src/app/api/hr/shifts/route.ts` + `roster/route.ts`.
+- [x] Drizzle migration `drizzle/0264_hr_gap_closure_expense_loan_appraisal_shift.sql` (all 7 new tables + 2 additive columns, org-scoped RLS+FORCE+policies+grants+indexes, matching drizzle/0050's own pattern) + `drizzle/meta/_journal.json` entry.
+- [x] `ai-os/registry/asset-registry-coverage.yaml`: all 7 new tables given an explicit `exempted` decision with a real per-table reason (sensitive per-employee financial/performance data, or a ledger/log record with no genuine display-name column -- same classes as the already-exempted `performance_reviews`/`hr_attendance_records`/`crm_stage_history`).
+- [x] `ai-os/registry/terminology-guardrail-exemptions.yaml`: 8 new files given real per-file exemption entries (dated changelog-comment + test-fixture-date-literal false positives, same class Phase 2 already established for this directory).
+- [x] Tests: `hr-loan-service.test.ts`, `hr-shift-service.test.ts`, `hr-expense-service.test.ts`, `erp-payroll-service.test.ts` (proves a processed payroll run reflects both the loan deduction and the expense reimbursement, per this task's own SUCCESS_CRITERIA), `performance-service.test.ts` -- all pure-function tests (no live DB in `.test.ts`, matching this repo's established convention).
+- [x] Verification: `bun test` -- 2073 pass / 0 fail (full suite, no regressions) + 63 pass / 0 fail (new + touched files run standalone). `bunx tsc --noEmit` -- 0 errors, full repo. `check-asset-registry-coverage.mjs`, `check-terminology-guardrail.mjs --diff-only`, `check-guardrail-presence.mjs` -- all pass.
+
+## Remaining
+- [ ] `get_advisors(security)` via Supabase MCP -- not run this pass (no live Supabase project connected in this session; the MCP server requires interactive OAuth authorization this non-interactive session cannot complete). RLS+FORCE+policies were hand-written to mirror `drizzle/0050`'s already-audited pattern exactly, but the SUCCESS_CRITERIA's explicit zero-new-findings check itself is unverified -- flag for the merging session/owner to run before/at merge.
+- [ ] Push commits, open the PR, and get the mandatory independent audit-verdict comment (AGENTS.md Rule 6/7(c)/10) -- this session must not self-merge.
+- [ ] Optional follow-up (not required by this task's SUCCESS_CRITERIA, noted honestly): no UI screens were built for any of the 4 features (API + service + schema only, matching this task's own SCOPE wording) -- a real, separate future gap if the Owner wants employee-facing UI for these before the next HR wave.
+# PROGRESS -- task-20260727-101123-erp-project-management-gaps--timesheet-t
+
+## Completed
+- [x] Gap 1 -- PMS timesheet -> client invoice: `src/lib/services/pms-invoice-service.ts`
+  (`generateInvoiceFromUnbilledProjectTime`), modeled on
+  `firm-billing-service.ts`'s `generateInvoiceFromUnbilledTime()`. Reuses the
+  existing `erp_sales_invoices`/`erp_sales_invoice_items` schema/service --
+  no new invoice table. Added 3 additive columns to `pms_time_entries`
+  (`billable`, `hourlyRateSnapshot`, `invoiceItemId`) mirroring
+  `firm_time_entries`'s existing trio, migration
+  `drizzle/0264_pms_timesheet_invoice_link.sql` (hand-authored -- see note
+  below on why `drizzle-kit generate` wasn't used). `requireAuth()`-gated
+  route: `POST /api/pms/invoices/generate`. Pure-function unit tests:
+  `pms-time-service.test.ts` (rate resolution), `pms-invoice-service.test.ts`
+  (line-building, rounding, missing-rate error, org-default fallback).
+- [x] Gap 2 -- Gantt/critical-path UI: **already existed, no changes made.**
+  Confirmed `getGanttData()` (`schedule-service.ts`) already returns
+  `isCritical`/`floatDays` per task via `calculateCriticalPath()` -- did NOT
+  extend it. Confirmed PROJEXA (`FChecklist/projexa`) already has a real,
+  merged Gantt UI consuming `GET /api/v1/projexa/schedule/gantt`:
+  `src/components/ScheduleGanttClient.tsx` + `src/app/(app)/schedule/page.tsx`
+  (Timeline tab), proxied via `src/app/api/schedule/gantt/route.ts`, merged
+  2026-07-09 as commit `e1572a4` on `origin/main` -- shows critical path as a
+  grid column (isCritical/floatDays), a stats bar, and Capture Baseline.
+  The task SPEC's KNOWN_CONTEXT claim of "zero .tsx Gantt matches" was based
+  on grepping compliance-tracker itself, which has no UI at all (correct,
+  but not the relevant repo) -- the real UI lives in the separate PROJEXA
+  repo and was already shipped 18 days before this task's Phase 0
+  investigation. No PROJEXA PR opened -- there is nothing to change.
+- [x] Gap 3 -- Resource-allocation conflict/over-allocation detection:
+  `detectResourceConflicts()`/`getResourceConflicts()` added to
+  `schedule-service.ts`. Existing `getWorkload()` was scoped to a SINGLE
+  project only -- the real, previously-undetected gap is a user who looks
+  fine in every individual project's workload view while being double-/
+  triple-booked once their allocations across ALL of an org's projects are
+  summed for the same day. New pure function sums `allocatedHoursPerDay`
+  per user per calendar day across every project passed in. Wired to:
+  - `GET /api/pms/schedule/resource-conflicts` (compliance-tracker,
+    `requireAuthOrApiKey`, which calls `requireAuth()` internally --
+    same convention as every other route in `/api/pms/schedule/*`)
+  - `GET /api/v1/projexa/schedule/resource-conflicts` (PROJEXA-facing v1
+    surface, same convention as sibling `gantt`/`workload` routes)
+  - `POST /api/pms/schedule/resource-allocations` and
+    `POST /api/v1/projexa/schedule/workload` now both return a `conflicts`
+    array in their response immediately after creating an allocation.
+  Unit tests: `schedule-service.test.ts` -- deliberately-constructed
+  overlapping over-allocation (flagged, correct total + project attribution,
+  correct date-range boundary), non-overlapping legitimate case (not
+  flagged), two-under-capacity-users case (not flagged), exactly-at-capacity
+  boundary (not flagged, only strictly over), custom capacity override.
+
+- `bunx tsc --noEmit` clean (0 errors) across the whole compliance-tracker
+  repo -- confirmed via `NODE_OPTIONS="--max-old-space-size=8192"` (default
+  heap OOMs on this repo's size in this sandbox; that's a sandbox-memory
+  fact, not a code issue).
+- `bun test` on all new/touched service test files: 17 pass / 0 fail.
+- Migration numbering: `drizzle-kit generate` produced a full-schema dump
+  (not an incremental diff) because this repo's `drizzle/meta/` only keeps
+  a `0000_snapshot.json` baseline -- migrations 0001-0263 are hand-authored
+  SQL with journal entries only, no per-migration snapshot. Followed that
+  established convention: hand-wrote `drizzle/0264_pms_timesheet_invoice_link.sql`
+  (ALTER TABLE + forward-referenced FK + index, same shape as
+  `drizzle/0086`'s `firm_time_entries.invoice_line_item_id`), manually
+  appended `drizzle/meta/_journal.json`. `node scripts/check-migration-collision.mjs`
+  passes. **Not applied live** -- left for the supervising session/owner,
+  same convention drizzle/0262 and drizzle/0263 already used for untested
+  migrations in this repo.
+
+## Remaining
+- [ ] Real live-DB verification of the migration + invoice generation flow
+  (this session only has pure-function unit coverage, per this repo's own
+  "no live DB in .test.ts" convention -- confirmed via
+  `erp-payment-entries-service.test.ts`'s own header note).
+- [ ] Open the compliance-tracker PR (branch already pushed) and get the
+  independent (non-self) audit comment per AGENTS.md Rule 7(c)/Rule 10.
+- [ ] No PROJEXA PR needed (see Gap 2 above) -- confirm with owner this is
+  understood as "nothing to build," not "skipped."
 # PROGRESS -- task-20260727-093117-fix-dependabot-alert34-sharp-cve
 
 ## Completed
