@@ -4198,6 +4198,16 @@ export const pmsTimeEntries = complianceSchemaDB.table('pms_time_entries', {
   comments: text('comments'),
   isRunning: boolean('is_running').notNull().default(false),
   startedAt: timestamp('started_at'),
+  // Gap closure (2026-07-27, DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE):
+  // mirrors firm_time_entries' billable/hourlyRateSnapshot/invoiceLineItemId
+  // trio -- the anti-double-billing mechanism pms-invoice-service.ts's
+  // generateInvoiceFromUnbilledProjectTime() relies on. invoiceItemId is
+  // nullable and points at erp_sales_invoice_items (FK added via ALTER
+  // TABLE in the migration, same forward-reference pattern as
+  // firm_time_entries.invoice_line_item_id).
+  billable: boolean('billable').notNull().default(true),
+  hourlyRateSnapshot: numeric('hourly_rate_snapshot'), // captured at billing time, not creation time
+  invoiceItemId: text('invoice_item_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

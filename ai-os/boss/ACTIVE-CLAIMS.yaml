@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-101123-erp-project-management-gaps--timesheet-t) -- ERP PM gap closure: PMS timesheet->invoice, Gantt/critical-path UI verification, resource-allocation conflict detection [PUSHED, PR pending]"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE Phase 0
+      gap closure, 3 narrow real gaps in compliance-tracker's existing
+      pms_* PM module (not a from-scratch PM build). File scope: new
+      src/lib/services/pms-invoice-service.ts (+ .test.ts),
+      src/lib/services/pms-time-service.ts (added resolvePmsBillableRatePure
+      export + .test.ts), src/lib/services/schedule-service.ts (added
+      detectResourceConflicts/getResourceConflicts + .test.ts),
+      src/app/api/pms/invoices/generate/route.ts,
+      src/app/api/pms/schedule/resource-conflicts/route.ts,
+      src/app/api/v1/projexa/schedule/resource-conflicts/route.ts, edits to
+      src/app/api/pms/schedule/resource-allocations/route.ts and
+      src/app/api/v1/projexa/schedule/workload/route.ts (added `conflicts`
+      to POST response), 3 new columns on pms_time_entries (schema.ts +
+      drizzle/0264_pms_timesheet_invoice_link.sql, hand-authored -- see
+      PROGRESS.md for why drizzle-kit generate wasn't usable in this repo's
+      current meta/ state).
+
+      Confirmed via direct code read (not re-derived): Gantt/critical-path
+      UI (this task's Gap 2) ALREADY EXISTS, merged 2026-07-09 (commit
+      e1572a4, FChecklist/projexa) -- ScheduleGanttClient.tsx already
+      consumes GET /api/v1/projexa/schedule/gantt and already shows
+      isCritical/floatDays as a grid column. No PROJEXA changes made, no
+      PROJEXA PR opened -- there was nothing to build. This task's own
+      SPEC KNOWN_CONTEXT's "zero .tsx Gantt matches" was from grepping the
+      wrong repo (compliance-tracker has no UI at all; the real UI is in
+      the separate PROJEXA repo).
+
+      Collision check before starting: grepped this file for "pms"/
+      "timesheet"/"gantt"/"resource-alloc"/"invoice" -- no active entry
+      touches this file/directory scope. `git pull origin main` run fresh
+      immediately before this entry.
+
   - session_label: "claude-code (task-20260726-043023-phase4-defense-in-depth-prompt-security) -- VERIDIAN_Architecture_v2.0 phase_4: Defense-in-Depth, Prompt Security, Red Team, Quality Engines + 4-layer security architecture"
     claimed_at: "2026-07-26T (this session)"
     claim: |
