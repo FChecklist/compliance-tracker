@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260727-193351-sales-pipeline-interactive-dashboard--co) -- Real interactive Sales Pipeline dashboard, CRM module"
+  - session_label: "claude-code (task-20260727-193351-sales-pipeline-interactive-dashboard--co) -- Real interactive Sales Pipeline dashboard, CRM module [PUSHED, PR #610 OPEN, awaiting supervisor audit]"
     claimed_at: "2026-07-27T (this session)"
     claim: |
       Owner-supplied mockup: 6 KPI tiles (Sales Value/Hold%/Lost%/Success%/
