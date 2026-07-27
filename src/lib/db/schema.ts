@@ -824,6 +824,21 @@ export const orgJoinCodeAttempts = complianceSchemaDB.table('org_join_code_attem
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Helpdesk gap-closure (Phase 0, 2026-07-27): rate-limit log for the new
+// public self-service portal's ticket-raise form
+// (public-portal-service.ts's submitPublicTicket), same shape/rationale
+// as org_join_code_attempts -- keyed by requester IP since an unresolved
+// org slug has no org to attribute the attempt to. This is the one
+// write-capable endpoint on that surface; the KB-browse reads are public
+// GETs with nothing to rate-limit.
+export const publicTicketSubmissionAttempts = complianceSchemaDB.table('public_ticket_submission_attempts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ipAddress: text('ip_address').notNull(),
+  orgId: text('org_id'),
+  wasSuccessful: boolean('was_successful').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // Priority 14 Wave 2 (GAP-AUTH-REBUILD): rate-limit log for POST
 // /api/auth/passcode-login, mirrors org_join_code_attempts' shape with one
 // real difference -- keyed by BOTH email and ipAddress, not ipAddress
@@ -4463,6 +4478,11 @@ export const knowledgeBasePages = complianceSchemaDB.table('knowledge_base_pages
   isArchived: boolean('is_archived').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Helpdesk gap-closure (Phase 0, 2026-07-27): every page defaulted to
+  // org-internal-only with no way to mark one for the new public
+  // self-service portal (public-portal-service.ts) -- default false keeps
+  // every existing page internal-only unless a staff member opts it in.
+  isPublished: boolean('is_published').notNull().default(false),
 })
 
 export const knowledgeBasePagesRelations = relations(knowledgeBasePages, ({ one }) => ({
@@ -5222,6 +5242,85 @@ export const tickets = complianceSchemaDB.table('tickets', {
   // Wave 81 (Customer Service enhancements, COMPARISON_CSV_GAP_ANALYSIS.md
   // backlog #2): nullable link to the installed product this ticket concerns.
   installedProductId: text('installed_product_id'),
+  // Helpdesk gap-closure (DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE
+  // Phase 0, 2026-07-27): team/queue routing + which SLA policy produced
+  // slaDeadline (nullable -- unset for tickets still using the legacy
+  // manual slaHours override, or with no matching policy). requesterEmail
+  // is for a requester with no users.id (e.g. email-to-ticket promotion or
+  // the public self-service form) -- requesterUserId stays the "internal
+  // user" case, this is the external-submitter case.
+  teamId: text('team_id'),
+  slaPolicyId: text('sla_policy_id'),
+  requesterEmail: text('requester_email'),
+})
+
+// ─── Tiered SLA policy + team routing (Helpdesk gap-closure,
+// DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE Phase 0,
+// 2026-07-27). Odoo's stock Helpdesk app supports per-team SLA policies
+// keyed by priority/stage plus escalation on breach; this codebase had
+// only a single ad-hoc tickets.slaDeadline timestamp computed from a
+// caller-supplied slaHours number (see ticket-service.ts's createTicket).
+// Adds real tiering without touching that legacy path: teams are a
+// routing target (a ticket's queue), policies match by team/priority/
+// category with an optional business-hours-aware countdown, and
+// escalation rules fire once each as SLA-elapsed thresholds are crossed.
+export const ticketTeams = complianceSchemaDB.table('ticket_teams', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  leadUserId: text('lead_user_id'), // added as a conversation participant on any ticket routed to this team, so RLS-scoped staff access never starts empty
+  isDefault: boolean('is_default').notNull().default(false), // routing target when a ticket (staff- or publicly-submitted) specifies no team
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const businessHoursSchedules = complianceSchemaDB.table('business_hours_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  timezone: text('timezone').notNull().default('UTC'), // display/documentation only -- see computeSlaDeadline in ticket-service.ts for why matching itself is done in UTC
+  // Record<"0".."6" (UTC day-of-week, 0=Sun), Array<[startMinuteUtc, endMinuteUtc]>>
+  weeklyHours: jsonb('weekly_hours').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const slaPolicies = complianceSchemaDB.table('sla_policies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  teamId: text('team_id'), // nullable = applies regardless of team
+  priority: priorityEnum('priority'), // nullable = applies regardless of priority
+  category: text('category'), // nullable = applies regardless of category
+  firstResponseHours: integer('first_response_hours'),
+  resolutionHours: integer('resolution_hours').notNull(),
+  businessHoursOnly: boolean('business_hours_only').notNull().default(false),
+  businessHoursScheduleId: text('business_hours_schedule_id'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const escalationRules = complianceSchemaDB.table('escalation_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  slaPolicyId: text('sla_policy_id').notNull(),
+  thresholdPercent: integer('threshold_percent').notNull(), // % of the SLA window elapsed that fires this step, e.g. 80 = "approaching", 100 = "breached"
+  escalateToTeamId: text('escalate_to_team_id'),
+  escalateToUserId: text('escalate_to_user_id'),
+  notifyUserIds: jsonb('notify_user_ids').notNull().default([]), // string[] of users.id to notify in addition to escalateToUserId
+  stepOrder: integer('step_order').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Idempotency log -- one row per (ticket, rule) firing, so
+// checkTicketEscalations() (cron) never re-fires the same step twice.
+export const ticketEscalationEvents = complianceSchemaDB.table('ticket_escalation_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ticketId: text('ticket_id').notNull(),
+  escalationRuleId: text('escalation_rule_id').notNull(),
+  firedAt: timestamp('fired_at').notNull().defaultNow(),
 })
 
 // ─── Wave 81 (Customer Service enhancements) ──────────────────────────────
@@ -9970,6 +10069,13 @@ export const emailIntelligenceItems = complianceSchemaDB.table('email_intelligen
   aiGeneratedAt: timestamp('ai_generated_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Helpdesk gap-closure (Phase 0, 2026-07-27): the "no live inbox trigger"
+  // gap this table's own header comment names is now closed for the
+  // ticket side specifically -- createTicketFromEmailIntelligenceItem() in
+  // ticket-service.ts promotes an item straight to a `tickets` row (whole
+  // email -> one ticket, unlike promoteEmailIntelligenceItem's per-
+  // suggested-work-item -> task promotion). Nullable, set once promoted.
+  promotedTicketId: text('promoted_ticket_id'),
 })
 
 export const emailIntelligenceActionItems = complianceSchemaDB.table('email_intelligence_action_items', {
