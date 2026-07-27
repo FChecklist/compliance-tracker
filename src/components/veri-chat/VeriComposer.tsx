@@ -26,6 +26,7 @@ import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/hi
 import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, findCalculatorSuggestions, type ChainSelectorResult } from "./ChainSelector";
 import { IntentCommandPalette } from "./IntentCommandPalette";
 import { saveIntent } from "@/lib/browser-intent-cache";
+import { compileInBrowser } from "@/lib/browser-execution/client-compile";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -231,6 +232,41 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     });
   }
 
+  // VERIDIAN_Architecture_v2.0 phase_5 (browser_execution_tiers): the real
+  // browser-to-server handoff for Option 2 ("END USER direct writing the
+  // input in the chat via web browser") -- the Owner's own words, per
+  // ai-os/OWNER_DIRECTIVES/BROWSER_NATIVE_END_USER_ARCHITECTURE_2026-07-25.txt.
+  // Runs phase_2's real deterministic analyzer client-side (FIRST
+  // execution), then hands the raw text + browser tier metadata to
+  // /api/prompt-compiler/execute for the deterministic SECOND-pass
+  // SOFTWARE execution -- fire-and-forget, best-effort telemetry/
+  // compiled-prompt logging that never blocks or fails the actual chat
+  // send below it, since discuss mode's real reply path
+  // (generateAiReply(), unchanged by this phase) is the one thing that
+  // must not regress. Scoped to discuss (free-text chat) mode only in this
+  // increment -- Option 1 (chain/mode-pill dispatch, dispatchInstruction()
+  // below) already reaches task-execution-engine.ts's own deterministic,
+  // often LLM-free dispatch path for engineKey/workerAgentId leaves, so it
+  // is a lower-priority integration point than discuss mode, which is the
+  // one that actually reaches an AI call (generateAiReply) today -- see
+  // this phase's PROGRESS.md for the explicit follow-up note.
+  function runBrowserFirstPass(text: string) {
+    try {
+      const draft = compileInBrowser(text);
+      void fetch("/api/prompt-compiler/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: text,
+          browserCompiled: { tier: draft.tier, fallbackChain: draft.fallbackChain, compileMs: draft.compileMs },
+        }),
+      }).catch(() => {});
+    } catch {
+      // Browser-native FIRST pass is a best-effort enrichment, never a
+      // requirement for the real chat send that follows it.
+    }
+  }
+
   async function dispatchInstruction(path: PathSegment[], text: string, engineInputs?: Record<string, string>) {
     // D8/D5.B4.S2 minimum 2-level chain gate -- mirrors task-service.ts's
     // createTask() server-side check so the user sees a clear message
@@ -421,6 +457,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
         // workflow-specific one via the thread switcher.
         const targetThreadId = activeAiThreadId ?? aiThreadId;
         if (!targetThreadId) { toast.error("VERI AI isn't ready yet — try again in a moment"); return; }
+        runBrowserFirstPass(text);
         const res = await fetch(`/api/conversations/${targetThreadId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
