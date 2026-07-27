@@ -5,7 +5,16 @@
 // matching this codebase's established convention (see task-service.test.ts/
 // approval-workflow-service.test.ts's own stated precedent).
 import { describe, test, expect } from "bun:test"
-import { deriveCapabilityKey, tokenizePrompt, wordOverlapScore, computeCoverageStats, deriveCapabilityStatus, ServiceError } from "./capability-learning-service"
+import {
+  deriveCapabilityKey,
+  tokenizePrompt,
+  wordOverlapScore,
+  computeCoverageStats,
+  deriveCapabilityStatus,
+  shouldExploreAsUnknownPrompt,
+  UNKNOWN_PROMPT_MODE_PILL,
+  ServiceError,
+} from "./capability-learning-service"
 
 describe("deriveCapabilityKey", () => {
   test("produces a stable dotted slug from modePill + pathKeys", () => {
@@ -139,5 +148,27 @@ describe("deriveCapabilityStatus", () => {
 
   test("a large sample overwhelmingly novel reads 'ai_only' regardless of scale", () => {
     expect(deriveCapabilityStatus(20, 30, 950)).toBe("ai_only")
+  })
+})
+
+describe("shouldExploreAsUnknownPrompt", () => {
+  test("a matched template is never explored, regardless of confidence", () => {
+    expect(shouldExploreAsUnknownPrompt("some-template-source", 0)).toBe(false)
+    expect(shouldExploreAsUnknownPrompt("some-template-source", 0.1)).toBe(false)
+  })
+
+  test("no matched template AND low confidence triggers exploration", () => {
+    expect(shouldExploreAsUnknownPrompt(null, 0.49)).toBe(true)
+  })
+
+  test("no matched template but high confidence does not trigger exploration", () => {
+    expect(shouldExploreAsUnknownPrompt(null, 0.5)).toBe(false)
+    expect(shouldExploreAsUnknownPrompt(null, 0.9)).toBe(false)
+  })
+
+  test("UNKNOWN_PROMPT_MODE_PILL is a stable, distinct modePill namespace", () => {
+    expect(UNKNOWN_PROMPT_MODE_PILL).toBe("prompt_compiler_unknown")
+    // never derives to an empty/collision-prone key on its own
+    expect(deriveCapabilityKey(UNKNOWN_PROMPT_MODE_PILL, ["CODE", "fix"])).toBe("prompt_compiler_unknown.code.fix")
   })
 })
