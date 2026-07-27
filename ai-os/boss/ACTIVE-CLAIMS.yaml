@@ -40,6 +40,56 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-025248-integrate-knowledge-engine-wiring-regist, redispatch of task-20260726-210059 killed by the 2026-07-26 OOM incident) -- wiring_registry content-hash staleness detection + governance_doc entity type + scheduled refresh + query helper"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Redispatch of task-20260726-210059 (crashed in its first minute, killed by
+      the Owner's emergency stop-all-workers OOM/fail2ban response at the same
+      minute it was dispatched -- not a defect in its own scope). Real target repo
+      is claude-control (task.yaml's `repo: compliance-tracker` field is stale --
+      generate_wiring_registry.py, status-remediation-tick.py, dispatch_core.py,
+      and superboss-register.sqlite all live in claude-control, confirmed via
+      direct file search before branching). Work happens in a fresh worktree,
+      /opt/veridian/ai-os/tasks/task-20260727-025248-integrate-knowledge-engine-wiring-regist/claude-control-workspace,
+      branch worker/task-20260727-025248-integrate-knowledge-engine-wiring-regist
+      off claude-control master (not the compliance-tracker worktree this task
+      was scaffolded with, which only carries this claim registration + PROGRESS.md).
+
+      Live-DB audit before writing any code (avoids duplicating PR #101's own
+      already-shipped work): wiring_registry's `engine` entity_type already
+      covers all 20/20 real engines from 20_ENGINES_10_GATEWAYS_PHASE_PLAN's
+      engine_inventory, and as of the last real generator run (2026-07-26T19:20
+      UTC) all 343/343 knowledge_engine rows are already reflected in
+      wiring_registry as `file` entities -- row-existence coverage was NOT the
+      real gap (two different naive path-dedup analyses first suggested 175 and
+      then 6 missing rows; both were false positives from not accounting for
+      duplicate artifact_paths in knowledge_engine, corrected before drawing any
+      conclusion). The real, confirmed gaps this task closes: (a) no
+      content_hash column on wiring_registry at all, so a re-run cannot detect
+      that an already-covered engine/doc's *content* changed, only whether its
+      path still exists; (b) governance/constitution docs are folded into the
+      generic `file` entity_type via the knowledge_engine merge, not a
+      first-class dedicated entity_type the way scripts get entity_type=script;
+      (c) generation has only ever been a one-off manual run, never scheduled;
+      (d) no single query helper spans both wiring_registry and knowledge_engine
+      (each already has its own FTS5 index, just not combined).
+
+      File scope (claude-control repo only, no compliance-tracker application
+      code touched): scripts/generate_wiring_registry.py (content_hash
+      computation, new build_governance_docs() run before the existing
+      knowledge_engine merge so it enriches instead of duplicating, refactor
+      main()'s body into a reusable generate() function), scripts/superboss-
+      register.py (content_hash column migration on the real pre-existing
+      7709-row wiring_registry table -- tested against a realistic
+      non-fresh-fixture snapshot per PR #101 round-1's own migration-bug
+      lesson -- + widen the entity_type CHECK for governance_doc, reusing the
+      existing dispatch_event-widening rebuild pattern generalized to check
+      all WIRING_ENTITY_TYPES rather than one hardcoded literal), a new
+      scripts/wiring_query.py (combined sub-second lookup helper), scripts/
+      status-remediation-tick.py (best-effort refresh call inside its existing
+      tick, no new cron entry), and tests/test_wiring_registry_full_coverage.py.
+      Does not touch dispatch-tick.py, phase-continuation-tick.py, or any of
+      PR #101's own concurrency-gating/dispatch_core.py logic.
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
