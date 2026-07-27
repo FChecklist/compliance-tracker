@@ -866,3 +866,13 @@ exemptions:
     reason: "phase_1_prompt_registry_lifecycle_foundation (2026-07-25): confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as task-execution-engine.ts's already-exempted changelog-date comments -- not human example/sample data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/prompt-compiler/entity-variable-extraction.ts
+    reason: "Real dated comment (2026-07-27) documenting the CodeQL js/polynomial-redos + js/regex-injection fix -- same genre as other dated fix-comments elsewhere in this registry."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/prompt-compiler/entity-variable-extraction.test.ts
+    reason: "Pre-existing (phase_2) real test fixtures needing realistic example data to exercise extractEntities/extractVariables (a real email, a real deadline date, a real company-name default), plus 2 new dated (2026-07-27) describe() block titles documenting the CodeQL fix added in this PR."
+    findings_by_category:
+      placeholder_email_domain: 2
+      hardcoded_iso_date: 4
+      placeholder_company_name: 2
