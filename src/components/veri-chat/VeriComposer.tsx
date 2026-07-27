@@ -233,23 +233,15 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   }
 
   // VERIDIAN_Architecture_v2.0 phase_5 (browser_execution_tiers): the real
-  // browser-to-server handoff for Option 2 ("END USER direct writing the
-  // input in the chat via web browser") -- the Owner's own words, per
-  // ai-os/OWNER_DIRECTIVES/BROWSER_NATIVE_END_USER_ARCHITECTURE_2026-07-25.txt.
-  // Runs phase_2's real deterministic analyzer client-side (FIRST
-  // execution), then hands the raw text + browser tier metadata to
+  // browser-to-server handoff for BOTH Owner-directed input surfaces --
+  // Option 2 (free-text `discuss` chat, below) and Option 1 (chain/mode-pill
+  // dispatch, dispatchInstruction() below, wired in increment 2). Runs
+  // phase_2's real deterministic analyzer client-side (FIRST execution),
+  // then hands the raw text + browser tier metadata to
   // /api/prompt-compiler/execute for the deterministic SECOND-pass
   // SOFTWARE execution -- fire-and-forget, best-effort telemetry/
   // compiled-prompt logging that never blocks or fails the actual chat
-  // send below it, since discuss mode's real reply path
-  // (generateAiReply(), unchanged by this phase) is the one thing that
-  // must not regress. Scoped to discuss (free-text chat) mode only in this
-  // increment -- Option 1 (chain/mode-pill dispatch, dispatchInstruction()
-  // below) already reaches task-execution-engine.ts's own deterministic,
-  // often LLM-free dispatch path for engineKey/workerAgentId leaves, so it
-  // is a lower-priority integration point than discuss mode, which is the
-  // one that actually reaches an AI call (generateAiReply) today -- see
-  // this phase's PROGRESS.md for the explicit follow-up note.
+  // send / task creation that follows it.
   function runBrowserFirstPass(text: string) {
     try {
       const draft = compileInBrowser(text);
@@ -285,6 +277,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     // Fire-and-forget: never blocks the real send, and browser-intent-cache.ts
     // swallows its own errors.
     void saveIntent({ composerMode, selectedPath: path, displayLabel: displayCrumb, chatMessage: text });
+    // Increment 2 of phase_5_browser_execution_tiers: Option 1's own
+    // browser-to-server handoff -- same FIRST-pass compiler + fire-and-
+    // forget /api/prompt-compiler/execute call as discuss mode gets, run
+    // once per chain send (not once per expanded concrete path below,
+    // since expandPathsForSend() fans a single user instruction out into
+    // several dispatch targets that all share the same raw text).
+    if (text) runBrowserFirstPass(text);
     const concretePaths = expandPathsForSend(path);
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);

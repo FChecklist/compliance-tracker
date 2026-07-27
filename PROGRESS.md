@@ -71,12 +71,26 @@ tables + 2 Owner-directed UI surfaces -- too large for one pass. This is
       every touched file -- 0 errors (1 pre-existing, unrelated warning in
       VeriComposer.tsx).
 
+## Completed (increment 2)
+
+- [x] Option 1 (mode-pill/option-chain) browser-to-server wiring --
+      `dispatchInstruction()` in `VeriComposer.tsx` now also calls
+      `runBrowserFirstPass(text)` (guarded on non-empty text, once per send
+      -- not once per `expandPathsForSend()`-expanded concrete path, since
+      those all share one raw instruction) before its `/api/tasks` POST
+      loop. Same fire-and-forget contract as `discuss` mode: never blocks
+      or fails real task creation. `runBrowserFirstPass`'s header comment
+      updated to describe both call sites instead of only `discuss`.
+      Verified: `bunx tsc --noEmit` clean, `bunx eslint` 0 new errors (same
+      1 pre-existing unrelated warning), full suite 2070 pass / 1 fail / 1
+      error -- the fail+error are both pre-existing and unrelated
+      (`roster-overrides.test.ts`'s intentional-throw fallback test and
+      `vercel-deployment/route.test.ts`'s `auditLogs` mock-module ordering
+      issue), confirmed identical on the pre-increment-2 commit via
+      `git stash`.
+
 ## Remaining (explicit follow-up, not silently dropped -- future increments)
 
-- [ ] Option 1 (mode-pill/option-chain) browser-to-server wiring --
-      `dispatchInstruction()` already reaches task-execution-engine.ts's own
-      deterministic dispatch for engineKey/workerAgentId leaves, a
-      lower-priority integration point than `discuss` mode.
 - [ ] Real WebLLM model install + wiring behind the `lite-llm` tier's
       `gpuAccelerated` branch (tech-decision doc's own follow-up).
 - [ ] engine-browser-mcp, engine-browser-function, engine-browser-storage,
