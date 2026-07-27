@@ -184,6 +184,8 @@ index:
       covers: "Auto-generated (extract-function-catalog.mjs, TypeScript compiler AST) catalog of every top-level function/arrow-const/class-method across src/**/*.{ts,tsx} -- ground truth from live code."
     - path: ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md
       covers: "phase_5_browser_execution_tiers required technology decision (engine-browser-lite-llm): adopt WebLLM for real browser text-generation LLM inference; keep LiteRT.js (litert-spike) unchanged in its existing vision-classifier role."
+    - path: ai-os/BROWSER_EXECUTION_TIERS_INCREMENT_2_STATUS_2026-07-27.md
+      covers: "phase_5_browser_execution_tiers increment 2 status: WebLLM install, MCP/function/worker/transformers engine wiring, stack deepening."
     - path: ai-os/GAP_ANALYSIS_2026-07-20_HOLD.md
       covers: "Analysis-only doc on the 185 open Review-Framework CSV rows. Owner directive 2026-07-20 explicitly paused dispatch on these (mechanically enforced, see doc's own Enforcement section) -- not a live work queue."
     - path: ai-os/MASTER_INDEX.yaml
