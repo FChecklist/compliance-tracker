@@ -1,30 +1,71 @@
-# PROGRESS -- task-20260726-171200-tier2-fix--pr-566-pr-83-stale-pr-81-stil
+# PROGRESS -- task-20260727-025248-integrate-knowledge-engine-wiring-regist
+
+Redispatch of task-20260726-210059 (killed within its first minute by the
+Owner's emergency OOM/fail2ban stop-all-workers incident response, not a
+defect in its own scope).
+
+## Repo correction
+
+`task.yaml` says `repo: compliance-tracker`, but `generate_wiring_registry.py`,
+`status-remediation-tick.py`, `dispatch_core.py`, and `superboss-register.sqlite`
+all live in **claude-control** (`/opt/veridian/repos/claude-control`), confirmed
+by direct file search before branching (per SPEC's own instruction to verify).
+Real work + PR happen in a worktree at
+`/opt/veridian/ai-os/tasks/task-20260727-025248-integrate-knowledge-engine-wiring-regist/claude-control-workspace`
+on branch `worker/task-20260727-025248-integrate-knowledge-engine-wiring-regist`,
+not in this compliance-tracker workspace. This file tracks session-level
+progress per this task's own PROTOCOL; claude-control's own PROGRESS.md is
+gitignored there (`988cdcb`, "per-workspace worker scratch file") so the
+real before/after counts + delta live in that repo's PR description instead,
+per its own established convention.
+
+Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting real edits.
 
 ## Completed
-- [x] Found the real target branches: `worker/task-20260726-094625-re-verify-20-engine-inventory---confirm`
-      already existed (and was checked out) in both `/opt/veridian/repos/compliance-tracker`'s sibling
-      task workspace and `/opt/veridian/repos/claude-control` (via a temp worktree) -- did not create
-      new branches/PRs, per CONSTRAINTS.
-- [x] Discovered a prior session (`task-20260726-105214-correct-stale-pr-state-claims-in-engine`) had
-      already corrected the original "PR #81 currently-open" false claim in all 3 locations (PROGRESS.md,
-      ACTIVE-CLAIMS.yaml, claude-control's Engine 8 gap_description) -- but that correction's own
-      "PR #79/#80/#82 remain OPEN and unmerged" replacement text had itself gone stale by the time this
-      task ran: fresh `gh pr view 79/82 --repo FChecklist/claude-control --json state,mergedAt` showed
-      both had since merged (#79 2026-07-26T11:59:10Z, #82 2026-07-26T11:02:41Z). #80 confirmed still
-      genuinely OPEN, #81 confirmed still CLOSED/unmerged (unchanged).
-- [x] compliance-tracker (PR #566, commit `cbf5ba82`, pushed): corrected the stale PR #79/#82
-      open/unmerged claims in `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed`
-      entry, appending a dated correction rather than rewriting history, matching this file's own
-      established pattern.
-- [x] claude-control (PR #83, commit `0fae212`, pushed): corrected the same stale PR #79/#82 claims in
-      `ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`'s Engine 8 `gap_description`.
-- [x] Validated both changed YAML files still parse after edits (`ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`
-      parses clean, 20 engine rows; `ai-os/boss/ACTIVE-CLAIMS.yaml` has a pre-existing, unrelated parse
-      error at line 43/276 that predates this task's edit -- confirmed via `git cat-file -p` on the
-      pre-edit blob -- left untouched per CONSTRAINTS).
-- [x] Re-ran `gh pr view <n> --json state,mergedAt` for PRs #79/#80/#81/#82 immediately before pushing
-      each commit to confirm text matches live state at commit time (see SUCCESS_CRITERIA).
-- [x] Did not merge either PR #566 or #83. Did not re-run the 20-engine inventory itself.
+- [x] Read AGENTS.md/CONSTITUTION.yaml/ACTIVE-CLAIMS.yaml governance docs, confirmed no
+      conflicting active claim on wiring_registry/knowledge_engine/generate_wiring_registry.py.
+- [x] Verified real repo location (claude-control, not compliance-tracker) and set up a
+      dedicated worktree for it.
+- [x] Audited real current state against the live `superboss-register.sqlite`
+      (read-only queries, then one real idempotent generator run for timing):
+      - `wiring_registry`: 7709 rows total; `engine` entity_type already covers
+        all 20/20 real engines from `20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`'s
+        `engine_inventory` (this part of SCOPE item 1 was already closed by prior work).
+      - `knowledge_engine`: 343 rows (204 canonical + 139 derived) -- this is where the
+        SPEC's "343 governance/constitution docs" figure comes from; it is the live,
+        already-existing full row count of this table (tagged `governance`/`constitution`
+        on most but not all rows), not an undiscovered doc set.
+      - After careful path-collision-aware analysis (naive path-string dedup produced
+        false positives of "175 missing" / "6 missing" -- both wrong; documented as a
+        cautionary note for future audits of this generator): as of the last real
+        generator run (2026-07-26T19:20 UTC), **all 343/343** `knowledge_engine` rows
+        ARE already reflected in `wiring_registry` as `file` entities. Row-existence
+        coverage was NOT the real gap.
+      - The REAL, confirmed gap: (a) no `content_hash` column on `wiring_registry` at
+        all, so re-running the generator cannot detect that an already-covered engine
+        file or governance doc's *content* changed (only path-existence is checked);
+        (b) governance/constitution docs are folded into the generic `file` entity_type
+        via `knowledge_engine` merge, not a first-class dedicated type the way scripts
+        get `entity_type='script'`; (c) generation is a one-off manual run, never
+        scheduled -- nothing keeps it current as the OBJECTIVE requires ("auto-updating");
+        (d) no unified query helper spans both `wiring_registry` and `knowledge_engine`
+        in one sub-second call (each has its own FTS5 index already, just not combined).
+      - Real full-generator-run timing: ~2.05s wall clock for all 7709 rows -- cheap
+        enough to run every status-remediation-tick (10 min) with no throttling needed.
+- [ ] Extend `generate_wiring_registry.py`: `compute_content_hash()`, `content_hash` on
+      engine/gateway entities, new `entity_type='governance_doc'` first-class rows
+      (built before the knowledge_engine merge so it enriches instead of duplicating,
+      same pattern already used for scripts).
+- [ ] Extend `superboss-register.py`: `content_hash` column migration (idempotent
+      ALTER, tested against the real pre-existing/non-fresh schema per the round-1
+      lesson) + widen `entity_type` CHECK for `governance_doc`.
+- [ ] Add a query helper module for sub-second combined wiring_registry +
+      knowledge_engine lookup.
+- [ ] Hook a wiring_registry refresh into `status-remediation-tick.py`'s existing tick
+      (no new cron entry).
+- [ ] `tests/test_wiring_registry_full_coverage.py` against a realistic pre-existing
+      schema fixture.
+- [ ] Open PR against claude-control.
 
 ## Remaining
-- [ ] None -- both commits pushed to their existing branches/PRs.
+- [ ] See Completed checklist above for in-flight items.
