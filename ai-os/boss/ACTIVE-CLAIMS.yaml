@@ -88,6 +88,61 @@ active:
       task's own dispatched branch/worktree). Not self-merged -- tier2
       (HOLD_FOR_OWNER_SIGNOFF per the task's own COMPLEXITY_TIER), and
       Rule 7(c) requires an independent, non-self auditor regardless.
+  - session_label: "claude-code (task-20260727-132826-fix-pr-597--budget-undercount-roster-gap) -- fixing 3 audit-confirmed issues on PR #597 before merge (does not replace the PR's own claim, this is a fix-forward on the same branch)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      PR #597 (branch worker/task-20260727-122935-timesheet-budget-vs-actual,
+      "Timesheet report: Category/Designer/Project/Status Budget-vs-Actual")
+      got an AUDIT: FAIL verdict on issue #597: (1) budget-undercount bug --
+      aggregateDesignerTimesheetCosts()'s designerStatusByUser built only
+      from time entries, dropping any budgeted-but-entryless designer from
+      byDesignerStatus; (2) real N+1 -- designerTimesheetReport() called
+      resolveBillableRate() (a DB round-trip) once per time entry in the
+      entire org instead of fetching pms_billable_rates once and using the
+      existing pure resolvePmsBillableRatePure(); (3) response mixed
+      project-scoped and org-wide fields under one flat object with no
+      scope indication. Fixing all 3 directly on the SAME branch/PR (not
+      opening a new one), per this task's own EXPECTED_OUTPUT.
+
+      File scope: src/lib/services/construction-reports-service.ts (the 3
+      fixes above only -- not rewriting the already-correct parts of
+      aggregateDesignerTimesheetCosts() per this task's own CONSTRAINTS),
+      src/lib/services/construction-reports-service.test.ts (new tests
+      proving each fix), ai-os/registry/terminology-guardrail-exemptions.yaml
+      (test-fixture date-literal exemption), PROGRESS.md.
+
+      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
+      "597"/"timesheet-budget-vs-actual"/"construction-reports-service" --
+      only this PR's own original build claim (already moved out of
+      `active:` by the time this session started; confirmed via
+      `gh pr view 597` showing state OPEN, mergeable). No other session
+      currently claims this file. `git pull origin main` run fresh
+      immediately before this entry (this file itself lives on `main`;
+      the actual fix commits go to the PR's own branch, not main).
+  - session_label: "claude-code (task-20260727-122821-projexa-e2e--pwa-offline-sync---real-tas) -- pms-issue-service.ts real dependency-blocking enforcement"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION.
+      updateIssue() currently accepts any statusId/completionPercentage
+      patch with no check against pmsIssueRelations -- extending it to
+      reject a transition to a "done"/completed status when a real
+      pmsIssueRelations predecessor edge exists and that predecessor issue
+      is not itself complete (specific error, not a silent no-op; issues
+      with no relations are unaffected). Also adding a conflict check to
+      addIssueRelation() rejecting a new relation that would immediately
+      leave an already-completed successor violating an incomplete
+      predecessor. File scope: src/lib/services/pms-issue-service.ts and
+      its colocated test file only. Does NOT touch
+      construction-boq-service.ts or the BoQ schema (separate parallel
+      task). Companion PROJEXA-side PR (PWA/offline infra) tracked in that
+      repo's own ACTIVE-CLAIMS.yaml, not this one.
+
+      Collision check before starting: grepped this file for
+      "pms-issue-service"/"pmsIssueRelations" -- only stale (2026-07-14,
+      >4h, work already merged per PROJEXA_GAP_ANALYSIS.md's own
+      described-as-current behavior) entries about route/UI creation, not
+      this validation logic. No active claim on this file.
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
   - session_label: "claude-code (task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan) -- Phase 0 HR gap closure: employee expense/reimbursement, employee loans/salary advances, KRA/weighted-goal + 360 performance appraisal, shift management/roster"
     claimed_at: "2026-07-27T (this session)"
     claim: |
@@ -162,25 +217,6 @@ active:
       touches this file/directory scope. `git pull origin main` run fresh
       immediately before this entry.
 
-  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
-    claimed_at: "2026-07-27T (this session)"
-    claim: |
-      Fix GitHub Dependabot security alert #34 on FChecklist/compliance-tracker
-      (main): npm package sharp at ^0.34.3 is affected by GHSA-f88m-g3jw-g9cj
-      (CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591 --
-      inherited libvips vulnerabilities), severity high. Bumping to ^0.35.3
-      (first_patched_version 0.35.0, advisory names 0.35.3 as latest,
-      libvips 8.18.3) in package.json, updating bun.lock via `bun install`.
-      Implementation-only task per Rule 7(c) -- a separate supervising
-      session audits and merges; this session does not self-certify.
-
-      File scope: package.json (sharp dependency line only), bun.lock
-      (sharp + its own transitive tree only). No other files touched.
-
-      Collision check before starting: grepped this file for "sharp"/
-      "dependabot" -- only unrelated hits (image blur-detection feature,
-      an older unrelated Dependabot/recharts PR triage entry). No active
-      claim on this alert or on package.json's sharp line.
   - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
     claimed_at: "2026-07-27T (this session)"
     claim: |
@@ -3535,6 +3571,28 @@ active:
       "slabs"; generic cron-timing "SLA" mentions). No other active entry
       claims schema.ts's tickets/SLA area or a Helpdesk gap.
 recently_completed:
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
+    claimed_at: "2026-07-27T (this session, closed same session)"
+    claim: |
+      COMPLETED: PR #594 merged 2026-07-27T12:18:49Z (mergeCommit 7ce01a38),
+      closes GitHub Dependabot alert #34 (GHSA-f88m-g3jw-g9cj, sharp <0.35.0
+      libvips CVEs). sharp bumped ^0.34.3 -> ^0.35.3 in package.json + bun.lock,
+      verified present on origin/main after merge. Dispatched via
+      task-gateway.py (task-20260727-093117-fix-dependabot-alert34-sharp-cve,
+      instruction INS-20260727-092902-c75b); implementing worker got blocked by
+      a credit-accountant false-positive dedup match after substantive work was
+      done (package.json/bun.lock bumped, lint/tsc clean, committed+pushed) --
+      the supervising session completed the remaining mechanics (opened PR,
+      resolved a real merge conflict against main in PROGRESS.md/this file,
+      posted the structured AUDIT: PASS verdict per Rule 7(c) since it did not
+      author the diff, merged once CI was green). task-gateway.py close
+      verdict=DONE. Also found and fixed a real bug in task-gateway.py's
+      check_branch_merged_to_master() along the way: it hardcoded
+      "FChecklist/claude-control" regardless of the task's real repo, so every
+      compliance-tracker task's close call checked the wrong repo and then hit
+      a KeyError on a field (commits_ahead_of_master) that function never
+      actually returns -- now reads the repo from task.yaml and uses the real
+      open_pr_number key.
   - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- phase_9_gateway_knowledge_sync_infrastructure [PRs OPEN, NOT MERGED]"
     claimed_at: "2026-07-27T (this session, closed same session)"
     claim: |
