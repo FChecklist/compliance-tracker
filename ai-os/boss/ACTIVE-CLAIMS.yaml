@@ -72,6 +72,54 @@ active:
       service + API route under src/app/api/. No changes to
       pms-invoice-service.ts, pms-time-service.ts, or any PM-gaps file.
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
+  - session_label: "claude-code (task-20260727-101145-reporting-api-gateway--external-ai-scope) -- external-AI-facing reporting API gateway (CRITICAL_ERP_REPORTING_MODULE_WITH_AI_API_INTEGRATION)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive: expose the existing report_definitions catalog +
+      executeReportDefinition() dispatcher (report-engine-service.ts,
+      ~200-row live catalog, built Wave 175 2026-07-13) through this repo's
+      existing external-API convention (src/app/api/v1/*, see
+      compliance/route.ts) with a scoped, tenant-bound API-key token.
+      REUSE-ONLY per the task's own constraints -- NOT a new reporting
+      engine, NOT a new auth/token mechanism (requireAuthOrApiKey() +
+      validateApiKey() + compliance.api_keys, already live), NOT new
+      tenant-isolation logic (withTenantContext() already wired into
+      executeReportDefinition() at ~30 call sites -- this task only gets
+      the right orgId into that existing call). Building new
+      src/app/api/v1/reports/** (catalog list + definitions/[id]/run,
+      requireAuthOrApiKey()), a minimal additive "read:reports" scope
+      value alongside the existing read/write scopes (compliance.api_keys'
+      scopes column is free-text comma-separated already -- extending the
+      accepted-values whitelist in POST /api/settings/api-keys, not a
+      schema change), and a small new server-safe (non-"use client")
+      export-builder module so report_definitions execution output can
+      flow through the SAME CSV/XLSX generation logic report-export.ts /
+      reports/page.tsx already use (those existing functions are
+      browser-only Blob-download triggers and cannot run in a server API
+      route as-is -- extracting the pure byte-generation part is the
+      minimal change needed, not new export logic).
+      Top priority per Owner: a real, automated cross-org tenant-isolation
+      penetration test (Org B's API key must not be able to read Org A's
+      report data through the new route) -- part of the PR's test suite,
+      not a manual check.
+      Checked this file for collisions before starting: no other active
+      entry names src/app/api/v1/reports/**, report-export.ts, or
+      compliance.api_keys' scopes validation as in-progress work. The
+      closed 2026-07-16 PROJEXA-reports entries below (projexa-reports-
+      catalog-ui) built a DIFFERENT, already-merged path
+      (src/app/api/v1/projexa/reports/**, PROJEXA-product-specific) --
+      this task's src/app/api/v1/reports/** (no /projexa/ segment) is a
+      distinct, generic external-AI-facing surface, not a duplicate.
+      File scope: src/app/api/v1/reports/** (new), src/lib/report-export*
+      (new server-safe module, existing client file read-only unless a
+      genuinely minimal extraction is needed), src/app/api/settings/api-keys/
+      route.ts (scope whitelist only), src/lib/supabase/auth-guard.ts
+      (hasScope/requireRoleOrScope type widening only, if needed) tests
+      under src/app/api/v1/reports/**.test.ts. Branch:
+      task-20260727-101145-reporting-api-gateway--external-ai-scope (this
+      task's own dispatched branch/worktree). Not self-merged -- tier2
+      (HOLD_FOR_OWNER_SIGNOFF per the task's own COMPLEXITY_TIER), and
+      Rule 7(c) requires an independent, non-self auditor regardless.
   - session_label: "claude-code (task-20260727-132826-fix-pr-597--budget-undercount-roster-gap) -- fixing 3 audit-confirmed issues on PR #597 before merge (does not replace the PR's own claim, this is a fix-forward on the same branch)"
     claimed_at: "2026-07-27T (this session)"
     claim: |
