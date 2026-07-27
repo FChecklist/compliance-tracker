@@ -40,6 +40,19 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260726-171950-preview-deployment-spot-check) -- V2-14 Preview deployment spot-check (redispatch of a 2026-07-20 task pre-emptively blocked by spend-governance, re-verified GENUINELY_STILL_OPEN by 2026-07-26 triage)"
+    claimed_at: "2026-07-26T17:20:00Z (this session)"
+    claim: |
+      V2-14-PREVIEW-SPOTCHECK / MASTER-TRACKER row referencing "preview
+      deployment spot-check (QA)". Docs-only: writes one verification note
+      under ai-os/ recording a live pass/fail spot-check of the current
+      most-recent open PR's Vercel preview deployment (PR #571,
+      worker/task-20260726-154345-phase-2-guardrail-coverage-expansion, as
+      of claim time -- re-verify the PR number is still current before
+      reusing this claim). No application code touched. File scope:
+      ai-os/PREVIEW_DEPLOYMENT_SPOTCHECK_2026-07-26.md (new),
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md.
+
   - session_label: "claude-code (task-20260726-035742-phase3-business-rule-permission-policy-c) -- VERIDIAN_Architecture_v2.0 phase_3: Business Rule/Permission/Policy/Compliance/Governance/Audit/Cost-Optimization engines + lifecycle governance gates + GitOps"
     claimed_at: "2026-07-26T (this session)"
     claim: |
