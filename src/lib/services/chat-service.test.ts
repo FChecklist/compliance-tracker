@@ -8,7 +8,10 @@
 // established pattern of not exercising that from a .test.ts file (see
 // task-service.test.ts's own comment on the same convention).
 import { describe, expect, test } from "bun:test"
-import { shouldResolveDynamicChain, detectVeriMention, detectClarificationRequest } from "./chat-service"
+import {
+  shouldResolveDynamicChain, detectVeriMention, detectClarificationRequest,
+  formatContextEntityBlock, formatGlossaryBlock, type ContextEntitySummary,
+} from "./chat-service"
 
 describe("shouldResolveDynamicChain -- Priority 5 item E1", () => {
   test("false when both modePill and pathKeys are absent (every existing caller today)", () => {
@@ -110,5 +113,78 @@ describe("detectClarificationRequest -- REVIEW-FRAMEWORK-WAVE4 clarification met
 
   test("empty reply does not fire", () => {
     expect(detectClarificationRequest("")).toBe(false)
+  })
+})
+
+// V2-13 (SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md C4, CSV rows
+// #16/#17/#20): formatContextEntityBlock() is the pure formatter
+// fetchContextEntitySummary() feeds into generateAiReply()'s system prompt --
+// tested here without a DB, matching this file's own established pattern.
+describe("formatContextEntityBlock -- V2-13 context-aware chat", () => {
+  test("null summary produces no block", () => {
+    expect(formatContextEntityBlock(null)).toBe("")
+  })
+
+  test("policy summary mentions title, category and status", () => {
+    const summary: ContextEntitySummary = { type: "policy", title: "Data Retention Policy", category: "data_privacy", status: "published" }
+    const block = formatContextEntityBlock(summary)
+    expect(block).toContain("Data Retention Policy")
+    expect(block).toContain("data_privacy")
+    expect(block).toContain("published")
+  })
+
+  test("pms_issue summary mentions title and priority, description is optional", () => {
+    const withDescription: ContextEntitySummary = { type: "pms_issue", title: "Login button broken", priority: "urgent", description: "Users report the button does nothing on mobile Safari." }
+    expect(formatContextEntityBlock(withDescription)).toContain("Login button broken")
+    expect(formatContextEntityBlock(withDescription)).toContain("urgent")
+    expect(formatContextEntityBlock(withDescription)).toContain("Users report")
+
+    const withoutDescription: ContextEntitySummary = { type: "pms_issue", title: "Login button broken", priority: "urgent", description: null }
+    expect(formatContextEntityBlock(withoutDescription)).toContain("Login button broken")
+  })
+
+  test("project summary mentions the project name", () => {
+    const summary: ContextEntitySummary = { type: "project", name: "Q3 Compliance Rollout", description: null }
+    expect(formatContextEntityBlock(summary)).toContain("Q3 Compliance Rollout")
+  })
+
+  test("veri_meeting summary mentions title, meeting type and scheduled time", () => {
+    const summary: ContextEntitySummary = { type: "veri_meeting", title: "Board Sync", meetingType: "team", scheduledAt: "2026-07-26T10:00:00.000Z", minutes: null }
+    const block = formatContextEntityBlock(summary)
+    expect(block).toContain("Board Sync")
+    expect(block).toContain("team")
+    expect(block).toContain("2026-07-26T10:00:00.000Z")
+  })
+
+  test("long description/minutes text is capped, not sent to the LLM unbounded", () => {
+    const longText = "x".repeat(5000)
+    const summary: ContextEntitySummary = { type: "project", name: "Big Project", description: longText }
+    const block = formatContextEntityBlock(summary)
+    expect(block.length).toBeLessThan(longText.length)
+  })
+})
+
+describe("formatGlossaryBlock -- V2-13 org-glossary hook", () => {
+  test("empty term list produces no block", () => {
+    expect(formatGlossaryBlock([])).toBe("")
+  })
+
+  test("includes every term and definition when under budget", () => {
+    const terms = [
+      { term: "GSTIN", definition: "Goods and Services Tax Identification Number" },
+      { term: "PMS", definition: "Project Management System" },
+    ]
+    const block = formatGlossaryBlock(terms)
+    expect(block).toContain("GSTIN")
+    expect(block).toContain("Goods and Services Tax Identification Number")
+    expect(block).toContain("PMS")
+    expect(block).toContain("Project Management System")
+  })
+
+  test("drops terms once the character budget is exceeded, rather than truncating mid-term", () => {
+    const terms = Array.from({ length: 500 }, (_, i) => ({ term: `Term${i}`, definition: "x".repeat(50) }))
+    const block = formatGlossaryBlock(terms)
+    expect(block).not.toContain("Term499")
+    expect(block.length).toBeLessThan(3000)
   })
 })
