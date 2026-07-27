@@ -40,6 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-122821-projexa-e2e--pwa-offline-sync---real-tas) -- pms-issue-service.ts real dependency-blocking enforcement"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION.
+      updateIssue() currently accepts any statusId/completionPercentage
+      patch with no check against pmsIssueRelations -- extending it to
+      reject a transition to a "done"/completed status when a real
+      pmsIssueRelations predecessor edge exists and that predecessor issue
+      is not itself complete (specific error, not a silent no-op; issues
+      with no relations are unaffected). Also adding a conflict check to
+      addIssueRelation() rejecting a new relation that would immediately
+      leave an already-completed successor violating an incomplete
+      predecessor. File scope: src/lib/services/pms-issue-service.ts and
+      its colocated test file only. Does NOT touch
+      construction-boq-service.ts or the BoQ schema (separate parallel
+      task). Companion PROJEXA-side PR (PWA/offline infra) tracked in that
+      repo's own ACTIVE-CLAIMS.yaml, not this one.
+
+      Collision check before starting: grepped this file for
+      "pms-issue-service"/"pmsIssueRelations" -- only stale (2026-07-14,
+      >4h, work already merged per PROJEXA_GAP_ANALYSIS.md's own
+      described-as-current behavior) entries about route/UI creation, not
+      this validation logic. No active claim on this file.
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
   - session_label: "claude-code (task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan) -- Phase 0 HR gap closure: employee expense/reimbursement, employee loans/salary advances, KRA/weighted-goal + 360 performance appraisal, shift management/roster"
     claimed_at: "2026-07-27T (this session)"
     claim: |
