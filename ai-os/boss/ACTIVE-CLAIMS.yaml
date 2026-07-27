@@ -40,6 +40,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-122632-projexa-e2e--hierarchical-boq-breakdown) -- Hierarchical BoQ breakdown-%, interim-billing/valuation/retention engine, Excel BoQ importer"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Per Owner directive PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
+      closing 3 confirmed-real gaps: (1) extend constructionBoqLineItems
+      (schema.ts:9446-9483) with parentLineItemId self-reference +
+      breakdownPercentage column, update construction-boq-service.ts to
+      compute Sub-Task Amount = Main QTY * Main RATE * Breakdown % and make
+      revision-chain diff hierarchy-aware; (2) new
+      construction-valuation-service.ts: interim/RA bill from
+      constructionWorkProgressEntries, configurable retention %, emits a
+      real invoice via the existing sales-invoice schema/service (modeled
+      on firm-billing-service.ts's generateInvoiceFromUnbilledTime(), not a
+      new invoice table); (3) new Excel BoQ importer (service + API route)
+      modeled on src/lib/gst/adapters/spreadsheet-adapter.ts, parsing into
+      the new hierarchical schema.
+
+      Collision check before starting: this file has zero entries naming
+      construction-boq-service.ts, constructionBoqLineItems,
+      construction-valuation-service.ts, or a BoQ Excel importer. The only
+      other invoicing-shaped work referenced anywhere nearby is a separate
+      parallel task (PM gaps, PR #592) building PMS timesheet-to-invoice
+      via resolveBillableRate()/pms-invoice-service.ts -- a distinct
+      feature; this task does not touch pms-invoice-service.ts or
+      pms-time-service.ts.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts
+      (constructionBoqLineItems + one migration), src/lib/construction-boq-service.ts,
+      new src/lib/construction-valuation-service.ts, new BoQ Excel import
+      service + API route under src/app/api/. No changes to
+      pms-invoice-service.ts, pms-time-service.ts, or any PM-gaps file.
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
     claimed_at: "2026-07-27T (this session)"
     claim: |
