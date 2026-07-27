@@ -139,6 +139,9 @@ index:
     - path: ai-os/PREVIEW_DEPLOYMENT_SPOTCHECK_2026-07-26.md
       covers: "Point-in-time spot-check note (2026-07-26) for SUPERBOSS v2 task V2-14-PREVIEW-SPOTCHECK, verifying real PR #571 guardrail-registration coverage as the current open PR (redispatch of a 2026-07-20 task that never started)."
 
+    - path: ai-os/VERIDIAN_V2_DEFENSE_IN_DEPTH_TOOL_EVALUATION_2026-07-26.yaml
+      covers: "Point-in-time tool evaluation (2026-07-26) for VERIDIAN_Architecture_v2.0 phase_4, Defense-in-Depth Security/Guardrails tool mapping and custom-work assessment."
+
   brain_pointer:
     - path: ai-os/CONSTITUTION.yaml
       covers: "v2.0, 2026-07-14 (Owner directive: 'only 1 constitution... machine language... no assumption, audit everything'). THE SOLE CONSTITUTION for VERIDIAN AI OS -- every rule/guardrail from 9 previously-separate 'constitutional' documents (VERIDIAN_AI_CONSTITUTION.md, VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, VERIDIAN_AUDIT_ORGANIZATION.md, VERIDIAN_DMP_DCF_CONSTITUTION.md, VERI_CHAT_GOVERNANCE.md, MASTER_AI_OS_ARCHITECTURE.md, SENTINEL.md, ai-os/sentinel/SENTINEL.yaml, VAIOS_ARCHITECTURE_STRATEGY.md) now lives here with a stable ID, machine-first, no narrative prose. Read this FIRST, before BRAIN.md or any prose doc. Those 9 docs keep their full narrative/evidence content and each now carries an AUTHORITY NOTE pointing back here -- read them for WHY, this file for the RULE."

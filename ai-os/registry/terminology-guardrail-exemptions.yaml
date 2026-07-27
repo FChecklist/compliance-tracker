@@ -119,7 +119,7 @@ exemptions:
   - file: src/app/api/help/ask/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
-      hardcoded_iso_date: 3
+      hardcoded_iso_date: 4
   - file: src/app/api/internal/audit-cadence/run/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -882,3 +882,13 @@ exemptions:
     reason: "Real dated comment (2026-07-25) referencing the Owner's UX-directive reconciliation."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: scripts/defense-in-depth-smoke-test.ts
+    reason: "Real PII-scrubbing smoke test (Phase 4 defense-in-depth, 2026-07-26) -- deliberately uses a realistic placeholder email so scrubPii() has real PII-shaped input to scrub and assert against; not accidental hardcoding."
+    findings_by_category:
+      placeholder_email_domain: 2
+  - file: src/lib/prompt-security/layer4-output-filtering.test.ts
+    reason: "Real PII-scrubbing unit tests (Phase 4 defense-in-depth, 2026-07-26) -- deliberately uses realistic placeholder email/GSTIN/PAN values so scrubPii() has real PII-shaped input to scrub and assert against; not accidental hardcoding."
+    findings_by_category:
+      placeholder_email_domain: 2
+      indian_gstin_literal: 1
+      indian_pan_literal: 1
