@@ -944,3 +944,15 @@ exempted:
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): no genuine display-name column -- scope (enum) + version (int) is a compound identity, not a per-row name, and rule is opaque policy jsonb. A versioned configuration record, same class as approval_workflow_step_approvals/access_review_certifications -- not a discoverable named asset."
   - table: ai_routing_audit_log
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): append-only audit log of routing decisions, no display-name column -- same class as the already-exempted activity_log/api_key_request_log."
+  - table: public_ticket_submission_attempts
+    reason: "Helpdesk gap-closure (self-service portal, Phase 0 2026-07-27): a rate-limit/abuse log for the new unauthenticated public ticket-submission surface, not a platform business asset -- same class as other rate-limit/audit-log exemptions above."
+  - table: ticket_teams
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration (compliance.asset_registration_config + auto_register_asset trigger) deferred to a future pass."
+  - table: business_hours_schedules
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: sla_policies
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: escalation_rules
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: ticket_escalation_events
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): append-only escalation audit log, same class as other append-only audit-log exemptions above, not a platform business asset requiring the generic active-record registration pattern."

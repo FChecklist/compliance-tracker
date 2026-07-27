@@ -79,6 +79,104 @@ active:
       entirely). No open PR found via `gh pr list --state open` touching
       any of this task's file scope. `git pull origin main` run fresh
       immediately before this entry.
+  - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      phase_8_dspy_learning_distribution_engines increment 1 of
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
+      repo claude-control, target_repo: compliance-tracker). Depends on
+      phase_2_compiler_pipeline_intelligence_engines (done) and
+      phase_4_defense_in_depth_security_quality (done, PR #562 merged
+      2026-07-27) -- both satisfied.
+
+      Increment 1 scope: (1) engine-dspy-integration -- evaluate DSPy
+      Python-package installability against services/doc-processing/'s
+      real existing Python microservice stack, make a real justified
+      adopt/reject decision (doc template:
+      ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md), and if adopted
+      wire a minimal signature-based compilation path alongside (not
+      replacing) phase_2's keyword-based compiler with a real before/after
+      quality/token-count comparison on one real prompt. (2) engine-ai-
+      learning -- re-verify capability-learning-service.ts's current real
+      state (file:line) and wire this gap item onto it, extending only if
+      genuinely needed, not duplicating. (3) Scoping-only pass (NOT
+      implementation) for the 5 zero-prior-art engines (engine-prompt-
+      translation, engine-prompt-localization, engine-prompt-marketplace,
+      engine-prompt-export, engine-prompt-import) -- schema/table design +
+      build estimate per engine, registered as planned (status: planned,
+      not built) MASTER_INDEX.yaml entries in claude-control.
+
+      File scope (compliance-tracker): possible new
+      src/lib/prompt-compiler/ or adjacent dspy-integration module (only
+      if DSPy is adopted), extension of the existing capability-learning-
+      service.ts (not a new file), new
+      ai-os/VERIDIAN_V2_DSPY_TECH_DECISION_2026-07-27.md-equivalent doc.
+      Does not touch phase_4's src/lib/prompt-security/ or phase_9's
+      Gateway G05 wiring files. Also touches claude-control (separate
+      repo, coordinate-not-run-inside): phase_8's status in
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+      ai-os/MASTER_INDEX.yaml (5 planned entries).
+
+      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
+      "phase_8"/"dspy"/"DSPy"/"capability-learning" -- zero matches, no
+      active or recent collision. query-knowledge
+      "veridian_v2_dspy_learning" --tag domain:veridian_architecture_v2
+      confirmed found=0 live before starting.
+  - session_label: "claude-code (task-20260727-094516-architecture-phase-5-increment-2--webllm) -- VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers increment 2 of N: real WebLLM/Transformers.js model wiring + tool-calling + worker-pool deepening"
+    claimed_at: "2026-07-27T (this session, registered slightly after real work began -- noted honestly per this file's own Rule 4 spirit)"
+    claim: |
+      phase_5_browser_execution_tiers increment 2, continuing directly from
+      increment 1 (merged compliance-tracker PR #586). Implements increment
+      1's own PROGRESS.md "Remaining" checklist verbatim: (1) real WebLLM
+      model install + wiring (Qwen2.5-0.5B-Instruct-q4f16_1-MLC, a real
+      model id confirmed present in @mlc-ai/web-llm's own prebuiltAppConfig)
+      behind tier-orchestrator.ts's new `shouldAttemptWebLlm` gate; (2)
+      engine-browser-mcp + (3) engine-browser-function as one real
+      MCP-JSON-RPC-shaped tool-calling contract (tool-calling.ts, distinct
+      from BROWSER_AUTOMATION_PROFILE's session-tooling scope, reusing
+      /api/mcp/route.ts's existing {name,description,inputSchema}
+      convention purely for consistency -- zero network hop, fully
+      client-side); (4) engine-browser-worker deepening -- a real
+      SharedArrayBuffer/Atomics-coordinated multi-worker pool
+      (worker-pool.ts), tested against real Bun Workers, not a same-thread
+      fake; (5) engine-browser-transformers -- real Xenova/all-MiniLM-L6-v2
+      wiring via @huggingface/transformers (transformers-engine.ts); (6)
+      stack-browser-compute/stack-parallelism deepening
+      (tier-orchestrator.ts#planParallelism, sized off
+      navigator.hardwareConcurrency); (7) tier-local IndexedDB model-weight
+      caching (model-cache.ts -- a real custom CacheInterface adapter for
+      Transformers.js, which has no native IndexedDB flag; WebLLM's own
+      native `cacheBackend:"indexeddb"` AppConfig flag used directly, no
+      custom code needed there).
+
+      File scope (compliance-tracker, this repo): new
+      src/lib/browser-execution/{webllm-engine,transformers-engine,
+      tool-calling,worker-pool,worker-pool-test-worker,model-cache}.ts +
+      colocated *.test.ts, additive changes to tier-orchestrator.ts
+      (new exported functions only, ExecutionPlan shape unchanged),
+      package.json (@mlc-ai/web-llm, @huggingface/transformers added),
+      PROGRESS.md, this file. Does NOT touch VeriComposer.tsx (constraint
+      honored -- integrates purely through tier-orchestrator's existing
+      exports) and does NOT build phase_6's shared cross-engine cache
+      hierarchy (model-cache.ts is explicitly tier-local/per-engine only,
+      see that file's own header). Item 8 (updating the phase-plan yaml's
+      own gap-item checklist) is a claude-control-repo edit this task
+      cannot perform from inside compliance-tracker's own workspace -- that
+      yaml genuinely does not exist in this repo (confirmed by search);
+      flagged as an explicit cross-repo follow-up in PROGRESS.md/PR
+      description rather than silently skipped or guessed at, matching
+      this same phase's own prior `cross_repo_dispatch_note` precedent
+      (see the phase_4 claim above, "coordinate-not-run-inside").
+
+      Collision check before starting: grepped this file for "phase_5"/
+      "browser-execution"/"webllm"/"tier-orchestrator"/"lite-llm" -- one
+      unrelated hit (a phase_4 claim's own prose mentioning phase_5 only in
+      passing, describing a different module's *output contract*, not a
+      claim on this phase). No other active entry claims
+      src/lib/browser-execution/ or this phase. `gh pr list --state open`
+      not re-checked at claim-registration time (registered slightly late,
+      after `git pull`/initial reads but before this entry's own commit) --
+      no conflicting file changes found in this session's own git status.
   - session_label: "claude-code (task-20260726-043023-phase4-defense-in-depth-prompt-security) -- VERIDIAN_Architecture_v2.0 phase_4: Defense-in-Depth, Prompt Security, Red Team, Quality Engines + 4-layer security architecture"
     claimed_at: "2026-07-26T (this session)"
     claim: |
@@ -3296,6 +3394,44 @@ active:
       open` checked (571/570/566/563/562/558/557/556/555/554/551/539...
       down to 484/410) -- none touch chat-service.ts, glossary-service.ts,
       adoption-metrics-service.ts, or AdoptionMetricsSection.tsx.
+
+  - session_label: "claude-code (task-20260727-101134-erp-helpdesk-gaps--tiered-sla---team-rou) -- Helpdesk gap-closure: tiered SLA policy + team routing, email-to-ticket ingestion (verify-first), self-service portal (verify-first)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE,
+      Phase 0 investigation dated 2026-07-27. Closing 3 confirmed-real
+      Helpdesk gaps (compliance-tracker's Helpdesk already exceeds Odoo
+      stock in several respects -- ITIL problem management, AI ticket
+      intelligence, voice-to-ticket -- this is narrow gap-closure, not a
+      rebuild): (1) tiered SLA-policy + escalation-rule + team/queue tables,
+      wiring ticket creation to resolve slaDeadline from policy instead of
+      only the current manual input.slaHours override (confirmed absent:
+      zero grep matches for slaPolic/sla_polic/escalationRule/businessHours
+      in schema.ts); (2) email-to-ticket ingestion (verify-first --
+      emailIntelligenceItems promotes to tasks today, not confirmed whether
+      it or anything else promotes to tickets); (3) public self-service
+      portal -- anonymous KB browse + raise-a-ticket without a pre-issued
+      guest link (verify-first -- knowledgeBasePages publish-flag and
+      portal-without-token status unconfirmed at UI layer per Phase 0).
+
+      File scope (compliance-tracker, this repo): src/lib/db/schema.ts
+      (additive tables: sla policies/escalation rules/teams, ticket
+      teamId/queueId column), src/lib/services/ticket-service.ts (SLA
+      policy resolution, additive/backward-compatible), new
+      src/lib/services/ email-to-ticket ingestion module (only if step 2
+      confirms genuinely absent, reusing existing email-ingestion
+      infra behind emailIntelligenceItems rather than building a second
+      one), new public self-service KB/ticket routes reusing
+      conversationGuestAccess (only if step 3 confirms genuinely absent),
+      colocated *.test.ts for all of the above. Does not touch
+      problemRecords/ticketIntelligenceItems/knowledgeBasePages' existing
+      hierarchy, or field-service/CSAT code.
+
+      Collision check before starting: grepped this file for "helpdesk"/
+      "ticket"/"SLA" (case-insensitive) -- matches are all unrelated
+      (voice-tickets GAP-MOM-VOICE-TICKETS, already closed; payroll/tax
+      "slabs"; generic cron-timing "SLA" mentions). No other active entry
+      claims schema.ts's tickets/SLA area or a Helpdesk gap.
 recently_completed:
   - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- phase_9_gateway_knowledge_sync_infrastructure [PRs OPEN, NOT MERGED]"
     claimed_at: "2026-07-27T (this session, closed same session)"
