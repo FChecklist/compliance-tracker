@@ -1,77 +1,18 @@
-# PROGRESS -- task-20260726-171946-chat-context---terminology---mode-pill-a
-
-V2-13-CHAT-CONTEXT-ANALYTICS -- Chat context + terminology + mode-pill analytics.
-Claim registered in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+# PROGRESS -- task-20260727-044331-rca-task-20260727-034439-re-verify-20-en
 
 ## Completed
-- [x] Re-verified live repo state: `contextEntityId`/`contextEntityType` (conversations
-      table) plumbed by veri-chat-service.ts/veri-meeting-service.ts but never read in
-      chat-service.ts's generateAiReply()/generateVeriGroupReply(). Glossary feature
-      (glossary-service.ts) is UI-tooltip-only, no system-prompt hook. No mode-pill vs
-      free-text analytics anywhere. Confirms 2026-07-26 triage evidence still accurate.
-- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (collision-checked against
-      `gh pr list --state open` and existing active claims -- no overlap).
-- [x] Wired `contextEntityType`/`contextEntityId` fetch into the AI reply prompt:
-      chat-service.ts gained `fetchContextEntitySummary()` (real DB fetch, best-effort,
-      known types: policy/pms_issue/project/veri_meeting; unknown/internal types like
-      `shared_in_inbox` are an honest no-op) + `formatContextEntityBlock()` (pure
-      formatter). Wired into both `generateAiReply()` (1:1 AI thread) and
-      `generateVeriGroupReply()` (group @veri mentions) via a new
-      `ConversationContextRef` parameter; `sendMessage()`/`regenerateAiReply()` pass it
-      through from the conversation row they already fetch (no extra query).
-      Verification: `grep -n "contextEntityId" src/lib/services/chat-service.ts` now
-      shows it consulted inside fetchContextEntitySummary (called from
-      generateAiReply/generateVeriGroupReply), not just plumbed at the write side.
-- [x] Added an org-glossary hook into the same system prompt: `formatGlossaryBlock()`
-      (pure, char-budget-capped at 2000 chars so a large org glossary can't silently
-      balloon token cost) + a `listGlossaryTerms()` call (glossary-service.ts, already
-      existed for the UI hover-tooltip -- reused, not duplicated), appended to the
-      static system prompt before `compileStaticPrefix()` so prompt-cache fingerprinting
-      still reflects exactly what's sent.
-- [x] Added mode-pill vs free-text usage analytics, reusing existing infra (no new
-      analytics vendor): `computeModePillUsageRate()` (pure) + one new aggregation
-      query in `adoption-metrics-service.ts`'s `computeOrgAdoptionMetrics()`, counting
-      `conversations.dynamicChainId IS NOT NULL` (mode-pill used) vs
-      `conversations.chainSelectorSkipped = true` (explicit free-text skip -- only ever
-      set by createWorkflowThread()'s Chain Selector gate, so it never conflates with
-      conversation flows where that gate was never offered). Surfaced through the
-      existing AdoptionMetricsSection.tsx dashboard (new "Mode-Pill Usage" stat tile) --
-      no new UI page, no new vendor.
-- [x] Tests: new pure-function tests in chat-service.test.ts
-      (formatContextEntityBlock/formatGlossaryBlock, all 4 entity types + null/empty/
-      budget-cap edge cases) and a new adoption-metrics-service.test.ts
-      (computeModePillUsageRate: null-when-undecided, 0%, 50%, 100%, rounded mixed).
-- [x] `bun install` + `bunx tsc --noEmit -p .` clean (0 errors) + `bun test`: 2043 pass,
-      0 fail (full suite, includes the 35 new/updated tests in the two touched files).
-- [x] No schema/migration change -- all columns used
-      (dynamicChainId/chainSelectorSkipped/contextEntityType/contextEntityId/
-      businessTerminologyGlossary) already existed. Tier1, additive-only.
-- [x] Re-checked on resume (invocation 2/20): PR #580 had gone CONFLICTING against
-      `main` (main picked up PR #572, an unrelated PROGRESS.md-only change from a
-      sibling task). Merged `origin/main` into this branch, resolved the PROGRESS.md
-      conflict by keeping this task's own log (the other side was a different task's
-      workspace content, no source-code overlap), re-ran `bunx tsc --noEmit -p .`
-      (clean) and `bun test` (exit 0) post-merge, pushed. PR #580 is now
-      `mergeable: MERGEABLE` / `mergeStateStatus: BLOCKED` (CI running fresh off the
-      push, not self-merged per this task's own constraint).
-
-- [x] Re-checked on resume (invocation 4/20): PR #580's `statusCheckRollup` shows
-      "Metadata Index Coverage Check" FAILED (56 governance files/dirs added by
-      *other* tasks' merges into main, e.g. ai-os/scripts/*.py,
-      ai-os/*.yaml/*.json, not indexed in ai-os/OS.yaml) and "Promptfoo Evals"
-      CANCELLED. Verified via `gh api .../branches/main/protection` that neither
-      is in `required_status_checks.contexts` (only Lint/Type Check/Build/
-      audit-check/Guardrail Presence Check/Asset Registry Coverage Check/Unit
-      Tests are required, and all 7 are SUCCESS on #580). Verified via
-      `gh api .../commits/<origin/main sha>/check-runs` that Metadata Index
-      Coverage Check already fails on `main` itself (pre-existing drift from
-      sibling tasks, not introduced by this task's diff) -- out of this task's
-      three-sub-ask scope, not fixing it here. mergeStateStatus is UNSTABLE
-      (non-required check failing) not BLOCKED -- PR remains genuinely
-      mergeable.
+- [x] Read task-20260727-034439's task.yaml, worker.log, systemd.log; confirmed its own quality-gate phase was a legitimately slow/hung `next build` (a separate defect, already fixed live by sibling task-20260727-043407 via a `timeout` wrapper in scripts/quality-gate.sh — verified that fix is present).
+- [x] Found the REAL, distinct root cause of the "stalled or looping" watchdog escalation itself: scripts/veridian-task-watchdog.py's `escalate()` had no dedup check before creating a new RCA task. Confirmed live: 7 separate `veridian-worker@*rca-task-20260727-034439*` units were active simultaneously, one new escalation almost every ~60s watchdog tick, for the identical "periodic checkpoint" signature.
+- [x] Found the reason no prior fix ever took effect despite 13 recorded "successes": `known_fixes` already had a row (signature="periodic checkpoint", fix_action="skip_escalation_when_activating", since 2026-07-26) whose name describes exactly the missing dedup behavior, but that action name was never implemented in `FIX_ACTIONS` — `apply_known_fix()` fell into the "unrecognized action name, no automated action taken" branch every time, and `process_task()` still unconditionally escalated afterward. `record_fix_applied()` was also being called even for unrecognized actions, inflating `success_count` and masking that the fix never engaged.
+- [x] Found a second bug compounding the first: `known_fix = lookup_known_fix(signature) if found else None` gated the known_fixes lookup (step_2) behind `search_prior_occurrence()` (step_1, ATTENTION.md/task_audits text search) succeeding — this task's own escalation happened with `found=False`, so the known_fixes row was never even consulted.
+- [x] Real fix applied directly to `/opt/veridian/scripts` (shared server infra, not part of any repo — same location the OOM and hung-build fixes for this signature already live):
+  - `veridian-task-watchdog.py`: added `find_active_rca_for(task_id)`, called unconditionally at the top of `escalate()` — skips creating a new RCA task if one is already active for the same original task_id, regardless of which code path reached `escalate()`.
+  - `veridian-task-watchdog.py`: wired `skip_escalation_when_activating` into `FIX_ACTIONS` for real (was previously unrecognized).
+  - `veridian-task-watchdog.py`: decoupled the known_fixes lookup from `search_prior_occurrence()`'s result (step_2 now runs independently of step_1, per the RCA prompt template's own stated intent).
+  - `veridian-task-watchdog.py`: `record_fix_applied()` now only called when `fix_action` is actually recognized in `FIX_ACTIONS`.
+  - `veridian-task.py`: added `--rca-target-id` to `cmd_create`, stored as `task["rca_target_id"]`; `escalate()` now passes this when creating an RCA task, so `find_active_rca_for()` has a real, non-fragile signal (not slug-guessing) to detect "an RCA for task X is already active."
+- [x] Verified: `python3 -m py_compile` on both files; a monkeypatched unit test of `find_active_rca_for()` and `escalate()`'s dedup skip path; `veridian-task.py create --help` confirms `--rca-target-id` is wired.
+- [x] Registered the fix: `python3 scripts/superboss-register.py log-fix --signature "periodic checkpoint" --fix-action "skip_escalation_when_activating"` → `known_fixes` row now has `success_count=17` (this row already existed since 2026-07-26; this run confirms it, and the fix_action name is now backed by real code for the first time).
 
 ## Remaining
-- [ ] None for this task's three sub-asks. PR open at
-      https://github.com/FChecklist/compliance-tracker/pull/580 -- all required
-      CI checks green; not self-merged (per this task's own constraint); left
-      for Owner review/merge.
+- [ ] Out of this task's scope, reported not fixed: 6+ duplicate `rca-task-20260727-034439*` worker units were left running by the pre-fix escalation storm (task-20260727-043407, 044231, 044431, 044531, 044632, 044732 as of this checkpoint). Did not stop them — that is a live-service action against other in-flight (automated) sessions' work, judged out of scope for a code-level RCA fix; flagging for owner/supervisor review. The new dedup fix prevents *future* duplicate escalations but does not retroactively clean up ones already created before this fix landed (none of them have `rca_target_id` set, since that field didn't exist yet at their creation time).
