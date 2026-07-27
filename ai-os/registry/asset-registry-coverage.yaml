@@ -438,6 +438,16 @@ exempted:
     reason: "Priority 15 Sales & CRM depth wave (2026-07-14): an append-only stage-change ledger for crm_leads/crm_opportunities (fromStage/toStage/note/changedById), same class as the already-exempted access_review_certifications -- no genuine display-name column (toStage is a status value, not this row's own name), a decision/audit-trail record, not a discoverable platform asset."
   - table: hr_attendance_records
     reason: "VERIDIAN Review Framework remediation, Wave B HR Attendance & Manpower (drizzle/0220): one per-user-per-day attendance status record (present/absent/half_day/on_leave/holiday), same class as crm_stage_history -- no genuine display-name column (status is an enum value, not this row's own name), a decision/log record, not a discoverable platform asset."
+  - table: hr_expense_claims
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-employee expense/reimbursement claim -- contains sensitive per-employee financial data (amount, receipt), same confidentiality-sensitive class as the already-exempted performance_reviews -- deliberately not surfaced as a discoverable UMR asset; its own approval workflow lives directly on status/approverId, same posture as leave_requests took before its own registration review."
+  - table: hr_employee_loans
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-employee loan/salary-advance record -- sensitive per-employee financial data (principal, outstanding balance), same confidentiality-sensitive class as hr_expense_claims/performance_reviews above -- deliberately not surfaced as a discoverable UMR asset this pass."
+  - table: hr_loan_installments
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): one repayment-schedule row per hr_employee_loans installment -- an append-only ledger record, same class as crm_stage_history -- no genuine display-name column (installment_number is a sequence position, not this row's own name)."
+  - table: hr_shift_types
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): small admin-defined shift master-data lookup (name + start/end time) -- reviewed and deliberately left as a lookup table, not a discoverable UMR asset, same posture as this file's already-exempted small lookup tables."
+  - table: hr_shift_roster_assignments
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): links an employee to a shift type for a date range -- an operational scheduling assignment record, same class as crm_stage_history -- no genuine display-name column of its own."
   - table: customer_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: data_separation_audit
@@ -766,6 +776,10 @@ exempted:
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: this IS the root tenant table -- org_column would have to be the row's own id (self-referential, not covered by the standard org_column pattern), it also carries CIN/GSTIN/PAN government-ID columns, and it is the platform's single largest blast-radius table (fires on every org signup/update) -- deliberately left for explicit Super Boss-level review rather than a domain dispatch's own judgment call"
   - table: performance_reviews
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch review (2026-07-14): contains sensitive per-employee evaluation content (self_rating/manager_rating/strengths/improvements/goals about a specific employee) -- same confidentiality-sensitive class as board_evaluations/posh_complaints/whistleblower_cases, deliberately not bundled into a routine tranche."
+  - table: performance_review_goals
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-review KRA/weighted-goal row -- contains a rating/comments about a specific employee's performance against that goal, same confidentiality-sensitive class as performance_reviews itself."
+  - table: performance_review_raters
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-review 360-degree rater feedback row -- contains a rating/feedback about a specific employee from a peer/subordinate/other rater, same confidentiality-sensitive class as performance_reviews itself."
   - table: personal_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: platform_assets
@@ -930,3 +944,15 @@ exempted:
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): no genuine display-name column -- scope (enum) + version (int) is a compound identity, not a per-row name, and rule is opaque policy jsonb. A versioned configuration record, same class as approval_workflow_step_approvals/access_review_certifications -- not a discoverable named asset."
   - table: ai_routing_audit_log
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): append-only audit log of routing decisions, no display-name column -- same class as the already-exempted activity_log/api_key_request_log."
+  - table: public_ticket_submission_attempts
+    reason: "Helpdesk gap-closure (self-service portal, Phase 0 2026-07-27): a rate-limit/abuse log for the new unauthenticated public ticket-submission surface, not a platform business asset -- same class as other rate-limit/audit-log exemptions above."
+  - table: ticket_teams
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration (compliance.asset_registration_config + auto_register_asset trigger) deferred to a future pass."
+  - table: business_hours_schedules
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: sla_policies
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: escalation_rules
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: ticket_escalation_events
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): append-only escalation audit log, same class as other append-only audit-log exemptions above, not a platform business asset requiring the generic active-record registration pattern."

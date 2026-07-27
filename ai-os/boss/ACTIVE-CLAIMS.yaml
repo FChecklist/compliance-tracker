@@ -88,6 +88,99 @@ active:
       task's own dispatched branch/worktree). Not self-merged -- tier2
       (HOLD_FOR_OWNER_SIGNOFF per the task's own COMPLEXITY_TIER), and
       Rule 7(c) requires an independent, non-self auditor regardless.
+  - session_label: "claude-code (task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan) -- Phase 0 HR gap closure: employee expense/reimbursement, employee loans/salary advances, KRA/weighted-goal + 360 performance appraisal, shift management/roster"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      4 real, code-verified HR gaps per DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE
+      Phase 0 investigation (2026-07-27): (1) employee expense claims/
+      reimbursement -- confirmed constructionExpenseEntries (schema.ts:9661)
+      is project-cost tracking, not employee reimbursement, zero overlap;
+      (2) employee loans/salary advances -- confirmed absent (grepped
+      "loan"/"advance" across schema.ts); (3) KRA/weighted-goal +
+      multi-rater (360) performance appraisal, extending (not replacing)
+      performanceReviews/performance-service.ts; (4) shift-type/roster
+      table + attendance deriving expected-shift context, extending (not
+      replacing) hrAttendanceRecords/hr-attendance-service.ts. Loan and
+      expense-reimbursement both integrate into erp-payroll-service.ts's
+      processPayrollRun() (deduction/earning lines), per this task's own
+      SUCCESS_CRITERIA.
+
+      File scope: new hr-expense-service.ts, hr-loan-service.ts,
+      hr-shift-service.ts (+ .test.ts each), schema.ts additions (new
+      tables only, no existing table altered), erp-payroll-service.ts
+      (processPayrollRun extended, additive), performance-service.ts
+      (extended, additive), hr-attendance-service.ts (shift-context lookup
+      added, additive), new src/app/api/hr/expenses/**,
+      src/app/api/hr/loans/**, src/app/api/hr/shifts/**,
+      src/app/api/performance-reviews/reviews/[id]/goals/**,
+      src/app/api/performance-reviews/reviews/[id]/raters/**, new
+      drizzle/ migration SQL, PROGRESS.md. Also fixing the stale
+      hr-service.ts:1-6 "Payroll deliberately out of scope" comment (now
+      wrong -- erp-payroll-service.ts is a real 513-line payroll engine)
+      per this task's own KNOWN_CONTEXT instruction.
+
+      Collision check before starting: grepped this file for "expense"/
+      "reimburs"/"loan"/"advance"/"shift"/"roster"/"kra"/"360" -- only
+      unrelated hits found (a banking-domain loan_schedule_generator/
+      amortization_engine Chain Selector fix, task-20260718-084004, and
+      roster.ts AI-team-model-roster entries, both a different domain
+      entirely). No open PR found via `gh pr list --state open` touching
+      any of this task's file scope. `git pull origin main` run fresh
+      immediately before this entry.
+  - session_label: "claude-code (task-20260727-101123-erp-project-management-gaps--timesheet-t) -- ERP PM gap closure: PMS timesheet->invoice, Gantt/critical-path UI verification, resource-allocation conflict detection [PUSHED, PR pending]"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE Phase 0
+      gap closure, 3 narrow real gaps in compliance-tracker's existing
+      pms_* PM module (not a from-scratch PM build). File scope: new
+      src/lib/services/pms-invoice-service.ts (+ .test.ts),
+      src/lib/services/pms-time-service.ts (added resolvePmsBillableRatePure
+      export + .test.ts), src/lib/services/schedule-service.ts (added
+      detectResourceConflicts/getResourceConflicts + .test.ts),
+      src/app/api/pms/invoices/generate/route.ts,
+      src/app/api/pms/schedule/resource-conflicts/route.ts,
+      src/app/api/v1/projexa/schedule/resource-conflicts/route.ts, edits to
+      src/app/api/pms/schedule/resource-allocations/route.ts and
+      src/app/api/v1/projexa/schedule/workload/route.ts (added `conflicts`
+      to POST response), 3 new columns on pms_time_entries (schema.ts +
+      drizzle/0264_pms_timesheet_invoice_link.sql, hand-authored -- see
+      PROGRESS.md for why drizzle-kit generate wasn't usable in this repo's
+      current meta/ state).
+
+      Confirmed via direct code read (not re-derived): Gantt/critical-path
+      UI (this task's Gap 2) ALREADY EXISTS, merged 2026-07-09 (commit
+      e1572a4, FChecklist/projexa) -- ScheduleGanttClient.tsx already
+      consumes GET /api/v1/projexa/schedule/gantt and already shows
+      isCritical/floatDays as a grid column. No PROJEXA changes made, no
+      PROJEXA PR opened -- there was nothing to build. This task's own
+      SPEC KNOWN_CONTEXT's "zero .tsx Gantt matches" was from grepping the
+      wrong repo (compliance-tracker has no UI at all; the real UI is in
+      the separate PROJEXA repo).
+
+      Collision check before starting: grepped this file for "pms"/
+      "timesheet"/"gantt"/"resource-alloc"/"invoice" -- no active entry
+      touches this file/directory scope. `git pull origin main` run fresh
+      immediately before this entry.
+
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Fix GitHub Dependabot security alert #34 on FChecklist/compliance-tracker
+      (main): npm package sharp at ^0.34.3 is affected by GHSA-f88m-g3jw-g9cj
+      (CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591 --
+      inherited libvips vulnerabilities), severity high. Bumping to ^0.35.3
+      (first_patched_version 0.35.0, advisory names 0.35.3 as latest,
+      libvips 8.18.3) in package.json, updating bun.lock via `bun install`.
+      Implementation-only task per Rule 7(c) -- a separate supervising
+      session audits and merges; this session does not self-certify.
+
+      File scope: package.json (sharp dependency line only), bun.lock
+      (sharp + its own transitive tree only). No other files touched.
+
+      Collision check before starting: grepped this file for "sharp"/
+      "dependabot" -- only unrelated hits (image blur-detection feature,
+      an older unrelated Dependabot/recharts PR triage entry). No active
+      claim on this alert or on package.json's sharp line.
   - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
     claimed_at: "2026-07-27T (this session)"
     claim: |
@@ -3403,6 +3496,44 @@ active:
       open` checked (571/570/566/563/562/558/557/556/555/554/551/539...
       down to 484/410) -- none touch chat-service.ts, glossary-service.ts,
       adoption-metrics-service.ts, or AdoptionMetricsSection.tsx.
+
+  - session_label: "claude-code (task-20260727-101134-erp-helpdesk-gaps--tiered-sla---team-rou) -- Helpdesk gap-closure: tiered SLA policy + team routing, email-to-ticket ingestion (verify-first), self-service portal (verify-first)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE,
+      Phase 0 investigation dated 2026-07-27. Closing 3 confirmed-real
+      Helpdesk gaps (compliance-tracker's Helpdesk already exceeds Odoo
+      stock in several respects -- ITIL problem management, AI ticket
+      intelligence, voice-to-ticket -- this is narrow gap-closure, not a
+      rebuild): (1) tiered SLA-policy + escalation-rule + team/queue tables,
+      wiring ticket creation to resolve slaDeadline from policy instead of
+      only the current manual input.slaHours override (confirmed absent:
+      zero grep matches for slaPolic/sla_polic/escalationRule/businessHours
+      in schema.ts); (2) email-to-ticket ingestion (verify-first --
+      emailIntelligenceItems promotes to tasks today, not confirmed whether
+      it or anything else promotes to tickets); (3) public self-service
+      portal -- anonymous KB browse + raise-a-ticket without a pre-issued
+      guest link (verify-first -- knowledgeBasePages publish-flag and
+      portal-without-token status unconfirmed at UI layer per Phase 0).
+
+      File scope (compliance-tracker, this repo): src/lib/db/schema.ts
+      (additive tables: sla policies/escalation rules/teams, ticket
+      teamId/queueId column), src/lib/services/ticket-service.ts (SLA
+      policy resolution, additive/backward-compatible), new
+      src/lib/services/ email-to-ticket ingestion module (only if step 2
+      confirms genuinely absent, reusing existing email-ingestion
+      infra behind emailIntelligenceItems rather than building a second
+      one), new public self-service KB/ticket routes reusing
+      conversationGuestAccess (only if step 3 confirms genuinely absent),
+      colocated *.test.ts for all of the above. Does not touch
+      problemRecords/ticketIntelligenceItems/knowledgeBasePages' existing
+      hierarchy, or field-service/CSAT code.
+
+      Collision check before starting: grepped this file for "helpdesk"/
+      "ticket"/"SLA" (case-insensitive) -- matches are all unrelated
+      (voice-tickets GAP-MOM-VOICE-TICKETS, already closed; payroll/tax
+      "slabs"; generic cron-timing "SLA" mentions). No other active entry
+      claims schema.ts's tickets/SLA area or a Helpdesk gap.
 recently_completed:
   - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- phase_9_gateway_knowledge_sync_infrastructure [PRs OPEN, NOT MERGED]"
     claimed_at: "2026-07-27T (this session, closed same session)"
