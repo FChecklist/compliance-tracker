@@ -77,6 +77,22 @@ had already done the real work (PR #103)."* Verified live:
   narrower scope than originally asked; closing that gap needs a fresh, correctly-
   scoped claude-control dispatch, not further work here.
 
+## Invocation 2 addendum (2026-07-28): resolved stale PR conflict
+
+PR #623 (this task's close-out PR, opened in invocation 1) had gone
+`CONFLICTING` -- the branch had fallen far behind `main` (~250+ commits,
+many other tasks' work) since invocation 1, and `main`'s own `PROGRESS.md`
+had picked up many more independently-appended task sections in the
+interim. Merged `origin/main` into this branch; the only conflict was in
+`PROGRESS.md` itself (a shared, append-only log every task writes to) --
+resolved by keeping both sides' sections concatenated, consistent with
+this file's existing convention of one section per task. No other file
+conflicted. Verified `gh pr view 623` now reports `mergeable: MERGEABLE`
+after pushing the merge commit (`14512b8d`). CI is re-running on the merge
+commit; `Vercel` failed on a build-rate-limit (unrelated, seen recurring
+across other recent PRs in this same log, e.g. the phase-0-baseline entry
+below).
+
 # PROGRESS -- task-20260728-050704-sap-informed-veridian-phase-0--baseline
 
 ## Completed
