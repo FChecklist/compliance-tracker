@@ -312,49 +312,64 @@ active:
       touches this file/directory scope. `git pull origin main` run fresh
       immediately before this entry.
 
-  - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
-    claimed_at: "2026-07-27T (this session)"
+  - session_label: "claude-code (task-20260728-051737-owner-engine-phase-8-real-gaps) -- VERIDIAN_Architecture_v2.0 phase_8: build the 5 real remaining gap items (prompt translation/localization/marketplace/export/import)"
+    claimed_at: "2026-07-28T (this session)"
     claim: |
-      phase_8_dspy_learning_distribution_engines increment 1 of
-      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in
-      repo claude-control, target_repo: compliance-tracker). Depends on
-      phase_2_compiler_pipeline_intelligence_engines (done) and
-      phase_4_defense_in_depth_security_quality (done, PR #562 merged
-      2026-07-27) -- both satisfied.
+      Closes the 5 gap items independently re-audited as entirely unbuilt
+      in ai-os/audits/owner_engine_reaudit_2026-07-27.md (merged to main):
+      engine-prompt-translation, engine-prompt-localization,
+      engine-prompt-marketplace, engine-prompt-export,
+      engine-prompt-import. PR #589 (increment 1, see the now-superseded
+      claim this entry replaces below in recently_completed) only did a
+      scoping-only pass for these 5 plus real work on the other 2 of 7
+      phase_8 items (engine-dspy-integration, engine-ai-learning -- both
+      genuinely done, not touched by this task). Authoritative scope read
+      directly from ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml
+      (`phase_8_dspy_learning_distribution_engines`) in the sibling
+      claude-control repo (read-only).
 
-      Increment 1 scope: (1) engine-dspy-integration -- evaluate DSPy
-      Python-package installability against services/doc-processing/'s
-      real existing Python microservice stack, make a real justified
-      adopt/reject decision (doc template:
-      ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md), and if adopted
-      wire a minimal signature-based compilation path alongside (not
-      replacing) phase_2's keyword-based compiler with a real before/after
-      quality/token-count comparison on one real prompt. (2) engine-ai-
-      learning -- re-verify capability-learning-service.ts's current real
-      state (file:line) and wire this gap item onto it, extending only if
-      genuinely needed, not duplicating. (3) Scoping-only pass (NOT
-      implementation) for the 5 zero-prior-art engines (engine-prompt-
-      translation, engine-prompt-localization, engine-prompt-marketplace,
-      engine-prompt-export, engine-prompt-import) -- schema/table design +
-      build estimate per engine, registered as planned (status: planned,
-      not built) MASTER_INDEX.yaml entries in claude-control.
+      Plan: extend the existing Prompt Operating System
+      (prompt-os-resolver.ts / prompt-os-service.ts, Wave 22/23) rather than
+      building a parallel prompt-management layer, per this task's own
+      CONSTRAINTS. New platform-wide tables (prompt_translations,
+      prompt_localizations, prompt_marketplace_listings) alongside the
+      existing promptTemplates/promptVersions tables. Translation calls a
+      real LLM via resolveModelConfig()+callLLMJson() (same pattern as
+      every other *-service.ts in this codebase), persisted so it doesn't
+      re-translate on every request. Localization is a distinct second LLM
+      pass layered on top of an existing translation (date/number format +
+      cultural-phrasing adaptation), not a duplicate of translation.
+      Marketplace is platform-wide browse/list (orgId nullable, attribution
+      only -- same posture as workerAgents' publish flow, not new
+      cross-tenant RLS), with a real screen. Export/import is a portable
+      JSON bundle format for one template + its versions, distinct from PR
+      #561's git-tracked-file-tree GitOps exporter (verified via `gh pr
+      view 561 --json files` before starting -- that script only exports
+      to `prompt-registry/` for git review, has zero import counterpart,
+      and is not phase_8 work).
 
-      File scope (compliance-tracker): possible new
-      src/lib/prompt-compiler/ or adjacent dspy-integration module (only
-      if DSPy is adopted), extension of the existing capability-learning-
-      service.ts (not a new file), new
-      ai-os/VERIDIAN_V2_DSPY_TECH_DECISION_2026-07-27.md-equivalent doc.
-      Does not touch phase_4's src/lib/prompt-security/ or phase_9's
-      Gateway G05 wiring files. Also touches claude-control (separate
-      repo, coordinate-not-run-inside): phase_8's status in
-      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
-      ai-os/MASTER_INDEX.yaml (5 planned entries).
+      File scope (compliance-tracker): src/lib/db/schema.ts (3 new
+      tables), one new hand-authored drizzle/0268_*.sql migration (this
+      repo's drizzle-kit generate has known meta/ drift issues per prior
+      sessions' notes -- hand-authoring follows the existing 0265/0266
+      pattern), src/lib/services/prompt-translation-service.ts,
+      prompt-localization-service.ts, prompt-marketplace-service.ts,
+      prompt-export-import-service.ts (+ colocated *.test.ts each),
+      permission-service.ts (new PROMPT_ACTION_ROLES entries, all
+      veridian_admin -- same bar as every existing prompt action, not
+      loosened), new API routes under src/app/api/prompt-os/{translate,
+      localize,export,import}/route.ts and src/app/api/prompt-marketplace/
+      route.ts, new src/app/(app)/prompt-marketplace/page.tsx screen.
+      Does not touch src/lib/prompt-security/, phase_9's Gateway G05
+      wiring, capability-learning-service.ts, or any cron/.timer unit
+      (task's own CONSTRAINTS: disabled cron/systemd timers stay disabled).
 
-      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
-      "phase_8"/"dspy"/"DSPy"/"capability-learning" -- zero matches, no
-      active or recent collision. query-knowledge
-      "veridian_v2_dspy_learning" --tag domain:veridian_architecture_v2
-      confirmed found=0 live before starting.
+      Collision check before starting: `git pull origin main` run fresh
+      immediately before this entry. Grepped this file for "phase_8"/
+      "prompt-translation"/"prompt-localization"/"prompt-marketplace"/
+      "prompt-export"/"prompt-import" -- only the stale increment-1 entry
+      below (PR #589, confirmed MERGED via `gh pr view 589`), no other
+      active or recent collision.
   - session_label: "claude-code (task-20260727-094516-architecture-phase-5-increment-2--webllm) -- VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers increment 2 of N: real WebLLM/Transformers.js model wiring + tool-calling + worker-pool deepening"
     claimed_at: "2026-07-27T (this session, registered slightly after real work began -- noted honestly per this file's own Rule 4 spirit)"
     claim: |
@@ -3702,6 +3717,20 @@ active:
       PR #603 opened (compliance-tracker), awaiting CI + merge -- will move
       this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines [MERGED PR #589]"
+    claimed_at: "2026-07-27T (this session, closed same session)"
+    claim: |
+      COMPLETED: PR #589 merged 2026-07-27T11:24:34Z. engine-dspy-integration
+      (real, justified reject decision) and engine-ai-learning (real
+      extension to capability-learning-service.ts) done for real. The
+      other 5 named gap items (engine-prompt-translation, -localization,
+      -marketplace, -export, -import) were only scoped, not built, per
+      this PR's own "increment 1" framing -- independently re-confirmed
+      unbuilt by ai-os/audits/owner_engine_reaudit_2026-07-27.md (merged
+      to main) and picked up as real implementation work by
+      task-20260728-051737-owner-engine-phase-8-real-gaps (see `active:`
+      above). Moved here from `active:` since it was left un-migrated
+      after merge -- no open work remains under this original claim.
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
     claim: |
