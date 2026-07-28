@@ -3727,6 +3727,54 @@ active:
       re-confirmed COMPLETE (report: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md).
       PR #603 opened (compliance-tracker), awaiting CI + merge -- will move
       this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260728-051733-owner-engine-phase-5-real-gaps) -- OWNER_ENGINE phase_5 real gap closure: NPU/Built-in-AI real inference, cross-tier storage, browser-sync engine"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Per audit-confirmed gaps (ai-os/audits/owner_engine_reaudit_2026-07-27.md,
+      merged) in phase_5_browser_execution_tiers: detectNpuTier()/
+      detectBuiltinAiTier() in src/lib/browser-execution/tier-detection.ts are
+      detection-only, model-cache.ts is scoped per-engine only (not the
+      general cross-tier OPFS+Cache API+IndexedDB storage layer), and zero
+      code implements the browser-sync engine. Building: (1) real WebNN NPU
+      inference (src/lib/browser-execution/npu-engine.ts, reusing the same
+      Xenova/all-MiniLM-L6-v2 model transformers-engine.ts already targets,
+      via @huggingface/transformers' real `device: "webnn-npu"` backend);
+      (2) real Chrome Built-in AI inference (new
+      src/lib/browser-execution/builtin-ai-engine.ts, window.LanguageModel /
+      window.ai.languageModel real call path); (3) new
+      src/lib/browser-execution/cross-tier-storage.ts (OPFS + Cache API
+      backends, reusing model-cache.ts's IndexedDbModelCache as the third
+      backend rather than replacing it); (4) new
+      src/lib/browser-execution/sync-engine.ts (offline queue with real
+      same-entity coalescing, remote conflict resolution, delta sync,
+      sync mutex) -- SPEC's cited PROJEXA prior art
+      (src/lib/offline/work-progress-queue.ts, PR #54) does not actually
+      exist anywhere in this repo's history (verified via `git log --all`
+      and `gh pr view 54`, which is the unrelated VERI Reward engine) so
+      this is built fresh, not adapted from that file. Also adding a real
+      litert-spike registry entry to this repo's own ai-os/MASTER_INDEX.yaml
+      (canonical_path_repo per that file's own header) -- no cross-repo
+      write needed, compliance-tracker is both this task's repo and that
+      file's designated canonical repo copy.
+      File scope: src/lib/browser-execution/npu-engine.ts (new),
+      src/lib/browser-execution/builtin-ai-engine.ts (new),
+      src/lib/browser-execution/cross-tier-storage.ts (new),
+      src/lib/browser-execution/sync-engine.ts (new) + each file's
+      .test.ts, src/lib/browser-execution/tier-orchestrator.ts (additive
+      shouldAttemptNpu/shouldAttemptBuiltinAi gates only, same pattern as
+      existing shouldAttemptWebLlm), ai-os/MASTER_INDEX.yaml (new registry
+      entry + regenerated quick_reference). NOT touching Phase 4
+      (defense-in-depth) or Phase 9 (gateway wiring) per this task's own
+      CONSTRAINTS. Checked this file for collisions: no other active entry
+      names src/lib/browser-execution/** or phase_5 browser-execution-tier
+      work.
+
+      STATUS UPDATE: implementation complete -- all 4 gaps closed (npu-engine.ts,
+      builtin-ai-engine.ts, cross-tier-storage.ts, sync-engine.ts, tier-orchestrator.ts
+      gates, litert-spike MASTER_INDEX.yaml registration). 108 tests pass,
+      `npx tsc --noEmit` clean. PR opened (compliance-tracker), awaiting fresh
+      supervisor audit + CI + merge per this task's own EXPECTED_OUTPUT -- will
+      move this entry to recently_completed once merged.
   - session_label: "claude-code (task-20260728-050704-sap-informed-veridian-phase-0--baseline) -- SAP-informed VERIDIAN Phase 0: business-domain baseline inventory"
     claimed_at: "2026-07-28T (this session)"
     claim: |
