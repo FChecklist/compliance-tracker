@@ -17,9 +17,13 @@
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import {
   aggregateDesignerTimesheetCosts,
+  aggregateDesignerApprovalStatus,
+  aggregateWorkAnalysis,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
   type DesignerTimesheetRosterUser,
+  type TimesheetStatusEntry,
+  type WorkAnalysisEntry,
 } from "./construction-reports-service"
 
 // Fixture: 3 designers across 2 projects and 3 categories.
@@ -137,6 +141,81 @@ describe("aggregateDesignerTimesheetCosts: roster-inclusion (budget-undercount f
     const result = aggregateDesignerTimesheetCosts(rosterEntries, rosterBudgetLines, rosterOnly)
     expect(result.byDesigner.some((d) => d.userId === "u5")).toBe(false)
     expect(result.byDesignerStatus.find((s) => s.status === "inactive")).toEqual({ status: "inactive", budget: 0, actual: 0, variance: 0 })
+  })
+})
+
+// Design Studio timesheets (Owner item 12, "IMPORTANT", 2026-07-28):
+// designer-wise approval-status view -- a distinct cut from
+// aggregateDesignerTimesheetCosts' byDesignerStatus (active/inactive)
+// above; this groups each designer's logged hours by where they sit in the
+// draft -> submitted -> approved/rejected workflow.
+describe("aggregateDesignerApprovalStatus", () => {
+  test("buckets each designer's hours/entry-counts by approval status, zero-filling statuses with no entries", () => {
+    const entries: TimesheetStatusEntry[] = [
+      { userId: "u1", userName: "Alice", approvalStatus: "draft", hours: 3 },
+      { userId: "u1", userName: "Alice", approvalStatus: "submitted", hours: 5 },
+      { userId: "u1", userName: "Alice", approvalStatus: "submitted", hours: 2 },
+      { userId: "u2", userName: "Bob", approvalStatus: "approved", hours: 8 },
+      { userId: "u2", userName: "Bob", approvalStatus: "rejected", hours: 4 },
+    ]
+    const result = aggregateDesignerApprovalStatus(entries)
+    expect(result).toEqual([
+      {
+        userId: "u1", userName: "Alice",
+        draft: { hours: 3, entries: 1 },
+        submitted: { hours: 7, entries: 2 },
+        approved: { hours: 0, entries: 0 },
+        rejected: { hours: 0, entries: 0 },
+      },
+      {
+        userId: "u2", userName: "Bob",
+        draft: { hours: 0, entries: 0 },
+        submitted: { hours: 0, entries: 0 },
+        approved: { hours: 8, entries: 1 },
+        rejected: { hours: 4, entries: 1 },
+      },
+    ])
+  })
+
+  test("empty input produces an empty designer list, never a crash", () => {
+    expect(aggregateDesignerApprovalStatus([])).toEqual([])
+  })
+})
+
+// Design Studio timesheets: work-analysis view -- hours by task/category
+// per designer over a period, built directly from the timesheet data
+// already flowing through pms_time_entries/pms_issues.
+describe("aggregateWorkAnalysis", () => {
+  test("sums hours per designer, broken down by task and by category", () => {
+    const entries: WorkAnalysisEntry[] = [
+      { userId: "u1", userName: "Alice", taskId: "t1", taskName: "Lobby Elevation", category: "Design Development", hours: 4 },
+      { userId: "u1", userName: "Alice", taskId: "t1", taskName: "Lobby Elevation", category: "Design Development", hours: 2 },
+      { userId: "u1", userName: "Alice", taskId: "t2", taskName: "Site Visit Report", category: "Site Visit", hours: 3 },
+      { userId: "u2", userName: "Bob", taskId: "t3", taskName: "BOQ Review", category: "Documentation", hours: 6 },
+    ]
+    const result = aggregateWorkAnalysis(entries)
+    expect(result).toEqual([
+      {
+        userId: "u1", userName: "Alice", totalHours: 9,
+        byTask: [
+          { taskId: "t1", taskName: "Lobby Elevation", hours: 6 },
+          { taskId: "t2", taskName: "Site Visit Report", hours: 3 },
+        ],
+        byCategory: [
+          { category: "Design Development", hours: 6 },
+          { category: "Site Visit", hours: 3 },
+        ],
+      },
+      {
+        userId: "u2", userName: "Bob", totalHours: 6,
+        byTask: [{ taskId: "t3", taskName: "BOQ Review", hours: 6 }],
+        byCategory: [{ category: "Documentation", hours: 6 }],
+      },
+    ])
+  })
+
+  test("empty input produces an empty designer list, never a crash", () => {
+    expect(aggregateWorkAnalysis([])).toEqual([])
   })
 })
 
