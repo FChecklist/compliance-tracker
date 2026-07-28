@@ -97,3 +97,35 @@ GRANT SELECT, INSERT ON compliance.prompt_translations TO app_runtime;
 GRANT SELECT, INSERT ON compliance.prompt_localizations TO app_runtime;
 GRANT SELECT, INSERT, UPDATE ON compliance.prompt_marketplace_listings TO app_runtime;
 GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.prompt_translations, compliance.prompt_localizations, compliance.prompt_marketplace_listings TO service_role;
+
+-- CORRECTED RLS + GRANT block (v2). The first attempt copied drizzle/0019's
+-- own latent bug: a SELECT-only policy on a platform-wide, non-tenant table
+-- whose app_runtime GRANT also includes INSERT/UPDATE. Since app_runtime is
+-- NOSUPERUSER NOBYPASSRLS (drizzle/0215), RLS still applies even when the
+-- table-level GRANT permits the operation -- a SELECT-only policy silently
+-- rejects every insert/update with "new row violates row-level security
+-- policy". Audit (2nd pass on PR #618) caught this: translatePromptVersion/
+-- localizePromptVersion/publishToMarketplace/unlistFromMarketplace would
+-- all have failed in production despite the GRANTs looking correct. Fixed
+-- here with FOR ALL policies (still USING (true)/WITH CHECK (true) -- same
+-- permissive, non-tenant-scoped posture, just covering every operation the
+-- GRANT actually allows) plus the missing UPDATE grants.
+
+DROP POLICY IF EXISTS app_runtime_read_prompt_translations ON compliance.prompt_translations;
+DROP POLICY IF EXISTS app_runtime_read_prompt_localizations ON compliance.prompt_localizations;
+DROP POLICY IF EXISTS app_runtime_read_prompt_marketplace_listings ON compliance.prompt_marketplace_listings;
+
+DO $$ BEGIN
+  CREATE POLICY app_runtime_all_prompt_translations ON compliance.prompt_translations FOR ALL TO app_runtime USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY app_runtime_all_prompt_localizations ON compliance.prompt_localizations FOR ALL TO app_runtime USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY app_runtime_all_prompt_marketplace_listings ON compliance.prompt_marketplace_listings FOR ALL TO app_runtime USING (true) WITH CHECK (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+GRANT UPDATE ON compliance.prompt_translations TO app_runtime;
+GRANT UPDATE ON compliance.prompt_localizations TO app_runtime;
