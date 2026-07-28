@@ -99,7 +99,98 @@ CONSTRAINTS.
 
 ## Remaining
 - [ ] Fresh supervisor audit of PR #618 (mandatory, this session may not self-certify).
-- [ ] Supervising session applies `drizzle/0268_prompt_translation_localization_marketplace.sql` live (not applied in this PR).
+- [ ] Supervising session applies `drizzle/0269_prompt_translation_localization_marketplace.sql` live (not applied in this PR).
+
+# PROGRESS -- task-20260728-160922-fix-pr--618-real-audit-fail-reason (re-adopt, real root cause)
+
+The 2026-07-28T10:03:54Z supervisor audit comment said FAIL: "the diff
+supplied for this review is materially incomplete" -- 3 of 4 new service
+files + their tests never shown, `prompt-export-import-service.ts`
+truncated mid-function. Also flagged the migration's self-correcting
+create-then-drop-then-recreate RLS-policy narrative as a secondary issue.
+
+## Completed
+- [x] Read the full audit comment via the GitHub API directly (`gh pr
+      view`'s own JSON output silently truncates long comment bodies in
+      this environment -- had to fall back to
+      `gh api repos/.../issues/618/comments` for the untruncated text).
+- [x] Root-caused the "materially incomplete diff" claim instead of
+      trusting it at face value: `ai-os/scripts/supervisor-entrypoint.sh`
+      line 56 does `git diff "origin/$DEFAULT_BRANCH"...HEAD | head -c
+      60000` before handing the diff to the reviewing LLM. Computed the
+      exact per-file cumulative byte offset of this PR's real diff
+      (95,994 bytes total) in diff order and confirmed the 60,000-byte
+      cutoff lands exactly inside `prompt-export-import-service.ts`
+      (54,406 -> 60,557 bytes) -- precisely the file the auditor said was
+      truncated mid-function, with everything after it (localization/
+      marketplace/translation services + all 4 *.test.ts files) never
+      shown at all. Confirmed via `gh api .../pulls/618/files` that every
+      file's own patch is fully present and untruncated at the GitHub API
+      level -- this is a supervisor-review-pipeline defect, not a defect
+      in PR #618's own code.
+- [x] Found this repo's `ai-os/scripts/supervisor-entrypoint.sh` is a
+      stale mirror of the real, live copy in the separate `claude-control`
+      repo (`/opt/veridian/repos/claude-control/scripts/`) -- the two have
+      diverged significantly (real auth/proxy changes, PR-URL guard block,
+      response logging, etc. only exist in claude-control's copy), and
+      the live copy has the identical `head -c 60000` line. Raising that
+      cap is the actual fix needed for the re-sweep to see the full diff,
+      but it lives in a different repo that's shared infrastructure for
+      every task's audit across the whole AI-OS -- out of this task's
+      compliance-tracker-only scope. Flagging to the user rather than
+      silently pushing there myself.
+- [x] mergeable was CONFLICTING (not `unknown` as SPEC stated -- state had
+      moved on by the time this task started): merged `origin/main` into
+      PR #618's own branch directly (trivial append-only conflict in
+      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` auto-merged clean).
+      `gh pr view 618` now reports `mergeable=MERGEABLE`.
+- [x] Found an abandoned prior session's workspace
+      (`task-20260728-122700-investigate-pr--618-real-audit-fail-reas`, no
+      live systemd unit, no pushed commits, no registered claim) had
+      already independently reached the same "materially incomplete diff"
+      root-cause direction and left an uncommitted fix for the OTHER
+      audit finding (drizzle/0269's self-correcting RLS-policy narrative).
+      Reviewed it, confirmed it was correct, and re-applied the same fix
+      myself on this branch after independently verifying it against the
+      real schema (app_runtime is `NOSUPERUSER NOBYPASSRLS` per
+      drizzle/0215, so RLS still applies over a permissive GRANT).
+- [x] Rewrote `drizzle/0269_prompt_translation_localization_marketplace.sql`'s
+      RLS/GRANT block as a single clean `FOR ALL USING (true) WITH CHECK
+      (true)` block per table (translations/localizations/marketplace_listings)
+      instead of the old create-SELECT-only-then-DROP-then-recreate-FOR-ALL
+      narrative baked into one migration file.
+- [x] Fixed the real cross-test-file bug in
+      `prompt-export-import-service.test.ts`: its `setupImport()` helper
+      called `mock.module("./prompt-os-service", ...)` with a
+      semver-incorrect fake (always bumped minor regardless of the real
+      `bump` param) -- bun's `mock.module()` replaces the module for the
+      rest of the test *process*, not just the current file, so this fake
+      leaked into `prompt-os-service.test.ts`'s own real
+      `nextSemanticVersion` tests whenever both files ran in the same
+      `bun test` invocation. Removed the mock entirely (the real
+      `nextSemanticVersion` is a pure function already covered by its own
+      test file; nothing in this test asserts specific major/minor/patch
+      output values).
+- [x] Verified: ran all 5 phase_8 test files together in one process
+      (`prompt-export-import-service.test.ts`, `prompt-os-service.test.ts`,
+      `prompt-translation-service.test.ts`,
+      `prompt-localization-service.test.ts`,
+      `prompt-marketplace-service.test.ts`) -- 41/41 pass, confirming the
+      leak is actually fixed, not just theorized.
+      `NODE_OPTIONS="--max-old-space-size=8192" npx tsc --noEmit` clean.
+      Full-repo `bun test` -- 2322 pass, 0 fail.
+- [x] Committed + pushed directly to PR #618's own branch
+      (`worker/task-20260728-051737-owner-engine-phase-8-real-gaps`).
+
+## Remaining
+- [ ] Owner sign-off needed before touching claude-control's
+      `supervisor-entrypoint.sh` `head -c 60000` cap -- without that fix,
+      a fresh re-sweep of this ~96KB-diff PR will very likely hit the same
+      truncation again regardless of the code-side fixes above (this
+      PR's legitimate feature diff, even fully cleaned up, does not fit
+      under 60,000 bytes).
+- [ ] Fresh supervisor re-sweep of PR #618 once dispatched (tier2/FAIL
+      stays open for human review either way per this task's own SPEC).
 
 # PROGRESS -- task-20260728-050606-verify-excel-boq-importer-against-real-p
 

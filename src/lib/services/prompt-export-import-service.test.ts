@@ -89,12 +89,13 @@ async function setupImport(opts: Parameters<typeof buildTxMock>[0]) {
     db: { transaction },
     promptTemplates: {}, promptVersions: {},
   }))
-  await mock.module("./prompt-os-service", () => ({
-    nextSemanticVersion: (latest: any, bump: string) => {
-      if (!latest) return { major: 1, minor: 0, patch: 0 }
-      return { major: latest.major, minor: latest.minor + 1, patch: latest.patch }
-    },
-  }))
+  // Deliberately NOT mocking "./prompt-os-service" here: nextSemanticVersion
+  // is a pure function (already covered by prompt-os-service.test.ts's own
+  // suite), and bun's mock.module() replaces the module for the rest of the
+  // test *process*, not just this file -- an earlier version of this test
+  // stubbed it with a simplified (and semver-incorrect) fake that leaked
+  // into prompt-os-service.test.ts's real "nextSemanticVersion" tests
+  // whenever the full suite ran in one process, breaking 3 unrelated tests.
   return { transaction, ...rest }
 }
 

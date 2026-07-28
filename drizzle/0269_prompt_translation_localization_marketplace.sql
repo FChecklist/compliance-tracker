@@ -68,52 +68,20 @@ CREATE INDEX IF NOT EXISTS prompt_marketplace_listings_status_idx
 
 -- RLS + GRANT block, following the exact precedent of drizzle/0019
 -- (compliance.prompt_templates/prompt_versions -- platform-wide, no
--- org_id/tenant scope, so a permissive USING (true) SELECT policy is the
--- correct match for that posture, not a real tenant filter). Added after
--- audit review found these 3 new tables had no ENABLE ROW LEVEL SECURITY,
--- no CREATE POLICY, and no GRANT statements at all -- app_runtime (the
--- role Drizzle's DATABASE_URL connection uses) has no schema-wide default
--- privileges (only service_role does, per drizzle/0008's ALTER DEFAULT
--- PRIVILEGES), so every read/write from the 5 new API routes would have
--- failed with permission-denied once this migration was applied live.
+-- org_id/tenant scope) but using FOR ALL policies rather than 0019's
+-- SELECT-only policy: app_runtime is NOSUPERUSER NOBYPASSRLS
+-- (drizzle/0215), so RLS still applies on top of a table-level GRANT --
+-- a SELECT-only policy would silently reject every insert/update the new
+-- services make (translatePromptVersion/localizePromptVersion/
+-- publishToMarketplace/unlistFromMarketplace) even though the GRANTs
+-- below otherwise permit those operations. Using permissive
+-- USING (true)/WITH CHECK (true) FOR ALL policies keeps the same
+-- non-tenant-scoped posture as 0019 while actually covering every
+-- operation the GRANTs allow.
 
 ALTER TABLE compliance.prompt_translations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE compliance.prompt_localizations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE compliance.prompt_marketplace_listings ENABLE ROW LEVEL SECURITY;
-
-DO $$ BEGIN
-  CREATE POLICY app_runtime_read_prompt_translations ON compliance.prompt_translations FOR SELECT TO app_runtime USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  CREATE POLICY app_runtime_read_prompt_localizations ON compliance.prompt_localizations FOR SELECT TO app_runtime USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-DO $$ BEGIN
-  CREATE POLICY app_runtime_read_prompt_marketplace_listings ON compliance.prompt_marketplace_listings FOR SELECT TO app_runtime USING (true);
-EXCEPTION WHEN duplicate_object THEN NULL; END $$;
-
-GRANT SELECT, INSERT ON compliance.prompt_translations TO app_runtime;
-GRANT SELECT, INSERT ON compliance.prompt_localizations TO app_runtime;
-GRANT SELECT, INSERT, UPDATE ON compliance.prompt_marketplace_listings TO app_runtime;
-GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.prompt_translations, compliance.prompt_localizations, compliance.prompt_marketplace_listings TO service_role;
-
--- CORRECTED RLS + GRANT block (v2). The first attempt copied drizzle/0019's
--- own latent bug: a SELECT-only policy on a platform-wide, non-tenant table
--- whose app_runtime GRANT also includes INSERT/UPDATE. Since app_runtime is
--- NOSUPERUSER NOBYPASSRLS (drizzle/0215), RLS still applies even when the
--- table-level GRANT permits the operation -- a SELECT-only policy silently
--- rejects every insert/update with "new row violates row-level security
--- policy". Audit (2nd pass on PR #618) caught this: translatePromptVersion/
--- localizePromptVersion/publishToMarketplace/unlistFromMarketplace would
--- all have failed in production despite the GRANTs looking correct. Fixed
--- here with FOR ALL policies (still USING (true)/WITH CHECK (true) -- same
--- permissive, non-tenant-scoped posture, just covering every operation the
--- GRANT actually allows) plus the missing UPDATE grants.
-
-DROP POLICY IF EXISTS app_runtime_read_prompt_translations ON compliance.prompt_translations;
-DROP POLICY IF EXISTS app_runtime_read_prompt_localizations ON compliance.prompt_localizations;
-DROP POLICY IF EXISTS app_runtime_read_prompt_marketplace_listings ON compliance.prompt_marketplace_listings;
 
 DO $$ BEGIN
   CREATE POLICY app_runtime_all_prompt_translations ON compliance.prompt_translations FOR ALL TO app_runtime USING (true) WITH CHECK (true);
@@ -127,5 +95,7 @@ DO $$ BEGIN
   CREATE POLICY app_runtime_all_prompt_marketplace_listings ON compliance.prompt_marketplace_listings FOR ALL TO app_runtime USING (true) WITH CHECK (true);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-GRANT UPDATE ON compliance.prompt_translations TO app_runtime;
-GRANT UPDATE ON compliance.prompt_localizations TO app_runtime;
+GRANT SELECT, INSERT, UPDATE ON compliance.prompt_translations TO app_runtime;
+GRANT SELECT, INSERT, UPDATE ON compliance.prompt_localizations TO app_runtime;
+GRANT SELECT, INSERT, UPDATE ON compliance.prompt_marketplace_listings TO app_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.prompt_translations, compliance.prompt_localizations, compliance.prompt_marketplace_listings TO service_role;
