@@ -319,6 +319,27 @@ quick_reference:
   # decision field. Only read the full entry under 'registries:' below
   # once you've found your match here. Regenerate after adding/editing
   # a registry entry -- do not hand-edit this block.
+  - id: rules_articles_198
+    status: live
+    path: ai-os/RULES_ARTICLES_198.json
+    summary: 'Owner directive 2026-07-21: the 99 Rules + 99 Articles governing the complete VERIDIAN AI
+      OS system, supplied by the Owner (RULES.xlsx),...'
+  - id: audit198_framework
+    status: live, real 198/198 run completed 2026-07-21, actively being...
+    path: ai-os/scripts/audit198/ (run-audit.mjs, evidence-engine.mjs, category-checkers.mjs, rules-taxonomy.mjs,
+      constitution-index.mjs, results/audit198-results.json, results/audit198-summary.md)
+    summary: 'Re-runnable, software-driven gap-audit engine for rules_articles_198 (above) -- run: node
+      ai-os/scripts/audit198/run-audit.mjs. Groups the...'
+  - id: standing_task_directive
+    status: live
+    path: ai-os/STANDING_DIRECTIVE.yaml
+    summary: 'Owner directive 2026-07-21: machine-readable encoding of the Owner''s single-line standing
+      per-task prompt. Cite this file (by id or path)...'
+  - id: ai_engineering_policy
+    status: live
+    path: ai-os/AI_ENGINEERING_POLICY.yaml
+    summary: 'Owner directive 2026-07-21: mandatory engineering playbook for the whole integrated system
+      (FChecklist, VERIDIAN AI OS, compliance-tracker,...'
   - id: system_index
     status: live
     path: /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
@@ -516,6 +537,31 @@ quick_reference:
     path: /opt/veridian/ai-os/logs/ATTENTION.md
     summary: Live alert surface. Written by health-check-15min.py (systemd unit failures, stalled checkpoints,
       Mother Router DB reachability, disk/mem,...
+  - id: credit_spend_governance
+    status: 'Complete and live: propose gate deployed in...'
+    path: /opt/veridian/scripts/credit-accountant.py
+    summary: (no scope/purpose/finding/decision field -- see full entry)
+  - id: snip_token_reduction_hook
+    status: live
+    path: '.snip/filters/ (bun-install.yaml, bun-test.yaml, bunx.yaml, bun-x.yaml, vercel.yaml) in this
+      repo; server-side install at /home/rajat/.local/bin/snip + /home/rajat/.claude/settings.json PreToolUse
+      hook + /home/rajat/.config/snip/config.toml filters.dir entry (VERIDIAN-DEV, rajat account, not part
+      of this git repo). Full reports: ai-os/boss/completed-work/snip-integration/'
+    summary: github.com/edouard-claude/snip v0.22.0 (376 stars, MIT, pure Go, no network calls, fail-open),
+      a PreToolUse hook for Claude Code that...
+  - id: prompt_registry_version_lifecycle_extension
+    status: live
+    path: src/lib/db/schema.ts (compliance.promptVersions table), drizzle/0262_prompt_registry_version_lifecycle.sql,
+      src/lib/services/prompt-os-service.ts (transitionPromptLifecycle/diffPromptVersions/rollbackPromptVersion),
+      ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json, ai-os/DATABASE_CATALOG.json (compliance.prompt_versions
+      entry, re-extracted via ai-os/scripts/extract-db-schema-catalog.mjs)
+    summary: VERIDIAN_Architecture_v2.0 phase_1_prompt_registry_lifecycle_foundation (claude-control's...
+  - id: litert_spike_browser_execution_prior_art
+    status: live, unregistered_until_2026-07-28
+    path: src/app/litert-spike/ (page.tsx, worker-src/inference-worker.ts, types.ts), src/app/litert-spike-embeddings/
+      (page.tsx, worker-src/inference-worker.ts, worker-src/wordpiece-tokenizer.ts, types.ts)
+    summary: Registered per VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers's own FIRST-STEP
+      mandate (claude-control repo,...
 
 # ---------------------------------------------------------------------------
 # registries -- every mechanism whose job is to index/track/govern
@@ -1988,6 +2034,52 @@ registries:
       pure isLegalLifecycleTransition/nextSemanticVersion/diffContentLines
       logic without a live DB, same pattern as esignature-service.test.ts.
 
+  - id: litert_spike_browser_execution_prior_art
+    type: browser_native_prototype
+    path: src/app/litert-spike/ (page.tsx, worker-src/inference-worker.ts, types.ts),
+      src/app/litert-spike-embeddings/ (page.tsx, worker-src/inference-worker.ts,
+      worker-src/wordpiece-tokenizer.ts, types.ts)
+    scope: >-
+      Registered per VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers's
+      own FIRST-STEP mandate (claude-control repo,
+      ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml, gap item
+      litert-spike-unregistered) -- "register litert-spike/
+      litert-spike-embeddings in MASTER_INDEX.yaml registries... before any
+      new code" -- never done until this entry. This repo's own
+      ai-os/MASTER_INDEX.yaml IS the canonical repo copy (see this file's own
+      canonical_path_repo header field), so this registration needed no
+      cross-repo write. litert-spike is the ONLY real browser-native prior
+      art in the whole VERIDIAN_Architecture_v2.0 implementation (per that
+      plan's gap analysis known_partial_prior_art.litert_spike) -- a real,
+      working `@litertjs/core` (Google LiteRT.js) WebGPU-with-WASM-fallback
+      browser inference prototype. litert-spike-embeddings is a second,
+      isolated route (added 2026-07-13, see ai-os/boss/COMPLETED.yaml and
+      ai-os/MASTER-TRACKER.yaml:633-718 for its own real, disclosed
+      limitation -- both real @litertjs/core model-conversion attempts for
+      client-side embeddings hit genuine int64-input-tensor incompatibilities
+      with the library's exposed Tensor/DATATYPES API and neither could
+      actually run inference at the time that entry was written).
+    superseded_by_for_generative_inference: >-
+      ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md -- phase_5's real,
+      justified technology decision to run browser-side TEXT GENERATION via
+      WebLLM (src/lib/browser-execution/webllm-engine.ts) rather than
+      porting litert-spike's own LiteRT.js pipeline to generative use.
+      litert-spike/litert-spike-embeddings remain the real, live, unmodified
+      prior-art routes this whole tier extends conceptually (WebGPU-with-
+      WASM-fallback pattern, worker-per-page pattern -- both reused by
+      src/lib/browser-execution/tier-detection.ts's detectLiteLlmTier and
+      worker-pool.ts respectively) -- neither route's own code was changed
+      by phase_5, only referenced as precedent.
+    status: live, unregistered_until_2026-07-28
+    query_command: grep -rn "litert-spike" src/app/ ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md
+      ai-os/MASTER-TRACKER.yaml
+    real_verification: 'find src/app/litert-spike src/app/litert-spike-embeddings -type f
+      (7 real files: page.tsx x2, inference-worker.ts x2, types.ts x2,
+      wordpiece-tokenizer.ts x1) -- confirmed present and unmodified by this
+      registration task (task-20260728-051733-owner-engine-phase-5-real-gaps),
+      which only added this registry entry, never touched the routes
+      themselves.'
+    registered_by: task-20260728-051733-owner-engine-phase-5-real-gaps
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/
