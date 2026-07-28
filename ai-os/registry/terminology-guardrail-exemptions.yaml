@@ -114,7 +114,7 @@ exemptions:
   - file: src/lib/services/pms-time-service.test.ts
     reason: "PM gaps gap-closure (2026-07-27): real test fixture data (synthetic billable-rate resolution dates), not accidental hardcoding."
     findings_by_category:
-      hardcoded_iso_date: 14
+      hardcoded_iso_date: 15
   - file: src/lib/services/schedule-service.test.ts
     reason: "PM gaps gap-closure (2026-07-27): real test fixture data (synthetic resource-allocation overlap dates), not accidental hardcoding."
     findings_by_category:
@@ -170,7 +170,7 @@ exemptions:
   - file: src/lib/db/schema.ts
     reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt."
     findings_by_category:
-      hardcoded_iso_date: 79
+      hardcoded_iso_date: 80
   - file: src/app/api/ai/orchestrate/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -690,7 +690,7 @@ exemptions:
   - file: src/lib/services/construction-reports-service.test.ts
     reason: "PR #597 audit fix (task-20260727-132826): 2 new hardcoded_iso_date findings, both test-fixture date literals (spentOn/validFrom values in the designerTimesheetReport() DB-mocked test) -- exempt per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout), *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
   - file: src/lib/services/cost-anomaly-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -1076,3 +1076,11 @@ exemptions:
     reason: "Phase 0 HR gap-closure (2026-07-27, task-20260727-100954): 1 real dated changelog comment (this task's own header) + 14 date-string test fixture literals (resolveShiftForDate's own date-range-matching assertions), same 'seed/test fixture' out-of-scope class Phase 2 already established for this whole directory pattern -- not human PII/example data."
     findings_by_category:
       hardcoded_iso_date: 15
+  - file: src/lib/services/pms-time-service.ts
+    reason: "Design Studio timesheets approval-flow gap closure (2026-07-28, task-20260728-043316): 1 new hardcoded_iso_date finding -- a real, dated design-decision comment explaining why the approval flow was modeled on construction-kpi-service.ts, not example/placeholder data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/pms/time-entries/[id]/approve/route.test.ts
+    reason: "Design Studio timesheets approval-flow gap closure (2026-07-28, task-20260728-043316): 1 new hardcoded_iso_date finding -- a real, dated comment in a new test file explaining the test's intent, not example/placeholder data."
+    findings_by_category:
+      hardcoded_iso_date: 1

@@ -28,6 +28,10 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const weekStart = request.nextUrl.searchParams.get("weekStart")
       if (!weekStart) return NextResponse.json({ error: "weekStart query param is required for the weekly-project report" }, { status: 400 })
       result = await REPORT_REGISTRY[reportName]({ orgId }, projectId, weekStart)
+    } else if (reportName === "work-analysis") {
+      const dateFrom = request.nextUrl.searchParams.get("dateFrom") ?? undefined
+      const dateTo = request.nextUrl.searchParams.get("dateTo") ?? undefined
+      result = await REPORT_REGISTRY[reportName]({ orgId }, projectId, dateFrom, dateTo)
     } else {
       result = await REPORT_REGISTRY[reportName]({ orgId }, projectId)
     }
