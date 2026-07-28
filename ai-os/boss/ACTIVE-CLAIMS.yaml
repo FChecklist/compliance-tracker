@@ -40,27 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260727-044531-rca-task-20260727-034439-re-verify-20-en) -- re-apply periodic-checkpoint cgroup-throttle fix into version control"
-    claimed_at: "2026-07-28T11:03Z (this session)"
-    claim: |
-      scripts/worker-entrypoint.sh in repo claude-control
-      (/opt/veridian/repos/claude-control). On re-verify, found this task's
-      own prior invocation (2026-07-27, commit 50292901 in compliance-tracker)
-      only patched the LIVE file at /opt/veridian/scripts/worker-entrypoint.sh
-      directly, believing it "not tracked in any of the app git repos" --
-      that was wrong. /opt/veridian/scripts/deploy-live-scripts.sh
-      (itself tracked in claude-control) periodically overwrites every live
-      script from claude-control's scripts/ via `git ls-files`, so the
-      live-only edit was silently wiped by the next predeploy sync
-      (confirmed: .bak-predeploy-20260727-045643 and
-      .bak-predeploy-20260727-071434 exist, current live file has no trace
-      of the fix, claude-control's own scripts/worker-entrypoint.sh never
-      had it either). Re-applying the same systemd-run cgroup-escape fix
-      properly in claude-control via branch+PR this time so it survives
-      predeploy syncs. Collision check: grepped this file and
-      claude-control's `gh pr list --state open` for "worker-entrypoint"/
-      "periodic checkpoint"/"cgroup" -- no other active claim or open PR
-      touches this file.
     claim: |
       phase_3_governance_policy_cost_engines of
       ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml (lives in repo
@@ -3120,6 +3099,23 @@ active:
       down to 484/410) -- none touch chat-service.ts, glossary-service.ts,
       adoption-metrics-service.ts, or AdoptionMetricsSection.tsx.
 recently_completed:
+  - session_label: "claude-code (task-20260727-044531-rca-task-20260727-034439-re-verify-20-en) -- re-apply periodic-checkpoint cgroup-throttle fix into version control [MERGED]"
+    claimed_at: "2026-07-28T11:03Z (this session)"
+    claim: >-
+      scripts/worker-entrypoint.sh in repo claude-control. Found this task's
+      own 2026-07-27 invocation had only patched the LIVE file at
+      /opt/veridian/scripts/worker-entrypoint.sh directly, believing it "not
+      tracked in any of the app git repos" -- wrong: deploy-live-scripts.sh
+      (tracked in claude-control) periodically overwrites every live script
+      from claude-control's scripts/ via `git ls-files`, so the live-only
+      edit was silently wiped by the next predeploy sync. Re-applied the
+      identical systemd-run cgroup-escape fix in claude-control on branch
+      fix/periodic-checkpoint-cgroup-throttle, opened and merged
+      claude-control PR #115 (no CI gate configured on that repo), then ran
+      deploy-live-scripts.sh manually to sync the live file immediately.
+      Verified live: grep for veridian-checkpoint-heartbeat now finds the
+      fix, and it will survive future predeploy syncs since claude-control
+      is now the source of truth for it.
   - session_label: "claude-code (task-20260726-105214-correct-stale-pr-state-claims-in-engine) -- Corrected stale claude-control PR #81 claims in PR #566 (compliance-tracker) + PR #83 (claude-control) [CLOSED]"
     claimed_at: "2026-07-26T (this session)"
     claim: >-
