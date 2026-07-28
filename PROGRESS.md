@@ -13,7 +13,9 @@
 - [x] `npx tsc --noEmit` clean (NODE_OPTIONS=--max-old-space-size=8192 needed -- repo-wide tsc is memory-heavy under this server's shared load)
 - [x] `bun test src/lib/browser-execution` -- 108 pass, 0 fail
 
+- [x] Registered litert-spike as a real entry (`litert_spike_browser_execution_prior_art`) in this repo's own ai-os/MASTER_INDEX.yaml `registries:` list (canonical_path_repo per that file's own header -- no cross-repo write needed) + regenerated the stale `quick_reference` block via ai-os/scripts/generate_quick_reference.py per that block's own protocol. `grep -q litert-spike ai-os/MASTER_INDEX.yaml` passes (phase_5's own success criterion).
+- [x] ACTIVE-CLAIMS.yaml entry updated with STATUS UPDATE (implementation complete, PR opened) -- left in `active:` (not moved to `recently_completed:`) since the PR is not yet merged, per that file's own protocol #3
+
 ## Remaining
-- [ ] Register litert-spike as a real entry in ai-os/MASTER_INDEX.yaml -- this repo's own copy IS the canonical repo copy per that file's own `canonical_path_repo` header field, so this is in-repo, not cross-repo (no claude-control write access needed)
-- [ ] Move ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`
-- [ ] Open PR (does not merge itself -- needs fresh supervisor audit per EXPECTED_OUTPUT)
+- [ ] PR needs a fresh supervisor audit before merge (this task does not self-merge per EXPECTED_OUTPUT)
+- [ ] Once merged: move ai-os/boss/ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`
