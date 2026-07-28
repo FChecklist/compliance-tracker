@@ -65,3 +65,35 @@ CREATE TABLE IF NOT EXISTS compliance.prompt_marketplace_listings (
 
 CREATE INDEX IF NOT EXISTS prompt_marketplace_listings_status_idx
   ON compliance.prompt_marketplace_listings (status);
+
+-- RLS + GRANT block, following the exact precedent of drizzle/0019
+-- (compliance.prompt_templates/prompt_versions -- platform-wide, no
+-- org_id/tenant scope, so a permissive USING (true) SELECT policy is the
+-- correct match for that posture, not a real tenant filter). Added after
+-- audit review found these 3 new tables had no ENABLE ROW LEVEL SECURITY,
+-- no CREATE POLICY, and no GRANT statements at all -- app_runtime (the
+-- role Drizzle's DATABASE_URL connection uses) has no schema-wide default
+-- privileges (only service_role does, per drizzle/0008's ALTER DEFAULT
+-- PRIVILEGES), so every read/write from the 5 new API routes would have
+-- failed with permission-denied once this migration was applied live.
+
+ALTER TABLE compliance.prompt_translations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE compliance.prompt_localizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE compliance.prompt_marketplace_listings ENABLE ROW LEVEL SECURITY;
+
+DO $$ BEGIN
+  CREATE POLICY app_runtime_read_prompt_translations ON compliance.prompt_translations FOR SELECT TO app_runtime USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY app_runtime_read_prompt_localizations ON compliance.prompt_localizations FOR SELECT TO app_runtime USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+DO $$ BEGIN
+  CREATE POLICY app_runtime_read_prompt_marketplace_listings ON compliance.prompt_marketplace_listings FOR SELECT TO app_runtime USING (true);
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+
+GRANT SELECT, INSERT ON compliance.prompt_translations TO app_runtime;
+GRANT SELECT, INSERT ON compliance.prompt_localizations TO app_runtime;
+GRANT SELECT, INSERT, UPDATE ON compliance.prompt_marketplace_listings TO app_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON compliance.prompt_translations, compliance.prompt_localizations, compliance.prompt_marketplace_listings TO service_role;
