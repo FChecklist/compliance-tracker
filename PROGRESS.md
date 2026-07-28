@@ -31,5 +31,8 @@ CONSTRAINTS.
 - [x] `npx tsc --noEmit` clean (needs `NODE_OPTIONS="--max-old-space-size=8192"` in this environment -- default heap OOMs on this repo's size, unrelated to this task).
 - [x] `bun test` scoped to the 4 touched test files: 27/27 pass. Full-repo `bun test`: 2255/2258 pass; the 3 failures are pre-existing on this branch before any of this task's changes (verified via `git stash`) and are in unrelated files (`dispatch-completion-monitor.test.ts`, `roster-overrides.test.ts`, `defense-in-depth.test.ts`) -- not caused by this work.
 
+- [x] Committed + pushed, opened PR #618 (no self-merge -- awaiting a fresh supervisor audit per AGENTS.md Rule 7(c)/Rule 10). Updated `ai-os/boss/ACTIVE-CLAIMS.yaml`'s claim entry with a status update.
+
 ## Remaining
-- [ ] Commit + push, open PR (no self-merge -- needs a fresh supervisor audit).
+- [ ] Fresh supervisor audit of PR #618 (mandatory, this session may not self-certify).
+- [ ] Supervising session applies `drizzle/0268_prompt_translation_localization_marketplace.sql` live (not applied in this PR).

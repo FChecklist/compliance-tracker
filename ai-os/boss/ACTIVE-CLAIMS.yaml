@@ -370,6 +370,17 @@ active:
       "prompt-export"/"prompt-import" -- only the stale increment-1 entry
       below (PR #589, confirmed MERGED via `gh pr view 589`), no other
       active or recent collision.
+
+      STATUS UPDATE (2026-07-28, same session): implementation complete --
+      all 4 services + colocated tests (27/27 pass), schema + hand-authored
+      0268 migration (not applied live, left for the supervising session
+      same as 0262's convention), permission entries, 5 API routes, and the
+      /prompt-marketplace screen all built. `npx tsc --noEmit` clean
+      (repo-wide). Full-repo `bun test`: 2255/2258 pass, the 3 failures
+      pre-exist on this branch without any of this PR's changes (verified
+      via `git stash` before/after) in unrelated files. Opened PR #618
+      (github.com/FChecklist/compliance-tracker/pull/618), not self-merged
+      per AGENTS.md Rule 7(c)/Rule 10 -- needs a fresh supervisor audit.
   - session_label: "claude-code (task-20260727-094516-architecture-phase-5-increment-2--webllm) -- VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers increment 2 of N: real WebLLM/Transformers.js model wiring + tool-calling + worker-pool deepening"
     claimed_at: "2026-07-27T (this session, registered slightly after real work began -- noted honestly per this file's own Rule 4 spirit)"
     claim: |
