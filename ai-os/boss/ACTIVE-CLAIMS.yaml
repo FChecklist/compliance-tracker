@@ -40,6 +40,60 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-182023-fix-veri-erp-product-chain-bug--shows-pr) -- Fix VERI ERP chain-selector Product branch returning Project rows/actions"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Live-reproduced bug: /chat -> VERI ERP -> Product -> "Demo Company
+      Platform" surfaces two Project records ("Website Revamp"/
+      "ERP Rollout - Phase 2", ids demo_project_website/...) as children
+      instead of real Product sub-items, and offers project-management
+      actions instead of product-management actions. Customer/Vendor
+      branches are confirmed correct and must NOT be modified beyond
+      adding a regression test. Root-causing the entity-type resolution
+      logic behind ChainSelector.tsx/VeriComposer.tsx/chat-service.ts (or
+      whichever API route actually resolves chain children/actions by
+      entity type) and fixing the Product branch specifically.
+      File scope (expected, subject to change after reading current code):
+      likely src/lib/services/chat-service.ts and/or a chain-resolution API
+      route, src/components/veri-chat/ChainSelector.tsx (read-only unless
+      the bug is genuinely in this file), src/lib/db/schema.ts (read-only,
+      confirming real table names). NOT touching Customer or Vendor
+      resolution logic except to add regression tests per task spec.
+      Checked this file for collisions: no other active entry currently
+      claims the Product-entity branch of chain resolution specifically;
+      several older entries (2026-07-18/07-19) touch ChainSelector.tsx/
+      VeriComposer.tsx for unrelated concerns (chat efficiency findings,
+      ui-kit swap) and are stale (>4h, no matching open PR checked).
+  - session_label: "claude-code (task-20260727-190116-work-progress-report--projexa) -- PROJEXA Work Progress Report feature"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Per SPEC for a real PROJEXA Work Progress Report (daily activity qty
+      + photo entry against BoQ line items, Prev/Current/Total Qty/Amt/%
+      report, category/scope/manpower/vendor breakdowns). PROJEXA-side work
+      is out of this repo's scope (separate repo). The ONLY compliance-
+      tracker change needed: `GET /api/v1/construction/boq` (and its
+      /api/v1/projexa/scope alias) currently returns BOQ headers only, no
+      line items -- confirmed by reading listBoqs() in
+      construction-boq-service.ts, which the WPR report needs (rate/amount
+      per line) and has no other way to reach. Enriching that route
+      handler's response with each boq's lineItems by calling the
+      already-existing getBoq() service function per boq -- read-only,
+      additive field, zero schema change, zero change to
+      construction-boq-service.ts itself.
+      Collision check: the hierarchical-boq-breakdown entry below claims
+      schema.ts/construction-boq-service.ts/construction-valuation-service.ts
+      -- none of those are touched here; this only edits
+      src/app/api/v1/construction/boq/route.ts (a route handler file, not
+      the service).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/app/api/v1/construction/boq/route.ts (GET handler only, additive
+      lineItems field) and
+      src/app/api/v1/projexa/work-progress/activities/route.ts (GET handler
+      only, additive categories field). No schema changes, no
+      service-layer changes. Branch: feat/boq-line-items-in-v1-list. Not
+      self-merged -- this task's own PR requires a fresh supervisor audit
+      before merge.
   - session_label: "claude-code (task-20260727-122632-projexa-e2e--hierarchical-boq-breakdown) -- Hierarchical BoQ breakdown-%, interim-billing/valuation/retention engine, Excel BoQ importer"
     claimed_at: "2026-07-27T (this session)"
     claim: |
@@ -3602,6 +3656,42 @@ active:
       (voice-tickets GAP-MOM-VOICE-TICKETS, already closed; payroll/tax
       "slabs"; generic cron-timing "SLA" mentions). No other active entry
       claims schema.ts's tickets/SLA area or a Helpdesk gap.
+  - session_label: "claude-code (task-20260727-153107-re-audit-projexa-erp-e2e-for-100pct-comp) -- independent re-verification of PROJEXA ERP E2E (task-20260727-104516)'s claimed 100% completion across 5 PRs"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Verification-only re-audit, no code changes. Re-checking real current
+      main-branch code + real test/tsc output in both projexa and
+      compliance-tracker repos against 5 previously-merged PRs claimed to
+      close PROJEXA ERP E2E scope: projexa PR #52 (AppShellFrame header
+      fix), PR #54 (PWA manifest + offline-shell SW + IndexedDB
+      work-progress sync queue -- specifically re-checking the queue is
+      per-user-scoped with a real dedup/mutex against duplicate sync
+      submissions), PR #56 (PM/Site-Engineer/Client-Viewer roles +
+      server-side route gating + last-owner/admin demotion guard --
+      specifically re-checking role-gating covers every
+      role/membership-mutating PATCH/DELETE endpoint, not just the one
+      originally audited), and compliance-tracker PR #596 (hierarchical BoQ
+      breakdown-%, interim-billing/valuation/retention -- specifically
+      re-checking a real test invoice produces nonzero tax and retention no
+      longer reduces the taxable subtotal) and PR #597 (timesheet
+      budget-vs-actual report fix). Output is a single findings report,
+      COMPLETE or INCOMPLETE-WITH-GAPS per PR.
+
+      File scope: read-only in both repos except writing
+      ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md in this repo
+      (compliance-tracker) only. No edits to any other file in either repo.
+      Note for other sessions: this claim reads (does not lock) the file
+      areas of the PR-54-audit-findings and PR-53/56 last-owner-demotion
+      fix-forward work already visible as merged commits on projexa main
+      (b5014d9, 173b9ab, 77de705, 114d0ee) -- if a session is still
+      iterating on those in-flight, this re-audit's findings reflect
+      whatever is on main at read time and will note the commit SHA
+      verified against.
+
+      STATUS UPDATE: verification work complete. All 5 PRs independently
+      re-confirmed COMPLETE (report: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md).
+      PR #603 opened (compliance-tracker), awaiting CI + merge -- will move
+      this entry to recently_completed once merged.
 recently_completed:
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
