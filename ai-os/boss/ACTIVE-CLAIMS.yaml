@@ -3771,6 +3771,27 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      PR #613 opened (not yet merged -- awaiting the mandatory supervisor
+      audit per this task's own EXPECTED_OUTPUT). Extended PR #597's
+      construction-reports-service.ts rather than rebuilding it: confirmed
+      the designer-wise Budget-vs-Actual cut (byDesigner) and the KPI
+      designer-fills/manager-approves flow already existed and left both
+      untouched. Closed the real gap -- pms_time_entries had no approval-
+      status field/flow at all -- by adding draft/submitted/approved/
+      rejected (new enum + approvedById/approvedAt/rejectionReason columns,
+      hand-written migration drizzle/0268_*.sql per the drizzle/meta
+      snapshot gap 0267 documents), submitTimeEntry/approveTimeEntry/
+      rejectTimeEntry in pms-time-service.ts (modeled on
+      construction-kpi-service.ts's submit/approveKpiEntry, self-approval
+      blocked), new /api/pms/time-entries/[id]/{submit,approve,reject}
+      routes (manager-role-gated via requireRole), and 2 new reports
+      (designer-approval-status, work-analysis) registered in the existing
+      REPORT_REGISTRY/dispatcher. bunx tsc --noEmit clean; full bun test
+      2244 pass/0 fail including every pre-existing PR #597 test
+      unmodified.
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
     claim: |
