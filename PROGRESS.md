@@ -10,7 +10,9 @@
 - [x] Ran both spec sanity checks: `grep -c "pgTable("` = 0 (real finding: this codebase uses `complianceSchemaDB.table(`/`platformSchemaDB.table(`, not literal `pgTable(` -- documented, not silently worked around) + real `.table(` count = 464; `git log` on PHASE_0_BASELINE.yaml confirmed empty (pre-creation)
 
 - [x] Assembled ai-os/tasks/sap_mapping/PHASE_0_BASELINE.yaml (213 tables + 508 API routes across 8 domains, PROJEXA module-exposure section, sanity checks, out-of-scope notes) -- fixed one auto-generated-description false positive along the way (erpItems mis-labeled "line items" purely because its table name ends in _items; it's actually the item master)
+- [x] Committed + pushed (commit b1631f6e)
+- [x] Opened PR #615: https://github.com/FChecklist/compliance-tracker/pull/615
+- [x] Updated ACTIVE-CLAIMS.yaml entry with PR #615 status (will move to recently_completed once merged)
 
 ## Remaining
-- [ ] Commit + push
-- [ ] Open PR
+- [ ] None -- task complete, PR #615 awaiting CI + review/merge

@@ -3717,6 +3717,11 @@ active:
       committed on a new branch with a PR opened. Does not touch any file
       area claimed by other active entries above (read-only over schema.ts/
       src/app/api, no edits to either).
+
+      STATUS UPDATE: inventory complete (213 tables + 508 API routes across
+      the 8 domains, PROJEXA module-exposure section, sanity checks all
+      run). PR #615 opened (compliance-tracker), awaiting CI + merge --
+      will move this entry to recently_completed once merged.
 recently_completed:
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
