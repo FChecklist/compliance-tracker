@@ -9,8 +9,9 @@
 - [x] Ran `gh pr checks 617` -- caught a NEW real CI failure the prior push introduced: Terminology Guardrail Check failed on a literal `2026-07-28` ISO-date string inside the new back-compat-alias comment (hardcoded_iso_date pattern). Fixed by rewording the comment to not include a literal date (commit 12cd9771). Verified locally with `node scripts/check-terminology-guardrail.mjs --diff-only` -- passes.
 - [x] Pushed fix to origin/feat/projexa-permits-drawings-moms (12cd9771)
 
+- [x] Confirmed full CI is green on commit 12cd9771: Analyze, Asset Registry Coverage, Build, Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, E2E Tests, Guardrail Presence, Lint, Metadata Index Coverage, Secret Scanning, Security Pattern, Terminology Guardrail, Type Check, Unit Tests all PASS. Only 2 non-passing: Vercel (fails on a known unrelated `api-deployments-free-per-day` rate-limit, not a code issue) and `audit-check` (fails as expected -- `scripts/validate-audit-verdict.ts` correctly reports the most recent AUDIT comment is still the pre-fix 10:25:43Z FAIL verdict; there is no CI-triggerable "sweep" workflow in .github/workflows -- fresh audits are posted by a separate independent supervisor/auditor process outside this session's tool access)
+- [x] Updated ai-os/boss/ACTIVE-CLAIMS.yaml claim with final outcome
+
 ## Remaining
-- [ ] Wait for full CI run to go green on commit 12cd9771 (was mid-run as of last check: audit-check correctly still failing pending a fresh auditor comment, Vercel failing on known unrelated rate-limit, everything else pending/pass)
-- [ ] Once CI (excluding Vercel/audit-check) is green, this PR needs a FRESH independent audit comment (AUDIT: PASS/FAIL) -- cannot self-certify per AGENTS.md Rule 10/7c since this session made the fix
-- [ ] Update ai-os/boss/ACTIVE-CLAIMS.yaml claim with outcome once audit lands
+- [ ] This session cannot post the required fresh AUDIT: PASS/FAIL comment itself (AGENTS.md Rule 7c/10: the agent that implements a fix cannot self-certify it) -- needs a separate/independent auditor session to re-review commit 12cd9771 and post a fresh verdict
 - [ ] Do NOT merge -- per this task's own spec, tier2/FAIL stays open for review regardless of outcome; leave PR open for the owner/next auditor

@@ -42,6 +42,7 @@
 active:
   - session_label: "claude-code (task-20260728-123646-fix-pr--617-real-audit-fail-reason) -- Fix PR #617's real AUDIT: FAIL reason (permits expiryDate->endDate breaking rename + missing API_CHANGELOG.md entry), re-adopt, re-sweep"
     claimed_at: "2026-07-28T (this session)"
+    status: "FIX PUSHED, AWAITING FRESH INDEPENDENT AUDIT -- both real FAIL findings fixed (commit 14d9aba9, found already pushed by an earlier pass of this same fix, ~2min before this task's own start -- verified it was correct/complete rather than trusting that). Also found + fixed a NEW real CI regression that commit had introduced: Terminology Guardrail Check failing on a literal 2026-07-28 ISO-date string inside the new back-compat-alias comment (commit 12cd9771, reworded to drop the literal date). Full CI is now green on 12cd9771 except Vercel (known unrelated api-deployments-free-per-day rate-limit) and audit-check (correctly still failing -- validate-audit-verdict.ts reports the most recent AUDIT comment is still the pre-fix 10:25:43Z FAIL; this session cannot post its own AUDIT: PASS per AGENTS.md Rule 7c/10, no self-certification). PR left OPEN, not merged, per this task's own spec -- needs an independent auditor session to re-review 12cd9771 and post a fresh verdict."
     claim: |
       PR #617 (feat/projexa-permits-drawings-moms, Permits/Drawings/
       Documents/MoMs backend) is mergeable=true but its latest audit
