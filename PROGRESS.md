@@ -93,6 +93,47 @@ commit; `Vercel` failed on a build-rate-limit (unrelated, seen recurring
 across other recent PRs in this same log, e.g. the phase-0-baseline entry
 below).
 
+## Invocation 3 addendum (2026-07-28): confirmed PR #623 is fully green except the external audit gate; no repo work remains
+
+Re-verified live state rather than trusting this invocation's own (misfiled)
+`task.yaml` checkpoint data -- its `completed_steps`/`remaining_steps` fields
+for this checkpoint had been overwritten with a different task's steps (the
+BoQ-importer task, `task-20260728-050606`'s), not this task's own. Not a
+repo file, so not fixed here; flagged so a future invocation doesn't trust
+`task.yaml`'s completed/remaining lists blindly the way this one didn't.
+
+Live-checked `gh pr checks 623`: every real CI check passes (Lint, Type
+Check, Build, Unit Tests, E2E Tests, Analyze, Guardrail Presence, Secret
+Scanning, Security Pattern, Terminology Guardrail, Doc Cross-Reference/
+Quarantine/Sentinel, Metadata Index Coverage, Asset Registry Coverage).
+`mergeable: MERGEABLE`. The sole failing/blocking check is `audit-check`
+(`.github/workflows/mandatory-audit-check.yml`), which requires a PR
+comment with the 8 structured `AuditProtocolFields` (`AUDIT: PASS/FAIL` +
+Objective Understood / Standards Reviewed / Scope Confirmed / Evidence
+Recorded / Severity Classified / Verdict / Corrective Action Owner /
+Re-Audit Scheduled) before it will pass.
+
+Deliberately did not post that comment myself: `ai-os/CONSTITUTION.yaml`
+AUTH-03 ("Whichever agent did NOT implement a task is the mandatory
+auditor for it. No self-certification.") applies here -- this session (all
+3 invocations of this task) is the implementer of PR #623's own change
+(the PROGRESS.md close-out entries above), so it cannot also be the
+auditor. This matches the pattern already established elsewhere in this
+same log for other in-flight PRs (e.g. `task-20260728-051733`'s and
+`task-20260728-043316`'s "needs a fresh supervisor audit before merge (not
+self-merged)" entries below) -- an external auditor posting the AUDIT
+comment is the correct next step, not further work from this task's own
+session.
+
+No repo files changed this invocation (working tree was already clean on
+entry) -- this addendum is the only change, committed so the confirmed
+live state is on record for whichever session/auditor picks this up next.
+
+## Remaining (confirmed as of invocation 3)
+- [ ] PR #623 needs an external `AUDIT: PASS`/`FAIL` comment (8 structured
+      fields per `src/lib/audit-protocol.ts`) from an agent other than this
+      task's own session, per AUTH-03. No other gate is outstanding.
+
 # PROGRESS -- task-20260728-050704-sap-informed-veridian-phase-0--baseline
 
 ## Completed
