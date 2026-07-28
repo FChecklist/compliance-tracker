@@ -40,6 +40,15 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-153104-re-audit-reporting-module-end-user-for-1) -- Independent re-audit of reporting_module_end_user scope"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner-directed re-verification of whether the reporting_module_end_user
+      scope (task-20260727-093931) is genuinely 100% complete, from real
+      current main-branch code and real test output. Report-only: writing
+      findings to ai-os/audits/reporting_module_reaudit_2026-07-27.md in
+      compliance-tracker, on a new branch, PR containing only that report.
+      No code changes outside ai-os/audits/ in either repo.
   - session_label: "claude-code (task-20260727-182023-fix-veri-erp-product-chain-bug--shows-pr) -- Fix VERI ERP chain-selector Product branch returning Project rows/actions"
     claimed_at: "2026-07-27T (this session)"
     claim: |
