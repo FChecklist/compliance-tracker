@@ -131,6 +131,31 @@ active:
       Priority-15 entries further down are closed (see
       recently_completed) and built leads/opportunities/quotations CRUD,
       not a dashboard.
+  - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Owner-directed verification of construction-boq-import-service.ts (PR
+      #596) against the real prospect BoQ Excel structure referenced in
+      ai-os/PROSPECT_GAP_BACKLOG_2026-07-28.md ("Sample Scope with Sub
+      Task.xlsx", 160 rows, Sl No/Category/Dwg Code/Description (Task)/Sub
+      Task/QTY/UNIT/Breakdown %/RATE/AMOUNT columns). Reconstructed the
+      exact structural quirks as a real .xlsx test fixture (category header
+      rows, multi-line descriptions with embedded "Location :" text,
+      unlabeled sub-task rows) and ran it through the real importer:
+      confirmed a real bug (mapBoqHeaders picked the "Category" column over
+      "Description (Task)" for the description field, and "Sl No" was not
+      recognized as an itemCode alias at all -- all 9 real task/sub-task
+      rows were dropped, keeping only 2 garbage category-label rows).
+      Fixed construction-boq-import-service.ts's header-alias matching and
+      added positional parent-child inference for unlabeled sub-task rows.
+      Did not touch computeHierarchicalAmount() or any other calculation
+      logic (out of scope per task spec).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/construction-boq-import-service.ts and its .test.ts
+      file. No schema changes, no changes to construction-boq-service.ts's
+      computeHierarchicalAmount(). Checked this file for collisions: no
+      other active entry names construction-boq-import-service.ts.
   - session_label: "claude-code (task-20260727-153104-re-audit-reporting-module-end-user-for-1) -- Independent re-audit of reporting_module_end_user scope"
     claimed_at: "2026-07-27T (this session)"
     claim: |
