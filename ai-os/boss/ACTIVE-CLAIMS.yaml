@@ -40,6 +40,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260728-122836-resolve-fresh-merge-conflict-on-pr--610) -- Resolve fresh merge conflict on PR #610, pushed to the same PR #610 branch [DONE, PR #610 mergeable again, awaiting CI]"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Fix-forward on the still-open PR #610 (branch
+      worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co).
+      PR had gone mergeable=CONFLICTING as of 2026-07-28 after PR #614
+      (Excel BoQ importer fix) merged to main. Read the real conflict
+      (verified via worktree merge, not assumed): both conflicts were purely
+      additive appends in log/registry files -- PROGRESS.md (both branches
+      appended their own task's progress section) and
+      ai-os/boss/ACTIVE-CLAIMS.yaml (both branches appended their own claim
+      entry to the `active:` list). Resolved by keeping both blocks/entries
+      in full, no content dropped from either side.
+      construction-boq-import-service.ts/.test.ts (touched by PR #614)
+      auto-merged cleanly with zero overlap against this PR's sales-pipeline
+      files. Verified post-merge: `NODE_OPTIONS=--max-old-space-size=8192
+      npx tsc --noEmit` clean; full `bun test` -- 2322 pass, 0 fail (207
+      files); targeted re-run of sales-pipeline-dashboard-service.test.ts,
+      sales-pipeline-rls.test.ts, tenant-isolation.test.ts,
+      construction-boq-import-service.test.ts,
+      construction-boq-service.test.ts -- 57 pass, 0 fail. Pushed the merge
+      commit to the existing PR #610 branch; `gh api .../pulls/610` confirms
+      `mergeable: true` (mergeable_state moved from `dirty` to `blocked`,
+      i.e. now just waiting on CI, not conflicting). Did not touch dashboard/
+      aggregation/RLS logic itself -- pure conflict resolution, no feature
+      changes.
+    scope_note: |
+      File scope: compliance-tracker only -- PROGRESS.md,
+      ai-os/boss/ACTIVE-CLAIMS.yaml, on branch
+      worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co
+      (PR #610). construction-boq-import-service.ts/.test.ts changed only
+      via clean auto-merge (PR #614's content), not hand-edited this
+      session.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
