@@ -1856,6 +1856,13 @@
       "when": 1785155688901,
       "tag": "0267_construction_boq_hierarchy_interim_billing",
       "breakpoints": true
+    },
+    {
+      "idx": 265,
+      "version": "7",
+      "when": 1785242088901,
+      "tag": "0268_prompt_translation_localization_marketplace",
+      "breakpoints": true
     }
   ]
 }
