@@ -161,6 +161,22 @@ export async function listBoqs(ctx: { orgId: string }, projectId: string) {
   )
 }
 
+// Wave 174 (Budget module, PROJEXA Owner resource-management spec item 9):
+// "current revision" was previously left to each caller to work out --
+// creating a revision always supersedes its immediate parent and bumps
+// version, so the highest-version row for a project that isn't itself
+// superseded is definitionally the one live revision. Used by
+// construction-budget-service.ts so Budget reflects the current scope, not
+// the original baseline.
+export async function getCurrentBoq(ctx: { orgId: string }, projectId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.constructionBoqs.findFirst({
+      where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
+      orderBy: (t, { desc }) => desc(t.version),
+    })
+  )
+}
+
 export async function getBoq(ctx: { orgId: string }, boqId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })

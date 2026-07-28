@@ -2,9 +2,9 @@
 // attendance. dailyCost is computed here at write time from
 // roster.dailyRate (half_day = half rate), not a DB generated column,
 // matching this codebase's convention elsewhere (e.g. documents.isLatestVersion).
-import { constructionLabourRoster, constructionAttendance, projects } from "@/lib/db"
+import { constructionLabourRoster, constructionAttendance, erpSuppliers, projects } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -92,5 +92,82 @@ export async function recordAttendance(
       )
     }
     return row
+  })
+}
+
+// Wave 174 (PROJEXA Owner resource-management spec, item 7: Manpower).
+// Daily attendance rolling into a cost report -- S.No/ID/Name/Company/Salary
+// per the Owner's exact column spec, filterable by trade. "Company" is the
+// worker's subcontracting vendor (constructionLabourRoster.vendorId ->
+// erpSuppliers.supplierName), or "In-house" when the worker isn't
+// subcontracted. Computed live from roster + attendance, matching this
+// service's existing no-denormalized-totals convention.
+export type ManpowerCostReportRow = {
+  id: string
+  name: string
+  trade: string | null
+  company: string
+  salary: number
+  attendanceDate: string
+  status: string
+  dailyCost: number
+}
+
+export type ManpowerDailyCostRollup = { date: string; totalCost: number; workerCount: number }
+
+/** Pure aggregation, exported for direct testing (no DB). One row per attendance entry, joined against its roster entry; optionally filtered by trade. */
+export function buildManpowerCostReport(
+  roster: { id: string; name: string; trade: string | null; dailyRate: string | number; vendorId: string | null }[],
+  attendance: { rosterId: string; attendanceDate: string; status: string; dailyCost: string | number }[],
+  vendorNamesById: Record<string, string>,
+  filters: { trade?: string } = {}
+): { rows: ManpowerCostReportRow[]; dailyRollup: ManpowerDailyCostRollup[] } {
+  const rosterById = new Map(roster.map((r) => [r.id, r]))
+  const rows: ManpowerCostReportRow[] = []
+
+  for (const entry of attendance) {
+    const r = rosterById.get(entry.rosterId)
+    if (!r) continue
+    if (filters.trade && r.trade !== filters.trade) continue
+    rows.push({
+      id: r.id,
+      name: r.name,
+      trade: r.trade,
+      company: r.vendorId ? (vendorNamesById[r.vendorId] ?? r.vendorId) : "In-house",
+      salary: Number(r.dailyRate),
+      attendanceDate: entry.attendanceDate,
+      status: entry.status,
+      dailyCost: Number(entry.dailyCost),
+    })
+  }
+
+  const byDate = new Map<string, { totalCost: number; workerCount: number }>()
+  for (const row of rows) {
+    const acc = byDate.get(row.attendanceDate) ?? { totalCost: 0, workerCount: 0 }
+    acc.totalCost += row.dailyCost
+    acc.workerCount += 1
+    byDate.set(row.attendanceDate, acc)
+  }
+  const dailyRollup = [...byDate.entries()]
+    .map(([date, acc]) => ({ date, ...acc }))
+    .sort((a, b) => a.date.localeCompare(b.date))
+
+  return { rows, dailyRollup }
+}
+
+export async function getManpowerCostReport(ctx: { orgId: string }, projectId: string, filters: { trade?: string } = {}) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [roster, attendance] = await Promise.all([
+      db.query.constructionLabourRoster.findMany({ where: and(eq(constructionLabourRoster.orgId, ctx.orgId), eq(constructionLabourRoster.projectId, projectId)) }),
+      db.query.constructionAttendance.findMany({ where: and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)) }),
+    ])
+
+    const vendorIds = [...new Set(roster.map((r) => r.vendorId).filter((v): v is string => !!v))]
+    const vendors = vendorIds.length > 0
+      ? await db.query.erpSuppliers.findMany({ where: inArray(erpSuppliers.id, vendorIds) })
+      : []
+    const vendorNamesById = Object.fromEntries(vendors.map((v) => [v.id, v.supplierName]))
+
+    return buildManpowerCostReport(roster, attendance, vendorNamesById, filters)
   })
 }

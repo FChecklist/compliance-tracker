@@ -10165,6 +10165,111 @@ export const constructionChangeOrders = complianceSchemaDB.table('construction_c
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── Wave 174 (PROJEXA Owner resource-management spec, items 7-10:
+// Manpower cost reporting, Material catalog+inbound, Budget per-scope-line
+// markup, Schedule Excel import). Manpower itself reuses the existing
+// constructionLabourRoster/constructionAttendance pair from Wave 116 (a
+// second "constructionManpower" table would just be a rename of the same
+// concept) -- only a cost-report read path is added in the service layer.
+// Material and Budget are new tables: interiorMaterials (Wave 142) is a
+// decor/FF&E spec catalog for a different vertical (flooring/fixtures with
+// no qty-on-hand or BOQ tie-in), and erpBudgets/erpBudgetLineItems (Wave 70)
+// are generic fiscal-year/cost-center accounting budgets, not scoped to a
+// BOQ line item or its vendor -- neither shape fits the Owner's ask, so
+// this is genuine new surface, not a duplicate of either. Schedule reuses
+// constructionActivities/constructionWorkProgressEntries (Wave 115) for the
+// actual progress signal -- constructionScheduleItems below stores only the
+// imported baseline (planned dates/qty), never a second percent-complete
+// column, per the Owner's explicit "don't build a second progress tracker"
+// constraint. ────────────────────────────────────────────────────────────
+export const constructionMaterials = complianceSchemaDB.table('construction_materials', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  spec: text('spec').notNull(), // material name + specification, e.g. "OPC 53 Grade Cement"
+  unit: text('unit').notNull(),
+  unitCost: numeric('unit_cost').notNull().default('0'),
+  qtyOnHand: numeric('qty_on_hand').notNull().default('0'), // running balance, maintained by the service layer at inbound-write time (not a DB generated column, matching dailyCost's precedent)
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// One row per delivery/receipt. unitCost is snapshotted per-delivery (not
+// re-read from constructionMaterials.unitCost at report time) since the
+// price paid can vary delivery to delivery -- the material catalog's own
+// unitCost is just the current/latest reference price shown in the roster.
+export const constructionMaterialInbound = complianceSchemaDB.table('construction_material_inbound', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull(),
+  receivedDate: date('received_date', { mode: 'string' }).notNull(),
+  quantityReceived: numeric('quantity_received').notNull(),
+  unitCost: numeric('unit_cost').notNull(),
+  totalCost: numeric('total_cost').notNull(), // quantityReceived * unitCost, computed by the service layer on write
+  vendorName: text('vendor_name'),
+  recordedById: text('recorded_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
+  inbound: many(constructionMaterialInbound),
+}))
+
+export const constructionMaterialInboundRelations = relations(constructionMaterialInbound, ({ one }) => ({
+  material: one(constructionMaterials, { fields: [constructionMaterialInbound.materialId], references: [constructionMaterials.id] }),
+}))
+
+// Per-BOQ-line-item budget config. One optional row per constructionBoqLineItems
+// row (unique on boqLineItemId) -- absence of a row means "use the Owner's
+// default 25% markup", a present row with markupPercent set overrides it
+// per line, matching the Owner's explicit "default 25%, but configurable
+// per line, not hardcoded" requirement. Vendor tracking is two plain fields
+// (not a FK to erpSuppliers) because the report's "Vendor 1 / Vendor Amount"
+// columns are a manual quote/allocation entered against the scope line, not
+// a booked purchase order -- same posture as constructionExpenseEntries'
+// linkedEntityType pointer being optional rather than mandatory.
+export const constructionBudgetLineItems = complianceSchemaDB.table('construction_budget_line_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  boqLineItemId: text('boq_line_item_id').notNull().unique(),
+  markupPercent: numeric('markup_percent'), // nullable -- null means "use the org default (25%)"
+  vendorName: text('vendor_name'),
+  vendorAmount: numeric('vendor_amount'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const constructionBudgetLineItemsRelations = relations(constructionBudgetLineItems, ({ one }) => ({
+  boqLineItem: one(constructionBoqLineItems, { fields: [constructionBudgetLineItems.boqLineItemId], references: [constructionBoqLineItems.id] }),
+}))
+
+// Imported baseline schedule (from the Owner's Excel upload). activityId is
+// a nullable link to constructionActivities -- when set, this row's "real
+// progress" is read live from constructionWorkProgressEntries via that
+// activity (see construction-schedule-service.ts's listScheduleWithProgress),
+// never stored here. wbsCode carries whatever task/item code the source
+// Excel used, for traceability back to the sheet.
+export const constructionScheduleItems = complianceSchemaDB.table('construction_schedule_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  wbsCode: text('wbs_code'),
+  taskName: text('task_name').notNull(),
+  unit: text('unit'),
+  plannedQuantity: numeric('planned_quantity'),
+  plannedStartDate: date('planned_start_date', { mode: 'string' }),
+  plannedEndDate: date('planned_end_date', { mode: 'string' }),
+  activityId: text('activity_id'), // nullable FK to constructionActivities -- links this baseline row to real WPR progress
+  sourceFileName: text('source_file_name'),
+  importedById: text('imported_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionScheduleItemsRelations = relations(constructionScheduleItems, ({ one }) => ({
+  activity: one(constructionActivities, { fields: [constructionScheduleItems.activityId], references: [constructionActivities.id] }),
+}))
+
 // ─── Wave 142 (PROJEXA gap analysis: interior design workflow -- mood
 // boards, FF&E specification, procurement markup). Confirmed via research:
 // no OSS library exists for either (the one loosely-related repo found,
