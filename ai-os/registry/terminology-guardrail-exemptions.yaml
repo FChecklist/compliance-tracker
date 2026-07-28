@@ -646,7 +646,11 @@ exemptions:
   - file: src/lib/services/capability-tree-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 8 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
-      hardcoded_iso_date: 8
+      hardcoded_iso_date: 10
+  - file: src/lib/services/capability-tree-service.test.ts
+    reason: "First real baseline for this file (2026-07-28, fix-veri-erp-product-chain-bug--shows-pr): new test file added a dated comment referencing this fix task, matching the same class of exemption already granted to capability-tree-service.ts itself."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/lib/services/chat-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 9 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
