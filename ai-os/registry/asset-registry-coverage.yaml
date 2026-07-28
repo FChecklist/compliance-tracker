@@ -322,6 +322,8 @@ registered:
   - table: ai_model_registry
     reason: "AIROUTER-01 (drizzle/0226): PLATFORM-WIDE by design (no org_id column -- a shared catalog of every AI model/provider pair the platform knows about, same class as module_registry/subscription_plans) -- auto_register_asset_trg attached, name_column=model (a genuine human-recognizable identifier e.g. \"z-ai/glm-5.2\"), purpose_column=notes, active_column=NULL (status is a real Postgres enum active/disabled/deprecated, not boolean, matching training_courses's own precedent)"
 exempted:
+  - table: crm_sales_targets
+    reason: "Sales Pipeline dashboard (2026-07-28): org-scoped monthly sales target row, real RLS attached (drizzle/0268), not yet reviewed for UMR auto_register_asset_trg registration -- tracked as a follow-on, same as this repo established pattern for newly-added tables pending full registry review."
   - table: crm_lost_reasons
     reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): a small org-configurable picklist of Lost Reasons for crm_opportunities.lost_reason_id (Odoo reference pattern) -- comparable to a status/enum table, not itself a trackable business asset, matching this schema's own precedent of not registering lookup/config tables. Deliberately NOT registered, judgment documented in drizzle/0251's own header at the time it was written."
   - table: access_review_certifications

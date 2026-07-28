@@ -324,6 +324,7 @@ export async function getSalesPipelineDashboardData(ctx: { orgId: string }) {
 export async function setSalesTarget(ctx: { orgId: string; userId: string }, input: { month: string; targetValue: number }) {
   await requireSalesEnabled(ctx.orgId)
   if (!/^\d{4}-\d{2}$/.test(input.month)) throw new ServiceError("month must be 'YYYY-MM'", 400, { code: "VALIDATION" })
+  if (!Number.isFinite(input.targetValue)) throw new ServiceError("targetValue must be a finite number", 400, { code: "VALIDATION" })
   const monthDate = `${input.month}-01`
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
