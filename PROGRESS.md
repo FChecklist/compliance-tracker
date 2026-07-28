@@ -411,3 +411,20 @@ per this task's own EXPECTED_OUTPUT.
 
 ## Remaining
 - [ ] None -- task complete
+# PROGRESS -- task-20260727-153104-re-audit-reporting-module-end-user-for-1
+
+## Completed
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (committed/pushed separately, per Rule 11)
+- [x] Verified compliance-tracker: csvEscape()/rowsToCSV() present + correct (src/lib/report-export-shared.ts), grepped all call sites (exactly 1: v1 reports run route)
+- [x] Found real GAP: unescaped CSV export bypass in src/app/(app)/reports/page.tsx exportCSV() (pre-existing, not touched by PR #601)
+- [x] Verified compliance-tracker tenant isolation: route-level test is real but mocks the DB; codebase-wide, no real DB-level (RLS) cross-org pen test exists anywhere, despite it being named the task's own top priority
+- [x] Ran `bun test src/lib/report-export-shared.test.ts` (7 pass) and `npx tsc --noEmit` (clean) in compliance-tracker
+- [x] Quoted real AUDIT: PASS for PR #601 via `gh pr view 601`
+- [x] Verified projexa PR #51: real pivot/chart components, wired into both entry points, unit tests pass (9/9), tsc clean (via disposable git worktree against origin/main)
+- [x] Found real GAP: pivot/chart E2E test has never actually executed (self-disclosed production login-routing bug in the PR's own tech-decision doc, still unresolved, no CI E2E job either)
+- [x] Quoted real AUDIT: PASS for PR #51 via `gh pr view 51`
+- [x] Wrote findings to ai-os/audits/reporting_module_reaudit_2026-07-27.md
+- [x] Committed, pushed, opened PR containing the report
+
+## Remaining
+- [ ] None -- task complete
