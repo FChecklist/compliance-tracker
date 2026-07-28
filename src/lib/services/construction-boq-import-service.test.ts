@@ -87,3 +87,74 @@ describe("parseBoqSpreadsheet -- real xlsx buffer end to end", () => {
     expect(topLevel.parentItemCode).toBeUndefined()
   })
 })
+
+describe("parseBoqSpreadsheet -- real prospect BoQ file shape", () => {
+  // task-20260728-050606: reconstructs the structural quirks of a real
+  // prospect-supplied BoQ export (Sl No/Category/Dwg Code/Description
+  // (Task)/Sub Task/QTY/UNIT/Breakdown %/RATE/AMOUNT columns) -- category
+  // header rows with no Sl No, numbered task rows ("1.01") with multi-line
+  // descriptions containing an embedded "Location :<name>" annotation, and
+  // unlabeled sub-task rows (Frame/Gypsum Board/Rockwool/Taping/Sanding)
+  // that carry no Sl No or Description of their own, only a Sub Task label
+  // and a Breakdown %. Before this test's fix, the importer mapped
+  // "description" to the Category column (ahead of "Description (Task)" in
+  // header order) and never recognized "Sl No" as itemCode at all -- it
+  // dropped all 9 real task/sub-task rows and kept only 2 garbage rows
+  // (the bare category labels, qty=0, rate=0).
+  test("category headers skipped, multi-line description with embedded location preserved, unlabeled sub-tasks attached to their parent task with correct breakdown %", async () => {
+    const HEADER_ROW = { "Sl No": "", "Category": "", "Dwg Code": "", "Description (Task)": "", "Sub Task": "", "QTY": "", "UNIT": "", "Breakdown %": "", "RATE": "", "AMOUNT": "" }
+    const rows = [
+      { ...HEADER_ROW, "Category": "PARTITION AND LINING" },
+      { ...HEADER_ROW, "Sl No": "1.01", "Dwg Code": "A-101", "Description (Task)": "Providing and fixing partition wall as per drawing and specification.\nLocation :Veterinary Clinic", "QTY": 120, "UNIT": "Sqm", "RATE": 850, "AMOUNT": 102000 },
+      { ...HEADER_ROW, "Sub Task": "Frame", "Breakdown %": 20, "AMOUNT": 20400 },
+      { ...HEADER_ROW, "Sub Task": "Gypsum Board", "Breakdown %": 30, "AMOUNT": 30600 },
+      { ...HEADER_ROW, "Sub Task": "Rockwool", "Breakdown %": 15, "AMOUNT": 15300 },
+      { ...HEADER_ROW, "Sub Task": "Taping", "Breakdown %": 20, "AMOUNT": 20400 },
+      { ...HEADER_ROW, "Sub Task": "Sanding", "Breakdown %": 15, "AMOUNT": 15300 },
+      { ...HEADER_ROW, "Category": "FALSE CEILING" },
+      { ...HEADER_ROW, "Sl No": "2.01", "Dwg Code": "A-102", "Description (Task)": "Providing and fixing false ceiling in gypsum board.\nLocation :Reception Area", "QTY": 80, "UNIT": "Sqm", "RATE": 700, "AMOUNT": 56000 },
+      { ...HEADER_ROW, "Sub Task": "Frame", "Breakdown %": 40, "AMOUNT": 22400 },
+      { ...HEADER_ROW, "Sub Task": "Gypsum Board", "Breakdown %": 60, "AMOUNT": 33600 },
+    ]
+    const buffer = buildXlsxBuffer(rows)
+
+    const result = await parseBoqSpreadsheet(buffer, "prospect-boq.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    expect(result.mapping.itemCode).toBe("Sl No")
+    expect(result.mapping.description).toBe("Description (Task)")
+    expect(result.mapping.subTask).toBe("Sub Task")
+
+    // The 2 category header rows have neither a Description (Task) nor a Sub
+    // Task value -- they carry no line-item data and must be skipped, not
+    // turned into garbage line items.
+    expect(result.warnings).toHaveLength(2)
+    expect(result.warnings.every((w) => w.includes("skipped"))).toBe(true)
+    expect(result.lineItems).toHaveLength(9)
+
+    const task1 = result.lineItems.find((i) => i.itemCode === "1.01")!
+    expect(task1.parentItemCode).toBeUndefined()
+    expect(task1.quantity).toBe(120)
+    expect(task1.rate).toBe(850)
+    expect(task1.description).toBe("Providing and fixing partition wall as per drawing and specification.\nLocation :Veterinary Clinic")
+    expect(task1.description).toContain("Location :Veterinary Clinic")
+
+    const task1Subs = result.lineItems.filter((i) => i.parentItemCode === "1.01")
+    expect(task1Subs.map((s) => s.description)).toEqual(["Frame", "Gypsum Board", "Rockwool", "Taping", "Sanding"])
+    expect(task1Subs.map((s) => s.breakdownPercentage)).toEqual([20, 30, 15, 20, 15])
+    expect(task1Subs.reduce((sum, s) => sum + (s.breakdownPercentage ?? 0), 0)).toBe(100)
+
+    const task2 = result.lineItems.find((i) => i.itemCode === "2.01")!
+    expect(task2.parentItemCode).toBeUndefined()
+    expect(task2.description).toContain("Location :Reception Area")
+
+    const task2Subs = result.lineItems.filter((i) => i.parentItemCode === "2.01")
+    expect(task2Subs).toHaveLength(2)
+    expect(task2Subs.map((s) => s.description)).toEqual(["Frame", "Gypsum Board"])
+    expect(task2Subs.map((s) => s.breakdownPercentage)).toEqual([40, 60])
+
+    // Sub-tasks under task 1.01 must never be misattributed to task 2.01 or
+    // vice versa -- positional inference must reset at each new task row.
+    for (const sub of task1Subs) expect(sub.parentItemCode).not.toBe("2.01")
+    for (const sub of task2Subs) expect(sub.parentItemCode).not.toBe("1.01")
+  })
+})
