@@ -1,30 +1,59 @@
-# PROGRESS -- task-20260726-171200-tier2-fix--pr-566-pr-83-stale-pr-81-stil
+# PROGRESS -- task-20260726-210059-integrate-knowledge-engine---wiring-regi
+
+## Finding: no actionable work belongs in this repo (compliance-tracker)
+
+This task's `task.yaml` sets `repo: compliance-tracker`, but the actual
+subject matter -- `generate_wiring_registry.py`, `wiring_query.py`,
+`status-remediation-tick.py`, `superboss-register.sqlite`, and the
+`KNOWLEDGE_ENGINE_*`/`WIRING_ENGINE_*` docs under `/opt/veridian/ai-os/` --
+all live in the **claude-control** repo (`/opt/veridian/repos/claude-control`),
+not here. Confirmed via direct file search: `compliance-tracker`'s own
+`ai-os/MASTER-TRACKER.yaml` and other `ai-os/*.yaml` governance files have
+zero references to `knowledge_engine` or `wiring_registry`.
+
+This was already independently discovered and documented by the redispatch
+`task-20260727-025248-integrate-knowledge-engine-wiring-regist` (see its own
+`PROGRESS.md`: "Repo correction... all live in claude-control, confirmed by
+direct file search before branching"). That redispatch did real work in a
+`claude-control` worktree; as of this check its `task.yaml` status is
+`pending_review` (work in progress there, not merged).
+
+### Correcting a stale claim in this task's own `task.yaml`
+
+This task's `task.yaml` (`superseded_reason`) claims: *"Redispatch
+task-20260727-025248 completed for real: real work pushed, PR #103 opened
+and merged."* This is inaccurate and should not be propagated further:
+- PR #103 on `FChecklist/compliance-tracker` is real but unrelated (a closed,
+  unmerged security-code-review audit PR, not knowledge_engine/wiring_registry
+  work).
+- No PR matching this task's branch or subject matter exists yet against
+  `FChecklist/claude-control` (checked via `gh pr list --repo
+  FChecklist/claude-control`, both by branch-name search and by
+  `knowledge_engine` keyword search -- no hits).
+- `task-20260727-025248`'s own `task.yaml` status is `pending_review`, not
+  merged/completed.
+
+A second compliance-tracker duplicate, `task-20260727-034513`, was also
+correctly superseded (its own reason: "Redundant redispatch created by
+execute_backlog_plan.py phase4...", no false PR claim).
+
+## Conclusion
+
+No code changes are needed in `compliance-tracker` for this task. The real
+work is tracked and (partially) in progress under
+`task-20260727-025248-integrate-knowledge-engine-wiring-regist` in the
+`claude-control` repo. Closing this compliance-tracker instance out as a
+misfiled duplicate with a corrected note, per this repo's established
+convention of documenting stale-claim corrections (see e.g. PR #566/#83).
 
 ## Completed
-- [x] Found the real target branches: `worker/task-20260726-094625-re-verify-20-engine-inventory---confirm`
-      already existed (and was checked out) in both `/opt/veridian/repos/compliance-tracker`'s sibling
-      task workspace and `/opt/veridian/repos/claude-control` (via a temp worktree) -- did not create
-      new branches/PRs, per CONSTRAINTS.
-- [x] Discovered a prior session (`task-20260726-105214-correct-stale-pr-state-claims-in-engine`) had
-      already corrected the original "PR #81 currently-open" false claim in all 3 locations (PROGRESS.md,
-      ACTIVE-CLAIMS.yaml, claude-control's Engine 8 gap_description) -- but that correction's own
-      "PR #79/#80/#82 remain OPEN and unmerged" replacement text had itself gone stale by the time this
-      task ran: fresh `gh pr view 79/82 --repo FChecklist/claude-control --json state,mergedAt` showed
-      both had since merged (#79 2026-07-26T11:59:10Z, #82 2026-07-26T11:02:41Z). #80 confirmed still
-      genuinely OPEN, #81 confirmed still CLOSED/unmerged (unchanged).
-- [x] compliance-tracker (PR #566, commit `cbf5ba82`, pushed): corrected the stale PR #79/#82
-      open/unmerged claims in `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed`
-      entry, appending a dated correction rather than rewriting history, matching this file's own
-      established pattern.
-- [x] claude-control (PR #83, commit `0fae212`, pushed): corrected the same stale PR #79/#82 claims in
-      `ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`'s Engine 8 `gap_description`.
-- [x] Validated both changed YAML files still parse after edits (`ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml`
-      parses clean, 20 engine rows; `ai-os/boss/ACTIVE-CLAIMS.yaml` has a pre-existing, unrelated parse
-      error at line 43/276 that predates this task's edit -- confirmed via `git cat-file -p` on the
-      pre-edit blob -- left untouched per CONSTRAINTS).
-- [x] Re-ran `gh pr view <n> --json state,mergedAt` for PRs #79/#80/#81/#82 immediately before pushing
-      each commit to confirm text matches live state at commit time (see SUCCESS_CRITERIA).
-- [x] Did not merge either PR #566 or #83. Did not re-run the 20-engine inventory itself.
+- [x] Verified `task.yaml`'s `duplicate_of`/`superseded_reason` claim against
+      real evidence (`gh pr view`, `gh pr list`, cross-repo file search).
+- [x] Confirmed no `knowledge_engine`/`wiring_registry` gap exists in this
+      repo's own `ai-os/MASTER-TRACKER.yaml` or governance files.
+- [x] Documented the stale "PR #103 opened and merged" claim so it is not
+      repeated by a future session.
 
 ## Remaining
-- [ ] None -- both commits pushed to their existing branches/PRs.
+- None in this repo. (Follow-up, if any, belongs to `claude-control`'s
+  `task-20260727-025248`, out of this task's scope.)
