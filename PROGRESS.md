@@ -1,3 +1,68 @@
+# PROGRESS -- task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets
+
+## Completed
+- [x] Read ACTIVE-CLAIMS.yaml, checked out PR #610's own branch
+      (worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co),
+      registered this session's claim there (right above the original
+      authoring session's claim), pushed standalone before real work
+- [x] Confirmed audit finding: `drizzle/0268_sales_pipeline_dashboard_targets.sql`
+      created `compliance.crm_sales_targets` with zero RLS -- no ENABLE ROW
+      LEVEL SECURITY, no policies, no org_id index, unlike every other
+      org-scoped table (e.g. `0101_wave115_construction_boq_progress_diary.sql`)
+- [x] Confirmed 0268 safe to amend in place: not yet merged to main, not
+      referenced anywhere else in the repo (grepped)
+- [x] Amended 0268: `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` +
+      `app_runtime_tenant_isolation` policy (`org_id = compliance.current_org_id()`)
+      + `service_role_bypass_crm_sales_targets` policy, matching 0101's exact
+      pattern. Added `idx_crm_sales_targets_org_id` and
+      `idx_crm_sales_targets_org_id_month` indexes matching
+      `getSalesPipelineDashboardData`'s org_id-only query and
+      `setSalesTarget`'s org_id+month find-or-create query
+      (`crm-service.ts`)
+- [x] Checked for an existing DB-level RLS test to mirror (task spec
+      suggested one might exist for `construction_boq_line_items`) --
+      confirmed via grep none exists; the closest precedent,
+      `tenant-isolation.test.ts`, explicitly documents in its own header
+      that it only covers the app-level layer (mocks `withTenantContext`
+      entirely), not DB-level RLS. No live DB/Supabase MCP available in
+      this sandbox (no `DATABASE_URL`, no MCP tool). Added two things
+      instead: (1) `src/lib/services/sales-pipeline-rls.test.ts`, a real
+      DB-independent test that reads the actual migration SQL and asserts
+      the RLS-enable clause, both policies, and both indexes are present
+      -- 5/5 pass; (2) two new tests in `tenant-isolation.test.ts` covering
+      `getSalesPipelineDashboardData`/`setSalesTarget`'s app-level org
+      scoping, matching that file's existing mock pattern exactly
+- [x] Verified: `npx tsc --noEmit` clean; `bun test
+      src/lib/services/sales-pipeline-dashboard-service.test.ts` 20/20 pass
+      (unchanged, no regression); `bun test
+      src/lib/services/sales-pipeline-rls.test.ts
+      src/lib/services/tenant-isolation.test.ts` 12/12 pass;
+      `check-migration-collision.mjs` and `check-guardrail-presence.mjs`
+      pass; `NODE_OPTIONS=--max-old-space-size=8192 bun run build` run to
+      completion in the background (see result appended below once done)
+- [x] Discovered but explicitly did NOT fix (out of this task's scope --
+      RLS/index/build only): PR #610 already fails 2 pre-existing CI
+      checks unrelated to RLS -- Asset Registry Coverage Check
+      (`crm_sales_targets` neither registered nor exempted in
+      `ai-os/registry/asset-registry-coverage.yaml`) and the terminology
+      guardrail (`--diff-only`, pre-existing hardcoded 2026-07-27-era dates
+      in `schema.ts`/`crm-service.ts` comments). Confirmed both are
+      pre-existing by running each check with this session's diff stashed
+      vs. applied -- byte-identical failing output either way, so neither
+      was introduced by this fix. Flagging for the supervisor/original
+      session, not fixing here.
+
+## Remaining
+- [ ] `bun run build` result pending -- running in background at time of
+      this write, will update this section with the real exit code once
+      it finishes (superseding the original session's disclosed
+      never-completed build below)
+- [ ] Awaiting fresh supervisor audit before merge (per task's own
+      EXPECTED_OUTPUT -- not self-merging)
+- [ ] Pre-existing Asset Registry Coverage Check + terminology guardrail
+      CI failures on this PR, both confirmed unrelated to this fix (see
+      above) -- left for the supervisor/original session to triage
+
 # PROGRESS -- task-20260727-193351-sales-pipeline-interactive-dashboard--co
 
 ## Completed

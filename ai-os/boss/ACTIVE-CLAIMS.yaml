@@ -40,6 +40,44 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Fix-forward on the still-open PR #610 (branch
+      worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co,
+      claim entry immediately below, from the original authoring session).
+      Audit-confirmed gap: migration
+      drizzle/0268_sales_pipeline_dashboard_targets.sql creates the
+      org-scoped table compliance.crm_sales_targets with zero Row Level
+      Security -- no ENABLE ROW LEVEL SECURITY, no
+      app_runtime_tenant_isolation policy, no service_role_bypass policy,
+      no index on org_id -- unlike every other org-scoped table in this
+      repo. Amended 0268 in place (not yet merged, safe to amend --
+      confirmed via grep no other file references it) to add RLS + the
+      standard two-policy pair matching
+      drizzle/0101_wave115_construction_boq_progress_diary.sql's pattern
+      exactly, plus org_id and (org_id, month) indexes matching
+      sales-pipeline-dashboard-service.ts's query patterns. Added a real
+      SQL-content test (src/lib/services/sales-pipeline-rls.test.ts,
+      DB-independent, no live Postgres available in this sandbox) plus
+      app-level tenant-isolation coverage for the two new crm-service.ts
+      functions in tenant-isolation.test.ts. Discovered but explicitly did
+      NOT fix (out of this task's scope, flagging for the
+      supervisor/original session instead): PR #610 already fails CI's
+      Asset Registry Coverage Check (crm_sales_targets neither
+      registered nor exempted) and the terminology guardrail
+      (--diff-only, pre-existing hardcoded 2026-07-27-era dates in
+      schema.ts/crm-service.ts) -- confirmed both pre-existing (identical
+      failing output with and without this session's changes stashed),
+      not introduced by this fix.
+    scope_note: |
+      File scope: compliance-tracker only --
+      drizzle/0268_sales_pipeline_dashboard_targets.sql,
+      src/lib/services/sales-pipeline-rls.test.ts (new),
+      src/lib/services/tenant-isolation.test.ts (2 new tests appended),
+      on branch worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co
+      (PR #610). Did not touch dashboard/chart UI or aggregation logic
+      (audit already confirmed those correct, out of scope per task spec).
   - session_label: "claude-code (task-20260727-193351-sales-pipeline-interactive-dashboard--co) -- Real interactive Sales Pipeline dashboard, CRM module [PUSHED, PR #610 OPEN, awaiting supervisor audit]"
     claimed_at: "2026-07-27T (this session)"
     claim: |
