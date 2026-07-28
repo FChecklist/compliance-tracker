@@ -6,7 +6,10 @@
 // esignature-service.test.ts.
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { computeHierarchicalAmount, diffLineItems, ServiceError, type BoqLineItemInput, type BoqLineItemRow } from "./construction-boq-service"
+import {
+  computeHierarchicalAmount, diffLineItems, computeTotalVariation, findScopeReductionViolations,
+  ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
+} from "./construction-boq-service"
 
 function row(overrides: Partial<BoqLineItemRow>): BoqLineItemRow {
   return {
@@ -122,5 +125,73 @@ describe("diffLineItems -- hierarchy-aware revision comparison", () => {
     expect(added).toHaveLength(1)
     expect(added[0].itemCode).toBe("S1")
     expect(changed).toHaveLength(0)
+  })
+})
+
+describe("computeTotalVariation -- the running total variation value across a revision", () => {
+  test("a positive variation: one added line item, nothing removed or changed", () => {
+    const added = [row({ id: "n1", itemCode: "N1", quantity: "10", rate: "100", amount: "1000" })]
+    expect(computeTotalVariation({ added, removed: [], changed: [] })).toBe(1000)
+  })
+
+  test("a negative variation: one removed line item nets out negative", () => {
+    const removed = [row({ id: "r1", itemCode: "R1", quantity: "10", rate: "100", amount: "1000" })]
+    expect(computeTotalVariation({ added: [], removed, changed: [] })).toBe(-1000)
+  })
+
+  test("added, removed and changed combine into one net total", () => {
+    const added = [row({ id: "a1", amount: "500" })]
+    const removed = [row({ id: "r1", amount: "200" })]
+    const changed: ChangedLineItem[] = [{
+      key: "M1", previous: row({ id: "p1" }), current: row({ id: "c1" }),
+      quantityChange: 0, rateChange: 0, breakdownPercentageChange: 0, netVariation: 300, isSubItem: false,
+    }]
+    // +500 (added) - 200 (removed) + 300 (changed) = 600
+    expect(computeTotalVariation({ added, removed, changed })).toBe(600)
+  })
+})
+
+describe("findScopeReductionViolations -- the Owner's hard-block rule for descoping completed work", () => {
+  test("a positive variation on a line item with completed progress is never a violation", () => {
+    const changed: ChangedLineItem[] = [{
+      key: "M1", previous: row({ id: "p1", activityId: "act-1" }), current: row({ id: "c1", activityId: "act-1" }),
+      quantityChange: 10, rateChange: 0, breakdownPercentageChange: 0, netVariation: 500, isSubItem: false,
+    }]
+    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["act-1", 60]]))
+    expect(violations).toHaveLength(0)
+  })
+
+  test("removing a line item entirely is blocked when its activity has any recorded completed progress", () => {
+    const removed = [row({ id: "r1", description: "Brickwork", activityId: "act-1" })]
+    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["act-1", 25]]))
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain("Brickwork")
+  })
+
+  test("a negative variation (reduced quantity/amount) on a line item is blocked when its activity has completed progress", () => {
+    const changed: ChangedLineItem[] = [{
+      key: "M1", previous: row({ id: "p1", activityId: "act-1", description: "Plastering" }), current: row({ id: "c1", activityId: "act-1", description: "Plastering" }),
+      quantityChange: -10, rateChange: 0, breakdownPercentageChange: 0, netVariation: -500, isSubItem: false,
+    }]
+    const violations = findScopeReductionViolations({ removed: [], changed }, new Map([["act-1", 40]]))
+    expect(violations).toHaveLength(1)
+    expect(violations[0]).toContain("Plastering")
+  })
+
+  test("removing/reducing an item with NO recorded progress (0% or no entry at all) is not blocked -- nothing has been done on site yet", () => {
+    const removed = [row({ id: "r1", activityId: "act-1" })]
+    const changed: ChangedLineItem[] = [{
+      key: "M2", previous: row({ id: "p2", activityId: "act-2" }), current: row({ id: "c2", activityId: "act-2" }),
+      quantityChange: -5, rateChange: 0, breakdownPercentageChange: 0, netVariation: -200, isSubItem: false,
+    }]
+    // act-1 has an explicit 0% entry, act-2 has no entry in the map at all -- neither should block.
+    const violations = findScopeReductionViolations({ removed, changed }, new Map([["act-1", 0]]))
+    expect(violations).toHaveLength(0)
+  })
+
+  test("a line item with no activityId at all can never be blocked -- there is no progress source to check it against", () => {
+    const removed = [row({ id: "r1", activityId: null })]
+    const violations = findScopeReductionViolations({ removed, changed: [] }, new Map([["act-1", 90]]))
+    expect(violations).toHaveLength(0)
   })
 })
