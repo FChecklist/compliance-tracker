@@ -40,6 +40,33 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260728-122242-investigate-pr--617-real-audit-fail-reas) -- Fix PR #617's real audit FAIL, re-adopt/re-sweep"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      PR #617 (feat/projexa-permits-drawings-moms -- Permits/Drawings/
+      Documents upload API + MoM backend) has mergeable=true but its most
+      recent audit comment (2026-07-28T10:25:43Z) is a real AUDIT: FAIL, not
+      PASS -- confirmed by reading the full comment via curl against the
+      GitHub API directly (the `gh` CLI binary on this host truncates JSON
+      output to ~120 bytes for unknown reasons; curl does not have this
+      problem and was used instead). Real fail reasons: (1)
+      src/app/api/v1/projexa/permits/route.ts's GET DTO renamed the
+      already-shipped field `expiryDate` to `endDate` with no
+      backward-compatible alias, breaking a documented-stable external
+      contract (docs/API_CHANGELOG.md's 2026-07-14 entry) PROJEXA depends
+      on; (2) no docs/API_CHANGELOG.md entry was added for this PR's several
+      new routes or the permits field change. Fixing both on the existing
+      PR branch, then re-adopting/re-sweeping for a fresh audit. Will NOT
+      merge even if it passes -- spec requires leaving it for Owner review
+      either way given the "do not merge unsupervised" instruction.
+    scope_note: >-
+      File scope: compliance-tracker only -- feat/projexa-permits-drawings-moms
+      branch, specifically src/app/api/v1/projexa/permits/route.ts and
+      docs/API_CHANGELOG.md. Not touching the other files in this PR's diff
+      (drawings/veri-meetings routes, meeting-minutes-pdf, document-service,
+      veri-meeting-service) since the audit found those clean. Checked this
+      file for collisions: no other active entry names this PR or these
+      files.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
