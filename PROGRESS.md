@@ -166,6 +166,23 @@
   (`worker/task-20260727-094843-phase8-dspy-scoping`) to minimize surprise
   for whichever other session uses that shared checkout next.
 
+## Resumed (invocation 2, re-check before handoff)
+- Re-verified nothing regressed since the last checkpoint: working tree
+  clean, branch up to date with origin, HEAD is `d65a96d9` (the commit that
+  landed PR #116 and closed redundant PR #106).
+- Re-confirmed the success criteria directly against the live DB (not just
+  cited from memory): `known_fixes` row for signature `"periodic
+  checkpoint"` is `fix_action=skip_escalation_when_activating`,
+  `success_count=20` (queried `superboss-register.sqlite` directly).
+- Re-confirmed claude-control PR #116
+  (https://github.com/FChecklist/claude-control/pull/116) is still open,
+  `mergeStateStatus=CLEAN` -- ready for owner merge, nothing blocking it on
+  this task's side.
+- No new work required: this task's own real fix (root cause + known_fixes
+  registration + reusable code fix) was fully completed and committed in the
+  prior invocation. This invocation only re-verified that state instead of
+  duplicating it.
+
 ## Remaining
 - Owner/human merge of claude-control PR #116 (the real code fix) -- not
   done by this task, per Rule 6.
