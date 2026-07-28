@@ -304,5 +304,7 @@ index:
       reason: "Point-in-time independent re-audit findings report (2026-07-27), not an ongoing governance doc -- same class as other dated audit reports, real evidence/verdicts, not a spec to keep indexed long-term."
     - path: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md
       reason: "Point-in-time independent re-audit findings report (2026-07-27), not an ongoing governance doc -- same class as owner_engine_reaudit above."
+    - path: ai-os/audits/reporting_module_reaudit_2026-07-27.md
+      reason: "Point-in-time independent re-audit findings report (2026-07-27), same class as the other two audit reports above."
     - path: ai-os/v2-7-workflow-change.patch
       reason: "A git-format patch file (2026-07-20, V2-7) carrying the .github/workflows/sync-vercel-env.yml per-env scoping edit that this session's GitHub token cannot push directly (token lacks the `workflow` scope; GitHub rejects workflow-file pushes from such tokens). The design + rationale it implements live in the indexed ai-os/STAGING_ENV_2026-07-20.md; the patch is a delivery artifact for an Owner-push handoff, not a governance document -- indexed here only so check-metadata-index-coverage.mjs's scan does not flag it as an oversight. Remove once the Owner applies it and the synced .yml lands on main."
