@@ -40,23 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260728-091708-re-audit--functionality-completion--help) -- Independent re-audit of ERP Helpdesk/PM/HR PRs #591/#592/#593"
-    claimed_at: "2026-07-28T (this session)"
-    claim: |
-      Retry of a stalled prior attempt (task-20260727-153100, killed after
-      14+ hours with no real progress and no findings file). Report-only:
-      independently re-verifying whether the Helpdesk (PR #591, tiered SLA
-      + team routing + email-to-ticket + public portal), PM (PR #592, PMS
-      timesheet-to-invoice + resource-conflict detection), and HR (PR #593,
-      expense claims + loans + KRA/360 appraisal + shift roster) gap-closure
-      claims are genuinely present in current main-branch code, plus real
-      `npx tsc --noEmit` and `bun test src/lib/services src/app/api` output.
-      All 3 PRs already MERGED to main as of this session's `git fetch`
-      (ca177affd, 78892cec7, 2c35a1e04). Writing findings to
-      ai-os/audits/functionality_completion_reaudit_2026-07-28.md on a new
-      branch, PR containing only that report. No code changes outside
-      ai-os/audits/ and this file/PROGRESS.md. Not self-merged -- requires a
-      fresh supervisor audit per this task's own EXPECTED_OUTPUT.
   - session_label: "claude-code (task-20260727-153104-re-audit-reporting-module-end-user-for-1) -- Independent re-audit of reporting_module_end_user scope"
     claimed_at: "2026-07-27T (this session)"
     claim: |
@@ -3788,6 +3771,26 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260728-091708-re-audit--functionality-completion--help) -- Independent re-audit of ERP Helpdesk/PM/HR PRs #591/#592/#593 [PR #620 OPEN, awaiting supervisor audit]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      COMPLETED: retry of a stalled prior attempt (task-20260727-153100).
+      All 10 claimed feature items across PR #591 (Helpdesk)/#592 (PM)/#593
+      (HR) verified present in current main-branch code with real file:line
+      evidence via 3 independent code-reading agents + direct cross-checks
+      (not the PRs' own diffs). Real `bunx tsc --noEmit`: 0 errors. Real
+      full `bun test`: 2281 pass / 0 fail / 204 files. Surfaced 2 unresolved
+      authorization gaps (missing requireRole on new Helpdesk admin-config
+      routes; client-controlled employeeId + missing requireRole on HR
+      loans/expenses/shift-roster routes), both self-flagged in each PR's
+      own same-author "audit" comment and never fixed before merge -- also
+      found none of the 3 PRs' audit comments were from a genuinely
+      independent (distinct-identity) reviewer. Findings:
+      ai-os/audits/functionality_completion_reaudit_2026-07-28.md. PR #620
+      opened, report-only (no app code changed), requires fresh supervisor
+      audit before merge per this task's own EXPECTED_OUTPUT -- not
+      self-merged. Follow-up gap for the 2 authorization defects left for a
+      future task (out of this report-only task's scope).
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
     claim: |
