@@ -40,7 +40,26 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
+  - session_label: "claude-code (task-20260728-123646-fix-pr--617-real-audit-fail-reason) -- Fix PR #617's real AUDIT: FAIL reason (permits expiryDate->endDate breaking rename + missing API_CHANGELOG.md entry), re-adopt, re-sweep"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      PR #617 (feat/projexa-permits-drawings-moms, Permits/Drawings/
+      Documents/MoMs backend) is mergeable=true but its latest audit
+      comment (2026-07-28T10:25:43Z, FChecklist bot) is AUDIT: FAIL,
+      severity medium. Real reasons: (1) GET /api/v1/projexa/permits'
+      toPermitDto silently renamed the already-shipped, documented-stable
+      `expiryDate` field to `endDate` with no backward-compatible alias,
+      breaking a live external contract PROJEXA depends on
+      (docs/API_CHANGELOG.md's 2026-07-14 bab0a768 entry); (2) no
+      docs/API_CHANGELOG.md entry was added for this PR's several new
+      /api/v1/** routes or the permits contract change, despite that
+      file's own stated same-PR convention. Scope: fix only these two
+      findings on the existing PR branch (restore expiryDate alongside
+      endDate, add the changelog entry), do not touch unrelated code.
+      Will not merge until CI + a fresh independent audit both pass;
+      tier2/FAIL stays open for review per this task's own spec. Checked
+      this file for collisions before starting: none found (no other
+      active entry touches this PR/branch or these files).
     claimed_at: "2026-07-28T (this session)"
     claim: |
       Owner-directed verification of construction-boq-import-service.ts (PR
