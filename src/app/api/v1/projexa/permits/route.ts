@@ -52,7 +52,7 @@ async function toPermitDto(doc: { id: string; name: string; metadata: unknown; e
     permitAuthority: metadata.permitAuthority ?? null,
     issueDate: metadata.issueDate ?? null,
     endDate: doc.expiryDate,
-    expiryDate: doc.expiryDate, // back-compat alias for `endDate` -- see docs/API_CHANGELOG.md 2026-07-28 entry
+    expiryDate: doc.expiryDate, // back-compat alias for `endDate` -- see docs/API_CHANGELOG.md's permits field-rename entry
     daysToExpiry,
     documentUrl: data?.signedUrl ?? null,
   }
