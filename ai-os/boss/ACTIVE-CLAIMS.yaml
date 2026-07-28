@@ -40,6 +40,55 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: daily designer work recording + manager-approval workflow + designer-wise cost/status/work-analysis views"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Owner item 12 (IMPORTANT): extend PR #597's already-merged
+      construction-reports-service.ts timesheet reporting, not rebuild it.
+      Confirmed by reading current code before starting: a designer-wise
+      Budget-vs-Actual cut (byDesigner) already exists (PR #597 + its
+      audit-fix commit 46d6967d), and a full KPI designer-fills/manager-
+      approves table pair (constructionKpiDefinitions/constructionKpiEntries,
+      construction-kpi-service.ts, /api/construction/kpi-entries[/[id]/approve])
+      already exists and is not being duplicated. The real gap: pms_time_entries
+      has NO approval-status field/flow at all (confirmed via schema.ts:4205-4227
+      grep) -- adding draft/submitted/approved/rejected to pms_time_entries
+      (new enum + columns, hand-written migration per drizzle/meta gap --
+      see 0267's own header), submit/approve/reject service functions in
+      pms-time-service.ts modeled directly on construction-kpi-service.ts's
+      submitKpiEntry/approveKpiEntry (role gate via requireRole(dbUser,
+      "manager") at the route layer, self-approval blocked in the service
+      same as approveKpiEntry), and new API routes under
+      /api/pms/time-entries/[id]/{submit,approve,reject}. Also adding 2 new
+      report functions to construction-reports-service.ts (designer-wise
+      approval-status view + work-analysis-by-task/category-per-designer),
+      registered in the same REPORT_REGISTRY/dispatcher PR #597 built --
+      NOT modifying aggregateDesignerTimesheetCosts's existing byCategory/
+      byProject logic per this task's own CONSTRAINTS.
+
+      Collision check before starting: grepped this file for
+      construction-reports-service.ts, pms-time-service.ts,
+      pms_time_entries, construction-kpi-service.ts -- the only match is
+      the now-merged (PR #597, 2026-07-27T14:14:41Z) fix-pr-597 entry
+      below, which is stale/completed, not active. No other active entry
+      names these files.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts
+      (pms_time_entries: new approvalStatus enum + approvedById/approvedAt/
+      rejectionReason columns only), drizzle/0268_*.sql (new, hand-written),
+      src/lib/services/pms-time-service.ts (new submit/approve/reject
+      functions, existing logTime/deleteTimeEntry untouched),
+      src/app/api/pms/time-entries/[id]/{submit,approve,reject}/route.ts
+      (new), src/lib/services/construction-reports-service.ts (2 new report
+      functions + REPORT_REGISTRY entries only -- not touching
+      aggregateDesignerTimesheetCosts's existing byCategory/byProject
+      logic per CONSTRAINTS), construction-reports-service.test.ts (new
+      tests only), PROGRESS.md. NOT touching construction-kpi-service.ts,
+      constructionKpiDefinitions/Entries, or any KPI route -- confirmed
+      already fully built. Branch:
+      worker/task-20260728-043316-design-studio-timesheets--designer-wise.
+      Not self-merged -- requires a fresh supervisor audit before merge
+      per this task's own EXPECTED_OUTPUT.
   - session_label: "claude-code (task-20260727-182023-fix-veri-erp-product-chain-bug--shows-pr) -- Fix VERI ERP chain-selector Product branch returning Project rows/actions"
     claimed_at: "2026-07-27T (this session)"
     claim: |
