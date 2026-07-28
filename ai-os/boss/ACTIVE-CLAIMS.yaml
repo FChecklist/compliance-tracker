@@ -40,6 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260727-182023-fix-veri-erp-product-chain-bug--shows-pr) -- Fix VERI ERP chain-selector Product branch returning Project rows/actions"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Live-reproduced bug: /chat -> VERI ERP -> Product -> "Demo Company
+      Platform" surfaces two Project records ("Website Revamp"/
+      "ERP Rollout - Phase 2", ids demo_project_website/...) as children
+      instead of real Product sub-items, and offers project-management
+      actions instead of product-management actions. Customer/Vendor
+      branches are confirmed correct and must NOT be modified beyond
+      adding a regression test. Root-causing the entity-type resolution
+      logic behind ChainSelector.tsx/VeriComposer.tsx/chat-service.ts (or
+      whichever API route actually resolves chain children/actions by
+      entity type) and fixing the Product branch specifically.
+      File scope (expected, subject to change after reading current code):
+      likely src/lib/services/chat-service.ts and/or a chain-resolution API
+      route, src/components/veri-chat/ChainSelector.tsx (read-only unless
+      the bug is genuinely in this file), src/lib/db/schema.ts (read-only,
+      confirming real table names). NOT touching Customer or Vendor
+      resolution logic except to add regression tests per task spec.
+      Checked this file for collisions: no other active entry currently
+      claims the Product-entity branch of chain resolution specifically;
+      several older entries (2026-07-18/07-19) touch ChainSelector.tsx/
+      VeriComposer.tsx for unrelated concerns (chat efficiency findings,
+      ui-kit swap) and are stale (>4h, no matching open PR checked).
   - session_label: "claude-code (task-20260727-190116-work-progress-report--projexa) -- PROJEXA Work Progress Report feature"
     claimed_at: "2026-07-27T (this session)"
     claim: |
