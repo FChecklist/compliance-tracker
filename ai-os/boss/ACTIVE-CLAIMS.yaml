@@ -3701,11 +3701,13 @@ active:
       re-confirmed COMPLETE (report: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md).
       PR #603 opened (compliance-tracker), awaiting CI + merge -- will move
       this entry to recently_completed once merged.
-  - session_label: "claude-code (task-20260728-050704-sap-informed-veridian-phase-0--baseline) -- SAP-informed VERIDIAN Phase 0: business-domain baseline inventory"
-    claimed_at: "2026-07-28T (this session)"
+recently_completed:
+  - session_label: "claude-code (task-20260728-050704-sap-informed-veridian-phase-0--baseline) -- SAP-informed VERIDIAN Phase 0: business-domain baseline inventory [MERGED PR #615]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
+      COMPLETED: PR #615 merged 2026-07-28T05:53:57Z (mergeCommit 2f4e78ee).
       Owner directive Phase 0 of a larger SAP-architecture-understanding /
-      VERIDIAN-completion effort. Scope is deliberately narrow:
+      VERIDIAN-completion effort. Scope was deliberately narrow:
       documentation-only inventory of existing business-domain tables/API
       routes/PROJEXA module exposure across CRM, Sales, Purchase, Inventory,
       Accounting/GST, HR, Project Management, Helpdesk, Construction/BoQ --
@@ -3713,16 +3715,18 @@ active:
       Maintenance. Primary sources: ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json,
       ai-os/DATABASE_CATALOG.json, plus real grep of src/lib/db/schema.ts
       and src/app/api. No schema design, no SAP research, no code changes --
-      output is a single new file, ai-os/tasks/sap_mapping/PHASE_0_BASELINE.yaml,
-      committed on a new branch with a PR opened. Does not touch any file
-      area claimed by other active entries above (read-only over schema.ts/
-      src/app/api, no edits to either).
-
-      STATUS UPDATE: inventory complete (213 tables + 508 API routes across
-      the 8 domains, PROJEXA module-exposure section, sanity checks all
-      run). PR #615 opened (compliance-tracker), awaiting CI + merge --
-      will move this entry to recently_completed once merged.
-recently_completed:
+      output is ai-os/tasks/sap_mapping/PHASE_0_BASELINE.yaml (213 tables +
+      508 API routes across the 8 domains, PROJEXA module-exposure section,
+      sanity checks). CI surfaced 2 real gaps before merge, both fixed:
+      ai-os/tasks/ was a genuinely new top-level dir needing a real
+      ai-os/OS.yaml index entry (Metadata Index Coverage Check), and the
+      mandatory 8-field structured audit-verdict comment (AGENTS.md Rule
+      7c/10) hadn't been posted yet -- posted after independently
+      spot-checking the doc's numeric claims (schema.ts table count,
+      pgTable( absence, src/app/api route count, one new-table file:line)
+      against current main. Branch had fallen behind main under strict
+      branch-protection; merged origin/main in cleanly before the final
+      merge.
   - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
     claimed_at: "2026-07-27T (this session, closed same session)"
     claim: |
