@@ -376,7 +376,6 @@ per this task's own EXPECTED_OUTPUT.
 # PROGRESS -- task-20260727-153025-re-audit-owner-engine--phases-4-5-8-9--f
 
 ## Completed
-# PROGRESS -- task-20260727-153025-re-audit-owner-engine--phases-4-5-8-9--f
 - [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, registered claim (commit c32c6db6)
 - [x] Pulled real PR data (files/comments/merge state) for PR #562 (phase 4), #586+#590 (phase 5), #589 (phase 8), #588 (phase 9) via `gh`
 - [x] Confirmed all 5 PRs merged on main; extracted full audit-comment history (found PR #562 had FAIL -> PASS -> FAIL -> PASS cycle before merge)
