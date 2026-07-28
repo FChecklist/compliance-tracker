@@ -302,5 +302,11 @@ index:
       reason: "Product technical-spec documents (ComplianceTrack_TechSpec_*.docx etc), not AI-OS governance. Corrected 2026-07-14 (DEBT-06, ai-os/CONSTITUTION.yaml): this exemption does NOT extend to docs/master/ specifically -- scripts/check-doc-cross-references.mjs already treats docs/master/INDEX.md as 1 of its 6 real governance entry points, so it was never actually exempt in practice; this note now says so explicitly instead of silently contradicting that script's own behavior."
     - path: ai-os/OS.yaml
       reason: "This file is the index itself -- it does not need to index itself."
+    - path: ai-os/audits/owner_engine_reaudit_2026-07-27.md
+      reason: "Point-in-time independent re-audit findings report (2026-07-27), not an ongoing governance doc -- same class as other dated audit reports, real evidence/verdicts, not a spec to keep indexed long-term."
+    - path: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md
+      reason: "Point-in-time independent re-audit findings report (2026-07-27), not an ongoing governance doc -- same class as owner_engine_reaudit above."
+    - path: ai-os/audits/reporting_module_reaudit_2026-07-27.md
+      reason: "Point-in-time independent re-audit findings report (2026-07-27), same class as the other two audit reports above."
     - path: ai-os/v2-7-workflow-change.patch
       reason: "A git-format patch file (2026-07-20, V2-7) carrying the .github/workflows/sync-vercel-env.yml per-env scoping edit that this session's GitHub token cannot push directly (token lacks the `workflow` scope; GitHub rejects workflow-file pushes from such tokens). The design + rationale it implements live in the indexed ai-os/STAGING_ENV_2026-07-20.md; the patch is a delivery artifact for an Owner-push handoff, not a governance document -- indexed here only so check-metadata-index-coverage.mjs's scan does not flag it as an oversight. Remove once the Owner applies it and the synced .yml lands on main."
