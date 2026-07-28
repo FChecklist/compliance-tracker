@@ -664,7 +664,7 @@ export const apiKeys = complianceSchemaDB.table('api_keys', {
   keyHash: text('key_hash').notNull().unique(),
   keyPrefix: text('key_prefix').notNull(), // first 8 chars for display
   orgId: text('org_id').notNull(),
-  scopes: text('scopes').notNull().default('read'), // comma-separated: read,write
+  scopes: text('scopes').notNull().default('read'), // comma-separated: read,write,read:reports (task-20260727-101145)
   isActive: boolean('is_active').notNull().default(true),
   lastUsedAt: timestamp('last_used_at'),
   // Wave 17 (Purpose-Bound AI): null = unconstrained (every pre-existing key's
@@ -817,6 +817,21 @@ export const userActiveSessions = complianceSchemaDB.table('user_active_sessions
 // org to attribute the attempt to). orgId is nullable and populated only
 // when the attempt matched a real row -- see org-join-code-service.ts.
 export const orgJoinCodeAttempts = complianceSchemaDB.table('org_join_code_attempts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ipAddress: text('ip_address').notNull(),
+  orgId: text('org_id'),
+  wasSuccessful: boolean('was_successful').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Helpdesk gap-closure (Phase 0, 2026-07-27): rate-limit log for the new
+// public self-service portal's ticket-raise form
+// (public-portal-service.ts's submitPublicTicket), same shape/rationale
+// as org_join_code_attempts -- keyed by requester IP since an unresolved
+// org slug has no org to attribute the attempt to. This is the one
+// write-capable endpoint on that surface; the KB-browse reads are public
+// GETs with nothing to rate-limit.
+export const publicTicketSubmissionAttempts = complianceSchemaDB.table('public_ticket_submission_attempts', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   ipAddress: text('ip_address').notNull(),
   orgId: text('org_id'),
@@ -1111,7 +1126,7 @@ export const workerAgents = platformSchemaDB.table('worker_agents', {
   // column already follows a "Category > Subcategory" convention -- the
   // top-level Category is a real, non-arbitrary department grouping,
   // structurally the same shape as roster.ts's own TeamName enum (a small,
-  // bounded, governable set). See drizzle/0173_worker_agent_domain_groups.sql
+  // bounded, governable set). See drizzle/0256_worker_agent_domain_groups.sql
   // for the full reasoning and the live backfill (0 of 27 rows null as of
   // that migration). Resolved automatically at proposal time by
   // worker-agent-service.ts's resolveDomainGroupKey() -- see its own comment
@@ -1163,8 +1178,34 @@ export const workerAgentDomainIndex = platformSchemaDB.table('worker_agent_domai
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Ops-layer task-tracking bridge (2026-07-20) -- mirrors VERIDIAN-DEV
+// (Hetzner ops server) autonomous coding-task state (CONTROLLER.yaml /
+// superboss-register.sqlite) into this DB so it is queryable from the app
+// side. Not org-scoped by design, same convention as workerAgentDomainGroups
+// above -- this is internal engineering work, not customer data. Written
+// only via POST /api/internal/ops-task-sync (OPS_SYNC_SECRET bearer auth,
+// same shared-secret pattern as CRON_SECRET-gated /api/internal/* routes),
+// called from veridian-task.py on the ops server at its existing checkpoint
+// choke point -- app code should treat this table as read-only.
+export const opsDevTasks = platformSchemaDB.table('ops_dev_tasks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  opsTaskId: text('ops_task_id').notNull().unique(),
+  title: text('title').notNull(),
+  repo: text('repo').notNull(),
+  branch: text('branch'),
+  status: text('status').notNull(),
+  prUrl: text('pr_url'),
+  softwareTaskId: text('software_task_id'),
+  aiTaskId: text('ai_task_id'),
+  executionSeconds: integer('execution_seconds'),
+  restartCount: integer('restart_count'),
+  lastCheckpointNote: text('last_checkpoint_note'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastSyncedAt: timestamp('last_synced_at').notNull().defaultNow(),
+})
+
 // Real Agent Hierarchy Registry (AHR) -- see workerAgents.domainGroupId's
-// own comment and drizzle/0173_worker_agent_domain_groups.sql for the full
+// own comment and drizzle/0256_worker_agent_domain_groups.sql for the full
 // reasoning. Deliberately a small, bounded, hand-curated set (like
 // roster.ts's TeamName), not auto-grown by app code at request time --
 // app_runtime only has SELECT on this table at the DB level (RLS), so a
@@ -1888,6 +1929,53 @@ export const customerModelConfig = complianceSchemaDB.table('customer_model_conf
 })
 
 // ─── Client-level (Layer 3) BYO model config (Wave 45) ───────────────────
+// ─── Per-org BYO AI model for the Mother Router's software_team scope ─────
+// (Super Boss v2 plan task V2-5, BYOB bring-your-own-AI-model, 2026-07-20).
+//
+// DISTINCT from customerModelConfig above: that table serves the *end_user_org*
+// Mother Router scope (Orchestra Layers, product-facing AI calls via
+// resolveModelConfig() -> callLLM()). This table serves the *software_team*
+// scope (mother-router.ts's computeSoftwareTeamResolution, /api/ai/team/dispatch,
+// runRole in team-service.ts) -- the AI Dev Team dispatch path that builds
+// VERIDIAN itself. A tenant configures their own model id + (encrypted) API
+// key + optional base URL; the Mother Router PREFERS it for that org's
+// software_team dispatches, but STILL runs the candidate through
+// checkTierEligibility() exactly like every policy override in
+// computeSoftwareTeamResolution() -- an ineligible tenant model silently
+// downgrades to the roster baseline, never bypasses the tier-eligibility
+// guardrail (AGENTS.md Operating Rule 9). See mother-router.ts's
+// computeSoftwareTeamResolutionWithTenant() and team-service.ts's runRole()
+// tenantOverride path for the enforcement.
+//
+// One active row per org (enforced by a partial unique index in the
+// migration, same pattern ai_routing_policies_one_active_per_scope uses) --
+// "the org's model" is a single choice, not a per-layer matrix like
+// customerModelConfig's orchestraLayerId axis, because the software_team
+// scope resolves by role/tier/capability, not by Orchestra Layer.
+//
+// provider is constrained to the ai_provider enum like customerModelConfig
+// for consistency; the software_team dispatch path calls via OpenRouter
+// (roster.ts: "Every model here is called via OpenRouter"), so a tenant's
+// model is an OpenRouter model id (e.g. 'z-ai/glm-5.2') and their key is an
+// OpenRouter key. baseUrl is optional and defaults to OpenRouter's endpoint
+// when null -- kept as a nullable column so a tenant pointing at a
+// self-hosted OpenRouter-compatible gateway can, without a code change.
+export const tenantAiConfig = complianceSchemaDB.table('tenant_ai_config', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  provider: aiProviderEnum('provider').notNull(),
+  encryptedApiKey: text('encrypted_api_key'),
+  modelName: text('model_name'),
+  // Optional: an OpenAI-compatible chat-completions endpoint. Null = use the
+  // provider's own default endpoint resolved in llm-client.ts's dispatchLLM()
+  // (https://openrouter.ai/api/v1/chat/completions for the openrouter case).
+  baseUrl: text('base_url'),
+  isActive: boolean('is_active').notNull().default(true),
+  lastUsedAt: timestamp('last_used_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // Mirrors customerModelConfig (Layer 2/org) exactly, one level down the
 // tenant hierarchy -- a real, confirmed gap: Layers 1/2/4 (platform/org/
 // user) all already had a model-resolution mechanism; Layer 3 (client, e.g.
@@ -2050,8 +2138,27 @@ export const promptTemplates = complianceSchemaDB.table('prompt_templates', {
   description: text('description'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): Governance Engine
+  // (prompt-lifecycle sense) -- gap analysis item engine-governance,
+  // "ownership tracking, stewardship assignment". Nullable: a template with
+  // no assigned owner is a real, valid (if incomplete) state today; the
+  // governance gate in prompt-governance-service.ts requires this to be set
+  // before any of that template's versions may promote to Production, but
+  // does not retroactively invent an owner for existing rows.
+  ownerId: text('owner_id'),
 })
 
+// VERIDIAN_Architecture_v2.0 phase_1 (2026-07-25): semantic versioning +
+// lifecycle_state, additive alongside the pre-existing `label`/`version`
+// columns above -- NOT a replacement. `label` is what the ~20 live
+// resolvePromptTemplate() call sites actually key off (production/staging/
+// null) and keeps working unchanged; `lifecycleState` is the real
+// Draft/Review/Staging/Production/Deprecated governance state a version
+// moves through (bare state machine here -- the approval-GATE enforcement
+// on top of it is phase_3 scope, not this one's). `major`/`minor`/`patch`
+// give versions a human-meaningful semantic identity on top of the
+// monotonic `version` integer (which remains the tie-breaker/ordering
+// column every existing query already sorts by).
 export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   promptTemplateId: text('prompt_template_id').notNull(),
@@ -2061,6 +2168,34 @@ export const promptVersions = complianceSchemaDB.table('prompt_versions', {
   isActive: boolean('is_active').notNull().default(true),
   createdById: text('created_by_id'), // nullable -- seeded v1 rows have no human author
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  major: integer('major').notNull().default(1),
+  minor: integer('minor').notNull().default(0),
+  patch: integer('patch').notNull().default(0),
+  // 'Draft' | 'Review' | 'Staging' | 'Production' | 'Deprecated' -- enforced
+  // at the DB layer via a CHECK constraint (drizzle/0262) and at the
+  // service layer via transitionPromptLifecycle()'s ALLOWED_TRANSITIONS
+  // map (prompt-os-service.ts). Independent of `label`: a version can be
+  // lifecycleState='Production' and still hold no label (or vice versa)
+  // during a migration window -- this phase does not couple the two.
+  lifecycleState: text('lifecycle_state').notNull().default('Draft'),
+  metadata: jsonb('metadata').notNull().default({}), // PROMPT_METADATA_SCHEMA_2026-07-25.schema.json -- optional, additive structured fields per category; {} means none supplied
+  rolledBackFromVersionId: text('rolled_back_from_version_id'), // set only on a version created by rollbackPromptVersion() -- points at the version it was requested to restore, never mutated onto history
+  // VERIDIAN_Architecture_v2.0 phase_3 (2026-07-26): approval-gate +
+  // canary-duration columns the bare state machine above deferred (see this
+  // table's own phase_1 comment) -- enforced by
+  // prompt-governance-service.ts, set by transitionPromptLifecycle().
+  // approvedById/approvedAt record who approved the most recent Review->
+  // Staging or Staging->Production promotion (maker-checker: must differ
+  // from createdById, checked at the service layer, not by a DB
+  // constraint -- self-referential CHECK constraints against another row's
+  // column aren't expressible in Postgres). stagingEnteredAt is set the
+  // moment a version first reaches Staging and is what the canary-duration
+  // business rule (module_rule_configs, moduleKey='prompt_lifecycle',
+  // ruleKey='min_canary_duration_hours') measures elapsed time against
+  // before allowing Staging->Production.
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  stagingEnteredAt: timestamp('staging_entered_at'),
 })
 
 // ─── Wave 94 (Comparison CSV 3 gap analysis: AI011 "Prompt/Model Evaluation
@@ -2505,6 +2640,10 @@ export const customerModelConfigRelations = relations(customerModelConfig, ({ on
 export const clientModelConfigRelations = relations(clientModelConfig, ({ one }) => ({
   client: one(clients, { fields: [clientModelConfig.clientId], references: [clients.id] }),
   layer: one(orchestraLayers, { fields: [clientModelConfig.orchestraLayerId], references: [orchestraLayers.id] }),
+}))
+
+export const tenantAiConfigRelations = relations(tenantAiConfig, ({ one }) => ({
+  org: one(organisations, { fields: [tenantAiConfig.orgId], references: [organisations.id] }),
 }))
 
 export const sharedPoolAllocationsRelations = relations(sharedPoolAllocations, ({ one }) => ({
@@ -4074,6 +4213,16 @@ export const pmsTimeEntries = complianceSchemaDB.table('pms_time_entries', {
   comments: text('comments'),
   isRunning: boolean('is_running').notNull().default(false),
   startedAt: timestamp('started_at'),
+  // Gap closure (2026-07-27, DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE):
+  // mirrors firm_time_entries' billable/hourlyRateSnapshot/invoiceLineItemId
+  // trio -- the anti-double-billing mechanism pms-invoice-service.ts's
+  // generateInvoiceFromUnbilledProjectTime() relies on. invoiceItemId is
+  // nullable and points at erp_sales_invoice_items (FK added via ALTER
+  // TABLE in the migration, same forward-reference pattern as
+  // firm_time_entries.invoice_line_item_id).
+  billable: boolean('billable').notNull().default(true),
+  hourlyRateSnapshot: numeric('hourly_rate_snapshot'), // captured at billing time, not creation time
+  invoiceItemId: text('invoice_item_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -4339,6 +4488,11 @@ export const knowledgeBasePages = complianceSchemaDB.table('knowledge_base_pages
   isArchived: boolean('is_archived').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Helpdesk gap-closure (Phase 0, 2026-07-27): every page defaulted to
+  // org-internal-only with no way to mark one for the new public
+  // self-service portal (public-portal-service.ts) -- default false keeps
+  // every existing page internal-only unless a staff member opts it in.
+  isPublished: boolean('is_published').notNull().default(false),
 })
 
 export const knowledgeBasePagesRelations = relations(knowledgeBasePages, ({ one }) => ({
@@ -4667,6 +4821,9 @@ export const crmLeads = complianceSchemaDB.table('crm_leads', {
   aiRejectedAlternatives: jsonb('ai_rejected_alternatives').notNull().default([]), // { option: string; reason: string }[]
   aiAssumptions: jsonb('ai_assumptions').notNull().default([]), // string[]
   aiConfidence: text('ai_confidence'), // 'low' | 'medium' | 'high'
+  // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_campaigns --
+  // same bare-text/no-FK/nullable convention as companyId/accountId above.
+  campaignId: text('campaign_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4715,6 +4872,11 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   // record), independent of whether it also has a leadId/clientId. Same
   // bare-text/no-FK/nullable convention as accountId on crmLeads above.
   accountId: text('account_id'),
+  // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_lost_reasons,
+  // set only when stage='lost'. Same bare-text/no-FK/nullable convention
+  // as accountId just above -- structured, org-configurable reason
+  // instead of a hardcoded enum, matching the Odoo reference pattern.
+  lostReasonId: text('lost_reason_id'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -4822,6 +4984,63 @@ export const crmContacts = complianceSchemaDB.table('crm_contacts', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+// ─── VERIDIAN CRM Wave 1 (2026-07-21) ─────────────────────────────────────
+// Closes 3 gaps confirmed against reference-system docs (Zoho/Odoo/Infisuite
+// reverse-engineering repos, see docs/crm/fields.md in each): a structured
+// Lost Reason (Odoo has a configurable Lost Reasons taxonomy; this schema
+// only had free-text stage='lost'), an Activities table for Tasks/Meetings/
+// Calls tied to any CRM record (Zoho has this; this schema had no
+// activity-tracking concept at all -- crm_stage_history's own polymorphic
+// entityType+entityId pattern, established for lead/opportunity history, is
+// reused here and extended to account/contact), and a Campaigns table (Zoho
+// has this; this schema had zero campaign concept). All additive, zero
+// changes to existing crm_leads/crm_opportunities/crm_accounts/crm_contacts
+// columns.
+
+export const crmLostReasons = complianceSchemaDB.table('crm_lost_reasons', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reasonText: text('reason_text').notNull(),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const crmActivities = complianceSchemaDB.table('crm_activities', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull(), // 'lead' | 'opportunity' | 'account' | 'contact'
+  entityId: text('entity_id').notNull(),
+  activityType: text('activity_type').notNull(), // 'task' | 'meeting' | 'call'
+  subject: text('subject').notNull(),
+  dueDate: date('due_date', { mode: 'string' }),
+  status: text('status').notNull().default('not_started'), // 'not_started' | 'in_progress' | 'completed'
+  priority: text('priority').notNull().default('normal'), // 'low' | 'normal' | 'high'
+  notes: text('notes'),
+  assignedToId: text('assigned_to_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+})
+
+export const crmCampaigns = complianceSchemaDB.table('crm_campaigns', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  campaignType: text('campaign_type'),
+  status: text('status').notNull().default('planning'), // 'planning' | 'active' | 'completed' | 'cancelled'
+  startDate: date('start_date', { mode: 'string' }),
+  endDate: date('end_date', { mode: 'string' }),
+  budgetedCost: numeric('budgeted_cost'),
+  actualCost: numeric('actual_cost'),
+  expectedRevenue: numeric('expected_revenue'),
+  description: text('description'),
+  ownerId: text('owner_id'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 
 // ─── VERIDIAN HR (Wave 40, PLATFORM_STRATEGY.md §19) ─────────────────────
 // minthcm/erpnext(hrms)/orangehrm were evaluated and rejected as software
@@ -4912,6 +5131,132 @@ export const leaveBalances = complianceSchemaDB.table('leave_balances', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// ─── VERIDIAN HR Expense Claims / Reimbursement (Phase 0 HR gap-closure,
+// 2026-07-27) ──────────────────────────────────────────────────────────
+// Real gap re-confirmed by reading this schema fresh before writing a
+// single line: `constructionExpenseEntries` (PROJEXA section, below) is
+// PROJECT-COST tracking against a construction project's budget -- a
+// distinct domain from a general employee reimbursement claim, and
+// nothing here touches it. There was no way for a general office employee
+// to submit "I spent money on the company's behalf, pay me back."
+//
+// Employee linkage mirrors leaveRequests/hrAttendanceRecords: `userId`
+// (bare text, references users.id by convention, no DB-level FK), not
+// employeeProfiles.id -- an employee can submit a claim before HR has
+// created their employeeProfiles row, same posture leave/attendance
+// already take. `companyId` mirrors the same nullable office-attribution
+// convention as leaveRequests.companyId.
+//
+// Payroll integration decision (this task's own SUCCESS_CRITERIA leaves it
+// as a judgment call, documented here): an approved-but-unpaid claim is
+// picked up by erp-payroll-service.ts's processPayrollRun() as a real
+// payslip EARNING line (reimbursements are money owed TO the employee, the
+// mirror image of a loan deduction below) rather than a separate payment
+// record -- this reuses the payroll run's existing net-pay/payslip
+// machinery instead of inventing a second payout path, and gives finance a
+// single place (the payslip) that reflects everything the employee is
+// actually paid that month. `payrollRunId`/`reimbursedAt` are set at that
+// point; a claim never gets a payroll-run link until it is genuinely
+// picked up by a processed run, matching this schema's own "set only when
+// actually true" discipline (e.g. hrAttendanceRecords.leaveRequestId).
+export const hrExpenseClaimStatusEnum = complianceSchemaDB.enum('hr_expense_claim_status', ['pending', 'approved', 'rejected', 'paid'])
+
+export const hrExpenseClaims = complianceSchemaDB.table('hr_expense_claims', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  companyId: text('company_id'),
+  userId: text('user_id').notNull(),
+  category: text('category').notNull(), // free text: 'travel' | 'meals' | 'supplies' | 'other'
+  amount: numeric('amount').notNull(),
+  expenseDate: date('expense_date').notNull(),
+  description: text('description'),
+  receiptUrl: text('receipt_url'), // nullable -- URL/path of an uploaded receipt attachment
+  status: hrExpenseClaimStatusEnum('status').notNull().default('pending'),
+  approverId: text('approver_id'),
+  approvedAt: timestamp('approved_at'),
+  rejectionReason: text('rejection_reason'),
+  // Set only once a processPayrollRun() picks this claim up as a payslip
+  // earning line -- see erp-payroll-service.ts.
+  payrollRunId: text('payroll_run_id'),
+  reimbursedAt: timestamp('reimbursed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── VERIDIAN HR Employee Loans / Salary Advances (Phase 0 HR gap-closure,
+// 2026-07-27) ──────────────────────────────────────────────────────────
+// Confirmed absent by grepping "loan"/"advance" across this entire schema
+// before writing this -- the only "loan" hit anywhere is the banking-domain
+// EMI/amortization calculation engine (capability-tree-service.ts), a
+// generic financial-math tool, not an actual employee-loan ledger.
+//
+// Employee linkage uses `employeeId` (references employeeProfiles.id),
+// NOT `userId` -- deliberately matching erpSalaryStructures/erpPayslips'
+// convention rather than leaveRequests', because a loan's whole purpose is
+// to be deducted from that employee's payslip during processPayrollRun(),
+// which already keys everything off employeeProfiles.id. An employee must
+// have an employeeProfiles row before a loan can be requested against
+// them (unlike leave/expense claims, which key off the bare login
+// identity) -- a real, deliberate constraint, not an oversight.
+//
+// Workflow: request (pending) -> approve (approved -- schedule generated,
+// see createLoanInstallments in hr-loan-service.ts) -> first payroll run
+// on/after disbursement actually deducts the first installment (active) ->
+// outstandingBalance reaches 0 (closed). Rejection is terminal, same as
+// leaveRequests.
+export const hrLoanTypeEnum = complianceSchemaDB.enum('hr_loan_type', ['loan', 'advance'])
+export const hrLoanStatusEnum = complianceSchemaDB.enum('hr_loan_status', ['pending', 'approved', 'rejected', 'active', 'closed'])
+export const hrLoanInstallmentStatusEnum = complianceSchemaDB.enum('hr_loan_installment_status', ['pending', 'deducted', 'skipped'])
+
+export const hrEmployeeLoans = complianceSchemaDB.table('hr_employee_loans', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  employeeId: text('employee_id').notNull().references(() => employeeProfiles.id),
+  loanType: hrLoanTypeEnum('loan_type').notNull().default('loan'),
+  principalAmount: numeric('principal_amount').notNull(),
+  reason: text('reason'),
+  numInstallments: integer('num_installments').notNull(),
+  // Computed at approval time (principalAmount / numInstallments) --
+  // snapshotted rather than re-derived, same discipline as
+  // erpPurchaseInvoices.withholdingTaxAmount.
+  installmentAmount: numeric('installment_amount'),
+  outstandingBalance: numeric('outstanding_balance'),
+  status: hrLoanStatusEnum('status').notNull().default('pending'),
+  approverId: text('approver_id'),
+  approvedAt: timestamp('approved_at'),
+  rejectionReason: text('rejection_reason'),
+  disbursedAt: timestamp('disbursed_at'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// One row per installment, generated in full at approval time so the whole
+// repayment schedule is visible up front (matches erpPayslipLines' "the
+// schedule/breakdown is real rows, not just a running total" precedent).
+export const hrLoanInstallments = complianceSchemaDB.table('hr_loan_installments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  loanId: text('loan_id').notNull().references(() => hrEmployeeLoans.id, { onDelete: 'cascade' }),
+  installmentNumber: integer('installment_number').notNull(),
+  dueMonth: integer('due_month').notNull(),
+  dueYear: integer('due_year').notNull(),
+  amount: numeric('amount').notNull(),
+  status: hrLoanInstallmentStatusEnum('status').notNull().default('pending'),
+  // Set only once processPayrollRun() actually deducts this installment.
+  payrollRunId: text('payroll_run_id'),
+  deductedAt: timestamp('deducted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const hrEmployeeLoansRelations = relations(hrEmployeeLoans, ({ one, many }) => ({
+  employee: one(employeeProfiles, { fields: [hrEmployeeLoans.employeeId], references: [employeeProfiles.id] }),
+  installments: many(hrLoanInstallments),
+}))
+
+export const hrLoanInstallmentsRelations = relations(hrLoanInstallments, ({ one }) => ({
+  loan: one(hrEmployeeLoans, { fields: [hrLoanInstallments.loanId], references: [hrEmployeeLoans.id] }),
+}))
+
 // ─── VERIDIAN HR Attendance (VERIDIAN Review Framework remediation, Wave B,
 // 2026-07-17) ───────────────────────────────────────────────────────────
 // Real gap re-confirmed by reading this schema fresh before writing a
@@ -4979,9 +5324,57 @@ export const hrAttendanceRecords = complianceSchemaDB.table('hr_attendance_recor
   // mark-attendance API call.
   source: text('source').notNull().default('self'),
   notes: text('notes'),
+  // Phase 0 HR gap-closure (2026-07-27): nullable snapshot of the shift
+  // this employee was rostered onto for this date, resolved at
+  // mark-attendance time from hrShiftRosterAssignments (see
+  // resolveExpectedShift in hr-attendance-service.ts) -- never hand-picked
+  // from a dropdown, same "system-derived, not manually entered" posture
+  // as leaveRequestId above. Null means no roster assignment covered this
+  // employee/date, which is the common case until an org starts using
+  // shift rostering at all.
+  shiftTypeId: text('shift_type_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── VERIDIAN HR Shift Management / Roster (Phase 0 HR gap-closure,
+// 2026-07-27) ──────────────────────────────────────────────────────────
+// Real gap re-confirmed by reading hrAttendanceRecords fresh before
+// writing this: it has daily present/absent/half_day/on_leave/holiday
+// status only -- no concept of *which shift* an employee was expected to
+// work at all (a "Morning" vs "Night" shift office, or a manufacturing
+// floor running two shifts, has no way to model that today). Two tables:
+// a shift-type master (start/end time) and a roster assignment linking an
+// employee to a shift type for a date range -- deliberately NOT a
+// per-date-per-employee row (that would mean re-writing the whole roster
+// every time a shift pattern repeats); a manager sets "Priya: Night shift,
+// 2026-08-01 through 2026-08-31" once, and hr-attendance-service.ts
+// resolves the shift covering any specific date from that range at read
+// time, the same "derive at read time, don't persist a redundant row"
+// discipline hrAttendanceStatusEnum's own comment uses for `weekend`.
+export const hrShiftTypes = complianceSchemaDB.table('hr_shift_types', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(), // e.g. "Morning", "Night", "General"
+  startTime: text('start_time').notNull(), // 'HH:MM', 24-hour -- no timezone concept beyond the org's own, matching this schema's existing date/time columns
+  endTime: text('end_time').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const hrShiftRosterAssignments = complianceSchemaDB.table('hr_shift_roster_assignments', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // same bare-userId convention as hrAttendanceRecords.userId
+  shiftTypeId: text('shift_type_id').notNull().references(() => hrShiftTypes.id),
+  startDate: date('start_date').notNull(),
+  endDate: date('end_date'), // nullable -- an open-ended/ongoing roster assignment
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const hrShiftRosterAssignmentsRelations = relations(hrShiftRosterAssignments, ({ one }) => ({
+  shiftType: one(hrShiftTypes, { fields: [hrShiftRosterAssignments.shiftTypeId], references: [hrShiftTypes.id] }),
+}))
 
 // Org-wide holiday calendar, needed so monthly attendance summaries can
 // exclude declared holidays from the "working days" denominator. Searched
@@ -5033,6 +5426,85 @@ export const tickets = complianceSchemaDB.table('tickets', {
   // Wave 81 (Customer Service enhancements, COMPARISON_CSV_GAP_ANALYSIS.md
   // backlog #2): nullable link to the installed product this ticket concerns.
   installedProductId: text('installed_product_id'),
+  // Helpdesk gap-closure (DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE
+  // Phase 0, 2026-07-27): team/queue routing + which SLA policy produced
+  // slaDeadline (nullable -- unset for tickets still using the legacy
+  // manual slaHours override, or with no matching policy). requesterEmail
+  // is for a requester with no users.id (e.g. email-to-ticket promotion or
+  // the public self-service form) -- requesterUserId stays the "internal
+  // user" case, this is the external-submitter case.
+  teamId: text('team_id'),
+  slaPolicyId: text('sla_policy_id'),
+  requesterEmail: text('requester_email'),
+})
+
+// ─── Tiered SLA policy + team routing (Helpdesk gap-closure,
+// DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE Phase 0,
+// 2026-07-27). Odoo's stock Helpdesk app supports per-team SLA policies
+// keyed by priority/stage plus escalation on breach; this codebase had
+// only a single ad-hoc tickets.slaDeadline timestamp computed from a
+// caller-supplied slaHours number (see ticket-service.ts's createTicket).
+// Adds real tiering without touching that legacy path: teams are a
+// routing target (a ticket's queue), policies match by team/priority/
+// category with an optional business-hours-aware countdown, and
+// escalation rules fire once each as SLA-elapsed thresholds are crossed.
+export const ticketTeams = complianceSchemaDB.table('ticket_teams', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  description: text('description'),
+  leadUserId: text('lead_user_id'), // added as a conversation participant on any ticket routed to this team, so RLS-scoped staff access never starts empty
+  isDefault: boolean('is_default').notNull().default(false), // routing target when a ticket (staff- or publicly-submitted) specifies no team
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const businessHoursSchedules = complianceSchemaDB.table('business_hours_schedules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  timezone: text('timezone').notNull().default('UTC'), // display/documentation only -- see computeSlaDeadline in ticket-service.ts for why matching itself is done in UTC
+  // Record<"0".."6" (UTC day-of-week, 0=Sun), Array<[startMinuteUtc, endMinuteUtc]>>
+  weeklyHours: jsonb('weekly_hours').notNull().default({}),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const slaPolicies = complianceSchemaDB.table('sla_policies', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  name: text('name').notNull(),
+  teamId: text('team_id'), // nullable = applies regardless of team
+  priority: priorityEnum('priority'), // nullable = applies regardless of priority
+  category: text('category'), // nullable = applies regardless of category
+  firstResponseHours: integer('first_response_hours'),
+  resolutionHours: integer('resolution_hours').notNull(),
+  businessHoursOnly: boolean('business_hours_only').notNull().default(false),
+  businessHoursScheduleId: text('business_hours_schedule_id'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const escalationRules = complianceSchemaDB.table('escalation_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  slaPolicyId: text('sla_policy_id').notNull(),
+  thresholdPercent: integer('threshold_percent').notNull(), // % of the SLA window elapsed that fires this step, e.g. 80 = "approaching", 100 = "breached"
+  escalateToTeamId: text('escalate_to_team_id'),
+  escalateToUserId: text('escalate_to_user_id'),
+  notifyUserIds: jsonb('notify_user_ids').notNull().default([]), // string[] of users.id to notify in addition to escalateToUserId
+  stepOrder: integer('step_order').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Idempotency log -- one row per (ticket, rule) firing, so
+// checkTicketEscalations() (cron) never re-fires the same step twice.
+export const ticketEscalationEvents = complianceSchemaDB.table('ticket_escalation_events', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  ticketId: text('ticket_id').notNull(),
+  escalationRuleId: text('escalation_rule_id').notNull(),
+  firedAt: timestamp('fired_at').notNull().defaultNow(),
 })
 
 // ─── Wave 81 (Customer Service enhancements) ──────────────────────────────
@@ -7595,9 +8067,74 @@ export const performanceReviews = complianceSchemaDB.table('performance_reviews'
   status: performanceReviewStatusEnum('status').notNull().default('pending'),
   submittedAt: timestamp('submitted_at'),
   acknowledgedAt: timestamp('acknowledged_at'), // set when the reviewed employee acknowledges having read it
+  // Phase 0 HR gap-closure (2026-07-27): nullable -- computed from
+  // performanceReviewGoals' weighted ratings at submit time (see
+  // computeWeightedScore in performance-service.ts), null until this
+  // review has at least one goal recorded and is submitted. selfRating/
+  // managerRating above are UNCHANGED -- this is an additive, richer
+  // score alongside them, not a replacement.
+  weightedScore: numeric('weighted_score'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
+
+// ─── VERIDIAN HR Performance: KRA/Weighted Goals + Multi-Rater (360)
+// Feedback (Phase 0 HR gap-closure, 2026-07-27) ───────────────────────────
+// Extends (does not replace) performanceReviews above -- confirmed by
+// reading it fresh before writing this: it models exactly one self+manager
+// rating pair per cycle with free-text goalsForNextPeriod, no per-goal
+// weighting and no rater beyond self/manager. Two additive tables:
+//
+// performanceReviewGoals: a KRA/goal is scoped to one performanceReviews
+// row (not the cycle) since weighting is set per-employee, not org-wide --
+// a Sales KRA weighted 40% for one role is a different weight than for
+// another. weightPercent across a review's goals is expected to sum to
+// 100 -- enforced in performance-service.ts before submit, not at the DB
+// level (matching this schema's own "business rule in the service layer,
+// not a CHECK constraint" convention used throughout, e.g. leaveRequests
+// date-range validation).
+//
+// performanceReviewRaters: additional raters BEYOND self/manager (peer,
+// subordinate, or other) -- self/managerRating stay exactly where they
+// are on performanceReviews itself, this table is purely additive 360
+// coverage, not a re-model of the existing pair.
+export const performanceGoalRatingEnum = complianceSchemaDB.enum('performance_goal_status', ['pending', 'rated'])
+export const performanceRaterRoleEnum = complianceSchemaDB.enum('performance_rater_role', ['peer', 'subordinate', 'other'])
+export const performanceRaterStatusEnum = complianceSchemaDB.enum('performance_rater_status', ['pending', 'submitted'])
+
+export const performanceReviewGoals = complianceSchemaDB.table('performance_review_goals', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reviewId: text('review_id').notNull().references(() => performanceReviews.id, { onDelete: 'cascade' }),
+  title: text('title').notNull(), // e.g. "Revenue Growth", "Code Quality"
+  weightPercent: numeric('weight_percent').notNull(),
+  rating: integer('rating'), // 1-5, nullable until rated
+  comments: text('comments'),
+  status: performanceGoalRatingEnum('status').notNull().default('pending'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const performanceReviewRaters = complianceSchemaDB.table('performance_review_raters', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reviewId: text('review_id').notNull().references(() => performanceReviews.id, { onDelete: 'cascade' }),
+  raterId: text('rater_id').notNull(),
+  raterRole: performanceRaterRoleEnum('rater_role').notNull(),
+  rating: integer('rating'), // 1-5, nullable until submitted
+  feedback: text('feedback'),
+  status: performanceRaterStatusEnum('status').notNull().default('pending'),
+  submittedAt: timestamp('submitted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const performanceReviewGoalsRelations = relations(performanceReviewGoals, ({ one }) => ({
+  review: one(performanceReviews, { fields: [performanceReviewGoals.reviewId], references: [performanceReviews.id] }),
+}))
+
+export const performanceReviewRatersRelations = relations(performanceReviewRaters, ({ one }) => ({
+  review: one(performanceReviews, { fields: [performanceReviewRaters.reviewId], references: [performanceReviews.id] }),
+}))
 
 // ─── Wave 63: RMA/Returns Workflow (Tier 3 #11 remainder) ────────────────
 // ERPNext itself only flags returns with no real workflow -- this is a
@@ -9279,6 +9816,16 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   quantity: numeric('quantity').notNull().default('0'),
   rate: numeric('rate').notNull().default('0'),
   amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (not a DB generated column, matching this codebase's convention elsewhere)
+  // Hierarchical BoQ breakdown (Owner directive, PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
+  // 2026-07-27): self-FK to another row in the SAME boqId, matching the
+  // constructionCategories.parentCategoryId precedent above. When set,
+  // `amount` above is computed by construction-boq-service.ts as
+  // `Sub-Task Amount = Main QTY * Main RATE * Breakdown %` -- "Main" is the
+  // ROOT ancestor of the parent chain (not necessarily the immediate
+  // parent), per the Owner's exact formula wording. breakdownPercentage is
+  // required when parentLineItemId is set, ignored (null) otherwise.
+  parentLineItemId: text('parent_line_item_id'),
+  breakdownPercentage: numeric('breakdown_percentage'),
   // Wave 125 (OpenConstructionERP-style rate analysis/cost buildup, studied
   // the concept only -- OpenConstructionERP is AGPL-3.0, no code copied):
   // all nullable, so plain BOQ line items (no rate breakdown) keep working
@@ -9333,6 +9880,40 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// Interim/RA (Running Account) billing against a BoQ's work-progress %
+// (Owner directive, PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
+// 2026-07-27). One row per bill run; construction-valuation-service.ts
+// computes grossAmount/retentionAmount/netPayable from
+// constructionWorkProgressEntries and emits netPayable (minus retention) as
+// a real erp_sales_invoices row via erp-invoicing-service.ts's
+// createSalesInvoice -- salesInvoiceId is set once that invoice is created,
+// matching firm_invoices' own "no parallel invoice table" discipline.
+export const constructionInterimBills = complianceSchemaDB.table('construction_interim_bills', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  boqId: text('boq_id').notNull(),
+  billNumber: integer('bill_number').notNull(), // per-project sequence, same convention as erpSalesInvoices.invoiceNumber
+  billDate: date('bill_date', { mode: 'string' }).notNull(),
+  retentionPercent: numeric('retention_percent').notNull().default('0'), // configurable per bill -- real contracts renegotiate retention % over a project's life
+  grossAmount: numeric('gross_amount').notNull().default('0'),
+  retentionAmount: numeric('retention_amount').notNull().default('0'),
+  netPayable: numeric('net_payable').notNull().default('0'),
+  salesInvoiceId: text('sales_invoice_id'), // set once the erp_sales_invoices row is created in the same call
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionInterimBillLineItems = complianceSchemaDB.table('construction_interim_bill_line_items', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  interimBillId: text('interim_bill_id').notNull(),
+  boqLineItemId: text('boq_line_item_id').notNull(),
+  cumulativePercentComplete: integer('cumulative_percent_complete').notNull().default(0),
+  cumulativeAmount: numeric('cumulative_amount').notNull().default('0'), // lineItem.amount * cumulativePercentComplete / 100, as of this bill
+  previousBilledAmount: numeric('previous_billed_amount').notNull().default('0'), // sum of currentBillAmount across all earlier interim bills for this line item
+  currentBillAmount: numeric('current_bill_amount').notNull().default('0'), // cumulativeAmount - previousBilledAmount, floored at 0
+})
+
 // One row per project per day. Unique(projectId, diaryDate) enforced in the
 // migration SQL -- this table's Drizzle definition doesn't model composite
 // constraints, matching this codebase's convention of keeping RLS and
@@ -9360,6 +9941,15 @@ export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) 
 
 export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one }) => ({
   boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
+}))
+
+export const constructionInterimBillsRelations = relations(constructionInterimBills, ({ many }) => ({
+  lineItems: many(constructionInterimBillLineItems),
+}))
+
+export const constructionInterimBillLineItemsRelations = relations(constructionInterimBillLineItems, ({ one }) => ({
+  interimBill: one(constructionInterimBills, { fields: [constructionInterimBillLineItems.interimBillId], references: [constructionInterimBills.id] }),
+  boqLineItem: one(constructionBoqLineItems, { fields: [constructionInterimBillLineItems.boqLineItemId], references: [constructionBoqLineItems.id] }),
 }))
 
 export const constructionCategoriesRelations = relations(constructionCategories, ({ many }) => ({
@@ -9781,6 +10371,13 @@ export const emailIntelligenceItems = complianceSchemaDB.table('email_intelligen
   aiGeneratedAt: timestamp('ai_generated_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Helpdesk gap-closure (Phase 0, 2026-07-27): the "no live inbox trigger"
+  // gap this table's own header comment names is now closed for the
+  // ticket side specifically -- createTicketFromEmailIntelligenceItem() in
+  // ticket-service.ts promotes an item straight to a `tickets` row (whole
+  // email -> one ticket, unlike promoteEmailIntelligenceItem's per-
+  // suggested-work-item -> task promotion). Nullable, set once promoted.
+  promotedTicketId: text('promoted_ticket_id'),
 })
 
 export const emailIntelligenceActionItems = complianceSchemaDB.table('email_intelligence_action_items', {

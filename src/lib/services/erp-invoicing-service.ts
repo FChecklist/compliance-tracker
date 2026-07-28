@@ -214,7 +214,13 @@ export async function findControlAccount(db: TenantDb, orgId: string, accountTyp
   return account
 }
 
-async function computeInvoiceTotals(db: TenantDb, items: { quantity: number; rate: number; taxTemplateId?: string }[]) {
+/**
+ * Pure -- independently unit-testable without a DB, matching this repo's
+ * convention (e.g. construction-valuation-service.ts's
+ * computeInterimBillLines). Takes already-resolved tax-template rates so the
+ * only DB-touching part is the thin computeInvoiceTotals wrapper below.
+ */
+export function computeInvoiceTaxTotals(items: { quantity: number; rate: number; taxLines: { taxAccountId: string; rate: number }[] }[]) {
   let subtotal = 0
   let taxAmount = 0
   const taxByAccount = new Map<string, number>()
@@ -222,16 +228,24 @@ async function computeInvoiceTotals(db: TenantDb, items: { quantity: number; rat
   for (const item of items) {
     const lineAmount = item.quantity * item.rate
     subtotal += lineAmount
-    if (item.taxTemplateId) {
-      const taxLines = await db.query.erpTaxTemplateItems.findMany({ where: eq(erpTaxTemplateItems.taxTemplateId, item.taxTemplateId) })
-      for (const t of taxLines) {
-        const lineTax = lineAmount * (Number(t.rate) / 100)
-        taxAmount += lineTax
-        taxByAccount.set(t.taxAccountId, (taxByAccount.get(t.taxAccountId) ?? 0) + lineTax)
-      }
+    for (const t of item.taxLines) {
+      const lineTax = lineAmount * (t.rate / 100)
+      taxAmount += lineTax
+      taxByAccount.set(t.taxAccountId, (taxByAccount.get(t.taxAccountId) ?? 0) + lineTax)
     }
   }
   return { subtotal, taxAmount, grandTotal: subtotal + taxAmount, taxByAccount }
+}
+
+async function computeInvoiceTotals(db: TenantDb, items: { quantity: number; rate: number; taxTemplateId?: string }[]) {
+  const resolvedItems: { quantity: number; rate: number; taxLines: { taxAccountId: string; rate: number }[] }[] = []
+  for (const item of items) {
+    const taxLines = item.taxTemplateId
+      ? (await db.query.erpTaxTemplateItems.findMany({ where: eq(erpTaxTemplateItems.taxTemplateId, item.taxTemplateId) })).map((t) => ({ taxAccountId: t.taxAccountId, rate: Number(t.rate) }))
+      : []
+    resolvedItems.push({ quantity: item.quantity, rate: item.rate, taxLines })
+  }
+  return computeInvoiceTaxTotals(resolvedItems)
 }
 
 // ============================================================

@@ -26,6 +26,7 @@ import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/hi
 import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, findCalculatorSuggestions, type ChainSelectorResult } from "./ChainSelector";
 import { IntentCommandPalette } from "./IntentCommandPalette";
 import { saveIntent } from "@/lib/browser-intent-cache";
+import { compileInBrowser } from "@/lib/browser-execution/client-compile";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -231,6 +232,33 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     });
   }
 
+  // VERIDIAN_Architecture_v2.0 phase_5 (browser_execution_tiers): the real
+  // browser-to-server handoff for BOTH Owner-directed input surfaces --
+  // Option 2 (free-text `discuss` chat, below) and Option 1 (chain/mode-pill
+  // dispatch, dispatchInstruction() below, wired in increment 2). Runs
+  // phase_2's real deterministic analyzer client-side (FIRST execution),
+  // then hands the raw text + browser tier metadata to
+  // /api/prompt-compiler/execute for the deterministic SECOND-pass
+  // SOFTWARE execution -- fire-and-forget, best-effort telemetry/
+  // compiled-prompt logging that never blocks or fails the actual chat
+  // send / task creation that follows it.
+  function runBrowserFirstPass(text: string) {
+    try {
+      const draft = compileInBrowser(text);
+      void fetch("/api/prompt-compiler/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: text,
+          browserCompiled: { tier: draft.tier, fallbackChain: draft.fallbackChain, compileMs: draft.compileMs },
+        }),
+      }).catch(() => {});
+    } catch {
+      // Browser-native FIRST pass is a best-effort enrichment, never a
+      // requirement for the real chat send that follows it.
+    }
+  }
+
   async function dispatchInstruction(path: PathSegment[], text: string, engineInputs?: Record<string, string>) {
     // D8/D5.B4.S2 minimum 2-level chain gate -- mirrors task-service.ts's
     // createTask() server-side check so the user sees a clear message
@@ -249,6 +277,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     // Fire-and-forget: never blocks the real send, and browser-intent-cache.ts
     // swallows its own errors.
     void saveIntent({ composerMode, selectedPath: path, displayLabel: displayCrumb, chatMessage: text });
+    // Increment 2 of phase_5_browser_execution_tiers: Option 1's own
+    // browser-to-server handoff -- same FIRST-pass compiler + fire-and-
+    // forget /api/prompt-compiler/execute call as discuss mode gets, run
+    // once per chain send (not once per expanded concrete path below,
+    // since expandPathsForSend() fans a single user instruction out into
+    // several dispatch targets that all share the same raw text).
+    if (text) runBrowserFirstPass(text);
     const concretePaths = expandPathsForSend(path);
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);
@@ -421,6 +456,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
         // workflow-specific one via the thread switcher.
         const targetThreadId = activeAiThreadId ?? aiThreadId;
         if (!targetThreadId) { toast.error("VERI AI isn't ready yet — try again in a moment"); return; }
+        runBrowserFirstPass(text);
         const res = await fetch(`/api/conversations/${targetThreadId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

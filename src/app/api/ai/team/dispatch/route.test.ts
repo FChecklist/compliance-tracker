@@ -72,6 +72,13 @@ async function setupMocks(runRoleResponses?: string[]) {
 
   mock.module("@/lib/ai-router/mother-router", () => ({
     resolveModel: mock(async () => ({ provider: "openrouter", model: "z-ai/glm-5.2", reason: "test stub" })),
+    // Super Boss v2 plan task V2-5 (BYOB, 2026-07-20): the dispatch route now
+    // also imports resolveTenantAiConfig from mother-router (to resolve the
+    // dispatching org's BYO model + decrypt its key for runRole). None of
+    // these tests configure a BYO model, so returning null keeps every
+    // dispatch on the platform key exactly as before -- the only thing this
+    // stub changes is the route's branch (no-tenant-override path).
+    resolveTenantAiConfig: mock(async () => null),
   }))
 
   mock.module("@/lib/activity-log-service", () => ({

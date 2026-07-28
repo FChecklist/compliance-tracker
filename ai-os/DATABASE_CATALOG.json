@@ -1,9 +1,9 @@
 {
   "generated_by": "extract-db-schema-catalog.mjs (drizzle-orm getTableConfig introspection, not AI-written)",
-  "source_file": "/opt/veridian/repos/compliance-tracker/src/lib/db/schema.ts",
-  "table_count": 444,
+  "source_file": "/opt/veridian/ai-os/tasks/task-20260726-102520-analyze-update--supabase-schema-migratio/workspace/src/lib/db/schema.ts",
+  "table_count": 449,
   "enum_count": 124,
-  "other_export_count": 249,
+  "other_export_count": 248,
   "tables": [
     {
       "export_name": "abacPolicies",
@@ -10710,6 +10710,326 @@
       "indexes": []
     },
     {
+      "export_name": "crmActivities",
+      "table_name": "crm_activities",
+      "schema": "compliance",
+      "column_count": 15,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": true,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "org_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "entity_type",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "entity_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "activity_type",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "subject",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "due_date",
+          "data_type": "string",
+          "sql_type": "date",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "status",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "priority",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "notes",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "assigned_to_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "created_by_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "created_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "updated_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "completed_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": []
+    },
+    {
+      "export_name": "crmCampaigns",
+      "table_name": "crm_campaigns",
+      "schema": "compliance",
+      "column_count": 15,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": true,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "org_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "name",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "campaign_type",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "status",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "start_date",
+          "data_type": "string",
+          "sql_type": "date",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "end_date",
+          "data_type": "string",
+          "sql_type": "date",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "budgeted_cost",
+          "data_type": "string",
+          "sql_type": "numeric",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "actual_cost",
+          "data_type": "string",
+          "sql_type": "numeric",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "expected_revenue",
+          "data_type": "string",
+          "sql_type": "numeric",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "description",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "owner_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "created_by_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "created_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "updated_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": []
+    },
+    {
       "export_name": "crmContacts",
       "table_name": "crm_contacts",
       "schema": "compliance",
@@ -10833,7 +11153,7 @@
       "export_name": "crmLeads",
       "table_name": "crm_leads",
       "schema": "compliance",
-      "column_count": 23,
+      "column_count": 24,
       "columns": [
         {
           "name": "id",
@@ -11036,6 +11356,16 @@
           "enum_values": null
         },
         {
+          "name": "campaign_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
           "name": "created_by_id",
           "data_type": "string",
           "sql_type": "text",
@@ -11070,10 +11400,70 @@
       "indexes": []
     },
     {
+      "export_name": "crmLostReasons",
+      "table_name": "crm_lost_reasons",
+      "schema": "compliance",
+      "column_count": 5,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": true,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "org_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "reason_text",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "is_active",
+          "data_type": "boolean",
+          "sql_type": "boolean",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "created_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": []
+    },
+    {
       "export_name": "crmOpportunities",
       "table_name": "crm_opportunities",
       "schema": "compliance",
-      "column_count": 23,
+      "column_count": 24,
       "columns": [
         {
           "name": "id",
@@ -11267,6 +11657,16 @@
         },
         {
           "name": "account_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "lost_reason_id",
           "data_type": "string",
           "sql_type": "text",
           "not_null": false,
@@ -38087,6 +38487,156 @@
       "indexes": []
     },
     {
+      "export_name": "opsDevTasks",
+      "table_name": "ops_dev_tasks",
+      "schema": "platform",
+      "column_count": 14,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": true,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "ops_task_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": true,
+          "enum_values": null
+        },
+        {
+          "name": "title",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "repo",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "branch",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "status",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "pr_url",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "software_task_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "ai_task_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "execution_seconds",
+          "data_type": "number",
+          "sql_type": "integer",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "restart_count",
+          "data_type": "number",
+          "sql_type": "integer",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "last_checkpoint_note",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "created_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "last_synced_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": []
+    },
+    {
       "export_name": "orchestraExecutions",
       "table_name": "orchestra_executions",
       "schema": "compliance",
@@ -43518,7 +44068,7 @@
       "export_name": "promptTemplates",
       "table_name": "prompt_templates",
       "schema": "compliance",
-      "column_count": 6,
+      "column_count": 7,
       "columns": [
         {
           "name": "id",
@@ -43579,6 +44129,16 @@
           "primary_key": false,
           "is_unique": false,
           "enum_values": null
+        },
+        {
+          "name": "owner_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
         }
       ],
       "foreign_keys": [],
@@ -43588,7 +44148,7 @@
       "export_name": "promptVersions",
       "table_name": "prompt_versions",
       "schema": "compliance",
-      "column_count": 8,
+      "column_count": 17,
       "columns": [
         {
           "name": "id",
@@ -43666,6 +44226,96 @@
           "sql_type": "timestamp",
           "not_null": true,
           "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "major",
+          "data_type": "number",
+          "sql_type": "integer",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "minor",
+          "data_type": "number",
+          "sql_type": "integer",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "patch",
+          "data_type": "number",
+          "sql_type": "integer",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "lifecycle_state",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "metadata",
+          "data_type": "json",
+          "sql_type": "jsonb",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "rolled_back_from_version_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "approved_by_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "approved_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "staging_entered_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": false,
+          "has_default": false,
           "primary_key": false,
           "is_unique": false,
           "enum_values": null
@@ -47269,6 +47919,122 @@
           "name": "last_reprioritization_reason",
           "data_type": "string",
           "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "created_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "updated_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        }
+      ],
+      "foreign_keys": [],
+      "indexes": []
+    },
+    {
+      "export_name": "tenantAiConfig",
+      "table_name": "tenant_ai_config",
+      "schema": "compliance",
+      "column_count": 10,
+      "columns": [
+        {
+          "name": "id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": true,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "org_id",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "provider",
+          "data_type": "string",
+          "sql_type": "ai_provider",
+          "not_null": true,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": [
+            "groq",
+            "openai",
+            "anthropic",
+            "google",
+            "openrouter"
+          ]
+        },
+        {
+          "name": "encrypted_api_key",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "model_name",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "base_url",
+          "data_type": "string",
+          "sql_type": "text",
+          "not_null": false,
+          "has_default": false,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "is_active",
+          "data_type": "boolean",
+          "sql_type": "boolean",
+          "not_null": true,
+          "has_default": true,
+          "primary_key": false,
+          "is_unique": false,
+          "enum_values": null
+        },
+        {
+          "name": "last_used_at",
+          "data_type": "date",
+          "sql_type": "timestamp",
           "not_null": false,
           "has_default": false,
           "primary_key": false,
@@ -53494,7 +54260,6 @@
     "conversationsRelations",
     "costPaymentsRelations",
     "customerModelConfigRelations",
-    "default",
     "departmentsRelations",
     "documentsRelations",
     "emailIntelligenceActionItemsRelations",
@@ -53611,7 +54376,6 @@
     "mcpAccessCodesRelations",
     "messageAttachmentsRelations",
     "messagesRelations",
-    "module.exports",
     "moduleRegistryRelations",
     "moduleRuleConfigsRelations",
     "noticeDispatchesRelations",
@@ -53670,6 +54434,7 @@
     "taskChatMessagesRelations",
     "taskExecutionPlanRelations",
     "tasksRelations",
+    "tenantAiConfigRelations",
     "ticketIntelligenceActionItemsRelations",
     "ticketIntelligenceItemsRelations",
     "userClientAccessRelations",

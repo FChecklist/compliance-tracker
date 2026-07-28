@@ -525,6 +525,102 @@ quick_reference:
 # ---------------------------------------------------------------------------
 registries:
 
+  - id: rules_articles_198
+    type: guardrail_ruleset
+    path: ai-os/RULES_ARTICLES_198.json
+    scope: >-
+      Owner directive 2026-07-21: the 99 Rules + 99 Articles governing
+      the complete VERIDIAN AI OS system, supplied by the Owner
+      (RULES.xlsx), extracted losslessly. THIS IS A LIVE, SYSTEM-WIDE
+      GUARDRAIL -- every AI agent (Mother Router, Superboss, Supervisor,
+      any worker doing software development) shall keep these 198 items
+      in consideration WHILE doing work, not just as something audited
+      after the fact. Complements ai_engineering_policy (the HOW, a
+      build-vs-buy playbook) and ai-os/CONSTITUTION.yaml (a differently-
+      numbered, separately-sourced rule registry, zero literal overlap
+      confirmed via grep) -- this file is the Owner's own canonical
+      198-point checklist, distinct from both.
+    status: live
+    mandatory_before: >-
+      doing any work on this system -- FChecklist, VERIDIAN AI OS,
+      compliance-tracker, PROJEXA, server, GitHub, Vercel, Supabase,
+      product, project, brands, AI models, end user
+    verification_mechanism: registries.audit198_framework (re-runnable,
+      evidence-based scoring against this exact file)
+
+  - id: audit198_framework
+    type: verification_mechanism
+    path: ai-os/scripts/audit198/ (run-audit.mjs, evidence-engine.mjs,
+      category-checkers.mjs, rules-taxonomy.mjs, constitution-index.mjs,
+      results/audit198-results.json, results/audit198-summary.md)
+    scope: >-
+      Re-runnable, software-driven gap-audit engine for
+      rules_articles_198 (above) -- run: node
+      ai-os/scripts/audit198/run-audit.mjs. Groups the 198 items into
+      33 thematic categories, each backed by a generic evidence-
+      gathering + verdict engine (file-marker checks, repo-wide grep
+      with file:line citations, cross-reference against
+      ai-os/CONSTITUTION.yaml's own status vocabulary). Verdict
+      vocabulary: ENFORCED / PARTIALLY_ENFORCED / POLICY_ONLY /
+      NOT_APPLICABLE_YET / NOT_YET_BUILT / NEEDS_HUMAN_JUDGMENT /
+      EVIDENCE_UNAVAILABLE. THIS is the objective proof mechanism for
+      whether the system-wide guardrail above is actually being
+      honored -- re-run it, don't just assert compliance.
+    status: live, real 198/198 run completed 2026-07-21, actively
+      being extended by a multi-wave gap-closure initiative (see
+      ai-os/boss/ACTIVE-CLAIMS.yaml, "Close all 176 non-ENFORCED
+      items")
+    do_not_build_a_parallel_audit_mechanism: >-
+      if a future session needs a different verification angle for
+      these 198 items, EXTEND this framework's category-checkers.mjs
+      with a new check, or improve evidence-engine.mjs's detection
+      logic when a real capability exists but isn't being recognized --
+      never weaken a checker just to inflate a score, and never build a
+      second scoring script for the same 198 items.
+
+  - id: standing_task_directive
+    type: guardrail_ruleset
+    path: ai-os/STANDING_DIRECTIVE.yaml
+    scope: >-
+      Owner directive 2026-07-21: machine-readable encoding of the
+      Owner's single-line standing per-task prompt. Cite this file (by
+      id or path) with any task instead of restating the full protocol
+      -- it points to precheck (MASTER_INDEX.yaml+system_index),
+      execution (SSH-only, VERIDIAN-DEV), guardrails
+      (rules_articles_198 + ai_engineering_policy incl.
+      automation_scope_boundary), logging (ACTIVE-CLAIMS.yaml/
+      COMPLETED.yaml/system_index), verification (audit198_framework
+      re-run, never self-certified), and complete sync scope (server,
+      GitHub, Vercel, Supabase).
+    status: live
+    mandatory_before: >-
+      doing any work on this system when cited alongside a task --
+      same mandatory_before class as rules_articles_198 and
+      ai_engineering_policy, which this file references rather than
+      duplicates
+
+  - id: ai_engineering_policy
+    type: policy_doc
+    path: ai-os/AI_ENGINEERING_POLICY.yaml
+    scope: >-
+      Owner directive 2026-07-21: mandatory engineering playbook for the
+      whole integrated system (FChecklist, VERIDIAN AI OS,
+      compliance-tracker, PROJEXA, server, GitHub, Vercel, Supabase,
+      product, project, brands, AI models, end user). A 30-item
+      build-vs-buy priority order (existing capability/config/package/
+      framework/... before new code), explicit always_prefer /
+      never_behave_like_a_human_operator lists, and a continuous
+      optimization checklist. Complements, does not duplicate,
+      ai-os/RULES_ARTICLES_198.json / ai-os/CONSTITUTION.yaml's own
+      declarative "software first, AI second" rules -- those declare
+      WHAT the system must be; this file is the operational HOW, a
+      playbook to consult per-task rather than a per-item scored
+      registry.
+    status: live
+    mandatory_before: >-
+      starting any engineering, software-development, systems-management,
+      or process-design task on this system
+
   - id: system_index
     type: sqlite_table
     path: /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
@@ -1805,6 +1901,93 @@ registries:
       was ever actually wasted by the restart-storm bug -- every rejection
       happens before any real spend -- but the churn itself was real,
       unnecessary load, now stopped.
+  - id: snip_token_reduction_hook
+    type: dev_tooling
+    path: >-
+      .snip/filters/ (bun-install.yaml, bun-test.yaml, bunx.yaml,
+      bun-x.yaml, vercel.yaml) in this repo; server-side install at
+      /home/rajat/.local/bin/snip + /home/rajat/.claude/settings.json
+      PreToolUse hook + /home/rajat/.config/snip/config.toml filters.dir
+      entry (VERIDIAN-DEV, rajat account, not part of this git repo).
+      Full reports: ai-os/boss/completed-work/snip-integration/
+    scope: >-
+      github.com/edouard-claude/snip v0.22.0 (376 stars, MIT, pure Go,
+      no network calls, fail-open), a PreToolUse hook for Claude Code
+      that filters verbose shell/CLI output through declarative YAML
+      pipelines before it reaches an AI coding assistant's context, cutting
+      LLM token consumption 89-93% on real large-scale git-log/bun-test
+      output measured live on this server (see 05-benchmark-report.md).
+      IMPORTANT SCOPE BOUNDARY: applies ONLY to actual Claude Code CLI
+      sessions with a Bash tool -- interactive sessions on VERIDIAN-DEV,
+      and the headless veridian-worker@<id>.service claude -p processes
+      (worker-entrypoint.sh), both confirmed live (see
+      04-verification-report.md). Does NOT and cannot apply to
+      src/lib/ai-router/mother-router.ts or its child routers -- confirmed
+      zero child_process/spawn/exec calls anywhere in src/lib/ai-router/,
+      i.e. no shell surface exists there for this mechanism to attach to
+      (see 02-architecture-report.md; do not build a "Mother Router
+      integration" for this tool, that would misrepresent what it does).
+      132 built-in filters ship compiled into the binary; this repo adds
+      5 custom ones for bun/bunx/vercel (genuinely used, genuinely
+      uncovered) and deliberately does NOT add redis-cli or supabase-CLI
+      filters (neither is genuinely used by this codebase -- see
+      02-architecture-report.md §3c).
+    status: live
+    verification_mechanism: >-
+      ai-os/boss/completed-work/snip-integration/04-verification-report.md
+      (hook registration read directly from settings.json, headless-mode
+      fired live via a real claude -p run through the worker's own proxy,
+      never-compress tested against a real deliberately-broken bun test
+      and a synthetic go-test failure fixture)
+    system_index_id: IDX-20260721-185951-dd1d
+  - id: prompt_registry_version_lifecycle_extension
+    type: schema_extension
+    path: >-
+      src/lib/db/schema.ts (compliance.promptVersions table),
+      drizzle/0262_prompt_registry_version_lifecycle.sql,
+      src/lib/services/prompt-os-service.ts
+      (transitionPromptLifecycle/diffPromptVersions/rollbackPromptVersion),
+      ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json,
+      ai-os/DATABASE_CATALOG.json (compliance.prompt_versions entry,
+      re-extracted via ai-os/scripts/extract-db-schema-catalog.mjs)
+    scope: >-
+      VERIDIAN_Architecture_v2.0 phase_1_prompt_registry_lifecycle_foundation
+      (claude-control's ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+      target_repo: compliance-tracker). NOT A NEW TABLE -- this is an
+      additive extension of the real, live Wave 22 Prompt Operating
+      System (compliance.prompt_templates/prompt_versions, ~20 production
+      resolvePromptTemplate() call sites; already tracked as generic
+      `table` entities in claude-control's own
+      ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json per phase_1's own
+      integration_point field -- this is that same extension's first
+      entry in THIS repo's registries: list, not a second registry for
+      the same table). Adds: MAJOR/MINOR/PATCH semantic versioning (major/minor/patch
+      integer columns, computed by nextSemanticVersion()), a real
+      Draft/Review/Staging/Production/Deprecated lifecycle_state column +
+      bare state-machine enforcement (isLegalLifecycleTransition() --
+      the APPROVAL-GATE enforcement on top of these edges is phase_3
+      scope, not this one's), a line-level diff API (diffPromptVersions())
+      and an append-only rollback API (rollbackPromptVersion(), which
+      creates a new version rather than mutating history, recording
+      provenance via rolled_back_from_version_id), and an optional
+      structured `metadata` jsonb column matching the 18-category minimum-
+      viable schema in PROMPT_METADATA_SCHEMA_2026-07-25.schema.json (the
+      document's own 200+-field section 2.6, built to real load-bearing
+      depth rather than verbatim field count, same precedent as
+      claude-control's AUDITOR_ENGINE_FINDING_RECORD_SCHEMA_2026-07-24).
+      The pre-existing `label`/`version`/`is_active` columns and every
+      existing call site (resolvePromptTemplate, createPromptVersion,
+      listPromptVersions) are untouched.
+    status: live
+    verification_mechanism: >-
+      psql $DATABASE_URL -c "SELECT lifecycle_state FROM
+      compliance.prompt_versions LIMIT 1" once drizzle/0262 is applied
+      (NOT applied live by this registration -- same convention as every
+      other schema-touching entry in ai-os/boss/ACTIVE-CLAIMS.yaml);
+      src/lib/services/prompt-os-service.test.ts (bun:test) covers the
+      pure isLegalLifecycleTransition/nextSemanticVersion/diffContentLines
+      logic without a live DB, same pattern as esignature-service.test.ts.
+
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/

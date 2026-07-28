@@ -50,6 +50,7 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
   // Shared react-query cache instead of its own /api/me fetch-on-mount.
   const { data: me } = useMe();
   const orgName = me?.orgName ?? null;
+  const brandName = me?.brandName ?? null;
   const [loggingOut, setLoggingOut] = useState(false);
   // U-D28: "'Invite a team member' control must appear on every screen, on
   // every webpage, upper-right corner" -- AppTopbar is rendered globally by
@@ -179,7 +180,7 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
   return (
     <>
       <AppHeader
-        productName="VERIDIAN AI"
+        productName={brandName || "VERIDIAN AI"}
         onToggleSidebar={onToggleSidebar}
         sidebarCollapsed={sidebarCollapsed}
         searchSlot={<SearchTrigger />}

@@ -9,6 +9,20 @@
 // workflow"). This module never touches a customer org's
 // customer_model_config -- the AI Dev Team builds VERIDIAN, it doesn't run
 // inside it.
+//
+// Super Boss v2 plan task V2-5 (BYOB bring-your-own-AI-model, 2026-07-20):
+// runRole() now ACCEPTS an optional tenant config (a per-org BYO model id +
+// decrypted API key + optional base URL, resolved by mother-router.ts's
+// resolveTenantAiConfig()). When present, the tenant's own model + key +
+// baseUrl are used INSTEAD of the platform OpenRouter key -- but ONLY for
+// the actual LLM call itself; the tier-eligibility gate that decides WHETHER
+// the tenant model may run at all lives upstream in
+// computeSoftwareTeamResolution() (mother-router.ts), which runs the tenant
+// model through the SAME checkTierEligibility() call as the baseline and
+// silently downgrades an ineligible tenant model (never a guardrail bypass,
+// AGENTS.md Operating Rule 9). The dispatch route is the one place that
+// resolves the tenant config and threads it through both -- see
+// /api/ai/team/dispatch's resolveMotherRouterModel + runRole calls.
 
 import { callLLM, callLLMJson, type LLMResult } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -16,6 +30,20 @@ import { checkCostPolicy, checkOpenRouterBalance } from "./cost-policy"
 import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
 import { resolveEffectiveModel } from "./roster-overrides"
+import type { LLMProvider } from "@/lib/llm-client"
+
+// Local shape of mother-router.ts's ResolvedTenantAiConfig (avoids a
+// circular import: mother-router.ts imports from ./roster, and this module
+// is in the same ai-team/ dir -- importing the type from mother-router
+// would couple this execution-layer module to the resolution layer for a
+// pure data shape). Kept structurally identical so a value returned by
+// resolveTenantAiConfig() satisfies it without any adapter.
+export type TenantAiOverride = {
+  provider: LLMProvider
+  model: string
+  apiKey: string
+  baseUrl: string | null
+}
 
 function platformOpenRouterKey(): string {
   const key = process.env.OPENROUTER_API_KEY
@@ -38,11 +66,32 @@ function requireCallableRole(roleKey: string): RoleDefinition {
   return role
 }
 
-/** Runs one AI Dev Team or Guardrail role against a task/input string. Enforces the Cost & Policy Engine before spending anything. */
-export async function runRole(roleKey: string, input: string): Promise<LLMResult & { role: RoleDefinition }> {
+/**
+ * Runs one AI Dev Team or Guardrail role against a task/input string.
+ * Enforces the Cost & Policy Engine before spending anything.
+ *
+ * `tenantConfig` (Super Boss v2 plan task V2-5, BYOB, 2026-07-20): optional
+ * per-org BYO model+key+baseUrl resolved by mother-router.ts's
+ * resolveTenantAiConfig(). When present, the actual LLM call uses the
+ * tenant's OWN model, key, and (optional) OpenRouter-compatible baseUrl
+ * instead of the platform OpenRouter key. Whether the tenant model is even
+ * ALLOWED to run was already decided upstream in
+ * computeSoftwareTeamResolution() via the SAME checkTierEligibility() call
+ * every other candidate passes through -- an ineligible tenant model is
+ * silently downgraded there, never reaches this call site, and never
+ * bypasses the tier-eligibility guardrail (AGENTS.md Operating Rule 9).
+ * The cost policy + token-usage ledger reflect whichever model actually
+ * ran. Omitted by every pre-existing caller (ordinary platform dispatch)
+ * -> behaves exactly as before (platform key, effectiveModel).
+ */
+export async function runRole(
+  roleKey: string,
+  input: string,
+  tenantConfig?: TenantAiOverride
+): Promise<LLMResult & { role: RoleDefinition }> {
   const role = requireCallableRole(roleKey)
   const systemPrompt = await resolvePromptTemplate(role.promptKey!)
-  const apiKey = platformOpenRouterKey()
+  const apiKey = tenantConfig?.apiKey ?? platformOpenRouterKey()
 
   // VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
   // 2026-07-18): resolve an admin-set DB override BEFORE the actual call --
@@ -51,7 +100,15 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
   // roster-overrides.ts, not just the tier-eligibility pre-flight checks
   // upstream of this function. Falls back to role.model (guaranteed
   // non-null by requireCallableRole above) on any resolution failure.
-  const effectiveModel = (await resolveEffectiveModel(roleKey)) ?? role.model!
+  //
+  // V2-5 (BYOB): when a tenant config is supplied, ITS model takes
+  // precedence over both the DB override and role.model -- the org
+  // configured its own model specifically so this dispatch uses it, and
+  // it already passed checkTierEligibility() upstream in
+  // computeSoftwareTeamResolution(). The DB roster-overrides path is a
+  // platform-admin control for the AI Dev Team's OWN platform key, not a
+  // tenant control, so it does not apply to a tenant's own model.
+  const effectiveModel = tenantConfig?.model ?? (await resolveEffectiveModel(roleKey)) ?? role.model!
 
   // Cumulative balance check (2026-07-20, Owner zero-waste directive): the
   // per-call ceiling below has no memory of prior calls, so it alone
@@ -71,7 +128,19 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
   const preflight = checkCostPolicy(effectiveModel, roughEstimate)
   if (!preflight.allowed) throw new Error(`Cost & Policy Engine blocked call to '${roleKey}': ${preflight.reason}`)
 
-  const result = await callLLM("openrouter", effectiveModel, apiKey, systemPrompt, input)
+  const result = await callLLM(
+    tenantConfig?.provider ?? "openrouter",
+    effectiveModel,
+    apiKey,
+    systemPrompt,
+    input,
+    // V2-5 (BYOB): pass the tenant's optional OpenRouter-compatible base
+    // URL through CallLLMOptions.baseUrl so dispatchLLM() honors it for the
+    // OpenAI-compatible branches (a self-hosted OpenRouter-compatible
+    // gateway). Undefined when the tenant has no baseUrl -> dispatchLLM
+    // uses its per-provider default, exactly as before.
+    tenantConfig?.baseUrl ? { baseUrl: tenantConfig.baseUrl } : undefined
+  )
 
   const postflight = checkCostPolicy(effectiveModel, result.usage)
   if (!postflight.allowed) {
@@ -89,7 +158,7 @@ export async function runRole(roleKey: string, input: string): Promise<LLMResult
     scope: "ai_team_internal",
     roleKey,
     taskSummary: input.slice(0, 200),
-    provider: "openrouter",
+    provider: tenantConfig?.provider ?? "openrouter",
     model: effectiveModel,
     usage: result.usage,
   })
