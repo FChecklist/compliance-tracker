@@ -4202,6 +4202,18 @@ export const pmsWikiPages = complianceSchemaDB.table('pms_wiki_pages', {
 // Time tracking + billable rates (OpenProject's unique contribution among
 // the 3 studied tools). isRunning/startedAt support a live timer, matching
 // OpenProject's TimeEntry.ongoing? concept.
+//
+// Design Studio timesheets gap closure (2026-07-28, Owner item 12,
+// "IMPORTANT"): approvalStatus adds the designer-entry -> manager-
+// validation-on-review flow the Owner's spec asks for (daily work recorded
+// as draft, submitted for review, then approved/rejected by a manager).
+// Modeled directly on constructionKpiEntries' own approvalStatus/
+// approvedById/approvedAt trio (same designer-fills/manager-approves
+// shape) rather than inventing a new pattern -- rejected is an extra state
+// KPI entries don't have, since the Owner's spec explicitly calls out
+// approved/rejected as the two manager outcomes here.
+export const pmsTimeEntryApprovalStatusEnum = complianceSchemaDB.enum('pms_time_entry_approval_status', ['draft', 'submitted', 'approved', 'rejected'])
+
 export const pmsTimeEntries = complianceSchemaDB.table('pms_time_entries', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id').notNull(),
@@ -4223,6 +4235,10 @@ export const pmsTimeEntries = complianceSchemaDB.table('pms_time_entries', {
   billable: boolean('billable').notNull().default(true),
   hourlyRateSnapshot: numeric('hourly_rate_snapshot'), // captured at billing time, not creation time
   invoiceItemId: text('invoice_item_id'),
+  approvalStatus: pmsTimeEntryApprovalStatusEnum('approval_status').notNull().default('draft'),
+  approvedById: text('approved_by_id'),
+  approvedAt: timestamp('approved_at'),
+  rejectionReason: text('rejection_reason'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

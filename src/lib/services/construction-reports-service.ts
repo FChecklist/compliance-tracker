@@ -442,6 +442,134 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
   })
 }
 
+// 12b. Designer-wise Timesheet Status Report -- count/hours per designer
+// broken down by approval status (draft/submitted/approved/rejected).
+// Owner's spec (item 12, "IMPORTANT") asks for this "designer-wise status
+// view" as a distinct cut from the byDesignerStatus (active/inactive)
+// breakdown aggregateDesignerTimesheetCosts already produces above -- that
+// one groups by whether the designer account is active, this one groups by
+// where each designer's logged hours currently sit in the approval
+// workflow (pms_time_entries.approval_status, added alongside this report).
+export type TimesheetStatusEntry = {
+  userId: string
+  userName: string
+  approvalStatus: "draft" | "submitted" | "approved" | "rejected"
+  hours: number
+}
+
+const APPROVAL_STATUSES = ["draft", "submitted", "approved", "rejected"] as const
+
+export function aggregateDesignerApprovalStatus(entries: TimesheetStatusEntry[]) {
+  const byUser = new Map<string, { userId: string; userName: string; counts: Record<string, { hours: number; entries: number }> }>()
+  for (const e of entries) {
+    let bucket = byUser.get(e.userId)
+    if (!bucket) {
+      bucket = {
+        userId: e.userId,
+        userName: e.userName,
+        counts: Object.fromEntries(APPROVAL_STATUSES.map((s) => [s, { hours: 0, entries: 0 }])),
+      }
+      byUser.set(e.userId, bucket)
+    }
+    bucket.counts[e.approvalStatus].hours += e.hours
+    bucket.counts[e.approvalStatus].entries += 1
+  }
+  return [...byUser.values()]
+    .sort((a, b) => a.userId.localeCompare(b.userId))
+    .map((b) => ({ userId: b.userId, userName: b.userName, ...b.counts }))
+}
+
+export async function designerApprovalStatusReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
+    if (issueIds.length === 0) return { byDesigner: [] }
+    const rows = await db.query.pmsTimeEntries.findMany({
+      where: and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds)),
+      columns: { userId: true, hours: true, approvalStatus: true },
+    })
+    const userIds = [...new Set(rows.map((r) => r.userId))]
+    const usersById = userIds.length > 0
+      ? new Map((await db.query.users.findMany({ where: inArray(users.id, userIds), columns: { id: true, name: true } })).map((u) => [u.id, u.name]))
+      : new Map<string, string>()
+    const entries: TimesheetStatusEntry[] = rows.map((r) => ({
+      userId: r.userId, userName: usersById.get(r.userId) ?? r.userId, approvalStatus: r.approvalStatus, hours: Number(r.hours),
+    }))
+    return { byDesigner: aggregateDesignerApprovalStatus(entries) }
+  })
+}
+
+// 12c. Work Analysis Report -- hours by task/category per designer over a
+// period (Owner spec item 12: "real breakdown of hours by task/category
+// per designer over a period"). "Task" here is the pms_issue the time entry
+// is logged against (pms_issues.title), the same entity designerTimesheetReport
+// already resolves projectId through -- not a new concept.
+export type WorkAnalysisEntry = {
+  userId: string
+  userName: string
+  taskId: string
+  taskName: string
+  category: string
+  hours: number
+}
+
+export function aggregateWorkAnalysis(entries: WorkAnalysisEntry[]) {
+  const byUser = new Map<string, { userId: string; userName: string; totalHours: number; byTask: Map<string, { taskId: string; taskName: string; hours: number }>; byCategory: Map<string, number> }>()
+  for (const e of entries) {
+    let bucket = byUser.get(e.userId)
+    if (!bucket) {
+      bucket = { userId: e.userId, userName: e.userName, totalHours: 0, byTask: new Map(), byCategory: new Map() }
+      byUser.set(e.userId, bucket)
+    }
+    bucket.totalHours += e.hours
+    const taskBucket = bucket.byTask.get(e.taskId) ?? { taskId: e.taskId, taskName: e.taskName, hours: 0 }
+    taskBucket.hours += e.hours
+    bucket.byTask.set(e.taskId, taskBucket)
+    bucket.byCategory.set(e.category, (bucket.byCategory.get(e.category) ?? 0) + e.hours)
+  }
+  return [...byUser.values()]
+    .sort((a, b) => a.userId.localeCompare(b.userId))
+    .map((b) => ({
+      userId: b.userId,
+      userName: b.userName,
+      totalHours: b.totalHours,
+      byTask: [...b.byTask.values()].sort((x, y) => x.taskName.localeCompare(y.taskName)),
+      byCategory: [...b.byCategory.entries()].sort(([x], [y]) => x.localeCompare(y)).map(([category, hours]) => ({ category, hours })),
+    }))
+}
+
+export async function workAnalysisReport(ctx: { orgId: string }, projectId: string, dateFrom?: string, dateTo?: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const issues = await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true, title: true } })
+    const issueIds = issues.map((i) => i.id)
+    if (issueIds.length === 0) return { byDesigner: [] }
+    const issueById = new Map(issues.map((i) => [i.id, i.title]))
+
+    const conditions = [eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds)]
+    if (dateFrom) conditions.push(gte(pmsTimeEntries.spentOn, dateFrom))
+    if (dateTo) conditions.push(lt(pmsTimeEntries.spentOn, dateTo))
+    const rows = await db.query.pmsTimeEntries.findMany({
+      where: and(...conditions),
+      columns: { userId: true, issueId: true, hours: true, activityType: true },
+    })
+    const userIds = [...new Set(rows.map((r) => r.userId))]
+    const usersById = userIds.length > 0
+      ? new Map((await db.query.users.findMany({ where: inArray(users.id, userIds), columns: { id: true, name: true } })).map((u) => [u.id, u.name]))
+      : new Map<string, string>()
+
+    const entries: WorkAnalysisEntry[] = rows.map((r) => ({
+      userId: r.userId,
+      userName: usersById.get(r.userId) ?? r.userId,
+      taskId: r.issueId,
+      taskName: issueById.get(r.issueId) ?? r.issueId,
+      category: r.activityType?.trim() || "uncategorized",
+      hours: Number(r.hours),
+    }))
+    return { byDesigner: aggregateWorkAnalysis(entries) }
+  })
+}
+
 // 13. KPI Report -- approved KPI entries for this project's definitions (or org-wide when projectId is null on the definition).
 export async function kpiReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
@@ -524,6 +652,8 @@ export const REPORT_REGISTRY = {
   "vendor-cost": vendorCostReport,
   "manpower-cost": manpowerCostReport,
   "designer-timesheet": designerTimesheetReport,
+  "designer-approval-status": designerApprovalStatusReport,
+  "work-analysis": workAnalysisReport,
   "kpi": kpiReport,
   "revenue": revenueReport,
   "expense": expenseReport,
