@@ -43,10 +43,23 @@
       update on `worker/task-20260728-122836-resolve-fresh-merge-conflict-on-pr--610`.
 
 ## Remaining
-- [ ] CI on PR #610 was still running at the end of this session (just
-      triggered by the push) -- recommend a follow-up check once it
-      completes; not re-polled further per this task's own scope (resolve
-      the conflict + push, not drive PR #610 to merge).
+- [ ] Post-push CI on PR #610 (sha cd3db8e6): Lint/Type Check/Unit Tests/
+      Guardrail Presence/Asset Registry Coverage/Doc Cross-Reference/Doc
+      Quarantine/Documentation Sentinel/Secret Scanning/Security Pattern/
+      Metadata Index Coverage/audit-check all **pass**. `Build`/`Analyze`
+      still pending at end of session (not re-polled further -- this
+      task's scope was resolving the conflict + push, not driving PR #610
+      to merge).
+- [ ] `Terminology Guardrail Check` **fails** -- confirmed pre-existing,
+      not introduced by this session: findings are in `schema.ts` line 15
+      and `src/app/(app)/crm/page.tsx` line 5, both files this merge did
+      not touch (no conflict there; PR #610's own original content). The
+      prior PR #610 fix-forward session
+      (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets, see
+      its ACTIVE-CLAIMS.yaml entry) already disclosed this exact failure as
+      pre-existing and out of its scope too -- flagging again for whoever
+      eventually merges PR #610, not fixing it here (out of scope for a
+      merge-conflict-resolution task).
 - [ ] `Vercel` check shows a deployment-rate-limit failure -- pre-existing
       infra noise (`vercel.com/.../upgradeToPro=build-rate-limit`), not
       introduced by this session, flagging for whoever eventually merges
