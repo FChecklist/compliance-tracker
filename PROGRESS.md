@@ -28,3 +28,13 @@
 - No workspace-repo files needed changes for this re-verification — the entire fix lives in `/opt/veridian/scripts/` (shared infra, outside this git repo), and it was already complete before this invocation started.
 
 **Conclusion: root cause confirmed fixed and verified live. Task closed.**
+
+## Re-verification (invocation 3, 2026-07-28)
+
+No regression since invocation 2. Re-checked live:
+- `systemctl list-units 'veridian-worker@*rca*' --all` → 0 loaded units (unchanged).
+- `/opt/veridian/scripts/veridian-task-watchdog.py` `escalate()` still routes through `_governor().submit({"task_identity": title, "task_kind": "veridian_task_create", ...}, GOVERNOR_TIER_ESCALATION, source_trigger="veridian-task-watchdog:escalate")` (line ~333) — the dedup gate from invocation 2's finding is intact.
+- `/opt/veridian/scripts/resource_governor.py` still present (Jul 27 07:15, unchanged).
+- No new `rca-task-20260727-034439*` artifacts created since the last checkpoint.
+
+Nothing further to do. Task remains closed; no code changes made this invocation.
