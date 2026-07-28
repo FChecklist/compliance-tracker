@@ -53,10 +53,31 @@ convention of documenting stale-claim corrections (see e.g. PR #566/#83).
       repo's own `ai-os/MASTER-TRACKER.yaml` or governance files.
 - [x] Documented the stale "PR #103 opened and merged" claim so it is not
       repeated by a future session.
+- [x] Committed + pushed (commit 53855807), opened PR #621:
+      https://github.com/FChecklist/compliance-tracker/pull/621
+- [x] Branch was ~150 commits stale against `main`; merged `origin/main` in
+      (resolved a `PROGRESS.md` conflict by prepending this task's section
+      ahead of the existing rolling-log entries, per this file's established
+      append convention -- no other file needed manual resolution).
+- [x] Real CI: Lint/Type Check/Unit Tests/Analyze/Guardrail Presence/Secret
+      Scanning/Security Pattern/Terminology Guardrail/Doc Cross-Reference/
+      Doc Quarantine/Documentation Sentinel/Metadata Index/Asset Registry
+      Coverage all pass. `Vercel` failed on an unrelated deployment
+      rate-limit (`upgradeToPro=build-rate-limit`), not a code issue.
+      `audit-check` fails as expected -- no audit verdict comment posted yet.
 
 ## Remaining
-- None in this repo. (Follow-up, if any, belongs to `claude-control`'s
-  `task-20260727-025248`, out of this task's scope.)
+- [ ] PR #621 needs a fresh supervisor audit (structured `AUDIT: PASS/FAIL`
+      comment, per Rule 7c/the Mandatory Audit Check job, now a required
+      branch-protection status check) before it can merge -- this task does
+      not self-certify/self-merge, consistent with how other in-flight
+      tasks in this repo's own rolling `PROGRESS.md` log (e.g.
+      `task-20260728-051733`, `task-20260728-043316`) leave their PRs for
+      supervisor review rather than self-merging.
+- No compliance-tracker code changes are needed beyond this documentation
+  correction. Any further `knowledge_engine`/`wiring_registry` follow-up
+  belongs to `claude-control`'s `task-20260727-025248`, out of this task's
+  scope.
 
 # PROGRESS -- task-20260728-050704-sap-informed-veridian-phase-0--baseline
 
