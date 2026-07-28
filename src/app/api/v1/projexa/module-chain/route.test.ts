@@ -23,9 +23,10 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; scope
   }))
 }
 
-function mockTree(nodes: unknown[]) {
+async function mockTree(nodes: unknown[]) {
   const buildCapabilityTree = mock(async () => nodes)
-  mock.module("@/lib/services/capability-tree-service", () => ({ buildCapabilityTree }))
+  const actual = await import("@/lib/services/capability-tree-service")
+  mock.module("@/lib/services/capability-tree-service", () => ({ ...actual, buildCapabilityTree }))
   return buildCapabilityTree
 }
 
@@ -38,7 +39,7 @@ function getRequest(query = "") {
 describe("GET /api/v1/projexa/module-chain", () => {
   test("calls buildCapabilityTree with the authenticated caller's own orgId only", async () => {
     mockAuth({ orgId: "org-b" })
-    const buildCapabilityTree = mockTree([{ key: "grc", label: "VERI GRC AI", leaf: false, children: [] }])
+    const buildCapabilityTree = await mockTree([{ key: "grc", label: "VERI GRC AI", leaf: false, children: [] }])
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -50,7 +51,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
 
   test("a different org's key resolves a different orgId into buildCapabilityTree -- no cross-tenant bleed", async () => {
     mockAuth({ orgId: "org-other" })
-    const buildCapabilityTree = mockTree([{ key: "erp", label: "VERI ERP", leaf: false, children: [] }])
+    const buildCapabilityTree = await mockTree([{ key: "erp", label: "VERI ERP", leaf: false, children: [] }])
 
     const { GET } = await import("./route")
     await GET(getRequest() as any)
@@ -61,7 +62,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
 
   test("filters the construction_intelligence branch out of the response (PROJEXA already owns that via its own endpoint)", async () => {
     mockAuth({ orgId: "org-b" })
-    mockTree([
+    await mockTree([
       { key: "grc", label: "VERI GRC AI", leaf: false, children: [] },
       { key: "construction_intelligence", label: "Construction Intelligence", leaf: false, children: [] },
       { key: "erp", label: "VERI ERP", leaf: false, children: [] },
@@ -76,7 +77,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
 
   test("forwards ?module= as moduleScope", async () => {
     mockAuth({ orgId: "org-b" })
-    const buildCapabilityTree = mockTree([])
+    const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")
     await GET(getRequest("?module=erp") as any)
@@ -86,7 +87,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
 
   test("an organisation-less caller gets 400, buildCapabilityTree is never called", async () => {
     mockAuth({ orgId: null })
-    const buildCapabilityTree = mockTree([])
+    const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -97,7 +98,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
 
   test("an invalid/missing API key never reaches buildCapabilityTree", async () => {
     mockAuth({ orgId: null, response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }) })
-    const buildCapabilityTree = mockTree([])
+    const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -108,7 +109,7 @@ describe("GET /api/v1/projexa/module-chain", () => {
 
   test("a key without read scope is rejected with 403 before buildCapabilityTree runs", async () => {
     mockAuth({ orgId: "org-b", scopeErr: new Response(JSON.stringify({ error: "scoped" }), { status: 403 }) })
-    const buildCapabilityTree = mockTree([])
+    const buildCapabilityTree = await mockTree([])
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
