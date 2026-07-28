@@ -64,6 +64,36 @@ active:
       several older entries (2026-07-18/07-19) touch ChainSelector.tsx/
       VeriComposer.tsx for unrelated concerns (chat efficiency findings,
       ui-kit swap) and are stale (>4h, no matching open PR checked).
+  - session_label: "claude-code (task-20260727-190116-work-progress-report--projexa) -- PROJEXA Work Progress Report feature"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Per SPEC for a real PROJEXA Work Progress Report (daily activity qty
+      + photo entry against BoQ line items, Prev/Current/Total Qty/Amt/%
+      report, category/scope/manpower/vendor breakdowns). PROJEXA-side work
+      is out of this repo's scope (separate repo). The ONLY compliance-
+      tracker change needed: `GET /api/v1/construction/boq` (and its
+      /api/v1/projexa/scope alias) currently returns BOQ headers only, no
+      line items -- confirmed by reading listBoqs() in
+      construction-boq-service.ts, which the WPR report needs (rate/amount
+      per line) and has no other way to reach. Enriching that route
+      handler's response with each boq's lineItems by calling the
+      already-existing getBoq() service function per boq -- read-only,
+      additive field, zero schema change, zero change to
+      construction-boq-service.ts itself.
+      Collision check: the hierarchical-boq-breakdown entry below claims
+      schema.ts/construction-boq-service.ts/construction-valuation-service.ts
+      -- none of those are touched here; this only edits
+      src/app/api/v1/construction/boq/route.ts (a route handler file, not
+      the service).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/app/api/v1/construction/boq/route.ts (GET handler only, additive
+      lineItems field) and
+      src/app/api/v1/projexa/work-progress/activities/route.ts (GET handler
+      only, additive categories field). No schema changes, no
+      service-layer changes. Branch: feat/boq-line-items-in-v1-list. Not
+      self-merged -- this task's own PR requires a fresh supervisor audit
+      before merge.
   - session_label: "claude-code (task-20260727-122632-projexa-e2e--hierarchical-boq-breakdown) -- Hierarchical BoQ breakdown-%, interim-billing/valuation/retention engine, Excel BoQ importer"
     claimed_at: "2026-07-27T (this session)"
     claim: |
