@@ -3795,6 +3795,32 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260728-123644-classify-87-sap-reports-into-engine-trac) -- Classify sap_mapping.sqlite's sap_reports rows into engine_track (calculation/workflow/hybrid)"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Spec asked to classify 87 rows in sap_mapping.sqlite's sap_reports
+      table into a new engine_track column. Real file located at
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite (NOT in this git repo --
+      it's shared, non-git ai-os/memory/ infra state, same directory that
+      holds superboss-register.sqlite with several past CORRUPTED-* backups
+      from concurrent-write damage, so treating this file as fragile shared
+      state, not repo content). Actual row count is 80, not 87 -- all 11 SAP
+      modules (CO, CRM, FI-AA, FI-AP, FI-AR, FI-GL, HCM, MM, PS, SD,
+      Treasury) show ingest_log status DONE as of 2026-07-28T10:16, ingested
+      by an external_users pipeline
+      (external_users/.../tasks/sap-module-report-mapping/*.yaml). Treating
+      87 as a stale estimate in the spec, not a sign more rows are still
+      inbound -- proceeding with the real 80. Took a timestamped file copy
+      backup before any ALTER/UPDATE given the corruption history in this
+      directory. File scope: only sap_mapping.sqlite's sap_reports.
+      engine_track column (ALTER TABLE + per-row UPDATE from real
+      calculation_logic content) -- no other file in this shared directory
+      touched.
+    scope_note: >-
+      Checked this file for collisions: no other active entry names
+      sap_mapping.sqlite, sap_reports, or engine_track. No PR needed for the
+      sqlite mutation itself (it's outside git); PROGRESS.md and this claim
+      entry are the only git-tracked artifacts for this task.
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
