@@ -201,6 +201,39 @@ active:
       local checks (terminology guardrail, asset registry coverage, guardrail presence, metadata
       index coverage, migration collision, `bun test` on the new service, `tsc --noEmit`) pass clean
       after the fix. No engine logic touched.
+  - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-reference sap_reports (sap_mapping.sqlite) vs VCEL/report_definitions/wiring_registry"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Owner-directed follow-on to task-20260726-123644's engine_track
+      classification: for all 80 real rows in sap_reports (table lives in
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite, NOT in this repo --
+      confirmed via git log/find, same real location the prior session
+      already established), cross-reference each report's calculation_logic
+      against (a) VERIDIAN's real VCEL calculation-engine registry --
+      Postgres compliance.computation_engines (schema.ts:9488), backed by
+      the 25 files under src/lib/engines/*.ts, (b) compliance.report_definitions
+      (schema.ts:4650) as executed/cataloged by report-engine-service.ts /
+      report-catalog-service.ts, and (c) the wiring registry -- real
+      location confirmed to be the SEPARATE claude-control repo
+      (/opt/veridian/repos/claude-control/ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json),
+      not this repo. No live DATABASE_URL/Supabase MCP available in this
+      session, so computation_engines/report_definitions row content was
+      cross-checked against the real source-of-truth code (engine files,
+      erp-*-service.ts, construction-*-service.ts function exports) rather
+      than a live query -- disclosed as a real limitation, not papered over.
+      Writing veridian_mapping_status (REUSE_EXISTING(id)/EXTEND_EXISTING(id)/
+      BUILD_NEW) + veridian_existing_equivalent + veridian_gap_notes back
+      into sap_reports for all 80 rows, each backed by a real file:function
+      or table citation.
+    scope_note: >-
+      File scope: /opt/veridian/ai-os/memory/sap_mapping.sqlite (shared,
+      non-git infra state -- backed up before any write, same convention
+      the prior session used) + this repo's PROGRESS.md/ACTIVE-CLAIMS.yaml
+      only. Read-only against compliance-tracker's src/lib/engines/*,
+      src/lib/services/*, src/lib/db/schema.ts, docs/master/*, and
+      claude-control's ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json -- no
+      code changes to either repo. No overlap with the currently-active
+      construction-boq-importer claim above (different file entirely).
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
