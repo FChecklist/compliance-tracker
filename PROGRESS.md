@@ -1,4 +1,3 @@
-# PROGRESS -- task-20260727-182023-fix-veri-erp-product-chain-bug--shows-pr
 # PROGRESS -- task-20260727-190032-scope-of-works-revision-variation-tracki
 
 ## Completed
@@ -84,56 +83,45 @@
 # PROGRESS -- task-20260727-101145-reporting-api-gateway--external-ai-scope
 
 ## Completed
-- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (no live collision found; several older
-      entries touch ChainSelector.tsx/VeriComposer.tsx for unrelated concerns and are stale).
-- [x] Root-caused the bug: `buildProductNodes()` in `src/lib/services/capability-tree-service.ts`
-      sourced the "Product" chain-selector branch from the `products`/`projects` tables -- an
-      unrelated PMS product-line/project grouping (schema.ts's `products`/`projects`, used to
-      organize internal delivery projects under a named product line) -- instead of `erpItems`,
-      the real ERP sellable-item/product master (item_code, standard_selling_rate, stock flags,
-      HSN/SAC -- see erp-inventory-service.ts). Confirmed via `MODULE_SCOPE_TOP_LEVEL_KEYS.erp =
-      ["customer", "vendor", "product", ...]` that "Product" is a top-level ERP entity-type
-      sibling to Customer/Vendor (which correctly source from erpCustomers/erpSuppliers), not a
-      PMS feature. This is exactly the "wrong table" bug class the task spec anticipated.
-- [x] Fixed `buildProductNodes()` to query `erpItems` (org-scoped, isActive) and attach a new
-      `GENERIC_PRODUCT_ACTIONS` leaf set ("Update price/stock", "Create a quotation") -- mirrors
-      `buildEntityNodes()`'s existing Customer/Vendor -> `GENERIC_ENTITY_ACTIONS` pattern exactly
-      (a placeholder leaf set feeding the free-text AI-dispatch path, same as Customer/Vendor's
-      own generic actions -- no fabricated codeReference/engineKey/real dispatcher was invented,
-      per the task's explicit "don't invent fake actions" instruction).
-- [x] Removed the now-dead `genericProjectActions()` helper (only caller was the old
-      `buildProductNodes()`); updated the file's header comment and the nearby
-      `buildConstructionNodes()` comment (it referenced `genericProjectActions()`'s shape) so
-      nothing dangling references removed code. Did NOT touch `products`/`projects` tables,
-      `buildConstructionNodes()`, or `buildEntityNodes()` (Customer/Vendor) themselves.
-- [x] Exported `GENERIC_ENTITY_ACTIONS`/`GENERIC_PRODUCT_ACTIONS` (were module-private) so both
-      are directly unit-testable, matching this file's own established `markDeterministic()`
-      export precedent.
-- [x] Added regression tests in `capability-tree-service.test.ts` (9 tests total, all passing):
-      GENERIC_PRODUCT_ACTIONS carries product actions not the old project actions (no "Status
-      update"/"Log a task"/"Flag a risk", no projectId field), falls through markDeterministic()
-      to the AI-planned path same as Customer/Vendor's own generic actions; GENERIC_ENTITY_ACTIONS
-      unchanged (regression guard) and structurally distinct from GENERIC_PRODUCT_ACTIONS.
-      `buildProductNodes()`/`buildEntityNodes()` themselves stay untested per this repo's own
-      established convention (no withTenantContext/live-DB exercise from a .test.ts file --
-      see this file's header note and task-service.test.ts's precedent).
-- [x] Verified:
-      - `NODE_OPTIONS="--max-old-space-size=8192" npx tsc --noEmit` -- clean, 0 errors (plain
-        `npx tsc --noEmit` OOMs on this repo's size regardless of my change; not a regression).
-      - `bun test src/lib/services/capability-tree-service.test.ts` -- 9 pass, 0 fail.
-      - `bun test` (full suite) -- 2216 pass, 0 fail, 199 files (stderr noise in the output is
-        from unrelated tests intentionally simulating failures for fail-closed behavior).
-      - `bun x eslint src/lib/services/capability-tree-service.ts src/lib/services/capability-tree-service.test.ts` -- clean.
-      - `grep -rn "demo_project_website" src/` -- no matches (id was never hardcoded in source;
-        it's live demo-org DB data, confirming the fix is a real root-cause fix, not an exclusion
-        hack).
-- [x] Constraint check: did not touch any cron/systemd `.timer` state (no such files touched at
-      all in this task). Did not touch Customer/Vendor chain-selector code paths beyond adding
-      the regression test specified by the task spec.
-
-- [x] Committed, pushed, opened PR #607 against main:
-      https://github.com/FChecklist/compliance-tracker/pull/607. Not merged (requires fresh
-      supervisor audit first, per task spec / Rule 6).
+- [x] Read governance docs (CLAUDE.md/AGENTS.md/CONSTITUTION.yaml/ACTIVE-CLAIMS.yaml), claim
+      already registered (`ai-os/boss/ACTIVE-CLAIMS.yaml` line ~43) from invocation 1.
+- [x] Built `src/app/api/v1/reports/catalog/route.ts` (GET) -- lists the caller's visible
+      report_definitions catalog. Auth via `requireAuthOrApiKey()` + new
+      `requireReportsReadAccess()` gate (accepts `read` OR the new `read:reports` scope).
+      Zero new execution logic: wraps the existing `getFullReportCatalog({ orgId })`.
+- [x] Built `src/app/api/v1/reports/definitions/[id]/run/route.ts` (POST) -- executes a
+      report_definitions row via the existing `executeReportDefinition()`. STRICT_TENANT_ISOLATION:
+      `orgId` is always `ctx.orgId` from the authenticated caller, never from the request body/query
+      (verified by an automated spoofing test, see below). Supports `?format=json|csv|xlsx`.
+- [x] `src/lib/report-export-shared.ts` -- server-safe (no browser APIs) `rowsToCSV`/
+      `rowsToXLSXBuffer` builders, same `xlsx` package + ExportRow[] convention as
+      `report-export.ts`/`reports/page.tsx`, just without the client-side download trigger so an
+      API route can return the bytes directly.
+- [x] `requireReportsReadAccess()` added to `src/lib/supabase/auth-guard.ts` -- OR-semantics gate
+      (broad `read` OR narrow `read:reports`), session always passes.
+- [x] `compliance.api_keys.scopes` extended (comma-separated) to accept `read:reports` in
+      `POST /api/settings/api-keys` -- no schema/table change needed, the existing free-text
+      scopes column already expresses it (`src/lib/db/schema.ts` comment updated to document it).
+- [x] `src/lib/openapi/generate.ts` -- documented `/reports/catalog` and
+      `/reports/definitions/{id}/run` in the public OpenAPI doc.
+- [x] Tests: `catalog/route.test.ts` (3), `definitions/[id]/run/route.test.ts` (6, incl. the
+      required tenant-isolation spoofing test + cross-org test), `report-export-shared.test.ts` (5),
+      `auth-guard.test.ts` (6 for `requireReportsReadAccess`). All pure-mock, no live DB, matching
+      repo convention.
+- [x] Fixed bugs found while verifying inherited invocation-1 work: (a) `NextResponse` body-type
+      TS error on the raw XLSX `Buffer` (wrapped in `Blob`+`Uint8Array.from`, matching the existing
+      `payslips/[id]/pdf/route.ts` fix pattern); (b) test-file cross-contamination between
+      `catalog/route.test.ts` and `run/route.test.ts`'s `mock.module()` calls on the same
+      `report-engine-service` specifier (both now stub the other file's export too); (c) a test-only
+      bug in the CSV-escaping test (was splitting the whole CSV string on `\n`, which broke a
+      legitimately-quoted embedded newline); (d) `run/route.test.ts`'s request helper used a plain
+      `Request` instead of `NextRequest`, so `request.nextUrl` was undefined for `?format=` tests.
+- [x] Full verification pass: `npx tsc --noEmit` clean, `bun test` 2072/2072 passing (repo-wide, not
+      just new files), `bun run lint` 0 errors, `node scripts/check-guardrail-presence.mjs` (88/88),
+      `node scripts/check-terminology-guardrail.mjs --diff-only` clean (fixed one new hardcoded-date
+      finding by rewording, no exemption-registry edit needed), Supabase `get_advisors(security)`
+      against the `verdian-ai` project shows only pre-existing findings (views/functions/extensions
+      unrelated to `api_keys`/`report_definitions`) -- zero new findings from this change.
 
 ## Remaining
 - [ ] Write PR description with the real `curl` example (using a real `built`-status report id
@@ -372,7 +360,62 @@ per this task's own EXPECTED_OUTPUT.
 - [ ] This corrective push needs a fresh supervisor audit (the original audit's FAIL verdict
       required a re-audit after corrective changes, per this task's own protocol) before it
       can go to Owner sign-off -- tier2, do not merge without that.
+# PROGRESS -- task-20260727-182023-fix-veri-erp-product-chain-bug--shows-pr
 
+## Completed
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (no live collision found; several older
+      entries touch ChainSelector.tsx/VeriComposer.tsx for unrelated concerns and are stale).
+- [x] Root-caused the bug: `buildProductNodes()` in `src/lib/services/capability-tree-service.ts`
+      sourced the "Product" chain-selector branch from the `products`/`projects` tables -- an
+      unrelated PMS product-line/project grouping (schema.ts's `products`/`projects`, used to
+      organize internal delivery projects under a named product line) -- instead of `erpItems`,
+      the real ERP sellable-item/product master (item_code, standard_selling_rate, stock flags,
+      HSN/SAC -- see erp-inventory-service.ts). Confirmed via `MODULE_SCOPE_TOP_LEVEL_KEYS.erp =
+      ["customer", "vendor", "product", ...]` that "Product" is a top-level ERP entity-type
+      sibling to Customer/Vendor (which correctly source from erpCustomers/erpSuppliers), not a
+      PMS feature. This is exactly the "wrong table" bug class the task spec anticipated.
+- [x] Fixed `buildProductNodes()` to query `erpItems` (org-scoped, isActive) and attach a new
+      `GENERIC_PRODUCT_ACTIONS` leaf set ("Update price/stock", "Create a quotation") -- mirrors
+      `buildEntityNodes()`'s existing Customer/Vendor -> `GENERIC_ENTITY_ACTIONS` pattern exactly
+      (a placeholder leaf set feeding the free-text AI-dispatch path, same as Customer/Vendor's
+      own generic actions -- no fabricated codeReference/engineKey/real dispatcher was invented,
+      per the task's explicit "don't invent fake actions" instruction).
+- [x] Removed the now-dead `genericProjectActions()` helper (only caller was the old
+      `buildProductNodes()`); updated the file's header comment and the nearby
+      `buildConstructionNodes()` comment (it referenced `genericProjectActions()`'s shape) so
+      nothing dangling references removed code. Did NOT touch `products`/`projects` tables,
+      `buildConstructionNodes()`, or `buildEntityNodes()` (Customer/Vendor) themselves.
+- [x] Exported `GENERIC_ENTITY_ACTIONS`/`GENERIC_PRODUCT_ACTIONS` (were module-private) so both
+      are directly unit-testable, matching this file's own established `markDeterministic()`
+      export precedent.
+- [x] Added regression tests in `capability-tree-service.test.ts` (9 tests total, all passing):
+      GENERIC_PRODUCT_ACTIONS carries product actions not the old project actions (no "Status
+      update"/"Log a task"/"Flag a risk", no projectId field), falls through markDeterministic()
+      to the AI-planned path same as Customer/Vendor's own generic actions; GENERIC_ENTITY_ACTIONS
+      unchanged (regression guard) and structurally distinct from GENERIC_PRODUCT_ACTIONS.
+      `buildProductNodes()`/`buildEntityNodes()` themselves stay untested per this repo's own
+      established convention (no withTenantContext/live-DB exercise from a .test.ts file --
+      see this file's header note and task-service.test.ts's precedent).
+- [x] Verified:
+      - `NODE_OPTIONS="--max-old-space-size=8192" npx tsc --noEmit` -- clean, 0 errors (plain
+        `npx tsc --noEmit` OOMs on this repo's size regardless of my change; not a regression).
+      - `bun test src/lib/services/capability-tree-service.test.ts` -- 9 pass, 0 fail.
+      - `bun test` (full suite) -- 2216 pass, 0 fail, 199 files (stderr noise in the output is
+        from unrelated tests intentionally simulating failures for fail-closed behavior).
+      - `bun x eslint src/lib/services/capability-tree-service.ts src/lib/services/capability-tree-service.test.ts` -- clean.
+      - `grep -rn "demo_project_website" src/` -- no matches (id was never hardcoded in source;
+        it's live demo-org DB data, confirming the fix is a real root-cause fix, not an exclusion
+        hack).
+- [x] Constraint check: did not touch any cron/systemd `.timer` state (no such files touched at
+      all in this task). Did not touch Customer/Vendor chain-selector code paths beyond adding
+      the regression test specified by the task spec.
+
+- [x] Committed, pushed, opened PR #607 against main:
+      https://github.com/FChecklist/compliance-tracker/pull/607. Not merged (requires fresh
+      supervisor audit first, per task spec / Rule 6).
+
+## Remaining
+- [ ] Fresh supervisor audit of PR #607, then merge (not by this session).
 # PROGRESS -- task-20260727-153025-re-audit-owner-engine--phases-4-5-8-9--f
 
 ## Completed
@@ -384,5 +427,6 @@ per this task's own EXPECTED_OUTPUT.
 - [x] Cross-referenced the actual authoritative phase-plan source (`/opt/veridian/repos/claude-control` -- `ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml`, `ai-os/OWNER_ENGINE_TASK2_PHASE_PLAN_2026-07-27.yaml`, `ai-os/OWNER_ENGINE_TASK2_GAP_ANALYSIS_2026-07-27.yaml`, `ai-os/MASTER_INDEX.yaml`) read-only, since it is absent from compliance-tracker -- this resolved the open question on phase 5's real total scope
 - [x] Wrote findings report to `ai-os/audits/owner_engine_reaudit_2026-07-27.md`
 - [x] Committed + pushed report, opened PR
+
+## Remaining
 - [ ] None -- task complete
-- [ ] Fresh supervisor audit of PR #607, then merge (not by this session).
