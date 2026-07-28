@@ -3796,6 +3796,23 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260726-210059-integrate-knowledge-engine---wiring-regi) -- closed misfiled duplicate, corrected stale PR #103 claim [PR #621, awaiting supervisor audit]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      Task's own task.yaml marked this `duplicate_of` redispatch
+      task-20260727-025248, with a stale/false superseded_reason claiming
+      "PR #103 opened and merged." Verified false: PR #103 in this repo is
+      real but unrelated (closed, unmerged security-audit PR), and the real
+      knowledge_engine/wiring_registry subject matter lives entirely in the
+      claude-control repo (generate_wiring_registry.py, wiring_query.py,
+      status-remediation-tick.py, superboss-register.sqlite -- zero
+      references in this repo's own ai-os/MASTER-TRACKER.yaml or governance
+      files), where task-20260727-025248 is doing the real work
+      (task.yaml status: pending_review, no PR opened yet there either).
+      No compliance-tracker code change was needed -- PR #621 is a
+      PROGRESS.md-only correction so a future session doesn't repeat the
+      false PR #103 claim. All real CI green; awaiting supervisor audit
+      per this environment's no-self-certification convention.
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
