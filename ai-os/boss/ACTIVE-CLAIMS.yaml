@@ -40,6 +40,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260729-092858-build-extend-calculation-track-engines) -- Build/extend calculation-track engines marked BUILD_NEW/EXTEND_EXISTING"
+    claimed_at: "2026-07-29T (this session)"
+    claim: |
+      Spec: build/extend only calculation-track engines marked BUILD_NEW or
+      EXTEND_EXISTING from the sap_mapping Phase 2 cross-reference. Source of
+      truth for that verdict is /opt/veridian/ai-os/memory/sap_mapping.sqlite,
+      table sap_reports, columns engine_track='calculation' and
+      veridian_mapping_status LIKE 'BUILD_NEW%' OR 'EXTEND_EXISTING%' (written
+      by commit ee757052, "Cross-reference all 80 sap_reports rows"). 36 rows
+      qualify (9 BUILD_NEW, 27 EXTEND_EXISTING) spanning FI-AR/FI-AP/FI-GL/
+      FI-AA/CO/SD/PS/MM/Treasury/HCM/CRM modules. Working through them in
+      waves, committing+pushing after each unit, per this task's own
+      protocol. Registering each new/extended engine in the live
+      wiring_registry (claude-control repo's
+      scripts/generate_wiring_registry.py, backed by
+      /opt/veridian/ai-os/memory/superboss-register.sqlite) immediately after
+      each engine lands, not batched at the end.
+    scope_note: >-
+      File scope: compliance-tracker src/lib/engines/*.ts and
+      src/lib/services/{erp,construction}-*-service.ts (only the specific
+      functions named in the 36 sap_reports verdicts above) plus their
+      .test.ts files. Registry side-effect in claude-control (wiring_registry
+      regeneration only, no other claude-control changes). Checked for
+      collisions: no other active entry names these specific functions;
+      note the construction-reports-service.ts claim below covers 3
+      unrelated report functions, not the ones in this task's scope.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
