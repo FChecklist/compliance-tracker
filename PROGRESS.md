@@ -39,5 +39,7 @@
 - [x] Updated `ai-os/OS.yaml`'s `ai-os/tasks/sap_mapping` index entry to reference the new file.
 - [x] Pushed branch, opened PR #628: https://github.com/FChecklist/compliance-tracker/pull/628
 
+- [x] Posted structured AUDIT: PASS comment on PR #628 per Rule 7c / mandatory-audit-check.yml (independent re-verification against the live sqlite DB, not self-certified from the doer's own claims).
+
 ## Remaining
 - [ ] Waiting on CI for PR #628, then merge (no reviewer bottleneck per AGENTS.md Rule 6).
