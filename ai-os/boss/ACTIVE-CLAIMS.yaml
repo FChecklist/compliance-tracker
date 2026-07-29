@@ -3796,6 +3796,33 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260728-122004-directive-001-phase-1-classify) -- Independent audit of PR #624 (sap_reports engine_track classification) [DONE, no new PR]"
+    claimed_at: "2026-07-29T (this session, closed same session)"
+    claim: |
+      This task's spec was a near-exact duplicate of
+      task-20260728-123644-classify-87-sap-reports-into-engine-trac's spec
+      (both: classify sap_mapping.sqlite's 87/80 sap_reports rows into
+      engine_track). Found that session had already completed the work and
+      opened PR #624, with every CI check green except the mandatory
+      `audit-check` (Rule 7c/10 -- no structured AUDIT: PASS/FAIL comment
+      existed yet). Rather than redo the classification (would have been
+      wasted duplicate work per this file's own stated purpose),
+      independently re-verified the live `/opt/veridian/ai-os/memory/sap_mapping.sqlite`
+      directly (not trusting the other session's self-report): engine_track
+      column present, 80/80 rows populated, 0 NULLs, 67/9/4
+      calculation/hybrid/workflow breakdown confirmed, row-count-vs-87
+      discrepancy cross-checked against ingest_log (all 11 modules DONE,
+      summing to exactly 80), and the classification itself spot-checked
+      against full calculation_logic text for all 15 non-calculation rows.
+      Posted the mandatory structured audit comment on PR #624 (verdict:
+      pass) since I did not implement that task -- I'm the correct
+      Rule-7c auditor for it. Re-ran the audit-check job; it now passes.
+      No new PR from this task -- only bookkeeping (this entry +
+      PROGRESS.md) on task-20260728-122004's own branch.
+    scope_note: >-
+      Read-only over sap_mapping.sqlite and PR #624's diff; only wrote to
+      this file and this task's own PROGRESS.md. Did not merge PR #624 --
+      merge decision left to the Owner/next session.
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
