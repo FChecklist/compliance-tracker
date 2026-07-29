@@ -18,14 +18,36 @@
       real scope (2 engines) and zero competing implementation -- registered claim in ACTIVE-CLAIMS.yaml
       documenting this.
 - [x] Dispatched research agent to survey existing workflow/state-machine patterns in this repo before writing
-      any code, per spec's "these are state machines, do not force the wrong shape" instruction.
+      any code, per spec's "these are state machines, do not force the wrong shape" instruction. Findings:
+      erp-selling-service.ts's `QUOTATION_TRANSITIONS`/`updateQuotationStatus` (explicit `Record<Status,
+      readonly Status[]>` transition table) is the established convention -- no shared state-machine helper
+      exists in this repo, every status-flow service hand-rolls its own map. `constructionInterimBills` has NO
+      status column (generateInterimBill() goes straight from work-progress % to a posted invoice in one call) --
+      confirmed a new table is genuinely needed, not an extension of an existing one.
+- [x] Built both engines as ONE service, `src/lib/services/construction-billing-workflow-service.ts` (they share
+      the same underlying table/state machine -- SD-002 is the queue view, SD-007 is the per-claim trace view):
+      - New table `constructionProgressClaims` + `constructionClaimStatusEnum` (schema.ts + hand-written
+        migration `drizzle/0269_construction_progress_claims_workflow.sql`, same convention as
+        0268_pms_time_entry_approval_flow.sql -- drizzle-kit generate can't diff against an accurate baseline,
+        confirmed via that migration's own header)
+      - State machine: `milestone_achieved -> drafted -> submitted -> client_approved -> invoiced` (+ `rejected`
+        bounce-back to `drafted`), modeled on `QUOTATION_TRANSITIONS`
+      - `invoiceApprovedClaim` delegates the real bill computation to the existing `generateInterimBill()` --
+        never recomputes it, this service's job stops at the state transition
+      - `listBillingDueQueue` = SD-002's "Ready to Bill" worklist (overdue flag when scheduledDate has passed)
+      - `getClaimTimeline` = SD-007's "Claim Timeline" document-flow trace (claim -> interim bill -> sales
+        invoice -> payment, `isStuck` flag past a documented 14-day threshold)
+- [x] Wired 7 API routes under `src/app/api/construction/progress-claims/` (list/create, draft, submit, approve,
+      reject, invoice, timeline), mirroring `interim-bills/route.ts` and `kpi-entries/[id]/approve/route.ts`'s
+      exact `requireAuth`/`requireRole`/`ServiceError` conventions
+- [x] Registered the new engine file in the real wiring_registry immediately after writing it (`register-entity`
+      CLI, `entity_id: file-0586774ff0fd`) -- `verification_status: PATH_MISSING` is honest, not a defect: the
+      canonical path (`repos/compliance-tracker/...`) won't exist until this branch merges
+- [x] 14 unit tests (`construction-billing-workflow-service.test.ts`, same mock-`withTenantContext` pattern as
+      `pms-time-service.test.ts`) -- all pass, plus the 2 neighboring service test files (38 total, 0 fail)
+- [x] `tsc --noEmit` clean on all new/changed files, `eslint` clean, `check-terminology-guardrail.mjs`/
+      `check-guardrail-presence.mjs`/`check-metadata-index-coverage.mjs`/`check-migration-collision.mjs` all pass
 
 ## Remaining
-- [ ] Build SD-002 workflow engine (Billing Due List -> "Ready to Bill" claim queue: milestone achieved -> claim
-      drafted -> submitted -> client approved -> invoiced, with overdue alerting)
-- [ ] Build SD-007 workflow engine (Sales Order Status Overview -> "Claim Timeline" document-flow trace, stuck-step
-      highlighting)
-- [ ] Register both new engine files in wiring_registry (register-entity CLI) immediately on creation
-- [ ] Wire API route(s) exposing each engine's worklist/timeline
-- [ ] Tests
-- [ ] Open PR
+- [ ] Open PR, note the 8-sibling-branch collision honestly in the description
+- [ ] CI

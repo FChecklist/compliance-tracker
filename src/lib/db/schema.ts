@@ -9930,6 +9930,41 @@ export const constructionInterimBillLineItems = complianceSchemaDB.table('constr
   currentBillAmount: numeric('current_bill_amount').notNull().default('0'), // cumulativeAmount - previousBilledAmount, floored at 0
 })
 
+// Progress-claim billing workflow (SAP-mapping PHASE-2-CROSSREF, SD-002
+// "Billing Due List" + SD-007 "Sales Order Status Overview", both BUILD_NEW,
+// engine_track=workflow -- confirmed absence of a scheduled/queryable
+// billing-due worklist before this: generateInterimBill() above goes
+// straight from work-progress % to a posted invoice in one atomic call, with
+// no draft/submit/client-approval staging in between). A state machine, not
+// a calculation -- constructionInterimBills stays the single source of
+// truth for the actual computed bill amounts once invoiced; this table only
+// tracks the pre-invoice approval stage a claim moves through.
+export const constructionClaimStatusEnum = complianceSchemaDB.enum('construction_claim_status', [
+  'milestone_achieved', 'drafted', 'submitted', 'client_approved', 'invoiced', 'rejected',
+])
+
+export const constructionProgressClaims = complianceSchemaDB.table('construction_progress_claims', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  boqId: text('boq_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  milestoneDescription: text('milestone_description').notNull(),
+  scheduledDate: date('scheduled_date', { mode: 'string' }).notNull(), // billing-plan/milestone date this claim becomes due -- drives the "what can we bill today" worklist
+  retentionPercent: numeric('retention_percent').notNull().default('0'), // carried through to generateInterimBill() at the invoiced transition, same field/semantics as constructionInterimBills.retentionPercent
+  status: constructionClaimStatusEnum('status').notNull().default('milestone_achieved'),
+  draftedAt: timestamp('drafted_at'),
+  submittedAt: timestamp('submitted_at'),
+  approvedAt: timestamp('approved_at'),
+  rejectedAt: timestamp('rejected_at'),
+  rejectionReason: text('rejection_reason'),
+  invoicedAt: timestamp('invoiced_at'),
+  interimBillId: text('interim_bill_id'), // set once invoiced, points at the constructionInterimBills row generateInterimBill() produced
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // One row per project per day. Unique(projectId, diaryDate) enforced in the
 // migration SQL -- this table's Drizzle definition doesn't model composite
 // constraints, matching this codebase's convention of keeping RLS and
