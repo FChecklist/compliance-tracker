@@ -28,6 +28,28 @@ change-history habits elsewhere in this repo) rather than backfilling later.
 
 ---
 
+## 2026-07-28
+
+- **Permits/Drawings/Documents upload + Minutes of Meeting for PROJEXA**
+  (Wave 143) — added `POST /api/v1/documents` (file or `externalUrl`
+  upload, previously read-only via this surface), `GET`/`POST
+  /api/v1/projexa/drawings` (DWG file or 3D-walkthrough link, scoped by
+  `projectId`), and the full Minutes-of-Meeting surface: `GET`/`POST
+  /api/v1/projexa/veri-meetings`, `GET`/`PATCH
+  /api/v1/projexa/veri-meetings/[id]` (minutes update / publish),
+  `GET /api/v1/projexa/veri-meetings/[id]/pdf` (real PDF export), and
+  `POST /api/v1/projexa/veri-meetings/[id]/generate-intelligence` (AI
+  summary/key-decisions/action items).
+- **Permits response field rename, with back-compat alias** —
+  `GET /api/v1/projexa/permits` now returns `endDate` alongside the
+  original `expiryDate` (both carry the same value) instead of replacing
+  it outright. `endDate` is the preferred name going forward; `expiryDate`
+  is kept for existing callers built against the original
+  (`bab0a768`, 2026-07-14) contract and may be removed in a future
+  `2.0.0`. Also gained `POST /api/v1/projexa/permits` (create) and an
+  `all=true` list mode covering every permit for a project, not just
+  those expiring soon.
+
 ## 2026-07-16
 
 - **PROJEXA Reports & Analysis catalog aliases** (`ca46bc31`) — added
