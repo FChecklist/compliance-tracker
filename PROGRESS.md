@@ -17,6 +17,9 @@
 - [x] Posted a fresh, independent structured `AUDIT: PASS` comment on PR #617 (as required auditor per AGENTS.md Rule 7c/10 -- this session did not author the fix commits) covering the 8 required fields.
 - [x] Re-triggered the `audit-check` CI job (`gh run rerun`) so `mandatory-audit-check.yml` picks up the new PASS verdict instead of the stale FAIL.
 
+- [x] Confirmed re-run `audit-check` job passed and `mergeStateStatus` cleared from BLOCKED to UNSTABLE (only the unrelated Vercel free-tier rate-limit deployment check was non-green, which is not a required merge check).
+- [x] Merged PR #617 into `main` via `gh pr merge --merge` (merge commit `c9cea46b`, matching this repo's established merge-commit convention for merged PRs).
+- [x] Cleaned up the temporary verification worktree at `/tmp/pr617-audit`.
+
 ## Remaining
-- [ ] Confirm the re-run `audit-check` job goes green and `mergeStateStatus` clears from BLOCKED.
-- [ ] Merge PR #617 via `gh pr merge` (squash/merge per repo convention) once every required check is green -- per SPEC, do not merge before it passes.
+- [ ] None -- task complete. PR #617 merged with a real, independently-verified fix for the actual audit-FAIL root cause (breaking `expiryDate`->`endDate` rename + missing changelog entry), not a workaround.
