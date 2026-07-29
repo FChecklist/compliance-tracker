@@ -91,6 +91,26 @@ export async function createNotice(ctx: ServiceContext, input: CreateNoticeInput
   return { id: result.notice.id, noticeNumber: result.notice.noticeNumber, status: result.notice.status }
 }
 
+// Stage 11 (END_USER_ENGINE receptionist tier, 2026-07-29): a lightweight
+// status-only read, mirroring Wave 11's getTaskStatus() in task-service.ts --
+// "has our notice been replied to yet, and by when" is answerable from the
+// notices row alone, without getNotice()'s joins (department/assignedTo/
+// complianceItem/documents/audit log/comments). Deliberately narrower than
+// getNotice() for the same reason getTaskStatus() is narrower than getTask().
+export async function getNoticeStatus(ctx: ReadContext, id: string) {
+  const { orgId } = ctx
+  const notice = await withTenantContext({ orgId }, (db) => db.query.notices.findFirst({ where: eq(notices.id, id) }))
+  if (!notice) throw new ServiceError("Notice not found", 404)
+  return {
+    id: notice.id,
+    noticeNumber: notice.noticeNumber,
+    authority: notice.authority,
+    status: notice.status,
+    replyDeadline: notice.replyDeadline ? notice.replyDeadline.toISOString() : null,
+    updatedAt: notice.updatedAt.toISOString(),
+  }
+}
+
 export async function getNotice(ctx: ReadContext, id: string) {
   const { orgId } = ctx
   const result = await withTenantContext({ orgId }, async (db) => {
