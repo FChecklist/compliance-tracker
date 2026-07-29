@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260729-103545-build-extend-workflow-track-engines) -- Build/extend workflow-track engines from PHASE-2-CROSSREF"
+    claimed_at: "2026-07-29T (this session)"
+    claim: |
+      SPEC: build/extend only workflow-track engines marked BUILD_NEW or
+      EXTEND_EXISTING from PHASE-2-CROSSREF's cross-reference of
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite's sap_reports table
+      (queried directly, per that DB's own authoritative status -- no
+      DIRECTIVE.yaml/PHASE-2-CROSSREF doc exists in this git repo itself,
+      this is a filesystem-level cross-task artifact). Of 80 rows, 4 have
+      engine_track='workflow'; of those, 0 are EXTEND_EXISTING, 2 are
+      BUILD_NEW (SD-002 "Billing Due List" -> a real progress-claim
+      draft/submit/client-approve-or-reject/invoice state machine sitting in
+      front of the existing construction-valuation-service.ts calculation
+      engine; SD-007 "Sales Order -- Status Overview" -> a read-only claim/
+      invoice/payment timeline-trace across existing tables, no new
+      persisted state), 2 are REUSE_EXISTING (SD-001, Treasury-002 -- out of
+      this task's scope by its own SPEC). Building real state-machine-shaped
+      services for the 2 BUILD_NEW rows, per this task's own instruction
+      "these are state machines, not calculation functions -- do not force
+      the wrong shape" -- NOT touching computationEngines' calculation-
+      function inputSchema/outputSchema catalog shape (that path, discussed
+      by an earlier now-abandoned attempt at this same task, was reconsidered:
+      a new constructionProgressClaims table + service is the correct shape,
+      no computationEngines catalog change needed for either engine).
+      Collision check: sibling task-20260729-092858 (PHASE-3-BUILD-CALC,
+      branch worker/task-20260729-092858-build-extend-calculation-track-engines,
+      confirmed via its own ACTIVE-CLAIMS commit 5ce7bfc0) is on the
+      calculation-track rows -- no file overlap expected (its scope is
+      src/lib/engines/*-engine.ts; this task's scope below never touches
+      that directory).
+    scope_note: >-
+      File scope: compliance-tracker only -- new
+      src/lib/services/construction-progress-claim-service.ts (SD-002 state
+      machine) + .test.ts, new
+      src/lib/services/construction-document-flow-service.ts (SD-007
+      timeline trace) + .test.ts, src/lib/db/schema.ts (new
+      constructionProgressClaims table + status enum + relations), one new
+      hand-written drizzle/ migration (drizzle-kit generate is broken in
+      this repo -- see 0267's own migration-file comment -- following its
+      established hand-written-migration + RLS-policy convention instead),
+      PROGRESS.md. Not touching computationEngines, calculationInvocations,
+      or any src/lib/engines/*-engine.ts file.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
