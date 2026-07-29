@@ -1863,6 +1863,13 @@
       "when": 1785238800000,
       "tag": "0268_pms_time_entry_approval_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1785242400000,
+      "tag": "0269_ap_payment_proposal_report_definition",
+      "breakpoints": true
     }
   ]
 }
