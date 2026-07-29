@@ -6129,6 +6129,17 @@ export const erpSalesInvoices = complianceSchemaDB.table('erp_sales_invoices', {
   // invoice be attributed to one construction project. clientId alone
   // isn't precise enough (one client can have many projects).
   projectId: text('project_id'),
+  // FI-AR-004 (Dunning List): minimal reminder-tracking mechanism -- NOT a
+  // reminder-automation engine (no letter/email is ever sent by this
+  // codebase). dunningLevel is a plain integer (0=none sent, 1=Friendly
+  // Reminder, 2=Formal Notice, 3=Final Demand -- see erp-invoicing-
+  // service.ts's DUNNING_LEVEL_LABELS), defaulting to 0 for every existing
+  // and new invoice. lastDunningSentAt is null until recordDunningAction()
+  // sets it. Both are additive/nullable-equivalent (dunningLevel defaults
+  // rather than being nullable so `> 0` comparisons never need a null
+  // check) -- no existing row's meaning changes.
+  dunningLevel: integer('dunning_level').notNull().default(0),
+  lastDunningSentAt: timestamp('last_dunning_sent_at'),
 })
 
 // Wave 69 (e-invoicing/IRN, per resilient-tech/india-compliance's
