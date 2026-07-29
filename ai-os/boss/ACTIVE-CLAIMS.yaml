@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260729-112410-build-extend-calculation-track-engines) -- Build/extend calculation-track VCEL engines from SAP-mapping cross-reference"
+    claimed_at: "2026-07-29T11:24 (this session)"
+    claim: |
+      Owner-directed: build/extend only the calculation-track sap_reports rows marked
+      BUILD_NEW/EXTEND_EXISTING from the Phase 2 cross-reference. Real source of truth is
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite's sap_reports table (NOT in this repo --
+      see ai-os/tasks/sap_mapping/SAP_REPORTS_80_CROSS_REFERENCE_STATUS.yaml, itself only on
+      an unmerged branch, for the full lineage). Queried it directly (read-only): 36 rows have
+      engine_track='calculation' AND veridian_mapping_status BUILD_NEW/EXTEND_EXISTING (9
+      BUILD_NEW, 27 EXTEND_EXISTING) across CO/FI-AP/FI-AR/FI-GL/FI-AA/MM/PS/SD/Treasury/HCM/CRM.
+      Full per-row detail in this task's own PROGRESS.md.
+
+      SUPERSEDES an abandoned duplicate claim: a prior session
+      (worker/task-20260729-092858-build-extend-calculation-track-engines, commit 5ce7bfc0,
+      claimed_at 2026-07-29T09:31:54Z) registered the identical claim ~2h before this one and did
+      ZERO real work beyond that single registration commit -- no PR, no further commits on that
+      branch, confirmed via `gh pr list` (zero results) and `git log` on that branch. Per this
+      file's own protocol #1 (stale claim = abandoned once no matching open PR exists), taking over
+      under this task's own id rather than waiting, since real per-row implementation work is about
+      to start now and a >2h-old claim with zero follow-through is not blocking, functional work.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/engines/*.ts + the erp-*-service.ts /
+      construction-*-service.ts files each row's veridian_existing_equivalent cites (see
+      PROGRESS.md for the per-row file list), plus new service files for the 9 BUILD_NEW rows.
+      Registering each new/extended engine in compliance.computation_engines (the real VCEL
+      wiring_registry backing src/lib/engines/*.ts, schema.ts:9488) immediately per engine, not
+      batched. Checked ACTIVE-CLAIMS for collisions: no other active entry touches src/lib/engines/
+      or the erp-*-service.ts files.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
