@@ -37,5 +37,7 @@
 - [x] Resolved the "87 vs 80" discrepancy via `ingest_log`: 11 modules summing to exactly 80, all `sap_modules.study_status='DONE'`, zero parse/validation errors -- 87 was the task-dispatch-time estimate, written before the same-day ingestion pipeline (09:01-10:16) finished landing all module chunks. 80 is the real final count.
 - [x] Wrote `ai-os/tasks/sap_mapping/PHASE_1_CLASSIFY.yaml` as the audit trail (this classification's source of truth remains the live sqlite file; this repo can't hold it since it's a shared server-side DB, not a git artifact).
 - [x] Updated `ai-os/OS.yaml`'s `ai-os/tasks/sap_mapping` index entry to reference the new file.
+- [x] Pushed branch, opened PR #628: https://github.com/FChecklist/compliance-tracker/pull/628
+
 ## Remaining
-- [ ] None -- task deliverable (every sap_reports row classified into engine_track, real content, no guessing) was already satisfied in the live DB; this invocation's job was verification + closing the governance-logging gap. Commit and push PROGRESS.md + the two ai-os files, open PR per Rule 6.
+- [ ] Waiting on CI for PR #628, then merge (no reviewer bottleneck per AGENTS.md Rule 6).
