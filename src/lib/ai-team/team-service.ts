@@ -30,6 +30,7 @@ import { checkCostPolicy, checkOpenRouterBalance } from "./cost-policy"
 import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
 import { resolveEffectiveModel } from "./roster-overrides"
+import { recordDispatchOutcome } from "./dispatch-memory-service"
 import type { LLMProvider } from "@/lib/llm-client"
 
 // Local shape of mother-router.ts's ResolvedTenantAiConfig (avoids a
@@ -161,6 +162,22 @@ export async function runRole(
     provider: tenantConfig?.provider ?? "openrouter",
     model: effectiveModel,
     usage: result.usage,
+  })
+
+  // VERIDIAN_CONSOLIDATED_COMPLETION Stage 12 (AI Dev Team persistent-
+  // memory gap): this line only runs after the LLM call above has already
+  // returned successfully, so 'completed' is the honest status for what
+  // this call site actually observed -- unlike dispatch-repo.ts, which
+  // fires a repository_dispatch event and returns before the real work
+  // happens, this function's caller already has the finished result in
+  // hand. Fire-and-forget, same posture as logTokenUsage immediately
+  // above -- recordDispatchOutcome never throws.
+  void recordDispatchOutcome({
+    roleKey,
+    objective: input,
+    status: "completed",
+    model: effectiveModel,
+    dispatchSurface: "team_service_run_role",
   })
 
   // `role` returned with its own `.model` set to the model actually called

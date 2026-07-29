@@ -14,6 +14,7 @@ import { getRole, isAuditOrganizationRole } from "./roster"
 import { resolveEffectiveModel } from "./roster-overrides"
 import { validateTightTask, type TightTask } from "../task-tightening"
 import { checkTierEligibility } from "../model-tier-eligibility"
+import { checkPriorDispatch, recordDispatchOutcome } from "./dispatch-memory-service"
 
 const REPO = "FChecklist/compliance-tracker"
 
@@ -43,6 +44,24 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
   const validation = validateTightTask(task)
   if (!validation.valid) {
     throw new Error(`Task is not tight enough to dispatch: ${validation.reason} ${validation.guidance}`)
+  }
+
+  // VERIDIAN_CONSOLIDATED_COMPLETION Stage 12 (AI Dev Team persistent-
+  // memory gap): advisory only, deliberately non-blocking -- a genuine
+  // retry/follow-up dispatch to the same role with a similar objective is
+  // a normal, legitimate thing to do (e.g. a prior attempt failed, or this
+  // is deliberate follow-on work), so a prior match logs a warning for
+  // human/reviewer visibility rather than throwing. Hard-blocking a
+  // dispatch surface with no live callers yet on a similarity heuristic
+  // would be a real behavior change with no request behind it; making the
+  // check answerable at all is this stage's actual scope. See
+  // dispatch-memory-service.ts's checkPriorDispatch() for the exact-hash /
+  // pg_trgm-similarity matching logic.
+  const priorMatch = await checkPriorDispatch(roleKey, task.objective)
+  if (priorMatch) {
+    console.warn(
+      `[ai-team] dispatchRepoTask: role '${roleKey}' has a prior ${priorMatch.matchType} dispatch (id=${priorMatch.id}, ${priorMatch.createdAt.toISOString()}) with a similar objective -- proceeding anyway (advisory only).`
+    )
   }
 
   // Wave 163: same tier-eligibility check as /api/ai/team/dispatch --
@@ -87,4 +106,16 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
     }),
   })
   if (!res.ok) throw new Error(`Failed to dispatch ai-team-task: HTTP ${res.status} ${await res.text()}`)
+
+  // 'dispatched', not 'completed' -- this function only fires the GitHub
+  // repository_dispatch event above and returns; the real outcome
+  // (ai-workforce-agent.mjs's actual PR) happens later, out of this
+  // process, and isn't observed here. Fire-and-forget, never throws.
+  void recordDispatchOutcome({
+    roleKey,
+    objective: task.objective,
+    status: "dispatched",
+    model: effectiveModel,
+    dispatchSurface: "dispatch_repo_task",
+  })
 }

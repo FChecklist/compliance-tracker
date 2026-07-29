@@ -1357,6 +1357,53 @@ export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_override
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// VERIDIAN_CONSOLIDATED_COMPLETION Stage 12: closes the AI Dev Team's
+// confirmed persistent-memory gap (SYSTEM_MEMORY_ARCHITECTURE.yaml's own
+// layer_5 entry) -- before this table, nothing recorded what the AI Dev
+// Team had already been dispatched to do, so there was no way to check
+// "have we dispatched something like this before" prior to a new dispatch.
+// Written by team-service.ts's runRole() (status='completed', the inline
+// synchronous OpenRouter-call path) and dispatch-repo.ts's
+// dispatchRepoTask() (status='dispatched' -- that path only fires a GitHub
+// repository_dispatch event and returns, it does not await
+// ai-workforce-agent.mjs's actual PR outcome, so 'dispatched' is the
+// honest status for what this call site actually observed).
+//
+// Platform-level table (no org_id), same posture as ai_team_role_overrides
+// immediately above and token-usage-service.ts's tokenUsageLedger comment:
+// the AI Dev Team builds VERIDIAN, it doesn't run inside a customer org's
+// tenant context (team-service.ts's own file-header comment), so this was
+// never a fit for withTenantContext's org-scoped model -- there is no
+// tenant dimension to scope it by.
+//
+// Dedup/near-duplicate detection mirrors this session's two proven
+// patterns rather than inventing a third: objectiveHash is an exact sha256
+// match (same "hash detects drift/identity" role as knowledge_engine's
+// content_hash in ai-os/scripts/superboss-register.py), and
+// objectiveSummary carries a pg_trgm similarity() index (same mechanism as
+// fm-asset-dedup-service.ts / mdm-quality-service.ts's Wave 93 duplicate
+// detection -- pg_trgm is already installed via drizzle/0079) for the
+// "similar, not identical" case a bare hash can't catch. See
+// dispatch-memory-service.ts for the actual record/check functions.
+export const dispatchOutcomes = platformSchemaDB.table('dispatch_outcomes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull(),
+  objectiveSummary: text('objective_summary').notNull(),
+  // sha256 of the normalized (trimmed/lowercased/whitespace-collapsed)
+  // objective text -- exact-match dedup key, see hashObjective().
+  objectiveHash: text('objective_hash').notNull(),
+  // 'team_service_run_role' | 'dispatch_repo_task' -- which of the two
+  // real dispatch surfaces produced this row.
+  dispatchSurface: text('dispatch_surface').notNull(),
+  // 'completed' | 'dispatched' | 'failed' -- see the call-site comments in
+  // team-service.ts / dispatch-repo.ts for why each site uses the status
+  // it does.
+  status: text('status').notNull(),
+  model: text('model'),
+  errorMessage: text('error_message'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const orchestraLayers = complianceSchemaDB.table('orchestra_layers', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   layerKey: text('layer_key').notNull(),
