@@ -41,13 +41,20 @@
       (audit-protocol.ts's AuditProtocolFields contract), then re-ran the
       `audit-check` job (`gh run rerun`) so it picks up the new comment.
 
+- [x] Confirmed PR #624's `audit-check` job went green after the rerun (all
+      other checks were already green except the Vercel deploy, which fails
+      on a free-tier rate limit unrelated to this change and is not this
+      task's to fix -- Rule 7's Vercel-deploy step needs explicit Owner
+      confirmation anyway).
+- [x] Opened PR #627 (this branch) for the bookkeeping-only PROGRESS.md +
+      ACTIVE-CLAIMS.yaml update. Left self-certifying it unaudited --
+      per Rule 7c a different session/the Owner must audit PR #627 since I
+      implemented it.
+
 ## Remaining
-- [ ] Confirm PR #624's `audit-check` job goes green after the rerun, then
-      leave the actual merge decision to the Owner/next session (this task
-      does not self-merge another session's PR).
-- [ ] No new PR needed from this task -- the underlying classification work
-      (engine_track column + all 80 rows populated) is already done and
-      verified; this task's only real output is the independent audit.
+- [ ] PR #624 and PR #627 both need Owner/next-session action: merge #624
+      (audit-check now passing), and have a different session post the
+      mandatory audit-check comment on #627 before it can merge.
 
 ## Note on this being a duplicate task
 This task's spec (`prompt.txt`) is a near-exact duplicate of
