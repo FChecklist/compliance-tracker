@@ -164,10 +164,11 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   "llama-3.3-70b-versatile": { promptPer1k: 0.00059, completionPer1k: 0.00079 }, // Groq
   "llama-3.1-8b-instant": { promptPer1k: 0.00005, completionPer1k: 0.00008 }, // Groq
   // Groq (Wave 2026-07-10, new platform-default floor -- orchestra-model-
-  // resolver.ts's PLATFORM_DEFAULT_MODEL) -- verified live via
-  // openrouter.ai/api/v1/models 2026-07-10 as a reference point (Groq is
-  // itself a listed provider there for this model).
-  "openai/gpt-oss-120b": { promptPer1k: 0.000036, completionPer1k: 0.00018 }, // Groq
+  // resolver.ts's PLATFORM_DEFAULT_MODEL) -- corrected 2026-07-18 per
+  // Groq's own published pricing (groq.com/pricing): $0.15 / $0.60 per 1M
+  // prompt/completion tokens. Replaces the 2026-07-10 openrouter.ai/api/v1/
+  // models cross-check figure, which understated real Groq spend ~3.3-4x.
+  "openai/gpt-oss-120b": { promptPer1k: 0.00015, completionPer1k: 0.0006 }, // Groq
   // Cerebras (Wave 2026-07-10): same underlying model as the Groq entry
   // above, but Cerebras's own API returns it under a different id -- no
   // "openai/" prefix (confirmed live via api.cerebras.ai/v1/models) -- so
