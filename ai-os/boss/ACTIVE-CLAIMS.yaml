@@ -451,6 +451,46 @@ active:
       via `git stash` before/after) in unrelated files. Opened PR #618
       (github.com/FChecklist/compliance-tracker/pull/618), not self-merged
       per AGENTS.md Rule 7(c)/Rule 10 -- needs a fresh supervisor audit.
+
+      STATUS UPDATE (2026-07-29, task-20260728-122700-investigate-pr--618-
+      real-audit-fail-reas): PR #618 went through 2 real FAIL cycles after
+      the above, both already fixed on the live PR branch
+      (worker/task-20260728-051737-owner-engine-phase-8-real-gaps) before
+      this task started -- confirmed by reading all 9 issue-comments via
+      `gh api repos/FChecklist/compliance-tracker/issues/618/comments`:
+      (1) drizzle/0269's first RLS pass used SELECT-only policies on
+      app_runtime while granting INSERT/UPDATE -- since app_runtime is
+      NOSUPERUSER NOBYPASSRLS (drizzle/0215), RLS still blocked every
+      insert/update despite the GRANT; fixed with FOR ALL USING(true)/WITH
+      CHECK(true) policies + the missing UPDATE grants (commit faa52ec0).
+      (2) A cross-test mock leak: prompt-export-import-service.test.ts's
+      `mock.module("./prompt-os-service", ...)` stubbed a simplified,
+      semver-incorrect `nextSemanticVersion` that leaked into
+      prompt-os-service.test.ts's own real tests for the same function
+      whenever the full suite ran in one process (bun's mock.module()
+      replaces the module for the rest of the test process, not just the
+      one file) -- fixed by not mocking a pure function already covered by
+      its own suite (same commit). (3) A later real-CI-blocking gap: new
+      migration 0270 (marketplace-listings registration) plus missing
+      asset-registry-coverage.yaml / terminology-guardrail-exemptions.yaml
+      entries for the new tables/routes -- fixed in commit 9a80acf7. Final
+      audit comment (2026-07-29T00:41:31Z) is AUDIT: PASS, reviewed against
+      the real `git diff origin/main...HEAD` (not the truncated pasted
+      diff), all 27 changed files, `npx tsc --noEmit` clean, 41/41 phase_8
+      test files passing. `gh pr checks 618` now shows all checks green
+      including `audit-check`. `gh api .../pulls/618` shows
+      mergeable=true, mergeable_state=behind (PR branch is just behind
+      main, not conflicting -- no fix needed for that on its own). Per
+      this task's own instruction ("if tier2 ... leave it open and
+      documented for Owner review") and the audit comment's own
+      `risk tier: tier2` classification, this session is NOT merging PR
+      #618 despite the PASS -- leaving it open for Owner
+      (raajat.agarwal@gmail.com) to merge. Both 0269 and 0270 remain
+      hand-authored, NOT applied to the live DB (deliberately, same
+      convention as prior migrations) -- whoever merges must apply both
+      live. No further code changes made by this task; this was a
+      read/verify/document pass since the real fixes were already pushed
+      and passed audit before this task's first invocation completed.
   - session_label: "claude-code (task-20260727-094516-architecture-phase-5-increment-2--webllm) -- VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers increment 2 of N: real WebLLM/Transformers.js model wiring + tool-calling + worker-pool deepening"
     claimed_at: "2026-07-27T (this session, registered slightly after real work began -- noted honestly per this file's own Rule 4 spirit)"
     claim: |

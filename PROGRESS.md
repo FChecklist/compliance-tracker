@@ -276,3 +276,70 @@ create-then-drop-then-recreate RLS-policy narrative as a secondary issue.
 ## Remaining
 - [ ] Open a PR on this task's branch (real code fix was required --
       outcome (1) from the task spec, not the verification-only outcome).
+
+# PROGRESS -- task-20260728-122700-investigate-pr--618-real-audit-fail-reas
+
+Investigate PR #618's audit-fail history, fix the real cause, re-adopt,
+and re-sweep for a fresh audit; do not merge if tier2 or still FAIL --
+leave documented for Owner review.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- found this PR's own claim
+      entry (task-20260728-051737-owner-engine-phase-8-real-gaps).
+- [x] Read prompt.txt from the task directory (not cwd -- it lives one
+      level up at `ai-os/tasks/task-20260728-122700-.../prompt.txt`).
+- [x] Read all 9 issue-comments on PR #618 via
+      `gh api repos/FChecklist/compliance-tracker/issues/618/comments`.
+      Found the audit history already went FAIL -> FAIL -> PASS -> FAIL ->
+      **PASS (2026-07-29T00:41:31Z, most recent)**, and that both real
+      root causes behind the FAILs were already fixed and pushed directly
+      to the PR's actual head branch
+      (`worker/task-20260728-051737-owner-engine-phase-8-real-gaps`,
+      commits `faa52ec0` and `9a80acf7`) before this task's first
+      invocation completed:
+      1. `drizzle/0269`'s RLS policies were SELECT-only while GRANTing
+         INSERT/UPDATE to `app_runtime` -- since `app_runtime` is
+         NOSUPERUSER NOBYPASSRLS (drizzle/0215), RLS still blocked every
+         write. Fixed with `FOR ALL USING(true)/WITH CHECK(true)` policies
+         + missing UPDATE grants.
+      2. A cross-test `mock.module()` leak in
+         `prompt-export-import-service.test.ts` stubbed a simplified,
+         semver-incorrect `nextSemanticVersion` that clobbered
+         `prompt-os-service.test.ts`'s own real tests for that function
+         whenever the full suite ran in one process. Fixed by not mocking
+         a pure function already covered by its own suite.
+      3. A later CI-blocking gap: new migration `0270` (marketplace-
+         listings registration) plus missing `asset-registry-coverage.yaml`
+         / `terminology-guardrail-exemptions.yaml` entries for the new
+         tables/routes.
+- [x] Verified current real state directly (not trusting the task
+      prompt's now-stale "mergeable=unknown" / "last comment FAIL"):
+      `gh api repos/.../pulls/618` -- `mergeable: true`,
+      `mergeable_state: "behind"` (branch is behind main, not
+      conflicting -- no action needed on that by itself).
+      `gh pr checks 618` -- every check green, including `audit-check`.
+      Latest audit comment (2026-07-29T00:41:31Z) is `AUDIT: PASS`,
+      reviewed against the real `git diff origin/main...HEAD` (41/41
+      phase_8 tests, `tsc --noEmit` clean).
+- [x] Found this task's own local scratch branch (`pr618-work`, tracks
+      the PR's head branch as upstream but had fallen behind it by the 2
+      fix commits above) had 2 uncommitted local files
+      (`drizzle/0269_*.sql`, `prompt-export-import-service.test.ts`) whose
+      working-tree content was byte-identical to what's already on the
+      real PR branch (`git diff origin/<pr-branch> -- <files>` = empty) --
+      confirmed these were redundant leftover local edits, not unique
+      work, and discarded them (`git checkout --`) rather than committing
+      a duplicate of already-shipped content.
+- [x] Per this task's own instruction ("if tier2 ... leave it open and
+      documented for Owner review") and the audit's own
+      `risk tier: tier2` classification: did **not** merge PR #618 despite
+      the PASS. Documented full investigation + current state as a STATUS
+      UPDATE appended to this PR's existing entry in
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (kept under `active:`, not moved to
+      `recently_completed:`, since it's still unmerged).
+
+## Remaining
+- [ ] Owner (raajat.agarwal@gmail.com) to review and merge PR #618 --
+      tier2 gate means this session does not self-merge even on a PASS.
+      Whoever merges must apply `drizzle/0269` and `drizzle/0270` live
+      (both hand-authored, deliberately not applied by any prior session).
