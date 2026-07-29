@@ -47,7 +47,7 @@ active:
       worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co,
       claim entry immediately below, from the original authoring session).
       Audit-confirmed gap: migration
-      drizzle/0268_sales_pipeline_dashboard_targets.sql creates the
+      drizzle/0269_sales_pipeline_dashboard_targets.sql creates the
       org-scoped table compliance.crm_sales_targets with zero Row Level
       Security -- no ENABLE ROW LEVEL SECURITY, no
       app_runtime_tenant_isolation policy, no service_role_bypass policy,
@@ -72,7 +72,7 @@ active:
       not introduced by this fix.
     scope_note: |
       File scope: compliance-tracker only --
-      drizzle/0268_sales_pipeline_dashboard_targets.sql,
+      drizzle/0269_sales_pipeline_dashboard_targets.sql,
       src/lib/services/sales-pipeline-rls.test.ts (new),
       src/lib/services/tenant-isolation.test.ts (2 new tests appended),
       on branch worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co
@@ -131,6 +131,19 @@ active:
       Priority-15 entries further down are closed (see
       recently_completed) and built leads/opportunities/quotations CRUD,
       not a dashboard.
+
+      Update 2026-07-29 (task-20260729-104734, fresh-conflict re-sweep):
+      textual git conflict against main was already resolved by an earlier
+      pass, but a real semantic collision survived it -- main independently
+      landed drizzle/0268_pms_time_entry_approval_flow.sql (PR #613) while
+      this branch's own migration also used prefix 0268
+      (0268_sales_pipeline_dashboard_targets.sql), and this branch's file
+      was never registered in drizzle/meta/_journal.json in the first
+      place. Neither problem is caught by current CI --
+      scripts/check-migration-collision.mjs exists but is not wired into
+      any .github/workflows/*.yml job. Renamed to
+      0269_sales_pipeline_dashboard_targets.sql, added its journal entry,
+      updated the two test files that reference the old filename by name.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
