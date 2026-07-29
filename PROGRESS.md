@@ -20,13 +20,35 @@
       on createDocumentRecord/permits/drawings POST has no ownership check -- matches pre-existing codebase
       convention elsewhere, data stays org-scoped.)
 
+- [x] Checked out existing local worktree at
+      /opt/veridian/repos/compliance-tracker-projexa-records-wt (already tracking
+      feat/projexa-permits-drawings-moms), fast-forwarded to origin (ed34f28c)
+- [x] Fix #1: src/app/api/v1/projexa/permits/route.ts's `toPermitDto` now returns both `endDate` (new/preferred)
+      and `expiryDate` (back-compat alias, same value) instead of only `endDate`
+- [x] Fix #2: added a 2026-07-28 docs/API_CHANGELOG.md entry covering this PR's new routes (drawings,
+      veri-meetings CRUD/pdf/generate-intelligence, POST /api/v1/documents) and the permits field-alias addition
+- [x] Verified: `bunx tsc --noEmit` shows zero errors in touched files (3 pre-existing, unrelated missing-module
+      errors in browser-execution/*.ts from a different in-flight task); `bun test
+      src/lib/services/projexa-records-tenant-isolation.test.ts src/lib/pdf/meeting-minutes-pdf.test.ts` -- 7 pass,
+      0 fail
+- [x] Committed (14d9aba9) + pushed to origin/feat/projexa-permits-drawings-moms
+      (note: this host's `gh` CLI binary truncates output to ~120 bytes for unknown reasons -- used `curl` for all
+      GitHub API reads and `/usr/bin/git` -- not the bare `git`/`gh` shell functions, which also intermittently
+      returned stale/truncated output on this host -- for all git operations throughout)
+
+- [x] Re-sweep happened via a separate adopted task (`task-20260728-102237-adopted-re-adopt-pr-617--final-fresh-audit`,
+      supervisor-driven): that task's own audit re-confirmed the same FAIL reason documented above (see its
+      `review.json`), matching this session's fix commit exactly -- no new issues found, no divergence.
+- [x] A follow-up commit `12cd9771` (not by this session) fixed an unrelated CI terminology-guardrail failure
+      (dropped a literal ISO date from a code comment) on the same branch after `14d9aba9`.
+- [x] Independent re-audit posted `AUDIT: PASS` on PR #617 at 2026-07-29T00:19:33Z, explicitly citing commits
+      `14d9aba9` and `12cd9771` as having addressed the prior FAIL's two findings (reviewer confirmed independence
+      per Operating Rule 10 -- did not author either fix commit).
+- [x] PR #617 merged by supervisor (`FChecklist`) at 2026-07-29T00:20:50Z, one minute after the PASS audit --
+      confirmed via `gh api repos/FChecklist/compliance-tracker/pulls/617` (`merged: true`, head sha `12cd9771`).
+      This session did not merge it -- merge was performed by the supervisor/Owner-side process, consistent with
+      "do not merge unsupervised."
+
 ## Remaining
-- [ ] Check out `feat/projexa-permits-drawings-moms` locally, read real current code for permits route + changelog
-- [ ] Fix #1: restore `expiryDate` in the permits GET DTO alongside `endDate` (backward-compatible alias)
-- [ ] Fix #2: add docs/API_CHANGELOG.md entry for the new routes + permits field addition
-- [ ] Run typecheck/tests for touched files
-- [ ] Commit + push fix to the PR branch
-- [ ] Re-adopt / re-sweep for a fresh audit per spec
-- [ ] If PASS: report back, do NOT merge without explicit confirmation this task's spec allows it (spec says "do not
-      merge until it passes" -- re-check exact merge authorization once audit passes)
-- [ ] If tier2 or still FAIL: leave open, document for Owner review, do not merge unsupervised
+None -- task complete. PR #617's real audit-FAIL reason was identified, fixed, independently re-audited as PASS,
+and merged by the supervisor.
