@@ -6129,6 +6129,12 @@ export const erpSalesInvoices = complianceSchemaDB.table('erp_sales_invoices', {
   // invoice be attributed to one construction project. clientId alone
   // isn't precise enough (one client can have many projects).
   projectId: text('project_id'),
+  // SD-002 (Billing Due List, 2026-07-30): nullable/additive, same pointer
+  // convention as salesOrderId/projectId above -- set by
+  // erp-contract-service.ts#generateInvoiceFromBillingSchedule() so an
+  // invoice raised from a contract billing schedule (Wave 71) can be
+  // traced back to the schedule that produced it.
+  billingScheduleId: text('billing_schedule_id'),
 })
 
 // Wave 69 (e-invoicing/IRN, per resilient-tech/india-compliance's
