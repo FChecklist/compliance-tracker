@@ -48,6 +48,8 @@
 - [x] `tsc --noEmit` clean on all new/changed files, `eslint` clean, `check-terminology-guardrail.mjs`/
       `check-guardrail-presence.mjs`/`check-metadata-index-coverage.mjs`/`check-migration-collision.mjs` all pass
 
+- [x] Opened PR #629: https://github.com/FChecklist/compliance-tracker/pull/629
+
 ## Remaining
-- [ ] Open PR, note the 8-sibling-branch collision honestly in the description
-- [ ] CI
+- [ ] CI + merge (per AGENTS.md Rule 6, no self-merge without CI green)
+- [ ] Move this task's ACTIVE-CLAIMS.yaml entry to recently_completed once merged
