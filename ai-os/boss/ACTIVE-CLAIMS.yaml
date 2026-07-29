@@ -40,6 +40,64 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260729-105042-build-extend-workflow-track-engines) -- Build/extend workflow-track engines (PHASE-4-BUILD-WORKFLOW)"
+    claimed_at: "2026-07-29T (this session)"
+    claim: |
+      Per ai-os/DIRECTIVE.yaml's PHASE-4-BUILD-WORKFLOW (depends_on
+      PHASE-2-CROSSREF): build/extend only workflow-track engines marked
+      BUILD_NEW or EXTEND_EXISTING from PHASE-2-CROSSREF's cross-reference of
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite's sap_reports table
+      (queried directly -- no PHASE-2-CROSSREF doc exists in this git repo,
+      this is a filesystem-level cross-task artifact, confirmed via
+      `git log --all -- '*sap_reports*'` finding zero hits in schema.ts).
+      Of 80 rows, 4 have engine_track='workflow': 0 EXTEND_EXISTING, 2
+      REUSE_EXISTING (SD-001 Sales Order List, Treasury-002 Bank Statement
+      Post-Processing -- both already covered by erp-selling-service.ts /
+      erp-bank-reconciliation-service.ts per the DB's own
+      veridian_existing_equivalent column, out of this task's scope), 2
+      BUILD_NEW: SD-002 "Billing Due List" (progress-claim billing-workflow
+      queue: milestone achieved -> claim drafted -> submitted -> client
+      approved/rejected -> invoiced) and SD-007 "Sales Order -- Status
+      Overview" (read-only claim/bill/invoice/payment timeline trace).
+      Building real state-machine-shaped services for these 2, per this
+      task's own instruction "these are state machines, not calculation
+      functions -- do not force the wrong shape": new
+      constructionProgressClaims table + construction-progress-claim-service.ts
+      (the SD-002 state machine, reusing construction-valuation-service.ts's
+      existing generateInterimBill() as the calc engine the workflow's
+      terminal "invoiced" transition calls into -- not duplicating that
+      logic) + new construction-document-flow-service.ts (SD-007, read-only
+      trace across constructionProgressClaims -> constructionInterimBills ->
+      erpSalesInvoices -> payment journal entries, no new persisted state).
+
+      NOTE: two earlier attempts at this exact task_identity
+      (task-20260729-092903, task-20260729-103545) reached the identical
+      BUILD_NEW/REUSE_EXISTING verdict independently but neither landed a
+      PR (`gh pr list` confirms no open PR referencing progress-claim/
+      document-flow; their ACTIVE-CLAIMS commits exist only on
+      never-merged local branches, not on main) -- this is genuinely fresh
+      work, not a duplicate of merged code. Sibling task-20260729-092858
+      (PHASE-3-BUILD-CALC, calculation-track rows) is in the same
+      unmerged-branch state -- no file overlap expected regardless (its
+      scope is src/lib/engines/*-engine.ts; this task never touches that
+      directory). `wiring_registry` = the separate claude-control repo's
+      WIRING_ENGINE_REGISTRY_2026-07-25.json (platform/AI-OS entity wiring,
+      not a per-business-service registry per the prior PHASE-2-CROSSREF
+      session's own finding) -- not touched by this task, matching that
+      precedent.
+    scope_note: >-
+      File scope: compliance-tracker only -- new
+      src/lib/services/construction-progress-claim-service.ts + .test.ts,
+      new src/lib/services/construction-document-flow-service.ts + .test.ts,
+      src/lib/db/schema.ts (new constructionProgressClaims table + status
+      enum + relations only, additive), one new hand-written
+      drizzle/0269_*.sql migration (drizzle-kit generate is broken in this
+      repo per 0267's own migration-file comment -- following its
+      established hand-written-migration + RLS-policy convention instead),
+      new src/app/api/construction/progress-claims/** routes, PROGRESS.md.
+      Not touching computationEngines, calculationInvocations,
+      src/lib/engines/*-engine.ts, report_definitions, or the
+      claude-control repo's wiring registry.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
