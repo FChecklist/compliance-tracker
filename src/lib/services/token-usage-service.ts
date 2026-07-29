@@ -11,6 +11,10 @@ import { sql, gte, and, isNotNull } from "drizzle-orm"
 import { estimateCostUsd, estimateCacheSavingsUsd, type LLMUsage } from "@/lib/llm-client"
 import { buildSpendForecast, startOfMonthUtc, type SpendForecast } from "@/lib/spend-forecast"
 
+// 'fixed_estimated' | 'metered_actual' -- see schema.ts's tokenUsageLedger.costModelType
+// comment and src/lib/billing/ai-usage-billing.ts (Step 3) for what this drives downstream.
+export type CostModelType = "fixed_estimated" | "metered_actual"
+
 export type LogTokenUsageInput = {
   scope: "ai_team_internal" | "product_orchestra"
   orgId?: string | null
@@ -21,6 +25,11 @@ export type LogTokenUsageInput = {
   provider: string
   model: string
   usage: LLMUsage
+  // Optional (not every call site has been updated to classify itself yet):
+  // omitted/null rows are excluded from the AI-usage billing engine's
+  // aggregation rather than guessed at, same "absence means not attempted"
+  // posture as cacheSavingsUsd above.
+  costModelType?: CostModelType | null
 }
 
 /** Fire-and-forget-safe: caller decides whether to await or not. Never throws past a caught/logged failure. */
@@ -41,6 +50,7 @@ export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
       completionTokens: input.usage.completionTokens,
       estimatedCostUsd: estimatedCostUsd !== null ? String(estimatedCostUsd) : null,
       cacheSavingsUsd: cacheSavingsUsd !== null ? String(cacheSavingsUsd) : null,
+      costModelType: input.costModelType ?? null,
     })
   } catch (err) {
     console.error("[token-usage] failed to log usage (non-fatal):", err)
