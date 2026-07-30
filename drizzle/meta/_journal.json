@@ -1954,6 +1954,20 @@
       "when": 1785416573445,
       "tag": "0300_stage12_dispatch_outcomes",
       "breakpoints": true
+    },
+    {
+      "idx": 279,
+      "version": "7",
+      "when": 1785402700001,
+      "tag": "0275_co006_statistical_key_figures",
+      "breakpoints": true
+    },
+    {
+      "idx": 280,
+      "version": "7",
+      "when": 1785402700002,
+      "tag": "0276_co006_statistical_key_figure_report_definition",
+      "breakpoints": true
     }
   ]
 }
