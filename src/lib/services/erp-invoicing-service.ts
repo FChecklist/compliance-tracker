@@ -688,6 +688,140 @@ export async function arAgingReport(ctx: { orgId: string }, asOfDate?: string) {
   })
 }
 
+// ─── FI-AR-004: Dunning List ───────────────────────────────────────────────
+// SAP F150's dunning run groups overdue customer invoices by dunning level
+// (how many reminder cycles have passed) to decide who gets the next
+// payment-reminder letter. This schema had zero dunning-level/reminder
+// concept before this wave (confirmed by reading erpSalesInvoices in
+// schema.ts directly, not assumed) -- genuinely distinct from arAgingReport
+// above, which is a pure snapshot with no workflow state. dunningLevel/
+// lastDunningSentAt (schema.ts) are the new, minimal, additive columns;
+// dunningList() below reuses arAgingReport's own bucket boundaries for
+// consistency but drops the "current" bucket (a dunning run only concerns
+// invoices actually past due) and layers dunning-workflow state on top.
+// recordDunningAction() is the only mutation -- it does NOT send an actual
+// letter/email (no such channel exists in this codebase), matching the
+// same verification-boundary honesty as this file's e-invoicing IRN
+// fields: the mechanism and tracking are real; actual delivery is a human/
+// external-system action this records after the fact.
+
+/** Dunning bucket for a strictly-overdue invoice (daysOverdue must be > 0). Same day boundaries as arAgingReport for consistency. */
+export function dunningBucketForDaysOverdue(daysOverdue: number): "1-30" | "31-60" | "61-90" | "90+" {
+  if (daysOverdue <= 30) return "1-30"
+  if (daysOverdue <= 60) return "31-60"
+  if (daysOverdue <= 90) return "61-90"
+  return "90+"
+}
+
+/** dunningLevel integer -> label, matching schema.ts's column comment. */
+export const DUNNING_LEVEL_LABELS: Record<number, string> = {
+  0: "No reminder sent",
+  1: "Friendly Reminder",
+  2: "Formal Notice",
+  3: "Final Demand",
+}
+
+/**
+ * Suggests the dunning level an overdue invoice's aging bucket implies --
+ * SAP F150's own dunning-level-by-age idea, simplified to 3 levels (this
+ * schema has no per-org configurable dunning procedure like SAP's, so this
+ * is a fixed, honest default, not a configurable rule engine). 90+ maxes
+ * out at level 3 (Final Demand) rather than inventing a 4th tier no one
+ * asked for.
+ */
+export function suggestedDunningLevel(bucket: "1-30" | "31-60" | "61-90" | "90+"): 1 | 2 | 3 {
+  if (bucket === "1-30") return 1
+  if (bucket === "31-60") return 2
+  return 3
+}
+
+/**
+ * Dunning List (FI-AR-004): every overdue (daysOverdue > 0), non-fully-paid
+ * sales invoice, bucketed by days past due (1-30/31-60/61-90/90+, dropping
+ * arAgingReport's "current" bucket since dunning only concerns invoices
+ * actually past due), each row carrying its real dunningLevel/
+ * lastDunningSentAt plus a suggestedDunningLevel derived from its bucket --
+ * `needsAction` flags rows where the suggested level has moved past what
+ * was actually last sent, so a collections user can see at a glance who's
+ * due for the next reminder cycle without recomputing it by hand. This is
+ * the "surface the list" v1 deliverable -- no letter/email is generated or
+ * sent by this function.
+ */
+export async function dunningList(ctx: { orgId: string }, asOfDate?: string) {
+  await requireErpEnabled(ctx.orgId)
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10)
+  const asOfMs = new Date(asOf).getTime()
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpSalesInvoices.findMany({
+      where: and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "overdue"])),
+      with: { customer: true },
+    })
+
+    const buckets = { d1_30: 0, d31_60: 0, d61_90: 0, d90Plus: 0 }
+    const counts = { d1_30: 0, d31_60: 0, d61_90: 0, d90Plus: 0 }
+    const rows = invoices
+      .filter((inv) => Number(inv.outstandingAmount) > 0.01)
+      .map((inv) => {
+        const dueMs = new Date(inv.dueDate ?? inv.postingDate).getTime()
+        return { inv, daysOverdue: Math.floor((asOfMs - dueMs) / 86400000), outstanding: Number(inv.outstandingAmount) }
+      })
+      .filter(({ daysOverdue }) => daysOverdue > 0)
+      .map(({ inv, daysOverdue, outstanding }) => {
+        const bucket = dunningBucketForDaysOverdue(daysOverdue)
+        const suggested = suggestedDunningLevel(bucket)
+        const currentLevel = inv.dunningLevel ?? 0
+        if (bucket === "1-30") { buckets.d1_30 += outstanding; counts.d1_30 += 1 }
+        else if (bucket === "31-60") { buckets.d31_60 += outstanding; counts.d31_60 += 1 }
+        else if (bucket === "61-90") { buckets.d61_90 += outstanding; counts.d61_90 += 1 }
+        else { buckets.d90Plus += outstanding; counts.d90Plus += 1 }
+        return {
+          invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, customerId: inv.customerId,
+          customerName: inv.customer?.customerName ?? null, dueDate: inv.dueDate, postingDate: inv.postingDate,
+          outstandingAmount: inv.outstandingAmount, daysOverdue, bucket,
+          dunningLevel: currentLevel, dunningLevelLabel: DUNNING_LEVEL_LABELS[currentLevel] ?? String(currentLevel),
+          lastDunningSentAt: inv.lastDunningSentAt, suggestedDunningLevel: suggested,
+          needsAction: suggested > currentLevel,
+        }
+      })
+      .sort((a, b) => b.daysOverdue - a.daysOverdue)
+
+    const totalOutstanding = buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.d90Plus
+    return { asOfDate: asOf, buckets, counts, totalOutstanding, invoices: rows }
+  })
+}
+
+/**
+ * Records that a dunning notice (Friendly Reminder / Formal Notice / Final
+ * Demand) was sent for an invoice -- the minimal reminder-tracking write
+ * this report needs to be more than a frozen snapshot. Does NOT send an
+ * actual letter/email itself; see this section's header comment.
+ */
+export async function recordDunningAction(ctx: RecordPaymentActorCtx, invoiceId: string, level: number) {
+  await requireErpEnabled(ctx.orgId)
+  if (!Number.isInteger(level) || level < 0 || level > 3) {
+    throw new ServiceError("level must be an integer 0-3 (0=none, 1=Friendly Reminder, 2=Formal Notice, 3=Final Demand)", 400)
+  }
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const invoice = await db.query.erpSalesInvoices.findFirst({ where: and(eq(erpSalesInvoices.id, invoiceId), eq(erpSalesInvoices.orgId, ctx.orgId)) })
+    if (!invoice) throw new ServiceError("Sales invoice not found", 404)
+    if (!["submitted", "partially_paid", "overdue"].includes(invoice.status)) throw new ServiceError(`Cannot record a dunning action against an invoice in '${invoice.status}' status`, 409)
+    if (Number(invoice.outstandingAmount) <= 0.01) throw new ServiceError("Invoice has no outstanding balance -- nothing to dun", 409)
+
+    const [updated] = await db.update(erpSalesInvoices)
+      .set({ dunningLevel: level, lastDunningSentAt: new Date() })
+      .where(eq(erpSalesInvoices.id, invoiceId)).returning()
+
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.dunning_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ level }) }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.dunning_recorded", entityType: "erp_sales_invoice", entityId: invoiceId, details: JSON.stringify({ level }) }
+    )
+    return updated
+  })
+}
+
 /**
  * FI-AP-005 (SAP F110 "Payment Proposal List" equivalent, sap_mapping.sqlite
  * gap analysis, BUILD_NEW/HIGH): every vendor bill that is due or already
