@@ -1905,6 +1905,13 @@
       "when": 1785402700000,
       "tag": "0274_sd007_sales_order_document_flow_report_definition",
       "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1785402700001,
+      "tag": "0275_customer_payment_behavior_dso_report_definition",
+      "breakpoints": true
     }
   ]
 }
