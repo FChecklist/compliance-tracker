@@ -6,7 +6,8 @@
 // computeInterimBillLines).
 import { describe, expect, test } from "bun:test"
 import {
-  computeInvoiceTaxTotals, dunningBucketForDaysOverdue, suggestedDunningLevel, DUNNING_LEVEL_LABELS,
+  computeInvoiceTaxTotals, computePaymentProposal, dunningBucketForDaysOverdue, suggestedDunningLevel, DUNNING_LEVEL_LABELS,
+  type PaymentProposalBill, type PaymentProposalBankAccount,
   daysToPay, classifyPaymentReliability, computeDsoFormula,
   vendorDaysToPay, classifyVendorPaymentReliability, computeDpoFormula,
   computeRetentionAmount, computeRetentionPosition, type RetentionBearingInvoice,
@@ -46,6 +47,111 @@ describe("computeInvoiceTaxTotals", () => {
     ])
     expect(oldNegativeRetentionLineApproach.subtotal).toBe(3150)
     expect(oldNegativeRetentionLineApproach.subtotal).not.toBe(fullyTaxedNoRetentionLine.subtotal)
+  })
+})
+
+// FI-AP-005 (SAP F110 "Payment Proposal List" equivalent, sap_mapping.sqlite
+// gap analysis, BUILD_NEW/HIGH): computePaymentProposal is the pure due/
+// overdue + vendor-grouping core extracted from paymentProposalList, same
+// DB-free unit-test convention as computeInvoiceTaxTotals above.
+describe("computePaymentProposal", () => {
+  const noBankAccounts = new Map<string, PaymentProposalBankAccount>()
+
+  function bill(overrides: Partial<PaymentProposalBill>): PaymentProposalBill {
+    return {
+      id: "inv1", invoiceNumber: 1, supplierId: "sup1", supplierName: "Acme Steel",
+      postingDate: "2026-07-01", dueDate: "2026-07-01", outstandingAmount: "1000", status: "submitted",
+      ...overrides,
+    }
+  }
+
+  test("an overdue bill is included, flagged isOverdue, with a positive daysOverdue", () => {
+    const result = computePaymentProposal(
+      [bill({ dueDate: "2026-07-01" })], "2026-07-15", noBankAccounts
+    )
+    expect(result.lineCount).toBe(1)
+    expect(result.suppliers[0].lines[0].isOverdue).toBe(true)
+    expect(result.suppliers[0].lines[0].daysOverdue).toBe(14)
+  })
+
+  test("a bill due exactly on asOfDate is included but not overdue", () => {
+    const result = computePaymentProposal(
+      [bill({ dueDate: "2026-07-15" })], "2026-07-15", noBankAccounts
+    )
+    expect(result.lineCount).toBe(1)
+    expect(result.suppliers[0].lines[0].isOverdue).toBe(false)
+    expect(result.suppliers[0].lines[0].daysOverdue).toBe(0)
+  })
+
+  test("a bill due in the future is excluded -- a payment proposal is not a full future-dated AP register", () => {
+    const result = computePaymentProposal(
+      [bill({ dueDate: "2026-08-01" })], "2026-07-15", noBankAccounts
+    )
+    expect(result.lineCount).toBe(0)
+    expect(result.suppliers.length).toBe(0)
+  })
+
+  test("a bill with zero outstanding balance (already fully paid) is excluded", () => {
+    const result = computePaymentProposal(
+      [bill({ dueDate: "2026-07-01", outstandingAmount: "0" })], "2026-07-15", noBankAccounts
+    )
+    expect(result.lineCount).toBe(0)
+  })
+
+  test("minAmount filters out smaller bills but keeps larger ones", () => {
+    const result = computePaymentProposal(
+      [bill({ id: "small", outstandingAmount: "500" }), bill({ id: "large", outstandingAmount: "5000" })],
+      "2026-07-15",
+      noBankAccounts,
+      1000
+    )
+    expect(result.lineCount).toBe(1)
+    expect(result.suppliers[0].lines[0].invoiceId).toBe("large")
+  })
+
+  test("multiple bills for the same vendor are grouped with a correct total, and vendors sort by total descending", () => {
+    const result = computePaymentProposal(
+      [
+        bill({ id: "a", supplierId: "sup1", supplierName: "Acme Steel", outstandingAmount: "1000" }),
+        bill({ id: "b", supplierId: "sup1", supplierName: "Acme Steel", outstandingAmount: "2000" }),
+        bill({ id: "c", supplierId: "sup2", supplierName: "Bright Electricals", outstandingAmount: "500" }),
+      ],
+      "2026-07-15",
+      noBankAccounts
+    )
+    expect(result.supplierCount).toBe(2)
+    expect(result.lineCount).toBe(3)
+    expect(result.totalProposedAmount).toBe(3500)
+    expect(result.suppliers[0].supplierId).toBe("sup1")
+    expect(result.suppliers[0].totalAmount).toBe(3000)
+    expect(result.suppliers[0].lines.length).toBe(2)
+    expect(result.suppliers[1].supplierId).toBe("sup2")
+    expect(result.suppliers[1].totalAmount).toBe(500)
+  })
+
+  test("no data yet -- an empty bill list returns an empty, not an error", () => {
+    const result = computePaymentProposal([], "2026-07-15", noBankAccounts)
+    expect(result.lineCount).toBe(0)
+    expect(result.supplierCount).toBe(0)
+    expect(result.totalProposedAmount).toBe(0)
+    expect(result.suppliers).toEqual([])
+  })
+
+  test("a null dueDate falls back to postingDate, matching arAgingReport's identical convention", () => {
+    const result = computePaymentProposal(
+      [bill({ dueDate: null, postingDate: "2026-07-01" })], "2026-07-15", noBankAccounts
+    )
+    expect(result.lineCount).toBe(1)
+    expect(result.suppliers[0].lines[0].dueDate).toBe("2026-07-01")
+    expect(result.suppliers[0].lines[0].daysOverdue).toBe(14)
+  })
+
+  test("bank account is attached from the precomputed map, masked -- never the raw account number", () => {
+    const bankAccounts = new Map<string, PaymentProposalBankAccount>([
+      ["sup1", { bankName: "HDFC Bank", accountNumberMasked: "••••4321", ifscCode: "HDFC0001234" }],
+    ])
+    const result = computePaymentProposal([bill({})], "2026-07-15", bankAccounts)
+    expect(result.suppliers[0].lines[0].bankAccount).toEqual({ bankName: "HDFC Bank", accountNumberMasked: "••••4321", ifscCode: "HDFC0001234" })
   })
 })
 
