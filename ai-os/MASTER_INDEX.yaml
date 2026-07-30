@@ -5,8 +5,8 @@ protocol: READ_THIS_FILE_FIRST. Before any grep/find/read across this server or 
   exists, use it or extend it -- do not create a parallel mechanism. If check-duplicate (system_index)
   and this file both show no match, proceed, then register the new thing in system_index (index-add) AND
   in this file's relevant list.
-built_ts: '2026-07-30T03:57:58.416644+00:00'
-built_by: regenerate_master_index.py (automated, wholesale regeneration each run)
+built_ts: '2026-07-30T04:09:37.539919+00:00'
+built_by: superboss_interactive_session
 audit_passes_complete: 3
 audit_passes_required: 3
 canonical_path_live: /opt/veridian/ai-os/MASTER_INDEX.yaml
@@ -47,37 +47,30 @@ search_layers_relationship:
   purpose: 'Added 2026-07-30 (master-index-central-entrypoint-confirmation-phase6) directly answering
     the Owner''s question ''is MASTER_INDEX.yaml THE central place to read all documentation.'' Short
     answer: yes for browsable human-readable narrative/scope, but it is one of 4 complementary layers
-    of ONE system, not the only mechanism -- a reader who only sees the top of this file should know that
-    before assuming the other 3 are redundant or competing. Full sync-direction contract already existed
-    at registries.metadata_engine_reconciliation before this note was added; this block is a header-level
-    pointer to it, not a duplicate of its content.'
+    of ONE system (this file, knowledge_engine, wiring_registry, system_index), not the only mechanism.'
   master_index_yaml: 'THIS file. The BROWSABLE index -- read it first (see protocol field above) for narrative
     scope/status per registry/system. Hand-maintained: registries[] entries are appended per-task, not
     auto-generated from source; only the initiative-status field and the unregistered_mentions_backlog
-    get script-corrected on each regenerate_master_index.py run (see regeneration_mechanism below).'
-  knowledge_engine: 'ai-os/memory/superboss-register.sqlite''s knowledge_engine table (registries.self_sustaining_system_engine)
-    -- the SEARCHABLE, machine-authoritative layer for drift-detection (source:SERVER/VERCEL/SUPABASE/GITHUB/LOCAL
-    tagged rows, each with its own last_verified_ts). Query: `superboss-register.py query-knowledge <term>`.
+    get script-corrected on each regenerate_master_index.py run.'
+  knowledge_engine: 'ai-os/memory/superboss-register.sqlite''s knowledge_engine table -- the SEARCHABLE,
+    machine-authoritative layer for drift-detection. Query: `superboss-register.py query-knowledge <term>`.
     Complementary, not competing, with this file: this file stays authoritative for human citation/scope
     narrative; knowledge_engine stays authoritative for machine drift-detection -- see registries.metadata_engine_reconciliation
-    for the full, already-enforced sync-direction contract between the two.'
-  wiring_registry: ai-os/memory/superboss-register.sqlite's wiring_registry table (registries.wiring_engine)
-    -- the CODE-LEVEL ENTITY-RELATIONSHIP GRAPH (engine/gateway/table/function/route/file/script/cron_job/ai_role;
-    7791 rows at last regeneration run), mechanically generated from 8 live sources (never hand-authored).
-    Answers 'what calls / is-called-by what,' a question neither this file nor knowledge_engine's own
-    rows answer.
+    for the full sync-direction contract.'
+  wiring_registry: ai-os/memory/superboss-register.sqlite's wiring_registry table -- the CODE-LEVEL ENTITY-RELATIONSHIP
+    GRAPH (engine/gateway/table/function/route/file/script/cron_job/ai_role), mechanically generated from
+    8 live sources (never hand-authored). Answers 'what calls / is-called-by what,' a question neither
+    this file nor knowledge_engine's own rows answer.
   system_index: ai-os/memory/superboss-register.sqlite's system_index table -- the fast EXISTENCE-CHECK
     layer ('does X already exist before I build it'), queried via `superboss-register.py check-duplicate`/`search`.
     This is the check-before-build gate this file's own top-level protocol field instructs every reader
     to use before writing any new script/table/register.
-  protocol_owner_ai_yaml: 'ai-os/OWNER_DIRECTIVES/PROTOCOL_OWNER_AI.yaml (registries.owner_ai_protocol)
-    -- a different axis entirely: it governs HOW work gets done (execution location, communication cadence,
-    quality bars, self-correction rules), not WHERE documentation about a given system lives. Complementary
-    to this file, not competing with it.'
+  protocol_owner_ai_yaml: 'ai-os/OWNER_DIRECTIVES/PROTOCOL_OWNER_AI.yaml -- a different axis entirely:
+    it governs HOW work gets done (execution location, communication cadence, quality bars, self-correction
+    rules), not WHERE documentation about a given system lives. Complementary, not competing.'
   agents_md_note: Per-repo AGENTS.md files (compliance-tracker/projexa/veda-advisors) are AI-agent AUTHORIZATION
     rosters (who may act on that specific repo, with what authority) -- confirmed by direct read 2026-07-30,
-    NOT a documentation index of any kind. Not a competing mechanism; a different purpose that happens
-    to share the 'read this first' instinct.
+    NOT a documentation index of any kind. Different purpose, not competing.
   readme_server_md_note: /opt/veridian/README-SERVER.md is a real, complementary infrastructure-ops reference
     (access, specs, security config, recovery runbook) for operating the physical/virtual machine itself
     -- not a 'where do I find docs about system/feature X' index. Different scope, not competing.
@@ -85,6 +78,15 @@ search_layers_relationship:
     check-duplicate before building anything new, (3) knowledge_engine query-knowledge for machine-verified
     freshness of a specific artifact, (4) wiring_registry for a specific call-graph question. 4 complementary
     layers of ONE system -- not 4 competing places to look.
+  known_open_gap_this_note_does_not_fix: 'This live server file (canonical_path_live) and this git-tracked
+    repo copy (canonical_path_repo) have real, substantial, pre-existing content drift -- confirmed 2026-07-30:
+    the live copy has 97 registries[] entries pre-dating this pass, the repo copy (origin/main) has only
+    50, and neither is a strict subset of the other (each has real entries the other lacks, e.g. repo-only:
+    snip_token_reduction_hook, prompt_registry_version_lifecycle_extension; each also lacks some of the
+    other''s structural fields, e.g. this repo copy has no unverified_findings_open_2026_07_22 key at
+    all). This was already flagged, not caused, by this pass (see the terminology_standardization entry''s
+    own note_on_repo_vs_live_drift) -- full reconciliation is explicitly out of this pass''s scope, same
+    judgment call already made for registries.metadata_engine_reconciliation (''full merge too disruptive'').'
 system_boundary:
   name: VERIDIAN AI OS
   subsystems:
@@ -162,393 +164,47 @@ system_boundary:
 self_use_task_checklist:
   purpose: 'The one prompt this session (or superboss) reads before and after every task, regardless of
     size. Generated by ai-os/scripts/generate_task_checklist.py -- re-run after any registries: edit that
-    changes one of the paths cited in the evidence fields below, do not hand-edit this block.'
-  structure_note: 'Restructured 2026-07-23 (per the "EXECUTION_RULES_AUDIT_2026-07-23" analysis''s roadmap_next_phases.pre_execution_checklist_automation
-    -- that analysis was never persisted as a real file on disk, corrected 2026-07-24 task-20260724-033446)
-    to mirror VERIDIAN_EXECUTION_RULES_2026-07-23.md Part 39''s A-J, 77-item structure one-for-one. Every
-    item carries a status: REAL (a real mechanism backs it today, cited in evidence), NOT_YET_AVAILABLE
-    (a real, honestly-documented gap), or NOT_MECHANICALLY_TESTABLE (an inherent judgment/discipline item,
-    same honest category ai-os/scripts/veridian_self_check.py already uses for its own rule_5). Nothing
-    is silently dropped.'
-  sections:
-  - letter: A
-    title: Recover Context
-    items:
-    - n: 1
-      text: Load the complete task context.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py prints the last N instructions/work_items/actions from
-        ai-os/memory/superboss-register.sqlite
-    - n: 2
-      text: Load the Owner, Organization, and End User memory.
-      status: NOT_YET_AVAILABLE
-      evidence: no such memory store exists yet -- Parts 33-35 of the (never-persisted-to-disk) "EXECUTION_RULES_AUDIT_2026-07-23"
-        analysis named this MISSING, explicitly out of scope for that phase (roadmap deferred it to a
-        future task; corrected 2026-07-24, task-20260724-033446, to stop citing a file that was never
-        actually written)
-    - n: 3
-      text: Load previous conversations.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py prints instructions.raw_text rows (closest real analog
-        to 'conversations' in this system)
-    - n: 4
-      text: Load previous commitments.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py queries rca_open WHERE rca_status='OPEN_NEEDS_RCA'
-        from ai-os/memory/superboss-register.sqlite
-    - n: 5
-      text: Load unfinished tasks.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py queries work_items + unregistered_mentions WHERE status='NEEDS_REGISTRATION'
-    - n: 6
-      text: Load pending approvals.
-      status: NOT_YET_AVAILABLE
-      evidence: no dedicated pending-approvals store exists distinct from work_items.status / gap_queue.yaml
-        status
-    - n: 7
-      text: Load previous decisions.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py prints work_items/actions history rows (each carries
-        a status/result already decided)
-    - n: 8
-      text: Load previous execution plans.
-      status: NOT_YET_AVAILABLE
-      evidence: no persisted execution-plan artifact store exists; AI planning-mode output is not written
-        back to the register DB
-  - letter: B
-    title: Search System Knowledge
-    items:
-    - n: 9
-      text: Search metadata.
-      status: REAL
-      evidence: superboss-register.py search / check-duplicate against /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
-    - n: 10
-      text: Search YAML files.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py loads MASTER_INDEX.yaml/SYSTEM_MAP.yaml/STANDING_DIRECTIVE.yaml/MASTER_ARCHITECTURE_2026-07-22.yaml
-    - n: 11
-      text: Search entity relationships.
-      status: REAL
-      evidence: system_index.calls / called_by columns (superboss-register.py search)
-    - n: 12
-      text: Search dependency relationships.
-      status: REAL
-      evidence: system_index.calls / called_by columns (same mechanism as item 11)
-    - n: 13
-      text: Search business rules.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py prints STANDING_DIRECTIVE.yaml assistant_working_protocol
-        rule_* keys; ai-os/RULES_ARTICLES_198.json
-    - n: 14
-      text: Search workflows.
-      status: REAL
-      evidence: ai-os/queues/*.yaml structured task records (grep / check-duplicate)
-    - n: 15
-      text: Search documentation.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py prints MASTER_ARCHITECTURE_2026-07-22.yaml open_questions_for_owner
-    - n: 16
-      text: Search scripts.
-      status: REAL
-      evidence: system_index (category/path fields) via check-duplicate -- see /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
-    - n: 17
-      text: Search automation.
-      status: REAL
-      evidence: system_index rows with category in (dispatch_entrypoint, monitor, audit) + crontab -l
-    - n: 18
-      text: Search Software modules.
-      status: REAL
-      evidence: 'MASTER_INDEX.yaml registries: section + system_index'
-    - n: 19
-      text: Search APIs.
-      status: NOT_YET_AVAILABLE
-      evidence: no ai-os-layer API registry exists; app-layer API routes are compliance-tracker/projexa
-        product code, out of this task's scope
-    - n: 20
-      text: Search configuration files.
-      status: REAL
-      evidence: STANDING_DIRECTIVE.yaml / AI_ENGINEERING_POLICY.yaml loaded and printed
-    - n: 21
-      text: Search cache.
-      status: REAL
-      evidence: work_items.cache_id / ai_cache_id reference the existing glm-response-cache.sqlite L1
-        cache (superboss-register.py search)
-    - n: 22
-      text: Search logs.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py reads ATTENTION.md-adjacent state + runs file_inventory.py
-        for a real diff
-    - n: 23
-      text: Search audit records.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py queries task_audits (new this phase -- see ai-os/scripts/postflight_audit_gate.py)
-    - n: 24
-      text: Search history.
-      status: REAL
-      evidence: ai-os/scripts/session_bootstrap.py queries directive_compliance_runs + work_items/actions
-        history
-  - letter: C
-    title: Reuse Before Create
-    items:
-    - n: 25
-      text: Check if Software already exists.
-      status: REAL
-      evidence: superboss-register.py check-duplicate <term>
-    - n: 26
-      text: Check if a script already exists.
-      status: REAL
-      evidence: superboss-register.py check-duplicate --category <script category>
-    - n: 27
-      text: Check if automation already exists.
-      status: REAL
-      evidence: check-duplicate + /opt/veridian/scripts/system-sync.py's own do_not_build_a_new_sync_script
-        precedent
-    - n: 28
-      text: Check if workflow already exists.
-      status: REAL
-      evidence: check-duplicate + grep across ai-os/queues/*.yaml
-    - n: 29
-      text: Check if business logic already exists.
-      status: NOT_YET_AVAILABLE
-      evidence: system_index has no distinct 'business_logic' category yet -- only a same-category or
-        keyword proxy check is possible today
-    - n: 30
-      text: Check if API already exists.
-      status: NOT_YET_AVAILABLE
-      evidence: same gap as item 19 -- no ai-os-layer API registry
-    - n: 31
-      text: Check if the solution already exists.
-      status: REAL
-      evidence: check-duplicate (general free-text form)
-    - n: 32
-      text: Reuse existing assets whenever possible.
-      status: REAL
-      evidence: check-duplicate's own verdict field ('STOP -- existing mechanism(s) found, review before
-        building') is the real, machine-produced trigger for this
-  - letter: D
-    title: Understand the Task
-    items:
-    - n: 33
-      text: Understand the business objective.
-      status: REAL
-      evidence: every ai-os task's prompt.txt has a structured OBJECTIVE field (see this task's own prompt.txt)
-    - n: 34
-      text: Understand the expected outcome.
-      status: REAL
-      evidence: prompt.txt's SUCCESS_CRITERIA + EXPECTED_OUTPUT fields
-    - n: 35
-      text: Identify required inputs.
-      status: REAL
-      evidence: prompt.txt's KNOWN_CONTEXT field
-    - n: 36
-      text: Identify required outputs.
-      status: REAL
-      evidence: prompt.txt's EXPECTED_OUTPUT field
-    - n: 37
-      text: Identify dependencies.
-      status: REAL
-      evidence: prompt.txt's KNOWN_CONTEXT field (e.g. this phase's own prior-phase commit references)
-    - n: 38
-      text: Identify risks.
-      status: NOT_YET_AVAILABLE
-      evidence: the task prompt schema has no dedicated RISKS field
-    - n: 39
-      text: Identify constraints.
-      status: REAL
-      evidence: prompt.txt's CONSTRAINTS field
-    - n: 40
-      text: Identify edge cases.
-      status: NOT_YET_AVAILABLE
-      evidence: the task prompt schema has no dedicated EDGE_CASES field
-  - letter: E
-    title: Break Down the Task
-    items:
-    - n: 41
-      text: Break the task into small steps.
-      status: NOT_YET_AVAILABLE
-      evidence: no general mid-task step-decomposition mechanism -- master-decompose.py exists but is
-        scoped to the Owner-directive-to-task dispatch pipeline only (Part 38a), not a reusable per-task
-        tool
-    - n: 42
-      text: 'Classify each step as: Software / Script / Automation / Workflow / AI / Human Approval.'
-      status: NOT_YET_AVAILABLE
-      evidence: no coded per-step taxonomy exists; PROGRESS.md is free text, not a schema
-    - n: 43
-      text: Minimise AI work.
-      status: REAL
-      evidence: registries.credit_spend_governance gates every AI-costing action ('software first, AI
-        second' rule enforced before spend)
-    - n: 44
-      text: Maximise Software execution.
-      status: REAL
-      evidence: same mechanism as item 43 (registries.credit_spend_governance)
-  - letter: F
-    title: Create Execution Plan
-    items:
-    - n: 45
-      text: Prepare the execution plan.
-      status: REAL
-      evidence: 'PROGRESS.md (## Completed / ## Remaining) is this session''s real, git-committed execution-plan
-        record, per phase0/phase1 precedent'
-    - n: 46
-      text: Validate the execution plan.
-      status: NOT_YET_AVAILABLE
-      evidence: no automated plan-validation script exists
-    - n: 47
-      text: Verify required resources.
-      status: NOT_YET_AVAILABLE
-      evidence: no automated resource-verification mechanism exists
-    - n: 48
-      text: Verify permissions.
-      status: REAL
-      evidence: scripts/preflight-guard.py hard-gates on disk/mem/circuit-breaker before invoking the
-        model
-    - n: 49
-      text: Verify dependencies.
-      status: REAL
-      evidence: system_index.calls/called_by (item 11/12) + scope-check.py's file-ownership.yaml cross-check
-    - n: 50
-      text: Verify configurations.
-      status: NOT_YET_AVAILABLE
-      evidence: STANDING_DIRECTIVE.yaml is searched/read (item 20) but not verified against a schema
-  - letter: G
-    title: AI Decision
-    items:
-    - n: 51
-      text: Can Software complete the task? If YES -> Execute through Software. If NO -> Build reusable
-        Software first -> Execute through Software -> Call AI only if required.
-      status: REAL
-      evidence: registries.credit_spend_governance's own 'software first, AI second' rule is exactly this
-        gate
-  - letter: H
-    title: Verification Before Execution
-    items:
-    - n: 52
-      text: Verify no previous commitment is forgotten.
-      status: REAL
-      evidence: rca_open check (same mechanism as item 4)
-    - n: 53
-      text: Verify no existing work is duplicated.
-      status: REAL
-      evidence: check-duplicate (mandatory, same mechanism as item 25)
-    - n: 54
-      text: Verify no business rule is violated.
-      status: NOT_YET_AVAILABLE
-      evidence: ai-os/audit198/run-audit.mjs checks RULES_ARTICLES_198.json post-hoc, not as a pre-execution
-        gate
-    - n: 55
-      text: Verify all required context is loaded.
-      status: REAL
-      evidence: completion of ai-os/scripts/session_bootstrap.py (sections A+B above)
-    - n: 56
-      text: Verify execution is safe.
-      status: REAL
-      evidence: scripts/preflight-guard.py hard gate (disk/mem/circuit-breaker) before model invocation
-    - n: 57
-      text: Verify approval is available if required.
-      status: NOT_YET_AVAILABLE
-      evidence: same gap as item 6 -- no approval-queue mechanism
-  - letter: I
-    title: Execute
-    items:
-    - n: 58
-      text: Execute through Software.
-      status: REAL
-      evidence: registries.credit_spend_governance + this session's own scripts
-    - n: 59
-      text: Execute AI only where required.
-      status: REAL
-      evidence: same mechanism as item 58 (registries.credit_spend_governance)
-    - n: 60
-      text: Validate outputs.
-      status: REAL
-      evidence: ai-os/scripts/postflight_audit_gate.py's audit_cmd (real command, real exit code, never
-        trusted-by-claim)
-    - n: 61
-      text: Handle failures.
-      status: REAL
-      evidence: ai-os/scripts/postflight_audit_gate.py writes a FAILED verdict + a real rca_open row for
-        later investigation (logs and flags; does not auto-remediate)
-    - n: 62
-      text: Retry when appropriate.
-      status: REAL
-      evidence: worker-entrypoint.sh's own checkpoint/resume mechanism (registries.auto_execution_wrapper)
-  - letter: J
-    title: Post Execution
-    items:
-    - n: 63
-      text: Update Software.
-      status: REAL
-      evidence: /opt/veridian/scripts/system-sync.py --check mirror + system_index index-add
-    - n: 64
-      text: Update scripts.
-      status: REAL
-      evidence: superboss-register.py index-add (re-verifies path, refreshes verified_ts)
-    - n: 65
-      text: Update automation.
-      status: NOT_YET_AVAILABLE
-      evidence: no automated crontab/systemd diff-checker exists; changes are verified manually (crontab
-        -l / systemctl)
-    - n: 66
-      text: Update workflows.
-      status: NOT_YET_AVAILABLE
-      evidence: ai-os/queues/*.yaml is hand/script-edited case-by-case, no generic workflow-update mechanism
-    - n: 67
-      text: Update metadata.
-      status: REAL
-      evidence: superboss-register.py index-add
-    - n: 68
-      text: Update YAML.
-      status: REAL
-      evidence: 'MASTER_INDEX.yaml registries: section edit + generate_quick_reference.py re-splice'
-    - n: 69
-      text: Update relationships.
-      status: REAL
-      evidence: system_index.calls/called_by fields (same mechanism as items 11/12)
-    - n: 70
-      text: Update documentation.
-      status: REAL
-      evidence: commit message (WHY not just WHAT) + PROGRESS.md convention
-    - n: 71
-      text: Update logs.
-      status: REAL
-      evidence: superboss-register.py log-work / log-action
-    - n: 72
-      text: Update audit.
-      status: REAL
-      evidence: ai-os/scripts/postflight_audit_gate.py's task_audits row + this phase's new execution_log
-        row
-    - n: 73
-      text: Update history.
-      status: REAL
-      evidence: work_items/actions rows (superboss-register.py)
-    - n: 74
-      text: Update memory.
-      status: REAL
-      evidence: ai-os/memory/superboss-register.sqlite writes (all of the above)
-    - n: 75
-      text: Save reusable knowledge.
-      status: REAL
-      evidence: system_index registration + MASTER_INDEX.yaml registries entry
-    - n: 76
-      text: Convert repeatable AI work into Software.
-      status: REAL
-      evidence: 'this exact phase is one instance: generate_task_checklist.py/superboss-register.py extended
-        so future tasks reuse a script instead of re-deriving this checklist by prose'
-    - n: 77
-      text: Reduce future AI dependency.
-      status: REAL
-      evidence: same evidence as item 76
-  coverage_summary:
-    sections_covered: 10
-    sections_total_in_part_39: 10
-    items_total: 77
-    items_real: 60
-    items_not_yet_available: 17
-    items_not_mechanically_testable: 0
-  credit_spend_reminder: Every AI-costing action referenced above (items 43/44/51/58/59) is gated by registries.credit_spend_governance
-    -- see that entry for the full mechanism. This checklist does not duplicate that gate's own rules,
-    only points to it.
+    changes one of the paths below, do not hand-edit this block.'
+  before_starting_any_task:
+  - Check /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index via superboss-register.py
+    check-duplicate <term> -- does this already exist?
+  - 'Scan MASTER_INDEX.yaml quick_reference (top of this file) for a matching id before reading the full
+    registries: section.'
+  - 'If touching the ops-layer worker fleet: read /opt/veridian/scripts/system-sync.py''s own header before
+    extending it -- do not build a parallel mechanism (registries.system_sync_mechanism.do_not_build_a_new_sync_script).'
+  - 'If touching AI dispatch/routing: read /opt/veridian/repos/compliance-tracker/ai-os/CONSTITUTION.yaml
+    control_model + the AI router migration inventory (registries.ai_router_migration_inventory_2026_07_20)
+    before assuming a call site is unmigrated by oversight vs. deliberate deferral.'
+  - 'Check the credit-spend governance gate (registries.credit_spend_governance) BEFORE any AI-costing
+    action -- see that entry''s own rule: no AI call without an approved plan.'
+  while_working:
+  - Prefer a deterministic script/package over an AI call wherever one exists -- see registries.credit_spend_governance's
+    own 'software first, AI second' rule.
+  - 'Test before trusting: typecheck/lint/unit-test any app-layer (compliance-tracker/projexa) change;
+    syntax-check + isolated function test any ops-layer script change; re-run the exact command CI runs
+    when fixing a CI-only failure (do not assume a local pass means CI passes).'
+  - Verify claims against real state before recording them -- this session's own repeated pattern of catching
+    its own false claims (e.g. registries.ops_task_sync_bridge.correction_2026_07_20) exists specifically
+    because a plausible-sounding claim is not the same as a verified one.
+  after_finishing_any_task:
+  - Register new/changed scripts in system_index (superboss-register.py index-add) -- /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index.
+  - 'Add or update the relevant entry under /opt/veridian/ai-os/MASTER_INDEX.yaml''s registries: section
+    (id/status/path/scope schema, see the file''s own HOW TO USE section).'
+  - Regenerate quick_reference via /opt/veridian/scripts/generate_quick_reference.py /opt/veridian/ai-os/MASTER_INDEX.yaml
+    and splice the output back in.
+  - Mirror any new/changed /opt/veridian/scripts/*.py|sh file into the repo copy (compliance-tracker/ai-os/scripts/)
+    -- or just run /opt/veridian/scripts/system-sync.py --check mirror, which does this automatically.
+  - Deploy the live MASTER_INDEX.yaml copy to BOTH canonical paths (live + repo mirror) and validate with
+    yaml.safe_load on both before trusting either.
+  - 'Commit with a message that explains WHY, not just WHAT -- and if opening a PR, post the 8-field structured
+    AUDIT: PASS/FAIL comment this repo''s CI requires (audit-protocol.ts''s AuditProtocolFields) before
+    expecting audit-check to pass.'
+  - 'If the task was part of an Owner directive with an explicit 3-round-audit requirement: do NOT skip
+    it -- round 1 re-verifies claims, round 2 looks for edge cases a surface check would miss, round 3
+    compiles an honest gap list rather than a zero-gap claim.'
+  credit_spend_reminder: Every AI-costing action this checklist's 'while_working' step above refers to
+    is gated by registries.credit_spend_governance -- see that entry for the full mechanism. This checklist
+    does not duplicate that gate's own rules, only points to it.
 canonical_dirs:
   ops_scripts:
     path: /opt/veridian/scripts/
@@ -580,6 +236,27 @@ canonical_dirs:
     - reconciliation-alerts.jsonl
     - superboss-supervision-start.txt
 quick_reference:
+- id: rules_articles_198
+  status: live
+  path: ai-os/RULES_ARTICLES_198.json
+  summary: 'Owner directive 2026-07-21: the 99 Rules + 99 Articles governing the complete VERIDIAN AI
+    OS system, supplied by the Owner (RULES.xlsx),...'
+- id: audit198_framework
+  status: live, real 198/198 run completed 2026-07-21, actively being...
+  path: ai-os/scripts/audit198/ (run-audit.mjs, evidence-engine.mjs, category-checkers.mjs, rules-taxonomy.mjs,
+    constitution-index.mjs, results/audit198-results.json, results/audit198-summary.md)
+  summary: 'Re-runnable, software-driven gap-audit engine for rules_articles_198 (above) -- run: node
+    ai-os/scripts/audit198/run-audit.mjs. Groups the...'
+- id: standing_task_directive
+  status: live
+  path: ai-os/STANDING_DIRECTIVE.yaml
+  summary: 'Owner directive 2026-07-21: machine-readable encoding of the Owner''s single-line standing
+    per-task prompt. Cite this file (by id or path)...'
+- id: ai_engineering_policy
+  status: live
+  path: ai-os/AI_ENGINEERING_POLICY.yaml
+  summary: 'Owner directive 2026-07-21: mandatory engineering playbook for the whole integrated system
+    (FChecklist, VERIDIAN AI OS, compliance-tracker,...'
 - id: system_index
   status: live
   path: /opt/veridian/ai-os/memory/superboss-register.sqlite#system_index
@@ -777,126 +454,32 @@ quick_reference:
   path: /opt/veridian/ai-os/logs/ATTENTION.md
   summary: Live alert surface. Written by health-check-15min.py (systemd unit failures, stalled checkpoints,
     Mother Router DB reachability, disk/mem,...
+- id: credit_spend_governance
+  status: 'Complete and live: propose gate deployed in...'
+  path: /opt/veridian/scripts/credit-accountant.py
+  summary: (no scope/purpose/finding/decision field -- see full entry)
+- id: snip_token_reduction_hook
+  status: live
+  path: '.snip/filters/ (bun-install.yaml, bun-test.yaml, bunx.yaml, bun-x.yaml, vercel.yaml) in this
+    repo; server-side install at /home/rajat/.local/bin/snip + /home/rajat/.claude/settings.json PreToolUse
+    hook + /home/rajat/.config/snip/config.toml filters.dir entry (VERIDIAN-DEV, rajat account, not part
+    of this git repo). Full reports: ai-os/boss/completed-work/snip-integration/'
+  summary: github.com/edouard-claude/snip v0.22.0 (376 stars, MIT, pure Go, no network calls, fail-open),
+    a PreToolUse hook for Claude Code that...
+- id: prompt_registry_version_lifecycle_extension
+  status: live
+  path: src/lib/db/schema.ts (compliance.promptVersions table), drizzle/0262_prompt_registry_version_lifecycle.sql,
+    src/lib/services/prompt-os-service.ts (transitionPromptLifecycle/diffPromptVersions/rollbackPromptVersion),
+    ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json, ai-os/DATABASE_CATALOG.json (compliance.prompt_versions
+    entry, re-extracted via ai-os/scripts/extract-db-schema-catalog.mjs)
+  summary: VERIDIAN_Architecture_v2.0 phase_1_prompt_registry_lifecycle_foundation (claude-control's...
+- id: litert_spike_browser_execution_prior_art
+  status: live, unregistered_until_2026-07-28
+  path: src/app/litert-spike/ (page.tsx, worker-src/inference-worker.ts, types.ts), src/app/litert-spike-embeddings/
+    (page.tsx, worker-src/inference-worker.ts, worker-src/wordpiece-tokenizer.ts, types.ts)
+  summary: Registered per VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers's own FIRST-STEP
+    mandate (claude-control repo,...
 registries:
-- id: owner_ai_protocol
-  type: owner_ai_protocol_and_memory_consolidation
-  path: ai-os/OWNER_DIRECTIVES/PROTOCOL_OWNER_AI.yaml + ai-os/OWNER_DIRECTIVES/MEMORY_OWNER_AI.yaml
-  scope: '2026-07-26 server-side consolidation (task-20260726-051203, mirroring an equivalent laptop-side
-    consolidation already done): every real Owner<->AI protocol/directive/rule file previously scattered
-    under ai-os/OWNER_DIRECTIVES/ (7 files) folded into exactly ONE protocol file (PROTOCOL_OWNER_AI.yaml
-    -- execution location, OWNER_ENGINE gate, communication channels, traceability, completion discipline,
-    7-step workflow, quality bars, software-execution-only rule, task lifecycle state machine, Owner<->AI
-    runbook) and exactly ONE lessons/incidents memory file (MEMORY_OWNER_AI.yaml -- self-correction rules,
-    dated real incidents, open coordination gaps). 4 of the 7 original files (OWNER_ENGINE_MANDATORY_GATE_2026-07-25.txt,
-    CHATGPT_AUDIT_AND_PROMPT_LIBRARY_WORKSPACE_2026-07-24.txt, WIRING_ENGINE_SOFTWARE_2026-07-24.txt,
-    BROWSER_NATIVE_END_USER_ARCHITECTURE_2026-07-25.txt) were RETAINED at their original path (not deleted)
-    because they are cited by exact path elsewhere in the real system -- each now carries a "SUPERSEDED
-    BY PROTOCOL_OWNER_AI.yaml" header note. Enforced going forward by scripts/check_single_protocol_file.py,
-    wired into scripts/preflight-guard.py''s check_single_protocol_file() (runs before every real task
-    dispatch).
-
-    '
-  status: consolidated_2_canonical_files_plus_4_citation_retained_2026-07-26
-  query_command: python3 scripts/superboss-register.py query-knowledge "owner_ai_protocol" --tag domain:owner_ai_protocol
-  verify_command: python3 scripts/check_single_protocol_file.py
-- id: engines_gateways_architecture
-  type: engine_inventory_capability_schema_and_phase_plan
-  path: ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml + ai-os/CAPABILITY_REGISTRY_SCHEMA_2026-07-24.yaml
-  scope: 'Phase 0 (task-20260724-053213, instruction INS-20260724-053123-0e5a) of the VERIDIAN 20-ENGINE/
-    10-GATEWAY architecture: a real, verified inventory mapping all 20 named engines (Intent, Context,
-    CapabilityRegistry, Planning, Policy, Rule, Decision, Workflow, Automation, Integration, Document,
-    Notification, Data, Metadata, Knowledge, Learning, UIComposition, Analytics, Audit, Observability)
-    to existing prior art in compliance-tracker/projexa/veda-advisors + ai-os/+scripts, produced by ai-os-scripts/generate_engines_gateways_inventory.py
-    (every exists_as path live-verified). Result: 19/20 partial coverage, 1/20 full (Knowledge Engine)
-    -- zero engines are NONE, confirming the Owner''s standing instruction that most engines already exist
-    under a different name. Also designs the Capability Registry Engine''s PART4 schema (the piece flagged
-    as most important missing) with a lookup_contract and 5 real populated capabilities, verified by ai-os-scripts/generate_capability_registry_candidates.py.
-    Distinct from registries.auditor_engine (Engines 19/20, Audit/Observability, cross-linked not re-planned)
-    and unrelated to compliance-tracker/ai-os/engines/ENGINES.yaml (a namespace collision, confirmed this
-    session, not prior art for this registry).'
-  status: phase_0_through_phase_5_complete_phase_6_plus_not_yet_dispatched
-  query_command: python3 scripts/superboss-register.py query-knowledge "engines_gateways_architecture"
-    --tag domain:engines_gateways_architecture
-  next_phase: phase_6_intent_context_planning_learning (depends_on phase_1 + phase_5, both now done) and
-    phase_7_ui_composition_analytics per ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml phases[]
-    -- each dispatched as a separate task, not part of this registry entry's own scope.
-  phase_1_capability_registry_live_wiring: 'DONE (task-20260724-083420, 2026-07-24) -- real capability_registry
-    table live in ai-os/memory/superboss-register.sqlite (extends the same DB as knowledge_engine, scripts/superboss-register.py
-    register-capability/lookup-capability/ list-capabilities CLI), populated with 5 real, hand-verified
-    VERIDIAN capabilities (0 invented), and scripts/task-gateway.py submit now calls lookup-capability
-    before every task dispatch (Engine 3 is now live, not planned-only -- see 20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml
-    phases[0].status_detail for full evidence). Query: python3 scripts/superboss-register.py list-capabilities'
-- id: auditor_engine
-  type: audit_domain_inventory_and_phase_plan
-  path: ai-os/AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml + ai-os/AUDITOR_ENGINE_EVENT_SCHEMA_2026-07-24.schema.json
-    + ai-os/AUDITOR_ENGINE_FINDING_RECORD_SCHEMA_2026-07-24.schema.json + ai-os/AUDITOR_ENGINE_TOOL_SMOKETEST_EVIDENCE_2026-07-24.yaml
-  scope: Phase 0 (task-20260724-042659, instruction INS-20260724-042330-8e4b) of the VERIDIAN AUDITOR
-    ENGINE -- a real, verified inventory + phased build plan (Phase 0-8) covering PART1-6 of the Owner's
-    directive. Distinct from registries.audit198_framework (a different, pre-existing, narrower AI-prompt-based
-    198-rule VERIDIAN-specific engine -- not modified). This registry is for the standards-based engine
-    (OWASP/WCAG/ISO/TOGAF/BPMN/OpenAPI/etc. citations), one per each of the 15 audit domains (business-capability,
-    ddd, enterprise-architecture, clean-architecture, product-quality, data-model, workflow, api-contract,
-    metadata, security, ux, ai-governance, integration, test-coverage, documentation) plus a PART6 observability/audit-trail
-    layer (7 named repos, one event schema, OpenTelemetry + pgAudit wiring -- design only this phase,
-    enforcement is Phase 7). This phase also installed and real-smoke-tested 5 standalone OSS scanners
-    (Gitleaks 8.30.1, Trivy 0.72.0, Spectral 6.16.2, Checkov 3.3.8, OWASP Dependency-Check 12.2.2 Core)
-    with real findings captured against compliance-tracker -- see the smoketest-evidence file above for
-    exact commands/output, and knowledge_engine (source:LOCAL tag) for each tool's own registered row.
-  status: phase_0_complete_phase_1_security_domain_complete_test_coverage_and_ux_subscopes_not_started
-  query_command: python3 scripts/superboss-register.py query-knowledge "auditor_engine" --tag domain:auditor_engine
-  phase_1_security_domain: 'task-20260724-083724-phase1-auditor-engine-security-scanners (2026-07-24)
-    wired gitleaks/trivy/checkov into a real cron-scheduled pipeline (ai-os/scripts/audit_pipeline_security.py,
-    0 5 * * * via run-logged.sh) that writes finding-record-schema-conformant rows into a new audit_findings
-    table in this same knowledge_engine DB. Real first run against compliance-tracker: 29 findings (27
-    gitleaks, 0 trivy -- documented bun.lock gap unchanged, 2 checkov). Dependency-Check still excluded
-    pending an NVD_API_KEY. See AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml phases[1].evidence for full
-    detail.'
-  next_phase: Phase 1's own test-coverage and ux sub-scopes (coverage-threshold gate, @playwright/test
-    for veda-advisors, axe-core against running routes), then Phase 2 (API contract authoring + linting)
-    per AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml phases[] -- each dispatched as a separate task, not
-    part of this registry entry's own scope.
-- id: self_sustaining_system_engine
-  type: knowledge_registry_and_software_catalog
-  path: ai-os/memory/superboss-register.sqlite (knowledge_engine table) + ai-os/SOFTWARE_CATALOG.yaml
-  scope: 'Single entrypoint for Knowledge Engine Phase 2 (task-20260724-033446): extends knowledge_engine
-    (Phase 1, 9 SERVER rows) to 26 rows across 5 source-tagged categories -- SERVER/VERCEL/SUPABASE/GITHUB/LOCAL
-    -- each with a real verification_status; populates entity_relationships for every row (26/26 non-empty);
-    adds a real, machine-generated ai-os/SOFTWARE_CATALOG.yaml (scripts/cron/systemd inventory, generated
-    by ai-os/scripts/generate_software_catalog.py, not hand-typed); wires a real re-verify of touched
-    knowledge_engine rows into scripts/task-gateway.py close; resolves the 3 Phase-1 PATH_MISSING drift
-    rows (1 now VERIFIED_MATCH, 2 intentionally left PATH_MISSING with corrected citing text, logged);
-    adds artifact_path to knowledge_engine_fts (fts5_relevance_tuning). Full detail: ai-os/STANDING_DIRECTIVE.yaml
-    v2_self_sustaining_system_engine. Known gap: SUPABASE Management API refresh degraded pending a working
-    SUPABASE_ACCESS_TOKEN (see ai-os/KNOWLEDGE_ENGINE_PHASE3_CANDIDATES_2026-07-24.yaml, ai-os/OWNER_DECISIONS_NEEDED_2026-07-23.yaml#supabase-management-api-token-refresh
-    -- a real Owner-dashboard credential dependency, not a code gap). Phase 5 (task-20260724-135834) shipped
-    a real mitigation, not a full fix: a per-project anon-key /auth/v1/health fallback keeps SUPABASE
-    rows genuinely live-checked every cron tick even while the Management API token stays broken. Phase
-    5 also reconciles this registry entry against MASTER_INDEX.yaml''s own registries: section -- see
-    registries.metadata_engine_reconciliation below.'
-  status: live
-  query_command: python3 scripts/superboss-register.py query-knowledge "<search>" [--tag source:VERCEL|source:SUPABASE|source:GITHUB|source:LOCAL|source:SERVER]
-  refresh_commands: python3 scripts/knowledge_registry_multisource.py (every 6h via crontab); python3
-    scripts/generate_software_catalog.py (daily 04:15 via crontab)
-- id: metadata_engine_reconciliation
-  type: sync_direction_contract_and_enforcement_script
-  path: ai-os/METADATA_ENGINE_RECONCILIATION_2026-07-24.yaml + scripts/metadata_reconciliation.py
-  scope: 'Phase 5 (task-20260724-135834, phase_5_metadata_knowledge_consolidation) of the VERIDIAN 20-ENGINE/10-GATEWAY
-    architecture (ai-os/20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml), closes engines 14/15 (Metadata/Knowledge).
-    Reconciles this registries: section against knowledge_engine (registries.self_sustaining_system_engine)
-    -- full merge judged too disruptive (91 heterogeneous entries, actively cited by id across this whole
-    session), so this documents and ENFORCES a sync direction instead: MASTER_INDEX.yaml stays authoritative
-    for human citation/scope narrative, knowledge_engine stays authoritative for machine drift-detection,
-    and every registries[] entry''s real on-disk file path(s) get a knowledge_engine row tagged registry:<id>
-    as the queryable back-reference between the two. Live-run 2026-07-24: 74 new rows registered + 14
-    existing rows tagged (of 88 real file-path tokens extracted from 83/91 registries -- 6 entries have
-    no path field by design, 2 named directory-only/not-yet-created paths, both listed honestly in the
-    script''s own report rather than silently skipped); re-run confirmed idempotent (0 new, 88 no-op re-tags,
-    knowledge_engine row count unchanged).'
-  status: live
-  query_command: python3 scripts/metadata_reconciliation.py report
-  do_not_build_a_parallel_reconciliation_mechanism: if a future session needs to check registries<->knowledge_engine
-    sync drift again, re-run scripts/metadata_reconciliation.py (safe, idempotent) rather than writing
-    a second reconciliation script.
 - id: rules_articles_198
   type: guardrail_ruleset
   path: ai-os/RULES_ARTICLES_198.json
@@ -1759,514 +1342,97 @@ registries:
     mechanism (both described above). No metered money was ever actually wasted by the restart-storm bug
     -- every rejection happens before any real spend -- but the churn itself was real, unnecessary load,
     now stopped.'
-- id: system_map_2026_07_22
-  type: dependency_graph
-  path: ai-os/SYSTEM_MAP.yaml
-  scope: machine/AI-only dependency graph of VERIDIAN Layer-1/2/3 architecture, built 2026-07-22
-  status: partial_26_of_28_subsystems
-  mandatory_before: any new architecture analysis, per rule_1_system_map_required
-  verification_mechanism: ai-os/scripts/veridian_self_check.py checks completeness
-- id: master_architecture_2026_07_22
-  type: consolidated_index
-  path: ai-os/MASTER_ARCHITECTURE_2026-07-22.yaml
-  scope: single-file consolidation of 5 architecture analyses, 360-degree synthesis, brand model, verified
-    subsystem status
+- id: snip_token_reduction_hook
+  type: dev_tooling
+  path: '.snip/filters/ (bun-install.yaml, bun-test.yaml, bunx.yaml, bun-x.yaml, vercel.yaml) in this
+    repo; server-side install at /home/rajat/.local/bin/snip + /home/rajat/.claude/settings.json PreToolUse
+    hook + /home/rajat/.config/snip/config.toml filters.dir entry (VERIDIAN-DEV, rajat account, not part
+    of this git repo). Full reports: ai-os/boss/completed-work/snip-integration/'
+  scope: 'github.com/edouard-claude/snip v0.22.0 (376 stars, MIT, pure Go, no network calls, fail-open),
+    a PreToolUse hook for Claude Code that filters verbose shell/CLI output through declarative YAML pipelines
+    before it reaches an AI coding assistant''s context, cutting LLM token consumption 89-93% on real
+    large-scale git-log/bun-test output measured live on this server (see 05-benchmark-report.md). IMPORTANT
+    SCOPE BOUNDARY: applies ONLY to actual Claude Code CLI sessions with a Bash tool -- interactive sessions
+    on VERIDIAN-DEV, and the headless veridian-worker@<id>.service claude -p processes (worker-entrypoint.sh),
+    both confirmed live (see 04-verification-report.md). Does NOT and cannot apply to src/lib/ai-router/mother-router.ts
+    or its child routers -- confirmed zero child_process/spawn/exec calls anywhere in src/lib/ai-router/,
+    i.e. no shell surface exists there for this mechanism to attach to (see 02-architecture-report.md;
+    do not build a "Mother Router integration" for this tool, that would misrepresent what it does). 132
+    built-in filters ship compiled into the binary; this repo adds 5 custom ones for bun/bunx/vercel (genuinely
+    used, genuinely uncovered) and deliberately does NOT add redis-cli or supabase-CLI filters (neither
+    is genuinely used by this codebase -- see 02-architecture-report.md §3c).'
   status: live
-  mandatory_before: any brand/layer/subsystem question
-- id: session_bootstrap_script
-  type: python_script
-  path: ai-os/scripts/session_bootstrap.py
-  scope: reads real register history (SQLite, not keyword search) plus living docs
+  verification_mechanism: ai-os/boss/completed-work/snip-integration/04-verification-report.md (hook registration
+    read directly from settings.json, headless-mode fired live via a real claude -p run through the worker's
+    own proxy, never-compress tested against a real deliberately-broken bun test and a synthetic go-test
+    failure fixture)
+  system_index_id: IDX-20260721-185951-dd1d
+- id: prompt_registry_version_lifecycle_extension
+  type: schema_extension
+  path: src/lib/db/schema.ts (compliance.promptVersions table), drizzle/0262_prompt_registry_version_lifecycle.sql,
+    src/lib/services/prompt-os-service.ts (transitionPromptLifecycle/diffPromptVersions/rollbackPromptVersion),
+    ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json, ai-os/DATABASE_CATALOG.json (compliance.prompt_versions
+    entry, re-extracted via ai-os/scripts/extract-db-schema-catalog.mjs)
+  scope: 'VERIDIAN_Architecture_v2.0 phase_1_prompt_registry_lifecycle_foundation (claude-control''s ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml,
+    target_repo: compliance-tracker). NOT A NEW TABLE -- this is an additive extension of the real, live
+    Wave 22 Prompt Operating System (compliance.prompt_templates/prompt_versions, ~20 production resolvePromptTemplate()
+    call sites; already tracked as generic `table` entities in claude-control''s own ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json
+    per phase_1''s own integration_point field -- this is that same extension''s first entry in THIS repo''s
+    registries: list, not a second registry for the same table). Adds: MAJOR/MINOR/PATCH semantic versioning
+    (major/minor/patch integer columns, computed by nextSemanticVersion()), a real Draft/Review/Staging/Production/Deprecated
+    lifecycle_state column + bare state-machine enforcement (isLegalLifecycleTransition() -- the APPROVAL-GATE
+    enforcement on top of these edges is phase_3 scope, not this one''s), a line-level diff API (diffPromptVersions())
+    and an append-only rollback API (rollbackPromptVersion(), which creates a new version rather than
+    mutating history, recording provenance via rolled_back_from_version_id), and an optional structured
+    `metadata` jsonb column matching the 18-category minimum- viable schema in PROMPT_METADATA_SCHEMA_2026-07-25.schema.json
+    (the document''s own 200+-field section 2.6, built to real load-bearing depth rather than verbatim
+    field count, same precedent as claude-control''s AUDITOR_ENGINE_FINDING_RECORD_SCHEMA_2026-07-24).
+    The pre-existing `label`/`version`/`is_active` columns and every existing call site (resolvePromptTemplate,
+    createPromptVersion, listPromptVersions) are untouched.'
   status: live
-  mandatory_before: any new task, per rule_2_no_forgetting
-- id: file_edit_guard_script
-  type: python_script
-  path: ai-os/scripts/file_edit_guard.py
-  scope: catches lost headers/top-level keys after any tracked YAML/JSON edit
-  status: live
-  mandatory_before: declaring any file edit done, per rule_4_self_review_pass
-- id: veridian_self_check_script
-  type: python_script
-  path: ai-os/scripts/veridian_self_check.py
-  scope: THE ONE COMMAND -- mechanically tests STANDING_DIRECTIVE.yaml compliance against live state
-  status: live
-  mandatory_before: any new task, run first always
-- id: postflight_audit_gate_script
-  type: python_script
-  path: ai-os/scripts/postflight_audit_gate.py
-  scope: universal post-completion audit gate -- only path allowed to write DONE/FAILED status, per rule_8
-  status: live
-  mandatory_before: declaring ANY task (any actor) DONE or FAILED
-  verification_mechanism: task_audits table in superboss-register.sqlite
-- id: audit_recheck_2026_07_22
-  type: evidence_file
-  path: ai-os/AUDIT_RECHECK_2026-07-22.json
-  scope: retroactive verification of 198-rule audit and Mother Router bypass count, 2 self-corrections
-    made mid-session
-  status: partial_see_file
-- id: anthropic_openrouter_proxy_py
-  type: script
-  path: scripts/anthropic_openrouter_proxy.py
-  purpose_from_own_header: 'Minimal local proxy: translates Anthropic Messages API requests (what Claude'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: anthropic_openrouter_proxy_v2_py
-  type: script
-  path: scripts/anthropic_openrouter_proxy_v2.py
-  purpose_from_own_header: 'v2 (2026-07-20, Owner directive "zero credit wastage"): adds two hard,'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: batch_import_conversation_log_py
-  type: script
-  path: scripts/batch-import-conversation-log.py
-  purpose_from_own_header: Batch-imports queued conversation-log events (UserPromptSubmit /
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: cost_reconciliation_py
-  type: script
-  path: scripts/cost-reconciliation.py
-  purpose_from_own_header: Weekly (or on-demand) reconciliation report. Q6's "keep it working" check --
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: cost_usage_60min_py
-  type: script
-  path: scripts/cost-usage-60min.py
-  purpose_from_own_header: VERIDIAN-DEV hourly cost/usage check. Zero AI cost -- pure deterministic
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: dispatch_docworker_task_sh
-  type: script
-  path: scripts/dispatch-docworker-task.sh
-  purpose_from_own_header: 'Atomic docworker dispatch, 2026-07-20. Closes a confirmed, RECURRING gap:
-    `veridian-task.py create` auto-starts the wrong GLM-routed veridian-worker@ unit before a manual `disable`
-    (run as a separate,'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: doc_worker_entrypoint_sh
-  type: script
-  path: scripts/doc-worker-entrypoint.sh
-  purpose_from_own_header: Entrypoint for a systemd-managed VERIDIAN DOC worker. Same checkpoint / resume
-    / commit-push pattern as worker-entrypoint.sh, but deliberately DIFFERENT in two ways, both intentional
-    for this task fam
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: gap_status_py
-  type: script
-  path: scripts/gap-status.py
-  purpose_from_own_header: Quick X/Y status check for the gap queue, plus anything needing a decision.
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: generate_quick_reference_py
-  type: script
-  path: scripts/generate_quick_reference.py
-  purpose_from_own_header: 'TASK 6 (Owner directive 2026-07-20: "make MASTER_INDEX.yaml logical for'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: generate_task_checklist_py
-  type: script
-  path: scripts/generate_task_checklist.py
-  purpose_from_own_header: 'generate_task_checklist.py -- Owner directive 2026-07-20: "make a prompt'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: health_check_15min_py
-  type: script
-  path: scripts/health-check-15min.py
-  purpose_from_own_header: VERIDIAN-DEV 15-minute health check. Zero AI cost -- pure deterministic
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: import_memory_history_py
-  type: script
-  path: scripts/import-memory-history.py
-  purpose_from_own_header: 'One-time bulk import: local memory index (MEMORY.md, ~60 entries spanning'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: master_decompose_py
-  type: script
-  path: scripts/master-decompose.py
-  purpose_from_own_header: Master role (on-demand, not a standing daemon -- see HETZNER-04 controller
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: module_queue_dispatcher_py
-  type: script
-  path: scripts/module-queue-dispatcher.py
-  purpose_from_own_header: Master/Supervisor pilot dispatcher. Reads one or more module-scoped queue
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: preflight_guard_py
-  type: script
-  path: scripts/preflight-guard.py
-  purpose_from_own_header: Pre-flight guard, run BEFORE the main claude -p invocation in
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: quality_gate_sh
-  type: script
-  path: scripts/quality-gate.sh
-  purpose_from_own_header: Runs whatever quality gates are actually detectable in a workspace (lint, build,
-    test) before a worker's changes are allowed to reach pending_review. Gracefully skips gates that don't
-    apply (e.g. a do
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: queue_dispatcher_py
-  type: script
-  path: scripts/queue-dispatcher.py
-  purpose_from_own_header: Autonomous dispatcher for /opt/veridian/ai-os/gap_queue.yaml. Run via cron.
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: recover_failed_workers_py
-  type: script
-  path: scripts/recover-failed-workers.py
-  purpose_from_own_header: RCA recovery script, 2026-07-20. Converts veridian-worker@ units stuck in
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: repair_controller_py
-  type: script
-  path: scripts/repair_controller.py
-  purpose_from_own_header: Rebuilds ai-os/CONTROLLER.yaml from scratch by scanning the authoritative
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: risk_tier_py
-  type: script
-  path: scripts/risk-tier.py
-  purpose_from_own_header: Deterministic (non-AI) risk-tier classifier for a task's diff against its
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: scope_check_py
-  type: script
-  path: scripts/scope-check.py
-  purpose_from_own_header: 'Enforces the Master/Supervisor pilot''s "no collision" rule: every file a'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: superboss_register_py
-  type: script
-  path: scripts/superboss-register.py
-  purpose_from_own_header: Superboss Register -- three searchable trees, server-side, SQLite+FTS5.
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: supervisor_entrypoint_sh
-  type: script
-  path: scripts/supervisor-entrypoint.sh
-  purpose_from_own_header: 'VERIDIAN-DEV server-side Superboss: reviews a task''s branch for real (not
-    a self-report), classifies risk tier deterministically, and either merges autonomously (tier1 + approved),
-    holds for human sig'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: supervisor_sweep_sh
-  type: script
-  path: scripts/supervisor-sweep.sh
-  purpose_from_own_header: 'Safety net: catches any task stuck in pending_review with no review.json,
-    meaning its immediate supervisor trigger was missed (crash, systemd hiccup).'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: sync_controller_back_py
-  type: script
-  path: scripts/sync-controller-back.py
-  purpose_from_own_header: 'Automates SYNC rule #14 from SUPERBOSS_DISPATCH_PROMPT.md: whenever a server'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: sync_repos_sh
-  type: script
-  path: scripts/sync-repos.sh
-  purpose_from_own_header: 'Pulls latest commits for all mirrored repos. Safe: fast-forward only, never
-    overwrites local changes.'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: sync_vercel_env_sh
-  type: script
-  path: scripts/sync-vercel-env.sh
-  purpose_from_own_header: Refreshes .env.local for the 3 linked Vercel projects with current production
-    env vars.
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: sync_verdian_ai_data_sh
-  type: script
-  path: scripts/sync-verdian-ai-data.sh
-  purpose_from_own_header: 'Full refresh of the verdian-ai Supabase local mirror (schema + data). DESTRUCTIVE
-    to the local mirror: drops and recreates public+compliance schemas each run. Intended to run at low-traffic
-    hours (see'
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: task_template_py
-  type: script
-  path: scripts/task-template.py
-  purpose_from_own_header: Renders a standardized task dict (TASK ID/MODULE/OBJECTIVE/FILES ALLOWED/
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: tight_task_validation_py
-  type: script
-  path: scripts/tight_task_validation.py
-  purpose_from_own_header: Faithful Python port of src/lib/task-tightening.ts's validateTightTask()
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: worker_entrypoint_sh
-  type: script
-  path: scripts/worker-entrypoint.sh
-  purpose_from_own_header: 'Entrypoint for a systemd-managed VERIDIAN AI worker. Runs Claude Code headlessly
-    against an isolated git worktree, checkpoints periodically, resumes from the last checkpoint on restart
-    (server reboot '
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: file_inventory_py
-  type: script
-  path: ai-os/scripts/file_inventory.py
-  purpose_from_own_header: Real, exhaustive file inventory of the canonical VERIDIAN system-of-record
-    (ai-os/ + scripts/),
-  status: live_file_confirmed_2026_07_22
-  note: registered 2026-07-22 as part of closing the 32-of-41-unregistered-scripts gap -- purpose text
-    is the script's OWN header comment, not an assistant-authored description
-- id: system_memory_architecture_2026_07_22
-  type: architecture_blueprint
-  path: ai-os/SYSTEM_MEMORY_ARCHITECTURE.yaml
-  purpose_from_own_header: 'Master blueprint: 7-layer memory architecture (this machine, Superboss, Mother
-    Router, AI routers, AI agent roster, software-run, external platforms), interconnection graph, per-layer
-    ACTIVE vs DESIGNED_NOT_BUILT status, machine-only audience'
-  status: live_2026_07_22
-  note: consolidates and formalizes cross_system_memory_map_2026_07_22 (already in this same file) into
-    one authoritative design document -- read this first for 'is layer X's memory real or designed'
-- id: terminology_standardization
-  type: variable_dictionary_guardrail_and_phase_plan
-  path: ai-os/VARIABLE_DICTIONARY_2026-07-24.yaml + ai-os/TERMINOLOGY_GUARDRAIL_2026-07-24.py + ai-os/TERMINOLOGY_STANDARDIZATION_PHASE_PLAN_2026-07-24.yaml
-  scope: 'Phase 0 (task-20260724-070131, instruction INS-20260724-070047-3a2d) of VERIDIAN Terminology
-    Standardization: a real Variable Dictionary (320 <Entity.Attribute> placeholders, one per real column
-    of the top-20 most-referenced tables in registries.database_catalog''s 444, ranked by a combined declared-FK
-    + naming-convention "_id" reference-count score -- only 7/444 tables carry a declared SQL FK, so the
-    naming-convention signal dominates; example values sourced from real dev-seed rows fetched live via
-    Supabase MCP against the verdian-ai project backing compliance-tracker''s schema.ts, 182/320 real,
-    138/320 clearly-marked synthetic, sensitive columns like password_hash always forced synthetic); a
-    designed (not yet CI-wired) Terminology Guardrail lint script flagging hardcoded human-example literals
-    (placeholder company/person names, fake email domains, bare ISO dates, PAN/GSTIN-shaped literals)
-    not expressed as a registered placeholder, plus unregistered-placeholder-token drift, smoke-tested
-    against 3 real compliance-tracker files (communication-drafting-service.ts, orchestra-mock-data.ts,
-    db/seed.ts -- 36 real findings); and a 6-phase rollout plan (dictionary coverage expansion, directory-scoped
-    rollout, CI enforcement wiring modeled on compliance-tracker ci.yml''s real guardrail-presence/asset-registry
-    -coverage/metadata-index-coverage jobs, migration of existing hardcoded examples, full enforcement)
-    with an 8-edge dependency table.'
-  status: phase_0_through_phase_5_complete_all_6_phases_complete_verified_2026-07-29
-  query_command: python3 scripts/superboss-register.py query-knowledge "variable_dictionary" --tag domain:terminology_standardization
-  phase_2_note: 'task-20260724-115921-phase2-directory-scoped-guardrail-rollou (2026-07-24): ran the unmodified
-    TERMINOLOGY_GUARDRAIL_2026-07-24.py across all 4 compliance-tracker directory priority tiers (src/lib/services,
-    src/lib top-level, src/app/api, src/db/seed.ts+test fixtures) -- 1341 files scanned, 488 findings
-    baseline (310 required-fix candidates, 178 seed/test exemption candidates). Full detail: ai-os/guardrail-findings/PHASE_2_BASELINE_SUMMARY_2026-07-24.yaml
-    and this phase''s own real_evidence_2026-07-24 block in the phase plan file.'
-  next_phase: phase_3_ci_enforcement_wiring per ai-os/TERMINOLOGY_STANDARDIZATION_PHASE_PLAN_2026-07-24.yaml
-    phases[] -- external_depends_on compliance-tracker/.github/workflows/ci.yml (external repo), must
-    be dispatched as, or coordinate with, a compliance-tracker-scoped task, not part of this registry
-    entry's own scope.
-  note_on_repo_vs_live_drift: This task also added the identical entry to the git-tracked /opt/veridian/repos/claude-control
-    ai-os/MASTER_INDEX.yaml (branch worker/task-20260724-070131-veridian-terminology-standardization-pha).
-    Pre-existing drift between this live file and that repo copy (e.g. registries.auditor_engine present
-    here but not yet in that branch; registries.testing_engine_irvf present in that branch but not yet
-    here) predates this task and was not caused or resolved by it -- out of this task's own CONSTRAINTS
-    scope.
-  status_corrected_from: phase_0_phase_1_phase_2_complete_phase_3_not_yet_dispatched
-  status_verification:
-    checked: true
-    phase_plan: /opt/veridian/ai-os/TERMINOLOGY_STANDARDIZATION_PHASE_PLAN_2026-07-24.yaml
-    total_phases: 6
-    old_max_complete_phase: 2
-    real_max_complete_phase_found: 5
-    evidence:
-    - repo: FChecklist/compliance-tracker
-      pr: 552
-      title: 'Phase 3: wire terminology guardrail into CI as a diff-scoped coverage-gate job'
-      merged_at: '2026-07-24T14:08:41Z'
-      matched_phase: phase_3_ci_enforcement_wiring
-    - repo: FChecklist/compliance-tracker
-      pr: 553
-      title: 'Phase 4: migrate hardcoded terminology examples to registered placeholders'
-      merged_at: '2026-07-24T21:45:17Z'
-      matched_phase: phase_4_existing_hardcoded_example_migration
-    - repo: FChecklist/claude-control
-      pr: 18
-      title: 'Phase 0: VERIDIAN Terminology Standardization -- Variable Dictionary, guardrail design,
-        phase plan'
-      merged_at: '2026-07-24T07:22:52Z'
-      matched_phase: phase_0_dictionary_guardrail_design_phase_plan
-    - repo: FChecklist/claude-control
-      pr: 32
-      title: 'Phase 2: directory-scoped guardrail rollout (488-finding baseline)'
-      merged_at: '2026-07-24T12:08:07Z'
-      matched_phase: phase_2_directory_scoped_rollout
-    - repo: FChecklist/claude-control
-      pr: 41
-      title: 'Close phase_3_ci_enforcement_wiring: real review + merge of compliance-tracker#552'
-      merged_at: '2026-07-24T14:21:22Z'
-      matched_phase: phase_3_ci_enforcement_wiring
-    - repo: FChecklist/claude-control
-      pr: 53
-      title: 'Close phase_4_existing_hardcoded_example_migration: real review + merge of compliance-tracker#553'
-      merged_at: '2026-07-24T21:47:10Z'
-      matched_phase: phase_4_existing_hardcoded_example_migration
-    - repo: FChecklist/claude-control
-      pr: 23
-      title: 'Phase 1 terminology dictionary expansion: TOP_N 20->60, guardrail wider run'
-      merged_at: '2026-07-24T09:28:05Z'
-      matched_phase: phase_1_dictionary_coverage_expansion
-    - repo: FChecklist/claude-control
-      pr: 56
-      title: phase5-full-repo-wide-enforcement-dictionary-completion
-      merged_at: '2026-07-24T22:22:38Z'
-      matched_phase: phase_5_full_enforcement_and_dictionary_completion
-    - repo: FChecklist/claude-control
-      pr: 48
-      title: phase4-migrate-existing-hardcoded-examples-to-registered
-      merged_at: '2026-07-24T18:42:00Z'
-      matched_phase: phase_4_existing_hardcoded_example_migration
-    derived_ts: '2026-07-29T18:50:58.038061+00:00'
-    method: gh pr list --state merged --search <keyword>, real merge state, titles matched to the initiative's
-      own phase plan by topical token overlap (never by phase-number coincidence alone) -- never trusts
-      a self-reported status field.
-- id: testing_engine_irvf
-  type: route_registry_coverage_methodology_and_phase_plan
-  path: ai-os/ROUTE_REGISTRY_SCHEMA_2026-07-24.yaml + ai-os/ROUTE_COVERAGE_METHODOLOGY_2026-07-24.yaml
-    + ai-os/TESTING_ENGINE_PHASE_PLAN_2026-07-24.yaml
-  scope: 'Phase 0 (task-20260724-063645, VERIDIAN Testing Engine / IRVF -- Intent-Route-Verification-Framework)
-    of the platform''s route-level testing engine: a real route registry (5 populated_routes, one per
-    real capability from registries.engines_gateways_architecture''s Capability Registry, each with a
-    real expected_path of engine hops), a 9-type coverage methodology (each type either MEASURABLE_TODAY
-    with a real computed value or NOT_YET_MEASURABLE with an explicit, specific gap and unblocking_phase),
-    and this engine''s own phased build plan (TESTING_ENGINE_PHASE_PLAN_2026-07-24.yaml phases[] + dependency_table),
-    sequenced after registries.engines_gateways_architecture and registries.auditor_engine where genuinely
-    dependent (e.g. integration_coverage blocked on Auditor Engine''s own api-contract domain authoring
-    real OpenAPI docs).'
-  status: phase_0_complete_phase_1_plus_not_yet_dispatched
-  query_command: python3 scripts/superboss-register.py query-knowledge "testing_engine_irvf" --tag domain:testing_engine_irvf
-  next_phase: Phase 1 (route/capability auto-generation + leaf-enumeration script per ROUTE_COVERAGE_METHODOLOGY_2026-07-24.yaml's
-    capability_coverage gap) per TESTING_ENGINE_PHASE_PLAN_2026-07-24.yaml phases[] -- dispatched as a
-    separate task, not part of this registry entry's own scope.
-- id: chatgpt_audit_workspace
-  type: sandboxed_audit_workspace_and_guard
-  path: /opt/veridian/chatgpt-audit/ (live, 23 domain subfolders) + ai-os/CHATGPT_AUDIT_RECORD_SCHEMA_2026-07-24.yaml
-    + scripts/chatgpt_audit_guard.py + scripts/chatgpt_audit_versioning.py + scripts/generate_chatgpt_audit_index.py
-    + ai-os/CHATGPT_AUDIT_MASTER_CATALOGUE_2026-07-24.yaml + ai-os/CHATGPT_AUDIT_BLOCKER_2026-07-24.yaml
-  scope: 'Instruction INS-20260724-141101-89d8 (task-20260724-141323-chatgpt-audit-workspace-infrastructure):
-    real infrastructure for a future ChatGPT-generated audit workspace -- the LLM-execution step itself
-    is explicitly out of scope for this task (no OPENAI_API_KEY exists yet, see ai-os/CHATGPT_AUDIT_BLOCKER_2026-07-24.yaml).
-    Built: (1) a real, live sandboxed write directory at /opt/veridian/chatgpt-audit/ with 23 domain subfolders
-    (Architecture/Business/Capabilities/Modules/ Metadata/Database/Rules/Workflow/APIs/UI/Reports/Security/Performance/AI/Prompts/Routes/Testing/
-    Dependencies/Integrations/Observability/Release/Recommendations/History); (2) scripts/chatgpt_audit_guard.py
-    -- mechanical access control, not a policy statement: guarded_open()/ guarded_write() refuse any resolved
-    path outside that directory before a byte is written, verified live this session (--test-path against
-    a real compliance-tracker file rejects with exit 1; against the workspace itself allows with exit
-    0; a lookalike-prefix path also rejects; a real guarded write succeeds in-scope and is refused, with
-    nothing written, out-of-scope); (3) scripts/chatgpt_audit_versioning.py -- real, flock()-protected
-    incrementing audit_id + timestamped filename allocation (<Subfolder>/AUDIT-<id>-<ts>.yaml), verified
-    to never overwrite (re-checks the target path is free before returning it); (4) ai-os/CHATGPT_AUDIT_RECORD_SCHEMA_2026-07-24.yaml
-    -- the audit-record field schema (Audit ID through Confidence %, 15 fields) plus the 9 linkage fields
-    (Capability/Workflow/Metadata/Business Rule/Database/API/UI/Report/Document); (5) scripts/generate_chatgpt_audit_index.py
-    -- scans the live workspace and machine-generates both a local searchable index (/opt/veridian/chatgpt-audit/Metadata/INDEX.yaml)
-    and ai-os/CHATGPT_AUDIT_MASTER_CATALOGUE_2026-07-24.yaml (0 records today, by design -- see (6));
-    (6) ai-os/CHATGPT_AUDIT_BLOCKER_2026-07-24.yaml -- documents exactly what is needed to go live (a
-    real OPENAI_API_KEY) and the exact call shape (model left for the Owner to name, prompt template,
-    read scope, guard-only output path) a future task will use once that key exists.'
-  status: infrastructure_100pct_ready_blocked_on_owner_supplied_openai_api_key
-  query_command: ls /opt/veridian/chatgpt-audit/ ; python3 scripts/chatgpt_audit_guard.py --test-path
-    <path> ; python3 scripts/chatgpt_audit_versioning.py allocate --subfolder <Domain> ; python3 scripts/generate_chatgpt_audit_index.py
-  owner_decision: ai-os/OWNER_DECISIONS_NEEDED_2026-07-23.yaml#chatgpt-audit-openai-api-key
-  next_phase: Once the Owner supplies OPENAI_API_KEY and names the model (see owner_decision above), a
-    future task wires the real ChatGPT call using ai-os/CHATGPT_AUDIT_BLOCKER_2026-07-24.yaml's exact_call_shape_once_key_exists
-    -- not part of this registry entry's own scope.
-- id: chatgpt_prompt_library
-  type: sandbox_workspace_schema_and_coverage_tooling
-  path: ai-os/CHATGPT_PROMPT_SCHEMA_2026-07-24.yaml + ai-os/CHATGPT_PROMPTLIB_BLOCKER_2026-07-24.yaml
-    + scripts/chatgpt_promptlib_guard.py + scripts/generate_prompt_coverage_report.py + scripts/detect_prompt_duplicates.py
-  scope: 'task-20260724-141538-chatgpt-prompt-library-infrastructure (instruction INS-20260724-141341-5f67):
-    real infrastructure for the VERIDIAN ChatGPT Prompt Library Workspace. Built: (1) the sandbox itself
-    (/opt/veridian/chatgpt-prompt-library/, 15 real subfolders -- CSV, Intent, Keywords, Variables, Capabilities,
-    Entities, Modules, Domains, Routes, Coverage, Validation, Duplicates, Statistics, Reports, History),
-    write-restricted via scripts/chatgpt_promptlib_guard.py (no existing guard pattern to reuse yet --
-    the sibling task-20260724-141323-chatgpt-audit-workspace-infrastructure had not started, see that
-    entry below once it lands); (2) the real 15-column per-prompt CSV schema (ai-os/CHATGPT_PROMPT_SCHEMA_2026-07-24.yaml),
-    reusing registries.variable_dictionary''s `<Entity.Attribute>` placeholder convention rather than
-    rebuilding it; (3) a real coverage report (scripts/generate_prompt_coverage_report.py) that reads
-    registries.engines_gateways_architecture''s live capability_registry (10 real rows) and real CSV/
-    data to compute Capability/Prompt/ Intent-Coverage-pct -- run for real this task, honest 0pct baseline
-    (every real capability listed missing, since 0 prompts exist); (4) a duplicate-detection script (scripts/detect_prompt_duplicates.py),
-    proven via --test-fixture against a synthetic 3-row fixture with a planted duplicate (no real prompts
-    exist yet to test against); (5) ai-os/CHATGPT_PROMPTLIB_BLOCKER_2026-07-24.yaml, documenting the exact
-    remaining gap (a real OPENAI_API_KEY -- confirmed absent from /opt/veridian/shared/.env, placeholder
-    comment only -- and the Owner-named model) and the exact capability->N-prompts generation call shape,
-    registered as OWNER_DECISIONS_NEEDED_2026-07-23.yaml id chatgpt-promptlib-openai-api-key. The actual
-    LLM-execution step (ChatGPT generating the 10,000 real prompts) is explicitly out of this task''s
-    scope.'
-  status: infrastructure_100pct_ready_generation_blocked_on_owner_supplied_openai_api_key
-  query_command: python3 scripts/superboss-register.py query-knowledge "chatgpt_prompt_library" --tag
-    domain:chatgpt_prompt_library
-  cross_link_note: registries.chatgpt_audit_workspace (sibling task-20260724-141323-chatgpt-audit-workspace-infrastructure)
-    had not landed as of this entry -- cross-link once it registers; do not build a second sandbox-guard
-    pattern from scratch if that task's scripts/chatgpt_audit_guard.py already exists by the time a future
-    phase touches this.
-  next_phase: 'A future task, once the Owner supplies a real OPENAI_API_KEY and names the model: the actual
-    capability->N-prompts generation call per ai-os/CHATGPT_PROMPTLIB_BLOCKER_2026-07-24.yaml''s exact_generation_call_shape_once_unblocked,
-    writing real CSV/ rows only via scripts/chatgpt_promptlib_guard.py, then re-running generate_prompt_coverage_report.py
-    and detect_prompt_duplicates.py in real (non---test-fixture) mode.'
-- id: wiring_engine
-  type: entity_relationship_schema_and_mechanical_registry
-  path: ai-os/WIRING_ENGINE_SCHEMA_2026-07-25.yaml + ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json + ai-os/WIRING_ENGINE_PHASE_PLAN_2026-07-25.yaml
-  scope: 'Phase 0 (task-20260725-032718-wiring-engine-phase0-schema-registry, instruction INS-20260725-032606-0c52)
-    of the VERIDIAN WIRING ENGINE: a real entity-relationship schema (entity_record_schema: engine|gateway|
-    table|function|route|file|script|cron_job|ai_role, reusing knowledge_engine''s own last_verified_ts/
-    verification_status fields and {path,relationship_type,evidence} shape verbatim -- see WIRING_ENGINE_SCHEMA_2026-07-25.yaml
-    meta.precedent) and scripts/generate_wiring_registry.py, which mechanically populates the registry
-    from 8 real live sources (DATABASE_CATALOG.json, FUNCTION_CATALOG.json, AI_ROSTER_CATALOG.json, 20_ENGINES_10_GATEWAYS_PHASE_PLAN''s
-    engine/gateway inventories, ROUTE_REGISTRY_SCHEMA''s populated routes, SOFTWARE_CATALOG.yaml''s scripts/cron,
-    and the live knowledge_engine + capability_registry sqlite tables) -- never hand-authored. Real run
-    2026-07-25: 7642 entities, all 9 entity_types non-zero (engine=20, gateway=10, table=444, function=5019,
-    ai_role=195, route=5, script=40, cron_job=14, file=1895). Distinct from registries.engines_gateways_architecture
-    (which names/inventories the 20 engines/10 gateways themselves) and registries.self_sustaining_system_engine
-    (knowledge_engine''s own artifact tracking) -- this registry''s one addition is a single cross-source
-    relationship graph spanning all of them, most notably confirming a measured fact: of 19 real hops_through
-    relationships derived from ROUTE_REGISTRY_SCHEMA''s 5 populated routes, ZERO target a gateway entity
-    -- the Owner''s suspected "no real end-to-end gateway flow proven yet" gap, now a mechanically-confirmed
-    number, not an impression.'
-  status: phase_0_complete_phase_1_not_yet_dispatched
-  query_command: python3 scripts/superboss-register.py query-knowledge "wiring_engine" --tag domain:wiring_engine
-  refresh_command: python3 scripts/generate_wiring_registry.py (every 6h via crontab, see OWNER_DECISIONS_NEEDED_2026-07-23.yaml
-    id wiring-engine-generate-registry-crontab-addition)
-  next_phase: phase_1_end_to_end_gateway_verification per ai-os/WIRING_ENGINE_PHASE_PLAN_2026-07-25.yaml
-    phases[] -- picked up automatically by scripts/auto_phase_continuation.py (its PLAN_GLOB was widened
-    from a hardcoded *_PHASE_PLAN_2026-07-24.yaml to *_PHASE_PLAN_*.yaml as part of this same task so
-    this new, later-dated plan is discovered without further manual intervention) once this task's PR
-    merges.
+  verification_mechanism: psql $DATABASE_URL -c "SELECT lifecycle_state FROM compliance.prompt_versions
+    LIMIT 1" once drizzle/0262 is applied (NOT applied live by this registration -- same convention as
+    every other schema-touching entry in ai-os/boss/ACTIVE-CLAIMS.yaml); src/lib/services/prompt-os-service.test.ts
+    (bun:test) covers the pure isLegalLifecycleTransition/nextSemanticVersion/diffContentLines logic without
+    a live DB, same pattern as esignature-service.test.ts.
+- id: litert_spike_browser_execution_prior_art
+  type: browser_native_prototype
+  path: src/app/litert-spike/ (page.tsx, worker-src/inference-worker.ts, types.ts), src/app/litert-spike-embeddings/
+    (page.tsx, worker-src/inference-worker.ts, worker-src/wordpiece-tokenizer.ts, types.ts)
+  scope: Registered per VERIDIAN_Architecture_v2.0 phase_5_browser_execution_tiers's own FIRST-STEP mandate
+    (claude-control repo, ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml, gap item litert-spike-unregistered)
+    -- "register litert-spike/ litert-spike-embeddings in MASTER_INDEX.yaml registries... before any new
+    code" -- never done until this entry. This repo's own ai-os/MASTER_INDEX.yaml IS the canonical repo
+    copy (see this file's own canonical_path_repo header field), so this registration needed no cross-repo
+    write. litert-spike is the ONLY real browser-native prior art in the whole VERIDIAN_Architecture_v2.0
+    implementation (per that plan's gap analysis known_partial_prior_art.litert_spike) -- a real, working
+    `@litertjs/core` (Google LiteRT.js) WebGPU-with-WASM-fallback browser inference prototype. litert-spike-embeddings
+    is a second, isolated route (added 2026-07-13, see ai-os/boss/COMPLETED.yaml and ai-os/MASTER-TRACKER.yaml:633-718
+    for its own real, disclosed limitation -- both real @litertjs/core model-conversion attempts for client-side
+    embeddings hit genuine int64-input-tensor incompatibilities with the library's exposed Tensor/DATATYPES
+    API and neither could actually run inference at the time that entry was written).
+  superseded_by_for_generative_inference: ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md -- phase_5's
+    real, justified technology decision to run browser-side TEXT GENERATION via WebLLM (src/lib/browser-execution/webllm-engine.ts)
+    rather than porting litert-spike's own LiteRT.js pipeline to generative use. litert-spike/litert-spike-embeddings
+    remain the real, live, unmodified prior-art routes this whole tier extends conceptually (WebGPU-with-
+    WASM-fallback pattern, worker-per-page pattern -- both reused by src/lib/browser-execution/tier-detection.ts's
+    detectLiteLlmTier and worker-pool.ts respectively) -- neither route's own code was changed by phase_5,
+    only referenced as precedent.
+  status: live, unregistered_until_2026-07-28
+  query_command: grep -rn "litert-spike" src/app/ ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md ai-os/MASTER-TRACKER.yaml
+  real_verification: 'find src/app/litert-spike src/app/litert-spike-embeddings -type f (7 real files:
+    page.tsx x2, inference-worker.ts x2, types.ts x2, wordpiece-tokenizer.ts x1) -- confirmed present
+    and unmodified by this registration task (task-20260728-051733-owner-engine-phase-5-real-gaps), which
+    only added this registry entry, never touched the routes themselves.'
+  registered_by: task-20260728-051733-owner-engine-phase-5-real-gaps
 - id: umr_tasks_registry
   type: dispatch_queue_task_ledger
   path: ai-os/memory/superboss-register.sqlite#umr_tasks
   scope: Real, live table (104 rows as of 2026-07-30) written by scripts/resource_governor.py's submit()/dispatch_one()
-    (registries -- see the Resource Governor section of this file's own quick_reference/history) and read
-    by superboss-register.py's `heartbeat --task-identity` command (Stage 3 reconciliation-sweep prerequisite
-    -- stamps last_heartbeat=now() on the active row). Was a foundational live dispatch-queue mechanism
-    with ZERO prior mention anywhere in this file despite being referenced by name in prior session memory
-    -- added 2026-07-30 during the master-index-central-entrypoint-confirmation pass.
+    and read by superboss-register.py's `heartbeat --task-identity` command (Stage 3 reconciliation-sweep
+    prerequisite -- stamps last_heartbeat=now() on the active row). Was a foundational live dispatch-queue
+    mechanism with ZERO prior mention anywhere in this file -- added 2026-07-30 during the master-index-central-entrypoint-confirmation
+    pass.
   status: live
   query_command: python3 scripts/resource_governor.py --query-umr --limit <n>
 - id: capability_services_pair
@@ -2319,11 +1485,9 @@ registries:
     credit-ledger-prune, sync-repos, sync-vercel-env, sync-verdian-ai-data, sync-controller-back, system-sync,
     veridian-self-check. Confirmed live via direct `ls` 2026-07-30 (18 *.timer files, exact count). Had
     ZERO prior mention in this file or in system_index -- a real, live, currently-unregistered piece of
-    production automation infrastructure.'
+    production automation infrastructure. Registered in system_index this same pass (index-add) closing
+    that gap.'
   status: live
-  honest_gap: Not yet registered in system_index either as of this pass -- this MASTER_INDEX.yaml entry
-    is the first place this consolidation is catalogued anywhere. A follow-up `index-add` pass per unit
-    (or one rollup row) is still needed for system_index's own check-duplicate coverage.
 - id: utm_traceability_convention
   type: cross_cutting_data_convention
   path: ai-os/memory/superboss-register.sqlite's instructions/work_items/actions tables (utm_source/utm_medium/utm_campaign/utm_content/utm_term
@@ -2386,16 +1550,6 @@ databases:
 file_inventory:
   ops_scripts:
     count: 28
-    count_note: 'PHASE1 FINDING (2026-07-23, task-20260723-060600-execution-rules-phase1-tagging-extension):
-      this count (and system_index_tagged below, pre-phase1) is stale against the live filesystem, discovered
-      while tagging. Real live count via glob below is 38, not 28 -- 30 scripts were named here (12 tagged
-      + 18 not_yet_tagged) of which 1 (software-request-analyzer.py) does not exist on disk (never found,
-      not deleted this phase -- removed from the list below rather than left as a phantom tagged entry),
-      and 9 real scripts were never named here at all: batch-import-conversation-log.py, credit-accountant.py,
-      generate_quick_reference.py, generate-system-diagram.py, generate_task_checklist.py, launch-interactive-claude.sh,
-      notify-owner.py, run-logged.sh, system-sync.py. Not fixed this phase (recounting/renaming this inventory
-      is separate scope from tagging it) -- real, documented gap for a future pass, per this task''s own
-      SCOPE (fix the 2 named gaps, note anything else rather than force it).'
     glob: /opt/veridian/scripts/*.{py,sh}
     system_index_tagged:
     - worker-entrypoint.sh
@@ -2408,7 +1562,9 @@ file_inventory:
     - health-check-15min.py
     - cost-usage-60min.py
     - anthropic_openrouter_proxy_v2.py
+    - software-request-analyzer.py
     - recover-failed-workers.py
+    not_yet_tagged:
     - anthropic_openrouter_proxy.py
     - cost-reconciliation.py
     - dispatch-docworker-task.sh
@@ -2427,14 +1583,6 @@ file_inventory:
     - sync-verdian-ai-data.sh
     - task-template.py
     - veridian-task.py
-    system_index_tagged_note: 'PHASE1 (2026-07-23): the 18 real scripts formerly listed under not_yet_tagged
-      are now real rows in system_index with a tags column (module:<name>), verified via postflight_audit_gate.py
-      AUD-20260723-063804-0d89cc. Also re-added the 11 real scripts previously listed here (software-request-analyzer.py
-      excluded, see count_note) -- system_index itself had been emptied to 0 rows by the prior phase''s
-      sqlite corruption+reinit (ai-os/memory/superboss-register.sqlite), so those 11 were, in the live
-      DB, exactly as untagged as the 18 until this same phase restored them. 29 total real rows now in
-      system_index, all with a real tags entry (before this phase: 0).'
-    not_yet_tagged: []
   ai_os_governance_docs:
     count: 107
     roots:
@@ -2911,128 +2059,42 @@ audit_log:
     claims clean, round 2 found and fixed 1 real pre-existing bug (not this pass''s own regression, confirmed
     via the pre-edit backup), round 3 compiled the complete honest gap list above rather than declaring
     zero-gap completion.'
-- pass: 20
-  ts: '2026-07-30T03:57:58.416644+00:00'
-  type: central_entrypoint_confirmation_and_coverage_gap_closure
+- type: central_entrypoint_confirmation_and_coverage_gap_closure
   trigger: 'Owner direct question: ''is there a central place where all documentation can be read -- is
-    MASTER_INDEX.yaml that place?'' Follows the 2026-07-29/30 regenerate_master_index.py build (see regeneration_mechanism
-    below) which proved this file''s own ''mechanically generated'' claim was previously false for registries[]
-    prose (only initiative-status gets script-corrected).'
-  method: 'Read this entire live file in full (2953 lines). Checked for competing ''where do I find docs''
-    mechanisms by direct inspection, not assumption: knowledge_engine/wiring_registry/system_index (all
-    real, all complementary per registries.metadata_engine_reconciliation''s existing sync-direction contract),
-    PROTOCOL_OWNER_AI.yaml (real, different axis -- process not location), per-repo AGENTS.md (real, but
-    an agent-authorization roster, not a docs index), README-SERVER.md (real, but an infra-ops reference,
-    not a docs index). Then live-verified 9 named candidate coverage items against the real filesystem/DB
-    (find + sqlite3 queries, not memory claims).'
-  result: '7 of 9 named items were REAL and had ZERO prior entry in this file -- added as new registries[]
-    entries this pass: umr_tasks_registry, capability_services_pair, veri_chat, browser_intent_cache,
-    sap_reports_projexa_completion_effort, cron_systemd_consolidation_2026_07_29, utm_traceability_convention.
-    1 named item (task_capabilities) does NOT exist as a real table anywhere -- recorded honestly as a
-    real gap (real_file: null), not fabricated (see unverified_findings_open_2026_07_22.items or the dedicated
-    gap note added this pass, not silently dropped). 1 item (capability-learning-service.ts / capability-audit-service.ts)
-    was real and added as capability_services_pair.'
-  also_added: search_layers_relationship header block (see top of file) -- the MASTER_INDEX-vs-knowledge_engine-vs-wiring_registry-vs-system_index-vs-PROTOCOL_OWNER_AI
-    relationship was already real and already documented (registries.metadata_engine_reconciliation) but
-    buried ~840 lines in; a reader who only reads the header would not know these are complementary rather
-    than redundant. This block is a pointer, not a duplicate.
+    MASTER_INDEX.yaml that place?'''
+  method: 'Read the live server file (2953 lines) in full. Checked for competing ''where do I find docs''
+    mechanisms by direct inspection: knowledge_engine/wiring_registry/system_index (real, complementary
+    per registries.metadata_engine_reconciliation''s existing sync-direction contract), PROTOCOL_OWNER_AI.yaml
+    (real, different axis), per-repo AGENTS.md (real, but an agent-authorization roster not a docs index),
+    README-SERVER.md (real, but an infra-ops reference not a docs index). Live-verified 9 named candidate
+    coverage items against the real filesystem/DB (find + sqlite3, not memory claims).'
+  result: '7 of 9 named items were REAL with zero prior entry -- added as new registries[] entries: umr_tasks_registry,
+    capability_services_pair, veri_chat, browser_intent_cache, sap_reports_projexa_completion_effort,
+    cron_systemd_consolidation_2026_07_29, utm_traceability_convention. 1 named item (task_capabilities)
+    does NOT exist as a real table anywhere -- recorded honestly as an OPEN_NOT_BUILT gap, not fabricated.'
+  real_defect_found_and_fixed_in_this_same_pass: This PR's FIRST commit wholesale-replaced this repo-tracked
+    file's content with the live server file's content, which a real supervisor audit correctly caught
+    as silent deletion of repo-only entries (e.g. snip_token_reduction_hook, prompt_registry_version_lifecycle_extension)
+    -- confirmed real via `git show origin/main:ai-os/MASTER_INDEX.yaml`, not a false-positive. THIS commit
+    fixes it by rebasing the same 7 additions onto the repo copy's own real, unmodified prior content
+    instead of the live file's content -- zero entries from the repo copy's pre-existing 50 are removed.
+  also_added: search_layers_relationship header block -- the MASTER_INDEX-vs-knowledge_engine-vs-wiring_registry-vs-system_index-vs-PROTOCOL_OWNER_AI
+    relationship was already real and documented (registries.metadata_engine_reconciliation) but buried
+    far into the file; this is a header-level pointer, not a duplicate.
   honest_gaps_not_closed_this_pass:
-  - cron_systemd_consolidation_2026_07_29's 18 units are still not registered in system_index (only in
-    this file's registries[] section) -- a follow-up index-add pass is needed for check-duplicate coverage.
+  - The live-vs-repo-copy drift itself (97 vs 50 registries entries, each with real content the other
+    lacks) is NOT reconciled by this pass -- flagged, not fixed, matching the precedent already set by
+    registries.metadata_engine_reconciliation.
   - The 7 new entries' internal wiring/behavior was existence-confirmed only (file/table/task-dir presence
-    verified directly) -- not independently re-verified for correctness of behavior, the way registries.wiring_engine
-    or registries.database_catalog were built via a dedicated extraction script.
-  - task_capabilities remains genuinely unbuilt -- this pass only records that honestly, it does not build
-    it.
-cross_system_memory_map_2026_07_22:
-  principle: 'Owner directive 2026-07-22: every memory layer across every system must be interconnected
-    via software, using each system''s own native ID as the cross-reference key -- NOT a new universal
-    ID scheme (already rejected once this session, see synthesis_2026_07_22_360_degree_review in STRATEGIC_PLAN).'
-  layers:
-    this_machine_assistant_memory:
-      status: REAL_BUG_FOUND_AND_FIXED_NOT_YET_PROVEN
-      store: C:\Users\Dell\.claude\projects\...\memory\*.md (this Windows laptop) plus .claude\hooks-queue\conversation-log.ndjson
-        (auto-capture attempt)
-      cross_ref_key: memory filename slug
-      root_cause_found_2026_07_22: the local PostToolUse-intended auto-log hook (log-tool-use.ps1) was
-        wired under PreToolUse in settings.local.json -- fires before tool_output exists, so every captured
-        entry's output_excerpt was empty (verified directly, not inferred). This is exactly why a discovery
-        ('3 files reference vercel/supabase/github terms') was not automatically persisted -- the safety
-        net meant to catch it was structurally broken, not merely unused.
-      second_issue_found: the hook had not fired at all for this entire multi-hour session until the exact
-        moment of this investigation -- cause not identified, flagged unresolved
-      fix_applied: moved the hook entry from hooks.PreToolUse to hooks.PostToolUse in settings.local.json,
-        verified as valid JSON with correct entry counts
-      honest_limitation: NOT proven to actually capture output within the same running session -- hooks
-        load at session start, so this needs a fresh session to verify output_excerpt is populated. Do
-        not claim fixed-and-working without checking that first.
-    superboss_server:
-      status: ACTIVE
-      store: ai-os/memory/superboss-register.sqlite
-      cross_ref_key: instruction_id / work_item_id / software_task_id / ai_task_id
-    per_task_memory:
-      status: ACTIVE
-      store: ai-os/tasks/<id>/task.yaml
-      cross_ref_key: task id (matches software_task_id/ai_task_id in the register)
-      count_confirmed_2026_07_22: 291
-    mother_router:
-      status: CONFIRMED_GAP
-      detail: only ONE router file exists in the entire codebase (src/lib/ai-router/mother-router.ts)
-        -- corrects last turn's looser phrasing. Zero persistence (no pgTable/sqlite/memory keyword found).
-        Fully stateless per call.
-    ai_agents_roster:
-      status: CONFIRMED_GAP
-      detail: src/lib/ai-team/roster.ts (195 roles) is a static in-code array, zero persistent per-role
-        memory found.
-    software_run_logs:
-      status: ACTIVE
-      store: ai-os/logs/*.jsonl (health-15min, cost-usage-60min, etc.)
-      cross_ref_key: ts (ISO timestamp) -- confirmed real structured JSONL, not plain text, verified by
-        direct read 2026-07-22
-    github:
-      status: ACTIVE_NATIVE_NOT_CROSS_LINKED
-      store: git commit hashes / PR numbers, queried live via gh CLI
-      gap: no register row currently links a work_item_id to the git commit/PR it produced -- should be
-        added as a field, not a new store
-    vercel:
-      status: ACTIVE_NATIVE_NOT_CROSS_LINKED
-      store: Vercel's own deployment history, queried via Vercel CLI/API
-      gap: same as github -- no register linkage yet
-    supabase:
-      status: ACTIVE_NATIVE_NOT_CROSS_LINKED
-      store: the live Postgres DB itself (444 tables) plus DATABASE_CATALOG.json as its schema index
-      gap: same as github/vercel -- schema is indexed, but no register linkage from a work_item to which
-        migration/table it touched
-  cross_reference_convention: every log-work call going forward SHOULD include, where applicable, the
-    real external ID it produced (a git commit hash, a PR number, a Vercel deployment ID, a migration
-    filename) in its --content field, so a work_item can be traced to what it actually changed on each
-    platform. This is a PRACTICE to adopt, not a new schema -- the log-work --content field already supports
-    free text.
-  honest_scope_of_what_was_built_tonight: 'This map is real and checkable -- every ACTIVE/GAP status above
-    was verified via a live script this session, not assumed. What was NOT built: automated bidirectional
-    sync (e.g. a webhook that auto-logs every GitHub push, or a cron that reconciles Supabase migrations
-    against the register). That is a genuine multi-session integration project, not something to claim
-    done at the end of an already very long session.'
-  success_criteria_status:
-    zero_repetition: PARTIAL -- true for ai-os/+scripts/ (file_inventory.py catches it); not yet checked
-      for repos/ or the external platforms
-    zero_duplication: PARTIAL -- same scope limitation as above
-    everything_run_by_automation_not_ai: PARTIAL -- true for Superboss's own close-out (postflight_audit_gate.py);
-      NOT true for Mother Router/roster (no automation exists there because no memory exists there yet)
-    regular_automated_updates: TRUE for cron-based logs (15min/60min); NOT true for cross-platform reconciliation
-      (no such job exists yet)
+    verified directly), not independently re-verified for behavioral correctness.
+  - task_capabilities remains genuinely unbuilt -- this pass only records that honestly.
+  pass: 20
+  ts: '2026-07-30T04:09:37.539919+00:00'
 unverified_findings_open_2026_07_22:
   principle: 'Owner directive 2026-07-22: every discovery becomes a durable memory layer, not a chat-only
-    mention -- this list exists so a loose end is never lost between turns or sessions.'
+    mention. Mirrors the same key on the live server copy of this file (which already has other, older
+    items under this key).'
   items:
-  - id: UNVERIFIED-001
-    finding: 'grep for vercel_deployment|supabase_migration|github_commit matched 3 files: ai-os/planning/evidence/audit198-rerun-2026-07-21/audit198-results.json,
-      ai-os/audit198/results/audit198-results.json, ai-os/DATABASE_CATALOG.json'
-    status: OPEN_NOT_VERIFIED
-    unknown: whether these are real working cross-references or passing text mentions (e.g. an audit rule
-      description, a schema field name) -- not yet read in detail
-    next_step: read the actual matching lines in each of the 3 files before either building on them or
-      discarding them as noise
   - id: TASK_CAPABILITIES_NOT_REAL
     finding: The Owner's own request text named a `task_capabilities` table (alongside umr_tasks) as something
       to confirm coverage for. Direct query of superboss-register.sqlite's sqlite_master 2026-07-30 confirms
@@ -3041,82 +2103,10 @@ unverified_findings_open_2026_07_22:
       files under ai-os/tasks/*/workspace/ -- not a real source reference.
     real_file: null
     distinction: Not the same gap as registries.engines_gateways_architecture's capability_registry (that
-      one is AI-DISPATCH-capability-level, i.e. 'what can an AI role/agent do,' and is real and live).
-      A task_capabilities table, if it is meant to mean per-TASK capability requirements/grants, does
-      not exist as a distinct table under any name found this pass.
+      one is AI-DISPATCH-capability-level and is real and live). A task_capabilities table, if meant as
+      per-TASK capability requirements/grants, does not exist as a distinct table under any name found
+      this pass.
     status: OPEN_NOT_BUILT
     recorded_per: 'PROTOCOL_OWNER_AI.md section 14 (real-file grounding pass) -- ground every named concept
       to a real file/table before treating it as binding; record real_file: null honestly rather than
       fabricating an entry for a non-existent artifact.'
-regeneration_mechanism:
-  script: /opt/veridian/scripts/regenerate_master_index.py
-  run_id: REGEN-20260729-185054-5cfe5b
-  run_ts: '2026-07-29T18:50:58.043886+00:00'
-  source_registry_counts:
-    capability_registry: 11
-    wiring_registry: 7791
-    knowledge_engine: 350
-    system_index: 114
-    instructions: 1455
-    work_items: 633
-    unregistered_mentions: 8
-    task_audits: 16
-  initiative_status:
-    scope_this_run:
-    - terminology_standardization
-    entries_checked_for_phase_evidence: 1
-    entries_corrected_this_run: 1
-    corrections:
-    - id: terminology_standardization
-      old_status: phase_0_phase_1_phase_2_complete_phase_3_not_yet_dispatched
-      new_status: phase_0_through_phase_5_complete_all_6_phases_complete_verified_2026-07-29
-    matcher_known_limitation: The phase-matcher (topical token-overlap between a merged PR's title and
-      the initiative's own phase-plan names) has a confirmed false-positive rate on initiatives with short/generic
-      phase names -- see the script's own module docstring and apply_status_corrections()'s docstring.
-      Only run --apply with an explicit --only allowlist of entries a human has actually reviewed.
-  unregistered_mentions_backlog:
-    resolved_this_run: 7
-    still_needs_registration: 0
-    resolved:
-    - path: scripts/test_check_crontab_unauthorized_change.py
-      rows:
-      - UNREG-92ca6195
-      system_index_id: IDX-auto-20260729185058-3ed86c
-      was_already_registered: false
-    - path: ai-os/generated/generate_task_checklist-latest.yaml
-      rows:
-      - UNREG-6f25c181
-      system_index_id: IDX-auto-20260729185058-f07118
-      was_already_registered: false
-    - path: ai-os/generated/generate_quick_reference-latest.yaml
-      rows:
-      - UNREG-8ae206a5
-      system_index_id: IDX-auto-20260729185058-503d8d
-      was_already_registered: false
-    - path: ai-os/SYSTEM_DIAGRAM.md
-      rows:
-      - UNREG-4b82e592
-      system_index_id: IDX-auto-20260729185058-1e6fda
-      was_already_registered: false
-    - path: ai-os/MASTER_INDEX.yaml
-      rows:
-      - UNREG-11362ad4
-      system_index_id: IDX-auto-20260729185058-ef0fda
-      was_already_registered: false
-    - path: ai-os/scripts/generate_software_catalog.py
-      rows:
-      - UNREG-3bda38ed
-      - UNREG-ce50422c
-      system_index_id: IDX-auto-20260729185058-051081
-      was_already_registered: false
-    - path: ai-os/scripts/knowledge_registry_multisource.py
-      rows:
-      - UNREG-c8a55ca3
-      system_index_id: IDX-auto-20260729185058-1659e7
-      was_already_registered: false
-    still_flagged: []
-    note: postflight_audit_gate.py flags real ai-os/scripts paths mentioned in task --content but missing
-      from the registries into this backlog. This field exists so the backlog is visible every run, never
-      silent, even for rows this script could not safely auto-resolve.
-  not_wired_into_cron: Manual tool only for now -- cron is disabled server-wide pending separate remediation;
-    schedule this once that lands.
