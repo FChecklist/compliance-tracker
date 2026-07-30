@@ -6679,3 +6679,33 @@ recently_completed:
       self-certify it); left failing, flagged for a separate agent/session
       to review and post a real AUDIT: PASS/FAIL comment. Did not merge PR
       #563 (out of this task's scope).
+
+# ── claim registered 2026-07-30 (this session) ───────────────────────────
+  - session_label: "claude-code (background sub-agent) -- CRM Sales Pipeline KPI dashboard widget (generalized gap analysis)"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Real gap analysis (generalized reference-CRM comparison, not
+      telecom-specific) found getSalesPipelineOverview()
+      (src/lib/services/crm-service.ts) already implemented and already
+      exposed externally at /api/v1/projexa/sales-pipeline, but never
+      rendered inside this app's own CRM UI. Adding: a thin in-app-only
+      sibling route (src/app/api/crm/sales-pipeline/route.ts,
+      requireAuth() not requireAuthOrApiKey -- distinct trust boundary from
+      the external v1/projexa route) plus a "Sales Pipeline" KPI section on
+      src/app/(app)/crm/page.tsx (leads-by-status, opportunities-by-stage
+      value, win rate, overdue counts, open pipeline value) using this
+      repo's own existing recharts wiring (matching
+      src/components/home/DashboardAnalytics.tsx's ComplianceChart style),
+      not the reference doc's legacy Google-Charts/pie-chart UI, per Owner
+      instruction to leave this app's own UI/UX pattern unchanged. No DB
+      migration needed -- pure read/render on existing data.
+    scope_note: >-
+      File scope: src/app/api/crm/sales-pipeline/** (new),
+      src/app/(app)/crm/page.tsx (existing module-grid section left
+      untouched, new section appended below it) + this claims-registry
+      entry. No changes to crm-service.ts itself, no changes to the
+      external /api/v1/projexa/sales-pipeline route, no schema/migration
+      changes. Checked this file for collisions before starting: no other
+      active entry names crm/page.tsx, crm-service.ts's
+      getSalesPipelineOverview, or a CRM KPI/dashboard widget as in-progress
+      work.
