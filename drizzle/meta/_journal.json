@@ -1958,22 +1958,22 @@
     {
       "idx": 279,
       "version": "7",
-      "when": 1785402700001,
-      "tag": "0275_co006_statistical_key_figures",
+      "when": 1785410000000,
+      "tag": "0288_co006_statistical_key_figures",
       "breakpoints": true
     },
     {
       "idx": 280,
       "version": "7",
-      "when": 1785402700002,
-      "tag": "0276_co006_statistical_key_figure_report_definition",
+      "when": 1785410000001,
+      "tag": "0289_co006_statistical_key_figure_report_definition",
       "breakpoints": true
     },
     {
-      "idx": 275,
+      "idx": 281,
       "version": "7",
-      "when": 1785402700005,
-      "tag": "0278_register_erp_statistical_key_figure_types",
+      "when": 1785410000002,
+      "tag": "0290_register_erp_statistical_key_figure_types",
       "breakpoints": true
     }
   ]

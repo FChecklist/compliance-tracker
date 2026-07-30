@@ -1,5 +1,5 @@
 -- UMR (Universal Metadata Registry) coverage: erp_statistical_key_figure_types
--- (new table, drizzle/0276_co006_statistical_key_figures.sql) must make an
+-- (new table, drizzle/0288_co006_statistical_key_figures.sql) must make an
 -- explicit registered/exempted choice per
 -- scripts/check-asset-registry-coverage.mjs. Registered as asset_type='other'
 -- -- same choice this codebase's own other org-scoped master-data tables
