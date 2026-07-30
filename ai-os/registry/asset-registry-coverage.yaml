@@ -418,6 +418,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_labour_roster
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: construction_prevailing_wage_rates
+    reason: "HCM-006 Certified Payroll Report (added this PR): has org_id/project_id but no single display-name column -- identity is a (project_id, trade, effective_from) compound (the government wage determination for a given trade classification on a given public-works project, effective as of a date), same shape as erp_statutory_rules' own exemption reason (Priority 4 domain B), not expressible via the trigger's single name_column pointer."
   - table: construction_punch_list_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_site_diaries

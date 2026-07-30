@@ -71,9 +71,10 @@ const CONSTRUCTION_REPORT_META: { id: string; name: string; description: string;
   { id: "construction-expense", name: "Expense Report", description: "Expense entries for the project, summarized by expense head.", classifications: ["financial", "construction"] },
   { id: "construction-category-progress", name: "Category Progress Report", description: "Latest % complete averaged per activity category.", classifications: ["project", "construction"] },
   { id: "construction-project-completion", name: "Project Completion Report", description: "Overall completion % (from the project dashboard) plus a per-category breakdown.", classifications: ["project", "executive", "construction"] },
+  { id: "construction-certified-payroll", name: "Certified Payroll Report", description: "US WH-347-shaped weekly per-worker breakdown for public-works projects: hours by day, trade classification, rate paid vs. the project's prevailing-wage determination, gross wages, and a compliance statement flagging shortfalls (deductions and fringe-benefits-paid are honestly not tracked for this site-labour workforce).", classifications: ["hr", "financial", "compliance", "construction"] },
 ]
 
-const CONSTRUCTION_ROUTE_NOTE = "Real, auth-required API endpoint (GET /api/construction/reports/<reportName>?projectId=<id>, also aliased at /api/v1/projexa/reports/<reportName> for API-key callers) -- returns real DB-backed JSON. No dedicated UI page renders it yet, so there is nothing to navigate straight to without already knowing a projectId (and, for weekly-project, a weekStart)."
+const CONSTRUCTION_ROUTE_NOTE = "Real, auth-required API endpoint (GET /api/construction/reports/<reportName>?projectId=<id>, also aliased at /api/v1/projexa/reports/<reportName> for API-key callers) -- returns real DB-backed JSON. No dedicated UI page renders it yet, so there is nothing to navigate straight to without already knowing a projectId (and, for weekly-project and certified-payroll, a weekStart)."
 
 const CONSTRUCTION_ENTRIES: ReportCatalogEntry[] = CONSTRUCTION_REPORT_META.map(({ id, name, description, classifications }) => {
   const reportName = id.replace(/^construction-/, "")
