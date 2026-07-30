@@ -3956,6 +3956,26 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+  - session_label: "claude-code (geo-cascading-address worktree) -- Country/State/City cascading address data + reusable select component (Task #46 CRM feature-parity gap)"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Owner directive: Task #46 CRM feature-parity gap analysis found free-text
+      country/state/city fields with no cascading select anywhere in the app
+      (crmAccounts.billingCountry/billingState/billingCity + shipping
+      equivalents, and similar fields on erpSuppliers/erpCustomers and any
+      other address-bearing tables). Zero-duplication mandate: NOT a new DB
+      table -- a static reference-data module (src/lib/data/geography.ts,
+      matching the existing src/lib/currency-format.ts static-lookup
+      convention) + ONE reusable cascading Country->State (->City, scope
+      TBD/documented) select component, wired as a drop-in replacement into
+      existing free-text inputs on crm/accounts forms and erp
+      supplier/customer forms, preserving each form's existing UI/UX exactly.
+      No DB migration. File scope: new src/lib/data/geography.ts +
+      src/components (new cascading select component) + the existing
+      address-input JSX in crm/accounts and erp supplier/customer
+      create/edit forms only. Does not touch schema.ts (no migration needed
+      for this task per Owner instruction) or any other active entry's file
+      scope above.
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
