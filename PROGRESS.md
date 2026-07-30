@@ -272,25 +272,42 @@
       (`item_id` is nullable) are bucketed as a real "Unassigned" group,
       not dropped -- same convention as this file's own
       `interiorProfitByRoomAnalysis`'s "Unassigned" room bucket.
-- [x] New migration `drizzle/0276_sd006_sales_by_material_service_type_report_definition.sql`
+- [x] New migration `drizzle/0278_sd006_sales_by_material_service_type_report_definition.sql`
       seeding one `compliance.report_definitions` row
       (`execution_type='deterministic_formula'`,
       `formulaKey='sales_by_material_service_type'`) + matching
       `drizzle/meta/_journal.json` entry (idx 273) -- verified main's true
       current highest migration (0274, SD-007) fresh via
       `git fetch origin main` immediately before first writing this
-      migration as `0275`. A real collision then landed while this PR was
-      in progress: FI-AR-006 (#645) merged moments later, ALSO claiming
-      `0275` (`0275_customer_payment_behavior_dso_report_definition.sql`)
-      and ALSO touching `report-engine-service.ts` +
+      migration as `0275`. **Two real collisions caught, in sequence,
+      both after PR #652 was already open:**
+      (1) FI-AR-006 (#645) merged moments later, ALSO claiming `0275`
+      (`0275_customer_payment_behavior_dso_report_definition.sql`) and
+      ALSO touching `report-engine-service.ts` +
       `terminology-guardrail-exemptions.yaml` -- caught on
       `git fetch origin main` immediately before pushing (main had moved
       9de54f77 -> c8cdd06b). Rebased onto the new main, renamed my
-      migration to `0276`, and resolved the resulting merge conflicts in
+      migration to `0276`, resolved the resulting merge conflicts in
       `report-engine-service.ts` (both new FORMULA_REGISTRY functions kept
-      side by side) and `_journal.json` -- no data loss, both reports
-      coexist. Re-ran the terminology guardrail check + full test suite
-      after the rebase to confirm the resolution was clean. No
+      side by side) and `_journal.json`, re-ran the terminology guardrail
+      check + full test suite to confirm the resolution was clean, pushed,
+      opened the PR.
+      (2) The coordinator flagged a SECOND, still-open collision: PR #651
+      (FI-AP-006, "Vendor Payment History") independently claimed `0276`
+      too, for the identical reason (avoiding #645's `0275`). Verified
+      directly via `gh pr view 651 --json files` -- confirmed. Went
+      further than just fixing that one clash: fetched the FULL current
+      set of 71 open PRs (`gh api repos/.../pulls?state=open&per_page=100`)
+      and checked every one for `drizzle/NNNN_*.sql` files (not just #651),
+      which surfaced a THIRD, independent claim on the exact same number:
+      PR #653 (CO-006, "Statistical Key Figure Report") claims BOTH `0276`
+      *and* `0277`. True safe next-available number, accounting for main
+      (0275) plus every currently-open PR's claim (highest = 0277, PR
+      #653) is therefore `0278`, not `0276`. main itself had not moved
+      (still c8cdd06b) so no further rebase was needed -- just renamed the
+      migration file 0276->0278 and updated `_journal.json`'s tag to
+      match. Re-ran the terminology guardrail check (`--diff-only`,
+      matching CI) clean after the rename. No
       `ALTER TABLE` needed for SD-006 itself -- the underlying `item_id`
       column already existed.
 - [x] Added 3 new unit tests (`aggregateSalesByMaterialServiceType`
@@ -315,7 +332,7 @@
       `node scripts/check-terminology-guardrail.mjs --file
       src/lib/services/report-engine-service.ts
       src/lib/services/report-engine-service.test.ts
-      drizzle/0276_....sql` directly -- found 2 new (unexempted)
+      drizzle/0278_....sql` directly -- found 2 new (unexempted)
       `hardcoded_iso_date` findings (my own new dated doc-comments citing
       2026-07-28/2026-07-30), raised
       `ai-os/registry/terminology-guardrail-exemptions.yaml`'s
