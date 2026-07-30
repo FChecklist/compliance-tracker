@@ -857,7 +857,7 @@ export async function recordDunningAction(ctx: RecordPaymentActorCtx, invoiceId:
 // every invoice paid via the approval workflow instead.
 //
 // Honest, VERIFIED gap (checked directly via Supabase MCP against the live
-// project pcrjmlpuqsbocqfwoxod, 2026-07-30, real SELECTs, not assumed):
+// project pcrjmlpuqsbocqfwoxod, the same day this PR was built, real SELECTs, not assumed):
 // this org has 5 real invoices at status='paid' and 6 at
 // 'partially_paid', but erp_payment_entries has ZERO rows total, and
 // erp_journal_entries has ZERO rows with reference_type IN

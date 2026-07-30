@@ -72,9 +72,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/erp-invoicing-service.test.ts
-    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test."
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test. Raised 1->14 for FI-AR-006 (Customer Payment Behavior / DSO, BUILD_NEW): 13 new findings are genuine test-fixture date-string literals (daysToPay/computeDsoFormula/classifyPaymentReliability operate on real ISO date strings, so the test assertions cannot avoid literal dates) hand-computed against a real seeded invoice (invoice_number=1, posting_date=2026-02-24, due_date=2026-03-26) checked live via the Supabase MCP while building the PR -- not placeholder/fabricated examples."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 14
   - file: src/lib/supabase/auth-guard.ts
     reason: "PR 598 dependency-blocking work + reporting-gateway CSV-injection fix (2026-07-27): 3 real dated comments documenting prior gap-closure history in this file, never previously exempted."
     findings_by_category:

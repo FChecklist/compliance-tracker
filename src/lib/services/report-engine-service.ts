@@ -1306,7 +1306,7 @@ async function computeBillingDueList(ctx: { orgId: string }, params: Record<stri
 
 /**
  * FI-AR-006 (SAP gap analysis, "Customer Payment Behavior / DSO", HIGH
- * priority, BUILD_NEW, re-verified 2026-07-30 directly against this repo
+ * priority, BUILD_NEW, re-verified directly against this repo
  * and the live Supabase project -- see erp-invoicing-service.ts's
  * customerPaymentBehaviorReport() for the full real-vs-honest-gap writeup,
  * which this thin wrapper reuses rather than re-querying (same
