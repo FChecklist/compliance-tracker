@@ -2374,6 +2374,13 @@
       "when": 1788287300000,
       "tag": "0516_co006_statistical_key_figure_report_definition",
       "breakpoints": true
+    },
+    {
+      "idx": 339,
+      "version": "7",
+      "when": 1788287400000,
+      "tag": "0517_register_erp_statistical_key_figure_types",
+      "breakpoints": true
     }
   ]
 }
