@@ -64,6 +64,7 @@ import {
   Undo2,
   Fingerprint,
   FlaskConical,
+  Store,
   Gem,
   Wrench,
   Boxes,
@@ -425,6 +426,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           label: t("sections.tools.items.promptEvalLab"),
           href: "/prompt-eval",
           icon: FlaskConical,
+        },
+        {
+          label: t("sections.tools.items.promptMarketplace"),
+          href: "/prompt-marketplace",
+          icon: Store,
         },
         {
           label: t("sections.tools.items.salesHq"),

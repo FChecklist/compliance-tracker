@@ -62,6 +62,136 @@
 ## Remaining
 - [ ] Open PR, request supervisor audit (per EXPECTED_OUTPUT -- not self-merged)
 
+# PROGRESS -- task-20260728-051737-owner-engine-phase-8-real-gaps
+
+Closes the 5 real, audit-confirmed unbuilt Phase 8 gap items:
+engine-prompt-translation, engine-prompt-localization,
+engine-prompt-marketplace, engine-prompt-export, engine-prompt-import.
+Source of truth for scope: `ai-os/audits/owner_engine_reaudit_2026-07-27.md`
+(merged) + `ai-os/VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml`
+(`phase_8_dspy_learning_distribution_engines`) in the sibling
+`claude-control` repo, read read-only. Extends the existing Prompt
+Operating System (`prompt-os-resolver.ts` / `prompt-os-service.ts`, Wave
+22/23) rather than a parallel prompt-management layer, per this task's
+CONSTRAINTS.
+
+## Completed
+- [x] Read governance docs (ACTIVE-CLAIMS, CONSTITUTION, OS.yaml, MASTER-TRACKER), registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`, moved the stale PR #589 "increment 1" claim to `recently_completed`.
+- [x] Read authoritative phase_8 scope from claude-control's `VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml` and the re-audit report.
+- [x] Confirmed PR #561's `scripts/export-prompt-versions-gitops.ts` is a one-way DB->git GitOps exporter (no import counterpart, whole-registry, not a portable single-template bundle) -- distinct from this task's engine-prompt-export/import scope.
+- [x] Surveyed existing conventions to reuse: `resolveModelConfig()`+`callLLMJson()` (llm-client.ts) for real LLM calls, `ai-response-locale.ts` for the known-locale list, `permission-service.ts`'s `PROMPT_ACTION_ROLES`, `workerAgents`' platform-wide draft->published pattern (precedent for marketplace scope: platform-wide, orgId nullable/attribution-only, not new cross-tenant RLS).
+- [x] Schema: added `prompt_translations`, `prompt_localizations`, `prompt_marketplace_listings` tables to `src/lib/db/schema.ts` + hand-authored `drizzle/0268_prompt_translation_localization_marketplace.sql` (not applied live, same convention as drizzle/0262 -- left for the supervising session).
+- [x] `src/lib/services/prompt-translation-service.ts` + test (6 tests): real LLM translation via `resolvePlatformModelConfig()`+`callLLMJson()`, cached per (versionId, locale), `force` re-translates.
+- [x] `src/lib/services/prompt-localization-service.ts` + test (5 tests): second real LLM pass on top of a translation, grounded in real `Intl.DateTimeFormat`/`Intl.NumberFormat` samples (`localeFormattingSamples()`, pure/unmocked-tested), translates on demand if no translation exists yet.
+- [x] `src/lib/services/prompt-marketplace-service.ts` + test (7 tests): publish (Production-lifecycle-only gate), unlist, list (read-only, no admin gate).
+- [x] `src/lib/services/prompt-export-import-service.ts` + test (9 tests): portable single-template JSON bundle export + validated re-import (creates template if missing, append-only Draft versions, content-based idempotent re-import skip).
+- [x] Permission entries in `permission-service.ts`: `prompt.translation.create`, `prompt.localization.create`, `prompt.marketplace.publish`, `prompt.import.run` all `veridian_admin` (export is intentionally ungated/read-only, same posture as the existing `GET /api/settings/prompts`).
+- [x] API routes: `src/app/api/prompt-os/{translate,localize,export,import}/route.ts`, `src/app/api/prompt-marketplace/route.ts` -- all `requireAuth()`-gated, `ServiceError`-aware error mapping.
+- [x] Real screen: `src/app/(app)/prompt-marketplace/page.tsx` (+ `AppSidebar.tsx` nav entry, `messages/en.json`+`hi.json` i18n keys) -- browse listings, publish dialog scoped to Production-lifecycle versions pulled from `/api/settings/prompts`.
+- [x] Fixed 3 real bugs found while verifying the four new `*.test.ts` files (all originally failing, not a pre-existing-suite issue):
+  1. All 4 test files' `mock.module("@/lib/db", ...)` factories replaced the *entire* `@/lib/db` module namespace, which broke the transitive `import { ServiceError } from "./compliance-service"` every new service uses (that file itself imports `auditLogs`/`complianceItems`/etc. from `@/lib/db`, which then didn't exist on the mocked module). Fixed by spreading the real (lazy, connection-free-on-import) module first: `{...(await import("@/lib/db")), ...dbMocks}`.
+  2. `prompt-localization-service.test.ts`'s `mock.module("./prompt-translation-service", () => ({..., ServiceError: (await import(...)).ServiceError}))` used `await` inside a non-async factory arrow -- syntax error. Fixed by resolving `ServiceError` before the `mock.module()` call and referencing the plain binding inside.
+  3. Both `prompt-translation-service.test.ts` and `prompt-localization-service.test.ts`'s "throws when no AI model is configured" tests set `modelConfig: null` but the mock read it via `opts.modelConfig ?? default`, and `??` treats `null` the same as "absent" -- the default config was used instead of `null`, so the test never exercised the intended path and crashed elsewhere. Fixed with `"modelConfig" in opts ? opts.modelConfig : default`.
+- [x] `npx tsc --noEmit` clean (needs `NODE_OPTIONS="--max-old-space-size=8192"` in this environment -- default heap OOMs on this repo's size, unrelated to this task).
+- [x] `bun test` scoped to the 4 touched test files: 27/27 pass. Full-repo `bun test`: 2255/2258 pass; the 3 failures are pre-existing on this branch before any of this task's changes (verified via `git stash`) and are in unrelated files (`dispatch-completion-monitor.test.ts`, `roster-overrides.test.ts`, `defense-in-depth.test.ts`) -- not caused by this work.
+
+- [x] Committed + pushed, opened PR #618 (no self-merge -- awaiting a fresh supervisor audit per AGENTS.md Rule 7(c)/Rule 10). Updated `ai-os/boss/ACTIVE-CLAIMS.yaml`'s claim entry with a status update.
+
+## Remaining
+- [ ] Fresh supervisor audit of PR #618 (mandatory, this session may not self-certify).
+- [ ] Supervising session applies `drizzle/0269_prompt_translation_localization_marketplace.sql` live (not applied in this PR).
+
+# PROGRESS -- task-20260728-160922-fix-pr--618-real-audit-fail-reason (re-adopt, real root cause)
+
+The 2026-07-28T10:03:54Z supervisor audit comment said FAIL: "the diff
+supplied for this review is materially incomplete" -- 3 of 4 new service
+files + their tests never shown, `prompt-export-import-service.ts`
+truncated mid-function. Also flagged the migration's self-correcting
+create-then-drop-then-recreate RLS-policy narrative as a secondary issue.
+
+## Completed
+- [x] Read the full audit comment via the GitHub API directly (`gh pr
+      view`'s own JSON output silently truncates long comment bodies in
+      this environment -- had to fall back to
+      `gh api repos/.../issues/618/comments` for the untruncated text).
+- [x] Root-caused the "materially incomplete diff" claim instead of
+      trusting it at face value: `ai-os/scripts/supervisor-entrypoint.sh`
+      line 56 does `git diff "origin/$DEFAULT_BRANCH"...HEAD | head -c
+      60000` before handing the diff to the reviewing LLM. Computed the
+      exact per-file cumulative byte offset of this PR's real diff
+      (95,994 bytes total) in diff order and confirmed the 60,000-byte
+      cutoff lands exactly inside `prompt-export-import-service.ts`
+      (54,406 -> 60,557 bytes) -- precisely the file the auditor said was
+      truncated mid-function, with everything after it (localization/
+      marketplace/translation services + all 4 *.test.ts files) never
+      shown at all. Confirmed via `gh api .../pulls/618/files` that every
+      file's own patch is fully present and untruncated at the GitHub API
+      level -- this is a supervisor-review-pipeline defect, not a defect
+      in PR #618's own code.
+- [x] Found this repo's `ai-os/scripts/supervisor-entrypoint.sh` is a
+      stale mirror of the real, live copy in the separate `claude-control`
+      repo (`/opt/veridian/repos/claude-control/scripts/`) -- the two have
+      diverged significantly (real auth/proxy changes, PR-URL guard block,
+      response logging, etc. only exist in claude-control's copy), and
+      the live copy has the identical `head -c 60000` line. Raising that
+      cap is the actual fix needed for the re-sweep to see the full diff,
+      but it lives in a different repo that's shared infrastructure for
+      every task's audit across the whole AI-OS -- out of this task's
+      compliance-tracker-only scope. Flagging to the user rather than
+      silently pushing there myself.
+- [x] mergeable was CONFLICTING (not `unknown` as SPEC stated -- state had
+      moved on by the time this task started): merged `origin/main` into
+      PR #618's own branch directly (trivial append-only conflict in
+      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` auto-merged clean).
+      `gh pr view 618` now reports `mergeable=MERGEABLE`.
+- [x] Found an abandoned prior session's workspace
+      (`task-20260728-122700-investigate-pr--618-real-audit-fail-reas`, no
+      live systemd unit, no pushed commits, no registered claim) had
+      already independently reached the same "materially incomplete diff"
+      root-cause direction and left an uncommitted fix for the OTHER
+      audit finding (drizzle/0269's self-correcting RLS-policy narrative).
+      Reviewed it, confirmed it was correct, and re-applied the same fix
+      myself on this branch after independently verifying it against the
+      real schema (app_runtime is `NOSUPERUSER NOBYPASSRLS` per
+      drizzle/0215, so RLS still applies over a permissive GRANT).
+- [x] Rewrote `drizzle/0269_prompt_translation_localization_marketplace.sql`'s
+      RLS/GRANT block as a single clean `FOR ALL USING (true) WITH CHECK
+      (true)` block per table (translations/localizations/marketplace_listings)
+      instead of the old create-SELECT-only-then-DROP-then-recreate-FOR-ALL
+      narrative baked into one migration file.
+- [x] Fixed the real cross-test-file bug in
+      `prompt-export-import-service.test.ts`: its `setupImport()` helper
+      called `mock.module("./prompt-os-service", ...)` with a
+      semver-incorrect fake (always bumped minor regardless of the real
+      `bump` param) -- bun's `mock.module()` replaces the module for the
+      rest of the test *process*, not just the current file, so this fake
+      leaked into `prompt-os-service.test.ts`'s own real
+      `nextSemanticVersion` tests whenever both files ran in the same
+      `bun test` invocation. Removed the mock entirely (the real
+      `nextSemanticVersion` is a pure function already covered by its own
+      test file; nothing in this test asserts specific major/minor/patch
+      output values).
+- [x] Verified: ran all 5 phase_8 test files together in one process
+      (`prompt-export-import-service.test.ts`, `prompt-os-service.test.ts`,
+      `prompt-translation-service.test.ts`,
+      `prompt-localization-service.test.ts`,
+      `prompt-marketplace-service.test.ts`) -- 41/41 pass, confirming the
+      leak is actually fixed, not just theorized.
+      `NODE_OPTIONS="--max-old-space-size=8192" npx tsc --noEmit` clean.
+      Full-repo `bun test` -- 2322 pass, 0 fail.
+- [x] Committed + pushed directly to PR #618's own branch
+      (`worker/task-20260728-051737-owner-engine-phase-8-real-gaps`).
+
+## Remaining
+- [ ] Owner sign-off needed before touching claude-control's
+      `supervisor-entrypoint.sh` `head -c 60000` cap -- without that fix,
+      a fresh re-sweep of this ~96KB-diff PR will very likely hit the same
+      truncation again regardless of the code-side fixes above (this
+      PR's legitimate feature diff, even fully cleaned up, does not fit
+      under 60,000 bytes).
+- [ ] Fresh supervisor re-sweep of PR #618 once dispatched (tier2/FAIL
+      stays open for human review either way per this task's own SPEC).
+
 # PROGRESS -- task-20260728-050606-verify-excel-boq-importer-against-real-p
 
 ## Completed
@@ -146,3 +276,70 @@
 ## Remaining
 - [ ] Open a PR on this task's branch (real code fix was required --
       outcome (1) from the task spec, not the verification-only outcome).
+
+# PROGRESS -- task-20260728-122700-investigate-pr--618-real-audit-fail-reas
+
+Investigate PR #618's audit-fail history, fix the real cause, re-adopt,
+and re-sweep for a fresh audit; do not merge if tier2 or still FAIL --
+leave documented for Owner review.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- found this PR's own claim
+      entry (task-20260728-051737-owner-engine-phase-8-real-gaps).
+- [x] Read prompt.txt from the task directory (not cwd -- it lives one
+      level up at `ai-os/tasks/task-20260728-122700-.../prompt.txt`).
+- [x] Read all 9 issue-comments on PR #618 via
+      `gh api repos/FChecklist/compliance-tracker/issues/618/comments`.
+      Found the audit history already went FAIL -> FAIL -> PASS -> FAIL ->
+      **PASS (2026-07-29T00:41:31Z, most recent)**, and that both real
+      root causes behind the FAILs were already fixed and pushed directly
+      to the PR's actual head branch
+      (`worker/task-20260728-051737-owner-engine-phase-8-real-gaps`,
+      commits `faa52ec0` and `9a80acf7`) before this task's first
+      invocation completed:
+      1. `drizzle/0269`'s RLS policies were SELECT-only while GRANTing
+         INSERT/UPDATE to `app_runtime` -- since `app_runtime` is
+         NOSUPERUSER NOBYPASSRLS (drizzle/0215), RLS still blocked every
+         write. Fixed with `FOR ALL USING(true)/WITH CHECK(true)` policies
+         + missing UPDATE grants.
+      2. A cross-test `mock.module()` leak in
+         `prompt-export-import-service.test.ts` stubbed a simplified,
+         semver-incorrect `nextSemanticVersion` that clobbered
+         `prompt-os-service.test.ts`'s own real tests for that function
+         whenever the full suite ran in one process. Fixed by not mocking
+         a pure function already covered by its own suite.
+      3. A later CI-blocking gap: new migration `0270` (marketplace-
+         listings registration) plus missing `asset-registry-coverage.yaml`
+         / `terminology-guardrail-exemptions.yaml` entries for the new
+         tables/routes.
+- [x] Verified current real state directly (not trusting the task
+      prompt's now-stale "mergeable=unknown" / "last comment FAIL"):
+      `gh api repos/.../pulls/618` -- `mergeable: true`,
+      `mergeable_state: "behind"` (branch is behind main, not
+      conflicting -- no action needed on that by itself).
+      `gh pr checks 618` -- every check green, including `audit-check`.
+      Latest audit comment (2026-07-29T00:41:31Z) is `AUDIT: PASS`,
+      reviewed against the real `git diff origin/main...HEAD` (41/41
+      phase_8 tests, `tsc --noEmit` clean).
+- [x] Found this task's own local scratch branch (`pr618-work`, tracks
+      the PR's head branch as upstream but had fallen behind it by the 2
+      fix commits above) had 2 uncommitted local files
+      (`drizzle/0269_*.sql`, `prompt-export-import-service.test.ts`) whose
+      working-tree content was byte-identical to what's already on the
+      real PR branch (`git diff origin/<pr-branch> -- <files>` = empty) --
+      confirmed these were redundant leftover local edits, not unique
+      work, and discarded them (`git checkout --`) rather than committing
+      a duplicate of already-shipped content.
+- [x] Per this task's own instruction ("if tier2 ... leave it open and
+      documented for Owner review") and the audit's own
+      `risk tier: tier2` classification: did **not** merge PR #618 despite
+      the PASS. Documented full investigation + current state as a STATUS
+      UPDATE appended to this PR's existing entry in
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (kept under `active:`, not moved to
+      `recently_completed:`, since it's still unmerged).
+
+## Remaining
+- [ ] Owner (raajat.agarwal@gmail.com) to review and merge PR #618 --
+      tier2 gate means this session does not self-merge even on a PASS.
+      Whoever merges must apply `drizzle/0269` and `drizzle/0270` live
+      (both hand-authored, deliberately not applied by any prior session).

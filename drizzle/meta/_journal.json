@@ -1863,6 +1863,20 @@
       "when": 1785238800000,
       "tag": "0268_pms_time_entry_approval_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1785242088901,
+      "tag": "0269_prompt_translation_localization_marketplace",
+      "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1785242088902,
+      "tag": "0270_register_prompt_marketplace_listings",
+      "breakpoints": true
     }
   ]
 }

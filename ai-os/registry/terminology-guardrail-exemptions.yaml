@@ -168,9 +168,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 5
   - file: src/lib/db/schema.ts
-    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt."
+    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt. Raised to 81 (2026-07-29, PR #618 audit-fail fix): 1 new legitimate dated comment at line 2240 documenting the phase_8 prompt-translation/localization/marketplace schema addition -- confirmed on direct read, same gap-closure-comment class as the rest of this file's baseline."
     findings_by_category:
-      hardcoded_iso_date: 80
+      hardcoded_iso_date: 81
   - file: src/app/api/ai/orchestrate/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -851,9 +851,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/permission-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated. Raised to 3 (2026-07-29, PR #618 audit-fail fix): 2 new legitimate dated comments at lines 302 (phase_3 Permission Engine, 2026-07-26) and 337 (phase_8 engine-prompt-translation/localization/marketplace permission entries, 2026-07-28) -- same false-positive class, confirmed on direct read."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 3
   - file: src/lib/services/product-branch-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -1010,10 +1010,50 @@ exemptions:
     reason: "Real dated comment (2026-07-25) referencing the Owner's UX-directive reconciliation, same genre as other dated fix-comments elsewhere in this registry."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/app/(app)/prompt-marketplace/page.tsx
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it (\"VERIDIAN_Architecture_v2.0 phase_8 (2026-07-28): engine-prompt-marketplace\"), same class as prompt-os-service.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/prompt-translation-service.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as prompt-os-service.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/prompt-translation-service.test.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as prompt-os-service.test.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/prompt-localization-service.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The dated header comment naming the phase that added it is one hit, same class as prompt-os-service.ts's already-exempted changelog-date comments; the second hit (line 46, sampleDate = 2026-03-04) is a deliberately-chosen fixed reference date for Intl.DateTimeFormat/Intl.NumberFormat locale-formatting comparison in a pure helper -- not human example/sample data, not user-facing."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/lib/services/prompt-localization-service.test.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as prompt-os-service.test.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/prompt-marketplace-service.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as prompt-os-service.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/prompt-marketplace-service.test.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as prompt-os-service.test.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/prompt-export-import-service.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as prompt-os-service.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/prompt-export-import-service.test.ts
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this new file -- confirmed false positive on direct read. The single hardcoded_iso_date hit is the file's own dated header comment naming the phase that added it, same class as prompt-os-service.test.ts's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/components/veri-chat/VeriComposer.tsx
     reason: "5 real dated comments (2026-07-10/14/18) documenting prior Owner-spec/gap-closure work in this file's own history, same genre as other dated fix-comments elsewhere in this registry."
     findings_by_category:
       hardcoded_iso_date: 5
+  - file: src/components/AppSidebar.tsx
+    reason: "phase_8_dspy_learning_distribution_engines (2026-07-28, PR #618): first exemption for this file -- confirmed false positive on direct read. All 3 hits are dated gap-closure/migration comments documenting prior nav-section changes (Priority 11 Reports & Analysis promotion, 2026-07-13; VERIDIAN Review Framework Wave B CRM accounts/contacts nav entry, 2026-07-17; veridian-ui-kit AppSidebar migration scope note, 2026-07-19), same genre as VeriComposer.tsx's already-exempted changelog-date comments -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 3
   - file: src/lib/browser-execution/client-compile.ts
     reason: "Real dated comment (2026-07-25) referencing the Owner's UX-directive reconciliation (phase_5 browser-to-server handoff contract)."
     findings_by_category:
