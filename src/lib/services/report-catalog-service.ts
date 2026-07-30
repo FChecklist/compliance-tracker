@@ -181,6 +181,28 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "on_demand",
   },
 
+  // FI-AP-007 (SAP gap-analysis "Subcontractor Retention Summary", HIGH
+  // priority, 2026-07-30): per-subcontractor retention withheld/released/
+  // still-held, computed from real erp_purchase_invoices.retentionAmount/
+  // retentionReleasedAmount (new columns, see schema.ts). No dedicated UI
+  // page yet -- API-only, same honest "no dashboard surface" caveat as the
+  // FI-AR-004 entry immediately above this wave's sibling PRs and the
+  // construction/AI-ops entries below.
+  {
+    id: "erp-subcontractor-retention-summary",
+    name: "Subcontractor Retention Summary",
+    description: "Per-subcontractor summary of retention withheld from bills to date, how much has been released, and how much remains held -- the review worklist before releasing retention at practical completion or after the defects-liability period. Groups by subcontractor (supplier); no subcontractor-contract table exists in this schema to group by contract instead.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#subcontractorRetentionSummary",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-retention-summary)"],
+    route: "/api/v1/projexa/subcontractor-retention-summary",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
   // ── Construction / PROJEXA reports (construction-reports-service.ts) ─
   ...CONSTRUCTION_ENTRIES,
 
@@ -287,6 +309,35 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     directlyNavigable: false,
     category: "software_report",
     classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AA-006 (SAP gap-analysis "Asset-to-GL Reconciliation", MEDIUM
+  // priority): per asset-category comparison of the fixed-asset sub-ledger's
+  // aggregate gross cost / accumulated depreciation / net book value
+  // against the real posted GL balance of that category's own mapped Asset
+  // Account / Accumulated Depreciation Account. A real, independently-found
+  // GL-posting bug (fixed in this same PR, see erp-fixed-assets-service.ts's
+  // own header comment) meant every fixed-asset journal entry ever created
+  // sat permanently in draft, invisible to any GL balance query -- fixed at
+  // the root rather than papered over here. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat this file's other
+  // recent entries (FI-AR-004/FI-AP-005/FI-AP-007/FI-AP-008) already
+  // disclose. Appended at the end of this array (not inserted near other
+  // FI-* entries above) to avoid a real merge-conflict collision with those
+  // still-open sibling PRs editing the same region.
+  {
+    id: "erp-asset-to-gl-reconciliation",
+    name: "Asset-to-GL Reconciliation",
+    description: "Per asset-category comparison of the fixed-asset sub-ledger's gross cost / accumulated depreciation / net book value against the real posted balance of that category's mapped GL accounts -- a month-end control flagging any variance for investigation.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-fixed-assets-service.ts#assetToGlReconciliation",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/asset-to-gl-reconciliation)"],
+    route: "/api/v1/projexa/asset-to-gl-reconciliation",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "construction"],
     periodicity: "on_demand",
   },
 ]

@@ -24,7 +24,7 @@ import {
   users, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, or, isNull, lte, gte, sql, inArray } from "drizzle-orm"
+import { and, eq, or, isNull, lte, gte, gt, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
@@ -469,10 +469,13 @@ export async function listPurchaseInvoices(ctx: { orgId: string }) {
 // every invoice created before this wave. Linking them is what lets
 // erp-goods-receipt-service.ts's getThreeWayMatchReport compare this
 // invoice's lines against the same PO's receipt lines.
-export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; purchaseOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: PurchaseInvoiceItemInput[] }) {
+export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; purchaseOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; retentionPercent?: number; items: PurchaseInvoiceItemInput[] }) {
   await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
+  if (input.retentionPercent != null && (input.retentionPercent < 0 || input.retentionPercent > 100)) {
+    throw new ServiceError("retentionPercent must be between 0 and 100", 400)
+  }
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, input.supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
@@ -488,10 +491,22 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
     const { subtotal, taxAmount, grandTotal } = await computeInvoiceTotals(db, resolvedItems)
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpPurchaseInvoices.invoiceNumber}), 0)` }).from(erpPurchaseInvoices).where(eq(erpPurchaseInvoices.orgId, ctx.orgId))
 
+    // FI-AP-007: retention is a subcontractor-billing holdback tracked as a
+    // pure informational/reporting snapshot on the invoice -- it does NOT
+    // reduce subtotal/taxAmount/grandTotal/outstandingAmount or the journal
+    // entry posted at submit time, mirroring constructionInterimBills' own
+    // real behavior (construction-valuation-service.ts's generateInterimBill
+    // never adjusts erpSalesInvoices' totals for retention either -- GST/GL
+    // stay on the full value; retention is a separate payment-term figure
+    // tracked alongside, not a discount). See computeRetentionAmount below.
+    const retentionPercent = input.retentionPercent ?? 0
+    const retentionAmount = computeRetentionAmount(grandTotal, retentionPercent)
+
     const [invoice] = await db.insert(erpPurchaseInvoices).values({
       orgId: ctx.orgId, supplierId: input.supplierId, purchaseOrderId: input.purchaseOrderId, invoiceNumber: Number(maxNumber) + 1,
       postingDate: input.postingDate, dueDate: input.dueDate, currencyId, exchangeRate: exchangeRate.toString(), companyId,
       subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
+      retentionPercent: retentionPercent.toString(), retentionAmount: retentionAmount.toString(),
       createdById: ctx.userId,
     }).returning()
 
@@ -562,6 +577,193 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
 
     const [updated] = await db.update(erpPurchaseInvoices).set({ status: "submitted", journalEntryId: je.id, tdsAmount: tdsAmount.toString() }).where(eq(erpPurchaseInvoices.id, invoiceId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.submitted", entityType: "erp_purchase_invoice", entityId: invoiceId })
+    return updated
+  })
+}
+
+// ============================================================
+// FI-AP-007 (SAP-equivalent "Subcontractor Retention Summary", sap_mapping.
+// sqlite gap analysis, BUILD_NEW/HIGH, Owner directive 2026-07-30):
+// construction contracts commonly withhold a retention % from each
+// subcontractor bill, released later (partially at practical completion,
+// fully after the defects-liability period). This summarizes, per
+// subcontractor, how much has been withheld to date, how much has been
+// released, and how much remains held.
+//
+// IMPORTANT, independently re-verified 2026-07-30: this row's own gap_notes
+// cited a function (applyRetention) and file (construction-valuation-
+// service.ts) plus a constructionInterimBills.retentionAmount field that
+// were flagged earlier the same day as fabricated/non-existent evidence.
+// Re-checked directly against this branch's own base -- all three now DO
+// genuinely exist (merged via PRs earlier in
+// PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION),
+// but only for AR/client-billing retention (constructionInterimBills,
+// generateInterimBill) -- that is a different table, a different service
+// file, and a different party (the client withholding from what they owe
+// the firm) than this report's actual subject (a subcontractor being paid
+// by the firm, erp_purchase_invoices/erp_suppliers). erp_purchase_invoices
+// had ZERO retention tracking before this change -- confirmed by grep
+// across schema.ts/services/*.ts/engines/*.ts. This is a genuine, real
+// BUILD_NEW gap on the AP side; the gap_notes' citations just happened to
+// coincidentally name real code that exists for the wrong (AR) side. This
+// should be corrected in sap_mapping.sqlite's gap_notes for this row --
+// flagged, not fixed here (out of this PR's scope).
+//
+// Design mirrors constructionInterimBills' real behavior, not just its
+// header comments: retention is tracked as a pure informational/reporting
+// snapshot on the invoice (retentionPercent/retentionAmount, computed and
+// snapshotted at creation time, same discipline as tdsAmount's snapshot-at-
+// submit-time above) and is deliberately NOT posted to a separate
+// "retention payable" GL control account, nor excluded from the invoice's
+// own grandTotal/outstandingAmount/journal entry -- exactly like
+// generateInterimBill never adjusts erpSalesInvoices' own totals for
+// retention either. A dedicated retention-payable GL account is a real,
+// separate feature (this schema has no such account type/control-account
+// resolution today, on either the AP or AR side) -- deliberately not
+// invented here, matching the "don't over-build" scope for this report.
+// ============================================================
+
+/**
+ * Pure. Kept as an independent duplicate of construction-valuation-
+ * service.ts's applyRetention (same rounding convention: retention computed
+ * on the gross amount, rounded to 2dp), rather than a cross-import, since
+ * that file already imports FROM this one (createSalesInvoice) -- importing
+ * back would be circular. erp-invoicing-service.ts is platform-wide/
+ * non-construction-specific, so it owns its own small pure helper here.
+ */
+export function computeRetentionAmount(grandTotal: number, retentionPercent: number): number {
+  return Math.round(grandTotal * (retentionPercent / 100) * 100) / 100
+}
+
+export type RetentionBearingInvoice = {
+  id: string; invoiceNumber: number; supplierId: string; supplierName: string | null
+  postingDate: string; grandTotal: string | number; status: string
+  retentionPercent: string | number; retentionAmount: string | number; retentionReleasedAmount: string | number
+}
+
+/**
+ * Pure core: filters to retention-bearing bills, computes each one's
+ * still-held amount, and groups by subcontractor (supplier) with running
+ * totals -- independently unit-testable without a DB, same convention as
+ * this file's computePaymentProposal (FI-AP-005, above).
+ */
+export function computeRetentionPosition(invoices: RetentionBearingInvoice[]) {
+  const bearing = invoices.filter((inv) => Number(inv.retentionAmount) > 0.001)
+
+  const bills = bearing
+    .map((inv) => {
+      const retentionAmount = Number(inv.retentionAmount)
+      const retentionReleased = Number(inv.retentionReleasedAmount)
+      const retentionHeld = Math.round((retentionAmount - retentionReleased) * 100) / 100
+      return {
+        invoiceId: inv.id, invoiceNumber: inv.invoiceNumber,
+        supplierId: inv.supplierId, supplierName: inv.supplierName,
+        postingDate: inv.postingDate, grandTotal: inv.grandTotal, status: inv.status,
+        retentionPercent: inv.retentionPercent, retentionAmount, retentionReleased, retentionHeld,
+      }
+    })
+    .sort((a, b) => b.retentionHeld - a.retentionHeld)
+
+  const bySupplier = new Map<string, { supplierId: string; supplierName: string | null; totalRetentionAmount: number; totalRetentionReleased: number; totalRetentionHeld: number; bills: typeof bills }>()
+  for (const bill of bills) {
+    if (!bySupplier.has(bill.supplierId)) {
+      bySupplier.set(bill.supplierId, { supplierId: bill.supplierId, supplierName: bill.supplierName, totalRetentionAmount: 0, totalRetentionReleased: 0, totalRetentionHeld: 0, bills: [] })
+    }
+    const group = bySupplier.get(bill.supplierId)!
+    group.bills.push(bill)
+    group.totalRetentionAmount = Math.round((group.totalRetentionAmount + bill.retentionAmount) * 100) / 100
+    group.totalRetentionReleased = Math.round((group.totalRetentionReleased + bill.retentionReleased) * 100) / 100
+    group.totalRetentionHeld = Math.round((group.totalRetentionHeld + bill.retentionHeld) * 100) / 100
+  }
+
+  const subcontractors = [...bySupplier.values()].sort((a, b) => b.totalRetentionHeld - a.totalRetentionHeld)
+  const totalRetentionWithheld = Math.round(subcontractors.reduce((sum, s) => sum + s.totalRetentionAmount, 0) * 100) / 100
+  const totalRetentionReleased = Math.round(subcontractors.reduce((sum, s) => sum + s.totalRetentionReleased, 0) * 100) / 100
+  const totalRetentionHeld = Math.round(subcontractors.reduce((sum, s) => sum + s.totalRetentionHeld, 0) * 100) / 100
+
+  return { subcontractorCount: subcontractors.length, billCount: bills.length, totalRetentionWithheld, totalRetentionReleased, totalRetentionHeld, subcontractors }
+}
+
+/**
+ * FI-AP-007 real report: every retention-bearing erp_purchase_invoices row
+ * (retentionAmount > 0) for this org, optionally scoped to one supplier,
+ * grouped by subcontractor. Honest, disclosed gap: this groups by
+ * supplier (the real party retention is withheld from), not by "contract" --
+ * erp_contracts (Wave 71) is Sales/customer-side only (contract.customerId),
+ * there is no real subcontractor-contract table in this schema to group by
+ * instead. A supplier working multiple projects is only discoverable per-bill
+ * (each bill's own project isn't tracked on erp_purchase_invoices either --
+ * a further, separate gap, not fabricated around here).
+ */
+export async function subcontractorRetentionSummary(ctx: { orgId: string }, filters: { supplierId?: string } = {}) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(
+        eq(erpPurchaseInvoices.orgId, ctx.orgId),
+        gt(erpPurchaseInvoices.retentionAmount, "0"),
+        ...(filters.supplierId ? [eq(erpPurchaseInvoices.supplierId, filters.supplierId)] : []),
+      ),
+      with: { supplier: true },
+    })
+
+    const bearing: RetentionBearingInvoice[] = invoices.map((inv) => ({
+      id: inv.id, invoiceNumber: inv.invoiceNumber, supplierId: inv.supplierId, supplierName: inv.supplier?.supplierName ?? null,
+      postingDate: inv.postingDate, grandTotal: inv.grandTotal, status: inv.status,
+      retentionPercent: inv.retentionPercent, retentionAmount: inv.retentionAmount, retentionReleasedAmount: inv.retentionReleasedAmount,
+    }))
+
+    return computeRetentionPosition(bearing)
+  })
+}
+
+/**
+ * The real "release retention" action -- records that some or all of one
+ * bill's still-held retention is now released back to the subcontractor.
+ * Deliberately NOT a full retention-release-approval-workflow (no analogous
+ * multi-stage approval pattern exists anywhere else in this codebase to
+ * follow, per this PR's own scope) -- just the real, minimal state change:
+ * bump retentionReleasedAmount, validated against what's actually still
+ * held. No journal entry is posted (consistent with retention never having
+ * been posted to a separate GL line at creation time either, see this
+ * section's header comment) -- releasing it does not itself move cash; an
+ * actual payment of the released amount uses this codebase's normal AP
+ * payment path once one exists (recordSalesInvoicePayment's AP-side
+ * equivalent does not exist yet -- a separate, real, pre-existing gap, not
+ * one this PR invents or silently works around).
+ */
+export async function releaseSubcontractorRetention(
+  ctx: RecordPaymentActorCtx,
+  invoiceId: string,
+  input: { amount: number }
+) {
+  await requireErpEnabled(ctx.orgId)
+  if (!input.amount || input.amount <= 0) throw new ServiceError("amount must be positive", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const invoice = await db.query.erpPurchaseInvoices.findFirst({ where: and(eq(erpPurchaseInvoices.id, invoiceId), eq(erpPurchaseInvoices.orgId, ctx.orgId)) })
+    if (!invoice) throw new ServiceError("Purchase invoice not found", 404)
+    if (invoice.status === "draft") throw new ServiceError("Cannot release retention on a draft invoice -- submit it first", 409)
+
+    const retentionAmount = Number(invoice.retentionAmount)
+    const alreadyReleased = Number(invoice.retentionReleasedAmount)
+    const stillHeld = Math.round((retentionAmount - alreadyReleased) * 100) / 100
+    if (stillHeld <= 0) throw new ServiceError("This invoice has no retention amount, or it has already been fully released", 409)
+    if (input.amount > stillHeld + 0.01) {
+      throw new ServiceError(`Release amount (${input.amount}) exceeds the retention still held (${stillHeld})`, 400)
+    }
+
+    const newReleased = Math.round((alreadyReleased + input.amount) * 100) / 100
+    const [updated] = await db.update(erpPurchaseInvoices)
+      .set({ retentionReleasedAmount: newReleased.toString() })
+      .where(eq(erpPurchaseInvoices.id, invoiceId))
+      .returning()
+
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.retention_released", entityType: "erp_purchase_invoice", entityId: invoiceId, details: JSON.stringify({ amountReleased: input.amount, newReleasedTotal: newReleased, retentionAmount }) }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_purchase_invoice.retention_released", entityType: "erp_purchase_invoice", entityId: invoiceId, details: JSON.stringify({ amountReleased: input.amount, newReleasedTotal: newReleased, retentionAmount }) }
+    )
     return updated
   })
 }
