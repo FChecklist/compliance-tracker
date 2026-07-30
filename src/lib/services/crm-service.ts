@@ -5,9 +5,9 @@
 // needed for a compliance-service-provider's business). Gated identically
 // to the existing Clients page (accountType !== 'company') at the UI
 // layer, matching that page's own precedent.
-import { crmLeads, crmOpportunities, crmStageHistory, crmLostReasons, clients, erpCustomers, tasks } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq, and, ilike, inArray, sql, lte, isNotNull } from "drizzle-orm"
+import { crmLeads, crmOpportunities, crmStageHistory, crmLostReasons, crmActivities, clients, erpCustomers, tasks, users } from "@/lib/db"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { eq, and, ilike, inArray, sql, lte, isNotNull, isNull } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
@@ -224,6 +224,322 @@ export async function bulkReassignOpportunities(ctx: CrmContext, opportunityIds:
     const updated = await db.update(crmOpportunities).set({ ownerId, updatedAt: new Date() })
       .where(and(eq(crmOpportunities.orgId, ctx.orgId), inArray(crmOpportunities.id, opportunityIds))).returning()
     return updated
+  })
+}
+
+// ─── Task #46 (CRM feature-parity gap analysis) ───────────────────────────
+// bulkReassignLeads/bulkReassignOpportunities above cover MANUAL reassignment
+// of an explicit id list. The gap analysis found we had no automatic/
+// load-balanced distribution and no Total/Allocated/Un-Allocated dashboard.
+// Owner mandate (deterministic-first, applies throughout this project):
+// auto-assignment must be a plain deterministic algorithm -- least-loaded/
+// round-robin, ZERO AI/LLM involvement -- same "pure function over existing
+// columns" shape as bulkReassignLeads itself. Zero new schema: everything
+// below is a query/update over the existing crm_leads/crm_opportunities/
+// users tables, same as the rest of this file.
+//
+// computeRoundRobinAssignment is deliberately pure/exported (no db access)
+// so it can be unit-tested directly, matching this file's own established
+// convention (see crm-accounts-service.test.ts's header note: this repo's
+// .test.ts files exercise pure predicates, never a live DB).
+export type AssignmentOrder = "oldest_first" | "newest_first"
+
+export function computeRoundRobinAssignment(
+  recordIds: string[],
+  userIds: string[],
+  sharingCount?: number
+): { assignments: { recordId: string; userId: string }[]; perUser: Record<string, number> } {
+  const assignments: { recordId: string; userId: string }[] = []
+  const perUser: Record<string, number> = {}
+  for (const uid of userIds) perUser[uid] = 0
+  if (!recordIds.length || !userIds.length) return { assignments, perUser }
+
+  let userIdx = 0
+  for (const recordId of recordIds) {
+    let attempts = 0
+    let placed = false
+    while (attempts < userIds.length) {
+      const uid = userIds[userIdx % userIds.length]
+      userIdx += 1
+      if (sharingCount == null || perUser[uid] < sharingCount) {
+        assignments.push({ recordId, userId: uid })
+        perUser[uid] += 1
+        placed = true
+        break
+      }
+      attempts += 1
+    }
+    // Every user is at (or over) sharingCount -- the whole pool is at
+    // capacity, so nothing later in recordIds can be placed either. Stop
+    // rather than looping through the rest for no effect.
+    if (!placed) break
+  }
+  return { assignments, perUser }
+}
+
+export type AutoDistributeOptions = {
+  // 'oldest_first' (default) matches the reference's "Order By" concept for
+  // working a queue FIFO; 'newest_first' supported for the inverse.
+  order?: AssignmentOrder
+  // Manual-Assign-style per-target cap. Omitted => "Auto Assign" mode: ALL
+  // currently-unassigned records are split evenly (round-robin) across
+  // every active user in the pool.
+  sharingCount?: number
+  // Explicit pool of target users -- omitted => every active user in the org.
+  targetUserIds?: string[]
+}
+export type AutoDistributeResult = {
+  entityType: "lead" | "opportunity"
+  totalUnassigned: number
+  distributedCount: number
+  remainingUnassigned: number
+  perUser: { userId: string; name: string; assignedCount: number }[]
+}
+
+async function fetchActiveOrgUsers(db: TenantDb, orgId: string, targetUserIds?: string[]) {
+  return db.query.users.findMany({
+    where: targetUserIds?.length
+      ? and(eq(users.orgId, orgId), eq(users.isActive, true), inArray(users.id, targetUserIds))
+      : and(eq(users.orgId, orgId), eq(users.isActive, true)),
+    orderBy: (t, { asc }) => asc(t.id),
+    columns: { id: true, name: true },
+  })
+}
+
+// Task #46: deterministic auto-assignment for leads -- queries currently
+// unassigned leads (ownerId IS NULL), fetches active org users, and
+// round-robins/least-loads them up to sharingCount per target (or evenly
+// across all active users when sharingCount is omitted).
+export async function autoDistributeLeads(ctx: CrmContext, opts: AutoDistributeOptions = {}): Promise<AutoDistributeResult> {
+  await requireSalesEnabled(ctx.orgId)
+  const order: AssignmentOrder = opts.order ?? "oldest_first"
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [unassigned, activeUsers] = await Promise.all([
+      db.query.crmLeads.findMany({
+        where: and(eq(crmLeads.orgId, ctx.orgId), isNull(crmLeads.ownerId)),
+        orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+        columns: { id: true },
+      }),
+      fetchActiveOrgUsers(db, ctx.orgId, opts.targetUserIds),
+    ])
+
+    const totalUnassigned = unassigned.length
+    if (!totalUnassigned || !activeUsers.length) {
+      return {
+        entityType: "lead" as const, totalUnassigned, distributedCount: 0, remainingUnassigned: totalUnassigned,
+        perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: 0 })),
+      }
+    }
+
+    const { assignments, perUser } = computeRoundRobinAssignment(unassigned.map((l) => l.id), activeUsers.map((u) => u.id), opts.sharingCount)
+
+    // One UPDATE per target user (inArray of that user's assigned ids),
+    // matching bulkReassignLeads's own update shape above -- not N
+    // single-row updates.
+    const idsByOwner = new Map<string, string[]>()
+    for (const a of assignments) idsByOwner.set(a.userId, [...(idsByOwner.get(a.userId) ?? []), a.recordId])
+    for (const [ownerId, ids] of idsByOwner) {
+      await db.update(crmLeads).set({ ownerId, updatedAt: new Date() })
+        .where(and(eq(crmLeads.orgId, ctx.orgId), inArray(crmLeads.id, ids)))
+    }
+
+    return {
+      entityType: "lead" as const, totalUnassigned, distributedCount: assignments.length,
+      remainingUnassigned: totalUnassigned - assignments.length,
+      perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: perUser[u.id] ?? 0 })),
+    }
+  })
+}
+
+// Task #46: same as autoDistributeLeads above, opportunity side.
+export async function autoDistributeOpportunities(ctx: CrmContext, opts: AutoDistributeOptions = {}): Promise<AutoDistributeResult> {
+  await requireSalesEnabled(ctx.orgId)
+  const order: AssignmentOrder = opts.order ?? "oldest_first"
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [unassigned, activeUsers] = await Promise.all([
+      db.query.crmOpportunities.findMany({
+        where: and(eq(crmOpportunities.orgId, ctx.orgId), isNull(crmOpportunities.ownerId)),
+        orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+        columns: { id: true },
+      }),
+      fetchActiveOrgUsers(db, ctx.orgId, opts.targetUserIds),
+    ])
+
+    const totalUnassigned = unassigned.length
+    if (!totalUnassigned || !activeUsers.length) {
+      return {
+        entityType: "opportunity" as const, totalUnassigned, distributedCount: 0, remainingUnassigned: totalUnassigned,
+        perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: 0 })),
+      }
+    }
+
+    const { assignments, perUser } = computeRoundRobinAssignment(unassigned.map((o) => o.id), activeUsers.map((u) => u.id), opts.sharingCount)
+
+    const idsByOwner = new Map<string, string[]>()
+    for (const a of assignments) idsByOwner.set(a.userId, [...(idsByOwner.get(a.userId) ?? []), a.recordId])
+    for (const [ownerId, ids] of idsByOwner) {
+      await db.update(crmOpportunities).set({ ownerId, updatedAt: new Date() })
+        .where(and(eq(crmOpportunities.orgId, ctx.orgId), inArray(crmOpportunities.id, ids)))
+    }
+
+    return {
+      entityType: "opportunity" as const, totalUnassigned, distributedCount: assignments.length,
+      remainingUnassigned: totalUnassigned - assignments.length,
+      perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: perUser[u.id] ?? 0 })),
+    }
+  })
+}
+
+// Task #46: the "Manual Assign" shape (a specific user + record count +
+// ordering) -- bulkReassignLeads/bulkReassignOpportunities above take an
+// explicit id list, they don't pick which unassigned records to hand a
+// given user, so this is a genuinely thin wrapper: pick the N oldest/newest
+// unassigned records, then delegate the actual write to the existing
+// bulk-reassign function (zero duplicated update logic).
+export async function manualAssignUnassigned(
+  ctx: CrmContext,
+  entityType: "lead" | "opportunity",
+  targetUserId: string,
+  count: number,
+  order: AssignmentOrder = "oldest_first"
+): Promise<{ entityType: "lead" | "opportunity"; assignedIds: string[] }> {
+  await requireSalesEnabled(ctx.orgId)
+  if (!targetUserId) throw new ServiceError("targetUserId is required", 400)
+  if (!Number.isInteger(count) || count < 1) throw new ServiceError("count must be a positive integer", 400)
+
+  if (entityType === "lead") {
+    const candidates = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+      db.query.crmLeads.findMany({
+        where: and(eq(crmLeads.orgId, ctx.orgId), isNull(crmLeads.ownerId)),
+        orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+        limit: count,
+        columns: { id: true },
+      })
+    )
+    if (!candidates.length) return { entityType, assignedIds: [] }
+    await bulkReassignLeads(ctx, candidates.map((c) => c.id), targetUserId)
+    return { entityType, assignedIds: candidates.map((c) => c.id) }
+  }
+
+  const candidates = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmOpportunities.findMany({
+      where: and(eq(crmOpportunities.orgId, ctx.orgId), isNull(crmOpportunities.ownerId)),
+      orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+      limit: count,
+      columns: { id: true },
+    })
+  )
+  if (!candidates.length) return { entityType, assignedIds: [] }
+  await bulkReassignOpportunities(ctx, candidates.map((c) => c.id), targetUserId)
+  return { entityType, assignedIds: candidates.map((c) => c.id) }
+}
+
+// Task #46: the Total/Allocated/Un-Allocated dashboard -- a GROUP BY
+// ownerId count query over the existing crm_leads/crm_opportunities table,
+// filtered by the existing users.isActive, per the gap analysis's own
+// "ZERO new database schema" finding. Per-user activityStatus is an honest,
+// best-available approximation, not a fabricated field: crm_activities has
+// no per-owner column of its own (its assignedToId can differ from the
+// entity's current owner), so "has activity" is derived by joining on
+// entityId -- does any owned lead/opportunity have at least one logged
+// crm_activities row -- rather than claiming to know what the OWNER
+// personally did. A user with zero currently-assigned records gets
+// activityStatus: null (there's nothing to categorize), not a fake status.
+export type AssignmentOverviewUser = {
+  userId: string
+  name: string
+  assignedCount: number
+  activityStatus: "yet_to_start" | "in_progress" | null
+}
+export type AssignmentOverview = {
+  entityType: "lead" | "opportunity"
+  total: number
+  allocated: number
+  unallocated: number
+  perUser: AssignmentOverviewUser[]
+}
+
+export async function getAssignmentOverview(ctx: { orgId: string }, entityType: "lead" | "opportunity"): Promise<AssignmentOverview> {
+  await requireSalesEnabled(ctx.orgId)
+
+  if (entityType === "lead") {
+    return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+      const [totalRows, ownedLeads, activeUsers] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(crmLeads).where(eq(crmLeads.orgId, ctx.orgId)),
+        db.query.crmLeads.findMany({ where: and(eq(crmLeads.orgId, ctx.orgId), isNotNull(crmLeads.ownerId)), columns: { id: true, ownerId: true } }),
+        fetchActiveOrgUsers(db, ctx.orgId),
+      ])
+      const total = Number(totalRows[0]?.count ?? 0)
+      const allocated = ownedLeads.length
+      const unallocated = total - allocated
+
+      const idsWithActivity = ownedLeads.length
+        ? new Set(
+            (
+              await db.select({ entityId: crmActivities.entityId }).from(crmActivities)
+                .where(and(eq(crmActivities.orgId, ctx.orgId), eq(crmActivities.entityType, "lead"), inArray(crmActivities.entityId, ownedLeads.map((l) => l.id))))
+            ).map((r) => r.entityId)
+          )
+        : new Set<string>()
+
+      const countsByOwner = new Map<string, number>()
+      const activityByOwner = new Map<string, boolean>()
+      for (const lead of ownedLeads) {
+        const ownerId = lead.ownerId as string
+        countsByOwner.set(ownerId, (countsByOwner.get(ownerId) ?? 0) + 1)
+        if (idsWithActivity.has(lead.id)) activityByOwner.set(ownerId, true)
+        else if (!activityByOwner.has(ownerId)) activityByOwner.set(ownerId, false)
+      }
+
+      const perUser: AssignmentOverviewUser[] = activeUsers.map((u) => {
+        const assignedCount = countsByOwner.get(u.id) ?? 0
+        return {
+          userId: u.id, name: u.name, assignedCount,
+          activityStatus: assignedCount === 0 ? null : activityByOwner.get(u.id) ? "in_progress" : "yet_to_start",
+        }
+      })
+
+      return { entityType: "lead" as const, total, allocated, unallocated, perUser }
+    })
+  }
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [totalRows, ownedOpps, activeUsers] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(crmOpportunities).where(eq(crmOpportunities.orgId, ctx.orgId)),
+      db.query.crmOpportunities.findMany({ where: and(eq(crmOpportunities.orgId, ctx.orgId), isNotNull(crmOpportunities.ownerId)), columns: { id: true, ownerId: true } }),
+      fetchActiveOrgUsers(db, ctx.orgId),
+    ])
+    const total = Number(totalRows[0]?.count ?? 0)
+    const allocated = ownedOpps.length
+    const unallocated = total - allocated
+
+    const idsWithActivity = ownedOpps.length
+      ? new Set(
+          (
+            await db.select({ entityId: crmActivities.entityId }).from(crmActivities)
+              .where(and(eq(crmActivities.orgId, ctx.orgId), eq(crmActivities.entityType, "opportunity"), inArray(crmActivities.entityId, ownedOpps.map((o) => o.id))))
+          ).map((r) => r.entityId)
+        )
+      : new Set<string>()
+
+    const countsByOwner = new Map<string, number>()
+    const activityByOwner = new Map<string, boolean>()
+    for (const opp of ownedOpps) {
+      const ownerId = opp.ownerId as string
+      countsByOwner.set(ownerId, (countsByOwner.get(ownerId) ?? 0) + 1)
+      if (idsWithActivity.has(opp.id)) activityByOwner.set(ownerId, true)
+      else if (!activityByOwner.has(ownerId)) activityByOwner.set(ownerId, false)
+    }
+
+    const perUser: AssignmentOverviewUser[] = activeUsers.map((u) => {
+      const assignedCount = countsByOwner.get(u.id) ?? 0
+      return {
+        userId: u.id, name: u.name, assignedCount,
+        activityStatus: assignedCount === 0 ? null : activityByOwner.get(u.id) ? "in_progress" : "yet_to_start",
+      }
+    })
+
+    return { entityType: "opportunity" as const, total, allocated, unallocated, perUser }
   })
 }
 
