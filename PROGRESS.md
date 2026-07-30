@@ -309,25 +309,30 @@
       SUCCESS_CRITERIA is met. `mergeStateStatus` shows `BLOCKED`, which is
       the required-status-check gate (audit-check pending), not a merge
       conflict.
-- [x] Triggered a fresh CI run on the rebased head; real checks (Lint, Type
-      Check, Build, Unit Tests, E2E Tests, Analyze, Guardrail Presence,
-      Secret Scanning, Security Pattern, Terminology Guardrail, Doc
-      Cross-Reference/Quarantine/Sentinel, Metadata Index Coverage, Asset
-      Registry Coverage) are green post-rebase (see final status below).
-      `Vercel` failed once on an unrelated deployment rate-limit
-      (`vercel.com/...?upgradeToPro=build-rate-limit`), not a code issue --
-      not a required check either.
+- [x] Confirmed final CI status on rebased head `ab1cc70e`: every real check
+      is green -- Lint, Type Check, Build, Unit Tests, E2E Tests, Analyze,
+      Guardrail Presence, Secret Scanning, Security Pattern, Terminology
+      Guardrail, Doc Cross-Reference/Quarantine/Sentinel, Metadata Index
+      Coverage, Asset Registry Coverage all `pass`. `Vercel` failed on an
+      unrelated deployment rate-limit (`vercel.com/...?upgradeToPro=build-rate-limit`),
+      not a code issue and not a required check. `gh pr view 647
+      --json mergeable` = `MERGEABLE` (was `CONFLICTING`) -- this task's
+      SUCCESS_CRITERIA #1 is met.
 
 ## Remaining
 - [ ] `audit-check` will keep failing until an independent Rule 7c auditor
       posts a real `AUDIT: PASS`/`AUDIT: FAIL` comment -- explicitly out of
       scope for this task to do itself. PR #647 is otherwise ready for that
-      audit.
+      audit. This is the one line item in SUCCESS_CRITERIA #2 (`checks |
+      grep -c fail` == 0) this task cannot itself satisfy, by its own
+      explicit constraint -- flagging honestly rather than working around it.
 - [ ] `Promptfoo Evals` is a pre-existing, repo-wide, non-blocking
       flake (see above) -- not fixed by this task (out of scope: this task's
       job was the rebase + migration-collision check, not repo-wide Groq
-      rate-limit infra). Flagging for whoever owns that workflow next.
-- [ ] Move this task's ai-os/boss/ACTIVE-CLAIMS.yaml entry from `active:` to
-      `recently_completed:` once confirmed.
+      rate-limit infra). Still `pending`/will likely cancel at its own
+      timeout, same as the last 30 runs of this workflow across every open
+      PR in the repo. Flagging for whoever owns that workflow next.
+- [x] Moved this task's ai-os/boss/ACTIVE-CLAIMS.yaml entry to closed
+      (commit `7d543e7f`, PR #662).
 - [ ] Did NOT merge PR #647 and did NOT post an AUDIT verdict, per this
       task's own explicit constraints.
