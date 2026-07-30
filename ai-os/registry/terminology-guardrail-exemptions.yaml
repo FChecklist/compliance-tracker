@@ -80,9 +80,13 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/erp-invoicing-service.test.ts
-    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test."
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test. FI-AP-007 Subcontractor Retention Summary (2026-07-30, +2): a dated comment documenting the new computeRetentionAmount/computeRetentionPosition pure-core extraction (line 47), and a test-fixture postingDate literal (\"2026-07-01\") in the bill() factory helper (line 68) -- both genuine false positives, not real business hardcoding."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 3
+  - file: src/lib/services/erp-invoicing-service.ts
+    reason: "FI-AP-007 Subcontractor Retention Summary (2026-07-30): 2 genuine dated code comments (lines 584-585, 592-593) documenting the new retention-summary computation added by this PR -- not real business hardcoding, same pattern as this file's sibling .test.ts entry."
+    findings_by_category:
+      hardcoded_iso_date: 2
   - file: src/lib/supabase/auth-guard.ts
     reason: "PR 598 dependency-blocking work + reporting-gateway CSV-injection fix (2026-07-27): 3 real dated comments documenting prior gap-closure history in this file, never previously exempted."
     findings_by_category:
@@ -176,9 +180,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 5
   - file: src/lib/db/schema.ts
-    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt."
+    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt. FI-AP-007 Subcontractor Retention Summary (2026-07-30, +1): line 6215 is a genuine dated comment documenting the new retentionPercent/retentionAmount/retentionReleasedAmount columns, same pattern as this file's other 80 grandfathered comments."
     findings_by_category:
-      hardcoded_iso_date: 80
+      hardcoded_iso_date: 81
   - file: src/app/api/ai/orchestrate/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -871,21 +875,29 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 4
   - file: src/lib/services/report-catalog-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2 -> 3 for PR #636 (feat/fi-ar-004-dunning-list, mandatory-audit-check auditor review 2026-07-30): the new instance is the same false-positive class -- a gap-closure task-id comment ('// FI-AR-004 (SAP gap-analysis \"Dunning List\", HIGH priority, 2026-07-30):') documenting when the Dunning List report entry was added, not human example/sample data. Verified on direct read against the PR's actual diff, not assumed."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's anthropic-version header or MCP's protocolVersion, or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2 -> 4 (both real, independently reviewed additions, same merge wave): PR #636 (feat/fi-ar-004-dunning-list, +1, mandatory-audit-check auditor review 2026-07-30) -- a gap-closure task-id comment documenting when the Dunning List report entry was added; and PR #642 (feat/fi-ap-007-subcontractor-retention-summary, +1) -- a matching gap-closure comment documenting when the Subcontractor Retention Summary report entry was added. Both verified on direct read against each PR's real diff, not assumed -- neither is human example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 3
+      hardcoded_iso_date: 4
   - file: src/lib/services/report-domain-enablement-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
       hardcoded_iso_date: 2
   - file: src/lib/services/report-engine-service.test.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated. SD-002 (Billing Due List, 2026-07-30) adds 7 more: 1 dated comment + 6 concrete ISO date-string literals the isBillingScheduleDue describe block genuinely needs as test fixture data to exercise date-comparison logic -- same out-of-scope class as the pre-existing finding."
+    findings_by_category:
+      hardcoded_iso_date: 8
+  - file: src/lib/services/report-engine-service.ts
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 10 pre-existing finding(s) reviewed and closed, not migrated. SD-002 (Billing Due List, 2026-07-30) adds 2 more: computeBillingDueList()'s own doc-comment dates (2026-07-28 gap-analysis date, 2026-07-30 re-verification date) -- same changelog/gap-closure-date-comment class as the pre-existing findings, not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 12
+  - file: src/lib/services/erp-contract-service.ts
+    reason: "SD-002 (Billing Due List, 2026-07-30): 1 finding -- a real dated design-decision comment on generateInvoiceFromBillingSchedule() documenting when the milestone-vs-recurring billing-cycle behavior was introduced (no prior version existed to compare against), same changelog/decision-date-comment class as report-engine-service.ts's own exemption above."
     findings_by_category:
       hardcoded_iso_date: 1
-  - file: src/lib/services/report-engine-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 10 pre-existing finding(s) reviewed and closed, not migrated."
+  - file: src/lib/services/erp-contract-service.test.ts
+    reason: "SD-002 (Billing Due List, 2026-07-30), new file: 13 findings, all genuine test-fixture data -- advanceBillingDate()'s date-math tests exist specifically to verify ISO date-string arithmetic (e.g. asserting 2026-07-15 + 1 month = 2026-08-15), so concrete date literals are the test's actual subject matter, not example/sample data. Same *.test.ts local-dev/test-fixture out-of-scope class as report-engine-service.test.ts's own exemption above (Phase 2 directory classification, task-20260724-115921-phase2-directory-scoped-guardrail-rollout)."
     findings_by_category:
-      hardcoded_iso_date: 10
+      hardcoded_iso_date: 13
   - file: src/lib/services/report-item-action-service.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
     findings_by_category:
@@ -1080,3 +1092,11 @@ exemptions:
     reason: "Design Studio timesheets approval-flow gap closure (2026-07-28, task-20260728-043316): 1 new hardcoded_iso_date finding -- a real, dated comment in a new test file explaining the test's intent, not example/placeholder data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/services/construction-billing-workflow-service.test.ts
+    reason: "PHASE-2-CROSSREF workflow-track gap-closure (SD-002/SD-007, 2026-07-29, task-20260729-112447): 8 date-string test fixture literals (createProgressClaim/invoiceApprovedClaim input dates, listBillingDueQueue's overdue-boundary scheduledDate fixtures), same 'seed/test fixture' out-of-scope class Phase 2 already established for this whole directory pattern -- not human PII/example data."
+    findings_by_category:
+      hardcoded_iso_date: 8
+  - file: src/lib/services/erp-payment-entries-service.test.ts
+    reason: "FI-AP-008 Subcontractor Payment Application Status (BUILD_NEW/HIGH): 4 new hardcoded_iso_date findings, all in one deliberate test fixture (ASOF constant and one postingDate literal) exercising computeSubcontractorPaymentApplicationWorklist's real days-in-current-status aging math -- literal dates are load-bearing for the assertions, not example/placeholder data."
+    findings_by_category:
+      hardcoded_iso_date: 4
