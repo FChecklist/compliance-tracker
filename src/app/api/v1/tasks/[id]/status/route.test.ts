@@ -1,5 +1,5 @@
 /// <reference types="bun-types" />
-// Stage 10 (END_USER_ENGINE receptionist tier, 2026-07-29): the first real
+// Stage 10 (END_USER_ENGINE receptionist tier): the first real
 // test for GET /api/v1/tasks/{id}/status. This route (Wave 11) is already
 // the lightweight "is my task done" read the receptionist tier needs -- a
 // direct, tenant-scoped Postgres read via getTaskStatus(), with zero import
