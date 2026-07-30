@@ -1,3 +1,69 @@
+# PROGRESS -- task-20260730-183124-renumber-pr-630-migration-off-colliding
+
+## Completed
+- [x] Read governance chain (CLAUDE.md/AGENTS.md/ACTIVE-CLAIMS.yaml) -- no conflicting active claim found for
+      PR #630 or the 0283 migration slot.
+- [x] Noted `/opt/veridian/repos/compliance-tracker` (the other on-disk checkout of this repo) has ~500
+      uncommitted files from a different in-flight session (branch `feat/category-boq-amounts-report`) -- did
+      not touch its working tree; did all real git work in this task's own clean workspace clone instead.
+- [x] Read PR #630's live `AUDIT: FAIL` comment (severity high): a real 4-way race on migration number `0283`
+      between PRs #630/#633/#637/#647. PR #637 still had an unresolved `0283` claim in its own live head tree
+      at audit time (12 minutes after PR 630's last push), so #630 could not safely "keep" 0283 as an earlier
+      coordination note in KERNEL_CONSOLIDATION_STATUS.md had assumed.
+- [x] Determined the true next-free migration number the hard way, not from stale notes:
+      - Freshly fetched `origin/main`'s `drizzle/meta/_journal.json` (278 entries, highest real file-number
+        0301). Nearly every free-looking number in the 276-300 range turned out to be independently claimed by
+        another currently-open PR (pulled all 71 open PRs' changed-file lists via the GitHub API and extracted
+        every `drizzle/NNNN_*.sql` filename to check).
+      - Picked **0302** -- first slot past both the merged-journal ceiling (0301) and every open PR's claimed
+        numbers (highest claimed was 0300). Verified 0 hits for `0302`/`0303` in both the merged journal and
+        the full 71-PR claimed-number set before using it.
+      - Found (but left untouched, out of scope): the merged `origin/main` journal already has one
+        pre-existing, unrelated duplicate at `0269` (two different files) -- PR #656 ("migration-collision
+        checker stale-base-ref bug + CI wiring + renumber 2 pre-existing collisions") already owns fixing that.
+- [x] Renamed `drizzle/0283_content_search_view.sql` -> `drizzle/0302_content_search_view.sql` and updated the
+      matching `_journal.json` tag on PR #630's branch (`task-20260729-120933-stage9-content-search-view`).
+      Caught and fixed a self-inflicted mistake mid-task: an accidental `git add -A` swept this task's own
+      workspace-branch PROGRESS.md content into the PR-630 branch commit (carried over via an uncommitted
+      working-tree change surviving a `git checkout` to the PR branch). Fixed by restoring PR #630's real
+      `PROGRESS.md` via `git cat-file -p <ref>:<path>` -- **note for future sessions**: `git show ref:path >
+      file` was silently truncated by this environment's output-limiting wrapper on this large file (returned
+      31 lines instead of 228, with no error), while `git cat-file -p` returned the full, correct content.
+      Verified via md5sum before trusting it.
+- [x] Rebased PR #630's branch onto current `origin/main` (one conflict, in `_journal.json`'s array-append
+      region -- resolved by keeping main's tip entries as-is and appending the migration's own entry at the
+      correct next idx).
+- [x] Ran `node scripts/check-migration-collision.mjs --base origin/main` locally against the rebased branch:
+      clean, 0 collisions.
+- [x] Force-pushed (`--force-with-lease`) the renumbered, rebased branch to PR #630.
+      Commit: `784ab0f15c7d1ee950e8a180bb7d302a8225961a`.
+- [x] Verified this task's SUCCESS_CRITERIA directly:
+      - `origin/main`'s `_journal.json` had 0 hits for `0302` before use; PR #630's branch has exactly 1 hit
+        after the push (confirmed via `git cat-file -p origin/task-...:drizzle/meta/_journal.json | grep -c`).
+      - `check-migration-collision.mjs` (the real CI gate's own underlying script, run locally against fresh
+        `origin/main`) is clean on the renumbered branch.
+- [x] Checked CI on PR #630 after the push: all required checks pass (Analyze, Build, Type Check, Unit Tests,
+      Lint, Asset Registry/Doc Cross-Reference/Doc Quarantine/Metadata Index/Terminology Guardrail/Guardrail
+      Presence checks, Secret Scanning, Security Pattern Check, Documentation Sentinel). `audit-check` fails,
+      as expected -- Rule 10's mandatory-audit-check requires a fresh `AUDIT: PASS`/`AUDIT: FAIL` comment tied
+      to this new commit SHA, which is explicitly out of scope for me to post (I'm the implementer here, not
+      the auditor, per Rule 7c and this task's own CONSTRAINTS). Confirmed via direct grep of
+      `.github/workflows/ci.yml` on `origin/main` that no `migration-collision-check` CI job exists there
+      today -- it's still being wired in by the still-open PR #656, not something in my scope to add; this
+      task's own SUCCESS_CRITERIA line about that job assumed it already existed, which it doesn't yet.
+- [x] Appended a correction note to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md`'s Workstream B section
+      recording the renumber and commit SHA (that file is a shared, edited-in-place live tracking doc per its
+      own header convention, living in the separate `veridian-ai-os` control-plane repo checkout which has
+      extensive unrelated uncommitted state from background processes -- edited the file directly on disk, did
+      not attempt a git commit there).
+
+## Remaining
+- [ ] None from this task's own scope. Merge and independent re-audit are explicitly out of scope per this
+      task's CONSTRAINTS (do not merge, do not post an AUDIT verdict) -- next step belongs to whichever agent
+      runs the re-audit per the original `AUDIT: FAIL` comment's own "Re-Audit Scheduled" note.
+
+---
+
 # PROGRESS -- task-20260729-112447-build-extend-workflow-track-engines
 
 ## Completed
