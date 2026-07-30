@@ -72,9 +72,13 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/erp-invoicing-service.test.ts
-    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test."
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test. FI-AP-007 Subcontractor Retention Summary (2026-07-30, +2): a dated comment documenting the new computeRetentionAmount/computeRetentionPosition pure-core extraction (line 47), and a test-fixture postingDate literal (\"2026-07-01\") in the bill() factory helper (line 68) -- both genuine false positives, not real business hardcoding."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 3
+  - file: src/lib/services/erp-invoicing-service.ts
+    reason: "FI-AP-007 Subcontractor Retention Summary (2026-07-30): 2 genuine dated code comments (lines 584-585, 592-593) documenting the new retention-summary computation added by this PR -- not real business hardcoding, same pattern as this file's sibling .test.ts entry."
+    findings_by_category:
+      hardcoded_iso_date: 2
   - file: src/lib/supabase/auth-guard.ts
     reason: "PR 598 dependency-blocking work + reporting-gateway CSV-injection fix (2026-07-27): 3 real dated comments documenting prior gap-closure history in this file, never previously exempted."
     findings_by_category:
@@ -168,9 +172,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 5
   - file: src/lib/db/schema.ts
-    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt."
+    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt. FI-AP-007 Subcontractor Retention Summary (2026-07-30, +1): line 6215 is a genuine dated comment documenting the new retentionPercent/retentionAmount/retentionReleasedAmount columns, same pattern as this file's other 80 grandfathered comments."
     findings_by_category:
-      hardcoded_iso_date: 80
+      hardcoded_iso_date: 81
   - file: src/app/api/ai/orchestrate/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -863,9 +867,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 4
   - file: src/lib/services/report-catalog-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2 -> 3 for PR #636 (feat/fi-ar-004-dunning-list, mandatory-audit-check auditor review 2026-07-30): the new instance is the same false-positive class -- a gap-closure task-id comment ('// FI-AR-004 (SAP gap-analysis \"Dunning List\", HIGH priority, 2026-07-30):') documenting when the Dunning List report entry was added, not human example/sample data. Verified on direct read against the PR's actual diff, not assumed."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's anthropic-version header or MCP's protocolVersion, or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2 -> 4 (both real, independently reviewed additions, same merge wave): PR #636 (feat/fi-ar-004-dunning-list, +1, mandatory-audit-check auditor review 2026-07-30) -- a gap-closure task-id comment documenting when the Dunning List report entry was added; and PR #642 (feat/fi-ap-007-subcontractor-retention-summary, +1) -- a matching gap-closure comment documenting when the Subcontractor Retention Summary report entry was added. Both verified on direct read against each PR's real diff, not assumed -- neither is human example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 3
+      hardcoded_iso_date: 4
   - file: src/lib/services/report-domain-enablement-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
