@@ -722,9 +722,17 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 2
   - file: src/lib/services/crm-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated. CRM-007 Sales Representative Performance Dashboard (2026-07-30): +2 genuine dated header comments on the new aggregateSalesRepPerformance()/getSalesRepPerformanceDashboard() section (the sap_mapping.sqlite gap-analysis date and the date this gap was re-verified directly against the schema) -- not real business hardcoding, same class as this file's other exempted dates."
     findings_by_category:
-      hardcoded_iso_date: 3
+      hardcoded_iso_date: 5
+  - file: src/lib/services/crm-service.test.ts
+    reason: "CRM-007 Sales Representative Performance Dashboard (2026-07-30): 5 genuine literals -- 1 dated header comment (line 2, matching this file's own new crm-service.ts section) plus 4 test-fixture literal dates in the DB-wired getSalesRepPerformanceDashboard() tests/assertions (periodStart/periodEnd query params and a sales-cycle-days comment showing the two dates being subtracted) -- not real business hardcoding, same class as this codebase's other exempted test-fixture files (e.g. erp-selling-service.test.ts)."
+    findings_by_category:
+      hardcoded_iso_date: 5
+  - file: src/app/api/v1/projexa/sales-rep-performance/route.ts
+    reason: "CRM-007 Sales Representative Performance Dashboard (2026-07-30): 1 genuine dated header comment documenting this PR's own new report route -- not real business hardcoding, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/lib/services/custom-report-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
