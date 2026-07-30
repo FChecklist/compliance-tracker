@@ -40,6 +40,50 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
+    claimed_at: "2026-07-29T (this session, closed same session)"
+    claim: |
+      VERIDIAN_CONSOLIDATED_COMPLETION Stage 9 (PR #630) explicitly flagged
+      8 remaining real entity types with no unified-search coverage:
+      tasks/projects/tickets/crm_leads/notices/comments/conversations/
+      notifications. Picked tasks by real evidence (row counts checked via
+      Supabase MCP list_tables, not assumed): tasks 1899, crm_leads 517,
+      conversations 366, notifications 70, tickets 53, projects 36,
+      comments 36, notices 3 -- tasks is by far the highest-volume real
+      candidate. Confirmed compliance.tasks had zero tsvector/search index
+      today (only btree + an hnsw vector-embedding index on task_embedding,
+      a different mechanism) -- genuinely new work, not an extension of an
+      existing index, unlike compliance_items/documents. Added a
+      trigger-maintained search_vector column (BEFORE INSERT OR UPDATE
+      trigger, not a plain column) + GIN index + one-time backfill for the
+      1899 existing rows, then extended compliance.content_search with a
+      third UNION ALL branch for tasks, same security_invoker=true +
+      explicit org_id = current_org_id() convention as the other two
+      branches (confirmed via pg_policy that compliance.tasks' own RLS
+      already uses this exact expression). Real, notable finding along the
+      way: compliance.comments already has a search_vector column, GIN
+      index, AND a wired BEFORE INSERT/UPDATE trigger (tsv_ct2_comments) --
+      but all 36 existing rows have search_vector IS NULL, because the
+      trigger was added with no backfill. Documented in this migration's
+      own header as the specific mistake this task's backfill step avoids
+      repeating for tasks; comments itself is unfixed here (out of scope,
+      flagged as a real remaining gap for whichever session next tackles
+      comments' own content_search branch).
+    scope_note: >-
+      File scope: compliance-tracker only -- drizzle/0271_content_search_tasks.sql
+      (new migration; also applied live via Supabase MCP apply_migration,
+      project pcrjmlpuqsbocqfwoxod/verdian-ai, migration label
+      stage12_content_search_tasks) + this ACTIVE-CLAIMS.yaml entry. No
+      application code changed (content_search has no existing API
+      consumer yet -- same as Stage 9's own scope). Verified live: trigger
+      fires on both INSERT and UPDATE with no manual search_vector write
+      (tested with a real insert+update+delete against a synthetic test
+      row, cleaned up after); view returns 0 rows with no
+      app.current_org_id set (fail-closed); returns the test row only under
+      its own org (org_001) and not under a different real org
+      (org_firstrun_test); compliance.get_advisors(security) shows the
+      identical 27 pre-existing findings before and after this migration --
+      zero new findings introduced.
   - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
     claimed_at: "2026-07-30T (this session)"
     claim: |
