@@ -119,6 +119,18 @@ active:
       bump if needed. No overlap found with any other active entry above
       (grepped this file for CO-006/statistical key figure/SKF -- no hits
       before this entry).
+
+      STATUS UPDATE: implementation complete -- new erp_statistical_key_
+      figure_types/erp_statistical_key_figure_postings tables (drizzle/0276),
+      erp-costing-service.ts (new file), 3 API routes, report-catalog-
+      service.ts entry + drizzle/0277 report_definitions seed, 5 new unit
+      tests all passing. Migration numbers renumbered from an initial
+      0275/0276 draft to 0276/0277 after a fresh git fetch mid-task found
+      origin/main had gained 0275_customer_payment_behavior_dso_report_
+      definition.sql (FI-AR-006, #645) concurrently. PR #653 opened
+      (compliance-tracker), CI running -- awaiting the mandatory independent
+      audit (AGENTS.md Rule 10) + CI green + merge -- will move this entry
+      to recently_completed once merged.
   - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
     claimed_at: "2026-07-30T (this session)"
     claim: |
