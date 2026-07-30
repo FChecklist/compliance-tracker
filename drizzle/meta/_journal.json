@@ -1891,6 +1891,13 @@
       "when": 1785325200003,
       "tag": "0272_ap_subcontractor_payment_application_status_report_definition",
       "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1785325200004,
+      "tag": "0273_asset_to_gl_reconciliation_report_definition",
+      "breakpoints": true
     }
   ]
 }
