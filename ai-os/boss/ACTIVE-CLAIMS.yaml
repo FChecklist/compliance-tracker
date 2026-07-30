@@ -40,6 +40,33 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260730-040813-build-extend-workflow-track-engines) -- Build/extend workflow-track (state-machine) engines from PHASE-2-CROSSREF"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      SPEC: same as task-20260729-112447's identical-titled task -- build/extend only
+      workflow-track engines marked BUILD_NEW/EXTEND_EXISTING in the real PHASE-2-CROSSREF
+      (sap_reports table, /opt/veridian/ai-os/memory/sap_mapping.sqlite). Re-verified directly
+      against the sqlite: engine_track='workflow' AND veridian_mapping_status IN (BUILD_NEW,
+      EXTEND_EXISTING) is still exactly 2 rows (SD-002, SD-007) -- unchanged since yesterday.
+      COLLISION FOUND: task-20260729-112447 (a session dispatched a day earlier for the
+      identical task title) already fully built both engines and opened PR #629
+      (construction-billing-workflow-service.ts + 7 API routes + migration), but PR #629 was
+      sitting open with 3 failing CI checks (Asset Registry Coverage, Terminology Guardrail,
+      audit-check) -- not because the engine work was wrong, but because 2 mechanical CI gates
+      needed real registry decisions and the mandatory audit-check comment had never been
+      posted. Rather than duplicate a fully-built 2-engine scope, fixed PR #629 directly
+      (pushed onto worker/task-20260729-112447-build-extend-workflow-track-engines):
+      registered construction_progress_claims in the UMR (drizzle/0270, asset_type=workflow),
+      added the terminology-guardrail test-fixture exemption, and posted the required
+      structured AUDIT: PASS verdict as a genuinely independent auditor (this session did not
+      write the original engine code, per AGENTS.md Rule 7c). No new engine code of my own --
+      this session's contribution is landing the already-complete work, not rebuilding it.
+      Did not touch engine_track='calculation' or 'hybrid' rows (out of scope, same as the
+      original session's own claim already noted).
+    scope_note: >-
+      No new files in THIS workspace/branch beyond PROGRESS.md + this claim entry -- the real
+      code change is on worker/task-20260729-112447-build-extend-workflow-track-engines
+      (PR #629), commit 2bbdd87a.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
