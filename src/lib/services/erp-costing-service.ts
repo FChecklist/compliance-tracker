@@ -41,9 +41,9 @@
 // being populated, so it does not contradict that note's real concern
 // (forcing SKF master data as a mandatory prerequisite).
 import {
-  erpStatisticalKeyFigureTypes, erpStatisticalKeyFigurePostings, erpCostCenters, erpAccountingPeriods, users,
+  erpStatisticalKeyFigureTypes, erpStatisticalKeyFigurePostings, erpCostCenters, users,
 } from "@/lib/db"
-import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
