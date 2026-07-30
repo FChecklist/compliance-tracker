@@ -457,8 +457,8 @@ export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate
 
 // ─── FI-GL-007: Subledger-to-GL Reconciliation (SAP gap analysis,
 // sap_mapping.sqlite/sap_reports id='FI-GL-007', module FI-GL, MEDIUM
-// priority, BUILD_NEW -- re-verified 2026-07-30 directly against this repo,
-// not trusted from the gap-analysis file's own citations (a same-day
+// priority, BUILD_NEW -- re-verified directly against this repo, not
+// trusted from the gap-analysis file's own citations (a same-day
 // spot-check on another row, FI-AP-007, found a stale/fabricated
 // citation there, so nothing here is taken on faith either). This is the
 // GENERAL AR+AP version -- FI-AA-006 (Asset-to-GL Reconciliation) is the

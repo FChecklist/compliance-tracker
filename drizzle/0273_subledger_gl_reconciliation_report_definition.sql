@@ -1,6 +1,6 @@
 -- FI-GL-007 "Subledger-to-GL Reconciliation" -- gap analysis
 -- sap_mapping.sqlite/sap_reports, id='FI-GL-007', module FI-GL, MEDIUM
--- priority, veridian_mapping_status='BUILD_NEW' (re-verified 2026-07-30
+-- priority, veridian_mapping_status='BUILD_NEW' (re-verified
 -- directly against this repo, not trusted blindly from the gap-analysis
 -- file's own citations -- a separate spot-check the same day found at
 -- least one other row, FI-AP-007, with a stale/fabricated citation).
