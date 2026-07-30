@@ -226,3 +226,51 @@
       Separately unresolved (not this task's job to fix): PR #629 and PR
       #638 both still open and both touch SD-002; reconciling those two is
       a decision for whoever reviews/merges them, not addressed here.
+
+# PROGRESS -- task-20260730-181517-fix-real-terminology-guardrail-failure-o
+
+## Completed
+- [x] Read the actual Terminology Guardrail Check failure log for PR #661
+      (`gh api .../actions/jobs/90924157630/logs`, run 30558229398): 1 new
+      `hardcoded_iso_date` finding in
+      `src/app/(app)/crm/accounts/[id]/page.tsx` line 5 -- the literal
+      "2026-07-17" inside a `// VERIDIAN Review Framework Wave B
+      (2026-07-17): account detail page --` comment.
+- [x] Confirmed via `git diff main...feat/geography-cascading-address` that
+      PR #661 does not touch line 5 -- the finding is pre-existing content.
+      Root cause (read `scripts/check-terminology-guardrail.mjs`): `--diff-
+      only` scans the *whole current content* of any file touched by the
+      PR, not just changed hunks, and compares against
+      `ai-os/registry/terminology-guardrail-exemptions.yaml`'s per-file
+      baseline (default allowed = 0 if absent). This file was never part of
+      Phase 2's original baseline scan (`src/app/(app)` UI pages were out
+      of that scan's directory scope), so its one pre-existing comment
+      counted as 1 new/unexempted finding purely because this PR happens to
+      touch the file for an unrelated reason.
+- [x] Verified the date is real, not example data: matches commit
+      df5e5efe's actual commit date (2026-07-17 02:17:47 +0530, "Add CRM
+      Accounts & Contacts (VERIDIAN Review Framework Wave B)"). Re-scanned
+      the full file for all 6 pattern families -- confirmed exactly this 1
+      finding, nothing else.
+- [x] Added an exemption entry for the file in
+      `ai-os/registry/terminology-guardrail-exemptions.yaml`
+      (`hardcoded_iso_date: 1`), following this file's own established
+      reason format/precedent for dated changelog comments. Validated the
+      YAML parses and the new entry + finding counts match via a local
+      Python re-implementation of the guardrail's scan logic (the repo's
+      own node_modules/bun weren't available in this workspace to run the
+      real .mjs script directly).
+- [x] Committed (`72d9b6ad`) and pushed directly to PR #661's branch
+      `feat/geography-cascading-address` -- scope is exactly the one
+      flagged violation, no unrelated changes.
+- [x] Confirmed green: `gh api .../actions/jobs/90963364333 -q .conclusion`
+      = `success`; `gh pr checks 661` shows `Terminology Guardrail Check
+      pass`.
+- [x] Left a PR review comment on #661 explaining the fix and citing the
+      guardrail rule.
+
+## Remaining
+- [ ] None for this task's scope. `audit-check` remains failing on PR #661
+      -- explicitly out of scope per this task's spec (separate known
+      comment-retrigger issue, handled elsewhere). Did not merge PR #661
+      and did not post an `AUDIT:` verdict, per this task's constraints.
