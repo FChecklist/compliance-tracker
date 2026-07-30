@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260730-183108-rebase-renumber-pr-655--crm-007--off-654) -- Rebase/renumber PR #655 (CRM-007) off #654's merged idx-274 migration collision"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      PR #655 (CRM-007: Sales Representative Performance Dashboard, Task
+      #17) had an independent AUDIT: FAIL (severity high) flagging an
+      undisclosed drizzle migration idx-274 collision with PR #654
+      (HCM-006 Certified Payroll Report), with the audit's own note that
+      whichever of #654/#655 merges second must rebase/renumber off the
+      other. #654 merged 2026-07-30T14:59:27Z. This session rebases #655
+      onto current origin/main, re-checks the freshly-fetched
+      drizzle/meta/_journal.json for the real current idx-274 state (not
+      the original audit's stale snapshot), renumbers #655's migration off
+      any real collision, pushes, and confirms CI green -- implementer
+      only, does not post a new audit verdict or merge.
+    scope_note: >-
+      File scope: compliance-tracker only -- PR #655's branch
+      (crm-007-sales-rep-performance-dashboard): its migration file(s)
+      under drizzle/ and drizzle/meta/_journal.json, plus this
+      ACTIVE-CLAIMS.yaml entry. Does not touch #654 or any other PR/branch.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
