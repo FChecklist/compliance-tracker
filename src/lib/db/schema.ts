@@ -10091,6 +10091,28 @@ export const constructionAttendanceRelations = relations(constructionAttendance,
   roster: one(constructionLabourRoster, { fields: [constructionAttendance.rosterId], references: [constructionLabourRoster.id] }),
 }))
 
+// Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll
+// Report (Regulatory / Public Works)", US WH-347 equivalent, BUILD_NEW):
+// the government-mandated prevailing-wage determination -- minimum hourly
+// rate + required fringe rate -- per trade classification, for one
+// public-works project. Admin-editable master data, same posture as
+// erpStatutoryRules/erpIncomeTaxSlabs (rates come from a periodic
+// government determination, never a formula). trade is free text, matched
+// case-insensitively against constructionLabourRoster.trade the same
+// advisory, non-enum way that column is itself documented.
+export const constructionPrevailingWageRates = complianceSchemaDB.table('construction_prevailing_wage_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  trade: text('trade').notNull(),
+  prevailingHourlyRate: numeric('prevailing_hourly_rate').notNull(),
+  fringeBenefitRate: numeric('fringe_benefit_rate').notNull().default('0'),
+  effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+  effectiveTo: date('effective_to', { mode: 'string' }),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Construction Intelligence (Wave 117) ─────────────────────────────────
 // KPI module: designer-fills / manager-approves workflow, modeled as a
 // definitions+entries pair (not an extension of kpi-hub-service.ts, which is
