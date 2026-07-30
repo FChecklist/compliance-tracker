@@ -5,7 +5,10 @@
 // .test.ts convention (e.g. construction-valuation-service.ts's
 // computeInterimBillLines).
 import { describe, expect, test } from "bun:test"
-import { computeInvoiceTaxTotals, dunningBucketForDaysOverdue, suggestedDunningLevel, DUNNING_LEVEL_LABELS } from "./erp-invoicing-service"
+import {
+  computeInvoiceTaxTotals, dunningBucketForDaysOverdue, suggestedDunningLevel, DUNNING_LEVEL_LABELS,
+  daysToPay, classifyPaymentReliability, computeDsoFormula,
+} from "./erp-invoicing-service"
 
 describe("computeInvoiceTaxTotals", () => {
   test("a real tax template's rates produce a real, nonzero tax amount on the line's full value", () => {
@@ -107,5 +110,86 @@ describe("DUNNING_LEVEL_LABELS", () => {
     expect(DUNNING_LEVEL_LABELS[1]).toBe("Friendly Reminder")
     expect(DUNNING_LEVEL_LABELS[2]).toBe("Formal Notice")
     expect(DUNNING_LEVEL_LABELS[3]).toBe("Final Demand")
+  })
+})
+
+// FI-AR-006 (Customer Payment Behavior / DSO): tests the 3 pure functions
+// only -- customerPaymentBehaviorReport() itself touches the DB
+// (withTenantContext + a real UNION across erp_journal_entries and
+// erp_payment_entries), same established pattern as dunningList/
+// arAgingReport above (see this file's own header note on
+// dunningBucketForDaysOverdue). The hand-computed example below is
+// deliberately grounded in a REAL seeded invoice, checked directly via the
+// Supabase MCP against the live project (pcrjmlpuqsbocqfwoxod) while
+// building this PR: invoice_number=1, customer_id=
+// 'a7347ed4-ac0c-42db-8592-d587fc2c744b', posting_date='2026-02-24',
+// due_date='2026-03-26' (a real, exact 30-day credit term), grand_total=
+// 2902589, status='paid'. That invoice's real row has NO discoverable
+// payment date in the live database (see the service function's own
+// header comment for the honest, verified reason why) -- the payment date
+// used below ('2026-03-20') is therefore explicitly a HYPOTHETICAL
+// illustration layered on top of that real invoice's real dates, not a
+// claim that this payment actually happened.
+describe("daysToPay", () => {
+  test("real invoice #1's real postingDate to a hypothetical earlier payment date: 24 real days early against its real 30-day term", () => {
+    // 2026-02-24 -> 2026-03-20 is exactly 24 days.
+    expect(daysToPay("2026-02-24", "2026-03-20")).toBe(24)
+  })
+
+  test("same real invoice's real postingDate to its real dueDate is exactly the real 30-day credit term", () => {
+    expect(daysToPay("2026-02-24", "2026-03-26")).toBe(30)
+  })
+
+  test("a payment on the same day as posting is 0 days to pay", () => {
+    expect(daysToPay("2026-02-24", "2026-02-24")).toBe(0)
+  })
+
+  test("a payment recorded before the invoice's own posting date is a negative result -- surfaced, not clamped, since that would be a real data bug", () => {
+    expect(daysToPay("2026-02-24", "2026-02-20")).toBe(-4)
+  })
+})
+
+describe("computeDsoFormula", () => {
+  test("real invoice's grand_total as the sole credit sale in a 30-day period, fully outstanding: DSO collapses to exactly the period length", () => {
+    // (2902589 outstanding / 2902589 credit sales) * 30 = 30.
+    expect(computeDsoFormula(2902589, 2902589, 30)).toBe(30)
+  })
+
+  test("outstanding AR at half the period's credit sales over a 90-day period gives DSO = 45", () => {
+    expect(computeDsoFormula(500000, 1000000, 90)).toBe(45)
+  })
+
+  test("zero credit sales in the period returns null (honest 'cannot compute'), never 0 or Infinity", () => {
+    expect(computeDsoFormula(500000, 0, 90)).toBeNull()
+  })
+
+  test("zero outstanding AR with real credit sales correctly computes a real DSO of 0 (paid in full, not a null/gap case)", () => {
+    expect(computeDsoFormula(0, 2902589, 30)).toBe(0)
+  })
+})
+
+describe("classifyPaymentReliability", () => {
+  test("real invoice's 30-day term paid a hypothetical 6 days early classifies as consistently_early", () => {
+    expect(classifyPaymentReliability(24, 30)).toBe("consistently_early")
+  })
+
+  test("paying exactly on the agreed term classifies as on_time", () => {
+    expect(classifyPaymentReliability(30, 30)).toBe("on_time")
+  })
+
+  test("paying 5 days past the agreed term is still on_time (inclusive boundary)", () => {
+    expect(classifyPaymentReliability(35, 30)).toBe("on_time")
+  })
+
+  test("paying 6 days past term rolls into late", () => {
+    expect(classifyPaymentReliability(36, 30)).toBe("late")
+  })
+
+  test("paying 30 days past term is still late (inclusive boundary)", () => {
+    expect(classifyPaymentReliability(60, 30)).toBe("late")
+  })
+
+  test("paying 31+ days past term rolls into chronically_late", () => {
+    expect(classifyPaymentReliability(61, 30)).toBe("chronically_late")
   })
 })
