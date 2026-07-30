@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260730-183104-rebase-pr-653--co-006--clean) -- Rebase PR #653 (CO-006: Statistical Key Figure Report, Task #17) onto current main, resolve conflicts, get real CI checks green [IN PROGRESS]"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      PR #653 was CONFLICTING against origin/main (cascade from #651 and
+      other merges since it was opened) with the Mandatory Audit Check
+      failing (expected -- no AUDIT: PASS/FAIL comment posted yet, out of
+      scope for this session to post per AGENTS.md Rule 7c/10). Scope: pure
+      rebase + conflict resolution preserving CO-006's reporting logic, plus
+      re-verifying its migration number against a freshly-fetched
+      origin/main drizzle/meta/_journal.json (not reusing any note from this
+      or other files on faith). Not merging; not posting an audit verdict.
+    scope_note: >-
+      File scope: compliance-tracker, PR #653's branch
+      (co-006-statistical-key-figures) only -- rebase conflict resolution +
+      migration renumbering if needed. No other PR touched.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
