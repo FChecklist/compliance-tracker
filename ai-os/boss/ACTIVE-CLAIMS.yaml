@@ -84,6 +84,41 @@ active:
       (org_firstrun_test); compliance.get_advisors(security) shows the
       identical 27 pre-existing findings before and after this migration --
       zero new findings introduced.
+  - session_label: "claude-code (co-006-statistical-key-figure-report) -- CO-006 Statistical Key Figure Report"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build CO-006 "Statistical Key Figure Report" (sap_mapping.sqlite
+      sap_reports, module CO, priority LOW, veridian_mapping_status
+      BUILD_NEW as of 2026-07-28, veridian_existing_equivalent=None).
+      Confirmed via direct grep of src/lib/db/schema.ts and
+      src/lib/services/ that no statistical-key-figure concept (non-
+      financial per-cost-center allocation-basis metric such as headcount/
+      square-footage/machine-hours) exists anywhere in this codebase --
+      genuine BUILD_NEW gap, not a query over existing data.
+
+      IMPORTANT CAVEAT surfaced from the sap_mapping.sqlite row's own
+      implementation_notes field (not just calculation_logic/gap_notes):
+      "Do not build this as a standalone report ... let the user pick a
+      simple driver from existing data ... without requiring them to set
+      up and maintain separate statistical key figure master data and
+      posting transactions." This PR builds the literal SAP-equivalent
+      report anyway (per explicit task instruction to follow the standard
+      BUILD_NEW pattern used by FI-AA-006/FI-AR-004/SD-002), as a NEW,
+      OPTIONAL, standalone tracking/reporting feature -- deliberately NOT
+      wired as a prerequisite/dependency for any future overhead-allocation
+      engine, so it does not contradict the note's actual concern (forcing
+      SKF master data as a mandatory step). Flagged plainly in the PR body
+      for reviewer judgment.
+
+      File scope: compliance-tracker only -- new
+      src/lib/services/erp-costing-service.ts (or existing Controlling-
+      domain service if one is found), new
+      statistical_key_figures-equivalent table in src/lib/db/schema.ts,
+      new drizzle migration, report-catalog-service.ts REPORT_CATALOG
+      entry, .test.ts unit tests, terminology-guardrail-exemptions.yaml
+      bump if needed. No overlap found with any other active entry above
+      (grepped this file for CO-006/statistical key figure/SKF -- no hits
+      before this entry).
   - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
     claimed_at: "2026-07-30T (this session)"
     claim: |
