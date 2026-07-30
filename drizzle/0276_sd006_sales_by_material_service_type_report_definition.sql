@@ -1,0 +1,43 @@
+-- SD-006 "Sales by Material / Service Type" (sap_mapping.sqlite gap
+-- analysis, sap_reports, id='SD-006', module SD, priority MEDIUM,
+-- veridian_mapping_status='BUILD_NEW', re-verified directly against the
+-- live repo on 2026-07-30 rather than trusting the gap analysis file's own
+-- citations). Per that row's own implementation_notes, renamed for
+-- construction: "Revenue by Service Type" -- the material master
+-- (erp_items, grouped via erp_item_groups) maps to a construction firm's
+-- service catalog/work type (demolition, joinery, painting, electrical,
+-- project-management-fee, ...).
+--
+-- Real finding (veridian_gap_notes on the sap_reports row itself):
+-- erp_sales_invoice_items.item_id (Wave 60) already exists and is
+-- nullable -- the data model already supports grouping revenue by
+-- material/service-item type, but grep across every src/lib/services/*.ts
+-- file found zero report function anywhere performing that specific
+-- aggregation. This is a genuine BUILD_NEW: NO new schema/columns are
+-- added by this migration -- only the report_definitions row + the new
+-- aggregateSalesByMaterialServiceType()/salesByMaterialServiceTypeReport()
+-- functions (report-engine-service.ts, same PR) that query the
+-- already-existing columns.
+--
+-- execution_type='deterministic_formula', formulaKey=
+-- 'sales_by_material_service_type' -- same FORMULA_REGISTRY convention
+-- SD-002's 'billing_due_list' (PR #638) established, not the
+-- 'external_service' convention SD-007/FI-AP-005 used, because this is a
+-- genuine group-by/sum aggregation report (matching this file's other
+-- FORMULA_REGISTRY analyses, e.g. interior_profit_by_room_analysis's
+-- revenue/cost/margin-by-category shape), not a single-document trace or
+-- an existing hand-written service function being catalogued.
+--
+-- Honest gap left open (see PR description): Gross Profit/Gross Margin %
+-- (includeCost param) uses erp_items.standard_buying_rate x quantity as a
+-- COST PROXY, not a real weighted-average cost from the stock ledger (no
+-- per-invoice-line cost allocation exists in this schema) -- disclosed in
+-- the report's own `note` field at run time, not fabricated as precise
+-- COGS. No prior-period variance calculation is computed (the gap
+-- analysis's calculation_logic cites "the same variance calculation as
+-- customer sales analysis", but no such report exists yet in this
+-- codebase to reuse) -- also disclosed, not silently omitted.
+INSERT INTO compliance.report_definitions
+  (org_id, name, description, category, classifications, periodicity, periodicity_config, execution_type, execution_config, output_formats, status, data_gap_note, created_by)
+VALUES
+  (NULL, 'Sales by Material / Service Type', 'Breaks down revenue by the material/item or item group (material group) sold within a date range -- construction/PROJEXA equivalent of SAP''s material-group revenue breakdown, adapted per the gap analysis''s own implementation_notes as revenue-by-service-type (e.g. demolition, joinery, painting, electrical, project-management fee). Total Net Revenue is summed from real erp_sales_invoice_items lines (non-cancelled invoices only) in the selected period, with an optional Gross Profit/Gross Margin % view (erp_items.standard_buying_rate x quantity cost proxy). Requires dateFrom/dateTo params; optional groupBy ("item" default | "group"), customerId, includeCost, sortBy ("revenue" default | "margin"). Lines with no item/item-group link are bucketed as "Unassigned", not dropped. No prior-period variance is computed -- no "customer sales analysis" report exists yet in this codebase to reuse a shared variance calculation from.', 'software_report', '["financial","sales","revenue","customer"]'::jsonb, 'on_demand', NULL, 'deterministic_formula', '{"kind":"formula","formulaKey":"sales_by_material_service_type"}'::jsonb, '["table"]'::jsonb, 'built', NULL, 'system');

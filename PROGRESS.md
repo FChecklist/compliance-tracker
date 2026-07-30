@@ -226,3 +226,125 @@
       Separately unresolved (not this task's job to fix): PR #629 and PR
       #638 both still open and both touch SD-002; reconciling those two is
       a decision for whoever reviews/merges them, not addressed here.
+
+# PROGRESS -- sd-006-sales-by-material-service-type
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, found no collision; registered
+      this task's own claim there (commit 5074a163, pushed) before writing
+      any code, per AGENTS.md Rule 11.
+- [x] Read the full SD-006 row directly from
+      `/opt/veridian/ai-os/memory/sap_mapping.sqlite`'s `sap_reports` table
+      on the VERIDIAN-DEV server (167.233.220.35) -- every field
+      (business_purpose, calculation_logic, input_data_required,
+      output_format, veridian_gap_notes, implementation_notes), not a
+      summary. Confirmed veridian_gap_notes' claim directly against
+      schema.ts: `erp_sales_invoice_items.item_id` (Wave 60) genuinely
+      exists and is nullable -- the data model already supports grouping
+      revenue by material/service-item type; grep across every
+      `src/lib/services/*.ts` file confirmed zero report function anywhere
+      performs this aggregation. No migration/schema change was needed for
+      this column -- only for seeding the new report_definitions row.
+- [x] Read 4 prior merged SAP-equivalent-report PRs (SD-002 #629/#638,
+      SD-007 #644, FI-AP-005 #637) to match conventions. Determined
+      SD-006 fits the `deterministic_formula`/FORMULA_REGISTRY pattern
+      SD-002's `computeBillingDueList` established in
+      `report-engine-service.ts` -- not the `external_service`/
+      `erp-selling-service.ts` pattern SD-007/FI-AP-005 used -- because
+      SD-006 is a genuine group-by/sum aggregation report (same shape as
+      this file's pre-existing `interior_profit_by_room_analysis`), not a
+      single-document trace or an existing hand-written service function
+      being catalogued. Confirmed `deterministic_formula` reports need no
+      dedicated API route (`billing_due_list` has none either -- reached
+      purely through `executeReportDefinition`'s generic dispatcher).
+- [x] Added `aggregateSalesByMaterialServiceType()` (pure, DB-free grouping/
+      summing function, exported) + `salesByMaterialServiceTypeReport()`
+      (DB-touching wrapper: real `erp_sales_invoice_items` joined to
+      `erp_sales_invoices` -- org/period/not-cancelled/optional-customer
+      filter -- left-joined to `erp_items`/`erp_item_groups`) to
+      `report-engine-service.ts`, registered as
+      `sales_by_material_service_type` in `FORMULA_REGISTRY`. Supports
+      `groupBy` ("item" | "group"), `customerId`, `includeCost` (Gross
+      Profit/Gross Margin % via `erp_items.standard_buying_rate x
+      quantity`, honestly disclosed as a cost PROXY, not real
+      weighted-average COGS from the stock ledger), and `sortBy`
+      ("revenue" | "margin"). Lines with no item/item-group link
+      (`item_id` is nullable) are bucketed as a real "Unassigned" group,
+      not dropped -- same convention as this file's own
+      `interiorProfitByRoomAnalysis`'s "Unassigned" room bucket.
+- [x] New migration `drizzle/0276_sd006_sales_by_material_service_type_report_definition.sql`
+      seeding one `compliance.report_definitions` row
+      (`execution_type='deterministic_formula'`,
+      `formulaKey='sales_by_material_service_type'`) + matching
+      `drizzle/meta/_journal.json` entry (idx 273) -- verified main's true
+      current highest migration (0274, SD-007) fresh via
+      `git fetch origin main` immediately before first writing this
+      migration as `0275`. A real collision then landed while this PR was
+      in progress: FI-AR-006 (#645) merged moments later, ALSO claiming
+      `0275` (`0275_customer_payment_behavior_dso_report_definition.sql`)
+      and ALSO touching `report-engine-service.ts` +
+      `terminology-guardrail-exemptions.yaml` -- caught on
+      `git fetch origin main` immediately before pushing (main had moved
+      9de54f77 -> c8cdd06b). Rebased onto the new main, renamed my
+      migration to `0276`, and resolved the resulting merge conflicts in
+      `report-engine-service.ts` (both new FORMULA_REGISTRY functions kept
+      side by side) and `_journal.json` -- no data loss, both reports
+      coexist. Re-ran the terminology guardrail check + full test suite
+      after the rebase to confirm the resolution was clean. No
+      `ALTER TABLE` needed for SD-006 itself -- the underlying `item_id`
+      column already existed.
+- [x] Added 3 new unit tests (`aggregateSalesByMaterialServiceType`
+      describe block) in `report-engine-service.test.ts` with real
+      fixture invoice-line data across 3 distinct material/service types
+      (Joinery: 2 lines, Electrical: 2 lines, plus 1 unlinked/free-text
+      line) proving: `groupBy: "item"` produces one row per individual
+      item with correct per-item revenue sums; `groupBy: "group"`
+      correctly sums both Joinery lines together (55000) and both
+      Electrical lines together (45000) with the unlinked line in its own
+      "Unassigned" bucket (10000), summing to the correct grand total
+      (110000, nothing silently dropped); `includeCost: true` computes
+      Gross Profit/Gross Margin % correctly per group from
+      `standard_buying_rate x quantity` and doesn't crash on the
+      zero-cost unassigned line. Plus 2 small guard-rail tests
+      (zero-revenue group doesn't divide-by-zero into NaN/Infinity; empty
+      input returns `[]`). Matches this file's own established convention
+      (`isBillingScheduleDue`'s describe block) of unit-testing the pure
+      function only -- the DB-touching wrapper is deliberately left
+      untested, per this test file's own header comment.
+- [x] Terminology Guardrail: ran
+      `node scripts/check-terminology-guardrail.mjs --file
+      src/lib/services/report-engine-service.ts
+      src/lib/services/report-engine-service.test.ts
+      drizzle/0276_....sql` directly -- found 2 new (unexempted)
+      `hardcoded_iso_date` findings (my own new dated doc-comments citing
+      2026-07-28/2026-07-30), raised
+      `ai-os/registry/terminology-guardrail-exemptions.yaml`'s
+      `report-engine-service.ts` entry from 12 to 14 with a real reason
+      (checked the file's current count directly rather than trusting a
+      cached number, per the known concurrent-sibling-PR undercount risk).
+      Re-ran the check clean afterward.
+- [x] Verified: `NODE_OPTIONS="--max-old-space-size=8192" npx tsc --noEmit`
+      -- 10 pre-existing errors, all `Cannot find module` for packages not
+      installed in this environment (`@fchecklist/veridian-ui-kit/*`,
+      `@playwright/test`, `@mlc-ai/web-llm` -- confirmed absent from
+      `node_modules` directly, not something this change touched); zero
+      errors in any file this PR touches. `bun run lint` -- 0 errors, 3
+      pre-existing warnings in unrelated files. `bun test`
+      (`report-engine-service.test.ts` alone) -- 26 pass, 0 fail, 59
+      expect() calls. Full suite (`bun test`) -- 2349 pass, 6 fail, 1
+      error, none in files this PR touches (pre-existing flaky/unrelated
+      failures: `defense-in-depth.test.ts`, `connector-data-service.test.ts`,
+      `prompt-governance-gates.test.ts` timeouts, `prompt-governance-service.test.ts`).
+- [x] Honest gap: Gross Profit/Gross Margin % is a cost PROXY
+      (`standard_buying_rate x quantity`), not real weighted-average COGS
+      (no per-invoice-line cost allocation exists in this schema); no
+      prior-period variance calculation is computed (the gap analysis
+      cites "the same variance calculation as customer sales analysis",
+      but no such report exists yet in this codebase to reuse). Both
+      disclosed in the report_definitions row's description and the
+      report's own runtime `note` field, not silently omitted.
+
+## Remaining
+- [ ] None for this task's own scope -- PR opened, awaiting independent
+      audit + CI green before merge (per AGENTS.md Rule 10 -- self-audit
+      not permitted).
