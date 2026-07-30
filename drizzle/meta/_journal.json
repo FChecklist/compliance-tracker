@@ -1909,6 +1909,13 @@
     {
       "idx": 272,
       "version": "7",
+      "when": 1785402700001,
+      "tag": "0275_customer_payment_behavior_dso_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
       "when": 1785402700002,
       "tag": "0276_vendor_payment_behavior_dpo_report_definition",
       "breakpoints": true
