@@ -841,8 +841,9 @@ export async function finalizeAssetDisposal(ctx: { orgId: string; userId: string
   // rethrow the original error unchanged (single-document action, same
   // "throw and let the caller see the real failure" convention as
   // submitFixedAsset).
+  let result
   try {
-    const result = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    result = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
       await db.update(erpAssetDisposals).set({ status: "completed", journalEntryId }).where(eq(erpAssetDisposals.id, disposalId))
       const [updatedAsset] = await db.update(erpFixedAssets).set({
         status: disposal.disposalType === "sale" ? "disposed" : "scrapped",
@@ -853,32 +854,42 @@ export async function finalizeAssetDisposal(ctx: { orgId: string; userId: string
       await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_asset_disposal.completed", entityType: "erp_asset_disposal", entityId: disposalId })
       return { ...updatedAsset, disposalId, journalEntryId, gainLoss }
     })
-    // FI-AA-006 real-bug fix: see submitFixedAsset's identical comment
-    // above for the full writeup. Submitted only after the disposal/asset
-    // write above has committed, so the catch below can still void a
-    // still-draft JE if THAT write is what fails instead -- submitting
-    // first would make voidDraftJournalEntry's "only voids a still-draft
-    // entry" check silently no-op on retry, the same double-post risk
-    // this function's own comment above already documents.
-    if (journalEntryId) {
-      try {
-        await submitJournalEntry(ctx, journalEntryId)
-      } catch (error) {
-        // The disposal itself is genuinely committed at this point --
-        // only the GL entry's own draft->submitted transition failed.
-        // Thrown (not silently swallowed), matching this function's own
-        // established "throw and let the caller see the real failure"
-        // posture for a single-document action.
-        throw new ServiceError(`Disposal completed but GL entry ${journalEntryId} could not be submitted: ${error instanceof Error ? error.message : String(error)}`, 502)
-      }
-    }
-    return result
   } catch (error) {
     if (journalEntryId) {
       await voidDraftJournalEntry(ctx, journalEntryId, `finalizeAssetDisposal follow-up write failed for disposal ${disposalId}`).catch(() => {})
     }
     throw error
   }
+
+  // FI-AA-006 real-bug fix: see submitFixedAsset's identical comment above
+  // for the full writeup. Deliberately OUTSIDE the try/catch above (not
+  // nested inside it, as an earlier draft of this fix had it -- caught by
+  // independent audit review of this same PR): that catch's
+  // voidDraftJournalEntry call exists specifically for "the disposal write
+  // itself failed, so the JE it created is orphaned and must be
+  // cancelled" -- nesting the submit call inside it meant a submit-only
+  // failure (the disposal write already committed successfully) would
+  // re-throw into that SAME catch, which would then unconditionally
+  // cancel a real, already-associated JE for a disposal that had already
+  // completed -- silently reintroducing a narrower version of the exact
+  // GL-integrity gap this PR exists to fix. Now, a submit failure here
+  // leaves the JE simply sitting in 'draft' (inspectable and resubmittable
+  // via the manual Journal Entries submit route), not voided -- the
+  // correct, recoverable outcome for "the disposal succeeded, only the
+  // GL posting's own submit step failed."
+  if (journalEntryId) {
+    try {
+      await submitJournalEntry(ctx, journalEntryId)
+    } catch (error) {
+      // The disposal itself is genuinely committed at this point -- only
+      // the GL entry's own draft->submitted transition failed. Thrown
+      // (not silently swallowed), matching this function's own
+      // established "throw and let the caller see the real failure"
+      // posture for a single-document action.
+      throw new ServiceError(`Disposal completed but GL entry ${journalEntryId} could not be submitted -- it remains in 'draft' and can be submitted manually via the Journal Entries screen: ${error instanceof Error ? error.message : String(error)}`, 502)
+    }
+  }
+  return result
 }
 
 /** Called from the approval-decide route once a disposal's workflow instance is rejected -- the disposal stays a real, visible 'rejected' record rather than lingering forever as 'pending'; the asset itself is untouched, still 'in_use'. */
