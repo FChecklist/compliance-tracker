@@ -3795,6 +3795,36 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260730-040810-build-extend-calculation-track-engines) -- Build/extend calculation-track SAP-mapped engines"
+    claimed_at: "2026-07-30T04:08 (this session)"
+    claim: |
+      Owner-directed: "Build/extend only calculation-track engines marked
+      BUILD_NEW or EXTEND_EXISTING from PHASE-2-CROSSREF." Neither
+      "PHASE-2-CROSSREF" nor "wiring_registry" exist under those literal
+      names on disk. Re-confirmed the real lineage a prior abandoned
+      session (worker/task-20260729-112410-build-extend-calculation-track-engines,
+      commit 3d190ecc, claimed_at 2026-07-29T11:36Z, zero real work beyond
+      that one plan/claim commit, no PR -- confirmed via `gh pr list` and
+      >4h/1 day stale, taking over per ACTIVE-CLAIMS protocol #1) already
+      traced: "PHASE-2-CROSSREF" = the veridian_mapping_status column in
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite's sap_reports table
+      (shared host-level SQLite, NOT this repo, NOT Postgres); "wiring_registry"
+      = compliance.computation_engines (schema.ts:9488), the real Postgres
+      VCEL catalog behind src/lib/engines/*.ts. Re-queried the sqlite table
+      directly this session: same 36 rows (9 BUILD_NEW, 27 EXTEND_EXISTING,
+      engine_track='calculation') as the prior session found -- data
+      unchanged. Reusing that session's 8-group, file-scoped plan (see
+      PROGRESS.md) rather than re-deriving it. Sibling task
+      worker/task-20260729-112447-build-extend-workflow-track-engines (PR
+      #629, merged) already closed the workflow-track rows -- disjoint
+      scope, no collision. Registering each new/extended engine in
+      compliance.computation_engines via an idempotent migration
+      immediately per group, not batched. Checked this file for
+      collisions: no other active entry claims erp-accounting-service.ts /
+      erp-financial-report-service.ts / erp-buying-service.ts /
+      erp-invoicing-service.ts / erp-selling-service.ts / banking-engine.ts /
+      erp-cash-service.ts / erp-fixed-assets-service.ts / payroll-engine.ts /
+      costing-engine.ts / crmLostReasons or compliance.computation_engines.
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"

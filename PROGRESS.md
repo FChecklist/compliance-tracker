@@ -1,148 +1,95 @@
-# PROGRESS -- task-20260728-050704-sap-informed-veridian-phase-0--baseline
+# PROGRESS -- task-20260730-040810-build-extend-calculation-track-engines
+
+## Source of truth
+Spec: "Build/extend only calculation-track engines marked BUILD_NEW or EXTEND_EXISTING from
+PHASE-2-CROSSREF." Neither "PHASE-2-CROSSREF" nor "wiring_registry" exist under those literal
+names anywhere on disk (confirmed via whole-filesystem search) -- traced the real lineage
+(re-confirmed this session, matches a prior abandoned session's findings exactly):
+
+- Real data: `/opt/veridian/ai-os/memory/sap_mapping.sqlite`'s `sap_reports` table (NOT in this
+  repo, NOT Postgres -- shared host-level SQLite, 80 rows). Queried read-only directly.
+- The "Phase 2 cross-reference" = the `veridian_mapping_status` column, populated by
+  task-20260728-160934 and independently re-verified by task-20260729-001528 (both unmerged
+  branches; see `ai-os/tasks/sap_mapping/`).
+- "wiring_registry" = `compliance.computation_engines` (schema.ts:9488), the real Postgres-backed
+  VCEL catalog behind `src/lib/engines/*.ts`.
+- 36 of 80 sap_reports rows have `engine_track='calculation'` AND `veridian_mapping_status` starting
+  with `BUILD_NEW` or `EXTEND_EXISTING` (9 BUILD_NEW, 27 EXTEND_EXISTING) -- these are this task's
+  scope, grouped into 8 file-scoped work units below.
+- **Prior-session note**: `worker/task-20260729-112410-build-extend-calculation-track-engines`
+  (commit 3d190ecc, claimed_at 2026-07-29T11:36Z) did this same tracing + planning and produced
+  the 8-group plan reused below verbatim, but did zero actual engine implementation (no PR, no
+  further commits, confirmed stale/abandoned). This session takes over under its own task id per
+  ACTIVE-CLAIMS.yaml protocol #1 and continues from the plan rather than re-deriving it.
+- Sibling task `worker/task-20260729-112447-build-extend-workflow-track-engines` (PR #629, merged)
+  already closed the disjoint `engine_track='workflow'` rows -- no overlap.
+- Registering each new/extended engine's row in `compliance.computation_engines` via an idempotent
+  `INSERT ... ON CONFLICT (engine_key) DO UPDATE` in that group's own migration file (established
+  pattern -- see e.g. drizzle/0100_gst_reconciliation_engine.sql's HSN-master seed), immediately per
+  group, not batched to the end.
+- No live DB credentials available in this workspace (no DATABASE_URL/SUPABASE_DB_PASSWORD in
+  /opt/veridian/shared/.env) -- migrations are written but not pushed live; `db:push`/`db:migrate`
+  left for the merge step per this repo's normal PR flow (drizzle migrations run in CI/deploy, not
+  by hand in this session).
+
+## Plan -- 36 rows grouped by target file (commit per group)
+
+### Group 1: GL/CO -- erp-accounting-service.ts + erp-financial-report-service.ts
+- [ ] CO-001 Cost Center Line Item Display (extend listJournalEntries w/ costCenterId filter + drill-down)
+- [ ] CO-003 Cost Center Hierarchy Report (recursive parent/child rollup over erpCostCenters)
+- [ ] FI-GL-002 G/L Account Balances Display (single/range-account filter over trialBalance)
+- [ ] FI-GL-007 Subledger Reconciliation to GL (BUILD_NEW -- AR/AP subledger totals vs GL recon accounts)
+- [ ] FI-GL-008 G/L Account Group Balances Summary (rollup by erpAccounts.parentAccountId/isGroup)
+
+### Group 2: AP -- erp-buying-service.ts + erp-invoicing-service.ts (AP-side)
+- [ ] FI-AP-001 Vendor Line Item Display (open+cleared, partial-clearing math)
+- [ ] FI-AP-002 Vendor Balances (sum outstandingAmount per supplier, mirrors arAgingReport's data source)
+- [ ] FI-AP-003 Vendor Items Aging Report (apAgingReport, mirrors arAgingReport bucketing)
+- [ ] FI-AP-004 Vendor Account Balance Display (single-vendor open/cleared snapshot)
+- [ ] FI-AP-005 Payment Run / Payment Proposal (BUILD_NEW -- due+not-blocked selection, discount calc, group by vendor/bank)
+- [ ] FI-AP-006 Vendor Payment Behavior / DPO (BUILD_NEW)
+- [ ] FI-AP-007 Subcontractor Retention Summary (BUILD_NEW -- new schema: vendor-side retention tracking)
+- [ ] MM-004 Purchase Orders by Project/WBS (project filter on listPurchaseOrders)
+- [ ] MM-008 Vendor Purchasing History Report (compose getSupplierScorecard + vendorCostReport)
+- [ ] PS-005 Project Commitments Report (open PO value rollup by project)
+
+### Group 3: AR -- erp-selling-service.ts + erp-invoicing-service.ts (AR-side)
+- [ ] FI-AR-001 Customer Line Item Display
+- [ ] FI-AR-002 Customer Balances
+- [ ] FI-AR-005 Customer Credit Exposure (open AR + open order value vs creditLimit)
+- [ ] FI-AR-006 Customer Payment History / DSO (BUILD_NEW)
+- [ ] FI-AR-007 Customer Account Balance Display (verify/extend getCustomerOverview)
+- [ ] SD-004 Open Sales Order Backlog Report
+- [ ] SD-005 Customer Sales Analysis
+- [ ] SD-006 Sales by Material/Service Type (BUILD_NEW)
+- [ ] SD-008 Cancelled and Rejected Billing Analysis
+
+### Group 4: Treasury/PS -- banking-engine.ts + erp-cash-service.ts + construction-expense-service.ts
+- [ ] PS-001 Project Line Item Display
+- [ ] PS-007 Project Cash Flow Report (extend banking-engine.ts:projectCashFlow w/ billing-plan+delay)
+- [ ] Treasury-004 Liquidity Forecast (compose AR+AP+payroll timing)
+- [ ] Treasury-005 Bank Account Transaction List
+
+### Group 5: Fixed Assets -- erp-fixed-assets-service.ts
+- [ ] FI-AA-004 Asset History Sheet (year-over-year APC/depreciation rollup)
+- [ ] FI-AA-006 Asset-to-GL Reconciliation (BUILD_NEW)
+- [ ] FI-AA-007 Asset Depreciation Forecast (portfolio-wide forward rollup)
+
+### Group 6: HR -- payroll-engine.ts / erp-payroll-service.ts
+- [ ] HCM-005 Overtime and Absence Analysis
+- [ ] HCM-006 Certified Payroll Report (BUILD_NEW -- US WH-347 format)
+
+### Group 7: CO allocation -- costing-engine.ts
+- [ ] CO-005 Sender/Receiver Cost Allocation Report (wire allocateCostPool to real cost-center data + posting)
+- [ ] CO-006 Statistical Key Figure Report (BUILD_NEW, but implementation_notes explicitly says
+      "do not build as standalone" -- building the lightweight version it recommends instead:
+      existing-metric-driven allocation basis picker, no new SKF subsystem)
+
+### Group 8: CRM
+- [ ] CRM-006 Win/Loss Analysis Report (crmLostReasons aggregation)
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, confirmed no collision, registered claim, pushed (commit 887fae43)
-- [x] Located real data sources: ai-os/DATABASE_CATALOG.json (compliance-tracker, 449-table snapshot from 2026-07-26) + claude-control repo's ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json (7711 entities; only 6 generic "route" entities, 444 supabase_table, 1371 src/app/api functions -- not useful for per-route domain categorization, used DATABASE_CATALOG.json + direct grep as primary per spec's own fallback guidance)
-- [x] Diffed DATABASE_CATALOG.json's 449 tables against current schema.ts's real 464 `.table(` declarations -- found 15 new tables added since the snapshot (hr loans/expense-claims/shift-roster, performance-review goals/raters, helpdesk SLA/escalation/ticket-teams, construction interim bills), pulled their real columns directly from schema.ts
-- [x] Categorized 213 business-domain tables across the 8 in-scope domains (CRM 8, Sales 19, Purchase 27, Inventory 17, Accounting/GST 41, HR 43, PM 27, Helpdesk 13, Construction/BoQ 18), each with real file:line + real column list
-- [x] Enumerated all 959 real API route.ts files under src/app/api (note: relative-path `find` silently truncated to 51 in this shell -- absolute-path `find` gave the real count; used absolute-path form throughout), categorized 508 of them into the 8 domains by directory, with real per-directory counts + example paths (fixed an erp/returns sales-vs-purchase mis-split along the way)
-- [x] Confirmed PROJEXA's module-chain exposure via PR #609 (compliance-tracker, merged 2026-07-28T04:11:24Z) + PR #59 (projexa, merged 2026-07-28T03:19:17Z): buildCapabilityTree() now exposed to PROJEXA's chat composer (minus construction_intelligence, which PROJEXA already owns via its own dedicated route) -- read the actual route.ts + capability-tree-service.ts source, not just PR titles
-- [x] Ran both spec sanity checks: `grep -c "pgTable("` = 0 (real finding: this codebase uses `complianceSchemaDB.table(`/`platformSchemaDB.table(`, not literal `pgTable(` -- documented, not silently worked around) + real `.table(` count = 464; `git log` on PHASE_0_BASELINE.yaml confirmed empty (pre-creation)
-
-- [x] Assembled ai-os/tasks/sap_mapping/PHASE_0_BASELINE.yaml (213 tables + 508 API routes across 8 domains, PROJEXA module-exposure section, sanity checks, out-of-scope notes) -- fixed one auto-generated-description false positive along the way (erpItems mis-labeled "line items" purely because its table name ends in _items; it's actually the item master)
-- [x] Committed + pushed (commit b1631f6e)
-- [x] Opened PR #615: https://github.com/FChecklist/compliance-tracker/pull/615
-- [x] Updated ACTIVE-CLAIMS.yaml entry with PR #615 status (will move to recently_completed once merged)
+(updated per-group as work lands)
 
 ## Remaining
-- [ ] None -- task complete, PR #615 awaiting CI + review/merge
-
-# PROGRESS -- task-20260728-051733-owner-engine-phase-5-real-gaps
-
-## Completed
-- [x] Read AGENTS.md/CONSTITUTION.yaml/ACTIVE-CLAIMS.yaml governance chain, registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (commit 0b99c670, pushed)
-- [x] Read phase_5_browser_execution_tiers scope from claude-control's VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml
-- [x] Verified SPEC's cited PROJEXA prior art (src/lib/offline/work-progress-queue.ts, PR #54) does NOT exist anywhere in this repo's history -- `git log --all --diff-filter=A --name-only` zero matches, `gh pr view 54` is the unrelated VERI Reward engine. Built sync-engine.ts fresh instead of adapting a nonexistent file.
-- [x] Real NPU inference: src/lib/browser-execution/npu-engine.ts -- reuses transformers-engine.ts's exact model (Xenova/all-MiniLM-L6-v2) via @huggingface/transformers' real `device: "webnn-npu"` execution provider (confirmed real in devices.d.ts's DEVICE_TYPES), gated by tier-orchestrator's new shouldAttemptNpu
-- [x] Real Built-in AI inference: src/lib/browser-execution/builtin-ai-engine.ts -- real window.LanguageModel / window.ai.languageModel call path, gated by tier-orchestrator's new shouldAttemptBuiltinAi
-- [x] tier-orchestrator.ts: added shouldAttemptNpu/shouldAttemptBuiltinAi gates (same pattern as existing shouldAttemptWebLlm) + tests in tier-orchestrator.test.ts
-- [x] Cross-tier storage layer: src/lib/browser-execution/cross-tier-storage.ts -- real OPFS backend, real Cache API backend, IndexedDB backend that reuses (not replaces) model-cache.ts's IndexedDbModelCache; priority-ordered put/get/delete with real fallback chain
-- [x] Browser-sync engine: src/lib/browser-execution/sync-engine.ts -- OfflineQueue with real same-entity coalescing (the "two queued offline changes to the same record" scenario), resolveConflict() for remote (server-side) conflicts, syncQueue() push pass, pullDeltaSync() delta sync, SyncMutex for concurrent-sync serialization
-- [x] Full test suites for all 4 new files + orchestrator additions (npu-engine.test.ts, builtin-ai-engine.test.ts, cross-tier-storage.test.ts, sync-engine.test.ts)
-- [x] `npx tsc --noEmit` clean (NODE_OPTIONS=--max-old-space-size=8192 needed -- repo-wide tsc is memory-heavy under this server's shared load)
-- [x] `bun test src/lib/browser-execution` -- 108 pass, 0 fail
-
-- [x] Registered litert-spike as a real entry (`litert_spike_browser_execution_prior_art`) in this repo's own ai-os/MASTER_INDEX.yaml `registries:` list (canonical_path_repo per that file's own header -- no cross-repo write needed) + regenerated the stale `quick_reference` block via ai-os/scripts/generate_quick_reference.py per that block's own protocol. `grep -q litert-spike ai-os/MASTER_INDEX.yaml` passes (phase_5's own success criterion).
-- [x] ACTIVE-CLAIMS.yaml entry updated with STATUS UPDATE (implementation complete, PR opened) -- left in `active:` (not moved to `recently_completed:`) since the PR is not yet merged, per that file's own protocol #3
-
-- [x] PR opened: https://github.com/FChecklist/compliance-tracker/pull/616 -- all real CI checks pass (Lint, Type Check, Build, Unit Tests, E2E Tests, Analyze, Guardrail Presence, Secret Scanning, Security Pattern, Terminology Guardrail, Doc Cross-Reference/Quarantine/Sentinel, Metadata Index Coverage, Asset Registry Coverage). `audit-check` correctly still fails (awaiting the mandatory human/auditor "AUDIT: PASS/FAIL" comment -- exactly the fresh supervisor audit this task's own EXPECTED_OUTPUT requires, not bypassed). `Vercel` failed on an unrelated deployment rate-limit, not a code issue.
-
-## Remaining
-- [ ] PR #616 needs a fresh supervisor audit before merge (this task does not self-merge per EXPECTED_OUTPUT)
-- [ ] Once merged: move ai-os/boss/ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:`
-
-# PROGRESS -- task-20260728-043316-design-studio-timesheets--designer-wise
-
-## Completed
-- [x] Read governance docs, registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
-- [x] Audited existing infra: confirmed designer-wise Budget-vs-Actual cut (byDesigner) already exists in construction-reports-service.ts (PR #597 + audit fix 46d6967d) -- SCOPE item 1 already satisfied, no rebuild needed
-- [x] Audited existing infra: confirmed a full KPI designer-fills/manager-approves table pair already exists (constructionKpiDefinitions/constructionKpiEntries, construction-kpi-service.ts, /api/construction/kpi-entries + /[id]/approve) -- SCOPE item 3 already satisfied, not duplicating
-
-- [x] Schema: added `pmsTimeEntryApprovalStatusEnum` (draft/submitted/approved/rejected) + approvalStatus/approvedById/approvedAt/rejectionReason columns to `pmsTimeEntries` (schema.ts)
-- [x] Hand-written migration `drizzle/0268_pms_time_entry_approval_flow.sql` + `_journal.json` entry (same drizzle/meta snapshot-gap approach documented in 0267's header)
-- [x] Service: `submitTimeEntry`/`approveTimeEntry`/`rejectTimeEntry` in pms-time-service.ts, modeled on construction-kpi-service.ts's submitKpiEntry/approveKpiEntry (self-approval blocked, state-machine enforced)
-- [x] API routes: `/api/pms/time-entries/[id]/{submit,approve,reject}` -- approve/reject gated via `requireRole(dbUser, "manager")`
-- [x] Report: `designerApprovalStatusReport`/`aggregateDesignerApprovalStatus` (designer-wise approval-status view) in construction-reports-service.ts
-- [x] Report: `workAnalysisReport`/`aggregateWorkAnalysis` (hours by task/category per designer over a period) in construction-reports-service.ts
-- [x] Registered both new reports (`designer-approval-status`, `work-analysis`) in REPORT_REGISTRY + dispatcher route (dateFrom/dateTo query params for work-analysis)
-- [x] Tests: existing designer-wise Budget-vs-Actual cut tests (PR #597) still pass unmodified; new pure-aggregator tests for both new reports; new state-machine tests (self-approval blocked, wrong-state transitions blocked, happy path) in pms-time-service.test.ts; new route-level access-control test (member 403'd, manager allowed) in approve/route.test.ts
-- [x] Verified: `bunx tsc --noEmit` clean; `bun test construction-reports-service.test.ts` (10 pass, includes all pre-existing PR #597 tests); full `bun test` -- 2244 pass, 0 fail
-- [x] Commit + push
-
-## Remaining
-- [ ] Open PR, request supervisor audit (per EXPECTED_OUTPUT -- not self-merged)
-
-# PROGRESS -- task-20260728-050606-verify-excel-boq-importer-against-real-p
-
-## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no collision with
-      `construction-boq-import-service.ts`; registered this task's own
-      claim there.
-- [x] Reconstructed the real prospect BoQ file's structural quirks
-      (`ai-os/PROSPECT_GAP_BACKLOG_2026-07-28.md`'s "Sample Scope with Sub
-      Task.xlsx", Sl No / Category / Dwg Code / Description (Task) / Sub
-      Task / QTY / UNIT / Breakdown % / RATE / AMOUNT columns) as a real
-      `.xlsx` buffer built with the `xlsx` package -- category header rows
-      with no Sl No, numbered task rows ("1.01"/"2.01") with multi-line
-      descriptions containing embedded `Location :<name>` annotations, and
-      unlabeled sub-task rows (Frame/Gypsum Board/Rockwool/Taping/Sanding)
-      with their own Breakdown %.
-- [x] Ran the real importer (`parseBoqSpreadsheet`) against this fixture
-      and recorded the actual (pre-fix) result: **it failed badly**. All 9
-      real task/sub-task rows were dropped ("skipped (no description)"),
-      leaving only 2 garbage line items -- the bare category labels
-      ("PARTITION AND LINING", "FALSE CEILING") with quantity=0, rate=0.
-      Root cause, confirmed by inspecting `mapBoqHeaders`'s actual output:
-      - `"Sl No"` was not in the `itemCode` alias list at all (only "s no"
-        / "sno" / "sr no" were) -- so `itemCode` never mapped, and the
-        dot-delimited-parent-inference this file relies on had nothing to
-        infer from.
-      - `description` mapped to the `"Category"` column instead of
-        `"Description (Task)"`, because `mapBoqHeaders` picked the first
-        *header* (in sheet order) that matched *any* alias for a field,
-        and `"category"` was listed as a valid description alias (for
-        simple sheets with no dedicated description column) -- so it won
-        over the real `"Description (Task)"` column purely by column
-        position, and `"Description (Task)"` normalizes to `"description
-        task"`, which wasn't in the alias list anyway.
-      - There was no handling at all for unlabeled sub-task rows (Sub Task
-        column filled, Description blank) or for inferring their parent
-        task positionally (no dot-delimited item code exists for them).
-- [x] Fixed `construction-boq-import-service.ts` (import/parsing layer
-      only -- `computeHierarchicalAmount()` untouched, per task
-      constraint):
-      - Added `"sl no"` to the `itemCode` alias list.
-      - Made `mapBoqHeaders` resolve each field by trying its aliases in
-        priority order and taking the first header that matches the
-        *most preferred* alias, instead of the first header (in sheet
-        order) matching *any* alias -- so a dedicated `"Description
-        (Task)"` column now always wins over the `"category"` fallback
-        alias when both are present. Added `"description task"` as a
-        recognized alias.
-      - Added a new `subTask` field (aliases: "sub task"/"subtask"/
-        "sub-task"). `mapRowsToLineItems` now falls back to the Sub Task
-        column's value as the row's description when the Description
-        column is blank -- this is what makes the real unlabeled
-        sub-task rows (Frame/Gypsum Board/...) survive at all instead of
-        being skipped as "no description".
-      - Added positional parent-child inference: a row with no itemCode
-        of its own, whose description came from the Sub Task fallback
-        (not a real Description value), and that has a breakdownPercentage
-        set, is attached to the itemCode of the nearest preceding row that
-        had one. This resets correctly at each new task row, so sub-tasks
-        never bleed across two different parent tasks.
-- [x] Added a real regression test,
-      `parseBoqSpreadsheet -- real prospect BoQ file shape`, in
-      `construction-boq-import-service.test.ts`, building a real xlsx
-      buffer with the exact quirks above and asserting: both category
-      rows are skipped (not turned into garbage line items), both task
-      rows keep their full multi-line description (including the
-      `Location :` text), and each task's 5 (then 2) sub-task rows attach
-      to the correct parent with the correct breakdown percentages,
-      summing to 100% for the first task.
-- [x] Verified: `NODE_OPTIONS="--max-old-space-size=8192" npx tsc --noEmit`
-      -- clean, zero errors (`tsc --noEmit` alone OOMs on this repo's full
-      project graph regardless of this change; the memory-flag invocation
-      is the working equivalent). `bun test
-      src/lib/services/construction-boq-import-service.test.ts` -- 6 pass,
-      0 fail, 50 expect() calls. Also re-ran
-      `construction-boq-service.test.ts` (the hierarchy/amount-calculation
-      layer this importer feeds) as a regression check -- 19 pass, 0 fail,
-      unaffected.
-- [x] Constraint check: no cron entries or systemd `.timer` units were
-      touched by this task (scope was entirely
-      `construction-boq-import-service.ts` + its test file).
-
-## Remaining
-- [ ] Open a PR on this task's branch (real code fix was required --
-      outcome (1) from the task spec, not the verification-only outcome).
+All 8 groups above, not started as of this writing.
