@@ -1863,6 +1863,34 @@
       "when": 1785238800000,
       "tag": "0268_pms_time_entry_approval_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1785325200000,
+      "tag": "0269_construction_progress_claims_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1785325200001,
+      "tag": "0270_register_construction_progress_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1785325200002,
+      "tag": "0271_billing_due_list_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1785325200003,
+      "tag": "0272_ap_subcontractor_payment_application_status_report_definition",
+      "breakpoints": true
     }
   ]
 }

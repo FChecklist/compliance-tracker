@@ -155,6 +155,32 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "on_demand",
   },
 
+  // FI-AR-004 (SAP gap-analysis "Dunning List", HIGH priority, 2026-07-30):
+  // real overdue-customer-invoice list grouped by aging bucket, with each
+  // row's real dunningLevel/lastDunningSentAt (new erp_sales_invoices
+  // columns, see schema.ts) and a suggestedDunningLevel derived from its
+  // bucket. No dedicated UI page yet -- API-only, same honest "no
+  // dashboard surface" caveat as the construction/AI-ops entries below.
+  // (Note: its sibling AR Aging report -- erp-invoicing-service.ts's
+  // arAgingReport, exposed at /api/v1/projexa/ar-aging -- has the exact
+  // same catalog gap: real, working, but never added to this list before
+  // this wave. Left as-is here since fixing that is outside FI-AR-004's
+  // scope, but flagged honestly rather than silently worked around.)
+  {
+    id: "erp-dunning-list",
+    name: "Dunning List",
+    description: "Every overdue, non-fully-paid customer invoice grouped by aging bucket (1-30/31-60/61-90/90+ days overdue), with its real dunning level (Friendly Reminder/Formal Notice/Final Demand) and a suggested next level to drive collections follow-up.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#dunningList",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/dunning-list)"],
+    route: "/api/v1/projexa/dunning-list",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "revenue", "customer"],
+    periodicity: "on_demand",
+  },
+
   // FI-AP-007 (SAP gap-analysis "Subcontractor Retention Summary", HIGH
   // priority, 2026-07-30): per-subcontractor retention withheld/released/
   // still-held, computed from real erp_purchase_invoices.retentionAmount/
@@ -257,6 +283,32 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     directlyNavigable: true,
     category: "software_report",
     classifications: ["user_specific", "org_specific"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AP-008 (SAP gap-analysis "Subcontractor Payment Application Status",
+  // HIGH priority): worklist of every subcontractor payment application --
+  // a real erp_payment_entries pay/supplier row linked to a purchase
+  // invoice, already carrying a genuine draft -> submitted ->
+  // approved/rejected workflow with real submittedAt/decidedAt timestamps
+  // (Wave B, VERIDIAN Review Framework) -- plus subcontractor invoices with
+  // no payment application started yet. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat as this file's
+  // other entries. Appended at the end of this array (not inserted near
+  // the FI-AR-004/FI-AP-007 entries above) to avoid a real merge-conflict
+  // collision with those still-open sibling PRs editing the same region.
+  {
+    id: "erp-subcontractor-payment-application-status",
+    name: "Subcontractor Payment Application Status",
+    description: "Every subcontractor payment application with its real current status, submission date, amount, and days-in-current-status aging -- a worklist for whoever manages subcontractor payments.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-payment-entries-service.ts#subcontractorPaymentApplicationStatus",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-payment-application-status)"],
+    route: "/api/v1/projexa/subcontractor-payment-application-status",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
     periodicity: "on_demand",
   },
 ]
