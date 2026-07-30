@@ -263,6 +263,32 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     classifications: ["user_specific", "org_specific"],
     periodicity: "on_demand",
   },
+
+  // FI-AP-008 (SAP gap-analysis "Subcontractor Payment Application Status",
+  // HIGH priority): worklist of every subcontractor payment application --
+  // a real erp_payment_entries pay/supplier row linked to a purchase
+  // invoice, already carrying a genuine draft -> submitted ->
+  // approved/rejected workflow with real submittedAt/decidedAt timestamps
+  // (Wave B, VERIDIAN Review Framework) -- plus subcontractor invoices with
+  // no payment application started yet. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat as this file's
+  // other entries. Appended at the end of this array (not inserted near
+  // the FI-AR-004/FI-AP-007 entries above) to avoid a real merge-conflict
+  // collision with those still-open sibling PRs editing the same region.
+  {
+    id: "erp-subcontractor-payment-application-status",
+    name: "Subcontractor Payment Application Status",
+    description: "Every subcontractor payment application with its real current status, submission date, amount, and days-in-current-status aging -- a worklist for whoever manages subcontractor payments.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-payment-entries-service.ts#subcontractorPaymentApplicationStatus",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-payment-application-status)"],
+    route: "/api/v1/projexa/subcontractor-payment-application-status",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
 ]
 
 export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefined {
