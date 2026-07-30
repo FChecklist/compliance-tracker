@@ -131,6 +131,26 @@ active:
       (compliance-tracker), CI running -- awaiting the mandatory independent
       audit (AGENTS.md Rule 10) + CI green + merge -- will move this entry
       to recently_completed once merged.
+
+      STATUS UPDATE 2026-07-30 (fresh merge conflict fix): PR #651
+      (FI-AP-006) merged into main after this PR was last rebased,
+      producing real conflicts in drizzle/meta/_journal.json (main
+      gained idx 274/0279_vendor_payment_behavior_dpo_report_definition;
+      this PR's own idx 274-276 renumbered to 275-277, file names
+      0280/0281/0282 confirmed still free against origin/main AND all
+      71 currently-open PRs' drizzle/ claims before finalizing),
+      ai-os/boss/ACTIVE-CLAIMS.yaml (kept both active entries, no real
+      overlap), and src/lib/services/report-catalog-service.ts (both
+      PRs appended a REPORT_CATALOG entry at the array's end; gave each
+      its own periodicity field + closing brace). Merged fresh
+      origin/main, re-ran full local verification (bun test: 2401/2401
+      pass, bunx tsc --noEmit: clean, bun run lint: 0 errors, terminology
+      guardrail --diff-only: pass, migration-collision check: pass when
+      verified in a clean clone -- this shared server clone's own local
+      main branch ref is stale/diverged from origin/main, a pre-existing
+      environment quirk unrelated to this PR, not fixed here), pushed
+      63ffd4a5. CI green (audit-check correctly still failing/pending --
+      no structured audit verdict posted yet, per design).
   - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
     claimed_at: "2026-07-30T (this session)"
     claim: |
