@@ -6211,6 +6211,23 @@ export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoic
   // discipline -- a later change to the supplier's withholding category
   // or rate must never silently rewrite a past invoice's TDS.
   tdsAmount: numeric('tds_amount').notNull().default('0'),
+  // FI-AP-007 (sap_mapping.sqlite gap analysis, "Subcontractor Retention
+  // Summary", SAP equivalent, BUILD_NEW/HIGH, 2026-07-30): additive,
+  // all-zero-default fields -- every existing/non-retention invoice is
+  // unaffected. retentionPercent is configurable per invoice (real
+  // subcontracts routinely vary 5-10%); retentionAmount is computed and
+  // snapshotted at submit time (never re-derived later), matching this same
+  // table's tdsAmount snapshot-at-transaction-time discipline immediately
+  // above. retentionReleasedAmount is the running total released back to
+  // the subcontractor so far (see erp-invoicing-service.ts's
+  // releaseSubcontractorRetention) -- retentionAmount minus this is what's
+  // still held. Mirrors constructionInterimBills.retentionPercent/
+  // retentionAmount's precedent (Wave "PROJEXA_ERP_END_TO_END..." AR-side
+  // client-billing retention), adapted to the AP/subcontractor-billing side,
+  // which had no retention concept at all before this.
+  retentionPercent: numeric('retention_percent').notNull().default('0'),
+  retentionAmount: numeric('retention_amount').notNull().default('0'),
+  retentionReleasedAmount: numeric('retention_released_amount').notNull().default('0'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

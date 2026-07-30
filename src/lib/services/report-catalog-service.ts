@@ -155,6 +155,28 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "on_demand",
   },
 
+  // FI-AP-007 (SAP gap-analysis "Subcontractor Retention Summary", HIGH
+  // priority, 2026-07-30): per-subcontractor retention withheld/released/
+  // still-held, computed from real erp_purchase_invoices.retentionAmount/
+  // retentionReleasedAmount (new columns, see schema.ts). No dedicated UI
+  // page yet -- API-only, same honest "no dashboard surface" caveat as the
+  // FI-AR-004 entry immediately above this wave's sibling PRs and the
+  // construction/AI-ops entries below.
+  {
+    id: "erp-subcontractor-retention-summary",
+    name: "Subcontractor Retention Summary",
+    description: "Per-subcontractor summary of retention withheld from bills to date, how much has been released, and how much remains held -- the review worklist before releasing retention at practical completion or after the defects-liability period. Groups by subcontractor (supplier); no subcontractor-contract table exists in this schema to group by contract instead.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#subcontractorRetentionSummary",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-retention-summary)"],
+    route: "/api/v1/projexa/subcontractor-retention-summary",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
   // ── Construction / PROJEXA reports (construction-reports-service.ts) ─
   ...CONSTRUCTION_ENTRIES,
 
