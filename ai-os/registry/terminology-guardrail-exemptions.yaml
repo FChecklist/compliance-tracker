@@ -80,13 +80,13 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/erp-invoicing-service.test.ts
-    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test. FI-AP-007 Subcontractor Retention Summary (2026-07-30, +2): a dated comment documenting the new computeRetentionAmount/computeRetentionPosition pure-core extraction (line 47), and a test-fixture postingDate literal (\"2026-07-01\") in the bill() factory helper (line 68) -- both genuine false positives, not real business hardcoding."
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test. FI-AP-007 Subcontractor Retention Summary (2026-07-30, +2): a dated comment documenting the new computeRetentionAmount/computeRetentionPosition pure-core extraction (line 47), and a test-fixture postingDate literal (\"2026-07-01\") in the bill() factory helper (line 68) -- both genuine false positives, not real business hardcoding. Raised 3->16 for FI-AP-006 Vendor Payment History / Payment Behavior Analysis (2026-07-30, +13): the header comment and vendorDaysToPay/computeDpoFormula/classifyVendorPaymentReliability test bodies are hand-computed against a real seeded purchase invoice (invoice_number=2001, supplier_id='demo_supp_steelcorp', posting_date=2026-05-15, due_date=2026-06-14) checked live via the Supabase MCP while building this PR, plus one hypothetical illustration date (2026-06-08) explicitly disclosed as hypothetical in the same comment -- not placeholder/fabricated examples, same grounding discipline as this file's FI-AR-006 sibling PR (#645) used on the AR side."
     findings_by_category:
-      hardcoded_iso_date: 3
+      hardcoded_iso_date: 16
   - file: src/lib/services/erp-invoicing-service.ts
-    reason: "FI-AP-007 Subcontractor Retention Summary (2026-07-30): 2 genuine dated code comments (lines 584-585, 592-593) documenting the new retention-summary computation added by this PR -- not real business hardcoding, same pattern as this file's sibling .test.ts entry."
+    reason: "FI-AP-007 Subcontractor Retention Summary (2026-07-30): 2 genuine dated code comments (lines 584-585, 592-593) documenting the new retention-summary computation added by this PR -- not real business hardcoding, same pattern as this file's sibling .test.ts entry. Raised 2->5 for FI-AP-006 Vendor Payment History / Payment Behavior Analysis (2026-07-30, +3): the new vendorPaymentBehaviorReport section's header comment cites the same real, live-verified 2026-07-30 finding date plus the real seeded invoice's real posting_date (2026-05-15) and due_date (2026-06-14), checked directly via the Supabase MCP against the live project (pcrjmlpuqsbocqfwoxod) while building this PR -- not fabricated examples."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 5
   - file: src/lib/supabase/auth-guard.ts
     reason: "PR 598 dependency-blocking work + reporting-gateway CSV-injection fix (2026-07-27): 3 real dated comments documenting prior gap-closure history in this file, never previously exempted."
     findings_by_category:

@@ -5,7 +5,11 @@
 // .test.ts convention (e.g. construction-valuation-service.ts's
 // computeInterimBillLines).
 import { describe, expect, test } from "bun:test"
-import { computeInvoiceTaxTotals, computeRetentionAmount, computeRetentionPosition, type RetentionBearingInvoice, dunningBucketForDaysOverdue, suggestedDunningLevel, DUNNING_LEVEL_LABELS } from "./erp-invoicing-service"
+import {
+  computeInvoiceTaxTotals, dunningBucketForDaysOverdue, suggestedDunningLevel, DUNNING_LEVEL_LABELS,
+  vendorDaysToPay, classifyVendorPaymentReliability, computeDpoFormula,
+  computeRetentionAmount, computeRetentionPosition, type RetentionBearingInvoice,
+} from "./erp-invoicing-service"
 
 describe("computeInvoiceTaxTotals", () => {
   test("a real tax template's rates produce a real, nonzero tax amount on the line's full value", () => {
@@ -194,5 +198,87 @@ describe("DUNNING_LEVEL_LABELS", () => {
     expect(DUNNING_LEVEL_LABELS[1]).toBe("Friendly Reminder")
     expect(DUNNING_LEVEL_LABELS[2]).toBe("Formal Notice")
     expect(DUNNING_LEVEL_LABELS[3]).toBe("Final Demand")
+  })
+})
+
+// FI-AP-006 (Vendor Payment History / Payment Behavior Analysis): tests the
+// 3 pure functions only -- vendorPaymentBehaviorReport() itself touches the
+// DB (withTenantContext + a real query against erp_payment_entries), same
+// established pattern as dunningList/arAgingReport above (see this file's
+// own header note on dunningBucketForDaysOverdue). The hand-computed
+// example below is deliberately grounded in a REAL seeded purchase invoice,
+// checked directly via the Supabase MCP against the live project
+// (pcrjmlpuqsbocqfwoxod) while building this PR: invoice_number=2001,
+// supplier_id='demo_supp_steelcorp' ("SteelCorp India Ltd."),
+// posting_date='2026-05-15', due_date='2026-06-14' (a real, exact 30-day
+// credit term matching the supplier's own default_payment_terms_days=30),
+// grand_total=20060, status='paid'. That invoice's real row has NO
+// discoverable payment date in the live database (erp_payment_entries has
+// zero rows total -- see vendorPaymentBehaviorReport's own header comment
+// for the honest, verified reason why) -- the payment date used below
+// ('2026-06-08') is therefore explicitly a HYPOTHETICAL illustration
+// layered on top of that real invoice's real dates, not a claim that this
+// payment actually happened.
+describe("vendorDaysToPay", () => {
+  test("real invoice #2001's real postingDate to a hypothetical earlier payment date: 24 real days early against its real 30-day term", () => {
+    // 2026-05-15 -> 2026-06-08 is exactly 24 days.
+    expect(vendorDaysToPay("2026-05-15", "2026-06-08")).toBe(24)
+  })
+
+  test("same real invoice's real postingDate to its real dueDate is exactly the real 30-day credit term", () => {
+    expect(vendorDaysToPay("2026-05-15", "2026-06-14")).toBe(30)
+  })
+
+  test("a payment on the same day as posting is 0 days to pay", () => {
+    expect(vendorDaysToPay("2026-05-15", "2026-05-15")).toBe(0)
+  })
+
+  test("a payment recorded before the invoice's own posting date is a negative result -- surfaced, not clamped, since that would be a real data bug", () => {
+    expect(vendorDaysToPay("2026-05-15", "2026-05-10")).toBe(-5)
+  })
+})
+
+describe("computeDpoFormula", () => {
+  test("real invoice's grand_total as the sole credit purchase in a 30-day period, fully outstanding: DPO collapses to exactly the period length", () => {
+    // (20060 outstanding / 20060 credit purchases) * 30 = 30.
+    expect(computeDpoFormula(20060, 20060, 30)).toBe(30)
+  })
+
+  test("outstanding AP at half the period's credit purchases over a 90-day period gives DPO = 45", () => {
+    expect(computeDpoFormula(500000, 1000000, 90)).toBe(45)
+  })
+
+  test("zero credit purchases in the period returns null (honest 'cannot compute'), never 0 or Infinity", () => {
+    expect(computeDpoFormula(500000, 0, 90)).toBeNull()
+  })
+
+  test("zero outstanding AP with real credit purchases correctly computes a real DPO of 0 (paid in full, not a null/gap case)", () => {
+    expect(computeDpoFormula(0, 20060, 30)).toBe(0)
+  })
+})
+
+describe("classifyVendorPaymentReliability", () => {
+  test("real invoice's 30-day term paid a hypothetical 6 days early classifies as consistently_early", () => {
+    expect(classifyVendorPaymentReliability(24, 30)).toBe("consistently_early")
+  })
+
+  test("paying exactly on the agreed term classifies as on_time", () => {
+    expect(classifyVendorPaymentReliability(30, 30)).toBe("on_time")
+  })
+
+  test("paying 5 days past the agreed term is still on_time (inclusive boundary)", () => {
+    expect(classifyVendorPaymentReliability(35, 30)).toBe("on_time")
+  })
+
+  test("paying 6 days past term rolls into late", () => {
+    expect(classifyVendorPaymentReliability(36, 30)).toBe("late")
+  })
+
+  test("paying 30 days past term is still late (inclusive boundary)", () => {
+    expect(classifyVendorPaymentReliability(60, 30)).toBe("late")
+  })
+
+  test("paying 31+ days past term rolls into chronically_late", () => {
+    expect(classifyVendorPaymentReliability(61, 30)).toBe("chronically_late")
   })
 })

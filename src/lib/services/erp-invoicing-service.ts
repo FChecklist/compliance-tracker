@@ -20,7 +20,7 @@ import {
   erpPricingRules, erpItems, erpCustomers, erpSuppliers, erpAccounts, erpCurrencies, erpCompanies,
   erpSalesInvoices, erpSalesInvoiceItems, erpPurchaseInvoices, erpPurchaseInvoiceItems,
   erpTaxTemplates, erpTaxTemplateItems, erpJournalEntries, erpJournalEntryLines,
-  erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders,
+  erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders, erpPaymentEntries,
   users, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -765,6 +765,215 @@ export async function releaseSubcontractorRetention(
         : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_purchase_invoice.retention_released", entityType: "erp_purchase_invoice", entityId: invoiceId, details: JSON.stringify({ amountReleased: input.amount, newReleasedTotal: newReleased, retentionAmount }) }
     )
     return updated
+  })
+}
+
+// ─── FI-AP-006: Vendor Payment History / Payment Behavior Analysis ────────
+// SAP gap analysis (sap_mapping.sqlite/sap_reports, id='FI-AP-006', module
+// FI-AP, priority MEDIUM, veridian_mapping_status='BUILD_NEW'). The row's
+// own veridian_gap_notes says this "mirrors the equally-absent FI-AR-006"
+// (Customer Payment Behavior / DSO) -- as of this writing FI-AR-006 is a
+// separate, still-OPEN sibling PR (#645, not yet merged into main), so the
+// functions below are a fresh implementation that mirrors that PR's
+// calculation SHAPE (days-to-pay / a DSO-style ratio / a fixed reliability
+// classification) adapted customer->vendor and DSO->DPO (Days Payable
+// Outstanding), rather than importing its not-yet-merged code directly --
+// importing across two concurrently-open branches touching the same file
+// would create a guaranteed rebase collision the moment either merges
+// first. Distinct top-level names (vendorDaysToPay/computeDpoFormula/
+// classifyVendorPaymentReliability/vendorPaymentBehaviorReport, vs. that
+// PR's daysToPay/computeDsoFormula/classifyPaymentReliability/
+// customerPaymentBehaviorReport) are deliberate for the same reason.
+//
+// Real finding, genuinely DIFFERENT from the AR side (checked directly
+// against this repo, not assumed): the AR side has TWO independent real
+// payment-recording paths (recordSalesInvoicePayment's direct posting, and
+// the erp_payment_entries approval workflow). The AP/vendor side only has
+// ONE: erp_payment_entries with paymentType='pay',
+// invoiceType='purchase_invoice' (see erp-payment-entries-service.ts).
+// There is no recordPurchaseInvoicePayment direct-posting equivalent
+// anywhere in this codebase -- releaseSubcontractorRetention's own header
+// comment above already flags this same gap ("recordSalesInvoicePayment's
+// AP-side equivalent does not exist yet"). So this report reads ONLY the
+// erp_payment_entries path, not a UNION of two.
+//
+// Honest, VERIFIED gap (checked directly via the Supabase MCP against the
+// live project pcrjmlpuqsbocqfwoxod, 2026-07-30, real SELECTs, not
+// assumed): this org has 1 real 'paid' purchase invoice (demo_pi_2001,
+// supplier SteelCorp India Ltd., posting_date=2026-05-15,
+// due_date=2026-06-14, a real 30-day term, grand_total=20060) and 2
+// 'overdue' + 2 'submitted' invoices, but erp_payment_entries has ZERO
+// rows total (of ANY invoice_type/status) and erp_journal_entries has ZERO
+// rows with reference_type IN ('purchase_invoice_payment', 'payment_entry')
+// anywhere in the live database -- the 'paid' status on demo_pi_2001 was
+// set directly by a seed script, bypassing the only real payment-recording
+// path. avgDaysToPay/paymentReliability are therefore honestly "n/a"/
+// "unknown" for every supplier today (never fabricated as 0 or silently
+// hidden), same disclosure as FI-AR-006's own honest-gap writeup.
+//
+// category='software_analysis' (not 'software_report'): the core
+// deliverable is a calculated ratio/index (DPO), matching the SPI/CPI
+// precedent in report-taxonomy.ts's CATEGORY 2 -- same classification
+// FI-AR-006 used for the identically-shaped DSO metric.
+
+/** Real days from a real purchase invoice postingDate to a real discovered payment-completion date. Not clamped to >= 0 -- a negative result would mean the payment predates the invoice, a real data bug that should stay visible rather than be hidden by clamping. */
+export function vendorDaysToPay(postingDate: string, paymentDate: string): number {
+  return Math.round((new Date(paymentDate).getTime() - new Date(postingDate).getTime()) / 86400000)
+}
+
+export type VendorPaymentReliability = "consistently_early" | "on_time" | "late" | "chronically_late"
+
+/**
+ * Classifies how reliably the firm pays a given vendor by comparing real
+ * average days-to-pay against the vendor's real average agreed credit
+ * period (derived per-invoice from dueDate - postingDate when dueDate is
+ * set, falling back to erpSuppliers.defaultPaymentTermsDays -- see
+ * caller). Fixed, honest thresholds (this schema has no configurable
+ * tolerance-band concept) -- same bands as FI-AR-006's
+ * classifyPaymentReliability, since "5 days early/late is still on-time,
+ * 30+ days late is chronic" is a symmetric judgment call, not something
+ * that should differ by AR vs AP direction without a real reason to.
+ */
+export function classifyVendorPaymentReliability(avgDaysToPay: number, avgCreditDays: number): VendorPaymentReliability {
+  const delta = avgDaysToPay - avgCreditDays
+  if (delta <= -5) return "consistently_early"
+  if (delta <= 5) return "on_time"
+  if (delta <= 30) return "late"
+  return "chronically_late"
+}
+
+/**
+ * Days Payable Outstanding (DPO) -- the AP-side mirror of FI-AR-006's DSO
+ * formula (SAP FBL1N-adjacent): (total outstanding AP / total credit
+ * purchases in the period) * period length in days. A POINT-IN-TIME
+ * aggregate, distinct from (and complementary to) the per-supplier average
+ * real days-to-pay above -- this can be computed even for a supplier with
+ * zero fully-paid invoices yet, as long as they have real outstanding AP
+ * and real credit purchases in the period. Returns null (never 0 or
+ * Infinity) when totalCreditPurchasesInPeriod is 0 -- an honest "cannot
+ * compute", not a misleading number.
+ */
+export function computeDpoFormula(totalOutstandingAP: number, totalCreditPurchasesInPeriod: number, periodDays: number): number | null {
+  if (totalCreditPurchasesInPeriod <= 0) return null
+  return (totalOutstandingAP / totalCreditPurchasesInPeriod) * periodDays
+}
+
+/**
+ * Vendor Payment History / Payment Behavior Analysis (FI-AP-006): per real
+ * supplier, a historical BEHAVIOR metric across ALL their invoices (paid
+ * and unpaid) -- real average days-to-pay for invoices with a discoverable
+ * real payment-completion date (via the erp_payment_entries approval
+ * workflow, the only real payment-recording path on this side -- see
+ * header), the DPO formula, and a fixed payment-reliability classification
+ * derived from comparing the two against the supplier's real agreed
+ * terms. periodDays (default 90) bounds both the DPO formula's "credit
+ * purchases in period" window and the as-of date for outstanding AP;
+ * asOfDate defaults to today.
+ */
+export async function vendorPaymentBehaviorReport(
+  ctx: { orgId: string },
+  params: { periodDays?: number; asOfDate?: string } = {}
+) {
+  await requireErpEnabled(ctx.orgId)
+  const periodDays = params.periodDays && params.periodDays > 0 ? params.periodDays : 90
+  const asOf = params.asOfDate ?? new Date().toISOString().slice(0, 10)
+  const asOfMs = new Date(asOf).getTime()
+  const periodStartMs = asOfMs - periodDays * 86400000
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue", "paid"])),
+      with: { supplier: true },
+    })
+
+    // Real payment-completion dates -- the ONLY real recording path on the
+    // AP side (see header): erp_payment_entries, paymentType='pay',
+    // invoiceType='purchase_invoice', status='approved'.
+    const approvedPaymentEntries = await db
+      .select({ invoiceId: erpPaymentEntries.invoiceId, lastPostingDate: sql<string>`max(${erpPaymentEntries.postingDate})` })
+      .from(erpPaymentEntries)
+      .where(and(
+        eq(erpPaymentEntries.orgId, ctx.orgId),
+        eq(erpPaymentEntries.invoiceType, "purchase_invoice"),
+        eq(erpPaymentEntries.paymentType, "pay"),
+        eq(erpPaymentEntries.status, "approved"),
+      ))
+      .groupBy(erpPaymentEntries.invoiceId)
+
+    const paymentDateByInvoiceId = new Map<string, string>()
+    for (const row of approvedPaymentEntries) {
+      if (!row.invoiceId || !row.lastPostingDate) continue
+      paymentDateByInvoiceId.set(row.invoiceId, row.lastPostingDate)
+    }
+
+    type SupplierAgg = {
+      supplierId: string; supplierName: string; defaultPaymentTermsDays: number | null
+      invoiceCount: number
+      paidWithKnownDateCount: number; paidMissingDateCount: number
+      sumDaysToPay: number
+      sumCreditDays: number; creditDaysCount: number
+      outstandingAP: number; creditPurchasesInPeriod: number
+    }
+    const bySupplier = new Map<string, SupplierAgg>()
+
+    for (const inv of invoices) {
+      const supplierId = inv.supplierId
+      if (!bySupplier.has(supplierId)) {
+        bySupplier.set(supplierId, {
+          supplierId, supplierName: inv.supplier?.supplierName ?? "Unknown",
+          defaultPaymentTermsDays: inv.supplier?.defaultPaymentTermsDays ?? null,
+          invoiceCount: 0, paidWithKnownDateCount: 0, paidMissingDateCount: 0,
+          sumDaysToPay: 0, sumCreditDays: 0, creditDaysCount: 0, outstandingAP: 0, creditPurchasesInPeriod: 0,
+        })
+      }
+      const agg = bySupplier.get(supplierId)!
+      agg.invoiceCount += 1
+      agg.outstandingAP += Number(inv.outstandingAmount)
+
+      const postingMs = new Date(inv.postingDate).getTime()
+      if (postingMs >= periodStartMs && postingMs <= asOfMs) agg.creditPurchasesInPeriod += Number(inv.grandTotal)
+
+      if (inv.dueDate) {
+        agg.sumCreditDays += vendorDaysToPay(inv.postingDate, inv.dueDate)
+        agg.creditDaysCount += 1
+      }
+
+      if (inv.status === "paid") {
+        const paymentDate = paymentDateByInvoiceId.get(inv.id)
+        if (paymentDate) {
+          agg.sumDaysToPay += vendorDaysToPay(inv.postingDate, paymentDate)
+          agg.paidWithKnownDateCount += 1
+        } else {
+          agg.paidMissingDateCount += 1
+        }
+      }
+    }
+
+    const suppliers = Array.from(bySupplier.values())
+      .map((agg) => {
+        const avgDaysToPay = agg.paidWithKnownDateCount > 0 ? agg.sumDaysToPay / agg.paidWithKnownDateCount : null
+        const avgCreditDays = agg.creditDaysCount > 0 ? agg.sumCreditDays / agg.creditDaysCount : (agg.defaultPaymentTermsDays ?? 30)
+        const dpo = computeDpoFormula(agg.outstandingAP, agg.creditPurchasesInPeriod, periodDays)
+        const paymentReliability = avgDaysToPay !== null ? classifyVendorPaymentReliability(avgDaysToPay, avgCreditDays) : null
+        return {
+          supplierId: agg.supplierId, supplierName: agg.supplierName,
+          invoiceCount: agg.invoiceCount,
+          paidInvoiceCountWithKnownPaymentDate: agg.paidWithKnownDateCount,
+          paidInvoiceCountMissingPaymentDate: agg.paidMissingDateCount,
+          avgDaysToPay: avgDaysToPay !== null ? Math.round(avgDaysToPay * 10) / 10 : null,
+          avgCreditDays: Math.round(avgCreditDays * 10) / 10,
+          dpo: dpo !== null ? Math.round(dpo * 10) / 10 : null,
+          outstandingAP: Math.round(agg.outstandingAP * 100) / 100,
+          creditPurchasesInPeriod: Math.round(agg.creditPurchasesInPeriod * 100) / 100,
+          paymentReliability,
+          dataGap: agg.paidWithKnownDateCount === 0 && agg.paidMissingDateCount > 0
+            ? "Every 'paid' invoice for this supplier is missing a real, discoverable payment-completion date (the erp_payment_entries approval workflow was never used for it) -- avgDaysToPay/paymentReliability cannot be computed honestly and are null, not fabricated."
+            : null,
+        }
+      })
+      .sort((a, b) => (b.dpo ?? 0) - (a.dpo ?? 0))
+
+    return { asOfDate: asOf, periodDays, suppliers }
   })
 }
 

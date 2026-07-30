@@ -75,6 +75,7 @@ import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
+import { vendorPaymentBehaviorReport } from "./erp-invoicing-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1303,6 +1304,39 @@ async function computeBillingDueList(ctx: { orgId: string }, params: Record<stri
   })
 }
 
+/**
+ * FI-AP-006 (SAP gap analysis, "Vendor Payment History / Payment Behavior
+ * Analysis", MEDIUM priority, BUILD_NEW). This wraps
+ * erp-invoicing-service.ts's vendorPaymentBehaviorReport() rather than
+ * re-querying (same cross-service-reuse precedent as computeBillingDueList's
+ * sibling imports from construction-reports-service.ts above) -- see that
+ * function's own header comment for the full real-vs-honest-gap writeup,
+ * including why this is a fresh implementation rather than an import of
+ * FI-AR-006's (still-OPEN, not-yet-merged) sibling PR #645.
+ */
+async function computeVendorPaymentBehavior(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const periodDays = typeof params.periodDays === "number" && params.periodDays > 0 ? params.periodDays : 90
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : undefined
+  const report = await vendorPaymentBehaviorReport(ctx, { periodDays, asOfDate })
+
+  return {
+    columns: ["Supplier", "Invoices", "Avg Days to Pay", "Avg Credit Days", "DPO", "Outstanding AP", "Credit Purchases (Period)", "Reliability"],
+    rows: report.suppliers.map((s) => ({
+      Supplier: s.supplierName,
+      Invoices: s.invoiceCount,
+      "Avg Days to Pay": s.avgDaysToPay ?? "n/a -- no real payment date recorded (see note)",
+      "Avg Credit Days": s.avgCreditDays,
+      DPO: s.dpo ?? "n/a -- no credit purchases in period",
+      "Outstanding AP": s.outstandingAP,
+      "Credit Purchases (Period)": s.creditPurchasesInPeriod,
+      Reliability: s.paymentReliability ?? "unknown",
+    })),
+    note: report.suppliers.every((s) => s.avgDaysToPay === null)
+      ? `No supplier in this org has a real, discoverable payment-completion date as of ${report.asOfDate} -- every 'paid' invoice's status was set without going through the only real vendor payment-recording path (the erp_payment_entries approval workflow, paymentType='pay'/invoiceType='purchase_invoice'/status='approved'). Avg Days to Pay/Reliability are honestly "n/a"/"unknown", not fabricated. DPO and Outstanding AP are still real and computed from real invoice data.`
+      : `DPO period: ${report.periodDays} days ending ${report.asOfDate}. Avg Days to Pay only counts invoices with a real, discoverable payment-completion date -- see erp-invoicing-service.ts#vendorPaymentBehaviorReport for which suppliers (if any) are missing one.`,
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
@@ -1341,6 +1375,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   interior_profit_by_room_analysis: interiorProfitByRoomAnalysis,
   interior_designer_productivity_analysis: interiorDesignerProductivityAnalysis,
   billing_due_list: computeBillingDueList,
+  vendor_payment_behavior_dpo: computeVendorPaymentBehavior,
 }
 
 // ─── AI recipe executor (ai_recipe) ───────────────────────────────────────
