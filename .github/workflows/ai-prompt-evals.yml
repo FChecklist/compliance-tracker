@@ -45,6 +45,40 @@ name: AI Prompt Evals
 # while the app's own `bun install` + `bun run lint` still resolves
 # eslint's ajv@6.x and @mdxeditor/editor's overridden js-yaml@4.x
 # correctly, untouched.
+#
+# Real root cause found + fixed (PR #647 rescue, re-verified against 100
+# real `gh run list` entries): this job has been landing "cancelled" via
+# GitHub's own 15-minute timeout-minutes kill on effectively EVERY run
+# since at least 2026-07-19, across dozens of unrelated PRs/branches --
+# not a regression in any one PR's own diff. Confirmed directly from
+# ~/.promptfoo/logs/*.log on VERIDIAN-DEV (real local runs, same repo,
+# same key): promptfoo's own scheduler explicitly logs "[Scheduler]
+# Learned rate limits for ... {"requestLimit":1000,"tokenLimit":12000}"
+# against Groq's real free-tier response headers, then genuinely
+# "Rate limited on URL https://api.groq.com/...". 12,000 tokens/minute is
+# tight for 25 real generation+llm-rubric-grading calls, and GROQ_API_KEY
+# is shared across this repo's ENTIRE Groq footprint (this workflow,
+# browser-ux-test.yml, ai-team-workforce.yml, the live AI Dev Team
+# dispatch on VERIDIAN-DEV) -- with `concurrency.group` previously scoped
+# per-branch (`${{ github.ref }}`), every simultaneously-open PR touching
+# a path below ran its OWN promptfoo eval concurrently, each firing up to
+# 4 parallel requests (the CLI's own `--max-concurrency` default) against
+# that one shared per-minute token budget, so real per-request queue waits
+# (`timed out after 300000ms in queue`, promptfoo's own 5-minute per-request
+# queue cap) routinely blew the 15-minute job budget after completing only
+# 2-3 of 25 tests. Real, non-skip fix applied here (does not touch
+# promptfooconfig.yaml's actual eval content/assertions, which were never
+# the problem): (1) `-j 1 --delay 1500` on the eval invocation below, so
+# this job's own requests are serialized and paced client-side instead of
+# bursting 4-wide into an already-tight token bucket; (2) `concurrency`
+# below now scopes to the whole workflow (not per-ref) with
+# `cancel-in-progress: false`, so at most one PR's promptfoo run consumes
+# the shared GROQ_API_KEY budget at a time -- others queue rather than
+# firing in parallel and multiplying contention, and a legitimately
+# in-progress run is no longer killed just because a different PR pushed;
+# (3) `timeout-minutes` raised 15 -> 30, a real margin for genuine
+# free-tier throttling once (1)+(2) remove the self-inflicted multiplying
+# effect, not a way to paper over a hang.
 on:
   pull_request:
     branches: [main]
@@ -60,14 +94,14 @@ on:
       - 'src/lib/prompt-os-resolver.ts'
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
 
 jobs:
   prompt-evals:
     name: Promptfoo Evals
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v5
@@ -82,4 +116,9 @@ jobs:
       - name: Run promptfoo evals
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
-        run: promptfoo eval -c promptfooconfig.yaml
+        # -j 1 --delay 1500: serialize + pace requests client-side so this
+        # job's own traffic doesn't burst against Groq's real, confirmed
+        # 12,000 tokens/minute free-tier cap (see header comment above) --
+        # paired with the repo-wide `concurrency` group above so only one
+        # PR's evals consume that shared budget at a time.
+        run: promptfoo eval -c promptfooconfig.yaml -j 1 --delay 1500
