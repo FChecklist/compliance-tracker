@@ -181,6 +181,28 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "on_demand",
   },
 
+  // FI-AP-007 (SAP gap-analysis "Subcontractor Retention Summary", HIGH
+  // priority, 2026-07-30): per-subcontractor retention withheld/released/
+  // still-held, computed from real erp_purchase_invoices.retentionAmount/
+  // retentionReleasedAmount (new columns, see schema.ts). No dedicated UI
+  // page yet -- API-only, same honest "no dashboard surface" caveat as the
+  // FI-AR-004 entry immediately above this wave's sibling PRs and the
+  // construction/AI-ops entries below.
+  {
+    id: "erp-subcontractor-retention-summary",
+    name: "Subcontractor Retention Summary",
+    description: "Per-subcontractor summary of retention withheld from bills to date, how much has been released, and how much remains held -- the review worklist before releasing retention at practical completion or after the defects-liability period. Groups by subcontractor (supplier); no subcontractor-contract table exists in this schema to group by contract instead.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#subcontractorRetentionSummary",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-retention-summary)"],
+    route: "/api/v1/projexa/subcontractor-retention-summary",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
   // ── Construction / PROJEXA reports (construction-reports-service.ts) ─
   ...CONSTRUCTION_ENTRIES,
 
@@ -261,6 +283,89 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     directlyNavigable: true,
     category: "software_report",
     classifications: ["user_specific", "org_specific"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AP-008 (SAP gap-analysis "Subcontractor Payment Application Status",
+  // HIGH priority): worklist of every subcontractor payment application --
+  // a real erp_payment_entries pay/supplier row linked to a purchase
+  // invoice, already carrying a genuine draft -> submitted ->
+  // approved/rejected workflow with real submittedAt/decidedAt timestamps
+  // (Wave B, VERIDIAN Review Framework) -- plus subcontractor invoices with
+  // no payment application started yet. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat as this file's
+  // other entries. Appended at the end of this array (not inserted near
+  // the FI-AR-004/FI-AP-007 entries above) to avoid a real merge-conflict
+  // collision with those still-open sibling PRs editing the same region.
+  {
+    id: "erp-subcontractor-payment-application-status",
+    name: "Subcontractor Payment Application Status",
+    description: "Every subcontractor payment application with its real current status, submission date, amount, and days-in-current-status aging -- a worklist for whoever manages subcontractor payments.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-payment-entries-service.ts#subcontractorPaymentApplicationStatus",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/subcontractor-payment-application-status)"],
+    route: "/api/v1/projexa/subcontractor-payment-application-status",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AA-006 (SAP gap-analysis "Asset-to-GL Reconciliation", MEDIUM
+  // priority): per asset-category comparison of the fixed-asset sub-ledger's
+  // aggregate gross cost / accumulated depreciation / net book value
+  // against the real posted GL balance of that category's own mapped Asset
+  // Account / Accumulated Depreciation Account. A real, independently-found
+  // GL-posting bug (fixed in this same PR, see erp-fixed-assets-service.ts's
+  // own header comment) meant every fixed-asset journal entry ever created
+  // sat permanently in draft, invisible to any GL balance query -- fixed at
+  // the root rather than papered over here. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat this file's other
+  // recent entries (FI-AR-004/FI-AP-005/FI-AP-007/FI-AP-008) already
+  // disclose. Appended at the end of this array (not inserted near other
+  // FI-* entries above) to avoid a real merge-conflict collision with those
+  // still-open sibling PRs editing the same region.
+  {
+    id: "erp-asset-to-gl-reconciliation",
+    name: "Asset-to-GL Reconciliation",
+    description: "Per asset-category comparison of the fixed-asset sub-ledger's gross cost / accumulated depreciation / net book value against the real posted balance of that category's mapped GL accounts -- a month-end control flagging any variance for investigation.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-fixed-assets-service.ts#assetToGlReconciliation",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/asset-to-gl-reconciliation)"],
+    route: "/api/v1/projexa/asset-to-gl-reconciliation",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_report",
+    classifications: ["financial", "construction"],
+    periodicity: "on_demand",
+  },
+
+  // FI-AP-006 (SAP gap-analysis "Vendor Payment History / Payment Behavior
+  // Analysis", MEDIUM priority, BUILD_NEW): per-supplier real average
+  // days-to-pay, DPO (Days Payable Outstanding), and a fixed
+  // payment-reliability classification. category='software_analysis'
+  // (CATEGORY 2, a calculated ratio -- same as SPI/CPI) rather than
+  // 'software_report', matching how the identically-shaped AR-side sibling
+  // (FI-AR-006 Customer Payment Behavior / DSO, a separate still-open PR
+  // as of this writing) would be classified. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat this file's other
+  // recent entries (FI-AR-004/FI-AP-005/FI-AP-007/FI-AP-008/FI-AA-006)
+  // already disclose. Appended at the end of this array (not inserted near
+  // other FI-* entries above) to avoid a real merge-conflict collision with
+  // those still-open sibling PRs editing the same region.
+  {
+    id: "erp-vendor-payment-behavior",
+    name: "Vendor Payment History / Payment Behavior Analysis",
+    description: "Per-supplier historical payment-behavior metric across all their invoices: real average days-to-pay for invoices with a discoverable payment-completion date, the industry-standard DPO (Days Payable Outstanding) formula, and a fixed payment-reliability classification (consistently_early/on_time/late/chronically_late) against the supplier's real agreed terms. SAP FBL1N/DPO-analysis equivalent.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#vendorPaymentBehaviorReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/vendor-payment-behavior)"],
+    route: "/api/v1/projexa/vendor-payment-behavior",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_analysis",
+    classifications: ["financial", "procurement", "construction"],
     periodicity: "on_demand",
   },
 ]
