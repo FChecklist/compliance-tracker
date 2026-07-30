@@ -146,3 +146,44 @@
 ## Remaining
 - [ ] Open a PR on this task's branch (real code fix was required --
       outcome (1) from the task spec, not the verification-only outcome).
+
+# PROGRESS -- sd-007-sales-order-document-flow-overview
+
+## Completed
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, found a real collision (PR #629
+      also self-labels part of its work SD-007), verified via git/gh (not
+      the sqlite gap-analysis file's own citations) that PR #629's
+      getClaimTimeline() is scoped entirely to the brand-new
+      construction_progress_claims workflow table, distinct from the
+      pre-existing generic ERP Sales & Distribution chain this task covers
+      -- registered a claim documenting the distinction, committed+pushed
+      first (commit 8b4f0720), before any real code.
+- [x] Discovered the real FK chain already on main (Priority 15/Wave
+      60-84, zero new schema needed): erp_quotations (quotationId) ->
+      erp_sales_orders (soNumber/status) -> erp_sales_invoices
+      (salesOrderId) -> erp_payment_entries (invoiceType='sales_invoice'/
+      invoiceId) + erp_sales_credit_notes (salesInvoiceId) +
+      erp_sales_returns (salesInvoiceId).
+- [x] Added getSalesOrderDocumentFlow() to erp-selling-service.ts (additive,
+      reuses existing withTenantContext/ServiceError/requireErpEnabled
+      conventions already in that file).
+- [x] New route GET /api/v1/projexa/sales-order-document-flow/[id].
+- [x] New report_definitions row (drizzle/0269, platform-wide,
+      executionType='external_service'), following the exact precedent
+      PR #637 (FI-AP-005) established.
+- [x] 3 new tests in erp-selling-service.test.ts (real quotation->order->
+      invoice->payment->credit-note->return 6-hop chain; standalone order
+      with no invoices yet; not-found -> 404), same mock-withTenantContext
+      pattern as construction-reports-service.test.ts/tenant-isolation.test.ts.
+- [x] Verified: bunx tsc --noEmit -- 0 errors. bun run lint -- 0 errors (3
+      pre-existing warnings, unrelated files). bun test (full suite) --
+      2305 pass, 0 fail, 4568 expect() calls (includes the 3 new tests).
+- [x] Honest gap: no post-order change-order document exists in this
+      schema (only a pre-order quotation revision) -- disclosed in the
+      report_definitions row's description, not fabricated.
+
+## Remaining
+- [ ] None for this task's own scope -- PR opened, awaiting review/merge.
+      Separately unresolved (not this task's job to fix): PR #629 and PR
+      #638 both still open and both touch SD-002; reconciling those two is
+      a decision for whoever reviews/merges them, not addressed here.
