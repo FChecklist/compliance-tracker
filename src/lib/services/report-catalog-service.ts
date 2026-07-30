@@ -340,6 +340,34 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     classifications: ["financial", "construction"],
     periodicity: "on_demand",
   },
+
+  // FI-AP-006 (SAP gap-analysis "Vendor Payment History / Payment Behavior
+  // Analysis", MEDIUM priority, BUILD_NEW): per-supplier real average
+  // days-to-pay, DPO (Days Payable Outstanding), and a fixed
+  // payment-reliability classification. category='software_analysis'
+  // (CATEGORY 2, a calculated ratio -- same as SPI/CPI) rather than
+  // 'software_report', matching how the identically-shaped AR-side sibling
+  // (FI-AR-006 Customer Payment Behavior / DSO, a separate still-open PR
+  // as of this writing) would be classified. No dedicated UI page yet --
+  // API-only, same honest "no dashboard surface" caveat this file's other
+  // recent entries (FI-AR-004/FI-AP-005/FI-AP-007/FI-AP-008/FI-AA-006)
+  // already disclose. Appended at the end of this array (not inserted near
+  // other FI-* entries above) to avoid a real merge-conflict collision with
+  // those still-open sibling PRs editing the same region.
+  {
+    id: "erp-vendor-payment-behavior",
+    name: "Vendor Payment History / Payment Behavior Analysis",
+    description: "Per-supplier historical payment-behavior metric across all their invoices: real average days-to-pay for invoices with a discoverable payment-completion date, the industry-standard DPO (Days Payable Outstanding) formula, and a fixed payment-reliability classification (consistently_early/on_time/late/chronically_late) against the supplier's real agreed terms. SAP FBL1N/DPO-analysis equivalent.",
+    domain: "ERP",
+    sourceService: "src/lib/services/erp-invoicing-service.ts#vendorPaymentBehaviorReport",
+    outputFormats: ["JSON (API only, no dedicated UI page yet: GET /api/v1/projexa/vendor-payment-behavior)"],
+    route: "/api/v1/projexa/vendor-payment-behavior",
+    routeNote: "Real, auth-required API endpoint -- returns real DB-backed JSON. No dedicated UI page renders it yet.",
+    directlyNavigable: false,
+    category: "software_analysis",
+    classifications: ["financial", "procurement", "construction"],
+    periodicity: "on_demand",
+  },
 ]
 
 export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefined {

@@ -40,6 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build FI-AP-006 "Vendor Payment History / Payment Behavior
+      Analysis" (sap_mapping.sqlite sap_reports, module FI-AP, priority
+      MEDIUM, veridian_mapping_status BUILD_NEW as of 2026-07-28). The
+      row's own veridian_gap_notes says this "mirrors the equally-absent
+      FI-AR-006" (Customer Payment Behavior / DSO, AR side). PR #645
+      (FI-AR-006) is OPEN, not yet merged, as of this claim -- reusing its
+      calculation shape (daysToPay/classifyPaymentReliability/
+      computeDsoFormula pattern in erp-invoicing-service.ts) adapted
+      customer->vendor, DSO->DPO, for the AP side. Scope: a new
+      vendorPaymentBehaviorReport()-equivalent function + 3 pure helper
+      functions in src/lib/services/erp-invoicing-service.ts, a
+      report_definitions migration, a thin /api/v1/projexa route, and
+      unit tests. No collision found with any other active claim in this
+      file as of this timestamp (grepped for FI-AP-006/FI-AR-006, no
+      hits).
   - session_label: "claude-code (sd-007-sales-order-document-flow-overview) -- SD-007 Sales Order Document-Flow Overview"
     claimed_at: "2026-07-30T (this session)"
     claim: |
