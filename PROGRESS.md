@@ -226,3 +226,108 @@
       Separately unresolved (not this task's job to fix): PR #629 and PR
       #638 both still open and both touch SD-002; reconciling those two is
       a decision for whoever reviews/merges them, not addressed here.
+
+# PROGRESS -- task-20260730-183057-rebase-pr-647--fi-gl-007--clean
+
+## Completed
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml before starting real work.
+- [x] Read PR #647's actual failing CI job logs (not guessed):
+      - `audit-check`: fails because no `AUDIT: PASS`/`AUDIT: FAIL` comment
+        exists yet (AGENTS.md Rule 7c/10 gate) -- expected, out of scope per
+        this task's own constraint ("do not post an AUDIT verdict yourself").
+        Will keep failing until an independent auditor acts; that is correct
+        behavior, not a defect to fix.
+      - `Promptfoo Evals` (AI Prompt Evals workflow): cancelled at its own
+        timeout, stuck at 4/25 tests the whole run (`~0 tests/minute`).
+        Confirmed via `gh run list` that ALL of the last 30 runs of this
+        workflow across every currently-open PR in the repo fail the same
+        way -- a pre-existing, repo-wide real Groq free-tier rate-limit/hang
+        issue, not caused by this PR's diff. The PR branch already carried a
+        same-day fix attempt (commits `d9ec6263`/`f798e739`'s sibling
+        `ea9c5efe` after rebase: `-j 1 --delay 1500`, workflow-wide
+        concurrency group, 15->30min timeout) but it still timed out under
+        real throttling after rebase too. This workflow's own header states
+        it is deliberately NOT a required/merge-blocking status check
+        (branch-protection scope intentionally left for the Owner) -- so it
+        does not block merge even while failing.
+- [x] Verified `origin/main`'s current `drizzle/meta/_journal.json` fresh
+      (279 entries as of `8aafc199`, highest existing number `0301`):
+      migration `0286_subledger_gl_reconciliation_report_definition` is NOT
+      claimed by anything on main -- confirmed by grepping the
+      freshly-fetched journal directly, not by trusting the task spec's
+      citation. Note: `KERNEL_CONSOLIDATION_STATUS.md`, which the task spec
+      says carries a note about this PR being reassigned to migration 0286,
+      does not exist anywhere in this repo (checked working tree, `git log
+      --all`, and GitHub code search) -- documenting the discrepancy here
+      rather than fabricating that file or guessing at its content.
+- [x] Rebased `feat/fi-gl-007-subledger-gl-reconciliation` (PR #647) onto
+      fresh `origin/main` (`8aafc199`). Two real conflicts, both resolved:
+      - `drizzle/meta/_journal.json`: main had added 8 more entries (idx
+        270-277, ending at `0301_construction_prevailing_wage_rates`) since
+        this branch's last sync; appended this PR's entry as idx 278,
+        `0286_subledger_gl_reconciliation_report_definition`.
+      - `src/lib/services/report-engine-service.ts`: additive conflict
+        against FI-AR-006/FI-AP-006 (both merged to main since this branch's
+        last sync) -- combined both import lines, kept both pre-existing
+        doc-commented compute functions, kept all three FORMULA_REGISTRY
+        entries (`customer_payment_behavior_dso`, `vendor_payment_behavior_dpo`,
+        `subledger_to_gl_reconciliation`).
+      - A commit already on this branch before this task started
+        (`f798e739`) had renumbered the migration file from an interim
+        `0283`/`0273` name to `0286` to dodge a real 4-way collision with
+        #630/#633/#637 -- rebase surfaced this as a rename/rename conflict;
+        resolved by keeping the single correct `0286` file (diffed the
+        renamed copies first to confirm identical content) and updating the
+        journal entry to match.
+      - Verified post-rebase: exactly one `0286` migration file, exactly one
+        `0286` journal entry, no leftover `0273`/`0283` subledger files.
+        Pre-existing, unrelated duplicate migration number `0269` (two
+        files, different content) still present on main -- not this PR's
+        concern, not touched (separate tech debt, already tracked
+        elsewhere in ACTIVE-CLAIMS.yaml history as WAVE-198-style work).
+- [x] `NODE_OPTIONS="--max-old-space-size=8192" bunx tsc --noEmit` clean
+      (exit 0, zero errors) after rebase -- this sandbox's default V8 heap
+      OOMs on this repo's full project graph regardless of this change, the
+      memory-flag invocation is the working equivalent (same finding as
+      other past sessions' PROGRESS.md entries above).
+- [x] Pushed the rebased branch to
+      `origin/feat/fi-gl-007-subledger-gl-reconciliation` (force, since this
+      rewrites history) from a local branch fetched fresh in this task's own
+      worktree -- did not touch the separate, already-clean
+      `/home/rajat/work/pr647-fix` worktree that also had this branch
+      checked out (found it via `git worktree list`; this repo runs many
+      concurrent per-task worktrees off one shared `/opt/veridian/repos/
+      compliance-tracker` object store).
+      - Note: `git stash` is REPO-WIDE, shared across every worktree of this
+        shared clone (confirmed: a stash this session pushed was gone,
+        consumed by a concurrent session's own `stash pop`, moments later).
+        Avoided stash for the rest of this task after that; a future session
+        working in this repo should do the same -- treat any stash entry
+        made here as unsafe to rely on across more than one command.
+- [x] Confirmed live: `gh pr view 647 --json mergeable` now returns
+      `MERGEABLE` (was `CONFLICTING`) -- the real rebase-conflict part of
+      SUCCESS_CRITERIA is met. `mergeStateStatus` shows `BLOCKED`, which is
+      the required-status-check gate (audit-check pending), not a merge
+      conflict.
+- [x] Triggered a fresh CI run on the rebased head; real checks (Lint, Type
+      Check, Build, Unit Tests, E2E Tests, Analyze, Guardrail Presence,
+      Secret Scanning, Security Pattern, Terminology Guardrail, Doc
+      Cross-Reference/Quarantine/Sentinel, Metadata Index Coverage, Asset
+      Registry Coverage) are green post-rebase (see final status below).
+      `Vercel` failed once on an unrelated deployment rate-limit
+      (`vercel.com/...?upgradeToPro=build-rate-limit`), not a code issue --
+      not a required check either.
+
+## Remaining
+- [ ] `audit-check` will keep failing until an independent Rule 7c auditor
+      posts a real `AUDIT: PASS`/`AUDIT: FAIL` comment -- explicitly out of
+      scope for this task to do itself. PR #647 is otherwise ready for that
+      audit.
+- [ ] `Promptfoo Evals` is a pre-existing, repo-wide, non-blocking
+      flake (see above) -- not fixed by this task (out of scope: this task's
+      job was the rebase + migration-collision check, not repo-wide Groq
+      rate-limit infra). Flagging for whoever owns that workflow next.
+- [ ] Move this task's ai-os/boss/ACTIVE-CLAIMS.yaml entry from `active:` to
+      `recently_completed:` once confirmed.
+- [ ] Did NOT merge PR #647 and did NOT post an AUDIT verdict, per this
+      task's own explicit constraints.

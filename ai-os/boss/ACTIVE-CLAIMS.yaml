@@ -6679,3 +6679,45 @@ recently_completed:
       self-certify it); left failing, flagged for a separate agent/session
       to review and post a real AUDIT: PASS/FAIL comment. Did not merge PR
       #563 (out of this task's scope).
+
+# ── claim closed 2026-07-30 (task-20260730-183057-rebase-pr-647--fi-gl-007--clean) ──
+  - session_label: "claude-code (task-20260730-183057-rebase-pr-647--fi-gl-007--clean) -- Rebased PR #647 (FI-GL-007) clean onto main, resolved real migration-number conflict [PUSHED, PR OPEN]"
+    claimed_at: "2026-07-30T (this session, closed same session)"
+    claim: |
+      PR #647 (feat/fi-gl-007-subledger-gl-reconciliation) was
+      mergeable=CONFLICTING against a moved main. Rebased onto fresh
+      origin/main (8aafc199); resolved two real conflicts (additive
+      drizzle/meta/_journal.json entries from 8 migrations that landed on
+      main since this branch's last sync, and additive
+      report-engine-service.ts FORMULA_REGISTRY/import entries from
+      FI-AR-006/FI-AP-006 merging in the interim) plus a rename/rename
+      conflict from an already-in-branch commit (f798e739) that had
+      renumbered the migration 0283->0286 to dodge a real 4-way collision
+      with #630/#633/#637. Verified fresh against origin/main's own
+      drizzle/meta/_journal.json (not trusted from any doc note) that 0286
+      is genuinely free -- confirmed the task spec's cited
+      KERNEL_CONSOLIDATION_STATUS.md does not exist anywhere in this repo,
+      documented as a discrepancy rather than assumed. `tsc --noEmit` clean
+      post-rebase. Pushed (force) to
+      origin/feat/fi-gl-007-subledger-gl-reconciliation. `gh pr view 647`
+      mergeable now MERGEABLE (was CONFLICTING). Did NOT touch `audit-check`
+      (no AUDIT comment exists yet -- independent Rule 7c auditor's job, not
+      self-certified) or fix `Promptfoo Evals` (confirmed via `gh run list`
+      this is a pre-existing, repo-wide Groq free-tier rate-limit/hang
+      affecting the last 30 runs of that workflow across every open PR, not
+      caused by this PR's diff, and that workflow is explicitly documented
+      in its own header as non-required/non-merge-blocking). Did not merge
+      PR #647 and did not post an AUDIT verdict, per this task's explicit
+      constraints.
+    scope_note: >-
+      File scope: PR #647's own branch only
+      (feat/fi-gl-007-subledger-gl-reconciliation) -- drizzle/meta/_journal.json,
+      the one migration file, and report-engine-service.ts's merge
+      resolution. No other open PR touched. Found (but did not disrupt) a
+      separate, already-clean worktree at /home/rajat/work/pr647-fix also
+      checked out to this same branch -- this repo runs many concurrent
+      per-task worktrees off one shared /opt/veridian/repos/compliance-tracker
+      clone; `git stash` is REPO-WIDE across all of them (confirmed: a stash
+      this session pushed was consumed by a concurrent session's own `stash
+      pop` within minutes) -- avoid stash in this shared clone going
+      forward.
