@@ -40,7 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
+  - session_label: "claude-code (task-20260730-projexa-timesheet-workflow-bridge) -- PROJEXA timesheet submit/approve/reject bridge (Task #47 PM-platform gap analysis)"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task #47 gap analysis found compliance-tracker's own timesheet
+      approval workflow (pms_time_entries.approvalStatus enum
+      draft/submitted/approved/rejected, submitTimeEntry/approveTimeEntry/
+      rejectTimeEntry in src/lib/services/pms-time-service.ts, exposed at
+      /api/pms/time-entries/[id]/{submit,approve,reject}) is NOT yet
+      proxied to PROJEXA -- only list (GET) + log (POST) are exposed under
+      /api/v1/projexa/timesheets/*. This is a pure bridge-completeness gap
+      per the Owner's one-system mandate (PROJEXA is a thin client calling
+      compliance-tracker via callVeridian()), not new backend logic.
+      Scope: 3 new thin proxy routes under
+      src/app/api/v1/projexa/timesheets/[id]/{submit,approve,reject}/route.ts
+      calling the exact same submitTimeEntry/approveTimeEntry/
+      rejectTimeEntry functions already used by the internal
+      /api/pms/time-entries/[id]/* routes, via requireAuthOrApiKey() (the
+      /v1/projexa/* auth convention) instead of the internal
+      session-only requireAuth(). No requirePmsEnabled() gate, matching
+      every other /v1/projexa/* route reaching pms_* tables (see
+      timesheets/route.ts's own header). Real tests for success/permission/
+      error-state cases. No migration, no new service logic.
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
       VERIDIAN_CONSOLIDATED_COMPLETION Stage 9 (PR #630) explicitly flagged
