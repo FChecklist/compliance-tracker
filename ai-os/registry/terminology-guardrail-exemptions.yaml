@@ -72,9 +72,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/erp-invoicing-service.test.ts
-    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test."
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): real dated comment documenting the taxTemplateId wiring test. Raised 1 -> 18 for PR #637 (feat/fi-ap-005-payment-proposal-list, mandatory-audit-check auditor review 2026-07-30): the 17 new instances are all computePaymentProposal()/bill() test-fixture literal dates (postingDate/dueDate/asOfDate arguments in the new Payment Proposal List test cases), verified individually on direct read -- none are human example/sample business data, they are functionally required inputs for the date-bucketing logic under test. Same out-of-scope class already applied to *.test.ts fixture data per Phase 2's directory-scoped rollout (task-20260724-115921), e.g. report-cadence-service.test.ts's own exemption entry above."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 18
   - file: src/lib/supabase/auth-guard.ts
     reason: "PR 598 dependency-blocking work + reporting-gateway CSV-injection fix (2026-07-27): 3 real dated comments documenting prior gap-closure history in this file, never previously exempted."
     findings_by_category:
