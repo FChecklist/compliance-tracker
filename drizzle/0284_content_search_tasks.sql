@@ -1,21 +1,30 @@
 -- VERIDIAN_CONSOLIDATED_COMPLETION Stage 12 (2026-07-29): unified "search
 -- everything" layer, slice 2 -- extends compliance.content_search
--- (Stage 9 / PR #630 -- filed at drizzle/0283 here due to a real repo-wide
--- migration-numbering collision cluster at 0269-0271 across many concurrently
--- open PRs as of 2026-07-30; renumbered up from the original 0271 this task
--- branch used, to the true next-free number verified against origin/main AND
--- every other open PR's drizzle/ additions at rebase time. PR #630 itself was
--- still open, not yet merged, as of this rebase -- see this file's own
--- migration below, which recreates the FULL view (compliance_items + documents
--- + tasks branches) rather than ALTERing an assumed-existing one, so this
--- migration is correct whether PR #630's own migration has landed yet or not.
--- Verified live via Supabase MCP (execute_sql) immediately before finalizing
--- this rebase: compliance.content_search already exists live with exactly this
--- 3-branch shape (both this task's and PR #630's work were already applied
--- live, independently of which PR merges into the repo first) to cover
+-- (Stage 9 / PR #630) to cover
 -- compliance.tasks, the next real entity type off that PR's own honest
 -- remaining list (tasks/projects/tickets/crm_leads/notices/comments/
 -- conversations/notifications).
+
+-- REBASE / NUMBERING NOTE (2026-07-30): this file went through three renumberings
+-- during a same-day cross-PR migration-numbering scramble --
+-- 0271 (original branch value, collided with main's own
+-- 0271_billing_due_list_report_definition.sql) -> 0283 (collided in a real
+-- simultaneous 4-way race with PR #630 itself, #637, and #647, each
+-- independently computing 0283 as the next-free number off slightly
+-- different snapshots of origin/main + open PRs) -> 0284 (final, per
+-- explicit cross-session coordination: PR #630 keeps 0283 as the first of
+-- the four to reach CI-green; #637/#647 were assigned 0285/0286). Re-verified
+-- against a fresh origin/main fetch immediately before this final renumbering
+-- that 0284 was not yet claimed by any other file in the repo or any other
+-- open PR's drizzle/ additions. PR #630 was still open/unmerged as of this
+-- renumbering -- this migration recreates the FULL content_search view
+-- (compliance_items + documents + tasks branches) rather than ALTERing an
+-- assumed-existing one, so it is correct whether PR #630's own migration has
+-- landed in the repo yet or not. Independently confirmed live via Supabase
+-- MCP (execute_sql, project pcrjmlpuqsbocqfwoxod) that compliance.content_search
+-- already exists in the live DB with exactly this 3-branch shape -- both this
+-- task's and PR #630's work were already applied live, ahead of and
+-- independent of whichever PR order they land in the repo.
 --
 -- WHY tasks, by real evidence (checked this session, not assumed):
 --   compliance.tasks        1899 rows
