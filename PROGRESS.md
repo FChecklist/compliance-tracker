@@ -28,14 +28,24 @@
 - [x] Confirmed `gh pr view 653 --json mergeable` now returns `MERGEABLE`
       (was `CONFLICTING`).
 
+- [x] All required CI checks on merge commit `0b6b9028` confirmed passing:
+      Lint, Type Check, Build, Guardrail Presence Check, Asset Registry
+      Coverage Check, Unit Tests, E2E Tests, Analyze, Doc/Metadata/Terminology
+      checks, Secret Scanning. Only `audit-check` fails (expected, out of
+      scope). Vercel deploy preview not a required check per branch
+      protection (`gh api .../branches/main/protection`), non-blocking.
+- [x] `gh pr view 653 --json mergeable,mergeStateStatus` -> `MERGEABLE` /
+      `BLOCKED` (BLOCKED solely because required check `audit-check` has no
+      verdict yet -- expected).
+- [x] Appended CO-006's real state + migration numbers used (0288/0289/0292)
+      to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md` Workstream A
+      table row (that file lives outside this repo, untracked scratch/
+      coordination file across sessions -- no git commit applicable there).
+- [x] Moved this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to
+      `recently_completed:`.
+
 ## Remaining
-- [ ] Watching real CI checks (Lint/Type Check/Build/Unit/E2E/etc.) finish
-      on the new merge commit `0b6b9028` -- background watch running.
-- [ ] Confirm all real (non-audit-check) jobs pass.
-- [ ] Append one line to `KERNEL_CONSOLIDATION_STATUS.md` Workstream A with
-      final state + migration numbers used (0288/0289/0292).
-- [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry to
-      `recently_completed:` once done.
-- [ ] NOT doing: merging PR #653, posting an `AUDIT:` verdict (out of
-      scope by spec) -- `audit-check` is expected to remain the sole
-      failing check, pending an independent Rule 7c auditor.
+- [ ] None. Task complete: PR #653 rebased clean, all real CI checks green,
+      ready for an independent Rule 7c audit (not performed by this
+      session, per scope). Did NOT merge PR #653 and did NOT post an
+      `AUDIT:` verdict (both explicitly out of scope).
