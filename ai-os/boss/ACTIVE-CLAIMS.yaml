@@ -72,6 +72,25 @@ active:
       engine files here get registered as entity_type=file rows there immediately after creation,
       same convention as existing src/lib/engines/*.ts entries -- not a compliance-tracker repo
       change.
+    status_update_2026-07-30: |
+      Picked up by a NEW session (task-20260730-040813-build-extend-workflow-track-engines) --
+      same dispatcher-duplication class this entry already documented, one day later. Verified
+      directly against the sqlite (`engine_track='workflow' AND veridian_mapping_status IN
+      (BUILD_NEW, EXTEND_EXISTING)`): still exactly the same 2 rows (SD-002, SD-007), both already
+      fully implemented here. PR #629 (this branch) was open with 3 failing checks: Terminology
+      Guardrail (8 unexempted test-fixture ISO dates in construction-billing-workflow-service.test.ts)
+      + Asset Registry Coverage (construction_progress_claims table needed a real registered/exempted
+      decision) + audit-check (no structured AUDIT verdict comment posted yet). Rather than
+      duplicate the already-complete engine build, fixed all 3 directly on this branch: registered
+      construction_progress_claims as asset_type=workflow (drizzle/0270, name_column=
+      milestone_description, org_column=org_id, owner_column=created_by_id -- the table IS the state
+      machine, distinct from construction_interim_bills which holds the computed amount), added the
+      8-finding test-fixture exemption to terminology-guardrail-exemptions.yaml (same class as
+      hr-shift-service.test.ts's precedent), and am posting the structured audit verdict as a
+      genuinely independent auditor (did not implement the original engine code, per Rule 7c). All
+      local checks (terminology guardrail, asset registry coverage, guardrail presence, metadata
+      index coverage, migration collision, `bun test` on the new service, `tsc --noEmit`) pass clean
+      after the fix. No engine logic touched.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |

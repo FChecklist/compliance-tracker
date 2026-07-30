@@ -1072,3 +1072,7 @@ exemptions:
     reason: "Design Studio timesheets approval-flow gap closure (2026-07-28, task-20260728-043316): 1 new hardcoded_iso_date finding -- a real, dated comment in a new test file explaining the test's intent, not example/placeholder data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/services/construction-billing-workflow-service.test.ts
+    reason: "PHASE-2-CROSSREF workflow-track gap-closure (SD-002/SD-007, 2026-07-29, task-20260729-112447): 8 date-string test fixture literals (createProgressClaim/invoiceApprovedClaim input dates, listBillingDueQueue's overdue-boundary scheduledDate fixtures), same 'seed/test fixture' out-of-scope class Phase 2 already established for this whole directory pattern -- not human PII/example data."
+    findings_by_category:
+      hardcoded_iso_date: 8
