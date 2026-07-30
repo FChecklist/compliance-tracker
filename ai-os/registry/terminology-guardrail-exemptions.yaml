@@ -863,9 +863,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 4
   - file: src/lib/services/report-catalog-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2 -> 3 for PR #636 (feat/fi-ar-004-dunning-list, mandatory-audit-check auditor review 2026-07-30): the new instance is the same false-positive class -- a gap-closure task-id comment ('// FI-AR-004 (SAP gap-analysis \"Dunning List\", HIGH priority, 2026-07-30):') documenting when the Dunning List report entry was added, not human example/sample data. Verified on direct read against the PR's actual diff, not assumed."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
   - file: src/lib/services/report-domain-enablement-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -1080,3 +1080,7 @@ exemptions:
     reason: "Design Studio timesheets approval-flow gap closure (2026-07-28, task-20260728-043316): 1 new hardcoded_iso_date finding -- a real, dated comment in a new test file explaining the test's intent, not example/placeholder data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/services/construction-billing-workflow-service.test.ts
+    reason: "PHASE-2-CROSSREF workflow-track gap-closure (SD-002/SD-007, 2026-07-29, task-20260729-112447): 8 date-string test fixture literals (createProgressClaim/invoiceApprovedClaim input dates, listBillingDueQueue's overdue-boundary scheduledDate fixtures), same 'seed/test fixture' out-of-scope class Phase 2 already established for this whole directory pattern -- not human PII/example data."
+    findings_by_category:
+      hardcoded_iso_date: 8

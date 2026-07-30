@@ -40,6 +40,57 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260729-112447-build-extend-workflow-track-engines) -- Build/extend workflow-track (state-machine) engines from PHASE-2-CROSSREF"
+    claimed_at: "2026-07-29T (this session)"
+    claim: |
+      SPEC: build/extend only workflow-track engines marked BUILD_NEW/EXTEND_EXISTING in the
+      real PHASE-2-CROSSREF (sap_reports table, /opt/veridian/ai-os/memory/sap_mapping.sqlite,
+      veridian_mapping_status column -- not a markdown file, confirmed via direct sqlite query).
+      Scope: engine_track='workflow' AND veridian_mapping_status IN (BUILD_NEW, EXTEND_EXISTING)
+      = exactly 2 rows: SD-002 (Billing Due List -> "Ready to Bill" claim-workflow queue,
+      BUILD_NEW) and SD-007 (Sales Order Status Overview -> "Claim Timeline" document-flow-trace
+      view, BUILD_NEW). engine_track='workflow' has 0 EXTEND_EXISTING rows and 1 REUSE_EXISTING
+      row (Treasury-002, out of scope by spec). NOT touching engine_track='hybrid' rows (separate
+      track, no task dispatched for it that I could find) or engine_track='calculation' rows
+      (PHASE-3-BUILD-CALC's scope, not mine).
+      COLLISION CHECK (per this file's own protocol): `git for-each-ref` shows 8 other sibling
+      branches with the identical task title spawned 2026-07-29T09:29Z-11:19Z (a known dispatcher
+      duplication storm affecting both workflow-track and calculation-track engine-build tasks
+      today -- see task-20260729-110351's PROGRESS.md for the calc-track side of this). Of those
+      8, only 2 (103545, 105042) have any commit beyond main, and both are claim-registration-only
+      (zero engine code, no PR, `gh pr list` clean for both). None of the other 6 have any commit
+      at all. Given the tiny real scope here (2 engines, not calc-track's 36), and zero actual
+      implementation progress on any sibling, proceeding rather than blocking on a stale-but-not-4h
+      claim registration -- documenting this honestly rather than silently duplicating. Will move
+      fast and note this collision in the PR description.
+      wiring_registry rule (same as PHASE-3-BUILD-CALC's spec text: "register every new/extended
+      engine in wiring_registry immediately on creation, not batched"): the real wiring_registry is
+      a live sqlite table in /opt/veridian/ai-os/memory/superboss-register.sqlite (host-level,
+      shared across repos, NOT the compliance-tracker repo), populated via
+      /opt/veridian/scripts/superboss-register.py's `register-entity` CLI for single ad hoc rows
+      (per ai-os/WIRING_ENGINE_SCHEMA_2026-07-25.yaml in the separate claude-control repo). New
+      engine files here get registered as entity_type=file rows there immediately after creation,
+      same convention as existing src/lib/engines/*.ts entries -- not a compliance-tracker repo
+      change.
+    status_update_2026-07-30: |
+      Picked up by a NEW session (task-20260730-040813-build-extend-workflow-track-engines) --
+      same dispatcher-duplication class this entry already documented, one day later. Verified
+      directly against the sqlite (`engine_track='workflow' AND veridian_mapping_status IN
+      (BUILD_NEW, EXTEND_EXISTING)`): still exactly the same 2 rows (SD-002, SD-007), both already
+      fully implemented here. PR #629 (this branch) was open with 3 failing checks: Terminology
+      Guardrail (8 unexempted test-fixture ISO dates in construction-billing-workflow-service.test.ts)
+      + Asset Registry Coverage (construction_progress_claims table needed a real registered/exempted
+      decision) + audit-check (no structured AUDIT verdict comment posted yet). Rather than
+      duplicate the already-complete engine build, fixed all 3 directly on this branch: registered
+      construction_progress_claims as asset_type=workflow (drizzle/0270, name_column=
+      milestone_description, org_column=org_id, owner_column=created_by_id -- the table IS the state
+      machine, distinct from construction_interim_bills which holds the computed amount), added the
+      8-finding test-fixture exemption to terminology-guardrail-exemptions.yaml (same class as
+      hr-shift-service.test.ts's precedent), and am posting the structured audit verdict as a
+      genuinely independent auditor (did not implement the original engine code, per Rule 7c). All
+      local checks (terminology guardrail, asset registry coverage, guardrail presence, metadata
+      index coverage, migration collision, `bun test` on the new service, `tsc --noEmit`) pass clean
+      after the fix. No engine logic touched.
   - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
     claimed_at: "2026-07-28T (this session)"
     claim: |
