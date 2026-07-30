@@ -1,6 +1,18 @@
 -- VERIDIAN_CONSOLIDATED_COMPLETION Stage 12 (2026-07-29): unified "search
 -- everything" layer, slice 2 -- extends compliance.content_search
--- (Stage 9 / PR #630, drizzle/0269_content_search_view.sql) to cover
+-- (Stage 9 / PR #630 -- filed at drizzle/0283 here due to a real repo-wide
+-- migration-numbering collision cluster at 0269-0271 across many concurrently
+-- open PRs as of 2026-07-30; renumbered up from the original 0271 this task
+-- branch used, to the true next-free number verified against origin/main AND
+-- every other open PR's drizzle/ additions at rebase time. PR #630 itself was
+-- still open, not yet merged, as of this rebase -- see this file's own
+-- migration below, which recreates the FULL view (compliance_items + documents
+-- + tasks branches) rather than ALTERing an assumed-existing one, so this
+-- migration is correct whether PR #630's own migration has landed yet or not.
+-- Verified live via Supabase MCP (execute_sql) immediately before finalizing
+-- this rebase: compliance.content_search already exists live with exactly this
+-- 3-branch shape (both this task's and PR #630's work were already applied
+-- live, independently of which PR merges into the repo first) to cover
 -- compliance.tasks, the next real entity type off that PR's own honest
 -- remaining list (tasks/projects/tickets/crm_leads/notices/comments/
 -- conversations/notifications).

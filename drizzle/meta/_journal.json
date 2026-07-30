@@ -1863,6 +1863,76 @@
       "when": 1785238800000,
       "tag": "0268_pms_time_entry_approval_flow",
       "breakpoints": true
+    },
+    {
+      "idx": 266,
+      "version": "7",
+      "when": 1785325200000,
+      "tag": "0269_construction_progress_claims_workflow",
+      "breakpoints": true
+    },
+    {
+      "idx": 267,
+      "version": "7",
+      "when": 1785325200001,
+      "tag": "0270_register_construction_progress_claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 268,
+      "version": "7",
+      "when": 1785325200002,
+      "tag": "0271_billing_due_list_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 269,
+      "version": "7",
+      "when": 1785325200003,
+      "tag": "0272_ap_subcontractor_payment_application_status_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 270,
+      "version": "7",
+      "when": 1785325200004,
+      "tag": "0273_asset_to_gl_reconciliation_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 271,
+      "version": "7",
+      "when": 1785402700000,
+      "tag": "0274_sd007_sales_order_document_flow_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1785402700001,
+      "tag": "0275_customer_payment_behavior_dso_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1785403893145,
+      "tag": "0269_ap_purchase_invoice_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1785402700002,
+      "tag": "0279_vendor_payment_behavior_dpo_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 275,
+      "version": "7",
+      "when": 1785412479905,
+      "tag": "0283_content_search_tasks",
+      "breakpoints": true
     }
   ]
 }
