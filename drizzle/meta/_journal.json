@@ -1916,8 +1916,15 @@
     {
       "idx": 273,
       "version": "7",
+      "when": 1785403893145,
+      "tag": "0269_ap_purchase_invoice_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
       "when": 1785402700002,
-      "tag": "0276_vendor_payment_behavior_dpo_report_definition",
+      "tag": "0279_vendor_payment_behavior_dpo_report_definition",
       "breakpoints": true
     }
   ]
