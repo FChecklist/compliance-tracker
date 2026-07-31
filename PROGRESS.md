@@ -14,8 +14,11 @@
 - [x] `bun test src/lib/services/product-service.test.ts` -- 8 pass, 0 fail
 - [x] Committed (3b7eb3bc) + pushed `worker/task-20260731-043738-crm--project-team-junction-table`, opened PR #663: https://github.com/FChecklist/compliance-tracker/pull/663 -- left CI-green, not merged, no AUDIT verdict posted (per spec constraints)
 
+- [x] CI green on all required checks: Lint, Type Check, Build, Unit Tests, plus every guardrail job (Terminology, Guardrail Presence, Asset Registry Coverage, Metadata Index Coverage, Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, Secret Scanning, Security Pattern, CodeQL/Analyze). Fixed a Terminology Guardrail Check failure (hardcoded `2026-07-31` ISO date in two comments) in a follow-up commit.
+- [x] `audit-check` fails as expected -- Rule 10's mandatory-audit gate, waiting on an independent auditor's `AUDIT: PASS/FAIL` comment (not self-certifiable). `Vercel` also fails, but that's an unrelated account build-rate-limit (vercel.com/.../upgradeToPro=build-rate-limit), not a required check and not caused by this PR's code.
+
 ## Remaining
-- [ ] None -- task complete. PR #663 open, awaiting CI + independent Rule 7(c) audit (out of scope for this session to self-certify).
+- [ ] None -- task complete. PR #663 open, CI-green on every required check, awaiting independent Rule 7(c) audit (out of scope for this session to self-certify).
 
 ## Note
 `KERNEL_CONSOLIDATION_STATUS.md` (which the spec asked to append a PR line to) does not exist anywhere in this repo -- confirmed absent both locally and on a freshly-fetched `origin/main` (`git ls-tree -r origin/main --name-only | grep -i kernel` returns nothing). Treating this as a stale reference from a different task template rather than inventing a new file/section whose expected structure isn't specified. PR description itself documents what was built and links back to this task.
