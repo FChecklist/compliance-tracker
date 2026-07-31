@@ -109,7 +109,7 @@ export async function createProject(
   })
 }
 
-// Task #46 (CRM feature-parity gap analysis, 2026-07-31): projects.leadUserId
+// Task #46 (CRM feature-parity gap analysis): projects.leadUserId
 // only ever carried a single owner -- no way to represent a multi-person
 // project team. Adds the project_team_members junction table (drizzle/0302),
 // same shape as pmsMeetingParticipants/conversationParticipants/

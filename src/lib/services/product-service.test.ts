@@ -1,4 +1,4 @@
-// Task #46 (CRM feature-parity gap analysis, 2026-07-31): tests the pure
+// Task #46 (CRM feature-parity gap analysis): tests the pure
 // predicates product-service.ts's new project-team-member functions rely on
 // -- resolveLeadUserIdOnAdd/resolveLeadUserIdOnRemove -- rather than
 // exercising the withTenantContext/live-DB-backed CRUD functions, matching
