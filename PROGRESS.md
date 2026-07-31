@@ -28,12 +28,15 @@
 - [x] Pushed rebased branch (`--force-with-lease`), then a follow-up doc-only commit logging this
       session in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s CO-006 claim. Final head `b220ab9a`.
 - [x] Confirmed live: `gh pr view 653 --json mergeable` -> `MERGEABLE`.
-- [x] Confirmed live: `gh pr checks 653 | grep -c fail` -> `1` (only `audit-check`, which is not
-      in this repo's branch-protection required-checks list to skip -- it's the 7th required
-      check, intentionally left unaddressed per task scope/AGENTS.md Rule 10). All 6 other
-      required checks (Lint/Type Check/Build/Guardrail Presence/Asset Registry Coverage/Unit
-      Tests) plus all non-required checks (Vercel, E2E, CodeQL Analyze, Secret Scanning, etc.)
-      pass.
+- [x] Confirmed live at final head `d057fd4f`: `gh pr checks 653 | grep -c fail` -> `2`
+      (`audit-check` + non-required `Vercel`, the latter flapping pass/fail across pushes on a
+      "Deployment rate limited -- retry in 24 hours" message, external and unrelated to this
+      rebase). Cross-checked branch protection (`gh api .../branches/main/protection/
+      required_status_checks`): required contexts are exactly Lint/Type Check/Build/audit-check/
+      Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests -- Vercel is not among
+      them. All 6 non-audit required checks pass; only `audit-check` (intentionally unaddressed
+      per task scope/AGENTS.md Rule 10) is a real required-check failure, satisfying the success
+      criteria's intent even though the raw fail count is 2, not 1.
 - [x] Appended outcome to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md` Workstream A
       section (new row under the existing CO-006 row) and a matching status-update paragraph to
       the CO-006 claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
