@@ -56,3 +56,33 @@
 - No verdict comment has been posted to PR #661. No branch/repo writes were made beyond this file and
   `task.yaml`'s `status` field — consistent with the task's own constraint ("no branch pushes, approvals, or
   repository writes other than the single verdict comment").
+
+## GATE_FAIL diagnosis (attempt 2/2, 2026-07-31)
+- Root-caused rather than retried blindly: `quality-gate-0.json` / `quality-gate-1.json` show `lint` and
+  `build` both failing with `exit_code: 124` — a timeout, not a code defect — and the gate script's own
+  output says so explicitly: `"[quality-gate.sh] gate 'build' TIMED OUT after 3600s and was killed --
+  treating as a failed gate rather than blocking the worker forever (see task-20260727-043407 RCA)"`.
+  `task-20260727-043407` is a real, separate, already-`completed` RCA task
+  (`ai-os/tasks/task-20260727-043407-rca-.../task.yaml`) — this timeout-as-failure behavior is a known,
+  previously-analyzed characteristic of running lint/build over this repo's full size, not a new defect.
+- Checked whether this task's own diff could plausibly be the cause: `git status` is clean and `git diff
+  main --stat` shows only pre-existing upstream files this stale branch hasn't rebased onto (CRM
+  auto-distribution, dispatch-outcomes, payment-proposal-list, etc. — all merged to `main` by *other* PRs
+  before this branch's last commit). This task itself has only ever touched `PROGRESS.md` and `task.yaml`'s
+  `status` field (per the no-repo-writes constraint above) — there is no application code change from this
+  task's own work for a lint/build fix to target.
+- Conclusion: there is no underlying *code* issue in scope for this task to fix. The gate failure is a
+  pre-existing, already-RCA'd infrastructure timeout on a full monorepo build/lint pass, orthogonal to this
+  audit task's actual (non-code) deliverable. Modifying build/lint tooling or timeouts from within an
+  "independent audit" task, with zero app-code changes to justify it, would be exactly the "silence the
+  checker" anti-pattern this prompt warns against, not a real fix.
+- `.claude-out-fix-1.json` (attempt 1) shows the prior invocation misread this same GATE_FAIL prompt as an
+  accountant-role grading request and replied `FAIL: ...out of scope...` without investigating — that was not
+  a genuine fix attempt, so this is the first real root-cause pass, but per this task's own stated protocol
+  ("on a 2nd consecutive failure of the identical approach: STOP, do not attempt a 3rd time") and given a
+  3rd run of the identical full-repo build would time out the same way for the same structural reason,
+  stopping here rather than burning another 3600s cycle on a retry that cannot change the outcome.
+- **Action:** no code changes made. This entry, plus the earlier `blocked` status on `task.yaml`, stands as
+  the final state pending either (a) owner-provisioned distinct auditor identity/waiver (unblocks the audit
+  itself), or (b) a fix to the shared quality-gate infrastructure's build timeout budget/scope, tracked
+  separately from this task since it is not caused by this task's work.
