@@ -110,4 +110,16 @@ names anywhere on disk (confirmed via whole-filesystem search) -- traced the rea
 - Group 3 (AR, 9 rows: FI-AR-001/002/005/006/007, SD-004/005/006/008) -- see checkboxes above.
 
 ## Remaining
-Groups 4-8 (12 rows), not started as of this writing.
+Groups 4-8 (12 rows), not started as of this writing. Next session: start
+with Group 4 (Treasury/PS -- banking-engine.ts + erp-cash-service.ts +
+construction-expense-service.ts). Follow the established per-group loop:
+read gap_notes/implementation_notes from sap_mapping.sqlite for each row
+first, implement at the same lightweight/real-computation scope as Groups
+1-3 (no schema/feature scope creep beyond what gap_notes confirms is
+actually missing), typecheck with
+`NODE_OPTIONS=--max-old-space-size=4096 npx tsc --noEmit -p .` (default
+heap OOMs in this sandbox), register engines in computation_engines via a
+new drizzle/027N migration + hand-append a drizzle/meta/_journal.json
+entry (drizzle-kit generate is NOT safe to run here -- the meta snapshot
+is stale from an earlier session, see 0270/0271/0272's own commits for the
+established hand-write pattern), then commit+push per group.
