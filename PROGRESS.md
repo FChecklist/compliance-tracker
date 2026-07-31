@@ -87,13 +87,73 @@
       be silencing the checker for a problem that isn't in this repo's
       code, so I deliberately did not do that.
 
+## GATE_FAIL investigation (attempt 2/2, 2026-07-31 ~04:10-04:22 UTC)
+- [x] `quality-gate-1.json` (harness's own automatic 2nd run, 04:10:58 UTC,
+      predates this invocation) shows the *identical* signature as attempt
+      1: `lint` passed, `build` failed with `exit_code: 124` (timeout).
+- [x] Re-checked host state at time of this investigation: `/proc/loadavg`
+      1-min avg 57 (down from attempt 1's peak 343, so *some* easing) but
+      15-min avg still 191 on 8 vCPU, swap still 100% full (4.0Gi/4.0Gi),
+      only ~2.6Gi RAM free, and 3 other concurrent `next build`/node
+      processes each holding 2GB+ RSS (`task-20260730-183017-...`,
+      `/home/rajat/work/pr652-fix`, and this task's own quality-gate
+      process) visible in `ps aux`. Same class of contention as attempt 1,
+      not resolved.
+- [x] Inspected the actual gate implementation
+      (`/opt/veridian/scripts/quality-gate.sh`, shared infra outside this
+      task's repo/scope): it already (a) caps each build's V8 heap at
+      `--max-old-space-size=2048` specifically to bound its own
+      contribution to system-wide memory pressure (added 2026-07-26 per
+      that script's own header, after an earlier OOM-kill RCA), and (b)
+      wraps every gate step in `timeout -k 30 900` specifically so a hang
+      fails the gate instead of blocking the worker forever forever (added
+      2026-07-27 per that script's own header, after an earlier
+      hung-build RCA). Both existing mitigations are working exactly as
+      designed here -- the timeout firing at 900s *is* the gate correctly
+      refusing to hang forever, not a bug in the gate. There is no
+      configuration knob in this script for "my build's peers are also
+      capped at 2048MB but the box only has 15GB total and swap is already
+      full" -- that is a host sizing/scheduling problem across concurrent
+      task-worker sessions, not something fixable from inside one task's
+      gate invocation.
+- [x] Re-confirmed via `gh pr checks 653` (live, this attempt): all real
+      checks unchanged and still green on the actual merge commit
+      (`0b6b9028`) -- Build 2m34s pass, Lint/Type Check/Unit/E2E/Guardrail/
+      Asset-Registry/Doc/Terminology/Secret-Scanning all pass, only
+      `audit-check` fails (expected, separate Rule 7c/10 audit-dispatch
+      step, out of scope for this rebase task). `mergeable: MERGEABLE`
+      unchanged.
+- [x] Per protocol ("2nd consecutive failure of the identical approach:
+      STOP, do not attempt a 3rd time"): attempts 1 and 2 both show the
+      exact same failure signature (`lint` pass / `build` exit 124) under
+      the exact same root cause (shared-host swap exhaustion from sibling
+      task-worker builds), with GitHub's isolated-runner Build check
+      passing cleanly on the identical repo state both times. A 3rd
+      identical `bun run build` right now would not produce new
+      information -- it would either hang again (contention still present)
+      or pass (contention cleared), and I have no way to distinguish those
+      outcomes from here without just running it, which is the retry the
+      protocol says to stop before. Stopping here rather than burning a
+      3rd attempt.
+- [x] Did not modify `quality-gate.sh`, `next.config.ts`, build scripts, or
+      any timeout/gate threshold: there is no application-code defect to
+      fix (this task's own diff remains docs-only), and editing the shared
+      gate script or loosening its timeout to paper over a transient
+      host-capacity condition would be silencing the checker for every
+      other task on this host, not fixing an underlying issue in this PR.
+
 ## Remaining
-- [ ] Task's actual work (PR #653 rebase) is still complete per the
-      Completed section above -- unchanged. The open item is purely this
-      *local* build-gate rerun: it should be re-attempted once sibling
-      task-worker sessions on this shared host finish their own builds and
-      host load/swap pressure subsides (not a code-level fix). If it fails
-      a 2nd identical way on the next attempt, that would confirm it's
-      structurally a host-capacity problem for this task harness (worth
-      flagging to the owner) rather than something a 3rd blind retry would
-      resolve.
+- [ ] Task's actual work (PR #653 rebase) is complete and unaffected --
+      `MERGEABLE`, all real CI checks green on the real merge commit. The
+      only open item is this *local sandbox* build-gate rerun, which is
+      structurally a host-capacity/scheduling problem (too many concurrent
+      task-worker `next build`s on one 8-vCPU/15GB box, confirmed via
+      `/proc/loadavg` + `free -h` + `ps aux` across two separate attempts)
+      -- not something resolvable by retrying inside this task a 3rd time.
+      Flagging to the owner: worth either (a) capping concurrent
+      build-running task-workers per host, or (b) raising
+      `GATE_STEP_TIMEOUT_SECONDS` host-wide, or (c) giving the local
+      quality gate an escape hatch that accepts an already-green CI Build
+      check on the same commit in lieu of re-running the build locally
+      when host load is this high -- any of which is a host/harness-level
+      change outside a single task's authority to make unilaterally.
