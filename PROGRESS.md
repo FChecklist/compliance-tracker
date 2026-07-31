@@ -66,16 +66,19 @@ names anywhere on disk (confirmed via whole-filesystem search) -- traced the rea
   (needed NODE_OPTIONS=--max-old-space-size=4096 in this sandbox -- default heap OOMs on the
   full project graph, unrelated to this change).
 
-### Group 3: AR -- erp-selling-service.ts + erp-invoicing-service.ts (AR-side)
-- [ ] FI-AR-001 Customer Line Item Display
-- [ ] FI-AR-002 Customer Balances
-- [ ] FI-AR-005 Customer Credit Exposure (open AR + open order value vs creditLimit)
-- [ ] FI-AR-006 Customer Payment History / DSO (BUILD_NEW)
-- [ ] FI-AR-007 Customer Account Balance Display (verify/extend getCustomerOverview)
-- [ ] SD-004 Open Sales Order Backlog Report
-- [ ] SD-005 Customer Sales Analysis
-- [ ] SD-006 Sales by Material/Service Type (BUILD_NEW)
-- [ ] SD-008 Cancelled and Rejected Billing Analysis
+### Group 3: AR -- erp-selling-service.ts + erp-invoicing-service.ts (AR-side) [DONE]
+- [x] FI-AR-001 Customer Line Item Display (listCustomerLineItems)
+- [x] FI-AR-002 Customer Balances (customerBalances)
+- [x] FI-AR-005 Customer Credit Exposure (customerCreditExposure -- open AR + open order value vs creditLimit)
+- [x] FI-AR-006 Customer Payment History / DSO (customerPaymentBehaviorReport, BUILD_NEW)
+- [x] FI-AR-007 Customer Account Balance Display (getCustomerOverview extended with openInvoices split)
+- [x] SD-004 Open Sales Order Backlog Report (salesOrderBacklogReport, project-level)
+- [x] SD-005 Customer Sales Analysis (customerSalesAnalysis, with prior-period variance)
+- [x] SD-006 Sales by Material/Service Type (revenueByServiceType, BUILD_NEW -- grouped by
+      erpItems.itemGroupId, margin from standardBuyingRate)
+- [x] SD-008 Cancelled and Rejected Billing Analysis (cancelledAndRejectedBillingAnalysis)
+- No schema additions this group. Engine registry: drizzle/0272_calc_track_group3_ar_engines.sql.
+  Full-repo `tsc --noEmit` clean after this group.
 
 ### Group 4: Treasury/PS -- banking-engine.ts + erp-cash-service.ts + construction-expense-service.ts
 - [ ] PS-001 Project Line Item Display
@@ -104,6 +107,7 @@ names anywhere on disk (confirmed via whole-filesystem search) -- traced the rea
 ## Completed
 - Group 1 (GL/CO, 5 rows: CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008) -- see checkboxes above.
 - Group 2 (AP, 10 rows: FI-AP-001..007, MM-004, MM-008, PS-005) -- see checkboxes above.
+- Group 3 (AR, 9 rows: FI-AR-001/002/005/006/007, SD-004/005/006/008) -- see checkboxes above.
 
 ## Remaining
-Groups 3-8 (21 rows), not started as of this writing.
+Groups 4-8 (12 rows), not started as of this writing.

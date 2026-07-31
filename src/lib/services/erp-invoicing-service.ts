@@ -20,7 +20,7 @@ import {
   erpPricingRules, erpItems, erpCustomers, erpSuppliers, erpAccounts, erpCurrencies, erpCompanies,
   erpSalesInvoices, erpSalesInvoiceItems, erpPurchaseInvoices, erpPurchaseInvoiceItems,
   erpTaxTemplates, erpTaxTemplateItems, erpJournalEntries, erpJournalEntryLines,
-  erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders, erpPaymentEntries, erpSupplierBankAccounts,
+  erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders, erpPaymentEntries, erpSupplierBankAccounts, erpSalesReturns,
   users, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -1017,4 +1017,208 @@ export async function getFinanceDashboard(ctx: { orgId: string }) {
     topOverdueInvoices: aging.invoices.filter((i) => i.daysOverdue > 0).slice(0, 5),
     revenue: { thisMonth: thisMonthPnl.totalIncome, lastMonth: lastMonthPnl.totalIncome },
   }
+}
+
+// ============================================================
+// AR Reports (calculation-track engine build/extend, Group 3 -- FI-AR-001,
+// FI-AR-002, FI-AR-006, SD-006, SD-008 per sap_mapping.sqlite). Mirror the
+// AP-side reports above wherever a real AP equivalent already established
+// the pattern (FI-AR-001/002/006 are the direct customer-side counterparts
+// of FI-AP-001/002/006 built in Group 2). FI-AR-005/FI-AR-007/SD-004/SD-005
+// live in erp-selling-service.ts, next to erpCustomers/erpSalesOrders.
+// ============================================================
+
+export type CustomerLineItemFilters = { customerIds?: string[]; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+// FI-AR-001 (EXTEND_EXISTING, same shape as listVendorLineItems above): a
+// unified open+cleared customer line item view from sales invoices (open
+// items) and approved payment entries (clearing documents).
+export async function listCustomerLineItems(ctx: { orgId: string }, filters: CustomerLineItemFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoiceConditions = [eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "paid", "overdue"])]
+    if (filters.customerIds?.length) invoiceConditions.push(inArray(erpSalesInvoices.customerId, filters.customerIds))
+    if (filters.fromDate) invoiceConditions.push(gte(erpSalesInvoices.postingDate, filters.fromDate))
+    if (filters.toDate) invoiceConditions.push(lte(erpSalesInvoices.postingDate, filters.toDate))
+    const invoices = await db.query.erpSalesInvoices.findMany({ where: and(...invoiceConditions), with: { customer: true } })
+
+    const paymentConditions = [eq(erpPaymentEntries.orgId, ctx.orgId), eq(erpPaymentEntries.partyType, "customer"), eq(erpPaymentEntries.status, "approved")]
+    if (filters.customerIds?.length) paymentConditions.push(inArray(erpPaymentEntries.partyId, filters.customerIds))
+    if (filters.fromDate) paymentConditions.push(gte(erpPaymentEntries.postingDate, filters.fromDate))
+    if (filters.toDate) paymentConditions.push(lte(erpPaymentEntries.postingDate, filters.toDate))
+    const payments = await db.query.erpPaymentEntries.findMany({ where: and(...paymentConditions) })
+
+    const customerNameById = new Map(invoices.map((i): [string, string] => [i.customerId, i.customer?.customerName ?? ""]))
+
+    type LineItem = { documentType: "invoice" | "payment"; documentId: string; customerId: string; customerName: string; postingDate: string; grossAmount: number; clearedAmount: number; openAmount: number; clearingStatus: "open" | "partially_cleared" | "cleared" }
+    const invoiceLines: LineItem[] = invoices.map((inv) => {
+      const gross = Number(inv.grandTotal)
+      const open = Number(inv.outstandingAmount)
+      const cleared = gross - open
+      return {
+        documentType: "invoice", documentId: inv.id, customerId: inv.customerId, customerName: inv.customer?.customerName ?? "",
+        postingDate: inv.postingDate, grossAmount: gross, clearedAmount: cleared, openAmount: open,
+        clearingStatus: open <= 0.01 ? "cleared" : cleared > 0.01 ? "partially_cleared" : "open",
+      }
+    })
+    const paymentLines: LineItem[] = payments.map((p) => ({
+      documentType: "payment", documentId: p.id, customerId: p.partyId, customerName: customerNameById.get(p.partyId) ?? "",
+      postingDate: p.postingDate, grossAmount: Number(p.receivedAmount), clearedAmount: Number(p.receivedAmount), openAmount: 0, clearingStatus: "cleared",
+    }))
+
+    const all = [...invoiceLines, ...paymentLines].sort((a, b) => (a.postingDate < b.postingDate ? 1 : -1))
+    const total = all.length
+    const offset = (page - 1) * limit
+    return { lines: all.slice(offset, offset + limit), total, page, limit, totalPages: Math.ceil(total / limit) }
+  })
+}
+
+// FI-AR-002 (EXTEND_EXISTING, same shape as vendorBalances above).
+export async function customerBalances(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpSalesInvoices.findMany({
+      where: and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "overdue"])),
+      with: { customer: true },
+    })
+    const byCustomer = new Map<string, { customerId: string; customerName: string; invoiceCount: number; totalOutstanding: number }>()
+    for (const inv of invoices) {
+      const outstanding = Number(inv.outstandingAmount)
+      if (outstanding <= 0.01) continue
+      const existing = byCustomer.get(inv.customerId)
+      if (existing) { existing.invoiceCount++; existing.totalOutstanding += outstanding }
+      else byCustomer.set(inv.customerId, { customerId: inv.customerId, customerName: inv.customer?.customerName ?? "", invoiceCount: 1, totalOutstanding: outstanding })
+    }
+    const rows = Array.from(byCustomer.values()).sort((a, b) => b.totalOutstanding - a.totalOutstanding)
+    return { rows, totalOutstanding: rows.reduce((s, r) => s + r.totalOutstanding, 0) }
+  })
+}
+
+/**
+ * FI-AR-006 (BUILD_NEW): Days Sales Outstanding per customer -- same
+ * amount-weighted days-to-pay computation as vendorPaymentBehaviorReport,
+ * mirrored to approved payment entries linked to sales invoices.
+ */
+export async function customerPaymentBehaviorReport(ctx: { orgId: string }, fromDate?: string, toDate?: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const paymentConditions = [eq(erpPaymentEntries.orgId, ctx.orgId), eq(erpPaymentEntries.partyType, "customer"), eq(erpPaymentEntries.status, "approved"), eq(erpPaymentEntries.invoiceType, "sales_invoice")]
+    if (fromDate) paymentConditions.push(gte(erpPaymentEntries.postingDate, fromDate))
+    if (toDate) paymentConditions.push(lte(erpPaymentEntries.postingDate, toDate))
+    const payments = await db.query.erpPaymentEntries.findMany({ where: and(...paymentConditions) })
+
+    const invoiceIds = Array.from(new Set(payments.map((p) => p.invoiceId).filter((id): id is string => !!id)))
+    const invoices = invoiceIds.length ? await db.query.erpSalesInvoices.findMany({ where: inArray(erpSalesInvoices.id, invoiceIds), with: { customer: true } }) : []
+    const invoiceById = new Map(invoices.map((i) => [i.id, i]))
+
+    const byCustomer = new Map<string, { customerId: string; customerName: string; termsDays: number | null; weightedDaysSum: number; totalAmount: number }>()
+    for (const p of payments) {
+      if (!p.invoiceId) continue
+      const invoice = invoiceById.get(p.invoiceId)
+      if (!invoice) continue
+      const daysToPay = Math.max(0, Math.floor((new Date(p.postingDate).getTime() - new Date(invoice.postingDate).getTime()) / 86400000))
+      const amount = Number(p.receivedAmount)
+      const existing = byCustomer.get(invoice.customerId)
+      if (existing) { existing.weightedDaysSum += daysToPay * amount; existing.totalAmount += amount }
+      else byCustomer.set(invoice.customerId, { customerId: invoice.customerId, customerName: invoice.customer?.customerName ?? "", termsDays: invoice.customer?.defaultPaymentTermsDays ?? null, weightedDaysSum: daysToPay * amount, totalAmount: amount })
+    }
+
+    const rows = Array.from(byCustomer.values()).map((r) => {
+      const avgDaysToPay = r.totalAmount > 0 ? r.weightedDaysSum / r.totalAmount : null
+      return {
+        customerId: r.customerId, customerName: r.customerName, termsDays: r.termsDays, avgDaysToPay,
+        daysBeyondTerms: avgDaysToPay != null && r.termsDays != null ? avgDaysToPay - r.termsDays : null,
+      }
+    }).sort((a, b) => (b.avgDaysToPay ?? 0) - (a.avgDaysToPay ?? 0))
+
+    return { fromDate: fromDate ?? null, toDate: toDate ?? null, rows }
+  })
+}
+
+/**
+ * SD-006 (BUILD_NEW): revenue (and estimated margin, from erpItems'
+ * standardBuyingRate) grouped by item group -- this schema's real "service
+ * type" dimension (erpItems.itemGroupId), so a firm's own catalog defines
+ * the categories rather than a new invented taxonomy. A line with no
+ * catalog item (free-text description) groups by its own description text.
+ */
+export async function revenueByServiceType(ctx: { orgId: string }, fromDate?: string, toDate?: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "paid", "overdue"])]
+    if (fromDate) conditions.push(gte(erpSalesInvoices.postingDate, fromDate))
+    if (toDate) conditions.push(lte(erpSalesInvoices.postingDate, toDate))
+    const invoices = await db.query.erpSalesInvoices.findMany({ where: and(...conditions), with: { items: true } })
+
+    const itemIds = Array.from(new Set(invoices.flatMap((inv) => inv.items.map((i) => i.itemId).filter((id): id is string => !!id))))
+    const items = itemIds.length ? await db.query.erpItems.findMany({ where: inArray(erpItems.id, itemIds) }) : []
+    const itemById = new Map(items.map((i) => [i.id, i]))
+
+    const byGroup = new Map<string, { key: string; label: string; revenue: number; estimatedCost: number }>()
+    for (const inv of invoices) {
+      for (const line of inv.items) {
+        const item = line.itemId ? itemById.get(line.itemId) : undefined
+        const key = item?.itemGroupId ?? `desc:${line.description}`
+        const label = item?.itemName ?? line.description
+        const revenue = Number(line.amount)
+        const cost = item?.standardBuyingRate != null ? Number(line.quantity) * Number(item.standardBuyingRate) : 0
+        const existing = byGroup.get(key)
+        if (existing) { existing.revenue += revenue; existing.estimatedCost += cost }
+        else byGroup.set(key, { key, label, revenue, estimatedCost: cost })
+      }
+    }
+
+    const rows = Array.from(byGroup.values())
+      .map((r) => ({ ...r, estimatedMargin: r.revenue - r.estimatedCost, estimatedMarginPercent: r.revenue > 0 ? ((r.revenue - r.estimatedCost) / r.revenue) * 100 : null }))
+      .sort((a, b) => b.revenue - a.revenue)
+
+    return { fromDate: fromDate ?? null, toDate: toDate ?? null, rows, totalRevenue: rows.reduce((s, r) => s + r.revenue, 0) }
+  })
+}
+
+/**
+ * SD-008 (EXTEND_EXISTING): combines cancelled sales invoices with
+ * rejected sales returns (erpSalesReturns.status='rejected', with its real
+ * reason column) into one per-customer disputed-billing view. riskFlaggedCustomerIds
+ * surfaces impl_notes' "2+ disputed documents" signal without a separate
+ * risk subsystem.
+ */
+export async function cancelledAndRejectedBillingAnalysis(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const cancelledInvoices = await db.query.erpSalesInvoices.findMany({ where: and(eq(erpSalesInvoices.orgId, ctx.orgId), eq(erpSalesInvoices.status, "cancelled")), with: { customer: true } })
+    const rejectedReturns = await db.query.erpSalesReturns.findMany({ where: and(eq(erpSalesReturns.orgId, ctx.orgId), eq(erpSalesReturns.status, "rejected")) })
+
+    const returnCustomerIds = Array.from(new Set(rejectedReturns.map((r) => r.customerId)))
+    const returnCustomers = returnCustomerIds.length ? await db.query.erpCustomers.findMany({ where: inArray(erpCustomers.id, returnCustomerIds) }) : []
+    const customerNameById = new Map(returnCustomers.map((c): [string, string] => [c.id, c.customerName]))
+
+    type DisputedItem = { type: "cancelled_invoice" | "rejected_return"; documentId: string; customerId: string; customerName: string; amount: number; reason: string | null; date: string }
+    const items: DisputedItem[] = [
+      ...cancelledInvoices.map((inv): DisputedItem => ({ type: "cancelled_invoice", documentId: inv.id, customerId: inv.customerId, customerName: inv.customer?.customerName ?? "", amount: Number(inv.grandTotal), reason: null, date: inv.postingDate })),
+      ...rejectedReturns.map((r): DisputedItem => ({ type: "rejected_return", documentId: r.id, customerId: r.customerId, customerName: customerNameById.get(r.customerId) ?? "", amount: 0, reason: r.reason, date: r.createdAt.toISOString().slice(0, 10) })),
+    ]
+
+    const byCustomer = new Map<string, { customerId: string; customerName: string; cancelledCount: number; rejectedCount: number; totalDisputedAmount: number }>()
+    for (const it of items) {
+      const existing = byCustomer.get(it.customerId)
+      if (existing) {
+        if (it.type === "cancelled_invoice") existing.cancelledCount++
+        else existing.rejectedCount++
+        existing.totalDisputedAmount += it.amount
+      } else {
+        byCustomer.set(it.customerId, {
+          customerId: it.customerId, customerName: it.customerName,
+          cancelledCount: it.type === "cancelled_invoice" ? 1 : 0, rejectedCount: it.type === "rejected_return" ? 1 : 0,
+          totalDisputedAmount: it.amount,
+        })
+      }
+    }
+
+    const rows = Array.from(byCustomer.values()).sort((a, b) => (b.cancelledCount + b.rejectedCount) - (a.cancelledCount + a.rejectedCount))
+    return { items, rows, riskFlaggedCustomerIds: rows.filter((r) => r.cancelledCount + r.rejectedCount >= 2).map((r) => r.customerId) }
+  })
 }

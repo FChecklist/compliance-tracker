@@ -32,7 +32,7 @@
 // linked projects for one erp_customers row in a single call).
 import { erpCustomers, erpQuotations, erpQuotationItems, erpSalesOrders, erpSalesOrderItems, erpSalesInvoices, erpCurrencies, crmLeads, crmOpportunities, projects, users, organisations } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, ilike, inArray, sql } from "drizzle-orm"
+import { and, eq, ilike, inArray, sql, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { requireErpEnabled } from "./erp-enablement-service"
@@ -162,11 +162,165 @@ export async function getCustomerOverview(ctx: { orgId: string }, customerId: st
     const lifetimeOutstanding = salesInvoices.reduce((sum, inv) => sum + Number(inv.outstandingAmount), 0)
     const openQuotationValue = quotations.filter((q) => !["ordered", "lost", "expired"].includes(q.status)).reduce((sum, q) => sum + Number(q.grandTotal), 0)
     const openSalesOrderValue = salesOrders.filter((so) => so.status !== "cancelled" && so.status !== "fulfilled").reduce((sum, so) => sum + Number(so.grandTotal), 0)
+    // FI-AR-007 (calculation-track engine build/extend): gap_notes flagged
+    // this function for verification against the SAP report's real ask --
+    // an open-vs-cleared items split, not just a net lifetimeOutstanding
+    // number. openInvoices below is that split (the "vendor account balance"
+    // shape mirrored to the customer side, see erp-invoicing-service.ts's
+    // vendorAccountBalanceDisplay).
+    const openInvoices = salesInvoices
+      .filter((inv) => Number(inv.outstandingAmount) > 0.01)
+      .map((inv) => ({ invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, postingDate: inv.postingDate, dueDate: inv.dueDate, grandTotal: inv.grandTotal, outstandingAmount: inv.outstandingAmount, status: inv.status }))
 
     return {
-      customer, opportunities, quotations, salesOrders, salesInvoices, linkedProjects,
+      customer, opportunities, quotations, salesOrders, salesInvoices, linkedProjects, openInvoices,
       summary: { lifetimeInvoiced, lifetimeOutstanding, openQuotationValue, openSalesOrderValue },
     }
+  })
+}
+
+// FI-AR-005 (calculation-track engine build/extend, EXTEND_EXISTING per
+// sap_mapping.sqlite): the real-time credit-limit gate at invoice-submit
+// time (submitSalesInvoice) enforces one action; this is the standalone
+// browsing/decision-support view gap_notes says doesn't exist -- open AR +
+// open (not yet billed/cancelled) sales-order value against creditLimit,
+// across every customer, so "who is near or over their limit" is answerable
+// without opening each customer one at a time.
+export type CustomerCreditExposureRow = {
+  customerId: string
+  customerName: string
+  creditLimit: number | null
+  openAR: number
+  openSalesOrderValue: number
+  totalExposure: number
+  exposurePercentOfLimit: number | null
+  overLimit: boolean
+}
+
+export async function customerCreditExposure(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const customers = await db.query.erpCustomers.findMany({ where: eq(erpCustomers.orgId, ctx.orgId) })
+    const invoices = await db.query.erpSalesInvoices.findMany({ where: and(eq(erpSalesInvoices.orgId, ctx.orgId), inArray(erpSalesInvoices.status, ["submitted", "partially_paid", "overdue"])) })
+    const orders = await db.query.erpSalesOrders.findMany({ where: and(eq(erpSalesOrders.orgId, ctx.orgId), sql`${erpSalesOrders.status} not in ('cancelled', 'fulfilled')`) })
+
+    const arByCustomer = new Map<string, number>()
+    for (const inv of invoices) arByCustomer.set(inv.customerId, (arByCustomer.get(inv.customerId) ?? 0) + Number(inv.outstandingAmount))
+    const soByCustomer = new Map<string, number>()
+    for (const so of orders) soByCustomer.set(so.customerId, (soByCustomer.get(so.customerId) ?? 0) + Number(so.grandTotal))
+
+    const rows: CustomerCreditExposureRow[] = customers
+      .map((c) => {
+        const openAR = arByCustomer.get(c.id) ?? 0
+        const openSalesOrderValue = soByCustomer.get(c.id) ?? 0
+        const totalExposure = openAR + openSalesOrderValue
+        const creditLimit = c.creditLimit != null ? Number(c.creditLimit) : null
+        return {
+          customerId: c.id, customerName: c.customerName, creditLimit, openAR, openSalesOrderValue, totalExposure,
+          exposurePercentOfLimit: creditLimit ? (totalExposure / creditLimit) * 100 : null,
+          overLimit: creditLimit != null && totalExposure > creditLimit,
+        }
+      })
+      .filter((r) => r.totalExposure > 0.01)
+      .sort((a, b) => b.totalExposure - a.totalExposure)
+
+    return { rows, topByExposure: rows.slice(0, 10) }
+  })
+}
+
+// SD-004 (calculation-track engine build/extend, EXTEND_EXISTING): both
+// erpSalesOrders.grandTotal (ordered value) and erpSalesInvoices.grandTotal
+// (billed value) exist; this is the missing project-level backlog roll-up
+// gap_notes confirmed was absent -- built at the project grain per
+// impl_notes ("construction firms think in projects, not orders"), not the
+// order grain.
+export type SalesOrderBacklogRow = {
+  projectId: string | null
+  totalOrderedValue: number
+  totalBilledValue: number
+  remainingToBill: number
+}
+
+export async function salesOrderBacklogReport(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const orders = await db.query.erpSalesOrders.findMany({ where: and(eq(erpSalesOrders.orgId, ctx.orgId), sql`${erpSalesOrders.status} != 'cancelled'`) })
+    const invoices = await db.query.erpSalesInvoices.findMany({ where: and(eq(erpSalesInvoices.orgId, ctx.orgId), sql`${erpSalesInvoices.status} != 'cancelled'`) })
+
+    const billedByProject = new Map<string, number>()
+    for (const inv of invoices) {
+      if (!inv.projectId) continue
+      billedByProject.set(inv.projectId, (billedByProject.get(inv.projectId) ?? 0) + Number(inv.grandTotal))
+    }
+
+    const byProject = new Map<string, SalesOrderBacklogRow>()
+    for (const so of orders) {
+      const key = so.projectId ?? "unassigned"
+      const existing = byProject.get(key)
+      if (existing) existing.totalOrderedValue += Number(so.grandTotal)
+      else byProject.set(key, { projectId: so.projectId, totalOrderedValue: Number(so.grandTotal), totalBilledValue: so.projectId ? billedByProject.get(so.projectId) ?? 0 : 0, remainingToBill: 0 })
+    }
+
+    const rows = Array.from(byProject.values())
+      .map((r) => ({ ...r, remainingToBill: Math.max(0, r.totalOrderedValue - r.totalBilledValue) }))
+      .sort((a, b) => b.remainingToBill - a.remainingToBill)
+
+    return { rows, totalBacklog: rows.reduce((s, r) => s + r.remainingToBill, 0) }
+  })
+}
+
+/**
+ * SD-005 (calculation-track engine build/extend, EXTEND_EXISTING):
+ * customer-level (cross-project) revenue rollup with prior-period variance
+ * -- the specific gap gap_notes named beyond construction-reports-service.ts's
+ * project-level revenueReport.
+ */
+export async function customerSalesAnalysis(ctx: { orgId: string }, fromDate: string, toDate: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const periodMs = new Date(toDate).getTime() - new Date(fromDate).getTime()
+    const priorFrom = new Date(new Date(fromDate).getTime() - periodMs - 86400000).toISOString().slice(0, 10)
+    const priorTo = new Date(new Date(fromDate).getTime() - 86400000).toISOString().slice(0, 10)
+
+    const [currentInvoices, priorInvoices, allInvoices] = await Promise.all([
+      db.query.erpSalesInvoices.findMany({ where: and(eq(erpSalesInvoices.orgId, ctx.orgId), sql`${erpSalesInvoices.status} != 'cancelled'`, gte(erpSalesInvoices.postingDate, fromDate), lte(erpSalesInvoices.postingDate, toDate)), with: { customer: true } }),
+      db.query.erpSalesInvoices.findMany({ where: and(eq(erpSalesInvoices.orgId, ctx.orgId), sql`${erpSalesInvoices.status} != 'cancelled'`, gte(erpSalesInvoices.postingDate, priorFrom), lte(erpSalesInvoices.postingDate, priorTo)) }),
+      db.query.erpSalesInvoices.findMany({ where: and(eq(erpSalesInvoices.orgId, ctx.orgId), sql`${erpSalesInvoices.status} != 'cancelled'`) }),
+    ])
+
+    const priorRevenueByCustomer = new Map<string, number>()
+    for (const inv of priorInvoices) priorRevenueByCustomer.set(inv.customerId, (priorRevenueByCustomer.get(inv.customerId) ?? 0) + Number(inv.grandTotal))
+    const lifetimeRevenueByCustomer = new Map<string, number>()
+    for (const inv of allInvoices) lifetimeRevenueByCustomer.set(inv.customerId, (lifetimeRevenueByCustomer.get(inv.customerId) ?? 0) + Number(inv.grandTotal))
+
+    const byCustomer = new Map<string, { customerId: string; customerName: string; revenue: number; invoiceCount: number; projectIds: Set<string> }>()
+    for (const inv of currentInvoices) {
+      const amount = Number(inv.grandTotal)
+      const existing = byCustomer.get(inv.customerId)
+      if (existing) {
+        existing.revenue += amount
+        existing.invoiceCount++
+        if (inv.projectId) existing.projectIds.add(inv.projectId)
+      } else {
+        byCustomer.set(inv.customerId, { customerId: inv.customerId, customerName: inv.customer?.customerName ?? "", revenue: amount, invoiceCount: 1, projectIds: new Set(inv.projectId ? [inv.projectId] : []) })
+      }
+    }
+
+    const rows = Array.from(byCustomer.values())
+      .map((c) => {
+        const priorRevenue = priorRevenueByCustomer.get(c.customerId) ?? 0
+        return {
+          customerId: c.customerId, customerName: c.customerName, revenue: c.revenue, invoiceCount: c.invoiceCount,
+          avgInvoiceValue: c.invoiceCount > 0 ? c.revenue / c.invoiceCount : 0,
+          distinctProjectCount: c.projectIds.size,
+          lifetimeRevenue: lifetimeRevenueByCustomer.get(c.customerId) ?? 0,
+          priorPeriodRevenue: priorRevenue,
+          revenueVariancePercent: priorRevenue > 0 ? ((c.revenue - priorRevenue) / priorRevenue) * 100 : null,
+        }
+      })
+      .sort((a, b) => b.revenue - a.revenue)
+
+    return { fromDate, toDate, priorFrom, priorTo, rows }
   })
 }
 
