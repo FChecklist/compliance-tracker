@@ -3,18 +3,20 @@ import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listAllProjectsForOrg, createProjectDirect, ServiceError } from "@/lib/services/product-service"
 
 export async function GET() {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ projects: [] })
 
   try {
-    const result = await listAllProjectsForOrg({ orgId })
+    const result = await listAllProjectsForOrg({ orgId }, dbUser)
     return NextResponse.json({
       projects: result.map((p) => ({
         id: p.id, name: p.name, description: p.description, clientId: p.clientId,
         issuePrefix: p.issuePrefix, issueSequence: p.issueSequence, leadUserId: p.leadUserId,
         startDate: p.startDate, targetDate: p.targetDate, healthStatus: p.healthStatus,
-        isActive: p.isActive, createdAt: p.createdAt.toISOString(),
+        isActive: p.isActive, status: p.status, accessLevel: p.accessLevel,
+        rollupPercentage: p.rollupPercentage, customTabs: p.customTabs,
+        createdAt: p.createdAt.toISOString(),
       })),
     })
   } catch (error) {

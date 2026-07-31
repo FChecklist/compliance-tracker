@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Rocket, Plus, Loader2, FolderKanban } from "lucide-react";
+import { Rocket, Plus, Loader2, FolderKanban, Lock, Globe } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Project = {
@@ -26,6 +27,9 @@ type Project = {
   description: string | null;
   issuePrefix: string | null;
   healthStatus: string | null;
+  status: string;
+  accessLevel: "private" | "public";
+  rollupPercentage: number;
 };
 
 const HEALTH_BADGE: Record<string, string> = {
@@ -33,6 +37,8 @@ const HEALTH_BADGE: Record<string, string> = {
   at_risk: "bg-amber-100 text-amber-700",
   off_track: "bg-red-100 text-red-700",
 };
+
+const PROJECT_STATUSES = ["planning", "active", "paused", "completed", "cancelled"] as const;
 
 export default function PmsHomePage() {
   const router = useRouter();
@@ -43,6 +49,9 @@ export default function PmsHomePage() {
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
   const [issuePrefix, setIssuePrefix] = useState("");
+  const [status, setStatus] = useState<typeof PROJECT_STATUSES[number]>("active");
+  const [accessLevel, setAccessLevel] = useState<"private" | "public">("public");
+  const [customTabsInput, setCustomTabsInput] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -71,10 +80,15 @@ export default function PmsHomePage() {
     if (!name.trim()) return;
     setCreating(true);
     try {
+      const customTabs = customTabsInput
+        .split(",")
+        .map((label) => label.trim())
+        .filter(Boolean)
+        .map((label) => ({ id: label.toLowerCase().replace(/[^a-z0-9]+/g, "-"), label }));
       const res = await fetch("/api/projects", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, issuePrefix }),
+        body: JSON.stringify({ name, issuePrefix, status, accessLevel, customTabs }),
       });
       if (!res.ok) throw new Error();
       const project = await res.json();
@@ -82,6 +96,9 @@ export default function PmsHomePage() {
       setOpen(false);
       setName("");
       setIssuePrefix("");
+      setStatus("active");
+      setAccessLevel("public");
+      setCustomTabsInput("");
       router.push(`/pms/${project.id}/issues`);
     } catch {
       toast.error("Failed to create project");
@@ -145,6 +162,34 @@ export default function PmsHomePage() {
                 <Input value={issuePrefix} onChange={(e) => setIssuePrefix(e.target.value.toUpperCase())} placeholder="ENG" maxLength={10} />
                 <p className="text-[11px] text-ct-muted">e.g. issues become ENG-1, ENG-2...</p>
               </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-ct-muted uppercase">Status</Label>
+                  <Select value={status} onValueChange={(v) => setStatus(v as typeof PROJECT_STATUSES[number])}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {PROJECT_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-ct-muted uppercase">Access</Label>
+                  <Select value={accessLevel} onValueChange={(v) => setAccessLevel(v as "private" | "public")}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="public">Public -- any org member</SelectItem>
+                      <SelectItem value="private">Private -- lead + admins only</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold text-ct-muted uppercase">Custom Tabs</Label>
+                <Input value={customTabsInput} onChange={(e) => setCustomTabsInput(e.target.value)} placeholder="Client Portal, Design Files" />
+                <p className="text-[11px] text-ct-muted">Optional, comma-separated extra tab names for this project.</p>
+              </div>
             </div>
             <DialogFooter>
               <Button onClick={createProject} disabled={creating || !name.trim()} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white">
@@ -173,6 +218,11 @@ export default function PmsHomePage() {
                     <span className="flex items-center gap-2">
                       <FolderKanban className="size-4 text-ct-teal" />
                       {p.name}
+                      {p.accessLevel === "private" ? (
+                        <Lock className="size-3 text-ct-muted" aria-label="Private project" />
+                      ) : (
+                        <Globe className="size-3 text-ct-muted" aria-label="Public project" />
+                      )}
                     </span>
                     {p.healthStatus && (
                       <span className={`text-[10px] px-2 py-0.5 rounded-full font-medium ${HEALTH_BADGE[p.healthStatus] ?? "bg-ct-cloud text-ct-muted"}`}>
@@ -184,6 +234,12 @@ export default function PmsHomePage() {
                 <CardContent>
                   {p.issuePrefix && <p className="text-xs text-ct-muted font-mono">{p.issuePrefix}-*</p>}
                   {p.description && <p className="text-sm text-ct-slate mt-1">{p.description}</p>}
+                  <div className="mt-2 flex items-center gap-2">
+                    <div className="flex-1 h-1.5 rounded-full bg-ct-cloud overflow-hidden">
+                      <div className="h-full bg-ct-teal" style={{ width: `${p.rollupPercentage}%` }} />
+                    </div>
+                    <span className="text-[10px] text-ct-muted font-mono">{p.rollupPercentage}%</span>
+                  </div>
                 </CardContent>
               </Card>
             </Link>
