@@ -40,6 +40,22 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-044026-pm--teams---project-groups-templates) -- Task #47 PM gap: generic PM Teams grouping + Project Groups/Templates"
+    claimed_at: "2026-07-31T04:40Z"
+    claim: |
+      Building genuinely new, generic pmTeams (decoupled from helpdesk
+      ticket_teams -- reading it only as a reference shape, not extending
+      it), projectGroups, and projectTemplates constructs per the
+      finalized PM gap analysis. New Drizzle migration starting at 0302
+      (highest existing as of this claim: 0301_construction_prevailing_wage_rates.sql,
+      confirmed via drizzle/meta/_journal.json + ls drizzle/*.sql against
+      freshly-fetched origin/main). Scope: schema.ts additions, migration
+      SQL, service-layer CRUD (teams/groups/templates), tests including a
+      real template-clone-produces-real-structure test. Out of scope:
+      pms_issues columns, Automation Rules, other Project columns
+      (status/access/rollup -- see sibling worktree
+      feat/pms-rollup-completion-task47 for that separate slice of "Task
+      #47"), user types, social feed.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
