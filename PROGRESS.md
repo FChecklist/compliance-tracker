@@ -54,10 +54,33 @@
       Type Check, Build, Unit Tests, E2E, Guardrail Presence, Asset Registry/Metadata/Doc/Terminology/Secret
       Scanning checks) passed clean.
 
+- [x] Confirmed CI fully resolved on the new head (`fdf85095`): `gh pr checks 655 | grep -c fail` == 1, and that
+      1 remaining failure is `audit-check` only -- Vercel now passes too. All required checks green (Lint, Type
+      Check, Build 1m51s, Unit Tests, E2E, Analyze, Guardrail Presence, Asset Registry/Metadata/Doc/Terminology/
+      Secret Scanning). Success criteria met: `mergeable` == `MERGEABLE`, and the sole non-passing check is the
+      one this task's own CONSTRAINTS explicitly forbid fixing (posting a fresh audit verdict).
+- [x] Appended a line to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md`'s Workstream A CRM-007 row with
+      current real state + the migration number actually used (0302, journal idx 279).
+- [x] **Local harness `quality-gate.sh`'s `build` gate timed out twice (exit 124 after 900s), GATE_FAIL raised.**
+      Investigated rather than retried blindly (2 identical failures already logged in `worker.log` before this
+      notification -- retrying a 3rd time unchanged would violate this task's own circuit-breaker instruction).
+      Root cause confirmed environmental, not a code defect: `uptime` showed load average 60.92 on an 8-core
+      box, `free -h` showed swap 100% exhausted (4.0Gi/4.0Gi) at the time of the gate run -- this shared server
+      is running many other concurrent task workers' own Turbopack builds simultaneously (see
+      `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md`'s own log of 8-9 parallel `veridian-worker@*` units).
+      The gate's own error message independently corroborates this is a known, pre-existing, recurring class of
+      failure, citing a prior RCA (`task-20260727-043407`) for the exact same timeout pattern. Decisive evidence
+      this is not a defect in this task's diff: GitHub's real remote CI `Build` check, running the identical
+      commit (`fdf85095`) on GitHub's own (non-contended) runners, passed clean in 1m51s. Per this task's own
+      protocol ("STOP, do not attempt a 3rd time" on 2nd consecutive identical failure) and given the real,
+      authoritative CI gate for this repo (GitHub Actions, per AGENTS.md Rule 6) is fully green modulo the
+      explicitly out-of-scope audit verdict, **not attempting a 3rd local build run** -- the task's actual
+      objective (PR #655 rebased, renumbered, CI-green, mergeable, ready for a fresh audit) is complete and
+      verified against the real remote gate, independent of this local sandbox's current resource contention.
+
 ## Remaining
-- [ ] Confirm CI is green on the new head (`fdf85095`) modulo the same 2 expected-excluded checks
-      (Vercel rate-limit, audit-check awaiting a fresh independent auditor -- not this task's job to post)
-- [ ] Append a line to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md`'s Workstream A section per
-      EXPECTED_OUTPUT
+- [ ] None for this task's own scope. PR #655 is rebased twice, renumbered off both real collisions, pushed
+      (`fdf85095`), `mergeable: MERGEABLE`, and CI-green except the one check (`audit-check`) this task is
+      explicitly constrained not to resolve itself -- ready for a fresh independent audit, per EXPECTED_OUTPUT.
 - [ ] Did NOT merge, did NOT post an AUDIT verdict, did NOT touch #654 or any other PR -- all correctly out of
       scope per this task's spec
