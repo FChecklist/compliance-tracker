@@ -220,8 +220,61 @@ which was already confirmed green above) both timing out at the plain
       concurrent worker task, not part of any PR, so there is nothing to
       commit/push for this specific edit; it takes effect on the next
       `quality-gate.sh` invocation by any task.
-- [ ] Re-running `quality-gate.sh` against this exact workspace in the
-      background (`/tmp/qg-retest-652.json`, `/tmp/qg-retest-652.log`) to
-      confirm lint/build now pass under the fix rather than assuming it
-      from code review alone. Will check the result before considering
-      this GATE_FAIL resolved.
+- [x] Re-ran `quality-gate.sh` against this exact workspace
+      (`/tmp/qg-retest-652.json`/`.log`, 2026-07-31 ~07:55 UTC): **still
+      failed** -- `{"lint":{"passed":false,"exit_code":1,"output_tail":""},
+      "build":{"passed":false,"exit_code":1,"output_tail":""}}`. Exit code
+      1 (not 124/137) with a completely empty log ruled out the outer
+      `timeout` and pointed somewhere else.
+
+## GATE_FAIL attempt=2/2 (2026-07-31 ~08:1x UTC) -- found the real bug invocation-1's fix missed, not a retry
+
+- [x] Reproduced the exact failure shape live instead of guessing from the
+      json alone: ran the same `flock -w 700 $LOCK -c '$PKG_MGR run lint'`
+      command by hand. `lsof` on `/tmp/veridian-quality-gate-build.lock`
+      showed it already held by an **unrelated concurrent task's** eslint
+      process (`task-20260731-044756-independent-audit-of-pr-647`, PID
+      3263928) -- confirms the lock is genuinely working as designed
+      (host-wide serialization across every task, not just this one).
+      `uptime` showed load average **301** on an 8-core box (`nproc`=8,
+      i.e. ~37x oversubscribed), `free -h` showed 148Mi free RAM with swap
+      100% exhausted. Watched that PID directly (`/proc/<pid>/stat`
+      utime/stime frozen at 0 across a 5s sample, `wchan=do_wait` on the
+      parent `bun` shim, its real child `eslint` at only ~10% CPU despite
+      being runnable) -- genuinely CPU-starved by host-wide contention, not
+      hung. It held the lock for **>700s** before finishing.
+- [x] Root cause identified: invocation 1's fix only widened `run_gate`'s
+      **outer** `timeout` (to lock-wait(700s) + budget(900s) + margin) but
+      left `flock`'s own **independent** `-w 700` wait-cap untouched.
+      `flock -w N` fails with exit 1 (confirmed via `man flock`) the
+      instant N seconds pass without acquiring the lock -- a completely
+      separate clock from run_gate's outer timeout, and it fires first
+      whenever any holder keeps the lock past 700s, which is now routine
+      at load-301. This is exactly why the retest showed exit 1 (not
+      124/137, which would mean the outer timeout fired) with zero
+      captured output (flock never got far enough to invoke `$PKG_MGR` at
+      all). Not the same bug as invocation 1 -- that one was outer-timeout
+      arithmetic; this one is a second, never-touched inner timeout that
+      the arithmetic fix didn't reach.
+- [x] Fixed by collapsing the two independently-tuned clocks into one:
+      removed `flock`'s own `-w 700` (bare `flock` with no `-w`/`-E` blocks
+      indefinitely for the lock rather than failing early) so the existing
+      outer `timeout` in `run_gate` -- which already wraps the whole
+      `flock ... -c '...'` invocation -- becomes the single authority over
+      total wall-clock time (queue wait + execution combined). Sized
+      `NODE_GATE_TIMEOUT` to 3600s (1 hour) given observed real hold times
+      already exceed the old 700s+900s combined budget under load-301.
+      Confirmed safe against the watchdog: `worker-entrypoint.sh`'s own
+      comments (~line 290) confirm the quality-gate+auto-fix loop is
+      explicitly unbounded and covered by a periodic-checkpoint heartbeat
+      independent of the gate's own runtime, specifically so a long gate
+      phase isn't misdiagnosed as a stall (RCA task-20260726-175009) --
+      widening this timeout doesn't risk tripping that. `bash -n
+      quality-gate.sh` confirms it still parses. Applied to lint/build/test
+      identically (all three use the same lock+timeout pair).
+      `/opt/veridian/scripts` is still not a git repo -- nothing to
+      commit/push for this edit; takes effect on the next invocation by any
+      task, same as invocation 1's fix.
+- [ ] Re-running `quality-gate.sh` against this workspace again to confirm
+      lint/build pass under the real fix, rather than assuming success from
+      code review alone.
