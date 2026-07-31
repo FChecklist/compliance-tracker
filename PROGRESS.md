@@ -15,3 +15,15 @@
 - [ ] BLOCKED: Cannot proceed to diff/test analysis or post a verdict comment until the owner provides a
       distinct GitHub identity/token for the auditor, or explicitly waives this constraint for this PR.
 - [ ] No comment has been posted to PR #661 (per instructions: halt instead of issuing a verdict).
+
+## Re-verification (invocation 2/20, 2026-07-31)
+- Re-checked independently (not trusted from checkpoint alone): `gh auth status` / `gh api user` still
+  return `FChecklist` (id `49814285`) as this session's identity — unchanged from invocation 1.
+- PR #661 now has 5 commits (`b9f7406c`, `ec2758ce`, `72d9b6ad`, `fa9917bd`, `aeddb4fa`); primary author on
+  every commit is still `FChecklist` (three are additionally co-authored `claude` via a commit-trailer, not
+  a separate GitHub account posting under its own login).
+- PR #661 now has 3 comments (was 0 at last checkpoint): 1 automated `vercel` bot comment, and 2 `FChecklist`
+  comments titled "Terminology Guardrail Check fix" / "...correction/supersedes the previous comment" — i.e.
+  the PR author is still actively iterating on this PR. **No `AUDIT: PASS`/`AUDIT: FAIL` comment exists.**
+- Conclusion: the identity conflict is unchanged. Halt stands. No verdict comment posted this invocation
+  either, per the same constraint. No branch/repo writes made beyond this PROGRESS.md update.
