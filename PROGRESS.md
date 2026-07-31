@@ -63,5 +63,11 @@
       unit test suite (17/17). Per the circuit-breaker instruction, NOT attempting a 3rd identical
       build/lint retry -- it would not produce a different outcome and the RCA precedent already
       classifies fixing the underlying hang as out-of-scope for a feature task.
-- [ ] Commit + push, open PR (do not merge, do not self-audit)
+- [x] Commit + push, open PR (do not merge, do not self-audit): PR #668. **Caught a real bug in my
+      own process here**: the initial PR only contained `PROGRESS.md`/`ACTIVE-CLAIMS.yaml` -- the
+      actual feature diff (`schema.ts`, `crm-campaigns-service.ts`, the migration, the journal
+      entry, and the test file) had been sitting uncommitted in the working tree since an earlier
+      session and was never committed. Fixed by committing+pushing it as a follow-up commit
+      (`841c5d29`) before reporting done; verified via `gh pr view 668 --json files` that all 5
+      code files are now actually in the PR diff.
 
