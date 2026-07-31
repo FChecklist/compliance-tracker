@@ -1,3 +1,44 @@
+# PROGRESS -- task-20260731-042714-rebase-pr-604--tet-engine--clean
+
+## Completed
+- [x] Read governance docs (CLAUDE.md/AGENTS.md/CONSTITUTION.yaml), checked
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no active claim touches PR #604,
+      `task_execution_traces`, or `tet-shield-gate.ts`.
+- [x] Confirmed PR #604 is real, substantive work (new
+      `compliance.task_execution_traces` table, `task-execution-trace-service.ts`,
+      `tet-shield-gate.ts` reusing the existing 4-layer `src/lib/prompt-security/`
+      module, 3 real tests) -- not a stub.
+- [x] Confirmed NOT superseded: `grep -rn "task_execution_trace" src/ drizzle/`
+      on fresh `origin/main` (11db691a) returns zero hits.
+- [x] Confirmed migration number collision: `drizzle/0268_task_execution_traces.sql`
+      collides with `drizzle/0268_pms_time_entry_approval_flow.sql`, already
+      merged to main (PR #613). Current main's highest migration number is
+      301 (`0301_construction_prevailing_wage_rates.sql`) -- renumbering
+      PR #604's migration to `0302`.
+- [x] Confirmed the PR body's PROGRESS.md-recovery claim is now STALE: PR #604
+      recovered history from commit `896d7a3f`, but current main's
+      `PROGRESS.md` already has substantial, more-recent history (SD-002/
+      SD-007 workflow engines PR #629, phase-5 browser execution PR #616,
+      design-studio-timesheets PR #613, BoQ importer fix, sd-007-sales-order-
+      document-flow-overview) that postdates that recovery. Rebasing must
+      keep current main's real history, not reintroduce the older recovered
+      snapshot.
+- [x] Fixed this workspace's own `PROGRESS.md` -- the task-init checkpoint had
+      wiped it down to an empty per-task stub (the exact same accidental-
+      revert bug class PR #604's body describes), overwriting HEAD's real
+      accumulated history. Restored HEAD's content with this section
+      prepended, rather than perpetuating the bug in this task's own commit.
+
+## Remaining
+- [ ] Rebase PR #604's branch onto current `origin/main`, renumbering the
+      migration to `0302`, resolving `PROGRESS.md`/`ACTIVE-CLAIMS.yaml`
+      conflicts by keeping main's current history and prepending PR #604's
+      own section.
+- [ ] Push and confirm CI green / `mergeable: MERGEABLE`.
+- [ ] Append outcome line to `KERNEL_CONSOLIDATION_STATUS.md` Workstream D.
+
+---
+
 # PROGRESS -- task-20260729-112447-build-extend-workflow-track-engines
 
 ## Completed
