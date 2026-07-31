@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-044016-pm--automation-rules-chaining) -- Task #47 PM feature-parity: Automation Rules engine chaining + multi-condition + expanded triggers"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Building the Automation Rules item flagged in Task #47's finalized gap
+      analysis (KERNEL_CONSOLIDATION_STATUS.md ~15:10 UTC 2026-07-30 update):
+      "Workflow Rules engine confirmed genuinely deterministic already --
+      zero LLM calls found -- but narrow: only 2 action types,
+      single-condition matching, no rule chaining, only 6 real trigger call
+      sites vs the reference's 8 event types." No other active claim in this
+      file references automation_rules/automation-rule-service.ts as of this
+      timestamp (checked before starting).
+
+      Scope: src/lib/services/automation-rule-service.ts (rule chaining via
+      a new `trigger_rule` action type + real cycle-detection, AND/OR
+      multi-condition matching, replacing the single-condition
+      `conditionsMatch`), + its new .test.ts. Read the real trigger catalog
+      first (grepped every `evaluateAndRunRules(` call site, not the stale
+      2-item UI dropdown in automation/page.tsx) -- confirmed exactly 6 real
+      call sites (notice.status_changed, pms_issue.status_changed,
+      construction_expense.budget_exceeded,
+      construction_attendance.worker_absent,
+      construction_boq.variation_on_completed_scope,
+      construction_work_progress.completed). Adding 2 new call sites for the
+      2 reference categories (Zoho WorkflowRule's Create/Edit/Delete/
+      StatusChange/DueDate/Assignment/Comment/Time-based catalog, per
+      KERNEL_CONSOLIDATION_STATUS.md's own Task #47 registration note) with
+      zero existing representation: Assignment (pms_issue.assigned, wired
+      into pms-issue-service.ts's updateIssue()) and Time-based/DueDate
+      (pms_issue.due_soon, a new checkPmsIssuesDueSoon() wired into the
+      existing /api/internal/metric-alerts/run cron consumer -- same reuse
+      pattern as checkTaskOverdue/checkTicketSlaBreaches, no new scheduler
+      infra). No schema/migration needed anywhere in this task --
+      automation_rules.triggerType/actionType are both plain `text` columns
+      with app-level (not DB CHECK) validation, confirmed via
+      drizzle/0023_wave29_31_kb_automation_reports.sql.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
