@@ -55,17 +55,32 @@
       (`worker/task-20260730-041950-build-extend-calculation-track-engines`) -- same PR, not a new one.
       `gh pr view 643` now shows `mergeable: MERGEABLE` (was `CONFLICTING`/`dirty` before this push).
 
+## Completed (cont'd)
+- [x] CI on PR #643 re-checked after resume: all real required checks (Lint, Type Check, Build, Unit Tests,
+      Guardrail Presence Check, Analyze, Asset Registry/Doc/Terminology/Security Pattern checks) pass. Only
+      `Vercel` fails, and only with the known pre-existing account-level "Deployment rate limited" flake
+      (not one of AGENTS.md Rule 6's named required checks) -- unrelated to this diff.
+- [x] `audit-check` / AGENTS.md Rule 10 mandatory independent auditor: dispatched a fresh subagent (no
+      memory of this session's own work) to independently re-derive every claim from primary sources --
+      it re-ran `git diff origin/main...HEAD --stat`, grepped all 4 kept function names against `origin/main`
+      and all 31 open PRs (zero hits, confirming novelty), independently confirmed via `gh pr view` that
+      PRs #645/#648/#651 are merged with equivalent-or-fuller implementations of the 4 dropped functions,
+      and confirmed PR #647 (open) has a fuller FI-GL-007 implementation than what was dropped. It could not
+      get a clean independent `tsc`/`bun test` run itself (same sandbox `SQLITE_BUSY` contention noted
+      elsewhere in this session) and disclosed that honestly in its audit rather than fabricating a result,
+      relying instead on this session's own already-recorded clean run plus the passing CI Type
+      Check/Unit Tests jobs as corroborating evidence. It flagged the pre-existing lack of test coverage on
+      the 4 kept functions as informational/non-blocking (same conclusion this session already reached).
+      Posted the required structured 8-field `AUDIT: PASS` comment:
+      https://github.com/FChecklist/compliance-tracker/pull/643#issuecomment-5142918434
+
 ## Remaining
-- [ ] CI on PR #643: checks kicked off on push, currently pending (`gh pr checks 643`). One pre-existing
-      unrelated flake: `Vercel` deploy preview shows `fail` -- "Deployment rate limited" (Vercel account-level
-      build-rate-limit, nothing to do with this diff; not one of AGENTS.md Rule 6's named required checks
-      Lint/Type Check/Build/Unit Tests). Watching the real required checks (Lint, Type Check, Unit Tests,
-      Guardrail Presence, audit-check, etc.) to green before merge.
-- [ ] `audit-check` per AGENTS.md Rule 10: this session both implemented and would be merging -- needs the
-      mandatory independent-auditor comment (`AUDIT: PASS`/`AUDIT: FAIL`) per Rule 7(c)/Rule 10 before this
-      can merge; do not self-certify.
-- [ ] CI + merge on PR #643 (per AGENTS.md Rule 6, no self-merge without CI green; per Rule 10, no merge
-      without the audit-check gate satisfied).
+- [ ] Confirm the `audit-check` CI job itself now reads that comment and reports green (it validates the
+      structured fields via `scripts/validate-audit-verdict.ts`) -- was mid-check when this step was written
+      (background command, sandbox slow per above).
+- [ ] Merge PR #643 once `audit-check` shows green (per AGENTS.md Rule 6, no self-merge without CI green;
+      per Rule 10, no merge without the audit-check gate satisfied). Vercel's rate-limit fail is not a
+      Rule-6-named required check and should not block merge.
 - [ ] Once merged: move this task's + the superseded `task-20260730-041950` ACTIVE-CLAIMS.yaml entries to
       `recently_completed`.
 - [ ] Not this task's job, left for whoever owns it: PR #647 (FI-GL-007) is still open/blocked -- its own
