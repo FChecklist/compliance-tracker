@@ -28,9 +28,36 @@
 - [x] CI checks running post-push; monitoring for green (success criterion #2: `gh pr checks 655 | grep -c fail`
       == 0)
 
+- [x] On resume (invocation 2), found `origin/main` had moved again in the interim (PR #639, Stage 12
+      dispatch-outcomes memory, merged and added a genuinely new journal idx-278 entry
+      `0300_stage12_dispatch_outcomes`) -- this collided with PR #655's own idx-278 entry
+      (`0302_crm007_sales_rep_performance_report_definition`) from the first rebase. Confirmed via
+      `git cat-file -p <ref>:drizzle/meta/_journal.json` on both `origin/main` and the PR branch (had to bypass
+      `git show | python3` which was truncating output for unrelated reasons -- `git cat-file -p` direct
+      redirect confirmed the real duplicate idx). This is the same collision class the task exists to fix,
+      recurring because the fleet kept merging PRs during this task's own idle/rerun window -- not a mistake
+      in the first rebase.
+- [x] Re-rebased `crm-007-sales-rep-performance-dashboard` onto the new `origin/main` tip (`11db691a`); resolved
+      the one real conflict (`_journal.json`) by keeping main's idx-278 entry as-is and appending PR #655's
+      migration as a new idx-279 entry (tag unchanged, `0302_crm007_sales_rep_performance_report_definition`,
+      since 0302 is still free among actual migration files on `origin/main` right now). Verified journal
+      idx values are sequential 0..279 with no gaps/dupes, and `node scripts/check-migration-collision.mjs`
+      passes clean. Pushed: `git push --force-with-lease origin crm-007-sales-rep-performance-dashboard`
+      (8b0ca178 -> fdf85095).
+- [x] Re-confirmed `gh pr view 655 --json mergeable` -> `MERGEABLE` on the new head; CI re-running.
+- [x] Checked `gh pr checks 655` on the pre-second-rebase head: only 2 failures, both expected/out of scope --
+      `Vercel` (external `build-rate-limit`, non-blocking, excluded per this repo's own established precedent)
+      and `audit-check` (picking up the PR's pre-existing, pre-rebase `AUDIT: FAIL` comments from
+      2026-07-30T11:25/11:27Z -- confirmed via comment timestamps vs. push timestamps that these predate this
+      task's work and are the exact stale verdict this task exists to get past, not a new failure; posting a
+      fresh verdict is explicitly out of scope per this task's own CONSTRAINTS). All substantive checks (Lint,
+      Type Check, Build, Unit Tests, E2E, Guardrail Presence, Asset Registry/Metadata/Doc/Terminology/Secret
+      Scanning checks) passed clean.
+
 ## Remaining
-- [ ] Confirm all required CI checks finish green (non-blocking checks like Vercel preview / CodeQL excluded
-      per this repo's own established precedent, same as the original audit's own note)
-- [ ] Final PROGRESS.md/KERNEL_CONSOLIDATION_STATUS.md update once CI is confirmed green
+- [ ] Confirm CI is green on the new head (`fdf85095`) modulo the same 2 expected-excluded checks
+      (Vercel rate-limit, audit-check awaiting a fresh independent auditor -- not this task's job to post)
+- [ ] Append a line to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md`'s Workstream A section per
+      EXPECTED_OUTPUT
 - [ ] Did NOT merge, did NOT post an AUDIT verdict, did NOT touch #654 or any other PR -- all correctly out of
       scope per this task's spec
