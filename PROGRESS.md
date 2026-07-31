@@ -43,8 +43,41 @@
       committed+pushed there (279d558, repo veridian-ai-os,
       branch pre-workflow-main)
 
+- [x] Moved this session's ACTIVE-CLAIMS.yaml entry to recently_completed
+      (see entry at ai-os/boss/ACTIVE-CLAIMS.yaml:3960)
+
+## GATE_FAIL investigation (attempt 2/2, 2026-07-31T13:37Z)
+Quality gate failed twice on this task's PR: quality-gate-0.json =
+lint pass / build TIMED OUT (124, 3600s); quality-gate-1.json = BOTH lint
+and build TIMED OUT (124, 3600s). Investigated rather than blind-retrying:
+- [x] Confirmed this task's entire committed diff to this repo is 2 files
+      only (`PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) -- zero source
+      code changed (`git diff --name-only b02399f2^..e9caf63c`). A diff with
+      no code cannot itself cause `bun run lint`/`bun run build` to hang.
+- [x] Read `scripts/quality-gate.sh` in full: its own inline RCA history
+      (task-20260727-043407, task-20260730-183017,
+      task-20260730-183100-rebase-pr-652--sd-006) already documents this
+      exact failure mode at length -- host-wide RAM/swap exhaustion from
+      many concurrent `veridian-worker@` units each running their own
+      `next build`/`eslint` at once, serialized today via a shared flock +
+      single 3600s outer timeout, still not always enough under peak load.
+- [x] Confirmed LIVE at investigation time: `uptime` = load average
+      32-33 (many-fold oversubscribed), `free -h` = 13Gi/15Gi RAM used,
+      swap 4.0Gi/4.0Gi (100%) exhausted, multiple concurrent `node`/`claude`
+      build-shaped processes in `ps aux` -- matches the documented root
+      cause exactly, live, not just historically.
+- [x] Conclusion: this GATE_FAIL is the same known, already-being-worked
+      host-wide build-contention issue, not a defect this task introduced
+      or can fix from within its own diff/scope. Editing `quality-gate.sh`
+      further would duplicate the 3 RCA tasks already actively iterating on
+      it today and is outside this task's own scope (systemd memory
+      limits, already complete).
+- [x] Per this task's own protocol (2nd consecutive failure of the
+      identical approach -> stop, do not attempt a 3rd time): stopping
+      here rather than re-running lint/build against an unrelated,
+      already-tracked infra flake. No further auto-fix attempt made.
+
 ## Remaining
-- [ ] Move this session's ACTIVE-CLAIMS.yaml entry to recently_completed
 - [ ] Final report table to user
 - [ ] Flag the stale resource-governor EMERGENCY_STOP lock to the Owner as a
       separate, unresolved finding (not fixed by this task)
