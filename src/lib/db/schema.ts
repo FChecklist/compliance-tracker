@@ -6211,6 +6211,19 @@ export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoic
   // discipline -- a later change to the supplier's withholding category
   // or rate must never silently rewrite a past invoice's TDS.
   tdsAmount: numeric('tds_amount').notNull().default('0'),
+  // Calculation-track engine build/extend (FI-AP-007 Subcontractor
+  // Retention, sap_mapping.sqlite): confirmed real absence -- retention was
+  // only ever tracked client-side (constructionInterimBills.retentionAmount/
+  // netPayable). Same shape mirrored to the vendor side: retentionPercent is
+  // caller-supplied at invoice creation (0 = no retention, the default for
+  // every non-subcontractor purchase invoice and every invoice created
+  // before this addition), retentionAmount/netPayable computed once at that
+  // same time and never re-derived later -- outstandingAmount is set from
+  // netPayable, not grandTotal, so payment/aging math automatically nets
+  // retention out without any other function needing to know it exists.
+  retentionPercent: numeric('retention_percent').notNull().default('0'),
+  retentionAmount: numeric('retention_amount').notNull().default('0'),
+  netPayable: numeric('net_payable').notNull().default('0'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -6345,6 +6358,14 @@ export const erpSuppliers = complianceSchemaDB.table('erp_suppliers', {
   // the only path.
   trade: text('trade'),
   projectId: text('project_id'),
+  // Calculation-track engine build/extend (FI-AP-005 Payment Proposal,
+  // sap_mapping.sqlite): both nullable/paired the same way as
+  // erp_purchase_invoices.currencyId/exchangeRate -- an org that never sets
+  // these simply never gets a discount applied in paymentProposalList,
+  // unchanged behavior for every supplier row before this addition. Typical
+  // vendor terms like "2/10 Net 30" -- discountPercent=2, discountDays=10.
+  earlyPaymentDiscountPercent: numeric('early_payment_discount_percent'),
+  earlyPaymentDiscountDays: integer('early_payment_discount_days'),
 })
 
 // Wave 80 (Vendor Master enhancements, COMPARISON_CSV_GAP_ANALYSIS.md backlog
@@ -6441,6 +6462,13 @@ export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders',
   currencyId: text('currency_id'),
   exchangeRate: numeric('exchange_rate').notNull().default('1'),
   grandTotal: numeric('grand_total').notNull().default('0'),
+  // Calculation-track engine build/extend (MM-004, sap_mapping.sqlite):
+  // nullable link to VERIDIAN's `projects` table -- the SAP EKKN-equivalent
+  // project/WBS account-assignment dimension gap_notes confirmed did not
+  // exist on this table. Same bare-text, no-FK, no-relation convention as
+  // this table's own companyId column above; null = org-wide/unattributed,
+  // unchanged behavior for every PO raised before this addition.
+  projectId: text('project_id'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),

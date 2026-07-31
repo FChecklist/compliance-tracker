@@ -20,7 +20,7 @@ import {
   erpPricingRules, erpItems, erpCustomers, erpSuppliers, erpAccounts, erpCurrencies, erpCompanies,
   erpSalesInvoices, erpSalesInvoiceItems, erpPurchaseInvoices, erpPurchaseInvoiceItems,
   erpTaxTemplates, erpTaxTemplateItems, erpJournalEntries, erpJournalEntryLines,
-  erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders,
+  erpTaxWithholdingCategories, erpTaxWithholdingRates, erpSalesOrders, erpPaymentEntries, erpSupplierBankAccounts,
   users, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -469,10 +469,21 @@ export async function listPurchaseInvoices(ctx: { orgId: string }) {
 // every invoice created before this wave. Linking them is what lets
 // erp-goods-receipt-service.ts's getThreeWayMatchReport compare this
 // invoice's lines against the same PO's receipt lines.
-export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; purchaseOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; items: PurchaseInvoiceItemInput[] }) {
+// FI-AP-007 (calculation-track engine build/extend, Subcontractor
+// Retention): retentionPercent is optional and defaults to 0 -- unchanged
+// behavior for every material-supplier invoice and every call site that
+// predates this addition. When set (subcontractor invoices), retentionAmount/
+// netPayable are computed once here and never re-derived. Deliberately
+// informational only: outstandingAmount/GL posting below are still driven
+// by the full grandTotal (unchanged), so subledgerReconciliationToGl and the
+// existing payment/aging lifecycle keep meaning exactly what they meant
+// before -- retention release is a real, separate feature left for a
+// follow-up (see subcontractorRetentionSummary's own comment).
+export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId: string; purchaseOrderId?: string; postingDate: string; dueDate?: string; currencyId?: string; exchangeRate?: number; companyId?: string; retentionPercent?: number; items: PurchaseInvoiceItemInput[] }) {
   await requireErpEnabled(ctx.orgId)
   if (!input.supplierId) throw new ServiceError("supplierId is required", 400)
   if (!input.items?.length) throw new ServiceError("At least one line item is required", 400)
+  if (input.retentionPercent != null && (input.retentionPercent < 0 || input.retentionPercent > 100)) throw new ServiceError("retentionPercent must be between 0 and 100", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, input.supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
@@ -486,12 +497,16 @@ export async function createPurchaseInvoice(ctx: ErpContext, input: { supplierId
       resolvedItems.push({ ...item, quantity: item.quantity ?? 1, hsnSacCode })
     }
     const { subtotal, taxAmount, grandTotal } = await computeInvoiceTotals(db, resolvedItems)
+    const retentionPercent = input.retentionPercent ?? 0
+    const retentionAmount = grandTotal * (retentionPercent / 100)
+    const netPayable = grandTotal - retentionAmount
     const [{ maxNumber }] = await db.select({ maxNumber: sql<number>`coalesce(max(${erpPurchaseInvoices.invoiceNumber}), 0)` }).from(erpPurchaseInvoices).where(eq(erpPurchaseInvoices.orgId, ctx.orgId))
 
     const [invoice] = await db.insert(erpPurchaseInvoices).values({
       orgId: ctx.orgId, supplierId: input.supplierId, purchaseOrderId: input.purchaseOrderId, invoiceNumber: Number(maxNumber) + 1,
       postingDate: input.postingDate, dueDate: input.dueDate, currencyId, exchangeRate: exchangeRate.toString(), companyId,
       subtotal: subtotal.toString(), taxAmount: taxAmount.toString(), grandTotal: grandTotal.toString(), outstandingAmount: grandTotal.toString(),
+      retentionPercent: retentionPercent.toString(), retentionAmount: retentionAmount.toString(), netPayable: netPayable.toString(),
       createdById: ctx.userId,
     }).returning()
 
@@ -563,6 +578,287 @@ export async function submitPurchaseInvoice(ctx: ErpContext, invoiceId: string, 
     const [updated] = await db.update(erpPurchaseInvoices).set({ status: "submitted", journalEntryId: je.id, tdsAmount: tdsAmount.toString() }).where(eq(erpPurchaseInvoices.id, invoiceId)).returning()
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_invoice.submitted", entityType: "erp_purchase_invoice", entityId: invoiceId })
     return updated
+  })
+}
+
+// ============================================================
+// AP Reports (calculation-track engine build/extend, Group 2 -- FI-AP-001
+// through FI-AP-007 per sap_mapping.sqlite). Mirror the AR-side reports
+// below (arAgingReport etc) wherever a real AR equivalent already
+// established the pattern; each function's own comment says which.
+// ============================================================
+
+export type VendorLineItemFilters = { supplierIds?: string[]; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+// FI-AP-001 (BUILD_NEW-shaped despite EXTEND_EXISTING status -- no existing
+// function combined these): a real FBL1N-style vendor line item view, built
+// from the two document types that actually make up a vendor's open/cleared
+// items in this schema -- purchase invoices (the "invoice" line) and
+// approved payment entries (the "clearing" line), exactly mirroring how
+// erp-payment-entries-service.ts's decidePaymentEntry already links the two
+// via invoiceId. Partial clearing falls straight out of this: an invoice
+// with outstandingAmount > 0 but < grandTotal already has one or more
+// approved payments applied against it.
+export async function listVendorLineItems(ctx: { orgId: string }, filters: VendorLineItemFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoiceConditions = [eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "paid", "overdue"])]
+    if (filters.supplierIds?.length) invoiceConditions.push(inArray(erpPurchaseInvoices.supplierId, filters.supplierIds))
+    if (filters.fromDate) invoiceConditions.push(gte(erpPurchaseInvoices.postingDate, filters.fromDate))
+    if (filters.toDate) invoiceConditions.push(lte(erpPurchaseInvoices.postingDate, filters.toDate))
+    const invoices = await db.query.erpPurchaseInvoices.findMany({ where: and(...invoiceConditions), with: { supplier: true } })
+
+    const paymentConditions = [eq(erpPaymentEntries.orgId, ctx.orgId), eq(erpPaymentEntries.partyType, "supplier"), eq(erpPaymentEntries.status, "approved")]
+    if (filters.supplierIds?.length) paymentConditions.push(inArray(erpPaymentEntries.partyId, filters.supplierIds))
+    if (filters.fromDate) paymentConditions.push(gte(erpPaymentEntries.postingDate, filters.fromDate))
+    if (filters.toDate) paymentConditions.push(lte(erpPaymentEntries.postingDate, filters.toDate))
+    const payments = await db.query.erpPaymentEntries.findMany({ where: and(...paymentConditions) })
+
+    const supplierNameById = new Map(invoices.map((i): [string, string] => [i.supplierId, i.supplier?.supplierName ?? ""]))
+
+    type LineItem = { documentType: "invoice" | "payment"; documentId: string; supplierId: string; supplierName: string; postingDate: string; grossAmount: number; clearedAmount: number; openAmount: number; clearingStatus: "open" | "partially_cleared" | "cleared" }
+    const invoiceLines: LineItem[] = invoices.map((inv) => {
+      const gross = Number(inv.grandTotal)
+      const open = Number(inv.outstandingAmount)
+      const cleared = gross - open
+      return {
+        documentType: "invoice", documentId: inv.id, supplierId: inv.supplierId, supplierName: inv.supplier?.supplierName ?? "",
+        postingDate: inv.postingDate, grossAmount: gross, clearedAmount: cleared, openAmount: open,
+        clearingStatus: open <= 0.01 ? "cleared" : cleared > 0.01 ? "partially_cleared" : "open",
+      }
+    })
+    const paymentLines: LineItem[] = payments.map((p) => ({
+      documentType: "payment", documentId: p.id, supplierId: p.partyId, supplierName: supplierNameById.get(p.partyId) ?? "",
+      postingDate: p.postingDate, grossAmount: Number(p.paidAmount), clearedAmount: Number(p.paidAmount), openAmount: 0, clearingStatus: "cleared",
+    }))
+
+    const all = [...invoiceLines, ...paymentLines].sort((a, b) => (a.postingDate < b.postingDate ? 1 : -1))
+    const total = all.length
+    const offset = (page - 1) * limit
+    return { lines: all.slice(offset, offset + limit), total, page, limit, totalPages: Math.ceil(total / limit) }
+  })
+}
+
+// FI-AP-002 (EXTEND_EXISTING, mirrors arAgingReport's own outstandingAmount
+// summation, grouped by supplier instead of bucketed by age).
+export async function vendorBalances(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"])),
+      with: { supplier: true },
+    })
+    const bySupplier = new Map<string, { supplierId: string; supplierName: string; invoiceCount: number; totalOutstanding: number }>()
+    for (const inv of invoices) {
+      const outstanding = Number(inv.outstandingAmount)
+      if (outstanding <= 0.01) continue
+      const existing = bySupplier.get(inv.supplierId)
+      if (existing) { existing.invoiceCount++; existing.totalOutstanding += outstanding }
+      else bySupplier.set(inv.supplierId, { supplierId: inv.supplierId, supplierName: inv.supplier?.supplierName ?? "", invoiceCount: 1, totalOutstanding: outstanding })
+    }
+    const rows = Array.from(bySupplier.values()).sort((a, b) => b.totalOutstanding - a.totalOutstanding)
+    return { rows, totalOutstanding: rows.reduce((s, r) => s + r.totalOutstanding, 0) }
+  })
+}
+
+/**
+ * FI-AP-003 (EXTEND_EXISTING, "a well-scoped, low-risk EXTEND" per gap_notes
+ * -- deliberately the same bucketing logic as arAgingReport, against
+ * erpPurchaseInvoices/erpSuppliers instead of erpSalesInvoices/erpCustomers).
+ */
+export async function apAgingReport(ctx: { orgId: string }, asOfDate?: string) {
+  await requireErpEnabled(ctx.orgId)
+  const asOf = asOfDate ?? new Date().toISOString().slice(0, 10)
+  const asOfMs = new Date(asOf).getTime()
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"])),
+      with: { supplier: true },
+    })
+
+    const buckets = { current: 0, d1_30: 0, d31_60: 0, d61_90: 0, d90Plus: 0 }
+    const rows = invoices
+      .filter((inv) => Number(inv.outstandingAmount) > 0.01)
+      .map((inv) => {
+        const dueMs = new Date(inv.dueDate ?? inv.postingDate).getTime()
+        const daysOverdue = Math.floor((asOfMs - dueMs) / 86400000)
+        const outstanding = Number(inv.outstandingAmount)
+        let bucket: "current" | "1-30" | "31-60" | "61-90" | "90+"
+        if (daysOverdue <= 0) { bucket = "current"; buckets.current += outstanding }
+        else if (daysOverdue <= 30) { bucket = "1-30"; buckets.d1_30 += outstanding }
+        else if (daysOverdue <= 60) { bucket = "31-60"; buckets.d31_60 += outstanding }
+        else if (daysOverdue <= 90) { bucket = "61-90"; buckets.d61_90 += outstanding }
+        else { bucket = "90+"; buckets.d90Plus += outstanding }
+        return {
+          invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, supplierId: inv.supplierId,
+          supplierName: inv.supplier?.supplierName ?? null, dueDate: inv.dueDate, postingDate: inv.postingDate,
+          outstandingAmount: inv.outstandingAmount, retentionAmount: inv.retentionAmount, daysOverdue: Math.max(0, daysOverdue), bucket, status: inv.status,
+        }
+      })
+      .sort((a, b) => b.daysOverdue - a.daysOverdue)
+
+    const totalOutstanding = buckets.current + buckets.d1_30 + buckets.d31_60 + buckets.d61_90 + buckets.d90Plus
+    return { asOfDate: asOf, buckets, totalOutstanding, invoices: rows }
+  })
+}
+
+// FI-AP-004 (EXTEND_EXISTING, same aggregation as FI-AP-002 scoped to one
+// vendor -- the "vendor profile" open/cleared snapshot).
+export async function vendorAccountBalanceDisplay(ctx: { orgId: string }, supplierId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
+    if (!supplier) throw new ServiceError("Supplier not found", 404)
+
+    const invoices = await db.query.erpPurchaseInvoices.findMany({ where: and(eq(erpPurchaseInvoices.orgId, ctx.orgId), eq(erpPurchaseInvoices.supplierId, supplierId), sql`${erpPurchaseInvoices.status} != 'draft' and ${erpPurchaseInvoices.status} != 'cancelled'`) })
+    const openInvoices = invoices.filter((inv) => Number(inv.outstandingAmount) > 0.01)
+    const clearedInvoices = invoices.filter((inv) => Number(inv.outstandingAmount) <= 0.01)
+
+    return {
+      supplierId, supplierName: supplier.supplierName, creditLimit: supplier.creditLimit,
+      openInvoiceCount: openInvoices.length, totalOutstanding: openInvoices.reduce((s, i) => s + Number(i.outstandingAmount), 0),
+      clearedInvoiceCount: clearedInvoices.length, totalRetentionHeld: invoices.reduce((s, i) => s + Number(i.retentionAmount), 0),
+      openInvoices: openInvoices.map((i) => ({ invoiceId: i.id, invoiceNumber: i.invoiceNumber, postingDate: i.postingDate, dueDate: i.dueDate, grandTotal: i.grandTotal, outstandingAmount: i.outstandingAmount, retentionAmount: i.retentionAmount, status: i.status })),
+    }
+  })
+}
+
+export type PaymentProposalFilters = { cutoffDate: string; supplierIds?: string[] }
+
+/**
+ * FI-AP-005 (BUILD_NEW): selects due (dueDate <= cutoffDate), open (status
+ * submitted/partially_paid/overdue with outstandingAmount > 0) invoices --
+ * this schema has no invoice-level "payment block/hold" flag, so "not
+ * blocked" is exactly this status/amount filter; a future hold flag would
+ * add one more condition here, not change this function's shape. Applies
+ * the supplier's earlyPaymentDiscountPercent/Days when the proposal date is
+ * still inside that window (mirrors standard "2/10 Net 30" vendor terms),
+ * then groups by supplier + that supplier's primary bank account.
+ */
+export async function paymentProposalList(ctx: { orgId: string }, filters: PaymentProposalFilters) {
+  await requireErpEnabled(ctx.orgId)
+  if (!filters.cutoffDate) throw new ServiceError("cutoffDate is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"]), lte(erpPurchaseInvoices.dueDate, filters.cutoffDate)]
+    if (filters.supplierIds?.length) conditions.push(inArray(erpPurchaseInvoices.supplierId, filters.supplierIds))
+    const invoices = await db.query.erpPurchaseInvoices.findMany({ where: and(...conditions), with: { supplier: true } })
+    const dueInvoices = invoices.filter((inv) => Number(inv.outstandingAmount) > 0.01)
+
+    const supplierIds = Array.from(new Set(dueInvoices.map((i) => i.supplierId)))
+    const primaryBanks = supplierIds.length
+      ? await db.query.erpSupplierBankAccounts.findMany({ where: and(eq(erpSupplierBankAccounts.orgId, ctx.orgId), inArray(erpSupplierBankAccounts.supplierId, supplierIds), eq(erpSupplierBankAccounts.isPrimary, true)) })
+      : []
+    const primaryBankBySupplier = new Map(primaryBanks.map((b): [string, typeof b] => [b.supplierId, b]))
+
+    const lines = dueInvoices.map((inv) => {
+      const outstanding = Number(inv.outstandingAmount)
+      const discountPercent = inv.supplier?.earlyPaymentDiscountPercent != null ? Number(inv.supplier.earlyPaymentDiscountPercent) : 0
+      const discountDays = inv.supplier?.earlyPaymentDiscountDays ?? null
+      const withinDiscountWindow = discountPercent > 0 && discountDays != null
+        && new Date(filters.cutoffDate).getTime() <= new Date(inv.postingDate).getTime() + discountDays * 86400000
+      const discountAmount = withinDiscountWindow ? outstanding * (discountPercent / 100) : 0
+      const bank = primaryBankBySupplier.get(inv.supplierId)
+      return {
+        invoiceId: inv.id, invoiceNumber: inv.invoiceNumber, supplierId: inv.supplierId, supplierName: inv.supplier?.supplierName ?? "",
+        dueDate: inv.dueDate, outstandingAmount: outstanding, discountAmount, proposedPaymentAmount: outstanding - discountAmount,
+        bankAccountId: bank?.id ?? null, bankName: bank?.bankName ?? null,
+      }
+    })
+
+    const bySupplier = new Map<string, { supplierId: string; supplierName: string; bankAccountId: string | null; bankName: string | null; invoiceCount: number; totalProposedPayment: number; totalDiscount: number }>()
+    for (const l of lines) {
+      const existing = bySupplier.get(l.supplierId)
+      if (existing) { existing.invoiceCount++; existing.totalProposedPayment += l.proposedPaymentAmount; existing.totalDiscount += l.discountAmount }
+      else bySupplier.set(l.supplierId, { supplierId: l.supplierId, supplierName: l.supplierName, bankAccountId: l.bankAccountId, bankName: l.bankName, invoiceCount: 1, totalProposedPayment: l.proposedPaymentAmount, totalDiscount: l.discountAmount })
+    }
+    const groups = Array.from(bySupplier.values()).sort((a, b) => b.totalProposedPayment - a.totalProposedPayment)
+
+    return {
+      cutoffDate: filters.cutoffDate, lines, groups,
+      totalProposedPayment: groups.reduce((s, g) => s + g.totalProposedPayment, 0),
+      totalDiscountCaptured: groups.reduce((s, g) => s + g.totalDiscount, 0),
+    }
+  })
+}
+
+/**
+ * FI-AP-006 (BUILD_NEW): Days Payable Outstanding per vendor -- for each
+ * approved payment entry linked to a purchase invoice, the actual days from
+ * that invoice's postingDate to the payment's postingDate, averaged
+ * (amount-weighted) per supplier and compared against their
+ * defaultPaymentTermsDays. A supplier with no paid invoices in range has no
+ * measurable DPO (null, never assumed 0 or equal to terms).
+ */
+export async function vendorPaymentBehaviorReport(ctx: { orgId: string }, fromDate?: string, toDate?: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const paymentConditions = [eq(erpPaymentEntries.orgId, ctx.orgId), eq(erpPaymentEntries.partyType, "supplier"), eq(erpPaymentEntries.status, "approved"), eq(erpPaymentEntries.invoiceType, "purchase_invoice")]
+    if (fromDate) paymentConditions.push(gte(erpPaymentEntries.postingDate, fromDate))
+    if (toDate) paymentConditions.push(lte(erpPaymentEntries.postingDate, toDate))
+    const payments = await db.query.erpPaymentEntries.findMany({ where: and(...paymentConditions) })
+
+    const invoiceIds = Array.from(new Set(payments.map((p) => p.invoiceId).filter((id): id is string => !!id)))
+    const invoices = invoiceIds.length ? await db.query.erpPurchaseInvoices.findMany({ where: inArray(erpPurchaseInvoices.id, invoiceIds), with: { supplier: true } }) : []
+    const invoiceById = new Map(invoices.map((i) => [i.id, i]))
+
+    const bySupplier = new Map<string, { supplierId: string; supplierName: string; termsDays: number | null; weightedDaysSum: number; totalAmount: number }>()
+    for (const p of payments) {
+      if (!p.invoiceId) continue
+      const invoice = invoiceById.get(p.invoiceId)
+      if (!invoice) continue
+      const daysToPay = Math.max(0, Math.floor((new Date(p.postingDate).getTime() - new Date(invoice.postingDate).getTime()) / 86400000))
+      const amount = Number(p.paidAmount)
+      const existing = bySupplier.get(invoice.supplierId)
+      if (existing) { existing.weightedDaysSum += daysToPay * amount; existing.totalAmount += amount }
+      else bySupplier.set(invoice.supplierId, { supplierId: invoice.supplierId, supplierName: invoice.supplier?.supplierName ?? "", termsDays: invoice.supplier?.defaultPaymentTermsDays ?? null, weightedDaysSum: daysToPay * amount, totalAmount: amount })
+    }
+
+    const rows = Array.from(bySupplier.values()).map((r) => {
+      const avgDaysToPay = r.totalAmount > 0 ? r.weightedDaysSum / r.totalAmount : null
+      return {
+        supplierId: r.supplierId, supplierName: r.supplierName, termsDays: r.termsDays, avgDaysToPay,
+        daysBeyondTerms: avgDaysToPay != null && r.termsDays != null ? avgDaysToPay - r.termsDays : null,
+      }
+    }).sort((a, b) => (b.avgDaysToPay ?? 0) - (a.avgDaysToPay ?? 0))
+
+    return { fromDate: fromDate ?? null, toDate: toDate ?? null, rows }
+  })
+}
+
+/**
+ * FI-AP-007 (BUILD_NEW, confirmed real absence per gap_notes): sums
+ * retentionAmount (see createPurchaseInvoice's retentionPercent input)
+ * currently sitting on open/partially-paid invoices, by supplier -- "how
+ * much retention are we holding, and on whom." Deliberately a read-only
+ * summary, not a release workflow/certificate generator (impl_notes'
+ * "retention release triggered by project milestones" is a real, separate
+ * feature -- this closes the confirmed data-model gap, not the full
+ * lifecycle).
+ */
+export async function subcontractorRetentionSummary(ctx: { orgId: string }) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(eq(erpPurchaseInvoices.orgId, ctx.orgId), inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"])),
+      with: { supplier: true },
+    })
+    const withRetention = invoices.filter((inv) => Number(inv.retentionAmount) > 0.01)
+
+    const bySupplier = new Map<string, { supplierId: string; supplierName: string; invoiceCount: number; totalGrossValue: number; totalRetentionHeld: number }>()
+    for (const inv of withRetention) {
+      const gross = Number(inv.grandTotal)
+      const retention = Number(inv.retentionAmount)
+      const existing = bySupplier.get(inv.supplierId)
+      if (existing) { existing.invoiceCount++; existing.totalGrossValue += gross; existing.totalRetentionHeld += retention }
+      else bySupplier.set(inv.supplierId, { supplierId: inv.supplierId, supplierName: inv.supplier?.supplierName ?? "", invoiceCount: 1, totalGrossValue: gross, totalRetentionHeld: retention })
+    }
+    const rows = Array.from(bySupplier.values()).sort((a, b) => b.totalRetentionHeld - a.totalRetentionHeld)
+    return { rows, totalRetentionHeld: rows.reduce((s, r) => s + r.totalRetentionHeld, 0) }
   })
 }
 

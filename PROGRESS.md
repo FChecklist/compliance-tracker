@@ -43,17 +43,28 @@ names anywhere on disk (confirmed via whole-filesystem search) -- traced the rea
 - Registered in compliance.computation_engines via drizzle/0269_calc_track_group1_gl_co_engines.sql
   (idempotent ON CONFLICT (engine_key) DO UPDATE). Full-repo `tsc --noEmit` clean after this group.
 
-### Group 2: AP -- erp-buying-service.ts + erp-invoicing-service.ts (AP-side)
-- [ ] FI-AP-001 Vendor Line Item Display (open+cleared, partial-clearing math)
-- [ ] FI-AP-002 Vendor Balances (sum outstandingAmount per supplier, mirrors arAgingReport's data source)
-- [ ] FI-AP-003 Vendor Items Aging Report (apAgingReport, mirrors arAgingReport bucketing)
-- [ ] FI-AP-004 Vendor Account Balance Display (single-vendor open/cleared snapshot)
-- [ ] FI-AP-005 Payment Run / Payment Proposal (BUILD_NEW -- due+not-blocked selection, discount calc, group by vendor/bank)
-- [ ] FI-AP-006 Vendor Payment Behavior / DPO (BUILD_NEW)
-- [ ] FI-AP-007 Subcontractor Retention Summary (BUILD_NEW -- new schema: vendor-side retention tracking)
-- [ ] MM-004 Purchase Orders by Project/WBS (project filter on listPurchaseOrders)
-- [ ] MM-008 Vendor Purchasing History Report (compose getSupplierScorecard + vendorCostReport)
-- [ ] PS-005 Project Commitments Report (open PO value rollup by project)
+### Group 2: AP -- erp-buying-service.ts + erp-invoicing-service.ts (AP-side) [DONE]
+- [x] FI-AP-001 Vendor Line Item Display (listVendorLineItems -- open+cleared, partial-clearing math)
+- [x] FI-AP-002 Vendor Balances (vendorBalances)
+- [x] FI-AP-003 Vendor Items Aging Report (apAgingReport)
+- [x] FI-AP-004 Vendor Account Balance Display (vendorAccountBalanceDisplay)
+- [x] FI-AP-005 Payment Run / Payment Proposal (paymentProposalList, BUILD_NEW -- added
+      erpSuppliers.earlyPaymentDiscountPercent/Days for the discount calc)
+- [x] FI-AP-006 Vendor Payment Behavior / DPO (vendorPaymentBehaviorReport, BUILD_NEW)
+- [x] FI-AP-007 Subcontractor Retention Summary (subcontractorRetentionSummary, BUILD_NEW --
+      added erpPurchaseInvoices.retentionPercent/retentionAmount/netPayable, computed in
+      createPurchaseInvoice; deliberately informational only -- outstandingAmount/GL posting
+      unchanged so FI-GL-007's subledger reconciliation stays correct; retention release
+      workflow is a documented follow-up, not built here)
+- [x] MM-004 Purchase Orders by Project/WBS (added erpPurchaseOrders.projectId; listPurchaseOrders
+      projectId filter + purchaseOrdersByProjectSummary)
+- [x] MM-008 Vendor Purchasing History Report (vendorPurchasingHistoryReport)
+- [x] PS-005 Project Commitments Report (projectCommitmentsReport, composes
+      purchaseOrdersByProjectSummary, with >60-day commitment-aging flags)
+- Schema additions: drizzle/0270_calc_track_group2_ap_project_retention.sql. Engine registry:
+  drizzle/0271_calc_track_group2_ap_engines.sql. Full-repo `tsc --noEmit` clean after this group
+  (needed NODE_OPTIONS=--max-old-space-size=4096 in this sandbox -- default heap OOMs on the
+  full project graph, unrelated to this change).
 
 ### Group 3: AR -- erp-selling-service.ts + erp-invoicing-service.ts (AR-side)
 - [ ] FI-AR-001 Customer Line Item Display
@@ -92,6 +103,7 @@ names anywhere on disk (confirmed via whole-filesystem search) -- traced the rea
 
 ## Completed
 - Group 1 (GL/CO, 5 rows: CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008) -- see checkboxes above.
+- Group 2 (AP, 10 rows: FI-AP-001..007, MM-004, MM-008, PS-005) -- see checkboxes above.
 
 ## Remaining
-Groups 2-8 (31 rows), not started as of this writing.
+Groups 3-8 (21 rows), not started as of this writing.
