@@ -40,6 +40,19 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-042738-resolve-pr-610-vs-pr-657-crm-dashboard-o) -- Compare PR #610 vs PR #657 (CRM Sales Pipeline dashboard/widget) for overlap"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Reading PR #610 ("CRM: real interactive Sales Pipeline dashboard with
+      cross-filtering", stale/CONFLICTING) and PR #657 ("feat(crm): add
+      Sales Pipeline KPI widget to CRM overview page", part of Task #46,
+      CI-green) diffs in full to determine whether they overlap/duplicate
+      or are complementary (dedicated dashboard page vs. overview-page
+      widget), before deciding to rebase #610 or close it citing #657.
+    scope_note: >-
+      File scope: read-only comparison of both PRs' diffs via `gh pr diff`;
+      possible outcome is a git rebase of PR #610's branch (no new feature
+      code) or closing #610 with a citation comment. Does not touch #657.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
