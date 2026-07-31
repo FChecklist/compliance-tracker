@@ -40,6 +40,19 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-050544-fresh-audit-of-pr-655) -- Independent audit of PR #655 (CRM-007 Sales Rep Performance Report) per Rule 7(c)/Rule 10"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Auditing PR #655 (drizzle/0302_crm007_sales_rep_performance_report_definition.sql
+      + CRM-007 Sales Representative Performance Dashboard) at its real
+      current head. An existing AUDIT: FAIL comment on this PR is stale --
+      it refers to an idx-274 migration-collision problem already fixed by
+      two later rebases (per KERNEL_CONSOLIDATION_STATUS.md Workstream A).
+      Not the implementer of this PR. Read-only audit: reviewing the diff,
+      checking migration-number freshness against origin/main, verifying
+      report logic/tests, then posting a fresh AUDIT: PASS/FAIL comment.
+      Scope: PR #655 review only -- not merging, not editing its code, not
+      touching any other PR.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
