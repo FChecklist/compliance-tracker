@@ -3957,6 +3957,26 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260728-091708-re-audit--functionality-completion--help) -- Independent re-audit of ERP Helpdesk/PM/HR PRs #591/#592/#593 [PR #620 OPEN, awaiting supervisor audit]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      COMPLETED: retry of a stalled prior attempt (task-20260727-153100).
+      All 10 claimed feature items across PR #591 (Helpdesk)/#592 (PM)/#593
+      (HR) verified present in current main-branch code with real file:line
+      evidence via 3 independent code-reading agents + direct cross-checks
+      (not the PRs' own diffs). Real `bunx tsc --noEmit`: 0 errors. Real
+      full `bun test`: 2281 pass / 0 fail / 204 files. Surfaced 2 unresolved
+      authorization gaps (missing requireRole on new Helpdesk admin-config
+      routes; client-controlled employeeId + missing requireRole on HR
+      loans/expenses/shift-roster routes), both self-flagged in each PR's
+      own same-author "audit" comment and never fixed before merge -- also
+      found none of the 3 PRs' audit comments were from a genuinely
+      independent (distinct-identity) reviewer. Findings:
+      ai-os/audits/functionality_completion_reaudit_2026-07-28.md. PR #620
+      opened, report-only (no app code changed), requires fresh supervisor
+      audit before merge per this task's own EXPECTED_OUTPUT -- not
+      self-merged. Follow-up gap for the 2 authorization defects left for a
+      future task (out of this report-only task's scope).
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
