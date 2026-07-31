@@ -56,11 +56,37 @@
       own header convention, living in the separate `veridian-ai-os` control-plane repo checkout which has
       extensive unrelated uncommitted state from background processes -- edited the file directly on disk, did
       not attempt a git commit there).
+- [x] **GATE_FAIL attempt=2/2 diagnosis (this task's own local `quality-gate.sh`, not GitHub CI):** both local
+      gate attempts (`quality-gate-0.json`, `quality-gate-1.json`) failed on the identical step, in the
+      identical way -- `next build` killed after a 900s timeout (exit 124/143), with `lint` clean on both runs.
+      The prior fix-1 attempt (`.claude-out-fix-1.json`) had already started diagnosing this (bun not on
+      `PATH` was a red herring; a direct build was kicked off and left running to distinguish "host memory
+      contention" from "a real hang" but never got a documented conclusion before this GATE_FAIL fired).
+      Completed that diagnosis: `free -h` shows 13Gi/15Gi RAM used and 3.3Gi/4Gi swap in use on this shared
+      host, and `ps aux` shows 6 concurrent `node`/Next.js build processes from *other* sibling task workspaces
+      (PIDs under other `task-2026...` paths, not this one) each holding ~2GB RSS, all in uninterruptible-sleep
+      (`D`) state at the same moment -- classic memory-pressure/swap-thrash signature, not a bug in this
+      task's own diff. This is the same class of issue already RCA'd in `task-20260727-043407` (cited directly
+      in the gate script's own timeout message).
+      **This is not a real build failure of this task's change**: PR #630's actual GitHub Actions CI (a real,
+      unshared runner) shows `Build: SUCCESS` on the exact commit this task pushed
+      (`784ab0f15c7d1ee950e8a180bb7d302a8225961a`), alongside every other required check green except the
+      already-explained, out-of-scope `audit-check`. The renumbered migration compiles and builds fine; the
+      local gate's `next build` is only failing here because it's contending for RAM with unrelated concurrent
+      sessions on this one host.
+      **Stopping per this task's own circuit-breaker instruction** ("2nd consecutive failure of the identical
+      approach -> STOP, do not attempt a 3rd time"): a 3rd local build attempt would very likely time out
+      again for the same host-contention reason (RAM/swap pressure hasn't cleared), so re-running it would
+      burn another ~900s + AI turn without new information. Not re-running it.
 
 ## Remaining
-- [ ] None from this task's own scope. Merge and independent re-audit are explicitly out of scope per this
-      task's CONSTRAINTS (do not merge, do not post an AUDIT verdict) -- next step belongs to whichever agent
-      runs the re-audit per the original `AUDIT: FAIL` comment's own "Re-Audit Scheduled" note.
+- [ ] None from this task's own scope. The renumber itself (0283 -> 0302) is complete, correct, and verified
+      green on PR #630's real CI. The local `quality-gate.sh` `build` step's repeated timeout is a host-level
+      resource-contention artifact (see diagnosis above), not a defect for this task to fix -- fixing shared
+      concurrent-build memory contention on this box is infrastructure/scheduling work outside this task's
+      CONSTRAINTS (renumber PR #630's migration off the 0283 collision), not something an `AI fix-attempt`
+      against this repo's source can resolve. Flagging for whoever owns the task-runner host/scheduler.
+      Merge and independent re-audit of PR #630 remain explicitly out of scope per this task's CONSTRAINTS.
 
 ---
 
