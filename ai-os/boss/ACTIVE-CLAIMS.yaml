@@ -40,6 +40,17 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-073931-deterministic-per-task-type-verification)"
+    claimed_at: "2026-07-31T09:45:00Z"
+    claim: |
+      Building deterministic per-task-type verification scripts
+      (scripts/verify-task-sap-report.py, scripts/verify-task-rebase.py)
+      per task-20260731-073931-deterministic-per-task-type-verification's
+      prompt.txt. File scope: new scripts/verify-task-*.py +
+      scripts/_verify_task_common.py, one appended line to
+      KERNEL_CONSOLIDATION_STATUS.md. Read-only against existing PRs/branches
+      (uses temp git worktrees for isolation, does not touch other sessions'
+      in-flight branches). No overlap found with any other active claim.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
