@@ -3956,6 +3956,22 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260731-042718-rebase-pr-635--ai-billing-engine---resol) -- Rebase stale/CONFLICTING PR #635 (AI-usage billing engine, Token Usage Ledger cost-model) onto current origin/main"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      PR #635 ("Add configurable AI-usage billing calculation engine,
+      extends Token Usage Ledger") is real substantive work
+      (drizzle/0269_token_usage_ledger_cost_model_type.sql +
+      src/lib/billing/ai-usage-billing.ts + tests) but stale/CONFLICTING as
+      of 2026-07-29T17:15 UTC. KERNEL_CONSOLIDATION_STATUS.md flags a real
+      migration-number collision: PR #650 already merged claiming 0269 for
+      0269_ap_purchase_invoice_retention (unrelated). Task: confirm PR #635
+      not superseded by later-merged work, rebase clean onto current
+      origin/main, renumber the migration to a real free slot, push, get CI
+      green. Not merging, not posting an audit verdict. Scope:
+      drizzle/0269_token_usage_ledger_cost_model_type.sql (renumber) +
+      drizzle/meta/_journal.json + src/lib/billing/ai-usage-billing.ts +
+      its tests, on PR #635's own branch only.
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
