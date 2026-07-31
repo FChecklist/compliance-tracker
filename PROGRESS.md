@@ -50,6 +50,18 @@
       around `run_gate()`), and explicitly logged as separate/out-of-scope: "a substantive fix to
       why `next build` hangs in the compliance-tracker workspace itself ... is a separate,
       out-of-scope investigation." This is the same symptom, not a new one.
-- [ ] Re-running `bun run build` with a longer (1500s) window in the background to see whether it's
-      a pure hang (matches RCA) or eventually surfaces a real compile error (would need a real fix).
+- [x] Re-ran `bun run build` with a 1500s window in the background: the process was silently killed
+      (no `EXIT:` line ever written, no OOM message visible in `dmesg`/`journalctl` -- consistent
+      with a cgroup-level OOM kill of the whole process group, matching the "ran in-cgroup" note
+      already present in this task's own earlier checkpoints) after `free -h` showed 173Mi/15Gi free
+      and swap maxed. Never reached a Turbopack compiler error either time. This is the same
+      environmental failure mode as `task-20260727-043407`'s RCA, not a 3rd, different bug.
+- [x] **Conclusion**: `lint`/`build` GATE_FAIL is caused by this shared box's memory exhaustion from
+      concurrent parallel task sessions (8-10 other `node` processes >1GB RSS each observed
+      throughout), not by anything in this diff. The diff itself passes every check that can
+      actually run under these conditions: migration-collision, guardrail-presence, and the new
+      unit test suite (17/17). Per the circuit-breaker instruction, NOT attempting a 3rd identical
+      build/lint retry -- it would not produce a different outcome and the RCA precedent already
+      classifies fixing the underlying hang as out-of-scope for a feature task.
+- [ ] Commit + push, open PR (do not merge, do not self-audit)
 
