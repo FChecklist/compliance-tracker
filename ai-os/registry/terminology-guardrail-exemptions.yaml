@@ -1100,7 +1100,3 @@ exemptions:
     reason: "FI-AP-008 Subcontractor Payment Application Status (BUILD_NEW/HIGH): 4 new hardcoded_iso_date findings, all in one deliberate test fixture (ASOF constant and one postingDate literal) exercising computeSubcontractorPaymentApplicationWorklist's real days-in-current-status aging math -- literal dates are load-bearing for the assertions, not example/placeholder data."
     findings_by_category:
       hardcoded_iso_date: 4
-  - file: "src/app/(app)/crm/accounts/[id]/page.tsx"
-    reason: "PR #661 Country->State cascading address select (Task #46 CRM feature-parity, 2026-07-30): 1 pre-existing hardcoded_iso_date finding (line 5) -- a real dated changelog comment ('VERIDIAN Review Framework Wave B (2026-07-17): account detail page --') matching commit df5e5efe's actual commit date, not example/placeholder data. This file was never in Phase 2's baseline scan (src/app/(app) UI pages were out of that scan's scope), so it had no exemption entry until this PR's diff-only scan touched it and flagged the pre-existing comment as new debt."
-    findings_by_category:
-      hardcoded_iso_date: 1
