@@ -12,9 +12,10 @@
 - [x] Fixed stale `crm-service.ts` comment references in schema.ts and the migration SQL (functions actually live in product-service.ts)
 - [x] `npx tsc --noEmit` clean (exit 0, zero output) across the whole repo
 - [x] `bun test src/lib/services/product-service.test.ts` -- 8 pass, 0 fail
+- [x] Committed (3b7eb3bc) + pushed `worker/task-20260731-043738-crm--project-team-junction-table`, opened PR #663: https://github.com/FChecklist/compliance-tracker/pull/663 -- left CI-green, not merged, no AUDIT verdict posted (per spec constraints)
 
 ## Remaining
-- [ ] Commit + push, open PR
+- [ ] None -- task complete. PR #663 open, awaiting CI + independent Rule 7(c) audit (out of scope for this session to self-certify).
 
 ## Note
 `KERNEL_CONSOLIDATION_STATUS.md` (which the spec asked to append a PR line to) does not exist anywhere in this repo -- confirmed absent both locally and on a freshly-fetched `origin/main` (`git ls-tree -r origin/main --name-only | grep -i kernel` returns nothing). Treating this as a stale reference from a different task template rather than inventing a new file/section whose expected structure isn't specified. PR description itself documents what was built and links back to this task.

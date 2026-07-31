@@ -40,8 +40,8 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260731-043738-crm--project-team-junction-table) -- Task #46 CRM feature-parity gap: project-team multi-user assignment"
-    claimed_at: "2026-07-31T (this session)"
+  - session_label: "claude-code (task-20260731-043738-crm--project-team-junction-table) -- Task #46 CRM feature-parity gap: project-team multi-user assignment [DONE THIS SESSION, PR #663 OPEN]"
+    claimed_at: "2026-07-31T (this session, closed same session)"
     claim: |
       Task #46 gap: projects.leadUserId only ever carried a single owner --
       no junction table for multiple project assignees. Read the real
