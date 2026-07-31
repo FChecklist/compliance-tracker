@@ -20,6 +20,7 @@ export type CrmCampaignContext = { orgId: string; userId: string }
 export type CreateCampaignInput = {
   name: string
   campaignType?: string
+  objective?: string
   status?: "planning" | "active" | "completed" | "cancelled"
   startDate?: string
   endDate?: string
@@ -40,6 +41,7 @@ export async function createCampaign(ctx: CrmCampaignContext, input: CreateCampa
       orgId: ctx.orgId,
       name,
       campaignType: input.campaignType || null,
+      objective: input.objective || null,
       status: input.status || "planning",
       startDate: input.startDate || null,
       endDate: input.endDate || null,
