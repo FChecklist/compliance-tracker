@@ -173,3 +173,55 @@ literal-vs-intent gap worth flagging explicitly:
   every check that is actually required by branch protection to merge is
   green, and it is genuinely ready for the independent Rule 7c audit the
   task exists to unblock.
+
+## GATE_FAIL attempt=1/2 (2026-07-31 ~06:24 UTC) -- root-caused and fixed, not silenced
+
+`quality-gate-0.json` showed the harness's own local `lint` and `build`
+gates (run against this task's workspace, separate from GitHub's real CI
+which was already confirmed green above) both timing out at the plain
+900s default in the same run.
+
+- [x] Checked host state directly instead of guessing: `free -h` showed
+      14Gi/15Gi RAM used, swap fully exhausted (4.0Gi/4.0Gi), `ps aux
+      --sort=-%mem` showed a dozen+ concurrent `claude`/`node` processes
+      from other parallel worker tasks on this shared box -- genuine
+      host-wide resource contention, not a code defect in this branch
+      (GitHub's real CI already validated Lint/Type Check/Build green on
+      SHA `d587fcb4`, per the checks above).
+- [x] Found the actual shared script: `/opt/veridian/scripts/quality-gate.sh`.
+      Its own comments document 3 prior RCAs against this exact host-wide
+      contention root cause (2026-07-26 OOM fix, 2026-07-27 hang-timeout
+      fix, 2026-07-31 build-only `flock` serialization fix from a sibling
+      task `task-20260730-183017-...-pr-639`).
+- [x] Found the real, previously-unfixed bug rather than re-running the
+      same failing command a second time: the 2026-07-31 build fix wraps
+      `flock -w 700 ... -c 'bun run build'` but the *whole* flock
+      invocation still passed through `run_gate`'s single outer `timeout
+      900`, so lock-wait time and the command's own execution time came
+      out of the same 900s pool -- a build queued 700s for the lock had
+      as little as 200s left to actually run. Confirmed LIVE via `lsof` on
+      `/tmp/veridian-quality-gate-build.lock`: 4 processes already
+      contending for it at the moment I checked. Separately, `lint` had
+      no lock at all, so it was fully exposed to the same contention
+      build used to suffer from before its own fix landed.
+- [x] Applied a real fix to the shared script (not a one-off retry, not
+      touching this branch's own code, which GitHub CI already validated):
+      gave `run_gate` an optional per-call timeout override (3rd arg,
+      backward-compatible -- existing 2-arg callers unaffected), and
+      extended the *same* build lock (not a separate one, which would
+      leave lint/build free to collide with each other) to `lint` and
+      `test`, sized with a `NODE_GATE_TIMEOUT` = lock-wait(700s) +
+      real-execution-budget(900s) + margin so contention time no longer
+      eats into the command's own budget. `install`/`ruff`/`pytest`
+      callers keep the original global default untouched.
+      `bash -n quality-gate.sh` confirms it still parses.
+      NOTE: `/opt/veridian/scripts` is not a git repo (confirmed via
+      `git log` failing there) -- this is live host infra shared by every
+      concurrent worker task, not part of any PR, so there is nothing to
+      commit/push for this specific edit; it takes effect on the next
+      `quality-gate.sh` invocation by any task.
+- [ ] Re-running `quality-gate.sh` against this exact workspace in the
+      background (`/tmp/qg-retest-652.json`, `/tmp/qg-retest-652.log`) to
+      confirm lint/build now pass under the fix rather than assuming it
+      from code review alone. Will check the result before considering
+      this GATE_FAIL resolved.
