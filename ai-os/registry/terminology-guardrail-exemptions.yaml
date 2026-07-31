@@ -1100,3 +1100,7 @@ exemptions:
     reason: "FI-AP-008 Subcontractor Payment Application Status (BUILD_NEW/HIGH): 4 new hardcoded_iso_date findings, all in one deliberate test fixture (ASOF constant and one postingDate literal) exercising computeSubcontractorPaymentApplicationWorklist's real days-in-current-status aging math -- literal dates are load-bearing for the assertions, not example/placeholder data."
     findings_by_category:
       hardcoded_iso_date: 4
+  - file: src/app/(app)/crm/page.tsx
+    reason: "CRM Sales Pipeline KPI widget gap-closure: 1 pre-existing hardcoded_iso_date finding (line 5, the Wave 3 2026-07-21 refactor's own dated changelog comment) -- this file was never previously touched since the terminology guardrail's Phase 2/3 rollout (src/app/(app)/** page files were outside that baseline's scanned directory set: src-lib-services, src-lib-toplevel, src-app-api, src-seed-and-test-fixtures), so this is the first diff to surface it. A real, dated changelog comment documenting a past refactor, not example/placeholder data -- same class this manifest already exempts elsewhere."
+    findings_by_category:
+      hardcoded_iso_date: 1
