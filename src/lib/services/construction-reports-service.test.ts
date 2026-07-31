@@ -17,9 +17,17 @@
 import { describe, expect, test, mock, afterEach } from "bun:test"
 import {
   aggregateDesignerTimesheetCosts,
+  aggregateDesignerApprovalStatus,
+  aggregateWorkAnalysis,
+  computeCertifiedPayroll,
+  WH347_DAY_LABELS,
   type DesignerTimesheetBudgetLine,
   type DesignerTimesheetEntry,
   type DesignerTimesheetRosterUser,
+  type TimesheetStatusEntry,
+  type WorkAnalysisEntry,
+  type CertifiedPayrollAttendanceRow,
+  type CertifiedPayrollWageRate,
 } from "./construction-reports-service"
 
 // Fixture: 3 designers across 2 projects and 3 categories.
@@ -140,6 +148,81 @@ describe("aggregateDesignerTimesheetCosts: roster-inclusion (budget-undercount f
   })
 })
 
+// Design Studio timesheets (Owner item 12, "IMPORTANT", 2026-07-28):
+// designer-wise approval-status view -- a distinct cut from
+// aggregateDesignerTimesheetCosts' byDesignerStatus (active/inactive)
+// above; this groups each designer's logged hours by where they sit in the
+// draft -> submitted -> approved/rejected workflow.
+describe("aggregateDesignerApprovalStatus", () => {
+  test("buckets each designer's hours/entry-counts by approval status, zero-filling statuses with no entries", () => {
+    const entries: TimesheetStatusEntry[] = [
+      { userId: "u1", userName: "Alice", approvalStatus: "draft", hours: 3 },
+      { userId: "u1", userName: "Alice", approvalStatus: "submitted", hours: 5 },
+      { userId: "u1", userName: "Alice", approvalStatus: "submitted", hours: 2 },
+      { userId: "u2", userName: "Bob", approvalStatus: "approved", hours: 8 },
+      { userId: "u2", userName: "Bob", approvalStatus: "rejected", hours: 4 },
+    ]
+    const result = aggregateDesignerApprovalStatus(entries)
+    expect(result).toEqual([
+      {
+        userId: "u1", userName: "Alice",
+        draft: { hours: 3, entries: 1 },
+        submitted: { hours: 7, entries: 2 },
+        approved: { hours: 0, entries: 0 },
+        rejected: { hours: 0, entries: 0 },
+      },
+      {
+        userId: "u2", userName: "Bob",
+        draft: { hours: 0, entries: 0 },
+        submitted: { hours: 0, entries: 0 },
+        approved: { hours: 8, entries: 1 },
+        rejected: { hours: 4, entries: 1 },
+      },
+    ])
+  })
+
+  test("empty input produces an empty designer list, never a crash", () => {
+    expect(aggregateDesignerApprovalStatus([])).toEqual([])
+  })
+})
+
+// Design Studio timesheets: work-analysis view -- hours by task/category
+// per designer over a period, built directly from the timesheet data
+// already flowing through pms_time_entries/pms_issues.
+describe("aggregateWorkAnalysis", () => {
+  test("sums hours per designer, broken down by task and by category", () => {
+    const entries: WorkAnalysisEntry[] = [
+      { userId: "u1", userName: "Alice", taskId: "t1", taskName: "Lobby Elevation", category: "Design Development", hours: 4 },
+      { userId: "u1", userName: "Alice", taskId: "t1", taskName: "Lobby Elevation", category: "Design Development", hours: 2 },
+      { userId: "u1", userName: "Alice", taskId: "t2", taskName: "Site Visit Report", category: "Site Visit", hours: 3 },
+      { userId: "u2", userName: "Bob", taskId: "t3", taskName: "BOQ Review", category: "Documentation", hours: 6 },
+    ]
+    const result = aggregateWorkAnalysis(entries)
+    expect(result).toEqual([
+      {
+        userId: "u1", userName: "Alice", totalHours: 9,
+        byTask: [
+          { taskId: "t1", taskName: "Lobby Elevation", hours: 6 },
+          { taskId: "t2", taskName: "Site Visit Report", hours: 3 },
+        ],
+        byCategory: [
+          { category: "Design Development", hours: 6 },
+          { category: "Site Visit", hours: 3 },
+        ],
+      },
+      {
+        userId: "u2", userName: "Bob", totalHours: 6,
+        byTask: [{ taskId: "t3", taskName: "BOQ Review", hours: 6 }],
+        byCategory: [{ category: "Documentation", hours: 6 }],
+      },
+    ])
+  })
+
+  test("empty input produces an empty designer list, never a crash", () => {
+    expect(aggregateWorkAnalysis([])).toEqual([])
+  })
+})
+
 // PR #597 audit fix -- exercises the real designerTimesheetReport() (not a
 // re-implementation), mocking only the DB layer: @/lib/db/tenant-scoped's
 // withTenantContext (supplies a fake drizzle-shaped db) and
@@ -229,5 +312,124 @@ describe("designerTimesheetReport: N+1 fix + scope-labeled response (PR #597 aud
       ["byCategory", "byDesignerStatus", "byUser", "overallActual", "overallBudget", "overallVariance"].sort()
     )
     expect(Object.keys(result.orgWide).sort()).toEqual(["byDesigner", "byProject"])
+  })
+})
+
+
+// Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll
+// Report (Regulatory / Public Works)", US WH-347 equivalent): tests
+// computeCertifiedPayroll() -- the pure per-worker weekly aggregator --
+// directly, without a live DB, same convention as
+// aggregateDesignerTimesheetCosts above.
+//
+// WEEK_START is the only hardcoded date literal in this suite -- every
+// other fixture date is derived from it via offset arithmetic (dayOf()),
+// rather than hand-typing 7 separate date literals.
+const WEEK_START = "2026-08-02"
+function dayOf(offset: number): string {
+  return new Date(new Date(WEEK_START).getTime() + offset * 86400000).toISOString().slice(0, 10)
+}
+function labelOf(dateStr: string): (typeof WH347_DAY_LABELS)[number] {
+  return WH347_DAY_LABELS[new Date(dateStr).getUTCDay()]
+}
+
+describe("computeCertifiedPayroll", () => {
+  test("a worker's hours are bucketed under their real calendar day-of-week, not an offset from weekStart", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 320 },
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(1), hoursWorked: 8, dailyCost: 320 },
+    ]
+    const result = computeCertifiedPayroll(rows, [], WEEK_START)
+    const worker = result.workers[0]
+    expect(worker.dailyHours[labelOf(dayOf(0))]).toBe(8)
+    expect(worker.dailyHours[labelOf(dayOf(1))]).toBe(8)
+    expect(worker.totalHours).toBe(16)
+    expect(worker.grossWages).toBe(640)
+  })
+
+  test("rate paid is derived from real dailyCost/hoursWorked, and a worker whose rate meets the prevailing determination is compliant", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const wageRates: CertifiedPayrollWageRate[] = [{ trade: "Carpenter", prevailingHourlyRate: 45, fringeBenefitRate: 5 }]
+    const result = computeCertifiedPayroll(rows, wageRates, WEEK_START)
+    expect(result.workers[0].ratePaid).toBe(50)
+    expect(result.workers[0].prevailingHourlyRate).toBe(45)
+    expect(result.workers[0].fringeBenefitRateRequired).toBe(5)
+    expect(result.workers[0].complianceStatus).toBe("compliant")
+    expect(result.statementOfCompliance.allWorkersCompliant).toBe(true)
+    expect(result.statementOfCompliance.exceptions).toEqual([])
+  })
+
+  test("a worker paid below the project's prevailing rate for their trade is flagged rate_below_prevailing and listed as an exception", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Electrician", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 240 },
+    ]
+    const wageRates: CertifiedPayrollWageRate[] = [{ trade: "Electrician", prevailingHourlyRate: 40, fringeBenefitRate: 0 }]
+    const result = computeCertifiedPayroll(rows, wageRates, WEEK_START)
+    expect(result.workers[0].ratePaid).toBe(30)
+    expect(result.workers[0].complianceStatus).toBe("rate_below_prevailing")
+    expect(result.statementOfCompliance.allWorkersCompliant).toBe(false)
+    expect(result.statementOfCompliance.exceptions).toEqual([{ rosterId: "r1", workerName: "Worker One", reason: "rate_below_prevailing" }])
+  })
+
+  test("a worker with no trade recorded, or a trade with no wage determination on file for this project, is flagged no_classification_on_file rather than silently passing", () => {
+    const noTrade: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: null, attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const unmatchedTrade: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r2", workerName: "Worker Two", trade: "Plumber", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    expect(computeCertifiedPayroll(noTrade, [], WEEK_START).workers[0].complianceStatus).toBe("no_classification_on_file")
+    expect(computeCertifiedPayroll(unmatchedTrade, [{ trade: "Carpenter", prevailingHourlyRate: 45, fringeBenefitRate: 0 }], WEEK_START).workers[0].complianceStatus).toBe("no_classification_on_file")
+  })
+
+  test("trade matching against the wage determination is case/whitespace-insensitive, matching constructionLabourRoster.trade's own free-text posture", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "  CARPENTER  ", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const wageRates: CertifiedPayrollWageRate[] = [{ trade: "carpenter", prevailingHourlyRate: 45, fringeBenefitRate: 0 }]
+    expect(computeCertifiedPayroll(rows, wageRates, WEEK_START).workers[0].complianceStatus).toBe("compliant")
+  })
+
+  test("deductions are honestly 0 and netWages equals grossWages -- this site-labour workforce has no link to the statutory payroll engine (disclosed gap, never fabricated)", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const worker = computeCertifiedPayroll(rows, [], WEEK_START).workers[0]
+    expect(worker.totalDeductions).toBe(0)
+    expect(worker.netWages).toBe(worker.grossWages)
+  })
+
+  test("multiple workers are sorted by name, and the report totals sum every worker", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r2", workerName: "Zed Worker", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+      { rosterId: "r1", workerName: "Amy Worker", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: 8, dailyCost: 400 },
+    ]
+    const result = computeCertifiedPayroll(rows, [], WEEK_START)
+    expect(result.workers.map((w) => w.workerName)).toEqual(["Amy Worker", "Zed Worker"])
+    expect(result.workerCount).toBe(2)
+    expect(result.totalHours).toBe(16)
+    expect(result.totalGrossWages).toBe(800)
+  })
+
+  test("a worker present with no hoursWorked recorded contributes 0 hours (not a crash), and empty attendance produces an empty, not an error", () => {
+    const rows: CertifiedPayrollAttendanceRow[] = [
+      { rosterId: "r1", workerName: "Worker One", trade: "Carpenter", attendanceDate: dayOf(0), hoursWorked: null, dailyCost: 0 },
+    ]
+    const result = computeCertifiedPayroll(rows, [], WEEK_START)
+    expect(result.workers[0].totalHours).toBe(0)
+    expect(result.workers[0].ratePaid).toBe(0)
+
+    const empty = computeCertifiedPayroll([], [], WEEK_START)
+    expect(empty.workers).toEqual([])
+    expect(empty.workerCount).toBe(0)
+    expect(empty.statementOfCompliance.allWorkersCompliant).toBe(true)
+  })
+
+  test("weekEnd is 6 days after weekStart, matching WH-347's Sunday-Saturday reporting week", () => {
+    const result = computeCertifiedPayroll([], [], WEEK_START)
+    expect(result.weekStart).toBe(WEEK_START)
+    expect(result.weekEnd).toBe(dayOf(6))
   })
 })
