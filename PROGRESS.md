@@ -107,20 +107,36 @@
       `d587fcb4` (was `943ed931` before this re-rebase; SHA changed
       because rebase rewrites history even though only one file's content
       changed at the tail).
-- [ ] Re-running local CI-equivalent checks on the new tip `d587fcb4`
-      (`bunx tsc --noEmit` kicked off in background, prior attempts on
-      this box keep hitting the 300s foreground timeout / shared-machine
-      memory pressure -- not indicative of an actual code problem given
-      the identical checks already passed in invocations 1 and this
-      change only touched `_journal.json`'s insertion point).
-- [ ] Force-push `d587fcb4` to `origin/feat/sd-006-sales-by-material-service-type`
-      (history was rewritten by the re-rebase, so this MUST be
-      `--force-with-lease`, not a plain push) once local checks confirm
-      clean, or immediately if local checks keep being blocked by shared-box
-      memory pressure and the diff is understood to be journal-only.
-- [ ] Re-check `gh pr checks 652` / `gh pr view 652 --json mergeable` after
-      CI re-runs on the force-pushed SHA. Confirm every required check
-      (Lint/Type Check/Build/Guardrail Presence Check/Asset Registry
-      Coverage Check/Unit Tests) is green AND `mergeable` flips to `MERGEABLE`.
+- [x] **Local `bunx tsc --noEmit` re-run was unreliable on this box**
+      (`free -h` showed available RAM oscillating 598Mi-4.2Gi across
+      checks -- 6+ concurrent Claude-session `node` processes on this
+      shared machine; the background tsc job left a 0-byte output file
+      with no surviving process, i.e. silently OOM-killed, not a real
+      TS failure). Rather than keep re-fighting shared-box memory
+      pressure, verified safety a different way: `git diff 943ed931
+      d587fcb4 -- <all 5 SD-006-owned files>` shows the migration `.sql`
+      and both `report-engine-service.ts`/`.test.ts` files are **byte-
+      identical** to the tip GitHub's CI already fully validated
+      (Lint/Type Check/Build/Unit Tests/Guardrail/Asset-Registry all
+      green on `943ed931`); the only diff is 15 additive lines in
+      `_journal.json` + `terminology-guardrail-exemptions.yaml` that
+      came from upstream's own commit `11db691a` (itself already merged
+      to `main`, i.e. already passed CI once as part of landing there).
+      Combined evidence (own prior local run + CI on old tip + CI that
+      passed for the upstream commit being picked up) makes local
+      re-verification low-value versus the real gate, which is remote CI.
+- [x] Force-pushed `d587fcb4` to
+      `origin/feat/sd-006-sales-by-material-service-type` with
+      `--force-with-lease` (history was rewritten by the re-rebase) --
+      succeeded (`943ed931...d587fcb4`).
+- [ ] Wait for GitHub Actions CI to complete on the new SHA `d587fcb4`,
+      then re-check `gh pr checks 652` / `gh pr view 652 --json
+      mergeable`. Confirm every required check (Lint/Type Check/Build/
+      Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests)
+      is green AND `mergeable` flips from `CONFLICTING` to `MERGEABLE`.
+      Also re-fetch `origin/main` once more first in case it has advanced
+      *again* during this CI run -- this has now happened twice in a row
+      (main moved during invocation 2->3 and again mid-invocation-3) and
+      is an active-development-velocity risk, not a one-off.
 - [ ] Append one line to `KERNEL_CONSOLIDATION_STATUS.md`'s Workstream A
       section with the final state + migration number used (0302, idx 279).
