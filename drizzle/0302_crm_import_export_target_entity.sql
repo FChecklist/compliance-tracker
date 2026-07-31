@@ -1,0 +1,30 @@
+-- Task #46 CRM feature-parity gap analysis (KERNEL_CONSOLIDATION_STATUS.md,
+-- finalized 2026-07-30 ~14:30 UTC), item 7: "CRM-specific import/export --
+-- exists for compliance/GST/bank-reconciliation, not for leads/contacts/
+-- accounts". Explicitly zero-new-batch-table: reuse the existing generic
+-- compliance.ingestion_batches table (already org/file/status/count-shaped)
+-- instead of a new CRM-specific batch table.
+--
+-- Correction to the gap analysis's own premise (verified by direct grep
+-- before writing this): GST reconciliation does NOT use ingestion_batches --
+-- it has its own separate gst_import_batches table. The only real consumer
+-- of ingestion_batches today is /api/ingest/* (the compliance-item
+-- AI-extraction pipeline) -- src/lib/services/crm-import-export-service.ts
+-- (this same PR) is the second.
+--
+-- ingestion_batches has no column that lets a caller tell "this batch is a
+-- compliance-item ingest" apart from "this batch is a CRM import" when
+-- listing an org's batches -- e.g. the CRM import history view must not
+-- show unrelated compliance-item ingest batches, and vice versa. Adding one
+-- nullable text column rather than a new table: existing rows (the
+-- compliance-item ingest pipeline's batches) stay NULL, unaffected;
+-- CRM import batches set it to 'crm_lead' | 'crm_opportunity' |
+-- 'crm_account' | 'crm_contact' (validated at the application layer, same
+-- bare-text/no-DB-enum convention as ingestion_items.status/priority in
+-- this same table family -- see schema.ts's own comment on that).
+--
+-- Hand-written, not drizzle-kit's raw `generate` output -- same reason as
+-- 0301_construction_prevailing_wage_rates.sql's own header (drizzle/meta/ is
+-- missing per-migration snapshots between 0001 and 0264).
+
+ALTER TABLE compliance.ingestion_batches ADD COLUMN IF NOT EXISTS target_entity text;

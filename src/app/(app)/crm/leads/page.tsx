@@ -150,7 +150,9 @@ export default function CrmLeadsPage() {
           <h1 className="text-2xl font-heading text-ct-navy">Leads</h1>
           <p className="text-sm text-ct-muted mt-1">Prospects not yet a client -- score, qualify, and convert.</p>
         </div>
-        <Dialog open={open} onOpenChange={setOpen}>
+        <div className="flex items-center gap-2">
+          <Link href="/crm/import-export"><Button variant="outline">Import / Export</Button></Link>
+          <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
             <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron"><UserPlus className="w-4 h-4 mr-1" />New Lead</Button>
           </DialogTrigger>
@@ -177,7 +179,8 @@ export default function CrmLeadsPage() {
               </Button>
             </DialogFooter>
           </DialogContent>
-        </Dialog>
+          </Dialog>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">
