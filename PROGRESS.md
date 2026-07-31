@@ -16,8 +16,10 @@
 - [x] Manual review of schema.ts diff, migration SQL, and all 3 service files for convention consistency, RLS coverage, FK indexing -- all clean
 - [~] `npx tsc --noEmit` locally OOM'd (exit 134, "JavaScript heap out of memory") -- NOT a code issue: `free -h` showed 13Gi/15Gi used, swap exhausted, by other concurrent Claude sessions' node processes on this shared machine (matches known shared-worktree resource contention). Per protocol (stop repeating an approach after a failure rather than burning cycles on a memory-starved retry that will very likely fail identically), did not retry locally. `.github/workflows/ci.yml` runs `bunx tsc --noEmit` as a dedicated CI step on a fresh runner -- deferring the full type-check gate to CI on the PR, consistent with `bun test` already passing and manual review finding no type issues.
 
+- [x] Committed + pushed service/schema/migration/test changes (`13c52d6c`)
+- [x] Opened PR #667 (https://github.com/FChecklist/compliance-tracker/pull/667) -- not merged, not self-audited, per Rule 7(c)
+- [x] Moved ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:` with PR #667 reference, committed+pushed (`efddd2d4`)
+- [~] `KERNEL_CONSOLIDATION_STATUS.md` does not exist anywhere in this repo (confirmed via repo-wide grep) -- this "remaining" item from an earlier checkpoint appears to be stale boilerplate not applicable here; skipped.
+
 ## Remaining
-- [ ] Commit + push service/schema/migration/test changes
-- [ ] Open PR (do not merge, do not self-audit per Rule 7c) -- watch CI's tsc step in particular given the local OOM above
-- [ ] Append PR number + summary to `KERNEL_CONSOLIDATION_STATUS.md`'s Task #47 section
-- [ ] Move ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:` once PR is open
+- [ ] Task is code-complete and PR is open; nothing left for this session to do except watch CI on PR #667 (`bunx tsc --noEmit` in particular, given the local OOM) and respond if CI surfaces real type errors or the mandatory-audit-check gate needs another agent's audit comment per Rule 7(c)/10 (this session must NOT self-audit its own PR)
