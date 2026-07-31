@@ -40,7 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
+  - session_label: "claude-code (task-20260731-044012-pm--pms-issues-extension-columns) -- Task #47 PM feature-parity gap: extend pms_issues with severity/module/classification/reproducible/flag/closedAt columns"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Finalized PM gap analysis (Task #47): the reference platform's Issue
+      entity is richer (18 fields) than this codebase's current pms_issues
+      row. Explicit, already-made call: extend pms_issues with 6 new
+      nullable columns (severity enum, module text, classification enum,
+      reproducible boolean, flag boolean, closedAt timestamp) -- do NOT
+      reuse the separate `tickets` table (a different customer-support
+      entity) and do NOT build a parallel issues table. Checked this file
+      for collisions before starting: no other active entry touches
+      pms_issues' own schema/service layer at claim time (only unrelated
+      historical/merged claims mention pms_issues in passing --
+      priority19-workstream-a's FK fix on pms_issues.created_by_id, merged
+      2026-07-15 PR #352; priority16 Schedule/Work-Progress UI work on
+      pms-issue-service.ts, merged -- neither touches the columns this
+      claim adds). Migration number checked against a freshly-fetched
+      origin/main (fetch confirmed same commit as local HEAD, 11db691a):
+      highest real drizzle/*.sql file present is 0301
+      (construction_prevailing_wage_rates); next free is 0302 (do not trust
+      drizzle/meta/_journal.json's own tag ordering alone -- it lags/reorders
+      under concurrent-task merges, e.g. 0300 landing after 0301 in this
+      same journal; file listing is the ground truth).
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts
+      (pmsIssues table + 2 new enums), a new drizzle/0302_*.sql migration +
+      drizzle/meta/_journal.json + drizzle/meta/0302_snapshot.json,
+      src/lib/services/pms-issue-service.ts (IssueInput/IssuePatch types +
+      createIssue/updateIssue), src/lib/services/pms-issue-service.test.ts
+      (new/extended tests), src/components/pms/IssueDetailPanel.tsx +
+      CreateIssueDialog.tsx, src/app/(app)/pms/[projectId]/issues/page.tsx
+      (list columns), PROGRESS.md, this file. Does not touch tickets.ts,
+      automation-rule-service.ts's rule schema, projects/user-type tables,
+      or PM Teams/social-feed code -- out of scope per the task brief.
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
       VERIDIAN_CONSOLIDATED_COMPLETION Stage 9 (PR #630) explicitly flagged
