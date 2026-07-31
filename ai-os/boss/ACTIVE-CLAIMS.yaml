@@ -3956,6 +3956,41 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260731-043820-crm--import-export) -- Task #46 CRM feature-parity gap #7: CRM-specific import/export for leads/contacts/accounts"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Task #46 CRM gap analysis (KERNEL_CONSOLIDATION_STATUS.md, finalized
+      2026-07-30 ~14:30 UTC) item 7: "CRM-specific import/export -- exists
+      for compliance/GST/bank-reconciliation, not for leads/contacts/
+      accounts". Explicitly zero-new-batch-table: reuse the existing
+      generic `ingestionBatches` table.
+
+      Correction to the finalized gap analysis's own premise (verified by
+      direct grep before writing any code): GST reconciliation does NOT
+      use `ingestionBatches` -- it has its own separate `gstImportBatches`
+      table (src/lib/db/schema.ts). The only real consumer of
+      `ingestionBatches` is `/api/ingest/*` (the compliance-item
+      AI-extraction pipeline). Followed the hard constraint (reuse
+      `ingestionBatches`, zero new batch table) and patterned the new CRM
+      import/export off that real consumer instead of GST reconciliation.
+
+      Adding one additive nullable column (`target_entity`) to
+      `ingestion_batches` (migration 0302, next-free confirmed against
+      fresh origin/main at claim time) to discriminate CRM import batches
+      from the pre-existing compliance-item ones when listing -- existing
+      rows stay NULL, unaffected.
+    scope_note: >-
+      File scope: drizzle/0302_*.sql (new, additive column only),
+      src/lib/db/schema.ts (ingestionBatches: add targetEntity column),
+      src/lib/services/crm-import-export-service.ts (new) + its test file,
+      src/app/api/crm/import/** (new), src/app/api/crm/export/** (new),
+      minimal UI wiring on an existing CRM page, PROGRESS.md, this file.
+      Does not touch Lead/Deal attribution, Campaigns, Project-team
+      junction, Announcements, Items Master, or any other Task #46 item
+      (out of scope per this task's own spec). No overlap found with any
+      other active claim in this file as of this timestamp (grepped for
+      "ingestionBatches"/"crm import"/"crm export", no hits in other
+      entries).
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
