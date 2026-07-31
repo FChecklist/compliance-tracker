@@ -41,12 +41,31 @@
       entry (appended after the stale `task-20260730-041950` entry rather than editing it in place, per this
       file's own "note it, don't silently work around it" protocol) documenting the above.
 
-## Remaining
-- [ ] Verify: `tsc --noEmit` clean, `bun test` full suite passes (no regressions from the kept
-      CO-001/CO-003/FI-GL-002/FI-GL-008 diffs).
-- [ ] Commit and force-push the cleaned, rebased history to PR #643's existing branch
+- [x] Verify: `bunx tsc --noEmit` clean (exit 0, no output). `bun test` full suite: 2438 pass, 0 fail,
+      4850 expect() calls, 213 files -- the handful of `error:`-prefixed lines in the log are intentional
+      fail-closed-path test fixtures (roster-overrides, defense-in-depth, v1 task-status), not failures.
+      Note: neither `erp-accounting-service.ts` nor `erp-financial-report-service.ts` has a test file on
+      `origin/main` or in the original (pre-rebase) PR #643 branch -- confirmed via `git diff
+      origin/main...FETCH_HEAD --stat -- '*.test.ts'` that the original PR only added tests for
+      `erp-payment-entries-service.ts` (the dropped/superseded file). So CO-001/CO-003/FI-GL-002/FI-GL-008
+      shipping without tests is the original PR's pre-existing coverage gap, not a regression introduced by
+      this rebase -- out of this task's scope (rebase + prune, not build-out) to backfill.
+- [x] Committed (`0f3967e8`) and force-pushed (`--force-with-lease`, succeeded, old tip `01b7ff21`) the
+      cleaned, rebased history to PR #643's existing branch
       (`worker/task-20260730-041950-build-extend-calculation-track-engines`) -- same PR, not a new one.
-- [ ] CI + merge on PR #643 (per AGENTS.md Rule 6, no self-merge without CI green).
+      `gh pr view 643` now shows `mergeable: MERGEABLE` (was `CONFLICTING`/`dirty` before this push).
+
+## Remaining
+- [ ] CI on PR #643: checks kicked off on push, currently pending (`gh pr checks 643`). One pre-existing
+      unrelated flake: `Vercel` deploy preview shows `fail` -- "Deployment rate limited" (Vercel account-level
+      build-rate-limit, nothing to do with this diff; not one of AGENTS.md Rule 6's named required checks
+      Lint/Type Check/Build/Unit Tests). Watching the real required checks (Lint, Type Check, Unit Tests,
+      Guardrail Presence, audit-check, etc.) to green before merge.
+- [ ] `audit-check` per AGENTS.md Rule 10: this session both implemented and would be merging -- needs the
+      mandatory independent-auditor comment (`AUDIT: PASS`/`AUDIT: FAIL`) per Rule 7(c)/Rule 10 before this
+      can merge; do not self-certify.
+- [ ] CI + merge on PR #643 (per AGENTS.md Rule 6, no self-merge without CI green; per Rule 10, no merge
+      without the audit-check gate satisfied).
 - [ ] Once merged: move this task's + the superseded `task-20260730-041950` ACTIVE-CLAIMS.yaml entries to
       `recently_completed`.
 - [ ] Not this task's job, left for whoever owns it: PR #647 (FI-GL-007) is still open/blocked -- its own
