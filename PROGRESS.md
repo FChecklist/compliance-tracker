@@ -14,7 +14,8 @@
 - [x] Verified CI status via `gh pr checks 647`: audit-check fails (expected -- no verdict comment posted yet, this task closes that), Promptfoo Evals fails via 30-min timeout -- confirmed via `gh run list --workflow=ai-prompt-evals.yml` that this job has been "cancelled" on essentially every recent run across unrelated branches (pre-existing Groq free-tier rate-limit issue, not a PR #647 regression), and confirmed the PR's own diff touches this workflow file to fix (raise timeout, serialize requests) -- not a required/blocking check per its own header comment
 - [x] Verified key code claims against real source: findControlAccount, submitSalesInvoice/submitPurchaseInvoice (real journal posting), trialBalance, CompanyScope, requireErpEnabled, resolveCompanyScope, deriveReportDomainFromClassifications all exist as described, with matching behavior (compliance-priority-over-financial confirmed by reading the if-chain)
 - [x] Verified new API route matches sibling trial-balance route's auth/shape convention (requireAuth() used correctly)
+- [x] Posted PR comment starting with "AUDIT: PASS" (https://github.com/FChecklist/compliance-tracker/pull/647#issuecomment-5140473995) -- relied on CI's own passing Lint check rather than blocking on a slow local `bun run lint` rerun, since CI evidence for that specific commit was already in hand
+- [x] Verified comment posted via `gh pr view 647 --json comments --jq '.comments[-1].body' | head -c 40` -> "AUDIT: PASS\nIndependent audit per AGENTS"
+
 ## Remaining
-- [ ] Confirm `bun run lint` result locally (running in background) -- CI's own Lint check already passed
-- [ ] Draft + post PR comment starting with "AUDIT: PASS" or "AUDIT: FAIL"
-- [ ] Verify comment posted via gh pr view --json comments
+- [ ] None -- task complete
