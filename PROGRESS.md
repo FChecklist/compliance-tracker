@@ -14,9 +14,11 @@
 - [x] `bun test` on touched files: 20 pass / 0 fail, 24 expect() calls (pms-issue-service.test.ts + product-service.test.ts)
 - [x] Register claim in ai-os/boss/ACTIVE-CLAIMS.yaml
 
+- [x] Opened PR #664 against FChecklist/compliance-tracker: https://github.com/FChecklist/compliance-tracker/pull/664 (not merged, not self-audited)
+- [x] KERNEL_CONSOLIDATION_STATUS.md does not exist in this repo (confirmed via find/grep) -- Task #47 summary put in the PR description instead, noted honestly rather than silently skipped
+
 ## Remaining
-- [ ] Open PR against FChecklist/compliance-tracker, leave CI-green, do not merge, do not self-audit
-- [ ] Append PR number + summary to KERNEL_CONSOLIDATION_STATUS.md's Task #47 section (file does not exist in this repo as of this task -- confirmed via find/grep; noting this in the PR description instead)
+- [ ] Monitor PR #664 CI (lint/type-check/build/unit tests) until green; fix forward if red -- do not merge, do not self-audit
 
 ## Notes / honest limitations
 - No live DB credentials in this sandbox (no DATABASE_URL, no Supabase MCP tool available) -- migration SQL is written and reviewed against the exact hand-written-migration convention (0268's own header) but not applied live. Flagged in the PR description for the merging session to apply via Supabase MCP or db:push before/at merge time.
