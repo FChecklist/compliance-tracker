@@ -11,8 +11,11 @@
 - [x] Re-verified repo state is byte-identical to pre-task: `rulesets` still `[]`, required-status-check contexts list unchanged, `allow_auto_merge` back to `false`.
 - [x] Appended a dated update to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md` documenting the blocker, the before/after required-checks diff (no change), and a recommendation (transfer repo to an Organization if merge queue is wanted). Committed locally in that repo (`4d06498`); not pushed (shared live control-plane repo with many unrelated in-flight dirty files from other concurrent processes -- pushing was judged out of scope/risky for this task).
 
+- [x] Pushed branch and opened PR #670 (https://github.com/FChecklist/compliance-tracker/pull/670) so this doc-only conclusion goes through the standard PR/CI gate (Rule 6) instead of sitting as an unpushed local commit.
+
 ## Remaining
-- [ ] Nothing further actionable by this task. Blocked on an Owner decision: transfer `FChecklist/compliance-tracker` to a GitHub Organization (the only real way to unlock merge queue), or accept current PR/CI + rebase-on-conflict as the standing mitigation for migration-number collisions.
+- [ ] Merge PR #670 once CI is green (doc-only change, no application code touched).
+- [ ] Nothing further actionable by this task beyond that. Blocked on an Owner decision: transfer `FChecklist/compliance-tracker` to a GitHub Organization (the only real way to unlock merge queue), or accept current PR/CI + rebase-on-conflict as the standing mitigation for migration-number collisions.
 
 ## Outcome: BLOCKED (platform limitation, not a config error)
 GitHub's merge queue cannot be enabled on `FChecklist/compliance-tracker` because it is owned by a personal GitHub User account, not an Organization. No repository setting was changed as a result of this task (the one exploratory toggle made mid-investigation was reverted). All 7 previously-required status checks remain required, unchanged.
