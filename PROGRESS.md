@@ -381,13 +381,36 @@
 - [x] Force-pushed (`--force-with-lease`) the re-rebased branch:
       `ab1cc70e..b93331ba`.
 
+- [x] Confirmed post-push: `gh pr view 647 --json mergeable,mergeStateStatus`
+      = `MERGEABLE` / `BLOCKED` (BLOCKED is only the required-check gate,
+      not a conflict) on head `b93331ba`.
+- [x] Confirmed CI on head `b93331ba` via `gh pr checks 647`: every real
+      check passes -- Analyze, Asset Registry Coverage, Build, Doc
+      Cross-Reference/Quarantine/Sentinel, E2E Tests, Guardrail Presence,
+      Lint, Metadata Index Coverage, Secret Scanning, Terminology
+      Guardrail, Type Check, Unit Tests, Vercel, Vercel Preview Comments.
+      `audit-check` fails (expected -- no AUDIT comment posted, correctly
+      out of scope for this task). `Promptfoo Evals` pending (the same
+      pre-existing repo-wide Groq rate-limit flake documented above).
+      `CodeQL` shows `skipping` (not a required check). This is the exact
+      same CI profile as the first rebase pass -- confirms the second
+      rebase didn't regress anything, it only re-synced with main's move.
+- [x] Note for future sessions in this repo: this sandbox runs a
+      command-wrapper/logger called `snip` (tees output to
+      `~/.local/share/snip/tee/`) that occasionally injects a
+      `snip: tracking error: track: database is locked (5) (SQLITE_BUSY)`
+      line into a command's own stdout mid-stream under concurrent load
+      from the many parallel sessions sharing this repo -- this silently
+      truncates/corrupts piped JSON output (e.g. `gh ... --json ... |
+      python3 -c ...` failing with "Invalid control character"). Not a bug
+      in this task's own commands. Workaround: retry, or prefer plain-text
+      output (e.g. `gh pr checks <n>` table form) over `--json` piped
+      through another parser when this happens.
+
 ## Remaining (invocation 2)
-- [ ] Confirm `gh pr view 647 --json mergeable` returns `MERGEABLE` again
-      post-push (GitHub needs a few seconds to recompute after a
-      force-push -- was `UNKNOWN` immediately after push, polling).
-- [ ] Re-confirm CI goes green again on the new head `b93331ba` (Lint/Type
-      Check/Build/Unit Tests/etc.) -- expect same profile as before
-      (`audit-check` still correctly failing/pending on the audit-comment
-      gate, `Promptfoo Evals` still the pre-existing repo-wide flake).
 - [ ] Same explicit out-of-scope items as before still apply: no self-merge,
       no AUDIT verdict posted by this task.
+- [ ] `ai-os/boss/ACTIVE-CLAIMS.yaml` entry for this task is already in
+      `closed`/`recently_completed` from invocation 1 (commit `7d543e7f`) --
+      not reopened for this second rebase pass since it's the same task
+      continuing, not new work; nothing further to move.
