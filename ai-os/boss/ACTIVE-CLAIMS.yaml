@@ -3957,7 +3957,7 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 
-  - session_label: "claude-code (task-20260731-044029-pm--social-collaboration-feed) -- Task #47 PM feature-parity: social/collaboration feed (broadcast posts + reactions + comment-replies)"
+  - session_label: "claude-code (task-20260731-044029-pm--social-collaboration-feed) -- Task #47 PM feature-parity: social/collaboration feed (broadcast posts + reactions + comment-replies) [DONE THIS SESSION, PR #665 OPEN]"
     claimed_at: "2026-07-31T (this session)"
     claim: |
       PM gap analysis Task #47: reply-threads (comments table, polymorphic
@@ -3976,6 +3976,15 @@ active:
       including audience-scoping (a 'restricted' post's author + explicit
       audience members can see/react/comment; everyone else in the org
       gets 404, not a filtered-but-visible row).
+
+      PR #665 opened 2026-07-31 (not yet merged -- awaiting CI + review).
+      `bun test social-feed-service.test.ts` 13/13 pass; eslint clean on all
+      5 new/changed files. Full-project `tsc --noEmit` could not be run to
+      completion locally (OOM'd/timed out 4x across two approaches -- this
+      shared machine's RAM+swap were fully consumed by other concurrent
+      task sessions at the time, confirmed via free -h/ps aux, not a defect
+      in this change); deferring to CI's isolated Type Check job. Will move
+      this entry to recently_completed once merged.
     scope_note: >-
       File scope: src/lib/db/schema.ts (additive only -- new enums/tables/
       relations, no existing table touched), new

@@ -66,5 +66,20 @@
       unchanged) as the practical correctness gate CI's own Type Check job will
       re-verify with its own isolated runner/memory budget.
 - [x] Commit + push implementation
-- [ ] Open PR (do not merge, do not self-audit)
-- [ ] Append KERNEL_CONSOLIDATION_STATUS.md Task #47 line with PR number
+- [x] Open PR (do not merge, do not self-audit) -- PR #665:
+      https://github.com/FChecklist/compliance-tracker/pull/665
+- [x] "Append KERNEL_CONSOLIDATION_STATUS.md Task #47 line with PR number" --
+      that file does not exist anywhere in this repo (`find / -iname
+      "KERNEL_CONSOLIDATION_STATUS.md"` and a repo-wide grep both came back
+      empty); this looks like a stale/incorrect instruction carried over from
+      an earlier checkpoint, not a real governance doc (CLAUDE.md/AGENTS.md
+      name only `ai-os/MASTER-TRACKER.yaml` for open work and
+      `ai-os/boss/COMPLETED.yaml` for closed work). Did the real equivalent
+      instead: updated this task's own `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
+      with the PR #665 link and test/lint status per that file's own Rule 3
+      protocol (stays under `active:` with a "[DONE THIS SESSION, PR #665
+      OPEN]" marker until merged, per the identical pattern already used by
+      the neighboring Stage-12 entry in that same file).
+
+## Remaining
+- [ ] PR #665 merges (owner/CI-gated, not a step this session performs)
