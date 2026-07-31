@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-043731-crm--lead-deal-source-attribution---stat) -- Task #46: CRM lead/deal source-attribution enum + expanded lead status set"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Task #46 gap: crmLeads.status is a 5-value free-text column ('new' |
+      'contacted' | 'qualified' | 'converted' | 'lost'); no dedicated
+      source-attribution enum exists (crmLeads.source is free text with no
+      validated value set). Adding an additive `sourceAttribution` text
+      column (validated CRM-standard set: referral, campaign,
+      cold_outreach, website, partner, event, social_media, advertisement,
+      organic_search, other -- generic, not telecom-specific) alongside the
+      existing free-text `source` column (left untouched, still legacy free
+      text), and widening crmLeads.status's validated value set from 5 to
+      10 (new, contacted, qualified, unqualified, nurturing, proposal,
+      negotiation, on_hold, converted, lost) -- the existing 5 values are a
+      strict subset of the new 10, so this is a pure widening with an
+      identity mapping for all existing rows, no data rewrite/corruption
+      risk. Same convention as the rest of this schema: text() columns +
+      app/service-layer validation, no drizzle pgEnum (confirmed unused
+      elsewhere in schema.ts) -- adding a Postgres CHECK constraint at the
+      migration level for both columns for real DB-level integrity.
+      crmOpportunities gets the same sourceAttribution column (deals
+      inherit source attribution from how the deal originated) but its
+      `stage` enum is explicitly OUT of scope per this task's spec (status
+      only). Checked drizzle/meta/_journal.json fresh against origin/main
+      (matched local HEAD, 11db691a) before picking a migration number:
+      highest existing tag is 0301, so this uses 0302.
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (crmLeads/crmOpportunities, additive
+      only), one new drizzle/0302_*.sql migration, src/lib/services/
+      crm-service.ts + crm-service.test.ts, src/app/(app)/crm/leads/*.tsx
+      (status Select options + color map), src/app/api/crm/leads/** request
+      validation if any. Does not touch Campaigns, Announcements, Import/
+      Export, Items Master, crm_accounts/crm_contacts, or crmOpportunities.
+      stage -- explicitly out of scope per this task's own spec. No overlap
+      found with any other active claim in this file as of this check
+      (PR #658, auto-distribution/assignment-overview, is the most recent
+      merged CRM work and does not touch status/source columns).
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
