@@ -17,8 +17,12 @@
 - [x] Opened PR #664 against FChecklist/compliance-tracker: https://github.com/FChecklist/compliance-tracker/pull/664 (not merged, not self-audited)
 - [x] KERNEL_CONSOLIDATION_STATUS.md does not exist in this repo (confirmed via find/grep) -- Task #47 summary put in the PR description instead, noted honestly rather than silently skipped
 
+- [x] Monitored PR #664 CI (invocation 3, 2026-07-31): all fixable gates green -- Lint, Type Check, Build, Unit Tests, E2E Tests, Analyze, Guardrail Presence Check, Secret Scanning, Security Pattern Check, Terminology Guardrail Check, Doc Cross-Reference/Quarantine/Sentinel Checks, Asset Registry Coverage Check, Metadata Index Coverage Check all pass. Two checks are red, both correctly out of this session's scope to fix:
+  - `Vercel` -- fails with "Deployment rate limited" (external quota, not a code issue). Precedent in `ai-os/boss/COMPLETED.yaml` (WAVE-177/PR #282 audit entry) confirms this preview-deploy check fails intermittently across unrelated recent waves and is not treated as a merge blocker.
+  - `audit-check` -- fails with "No structured audit verdict found. Per AGENTS.md Operating Rule 7c, post a comment starting with 'AUDIT: PASS' or 'AUDIT: FAIL'..." This is the expected, correct state: per Rule 7c the doer may not self-certify, so this session (the doer) does not post that comment. Requires a separate auditor session/agent to independently re-verify (re-run tsc/bun test, spot-check the diff, confirm the migration SQL) and post the verdict, per the pattern documented for WAVE-177/PR #282.
+
 ## Remaining
-- [ ] Monitor PR #664 CI (lint/type-check/build/unit tests) until green; fix forward if red -- do not merge, do not self-audit
+- [ ] Awaiting an independent auditor session to review PR #664 and post the mandatory `AUDIT: PASS`/`AUDIT: FAIL` comment (Rule 7c/10) -- not actionable by this session per its own "do not self-audit" constraint. Once posted (and Vercel's rate-limit clears/retries), PR #664 should be mergeable.
 
 ## Notes / honest limitations
 - No live DB credentials in this sandbox (no DATABASE_URL, no Supabase MCP tool available) -- migration SQL is written and reviewed against the exact hand-written-migration convention (0268's own header) but not applied live. Flagged in the PR description for the merging session to apply via Supabase MCP or db:push before/at merge time.
