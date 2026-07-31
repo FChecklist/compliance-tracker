@@ -277,4 +277,11 @@ which was already confirmed green above) both timing out at the plain
       task, same as invocation 1's fix.
 - [ ] Re-running `quality-gate.sh` against this workspace again to confirm
       lint/build pass under the real fix, rather than assuming success from
-      code review alone.
+      code review alone. Running in a tracked background shell
+      (`/tmp/qg-retest-652-v2.json`/`.log`); host still observed at load
+      average ~300 with 3 other flock waiters already queued on the same
+      lock at launch time, so this may take a while under genuine
+      contention -- that is now expected/tolerated behavior (queues and
+      eventually runs) rather than the premature exit-1 failure this
+      GATE_FAIL was about. Will check the result before considering this
+      resolved.
