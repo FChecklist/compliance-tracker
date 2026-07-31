@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-// VERIDIAN Review Framework Wave B (17 Jul 2026): account detail page --
+// VERIDIAN Review Framework Wave B: account detail page --
 // profile edit, billing/shipping address, contacts roster (primary-contact
 // aware), linked leads/opportunities, and child accounts (subsidiaries).
 // Mirrors /erp/customers/[id]'s list+detail shape, extended with the
