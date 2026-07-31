@@ -336,3 +336,58 @@
       (commit `7d543e7f`, PR #662).
 - [ ] Did NOT merge PR #647 and did NOT post an AUDIT verdict, per this
       task's own explicit constraints.
+
+## Invocation 2 (resume) -- second rebase pass, main advanced again
+- [x] On resume, re-verified live PR state instead of trusting the prior
+      checkpoint: `gh pr view 647 --json mergeable` now returned
+      `CONFLICTING`/`DIRTY` again. Root cause: `origin/main` had advanced by
+      one more merge (`11db691a`, PR #639 "Stage 12: platform.dispatch_outcomes")
+      since this task's first rebase pass landed on `8aafc199` -- that PR
+      also appended a `_journal.json` entry at idx 278, the same slot our
+      first-pass rebase used, so main moving again reopened the exact same
+      class of conflict. Not a mistake in the first pass -- a real
+      main-keeps-moving race inherent to a shared, actively-merging repo.
+- [x] Used the existing `/home/rajat/work/pr647-fix` worktree (already
+      checked out on this branch, per `git worktree list`) rather than
+      creating a new one. It was stale (local tip `f798e739`, pre-first-
+      rebase) -- `git reset --hard origin/feat/fi-gl-007-subledger-gl-reconciliation`
+      brought it to the already-pushed `ab1cc70e` tip first (no local-only
+      work lost; that worktree had nothing beyond what was already on
+      origin), then `git rebase origin/main` onto the now-current
+      `11db691a`.
+- [x] Two conflicts, both `drizzle/meta/_journal.json`, both the same shape
+      as the first pass: PR #639's idx-278 entry (`0300_stage12_dispatch_outcomes`)
+      kept as-is; this branch's entry appended as idx 279, then updated to
+      tag `0286_subledger_gl_reconciliation_report_definition` when the
+      later in-branch renumber commit (`ab1cc70e`) replayed. No other file
+      conflicted (`report-engine-service.ts` etc. all auto-merged clean --
+      PR #639 doesn't touch that file).
+- [x] Post-rebase verification: 280 journal entries, 0 duplicate idx/tag,
+      contiguous 0..279. 282 `.sql` files vs 280 entries reconciles exactly
+      against the two pre-existing (not this branch's) duplicate migration
+      numbers already documented on main, `0225` and `0269` -- confirmed via
+      `git log --all -- drizzle/0225* drizzle/0269*` that neither number's
+      history touches this branch's own commits.
+- [x] `NODE_OPTIONS="--max-old-space-size=8192" bunx tsc --noEmit` clean
+      (exit 0, no output) in the rebased worktree.
+- [x] `~/.bun/bin/bun test src/lib/services/erp-financial-report-service.test.ts
+      src/lib/ai-team/dispatch-outcomes.test.ts` -- 23 pass, 0 fail (both
+      this branch's own test file and PR #639's, the two files nearest the
+      rebase's actual diff). Note: this shell's `bun` is only reachable via
+      the full `~/.bun/bin/bun` path or the `bunx` symlink -- plain `bun` is
+      not on `$PATH` in this worktree's shell.
+- [x] `bun run lint` -- 0 errors, same 3 pre-existing unrelated warnings as
+      the first pass.
+- [x] Force-pushed (`--force-with-lease`) the re-rebased branch:
+      `ab1cc70e..b93331ba`.
+
+## Remaining (invocation 2)
+- [ ] Confirm `gh pr view 647 --json mergeable` returns `MERGEABLE` again
+      post-push (GitHub needs a few seconds to recompute after a
+      force-push -- was `UNKNOWN` immediately after push, polling).
+- [ ] Re-confirm CI goes green again on the new head `b93331ba` (Lint/Type
+      Check/Build/Unit Tests/etc.) -- expect same profile as before
+      (`audit-check` still correctly failing/pending on the audit-comment
+      gate, `Promptfoo Evals` still the pre-existing repo-wide flake).
+- [ ] Same explicit out-of-scope items as before still apply: no self-merge,
+      no AUDIT verdict posted by this task.
