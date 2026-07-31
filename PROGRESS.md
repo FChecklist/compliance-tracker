@@ -226,3 +226,84 @@
       Separately unresolved (not this task's job to fix): PR #629 and PR
       #638 both still open and both touch SD-002; reconciling those two is
       a decision for whoever reviews/merges them, not addressed here.
+
+# PROGRESS -- crm-007-sales-rep-performance-dashboard
+
+## Completed
+- [x] Read AGENTS.md/CLAUDE.md governance chain; grepped
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` and `gh pr list`/`gh pr view 629/638/
+      644/647` for "CRM-007"/"Sales Rep" collisions -- none found. Registered
+      this task's own claim there before writing code.
+- [x] Read the full `sap_reports` row (`id='CRM-007'`) from
+      `/opt/veridian/ai-os/memory/sap_mapping.sqlite` directly via SSH (hit
+      this repo's documented connectivity-fluctuation pattern -- a few calls
+      timed out mid-session, retried per the 3-tier protocol and succeeded)
+      -- read every field (business_purpose/calculation_logic/
+      input_data_required/output_format/veridian_gap_notes/
+      implementation_notes/priority=LOW/engine_track=hybrid), not a summary.
+- [x] Confirmed the row's own veridian_gap_notes directly against
+      schema.ts/crm-service.ts/crm-activities-service.ts: ownerId already on
+      crm_leads/crm_opportunities (bulkReassignLeads/bulkReassignOpportunities
+      precedent), crm_activities.assignedToId already exists for activity
+      attribution, crm_stage_history already carries won/lost transition
+      dates -- NO NEW SCHEMA needed, genuinely an aggregation gap only.
+- [x] Grepped schema.ts fresh for any revenue-target/quota table (the
+      row's own input_data_required calls a per-rep-per-period target a
+      "prerequisite data element") -- found none. Disclosed as an honest gap
+      (revenueTarget/targetAchievementPercent always null), not fabricated.
+- [x] Added `aggregateSalesRepPerformance()` (pure, DB-free aggregator) +
+      `getSalesRepPerformanceDashboard()` (thin DB-fetching wrapper) to
+      crm-service.ts -- per-rep pipeline value, AI-win-probability-weighted
+      pipeline value (aiWinProbability, honestly excluding never-scored
+      opportunities), closed won/lost revenue, win rate, average deal size,
+      average sales cycle (via crm_stage_history), and activity count (via
+      crm_activities.assignedToId). Same pure-aggregator/DB-wrapper split
+      construction-reports-service.ts's aggregateDesignerTimesheetCosts
+      established.
+- [x] New route `GET /api/v1/projexa/sales-rep-performance` (optional
+      periodStart/periodEnd/ownerIds query params), same requireAuthOrApiKey
+      shape as the sibling `/api/v1/projexa/sales-pipeline` route.
+- [x] New report_definitions migration (re-fetched `origin/main` fresh
+      immediately before finalizing the number -- caught a real collision:
+      FI-AR-006 (#645) merged mid-session and had already claimed 0275,
+      renumbered to `drizzle/0276_crm007_sales_rep_performance_report_
+      definition.sql` + matching `_journal.json` entry). INSERT-only, no
+      schema/table changes. classifications=["sales"] only (deliberately no
+      "financial"/"compliance"/"construction"/"project") so
+      deriveReportDomainFromClassifications() resolves this to the "custom"
+      domain, same reasoning FI-GL-007's migration documents for its own
+      classification choice.
+- [x] New tests in `crm-service.test.ts` (this file had zero coverage
+      before this task): 8 tests directly against the pure aggregator with
+      3 distinct reps + an unassigned bucket (2 won/1 lost/1 open for rep-a,
+      1 won/1 lost for rep-b, 2 open/0 closed for rep-c) proving win-rate,
+      revenue, avg-deal-size, avg-sales-cycle, and activity-count math per
+      rep, plus the null-not-zero honesty checks (rep-c's win rate/avg deal
+      size/avg cycle all null, not 0); 2 tests against the DB-wired wrapper
+      with a mocked `@/lib/db/tenant-scoped`/`./crm-enablement-service`
+      (same "capture real modules, restore in afterEach" convention as
+      erp-selling-service.test.ts) proving the period/ownerIds filters and
+      rep-name join really work end-to-end.
+- [x] Terminology Guardrail: re-ran `node scripts/check-terminology-
+      guardrail.mjs --file <3 changed/new files>` before finalizing (not
+      trusting an earlier count) -- 8 new (unexempted) hardcoded_iso_date
+      findings (2 in crm-service.ts's new header comments, 5 in the new
+      test file's dated comment/fixture literals, 1 in the new route's
+      header comment). Added/raised 3 entries in
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` with real,
+      specific reasons; re-ran the check clean afterward.
+- [x] Verified: `bunx tsc --noEmit` (NODE_OPTIONS=--max-old-space-size=8192)
+      -- clean, 0 errors. `bun run lint` -- 0 errors, 3 pre-existing
+      warnings (litigation/[id]/route.ts, data-table.tsx, VeriComposer.tsx),
+      all unrelated to this change. `bun test` (full suite) -- 2383 pass, 5
+      skip, 4 fail -- all 4 pre-existing/environment (2 simulated-Groq-
+      network-failure tests in defense-in-depth.test.ts, 1 simulated-db-
+      unreachable test in connector-data-service.test.ts, 1 live-filesystem
+      lookup in prompt-governance-service.test.ts), none touch crm-service.ts
+      or this task's new files; `bun test src/lib/services/crm-service.test.ts`
+      on its own -- 10 pass, 0 fail, 62 expect() calls.
+
+## Remaining
+- [ ] PR opened, needs a fresh supervisor audit before merge (this task
+      does not self-merge, per EXPECTED_OUTPUT/AGENTS.md Rule 7c) -- messaged
+      "main" to request it rather than self-certifying.
