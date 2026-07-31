@@ -1357,6 +1357,42 @@ export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_override
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the AI Dev
+// Team dispatch system's persistent-memory table -- every runRole()
+// (team-service.ts) / dispatchRepoTask() (dispatch-repo.ts) completion
+// writes one row here, success or failure, independent of whether the
+// caller has an orgId (dispatch/route.ts's `if (orgId) recordActivity(...)`
+// means activity_log alone misses every orgId-less platform-internal
+// dispatch). orgId nullable, same convention as platformAssets/
+// taskCapabilities/aiTeamRoleOverrides: null = a platform-internal AI Dev
+// Team dispatch (the common case -- the AI Dev Team builds VERIDIAN, it
+// doesn't run inside a customer org's workflow, team-service.ts's own
+// header), a real orgId only for the rarer case a veridian_admin dispatch
+// happens to run inside an org context. requestFingerprint backs
+// checkForDuplicateDispatch() in dispatch-outcomes.ts, the same
+// category/keyword-match "have we done this before" principle as
+// ai-os/scripts/superboss-register.py's check_duplicate(), applied here
+// against real dispatch history instead of the server's sqlite index.
+export const dispatchOutcomes = platformSchemaDB.table('dispatch_outcomes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull(),
+  dispatchPath: text('dispatch_path').notNull().default('advisory'), // 'advisory' | 'repo_write'
+  objective: text('objective').notNull(),
+  scope: text('scope'),
+  successCriteria: text('success_criteria'),
+  complexityTier: text('complexity_tier'),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  status: text('status').notNull(), // 'success' | 'failure' | 'blocked'
+  prUrl: text('pr_url'),
+  errorDetail: text('error_detail'),
+  modelUsed: text('model_used'),
+  orgId: text('org_id'), // nullable = platform-internal dispatch
+  dispatchedBy: text('dispatched_by'),
+  dispatchedAt: timestamp('dispatched_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const orchestraLayers = complianceSchemaDB.table('orchestra_layers', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   layerKey: text('layer_key').notNull(),
@@ -6147,6 +6183,23 @@ export const erpSalesInvoices = complianceSchemaDB.table('erp_sales_invoices', {
   // invoice be attributed to one construction project. clientId alone
   // isn't precise enough (one client can have many projects).
   projectId: text('project_id'),
+  // SD-002 (Billing Due List): nullable/additive, same pointer
+  // convention as salesOrderId/projectId above -- set by
+  // erp-contract-service.ts#generateInvoiceFromBillingSchedule() so an
+  // invoice raised from a contract billing schedule (Wave 71) can be
+  // traced back to the schedule that produced it.
+  billingScheduleId: text('billing_schedule_id'),
+  // FI-AR-004 (Dunning List): minimal reminder-tracking mechanism -- NOT a
+  // reminder-automation engine (no letter/email is ever sent by this
+  // codebase). dunningLevel is a plain integer (0=none sent, 1=Friendly
+  // Reminder, 2=Formal Notice, 3=Final Demand -- see erp-invoicing-
+  // service.ts's DUNNING_LEVEL_LABELS), defaulting to 0 for every existing
+  // and new invoice. lastDunningSentAt is null until recordDunningAction()
+  // sets it. Both are additive/nullable-equivalent (dunningLevel defaults
+  // rather than being nullable so `> 0` comparisons never need a null
+  // check) -- no existing row's meaning changes.
+  dunningLevel: integer('dunning_level').notNull().default(0),
+  lastDunningSentAt: timestamp('last_dunning_sent_at'),
 })
 
 // Wave 69 (e-invoicing/IRN, per resilient-tech/india-compliance's
@@ -6229,6 +6282,23 @@ export const erpPurchaseInvoices = complianceSchemaDB.table('erp_purchase_invoic
   // discipline -- a later change to the supplier's withholding category
   // or rate must never silently rewrite a past invoice's TDS.
   tdsAmount: numeric('tds_amount').notNull().default('0'),
+  // FI-AP-007 (sap_mapping.sqlite gap analysis, "Subcontractor Retention
+  // Summary", SAP equivalent, BUILD_NEW/HIGH, 2026-07-30): additive,
+  // all-zero-default fields -- every existing/non-retention invoice is
+  // unaffected. retentionPercent is configurable per invoice (real
+  // subcontracts routinely vary 5-10%); retentionAmount is computed and
+  // snapshotted at submit time (never re-derived later), matching this same
+  // table's tdsAmount snapshot-at-transaction-time discipline immediately
+  // above. retentionReleasedAmount is the running total released back to
+  // the subcontractor so far (see erp-invoicing-service.ts's
+  // releaseSubcontractorRetention) -- retentionAmount minus this is what's
+  // still held. Mirrors constructionInterimBills.retentionPercent/
+  // retentionAmount's precedent (Wave "PROJEXA_ERP_END_TO_END..." AR-side
+  // client-billing retention), adapted to the AP/subcontractor-billing side,
+  // which had no retention concept at all before this.
+  retentionPercent: numeric('retention_percent').notNull().default('0'),
+  retentionAmount: numeric('retention_amount').notNull().default('0'),
+  retentionReleasedAmount: numeric('retention_released_amount').notNull().default('0'),
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -9948,6 +10018,41 @@ export const constructionInterimBillLineItems = complianceSchemaDB.table('constr
   currentBillAmount: numeric('current_bill_amount').notNull().default('0'), // cumulativeAmount - previousBilledAmount, floored at 0
 })
 
+// Progress-claim billing workflow (SAP-mapping PHASE-2-CROSSREF, SD-002
+// "Billing Due List" + SD-007 "Sales Order Status Overview", both BUILD_NEW,
+// engine_track=workflow -- confirmed absence of a scheduled/queryable
+// billing-due worklist before this: generateInterimBill() above goes
+// straight from work-progress % to a posted invoice in one atomic call, with
+// no draft/submit/client-approval staging in between). A state machine, not
+// a calculation -- constructionInterimBills stays the single source of
+// truth for the actual computed bill amounts once invoiced; this table only
+// tracks the pre-invoice approval stage a claim moves through.
+export const constructionClaimStatusEnum = complianceSchemaDB.enum('construction_claim_status', [
+  'milestone_achieved', 'drafted', 'submitted', 'client_approved', 'invoiced', 'rejected',
+])
+
+export const constructionProgressClaims = complianceSchemaDB.table('construction_progress_claims', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  boqId: text('boq_id').notNull(),
+  customerId: text('customer_id').notNull(),
+  milestoneDescription: text('milestone_description').notNull(),
+  scheduledDate: date('scheduled_date', { mode: 'string' }).notNull(), // billing-plan/milestone date this claim becomes due -- drives the "what can we bill today" worklist
+  retentionPercent: numeric('retention_percent').notNull().default('0'), // carried through to generateInterimBill() at the invoiced transition, same field/semantics as constructionInterimBills.retentionPercent
+  status: constructionClaimStatusEnum('status').notNull().default('milestone_achieved'),
+  draftedAt: timestamp('drafted_at'),
+  submittedAt: timestamp('submitted_at'),
+  approvedAt: timestamp('approved_at'),
+  rejectedAt: timestamp('rejected_at'),
+  rejectionReason: text('rejection_reason'),
+  invoicedAt: timestamp('invoiced_at'),
+  interimBillId: text('interim_bill_id'), // set once invoiced, points at the constructionInterimBills row generateInterimBill() produced
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 // One row per project per day. Unique(projectId, diaryDate) enforced in the
 // migration SQL -- this table's Drizzle definition doesn't model composite
 // constraints, matching this codebase's convention of keeping RLS and
@@ -10039,6 +10144,28 @@ export const constructionLabourRosterRelations = relations(constructionLabourRos
 export const constructionAttendanceRelations = relations(constructionAttendance, ({ one }) => ({
   roster: one(constructionLabourRoster, { fields: [constructionAttendance.rosterId], references: [constructionLabourRoster.id] }),
 }))
+
+// Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll
+// Report (Regulatory / Public Works)", US WH-347 equivalent, BUILD_NEW):
+// the government-mandated prevailing-wage determination -- minimum hourly
+// rate + required fringe rate -- per trade classification, for one
+// public-works project. Admin-editable master data, same posture as
+// erpStatutoryRules/erpIncomeTaxSlabs (rates come from a periodic
+// government determination, never a formula). trade is free text, matched
+// case-insensitively against constructionLabourRoster.trade the same
+// advisory, non-enum way that column is itself documented.
+export const constructionPrevailingWageRates = complianceSchemaDB.table('construction_prevailing_wage_rates', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  trade: text('trade').notNull(),
+  prevailingHourlyRate: numeric('prevailing_hourly_rate').notNull(),
+  fringeBenefitRate: numeric('fringe_benefit_rate').notNull().default('0'),
+  effectiveFrom: date('effective_from', { mode: 'string' }).notNull(),
+  effectiveTo: date('effective_to', { mode: 'string' }),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
 
 // ─── Construction Intelligence (Wave 117) ─────────────────────────────────
 // KPI module: designer-fills / manager-approves workflow, modeled as a

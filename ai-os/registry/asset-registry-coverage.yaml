@@ -321,6 +321,8 @@ registered:
     reason: "AI Architecture / Explainability & Transparency gap-closure (drizzle/0225 creates the table, drizzle/0226 registers it): a genuinely named, purpose-bearing platform asset (asset_type=other, same reasoning as report_definitions -- term is the display name, definition is the purpose) -- auto_register_asset_trg attached, name_column=term, purpose_column=definition, module_column=category, org_column=org_id (nullable -- platform-wide when null, same convention as report_definitions), owner_column=NULL (no single-user ownership concept), active_column=NULL (no boolean active/inactive state on a glossary entry)"
   - table: ai_model_registry
     reason: "AIROUTER-01 (drizzle/0226): PLATFORM-WIDE by design (no org_id column -- a shared catalog of every AI model/provider pair the platform knows about, same class as module_registry/subscription_plans) -- auto_register_asset_trg attached, name_column=model (a genuine human-recognizable identifier e.g. \"z-ai/glm-5.2\"), purpose_column=notes, active_column=NULL (status is a real Postgres enum active/disabled/deprecated, not boolean, matching training_courses's own precedent)"
+  - table: construction_progress_claims
+    reason: "PHASE-2-CROSSREF workflow-track gap-closure (SD-002/SD-007, drizzle/0269 creates the table, drizzle/0270 registers it): asset_type=workflow -- the table IS the milestone_achieved->drafted->submitted->client_approved->invoiced state machine, not master data, distinct from construction_interim_bills (still grandfather-exempted) which holds the computed bill amount this workflow eventually produces -- auto_register_asset_trg attached, name_column=milestone_description (no dedicated display-name column), org_column=org_id, owner_column=created_by_id, active_column=NULL (status is a 6-value enum, not boolean)"
 exempted:
   - table: crm_sales_targets
     reason: "Sales Pipeline dashboard (2026-07-28): org-scoped monthly sales target row, real RLS attached (drizzle/0268), not yet reviewed for UMR auto_register_asset_trg registration -- tracked as a follow-on, same as this repo established pattern for newly-added tables pending full registry review."
@@ -418,6 +420,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_labour_roster
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: construction_prevailing_wage_rates
+    reason: "HCM-006 Certified Payroll Report (added this PR): has org_id/project_id but no single display-name column -- identity is a (project_id, trade, effective_from) compound (the government wage determination for a given trade classification on a given public-works project, effective as of a date), same shape as erp_statutory_rules' own exemption reason (Priority 4 domain B), not expressible via the trigger's single name_column pointer."
   - table: construction_punch_list_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_site_diaries

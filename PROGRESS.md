@@ -1,20 +1,59 @@
-# PROGRESS -- task-20260728-050704-sap-informed-veridian-phase-0--baseline
+# PROGRESS -- task-20260729-112447-build-extend-workflow-track-engines
 
 ## Completed
-- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, confirmed no collision, registered claim, pushed (commit 887fae43)
-- [x] Located real data sources: ai-os/DATABASE_CATALOG.json (compliance-tracker, 449-table snapshot from 2026-07-26) + claude-control repo's ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json (7711 entities; only 6 generic "route" entities, 444 supabase_table, 1371 src/app/api functions -- not useful for per-route domain categorization, used DATABASE_CATALOG.json + direct grep as primary per spec's own fallback guidance)
-- [x] Diffed DATABASE_CATALOG.json's 449 tables against current schema.ts's real 464 `.table(` declarations -- found 15 new tables added since the snapshot (hr loans/expense-claims/shift-roster, performance-review goals/raters, helpdesk SLA/escalation/ticket-teams, construction interim bills), pulled their real columns directly from schema.ts
-- [x] Categorized 213 business-domain tables across the 8 in-scope domains (CRM 8, Sales 19, Purchase 27, Inventory 17, Accounting/GST 41, HR 43, PM 27, Helpdesk 13, Construction/BoQ 18), each with real file:line + real column list
-- [x] Enumerated all 959 real API route.ts files under src/app/api (note: relative-path `find` silently truncated to 51 in this shell -- absolute-path `find` gave the real count; used absolute-path form throughout), categorized 508 of them into the 8 domains by directory, with real per-directory counts + example paths (fixed an erp/returns sales-vs-purchase mis-split along the way)
-- [x] Confirmed PROJEXA's module-chain exposure via PR #609 (compliance-tracker, merged 2026-07-28T04:11:24Z) + PR #59 (projexa, merged 2026-07-28T03:19:17Z): buildCapabilityTree() now exposed to PROJEXA's chat composer (minus construction_intelligence, which PROJEXA already owns via its own dedicated route) -- read the actual route.ts + capability-tree-service.ts source, not just PR titles
-- [x] Ran both spec sanity checks: `grep -c "pgTable("` = 0 (real finding: this codebase uses `complianceSchemaDB.table(`/`platformSchemaDB.table(`, not literal `pgTable(` -- documented, not silently worked around) + real `.table(` count = 464; `git log` on PHASE_0_BASELINE.yaml confirmed empty (pre-creation)
+- [x] Read AGENTS.md/CLAUDE.md governance chain and `ai-os/boss/ACTIVE-CLAIMS.yaml` protocol before picking work
+- [x] Located the real PHASE-2-CROSSREF: `sap_reports` table in `/opt/veridian/ai-os/memory/sap_mapping.sqlite`
+      (`engine_track` + `veridian_mapping_status` columns), not a markdown file -- confirmed via direct sqlite
+      query and cross-checked against PR #624 / task-20260729-001528's discoverability doc.
+- [x] Scoped work: `engine_track='workflow' AND veridian_mapping_status IN ('BUILD_NEW', 'EXTEND_EXISTING(...)')`
+      = 2 rows: **SD-002** (Billing Due List) and **SD-007** (Sales Order -- Status Overview). Both BUILD_NEW.
+      0 workflow-track EXTEND_EXISTING rows exist. (Treasury-002 is workflow-track but REUSE_EXISTING -- out of
+      scope by spec.)
+- [x] Found the real `wiring_registry`: live sqlite table in `/opt/veridian/ai-os/memory/superboss-register.sqlite`
+      (host-level, shared, NOT this repo), registered via `/opt/veridian/scripts/superboss-register.py
+      register-entity` per `ai-os/WIRING_ENGINE_SCHEMA_2026-07-25.yaml` (separate claude-control repo).
+- [x] Collision check: 8 sibling branches with the identical task title exist (dispatcher duplication storm,
+      2026-07-29 09:29-11:19Z, affecting both workflow-track and calculation-track build tasks). Only 2 have any
+      commit beyond main, both claim-registration-only, zero engine code, no open PR. Proceeding given the tiny
+      real scope (2 engines) and zero competing implementation -- registered claim in ACTIVE-CLAIMS.yaml
+      documenting this.
+- [x] Dispatched research agent to survey existing workflow/state-machine patterns in this repo before writing
+      any code, per spec's "these are state machines, do not force the wrong shape" instruction. Findings:
+      erp-selling-service.ts's `QUOTATION_TRANSITIONS`/`updateQuotationStatus` (explicit `Record<Status,
+      readonly Status[]>` transition table) is the established convention -- no shared state-machine helper
+      exists in this repo, every status-flow service hand-rolls its own map. `constructionInterimBills` has NO
+      status column (generateInterimBill() goes straight from work-progress % to a posted invoice in one call) --
+      confirmed a new table is genuinely needed, not an extension of an existing one.
+- [x] Built both engines as ONE service, `src/lib/services/construction-billing-workflow-service.ts` (they share
+      the same underlying table/state machine -- SD-002 is the queue view, SD-007 is the per-claim trace view):
+      - New table `constructionProgressClaims` + `constructionClaimStatusEnum` (schema.ts + hand-written
+        migration `drizzle/0269_construction_progress_claims_workflow.sql`, same convention as
+        0268_pms_time_entry_approval_flow.sql -- drizzle-kit generate can't diff against an accurate baseline,
+        confirmed via that migration's own header)
+      - State machine: `milestone_achieved -> drafted -> submitted -> client_approved -> invoiced` (+ `rejected`
+        bounce-back to `drafted`), modeled on `QUOTATION_TRANSITIONS`
+      - `invoiceApprovedClaim` delegates the real bill computation to the existing `generateInterimBill()` --
+        never recomputes it, this service's job stops at the state transition
+      - `listBillingDueQueue` = SD-002's "Ready to Bill" worklist (overdue flag when scheduledDate has passed)
+      - `getClaimTimeline` = SD-007's "Claim Timeline" document-flow trace (claim -> interim bill -> sales
+        invoice -> payment, `isStuck` flag past a documented 14-day threshold)
+- [x] Wired 7 API routes under `src/app/api/construction/progress-claims/` (list/create, draft, submit, approve,
+      reject, invoice, timeline), mirroring `interim-bills/route.ts` and `kpi-entries/[id]/approve/route.ts`'s
+      exact `requireAuth`/`requireRole`/`ServiceError` conventions
+- [x] Registered the new engine file in the real wiring_registry immediately after writing it (`register-entity`
+      CLI, `entity_id: file-0586774ff0fd`) -- `verification_status: PATH_MISSING` is honest, not a defect: the
+      canonical path (`repos/compliance-tracker/...`) won't exist until this branch merges
+- [x] 14 unit tests (`construction-billing-workflow-service.test.ts`, same mock-`withTenantContext` pattern as
+      `pms-time-service.test.ts`) -- all pass, plus the 2 neighboring service test files (38 total, 0 fail)
+- [x] `tsc --noEmit` clean on all new/changed files, `eslint` clean, `check-terminology-guardrail.mjs`/
+      `check-guardrail-presence.mjs`/`check-metadata-index-coverage.mjs`/`check-migration-collision.mjs` all pass
 
-- [x] Assembled ai-os/tasks/sap_mapping/PHASE_0_BASELINE.yaml (213 tables + 508 API routes across 8 domains, PROJEXA module-exposure section, sanity checks, out-of-scope notes) -- fixed one auto-generated-description false positive along the way (erpItems mis-labeled "line items" purely because its table name ends in _items; it's actually the item master)
-- [x] Committed + pushed (commit b1631f6e)
-- [x] Opened PR #615: https://github.com/FChecklist/compliance-tracker/pull/615
-- [x] Updated ACTIVE-CLAIMS.yaml entry with PR #615 status (will move to recently_completed once merged)
+- [x] Opened PR #629: https://github.com/FChecklist/compliance-tracker/pull/629
 
 ## Remaining
+- [ ] CI + merge (per AGENTS.md Rule 6, no self-merge without CI green)
+- [ ] Move this task's ACTIVE-CLAIMS.yaml entry to recently_completed once merged
+
 - [ ] None -- task complete, PR #615 awaiting CI + review/merge
 
 # PROGRESS -- task-20260728-051733-owner-engine-phase-5-real-gaps
@@ -200,3 +239,44 @@
 ## Remaining
 - [ ] Open a PR on this task's branch (real code fix was required --
       outcome (1) from the task spec, not the verification-only outcome).
+
+# PROGRESS -- sd-007-sales-order-document-flow-overview
+
+## Completed
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml, found a real collision (PR #629
+      also self-labels part of its work SD-007), verified via git/gh (not
+      the sqlite gap-analysis file's own citations) that PR #629's
+      getClaimTimeline() is scoped entirely to the brand-new
+      construction_progress_claims workflow table, distinct from the
+      pre-existing generic ERP Sales & Distribution chain this task covers
+      -- registered a claim documenting the distinction, committed+pushed
+      first (commit 8b4f0720), before any real code.
+- [x] Discovered the real FK chain already on main (Priority 15/Wave
+      60-84, zero new schema needed): erp_quotations (quotationId) ->
+      erp_sales_orders (soNumber/status) -> erp_sales_invoices
+      (salesOrderId) -> erp_payment_entries (invoiceType='sales_invoice'/
+      invoiceId) + erp_sales_credit_notes (salesInvoiceId) +
+      erp_sales_returns (salesInvoiceId).
+- [x] Added getSalesOrderDocumentFlow() to erp-selling-service.ts (additive,
+      reuses existing withTenantContext/ServiceError/requireErpEnabled
+      conventions already in that file).
+- [x] New route GET /api/v1/projexa/sales-order-document-flow/[id].
+- [x] New report_definitions row (drizzle/0269, platform-wide,
+      executionType='external_service'), following the exact precedent
+      PR #637 (FI-AP-005) established.
+- [x] 3 new tests in erp-selling-service.test.ts (real quotation->order->
+      invoice->payment->credit-note->return 6-hop chain; standalone order
+      with no invoices yet; not-found -> 404), same mock-withTenantContext
+      pattern as construction-reports-service.test.ts/tenant-isolation.test.ts.
+- [x] Verified: bunx tsc --noEmit -- 0 errors. bun run lint -- 0 errors (3
+      pre-existing warnings, unrelated files). bun test (full suite) --
+      2305 pass, 0 fail, 4568 expect() calls (includes the 3 new tests).
+- [x] Honest gap: no post-order change-order document exists in this
+      schema (only a pre-order quotation revision) -- disclosed in the
+      report_definitions row's description, not fabricated.
+
+## Remaining
+- [ ] None for this task's own scope -- PR opened, awaiting review/merge.
+      Separately unresolved (not this task's job to fix): PR #629 and PR
+      #638 both still open and both touch SD-002; reconciling those two is
+      a decision for whoever reviews/merges them, not addressed here.

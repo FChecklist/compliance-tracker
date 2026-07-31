@@ -256,7 +256,7 @@ describe("Tenant isolation: org-scoping through service functions", () => {
     expect(capturedOrgIds.some(id => id === ORG_A)).toBe(false)
   })
 
-  // crm_sales_targets (drizzle/0269_sales_pipeline_dashboard_targets.sql) is a
+  // crm_sales_targets (drizzle/0302_sales_pipeline_dashboard_targets.sql) is a
   // new org-scoped table added by the Sales Pipeline dashboard -- covering it
   // here at the app level, alongside a real SQL-content check in
   // sales-pipeline-rls.test.ts that this file's own header says it does NOT

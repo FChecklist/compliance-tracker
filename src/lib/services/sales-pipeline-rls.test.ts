@@ -21,10 +21,10 @@ import { describe, expect, test } from "bun:test"
 import { readFileSync } from "fs"
 import { join } from "path"
 
-const migrationPath = join(import.meta.dir, "..", "..", "..", "drizzle", "0269_sales_pipeline_dashboard_targets.sql")
+const migrationPath = join(import.meta.dir, "..", "..", "..", "drizzle", "0302_sales_pipeline_dashboard_targets.sql")
 const migrationSql = readFileSync(migrationPath, "utf8")
 
-describe("compliance.crm_sales_targets RLS (drizzle/0269_sales_pipeline_dashboard_targets.sql)", () => {
+describe("compliance.crm_sales_targets RLS (drizzle/0302_sales_pipeline_dashboard_targets.sql)", () => {
   test("enables Row Level Security on the table", () => {
     expect(migrationSql).toMatch(/ALTER TABLE compliance\.crm_sales_targets ENABLE ROW LEVEL SECURITY/)
   })
