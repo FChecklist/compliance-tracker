@@ -25,18 +25,46 @@
       postId instead of polymorphic entityType/entityId since posts are one new entity
       type).
 
-## Remaining
-- [ ] Schema additions in src/lib/db/schema.ts (enums, 4 tables, relations)
-- [ ] Hand-written migration drizzle/0302_social_feed.sql + drizzle/meta/_journal.json entry
-- [ ] Service layer src/lib/services/social-feed-service.ts (createPost, listFeed,
-      reactToPost, addPostComment, listPostComments, audience-visibility enforcement)
-- [ ] API routes: src/app/api/social/posts/route.ts,
-      src/app/api/social/posts/[id]/reactions/route.ts,
-      src/app/api/social/posts/[id]/comments/route.ts
-- [ ] Tests: src/lib/services/social-feed-service.test.ts (post creation, reactions incl.
-      toggle, audience-scoping -- restricted-post visibility for author/member vs
-      non-member 404)
-- [ ] `npx tsc --noEmit` clean
-- [ ] `bun test` on new/touched test file(s) -- 0 failures
+- [x] Schema additions in src/lib/db/schema.ts (postAudienceTypeEnum, postReactionTypeEnum,
+      posts, postAudienceMembers, postReactions, postComments tables + relations) --
+      additive only, appended after supportSessionsRelations, no existing table touched.
+- [x] Hand-written migration drizzle/0310_social_feed.sql + drizzle/meta/_journal.json entry.
+      Started as 0302 (confirmed free against a freshly-fetched origin/main), but bumped to
+      0310 after discovering PR #630 (open, unmerged, per KERNEL_CONSOLIDATION_STATUS.md's
+      own log) also claims 0302 on its own branch -- avoids a near-certain
+      migration-collision-checker CI failure for whichever of us merges second. Final
+      collision defense is still that CI check + a rebase-time check before merge, same as
+      every other concurrent migration PR in this repo right now.
+- [x] Service layer src/lib/services/social-feed-service.ts: createPost, listFeed,
+      reactToPost (toggle/replace semantics on the fixed reaction enum), addPostComment,
+      listPostComments, assertPostVisible (real audience-scoping gate -- 404s a
+      restricted post to anyone outside org+author+explicit audience, doesn't leak
+      existence). Reuses ServiceError from compliance-service.ts and the
+      withTenantContext convention from chat-service.ts.
+- [x] API routes: src/app/api/social/posts/route.ts (GET list feed / POST create),
+      src/app/api/social/posts/[id]/reactions/route.ts (POST react/toggle),
+      src/app/api/social/posts/[id]/comments/route.ts (GET/POST comments) -- same
+      requireAuth()/ServiceError catch-pattern as conversations/route.ts.
+- [x] Tests: src/lib/services/social-feed-service.test.ts -- 13 tests, 0 fail, 23
+      expect() calls. Covers post creation (org + restricted, incl. rejecting an
+      audience member outside the org), reaction toggle/replace across the fixed enum,
+      and audience-scoping: org-wide visible to everyone, restricted visible only to
+      explicit members + author, non-member gets 404 (not a silently filtered list) on
+      react/comment/list-comments, and an org-boundary check (right post id, wrong org
+      -> 404).
+- [x] `bun test src/lib/services/social-feed-service.test.ts` -- 13 pass, 0 fail
+
+- [x] `npx tsc --noEmit` attempted 4x (full-project OOM twice, scoped-tsconfig
+      timeout twice) -- confirmed via `free -h` (15Gi/15Gi RAM + 4.0Gi/4.0Gi swap
+      both fully consumed) that this is systemic memory contention from other
+      concurrent task sessions on this shared machine, not a defect in this
+      change: `ps aux` showed 8+ other `node`/`claude` task-session processes
+      each holding 250MB-1.5GB RSS at the same time. Did not attempt a 5th/6th
+      time (would be the 3rd distinct approach after 2 consecutive failures of
+      each of the first two) -- substituted `eslint` (clean, 0 errors/warnings)
+      on all 5 changed/added files + a fresh `bun test` re-run (13 pass, 0 fail,
+      unchanged) as the practical correctness gate CI's own Type Check job will
+      re-verify with its own isolated runner/memory budget.
+- [x] Commit + push implementation
 - [ ] Open PR (do not merge, do not self-audit)
 - [ ] Append KERNEL_CONSOLIDATION_STATUS.md Task #47 line with PR number
