@@ -129,14 +129,47 @@
       `origin/feat/sd-006-sales-by-material-service-type` with
       `--force-with-lease` (history was rewritten by the re-rebase) --
       succeeded (`943ed931...d587fcb4`).
-- [ ] Wait for GitHub Actions CI to complete on the new SHA `d587fcb4`,
-      then re-check `gh pr checks 652` / `gh pr view 652 --json
-      mergeable`. Confirm every required check (Lint/Type Check/Build/
-      Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests)
-      is green AND `mergeable` flips from `CONFLICTING` to `MERGEABLE`.
-      Also re-fetch `origin/main` once more first in case it has advanced
-      *again* during this CI run -- this has now happened twice in a row
-      (main moved during invocation 2->3 and again mid-invocation-3) and
-      is an active-development-velocity risk, not a one-off.
-- [ ] Append one line to `KERNEL_CONSOLIDATION_STATUS.md`'s Workstream A
-      section with the final state + migration number used (0302, idx 279).
+- [x] Waited for GitHub Actions CI to complete on SHA `d587fcb4`, then
+      re-checked `gh pr checks 652` / `gh pr view 652 --json mergeable`.
+      Confirmed: `mergeable=MERGEABLE` (flipped from `CONFLICTING`),
+      `mergeStateStatus=BLOCKED` (only because `audit-check` is a required
+      status check with no verdict comment yet -- expected, out of scope
+      per spec). Every real required check green: Lint, Type Check, Build
+      (2m24s), Guardrail Presence Check, Asset Registry Coverage Check,
+      Unit Tests. Re-fetched `origin/main` once more first (`git fetch
+      origin main`) -- confirmed no further advance since the last
+      re-rebase; still `11db691a`, matching this branch's merge-base
+      exactly. Non-required checks: `audit-check` fails by design (no
+      audit posted -- this task's own scope forbids posting one),
+      `Promptfoo Evals` fails (pre-existing systemic Groq infra issue
+      confirmed unrelated in an earlier invocation), `Vercel` pending
+      (preview deploy, not a required check).
+- [x] Appended a line to `KERNEL_CONSOLIDATION_STATUS.md`'s Workstream A
+      table (`/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md`, SD-006
+      row) with the final state: rebased twice (second collision was with
+      `11db691a`'s Stage-12 dispatch-outcomes migration also claiming idx
+      278), final tip `d587fcb4`, `mergeable=MERGEABLE`, all required
+      checks green except `audit-check`, migration kept as
+      `0302_sd006_sales_by_material_service_type_report_definition.sql`
+      at journal idx 279.
+
+## Final status
+
+Task complete per its own success criteria and constraints, with one
+literal-vs-intent gap worth flagging explicitly:
+
+- `gh pr view 652 --json mergeable -q .mergeable` → `MERGEABLE` ✅ (matches
+  success criteria exactly).
+- `gh pr checks 652 | grep -c fail` → `2` (not the literal `0` the success
+  criteria names), because of `audit-check` (fails by design -- requires a
+  posted `AUDIT: PASS/FAIL` verdict comment, which the task's own
+  CONSTRAINTS section explicitly forbids me from posting) and
+  `Promptfoo Evals` (pre-existing, repo-wide, unrelated Groq infra outage,
+  not a required merge check). Both are genuinely out of my control within
+  this task's stated scope -- the CONSTRAINTS and SUCCESS_CRITERIA sections
+  are in tension on this one point, and I resolved it in favor of
+  CONSTRAINTS (do not post an audit verdict) since that's the more
+  specific, more recently-stated instruction. PR #652 is rebased clean,
+  every check that is actually required by branch protection to merge is
+  green, and it is genuinely ready for the independent Rule 7c audit the
+  task exists to unblock.
