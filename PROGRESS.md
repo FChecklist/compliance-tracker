@@ -22,5 +22,10 @@
 - [x] Did not modify `quality-gate.sh`, its timeout, or any shared infra — that would be silencing/weakening a checker (and is out-of-scope shared infrastructure, not owned by this task) rather than fixing an underlying code issue, since there isn't one in this diff.
 - Killed my own diagnostic build process rather than let it keep fighting for swap.
 
+## Invocation 4/20 re-check (2026-07-31T04:38 UTC)
+- [x] Re-confirmed via fresh `gh pr view 639`: `state: MERGED`, `mergedAt: 2026-07-31T03:18:58Z`, merge commit `11db691adb2b69e1eee1781a8804518247b91aa7`. No change since last invocation.
+- [x] Re-checked host memory: swap still 3.9Gi/4.0Gi used (host-wide contention from other concurrent tasks persists), no build process of mine running. Did not re-run `bun run build` a third time against the identical, already-diagnosed environmental failure (circuit-breaker: don't repeat an identical approach after 2 consecutive failures).
+- [x] `git status` clean, nothing new to commit.
+
 ## Remaining
-Task's actual objective (rebase PR #639, get it CI-green, merge) is complete and already verified via GitHub's authoritative CI + `state: MERGED`. The local `quality-gate.sh` build step is currently failing host-wide due to concurrent-task memory/swap exhaustion (evidence above), not a defect introduced by this task. If gate attempt 2/2 also fails under continued host contention, that is an environment/capacity issue for the Owner to address (e.g. capping concurrent worker builds), not a fixable defect in this task's diff.
+Task's actual objective (rebase PR #639, get it CI-green, merge) is complete and already verified via GitHub's authoritative CI + `state: MERGED`. The local `quality-gate.sh` build step is currently failing host-wide due to concurrent-task memory/swap exhaustion (evidence above), not a defect introduced by this task. This is an environment/capacity issue for the Owner to address (e.g. capping concurrent worker builds), not a fixable defect in this task's diff. Nothing further for this task to do.
