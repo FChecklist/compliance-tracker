@@ -151,6 +151,28 @@ active:
       environment quirk unrelated to this PR, not fixed here), pushed
       63ffd4a5. CI green (audit-check correctly still failing/pending --
       no structured audit verdict posted yet, per design).
+
+      STATUS UPDATE 2026-07-31 (task task-20260731-045841-re-rebase-pr-653--
+      drifted-back-to-confli, second re-rebase): PR drifted back to
+      `mergeable=CONFLICTING` after main gained one more merge (`11db691a`,
+      #639 Stage-12 dispatch-outcomes) past the prior rebase's base
+      (`0b6b9028`). Real conflict was an idx-278 drizzle/meta/_journal.json
+      tail collision (both #639 and this branch independently appended a
+      new entry off the same base idx 277) plus additive-only conflicts in
+      this file and report-catalog-service.ts (both resolved by keeping
+      both sides' entries), and a rename/rename conflict on this branch's
+      own internal 0280-0282->0288-0290 renumbering commit (git's
+      linearized non-merge rebase dropped a prior merge-commit's
+      file-rename resolution from history, so it had to be reconstructed
+      by hand rather than replaying cleanly). Migration numbers
+      re-verified free (0288/0289/0292) against a freshly-fetched
+      origin/main journal -- unchanged. Rebased clean, pushed
+      62c021ef. `mergeable=MERGEABLE` confirmed live; all 6 non-audit
+      required checks pass (Lint/Type Check/Build/Guardrail
+      Presence/Asset Registry Coverage/Unit Tests); only `audit-check`
+      (no verdict posted, out of this task's scope) and non-required
+      `Vercel` (build-rate-limit, confirmed not in branch-protection
+      required-checks list) fail.
   - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
     claimed_at: "2026-07-30T (this session)"
     claim: |
