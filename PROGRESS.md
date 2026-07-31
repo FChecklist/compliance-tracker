@@ -82,4 +82,8 @@
       the neighboring Stage-12 entry in that same file).
 
 ## Remaining
+- [ ] PR #665 CI finishes (Type Check job running in its own isolated
+      runner will give the authoritative `tsc --noEmit` answer this
+      session's shared/contended machine couldn't). Vercel preview check
+      failed on a build-rate-limit, unrelated to this change.
 - [ ] PR #665 merges (owner/CI-gated, not a step this session performs)
