@@ -102,6 +102,38 @@ active:
       unit tests. No collision found with any other active claim in this
       file as of this timestamp (grepped for FI-AP-006/FI-AR-006, no
       hits).
+  - session_label: "claude-code (sd-006-sales-by-material-service-type) -- SD-006 Sales by Material / Service Type"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build SD-006 "Sales by Material / Service Type" (sap_mapping.sqlite
+      sap_reports, module SD, priority MEDIUM, veridian_mapping_status
+      BUILD_NEW as of 2026-07-28) -- SAP's material/material-group revenue
+      breakdown, per that row's own implementation_notes renamed "Revenue by
+      Service Type": groups erp_sales_invoice_items lines by item or item
+      group and sums Total Net Revenue, with an optional Gross Profit/Margin
+      % proxy (erp_items.standard_buying_rate x quantity).
+
+      Real finding: erp_sales_invoice_items.item_id (Wave 60) already exists
+      and is nullable -- the data model supports the grouping, but no report
+      function anywhere performs this aggregation (confirmed via grep across
+      src/lib/services/*.ts). Adding a new deterministic_formula report to
+      report-engine-service.ts's FORMULA_REGISTRY (same pattern as SD-002's
+      computeBillingDueList, PR #638) -- NOT erp-selling-service.ts (that
+      file's own header says aggregation/reporting reads belong in
+      report-engine-service.ts; erp-selling-service.ts is for document
+      CRUD/workflow, which SD-006 is not).
+
+      No collision found with any other open SD-* PR (checked SD-002 #629/
+      638, SD-007 #644 merged, FI-AP-005 #637, FI-GL-007 #647, FI-AR-006
+      #645 via `gh pr list` -- none touch erp_sales_invoice_items grouping
+      or report-engine-service.ts's FORMULA_REGISTRY sales-by-item slot).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/report-engine-service.ts (new
+      aggregateSalesByMaterialServiceType pure function + FORMULA_REGISTRY
+      entry, additive), src/lib/services/report-engine-service.test.ts (new
+      tests), a new hand-written drizzle migration seeding one
+      compliance.report_definitions row, PROGRESS.md, this file.
   - session_label: "claude-code (sd-007-sales-order-document-flow-overview) -- SD-007 Sales Order Document-Flow Overview"
     claimed_at: "2026-07-30T (this session)"
     claim: |
