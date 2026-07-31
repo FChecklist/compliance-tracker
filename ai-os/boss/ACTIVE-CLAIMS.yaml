@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-073923-add-measured-memory-limits-to-25-systemd) -- Add measured MemoryMax/MemoryHigh drop-ins to 25 of 27 veridian-* systemd --user units"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Adding systemd --user drop-in overrides (~/.config/systemd/user/<unit>.d/override.conf)
+      with MemoryHigh/MemoryMax sized from real measured per-service usage
+      (MemoryCurrent for active units, MemoryPeak for cron units triggered by
+      timers) to the 25 of 27 veridian-* units that currently lack any memory
+      limit. Explicitly NOT restarting veridian-worker@*, veridian-directive-engine.service,
+      or veridian-governor-tick.service -- these have real in-flight work this
+      session; drop-ins are added (daemon-reload does not restart running
+      units) but not exercised via restart.
+    scope_note: >-
+      File scope: ~/.config/systemd/user/*.d/override.conf (host systemd config,
+      outside the git repo) + KERNEL_CONSOLIDATION_STATUS.md one-line append.
+      No application code changed.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
