@@ -3956,6 +3956,36 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+
+  - session_label: "claude-code (task-20260731-044029-pm--social-collaboration-feed) -- Task #47 PM feature-parity: social/collaboration feed (broadcast posts + reactions + comment-replies)"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      PM gap analysis Task #47: reply-threads (comments table, polymorphic
+      entityType/entityId) and private messaging (conversations/
+      conversationParticipants/messages) already exist and are real -- this
+      task adds the missing third piece, a genuine broadcast/react feed.
+      New tables: posts (org-scoped, author, body, optional projectId/
+      taskId link, audienceType 'org'|'restricted'), postAudienceMembers
+      (explicit join table for 'restricted' audience membership, same
+      shape as conversationParticipants), postReactions (real fixed
+      Postgres enum reaction_type, not free text), postComments (reuses
+      the comments table's reply-thread shape, scoped to postId instead of
+      the polymorphic entityType/entityId since posts are a new, single
+      entity type). New service file src/lib/services/social-feed-service.ts,
+      new API routes under src/app/api/social/posts/**, real tests
+      including audience-scoping (a 'restricted' post's author + explicit
+      audience members can see/react/comment; everyone else in the org
+      gets 404, not a filtered-but-visible row).
+    scope_note: >-
+      File scope: src/lib/db/schema.ts (additive only -- new enums/tables/
+      relations, no existing table touched), new
+      src/lib/services/social-feed-service.ts (+ .test.ts), new
+      src/app/api/social/posts/** routes, new drizzle/03xx_*.sql migration +
+      drizzle/meta/_journal.json entry. Explicitly out of scope per this
+      task's own spec: pms_issues columns, Automation Rules, Project
+      columns, user types, PM Teams/Groups/Templates. No overlap with any
+      other active entry above -- grepped this file for feed/social/
+      reaction/broadcast/task #47 first, zero collisions found.
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
