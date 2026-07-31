@@ -16,7 +16,11 @@
 - [x] `eslint` clean on all new/touched files
 - [x] `bun test src/lib/services/crm-import-export-service.test.ts` -- 19 pass, 0 fail
 
+- [x] Committed + pushed, opened PR #666 (https://github.com/FChecklist/compliance-tracker/pull/666)
+- [x] Appended update to `ai-os/KERNEL_CONSOLIDATION_STATUS.md` Task #46 section with PR #666
+- [x] Moved ACTIVE-CLAIMS entry to recently_completed with PR #666 noted, CI/audit status marked pending
+
 ## Remaining
-- [ ] Commit + push, open PR (CI-green, do not merge, no self-audit)
-- [ ] Append line to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md` Task #46 section with PR number
-- [ ] Move ACTIVE-CLAIMS entry to recently_completed
+- [ ] Verify CI goes green on PR #666 (`gh pr checks 666`) -- not yet checked live
+- [ ] A separate session/agent must perform the mandatory Rule 7c independent audit (this session cannot self-audit) once CI is green
+- [ ] Task not complete until PR #666 is merged
