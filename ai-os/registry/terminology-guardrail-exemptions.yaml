@@ -1100,3 +1100,11 @@ exemptions:
     reason: "FI-AP-008 Subcontractor Payment Application Status (BUILD_NEW/HIGH): 4 new hardcoded_iso_date findings, all in one deliberate test fixture (ASOF constant and one postingDate literal) exercising computeSubcontractorPaymentApplicationWorklist's real days-in-current-status aging math -- literal dates are load-bearing for the assertions, not example/placeholder data."
     findings_by_category:
       hardcoded_iso_date: 4
+  - file: src/lib/ai-team/dispatch-repo.ts
+    reason: "Stage 12 dispatch_outcomes gap-closure (2026-07-30): first PR to touch this file since Phase 3 CI wiring, so it had no prior baseline entry. 1 pre-existing hardcoded_iso_date finding (line 85, a Wave 163/2026-07-18 dated design-rationale comment predating this change) grandfathered here, not introduced by this PR."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/ai-team/team-service.ts
+    reason: "Stage 12 dispatch_outcomes gap-closure (2026-07-30): first PR to touch this file since Phase 3 CI wiring, so it had no prior baseline entry. 5 pre-existing hardcoded_iso_date findings (lines 13/98/174/190/229, dated design-rationale comments from BYOB/Wave163/token-usage-ledger work predating this change) grandfathered here, not introduced by this PR."
+    findings_by_category:
+      hardcoded_iso_date: 5
