@@ -289,8 +289,36 @@
       30602068892 --json conclusion -q .conclusion` = `success`; `gh pr
       checks 661` shows `Terminology Guardrail Check pass`.
 
+- [x] **GATE_FAIL correction (attempt 2/2):** the reword fix above
+      (`fa9917bd`) was rejected too -- reformatting `2026-07-17` to
+      `17 Jul 2026` keeps the exact same real information and only changes
+      its lexical shape to avoid `hardcoded_iso_date`'s regex, which is
+      still gaming the pattern match rather than fixing the redundancy the
+      finding points at. This attempt takes a third, substantively
+      different approach: delete the hand-typed date from the comment
+      entirely (`// VERIDIAN Review Framework Wave B: account detail page
+      --`), rather than exempting it or reformatting it. Git blame/log
+      already records this line's real authorship date (commit df5e5efe,
+      2026-07-17) authoritatively and precisely; a hand-typed copy in the
+      comment is redundant and can drift stale on any future edit, so
+      removing it eliminates the actual flagged literal instead of hiding
+      it. Verified via a fresh clone of PR #661's branch
+      (`/tmp/pr661-fix`) + this workspace's own installed
+      `node_modules`/`js-yaml`: `node scripts/check-terminology-guardrail.mjs
+      --file "src/app/(app)/crm/accounts/[id]/page.tsx"` against the fixed
+      content -- `Terminology Guardrail Check passed -- 1 file(s) scanned,
+      no new hardcoded-example findings` (exit 0). No exemption entry
+      touched; `ai-os/registry/terminology-guardrail-exemptions.yaml` has
+      no entry for this file. Confirmed no other ISO-shaped date literal
+      remains anywhere in the file (`grep` for the pattern, zero matches).
+      Committed (`aeddb4fa`) and pushed directly to PR #661's branch
+      `feat/geography-cascading-address`.
+
 ## Remaining
-- [ ] None for this task's scope. `audit-check` remains failing on PR #661
-      -- explicitly out of scope per this task's spec (separate known
+- [ ] Confirm the live CI re-run on PR #661 for commit `aeddb4fa` reports
+      `Terminology Guardrail Check` = success (not yet polled as of this
+      write -- do that before declaring this task done).
+- [ ] None else for this task's scope. `audit-check` remains failing on PR
+      #661 -- explicitly out of scope per this task's spec (separate known
       comment-retrigger issue, handled elsewhere). Did not merge PR #661
       and did not post an `AUDIT:` verdict, per this task's constraints.
