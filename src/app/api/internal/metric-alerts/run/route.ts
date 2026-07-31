@@ -4,6 +4,7 @@ import { checkTicketSlaBreaches, checkTicketEscalations } from "@/lib/services/t
 import { checkTaskOverdue } from "@/lib/services/task-service"
 import { reprioritizeTasks } from "@/lib/services/task-reprioritization-service"
 import { checkCostCeilingBreaches } from "@/lib/cost-guard"
+import { checkPmsIssuesDueSoon } from "@/lib/services/pms-issue-service"
 
 /**
  * Cron-triggered entry point for Wave 38's metric alert rules
@@ -36,6 +37,13 @@ import { checkCostCeilingBreaches } from "@/lib/cost-guard"
  * reasoning. Unlike checkTicketSlaBreaches (re-notify-until-resolved, no
  * state), this one is idempotent per (ticket, escalation rule) via
  * ticket_escalation_events -- see ticket-service.ts for why.
+ *
+ * Task #47 (PM feature-parity gap analysis) adds checkPmsIssuesDueSoon() as
+ * a seventh consumer -- closes the Automation Rules engine's Time-based/
+ * DueDate trigger-catalog gap by reusing this same cron rather than
+ * standing up new scheduler infra, same reasoning as every consumer above.
+ * Re-notify-until-resolved like checkTaskOverdue/checkTicketSlaBreaches, no
+ * dedup state.
  */
 function isAuthorized(request: NextRequest): boolean {
   const secret = process.env.CRON_SECRET
@@ -48,15 +56,16 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   try {
-    const [metricAlerts, ticketSla, ticketEscalations, taskOverdue, taskReprioritization, costCeiling] = await Promise.all([
+    const [metricAlerts, ticketSla, ticketEscalations, taskOverdue, taskReprioritization, costCeiling, pmsIssuesDueSoon] = await Promise.all([
       evaluateAllMetricAlertRules(),
       checkTicketSlaBreaches(),
       checkTicketEscalations(),
       checkTaskOverdue(),
       reprioritizeTasks(),
       checkCostCeilingBreaches(),
+      checkPmsIssuesDueSoon(),
     ])
-    return NextResponse.json({ ranAt: new Date().toISOString(), metricAlerts, ticketSla, ticketEscalations, taskOverdue, taskReprioritization, costCeiling })
+    return NextResponse.json({ ranAt: new Date().toISOString(), metricAlerts, ticketSla, ticketEscalations, taskOverdue, taskReprioritization, costCeiling, pmsIssuesDueSoon })
   } catch (error) {
     console.error("Metric alert evaluation run failed:", error)
     return NextResponse.json({ error: "Metric alert evaluation run failed" }, { status: 500 })

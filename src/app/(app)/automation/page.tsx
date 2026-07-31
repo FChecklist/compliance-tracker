@@ -29,6 +29,8 @@ type Rule = {
 const TRIGGER_TYPES = [
   { value: "notice.status_changed", label: "Notice status changes" },
   { value: "pms_issue.status_changed", label: "PMS issue status changes" },
+  { value: "pms_issue.assigned", label: "PMS issue assigned to someone" },
+  { value: "pms_issue.due_soon", label: "PMS issue due within 24h (or overdue)" },
 ];
 
 export default function AutomationPage() {
@@ -40,9 +42,10 @@ export default function AutomationPage() {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [triggerType, setTriggerType] = useState("notice.status_changed");
-  const [actionType, setActionType] = useState<"notify_user" | "create_task">("notify_user");
+  const [actionType, setActionType] = useState<"notify_user" | "create_task" | "trigger_rule">("notify_user");
   const [userId, setUserId] = useState("");
   const [message, setMessage] = useState("");
+  const [targetTriggerType, setTargetTriggerType] = useState("notice.status_changed");
 
   const load = useCallback(async () => {
     const res = await fetch("/api/automation-rules");
@@ -55,8 +58,10 @@ export default function AutomationPage() {
     load();
   }, [load]);
 
+  const isChainAction = actionType === "trigger_rule";
+
   const createRule = async () => {
-    if (!name.trim() || !userId.trim()) return;
+    if (!name.trim() || (isChainAction ? !targetTriggerType.trim() : !userId.trim())) return;
     setCreating(true);
     try {
       const res = await fetch("/api/automation-rules", {
@@ -64,7 +69,9 @@ export default function AutomationPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name, description, triggerType, actionType,
-          actionConfig: { userId, message: message || undefined, title: name },
+          actionConfig: isChainAction
+            ? { targetTriggerType }
+            : { userId, message: message || undefined, title: name },
         }),
       });
       if (!res.ok) throw new Error();
@@ -143,25 +150,40 @@ export default function AutomationPage() {
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs font-semibold text-ct-muted uppercase">Then</Label>
-                <Select value={actionType} onValueChange={(v) => setActionType(v as "notify_user" | "create_task")}>
+                <Select value={actionType} onValueChange={(v) => setActionType(v as "notify_user" | "create_task" | "trigger_rule")}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="notify_user">Notify a user</SelectItem>
                     <SelectItem value="create_task">Create a task</SelectItem>
+                    <SelectItem value="trigger_rule">Chain to another trigger</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-ct-muted uppercase">User ID</Label>
-                <Input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Target user's ID" />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-semibold text-ct-muted uppercase">Message</Label>
-                <Input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional custom message" />
-              </div>
+              {isChainAction ? (
+                <div className="space-y-1.5">
+                  <Label className="text-xs font-semibold text-ct-muted uppercase">Target trigger</Label>
+                  <Select value={targetTriggerType} onValueChange={setTargetTriggerType}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {TRIGGER_TYPES.map((t) => <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+              ) : (
+                <>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-ct-muted uppercase">User ID</Label>
+                    <Input value={userId} onChange={(e) => setUserId(e.target.value)} placeholder="Target user's ID" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-xs font-semibold text-ct-muted uppercase">Message</Label>
+                    <Input value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Optional custom message" />
+                  </div>
+                </>
+              )}
             </div>
             <DialogFooter>
-              <Button onClick={createRule} disabled={creating || !name.trim() || !userId.trim()} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white">
+              <Button onClick={createRule} disabled={creating || !name.trim() || (isChainAction ? !targetTriggerType.trim() : !userId.trim())} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white">
                 {creating ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
                 Create Rule
               </Button>
@@ -189,7 +211,7 @@ export default function AutomationPage() {
                 <p className="text-xs text-ct-muted">
                   {TRIGGER_TYPES.find((t) => t.value === rule.triggerType)?.label ?? rule.triggerType}
                   {" -> "}
-                  {rule.actionType === "notify_user" ? "Notify user" : "Create task"}
+                  {rule.actionType === "notify_user" ? "Notify user" : rule.actionType === "create_task" ? "Create task" : "Chain to another trigger"}
                 </p>
               </div>
               <Badge variant={rule.isActive ? "default" : "secondary"} className="text-xs">

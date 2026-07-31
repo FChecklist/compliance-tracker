@@ -2,10 +2,10 @@
 // per-project issue numbering, and multi-assignee sync. Callers must have
 // already passed requirePmsEnabled() (enforced at the route layer).
 import {
-  pmsIssues, pmsIssueAssignees, pmsIssueRelations, pmsIssueLabels, pmsIssueStatuses, projects,
+  pmsIssues, pmsIssueAssignees, pmsIssueRelations, pmsIssueLabels, pmsIssueStatuses, projects, db,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
+import { and, eq, inArray, or, sql, lte, isNotNull, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -226,7 +226,7 @@ export async function updateIssue(ctx: PmsContext, issueId: string, patch: Issue
     await syncLabels(db, issueId, labelIds)
 
     const row = await getIssueRow(db, issueId)
-    return { row, previousStatusId: existing.statusId }
+    return { row, previousStatusId: existing.statusId, previousAssigneeId: existing.assigneeId }
   })
 
   // Wave 30: fire-and-forget automation rule evaluation on status change --
@@ -235,6 +235,17 @@ export async function updateIssue(ctx: PmsContext, issueId: string, patch: Issue
   if (patch.statusId !== undefined && patch.statusId !== result.previousStatusId) {
     void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
       evaluateAndRunRules({ orgId: ctx.orgId }, "pms_issue.status_changed", { issueId, previousStatusId: result.previousStatusId, newStatusId: patch.statusId })
+    )
+  }
+
+  // Task #47 (PM feature-parity gap analysis): Assignment trigger category
+  // -- fires only when the resulting primary assignee actually changed to a
+  // real (non-null) user, not on every assigneeIds write (e.g. re-saving
+  // the same assignee list, or clearing assignees entirely, isn't an
+  // "assignment" event).
+  if (patch.assigneeIds !== undefined && result.row.assigneeId && result.row.assigneeId !== result.previousAssigneeId) {
+    void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
+      evaluateAndRunRules({ orgId: ctx.orgId }, "pms_issue.assigned", { issueId, previousAssigneeId: result.previousAssigneeId, assigneeId: result.row.assigneeId })
     )
   }
 
@@ -298,4 +309,37 @@ export async function listIssueRelations(ctx: { orgId: string }, issueId: string
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.pmsIssueRelations.findMany({ where: and(eq(pmsIssueRelations.orgId, ctx.orgId), eq(pmsIssueRelations.issueId, issueId)) })
   )
+}
+
+// Task #47 (PM feature-parity gap analysis): Time-based/DueDate trigger
+// category -- reuses the existing /api/internal/metric-alerts/run cron
+// consumer, same posture as checkTaskOverdue (task-service.ts) and
+// checkTicketSlaBreaches (ticket-service.ts): a scheduled, notify-only
+// sweep using the raw `db` client (cross-org, appropriate for an internal
+// cron -- there is no per-request org to scope a tenant context to). Fires
+// evaluateAndRunRules() per matching issue instead of writing a
+// notification directly, so orgs configure their own automation rule (and
+// can chain into others via trigger_rule) rather than a hardcoded shape.
+export async function checkPmsIssuesDueSoon(): Promise<{ fired: number }> {
+  const now = new Date()
+  const soon = new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
+
+  const terminalStatuses = await db.query.pmsIssueStatuses.findMany({
+    where: inArray(pmsIssueStatuses.group, ["completed", "cancelled"]),
+  })
+  const terminalStatusIds = new Set(terminalStatuses.map((s) => s.id))
+
+  const dueSoon = await db.query.pmsIssues.findMany({
+    where: and(isNotNull(pmsIssues.dueDate), lte(pmsIssues.dueDate, soon)),
+  })
+  const relevant = dueSoon.filter((issue) => !terminalStatusIds.has(issue.statusId))
+
+  const { evaluateAndRunRules } = await import("./automation-rule-service")
+  for (const issue of relevant) {
+    await evaluateAndRunRules({ orgId: issue.orgId }, "pms_issue.due_soon", {
+      issueId: issue.id, projectId: issue.projectId, dueDate: issue.dueDate, assigneeId: issue.assigneeId,
+    })
+  }
+
+  return { fired: relevant.length }
 }
