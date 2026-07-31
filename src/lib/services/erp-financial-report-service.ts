@@ -7,9 +7,9 @@
 // aggregation, not new tables. Also owns isPeriodOpenForDate(), the
 // Tier 1 #3 fix (erp_accounting_periods) that gates journal-entry
 // posting so these reports stay trustworthy in production.
-import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems, erpCostCenters } from "@/lib/db"
+import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems, erpCostCenters, erpSalesInvoices, erpPurchaseInvoices } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, lte, gte, sql, inArray, ne, isNotNull } from "drizzle-orm"
+import { and, eq, lte, gte, sql, inArray, notInArray, ne, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { getCompanyDescendantIds } from "./erp-company-service"
@@ -210,7 +210,7 @@ type AccountBalance = {
 }
 
 /** Sums submitted journal-entry-line debit/credit by account, in a date range. */
-async function accountBalancesInRange(orgId: string, fromDate: string | null, toDate: string, companyIds?: string[]): Promise<AccountBalance[]> {
+export async function accountBalancesInRange(orgId: string, fromDate: string | null, toDate: string, companyIds?: string[]): Promise<AccountBalance[]> {
   return withTenantContext({ orgId }, async (db) => {
     const conditions = [eq(erpJournalEntries.orgId, orgId), eq(erpJournalEntries.status, "submitted"), lte(erpJournalEntries.postingDate, toDate)]
     if (fromDate) conditions.push(gte(erpJournalEntries.postingDate, fromDate))
@@ -452,5 +452,154 @@ export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate
       totalIncome: costCenterRollups.reduce((sum, c) => sum + c.income, 0),
       totalExpense: costCenterRollups.reduce((sum, c) => sum + c.expense, 0),
     }
+  })
+}
+
+function dayBefore(isoDate: string): string {
+  const d = new Date(isoDate)
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * SAP FS10N equivalent (FI-GL-002, EXTEND_EXISTING): trialBalance already
+ * computes every account's cumulative closing balance -- per gap_notes this
+ * is meant to stay "a direct filter of this existing output, not new logic".
+ * The one genuine addition is the opening/period-debit/period-credit
+ * breakdown FS10N shows per account, which trialBalance's single asOfDate
+ * snapshot doesn't expose -- built from two more accountBalancesInRange
+ * calls, the same primitive trialBalance itself is built on.
+ */
+export async function glAccountBalanceDisplay(ctx: { orgId: string }, accountIds: string[], fromDate: string, toDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const [opening, period, closing] = await Promise.all([
+    accountBalancesInRange(ctx.orgId, null, dayBefore(fromDate), companyIds),
+    accountBalancesInRange(ctx.orgId, fromDate, toDate, companyIds),
+    accountBalancesInRange(ctx.orgId, null, toDate, companyIds),
+  ])
+  const openingById = new Map(opening.map((b) => [b.accountId, b]))
+  const periodById = new Map(period.map((b) => [b.accountId, b]))
+  const idSet = new Set(accountIds)
+
+  const accounts = closing
+    .filter((b) => idSet.has(b.accountId))
+    .map((b) => {
+      const o = openingById.get(b.accountId)
+      const p = periodById.get(b.accountId)
+      return {
+        accountId: b.accountId,
+        accountName: b.accountName,
+        accountNumber: b.accountNumber,
+        rootType: b.rootType,
+        accountType: b.accountType,
+        openingBalance: o?.netBalance ?? 0,
+        periodDebit: p?.totalDebit ?? 0,
+        periodCredit: p?.totalCredit ?? 0,
+        closingBalance: b.netBalance,
+      }
+    })
+    .sort((a, b) => (a.accountNumber ?? "").localeCompare(b.accountNumber ?? ""))
+
+  return { fromDate, toDate, accounts }
+}
+
+/**
+ * SAP FI-GL-007 (BUILD_NEW): "month-end health check" per implementation_notes
+ * -- since AR/AP line items live in the same ledger as the GL here (single
+ * source of truth, not separate BSID/BSIK-style subledger tables), this
+ * verifies the two independently-derived totals genuinely agree rather than
+ * assuming they must: sum of open erp_sales_invoices/erp_purchase_invoices
+ * outstandingAmount (the subledger view) versus the receivable/payable
+ * account balances in the GL (trialBalance's own view of the same postings).
+ * A non-zero variance is a real signal (a manual GL posting to a
+ * receivable/payable account outside the invoice flow, or an invoice whose
+ * submit-time journal entry never posted) -- exactly the class of drift this
+ * report exists to surface.
+ */
+export async function subledgerReconciliationToGl(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const trial = await accountBalancesInRange(ctx.orgId, null, asOfDate, companyIds)
+  const glReceivable = trial.filter((b) => b.accountType === "receivable").reduce((sum, b) => sum + b.netBalance, 0)
+  // Payable accounts are credit-natured -- flip sign so both sides compare as positive open balances.
+  const glPayable = trial.filter((b) => b.accountType === "payable").reduce((sum, b) => sum + -b.netBalance, 0)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoiceConditions = (table: typeof erpSalesInvoices | typeof erpPurchaseInvoices) => {
+      const conditions = [eq(table.orgId, ctx.orgId), notInArray(table.status, ["draft", "cancelled"]), lte(table.postingDate, asOfDate)]
+      if (companyIds) conditions.push(inArray(table.companyId, companyIds))
+      return and(...conditions)
+    }
+
+    const [[arRow], [apRow]] = await Promise.all([
+      db.select({ total: sql<string>`coalesce(sum(${erpSalesInvoices.outstandingAmount}), 0)` }).from(erpSalesInvoices).where(invoiceConditions(erpSalesInvoices)),
+      db.select({ total: sql<string>`coalesce(sum(${erpPurchaseInvoices.outstandingAmount}), 0)` }).from(erpPurchaseInvoices).where(invoiceConditions(erpPurchaseInvoices)),
+    ])
+
+    const arSubledger = Number(arRow.total)
+    const apSubledger = Number(apRow.total)
+
+    const reconciliations = [
+      { name: "Accounts Receivable", subledgerTotal: arSubledger, glBalance: glReceivable, variance: glReceivable - arSubledger },
+      { name: "Accounts Payable", subledgerTotal: apSubledger, glBalance: glPayable, variance: glPayable - apSubledger },
+    ].map((r) => ({ ...r, isReconciled: Math.abs(r.variance) < 0.01 }))
+
+    return { asOfDate, reconciliations }
+  })
+}
+
+/**
+ * SAP FI-GL-008 (EXTEND_EXISTING): erpAccounts already carries the same real
+ * parentAccountId/isGroup hierarchy pattern as erpCostCenters -- trialBalance
+ * gives per-account closing balances, but nothing rolls those up to each
+ * group node. Recursive roll-up mirrors erp-accounting-service.ts's
+ * costCenterHierarchyReport (same shape of problem, different tree).
+ */
+export type GlAccountGroupNode = {
+  accountId: string
+  accountName: string
+  accountNumber: string | null
+  isGroup: boolean
+  rootType: string
+  ownBalance: number
+  totalBalance: number
+  children: GlAccountGroupNode[]
+}
+
+export async function glAccountGroupBalancesSummary(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const trial = await trialBalance(ctx, asOfDate, scope)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const allAccounts = await db.query.erpAccounts.findMany({ where: eq(erpAccounts.orgId, ctx.orgId) })
+    const balanceByAccountId = new Map(trial.accounts.map((a) => [a.accountId, a.netBalance]))
+    const childrenByParent = new Map<string | null, typeof allAccounts>()
+    for (const a of allAccounts) {
+      const key = a.parentAccountId ?? null
+      if (!childrenByParent.has(key)) childrenByParent.set(key, [])
+      childrenByParent.get(key)!.push(a)
+    }
+
+    function rollUp(accountId: string): number {
+      const own = balanceByAccountId.get(accountId) ?? 0
+      const children = childrenByParent.get(accountId) ?? []
+      return own + children.reduce((sum, c) => sum + rollUp(c.id), 0)
+    }
+
+    function buildNode(a: (typeof allAccounts)[number]): GlAccountGroupNode {
+      return {
+        accountId: a.id,
+        accountName: a.accountName,
+        accountNumber: a.accountNumber,
+        isGroup: a.isGroup,
+        rootType: a.rootType,
+        ownBalance: balanceByAccountId.get(a.id) ?? 0,
+        totalBalance: rollUp(a.id),
+        children: (childrenByParent.get(a.id) ?? []).map(buildNode),
+      }
+    }
+
+    const roots = childrenByParent.get(null) ?? []
+    return { asOfDate, groups: roots.map(buildNode) }
   })
 }

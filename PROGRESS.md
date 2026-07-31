@@ -34,12 +34,14 @@ names anywhere on disk (confirmed via whole-filesystem search) -- traced the rea
 
 ## Plan -- 36 rows grouped by target file (commit per group)
 
-### Group 1: GL/CO -- erp-accounting-service.ts + erp-financial-report-service.ts
-- [ ] CO-001 Cost Center Line Item Display (extend listJournalEntries w/ costCenterId filter + drill-down)
-- [ ] CO-003 Cost Center Hierarchy Report (recursive parent/child rollup over erpCostCenters)
-- [ ] FI-GL-002 G/L Account Balances Display (single/range-account filter over trialBalance)
-- [ ] FI-GL-007 Subledger Reconciliation to GL (BUILD_NEW -- AR/AP subledger totals vs GL recon accounts)
-- [ ] FI-GL-008 G/L Account Group Balances Summary (rollup by erpAccounts.parentAccountId/isGroup)
+### Group 1: GL/CO -- erp-accounting-service.ts + erp-financial-report-service.ts [DONE]
+- [x] CO-001 Cost Center Line Item Display (listJournalEntryLinesByCostCenter)
+- [x] CO-003 Cost Center Hierarchy Report (costCenterHierarchyReport)
+- [x] FI-GL-002 G/L Account Balances Display (glAccountBalanceDisplay)
+- [x] FI-GL-007 Subledger Reconciliation to GL (subledgerReconciliationToGl, BUILD_NEW)
+- [x] FI-GL-008 G/L Account Group Balances Summary (glAccountGroupBalancesSummary)
+- Registered in compliance.computation_engines via drizzle/0269_calc_track_group1_gl_co_engines.sql
+  (idempotent ON CONFLICT (engine_key) DO UPDATE). Full-repo `tsc --noEmit` clean after this group.
 
 ### Group 2: AP -- erp-buying-service.ts + erp-invoicing-service.ts (AP-side)
 - [ ] FI-AP-001 Vendor Line Item Display (open+cleared, partial-clearing math)
@@ -89,7 +91,7 @@ names anywhere on disk (confirmed via whole-filesystem search) -- traced the rea
 - [ ] CRM-006 Win/Loss Analysis Report (crmLostReasons aggregation)
 
 ## Completed
-(updated per-group as work lands)
+- Group 1 (GL/CO, 5 rows: CO-001, CO-003, FI-GL-002, FI-GL-007, FI-GL-008) -- see checkboxes above.
 
 ## Remaining
-All 8 groups above, not started as of this writing.
+Groups 2-8 (31 rows), not started as of this writing.
