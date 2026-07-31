@@ -314,11 +314,12 @@
       Committed (`aeddb4fa`) and pushed directly to PR #661's branch
       `feat/geography-cascading-address`.
 
+- [x] Confirmed green on the live re-run for commit `aeddb4fa`: `gh pr
+      checks 661` shows `Terminology Guardrail Check  pass` (run
+      30604013205).
+
 ## Remaining
-- [ ] Confirm the live CI re-run on PR #661 for commit `aeddb4fa` reports
-      `Terminology Guardrail Check` = success (not yet polled as of this
-      write -- do that before declaring this task done).
-- [ ] None else for this task's scope. `audit-check` remains failing on PR
-      #661 -- explicitly out of scope per this task's spec (separate known
+- [ ] None for this task's scope. `audit-check` remains failing on PR #661
+      -- explicitly out of scope per this task's spec (separate known
       comment-retrigger issue, handled elsewhere). Did not merge PR #661
       and did not post an `AUDIT:` verdict, per this task's constraints.
