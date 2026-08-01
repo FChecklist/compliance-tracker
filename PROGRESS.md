@@ -1,5 +1,7 @@
 # PROGRESS -- task-20260801-173859-retry-ai-engineering-quality-ai-modifica
 
+PR: https://github.com/FChecklist/compliance-tracker/pull/683 (open, awaiting CI)
+
 SPEC: VERIDIAN Review Framework gap-closure: AI Engineering Quality / AI-Modification Readiness (2 findings).
 
 Redispatch of task-20260718-064006 (original attempt blocked at first invocation by the

@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260801-173859-retry-ai-engineering-quality-ai-modifica) -- VERIDIAN Review Framework gap-closure: AI Engineering Quality / AI-Modification Readiness [DONE THIS SESSION, PR pending]"
+  - session_label: "claude-code (task-20260801-173859-retry-ai-engineering-quality-ai-modifica) -- VERIDIAN Review Framework gap-closure: AI Engineering Quality / AI-Modification Readiness [DONE THIS SESSION, PR #683 OPEN, awaiting CI]"
     claimed_at: "2026-08-01T (this session)"
     claim: |
       Redispatch of task-20260718-064006 (original blocked at first invocation by the
