@@ -40,6 +40,52 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-043735-crm--campaigns-entity) -- Task #46: CRM Campaigns entity"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      Dispatched to build a `crmCampaigns` table + service CRUD + campaign
+      scoring wired to marketing-engine.ts, on the premise (per this task's
+      own spec) that "this is genuinely new -- no existing analog anywhere
+      in the 600+ table schema." That premise is now STALE: `crmCampaigns`
+      (schema.ts:5078), `src/lib/services/crm-campaigns-service.ts` (full
+      CRUD), API routes (`src/app/api/crm/campaigns/`), a UI page
+      (`src/app/(app)/crm/campaigns/page.tsx`), and the migration
+      (drizzle/0251_crm_wave1_activities_campaigns_lost_reasons.sql) were
+      already built and merged to main in "Wave 1"/"Wave 2" (commits
+      40423b71, b4b1ded1), well before this task was dispatched.
+      `calculateCampaignScore` already exists in marketing-engine.ts and is
+      already wired via task-execution-engine.ts -- confirmed reading both
+      files, not rebuilding.
+      Real remaining gap found on inspection: the table has name/type
+      (campaignType)/status/date-range/budget(budgeted_cost, actual_cost,
+      expected_revenue)/description/owner, but no `objective` column, which
+      this task's own SCOPE line names explicitly
+      ("name/type/objective/date-range/budget"). Adding that as a small
+      additive nullable-column migration (next real free number per
+      drizzle/meta/_journal.json, fetched fresh from origin/main: 0302,
+      journal frozen at idx 278/tag 0300 as of this claim) + service-layer
+      wiring. Also: marketing-engine.ts has zero test coverage today (no
+      `marketing-engine.test.ts` exists) -- adding one, matching this
+      repo's per-engine `.test.ts` convention (e.g. analytics-engine.test.ts),
+      covering all 6 exported pure functions including calculateCampaignScore.
+      Not touching: Lead/Deal attribution, Project-team junction,
+      Announcements, Import/Export, Items Master (all explicitly
+      out-of-scope per spec) or the already-complete CRUD/API/UI/migration
+      for the base campaign entity.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts (add
+      `objective` column to crmCampaigns), one new hand-written migration
+      drizzle/0302_*.sql + matching drizzle/meta/_journal.json entry,
+      src/lib/services/crm-campaigns-service.ts (thread `objective` through
+      create/update), new src/lib/engines/marketing-engine.test.ts, and
+      this ACTIVE-CLAIMS.yaml entry. Note for the record: this task's spec
+      says to append a line to `KERNEL_CONSOLIDATION_STATUS.md`'s Task #46
+      section -- that file does not exist anywhere in this repo (confirmed:
+      `find . -iname "KERNEL_CONSOLIDATION_STATUS.md"` and a repo-wide grep
+      for "Task #46" across all .md files both came up empty). Not inventing
+      that file from scratch since nothing else in the repo references it;
+      flagging as a stale/wrong instruction in the spec rather than silently
+      working around it.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
