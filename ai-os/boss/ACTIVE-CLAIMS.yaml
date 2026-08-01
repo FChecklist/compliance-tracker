@@ -40,6 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260801-144403-rebase-audit-merge-pr672-procurement-doc) -- Rebase PR #672 (docs/procurement-erp-gap-analysis-2026-07-31) onto current main, independently audit, and merge"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      PR #672 (FChecklist/compliance-tracker) is CONFLICTING/DIRTY against
+      main -- touches exactly 2 files: PROGRESS.md (union-merge per this
+      repo's append-only-log convention) and the new standalone file
+      ai-os/PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md (no real conflict,
+      doesn't exist on main). No AUDIT verdict posted yet. This session
+      will rebase/merge-main into the branch, resolve PROGRESS.md via
+      union-merge (drop nothing), re-run tsc/lint/tests, then act as the
+      independent auditor (per AGENTS.md Rule 7(c)/10) verifying the doc's
+      own factual claims hold up, post AUDIT: PASS/FAIL, and merge if PASS.
+    scope_note: |
+      File scope: compliance-tracker only -- PROGRESS.md and
+      ai-os/PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md on PR #672's branch
+      docs/procurement-erp-gap-analysis-2026-07-31. Working in a dedicated
+      worktree at /home/rajat/work/pr672-fix, not the shared repos/
+      compliance-tracker checkout. No overlap with other in-flight claims.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
