@@ -13,6 +13,21 @@
 > not current state. See PROGRESS.md in the repo root (task
 > `task-20260718-084003-calculation-engine--calculation-governan`) for the
 > full re-verification trail.
+>
+> **Added 2026-08-01** (VERIDIAN Review Framework gap closure, AI-Readable
+> Calculation Documentation finding): that finding's own gap description
+> cited "registry is only ~17% implemented against its own catalogue."
+> That figure does not match anything found in this repo's history --
+> grepped for "17%" repo-wide, the only hit is an unrelated idiom in
+> `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`. The real historical/current
+> figures on record are the ones in this file: an original 26-of-211
+> (12.3%) snapshot, corrected in the banner above to ~160-170-of-247
+> (~65-69%) wired as of 2026-07-18/19, itself now further stale relative
+> to Waves 167+. Treating the "~17%" input as stale/incorrect rather than
+> a real current gap -- **not** building new calculation engines off it.
+> The real, still-open gap here is documentation freshness (this file
+> needs re-running against live data more often than it has been), not
+> engine count -- tracked as such rather than papered over.
 
 **Purpose:** the honest, always-verifiable answer to "how much of what a user can click is guaranteed to run as real software, not an AI guess." Every number here is a live query against production, re-run each time coverage changes — not an estimate. Started 2026-07-10, per Boss directive: *"Options selected via Mode Pills and Chain Selector is very important for the completion of the work... the worker agent should just execute it like a software."*
 
