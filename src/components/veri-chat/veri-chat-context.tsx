@@ -67,6 +67,16 @@ type AiThreadState = {
     chainSelection?: { modePill: string; pathKeys: string[] },
     skippedChainSelector?: boolean
   ) => Promise<string | null>;
+  // VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md §2 item 6 / §3.1.2:
+  // lifted out of VeriComposer.tsx's private useState so AppSidebar (and any
+  // other consumer outside the composer) can read/write the in-progress
+  // chain selection too -- e.g. syncing a sidebar-item click to the same
+  // chain the mode-pill picker builds. Lives in this repo's own inner
+  // context (not the shared veridian-ui-kit factory) per the spec's §2
+  // principle: this is product-real chain-selection state, not generic
+  // shell chrome.
+  selectedPath: PathSegment[];
+  setSelectedPath: (path: PathSegment[] | ((prev: PathSegment[]) => PathSegment[])) => void;
 };
 
 const AiThreadContext = createContext<AiThreadState | null>(null);
@@ -75,6 +85,7 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
   const [aiThreadId, setAiThreadId] = useState<string | null>(null);
   const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
   const [aiThreads, setAiThreads] = useState<AiThreadSummary[]>([]);
+  const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
 
   useEffect(() => {
     fetch("/api/conversations")
@@ -118,8 +129,8 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<AiThreadState>(
-    () => ({ aiThreadId, activeAiThreadId, aiThreads, switchAiThread, createNewAiThread }),
-    [aiThreadId, activeAiThreadId, aiThreads]
+    () => ({ aiThreadId, activeAiThreadId, aiThreads, switchAiThread, createNewAiThread, selectedPath, setSelectedPath }),
+    [aiThreadId, activeAiThreadId, aiThreads, selectedPath]
   );
 
   return <AiThreadContext.Provider value={value}>{children}</AiThreadContext.Provider>;

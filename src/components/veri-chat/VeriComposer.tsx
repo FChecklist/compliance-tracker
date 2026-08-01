@@ -126,10 +126,9 @@ function resolveLeaf(tree: CapabilityNode[], path: PathSegment[]): CapabilityNod
 }
 
 export default function VeriComposer({ connectedConnectorsCount = 0 }: { connectedConnectorsCount?: number }) {
-  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh } = useVeriChat();
+  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh, selectedPath, setSelectedPath } = useVeriChat();
   const router = useRouter();
 
-  const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
   const [engineInputValues, setEngineInputValues] = useState<Record<string, string>>({});
