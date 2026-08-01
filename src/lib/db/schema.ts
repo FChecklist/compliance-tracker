@@ -8,6 +8,22 @@ export const complianceSchemaDB = pgSchema('compliance')
 // designed for an easy future split. See ai-os/CONSTITUTION.yaml / PROGRESS.md for the move history.
 export const platformSchemaDB = pgSchema('platform')
 
+// VERIDIAN Review Framework gap-closure (2026-08-01, Code Modularity/File
+// Organization): a real navigational aid, not a full split -- this file is
+// large (11k+ lines, hundreds of tables) but already internally organized
+// by domain via `// ─── Section Name ───` comment headers (141 of them as
+// of this note); `grep -n "^// ─── " src/lib/db/schema.ts` is the fastest
+// way to jump to a domain. A handful of the largest/most-searched-for
+// groupings, as real line-number anchors (re-grep if this drifts -- not
+// CI-enforced): Compliance Items ~L280, Documents ~L365, Audit Logs ~L595,
+// Task System + Orchestra Layers ~L1222, Worker Agent Library ~L1078,
+// Governance/Company Secretarial/Legal/People & HR/Risk block ~L2822-3667,
+// PMS (Project Management) ~L4350+, VERI Chat ~L5700, Construction
+// Intelligence / PROJEXA ~L9884+. A full physical split into per-domain
+// files re-exported from an index (the ideal end state) is intentionally
+// NOT done here -- see PROGRESS.md's "schema.ts physical split" entry for
+// why (8 concurrently-open PRs actively append to this exact file).
+
 // ─── Enums ───────────────────────────────────────────────────────────────
 export const userRoleEnum = complianceSchemaDB.enum('user_role', [
   'admin', 'manager', 'member', 'viewer', // original 4
