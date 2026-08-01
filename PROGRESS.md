@@ -226,3 +226,63 @@
       Separately unresolved (not this task's job to fix): PR #629 and PR
       #638 both still open and both touch SD-002; reconciling those two is
       a decision for whoever reviews/merges them, not addressed here.
+
+# PROGRESS -- task-20260728-160934-cross-reference-sap-reports-vs-existing
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` and `ai-os/CONSTITUTION.yaml` per repo protocol; registered a claim
+      (commit `1467a051`, pushed) before starting real work. No collision with other active claims.
+- [x] Located the real `sap_reports` table: it is **not** in this repo (`compliance-tracker`) or its Postgres
+      schema -- it lives in `/opt/veridian/ai-os/memory/sap_mapping.sqlite` (shared, non-git infra state),
+      the same file the prior task (`task-20260726-123644`, `engine_track` classification) established and
+      backed up. Confirmed via `git log --all -- '*sap_reports*'` (found the prior task's branch/commits,
+      zero hits in current schema.ts) before touching anything.
+- [x] Confirmed real storage locations for the 3 cross-reference targets named in the spec (none assumed):
+      - VCEL calculation-engine registry = Postgres `compliance.computation_engines` (schema.ts:9488),
+        backed by the 25 real files under `src/lib/engines/*.ts` (read all of them in full).
+      - `report_definitions` = Postgres `compliance.report_definitions` (schema.ts:4650), executed/cataloged
+        via `report-engine-service.ts` (`runAggregation`/`executeReportDefinition`/`getFullReportCatalog`)
+        and `report-catalog-service.ts`'s static catalog (`erp-trial-balance`, `erp-profit-and-loss`,
+        `erp-balance-sheet`, `erp-cash-flow`, `construction-*` entries).
+      - `wiring_registry` = **not** in this repo -- lives in the separate `claude-control` repo
+        (`/opt/veridian/repos/claude-control/ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json`, regenerated
+        2026-07-27). Read its full entity-type breakdown (7711 entities: 20 `engine` = AI-OS infra engines,
+        6 `route` = sample chat-dispatch traces, 444 `supabase_table`, etc.) -- confirmed this tracks
+        platform/AI-OS wiring, not a per-SAP-report business registry, so it was used as corroborating
+        evidence only (e.g. confirming `gst_calculation_engine`/`gratuity_calculator` are genuinely wired
+        end-to-end), not as the primary source for the 80-row mapping.
+      - **Disclosed limitation**: no live `DATABASE_URL`/Supabase MCP was available in this session, so
+        `computation_engines`/`report_definitions` row content could not be queried live. Cross-referenced
+        against the real source code instead (engine files, `erp-*-service.ts`, `construction-*-service.ts`
+        exported function names + `schema.ts` column definitions), which is the ground truth those tables
+        are seeded/generated from -- not a guess, but noted honestly rather than papered over.
+    - [x] Read all 80 `sap_reports` rows' real `calculation_logic`/`business_purpose` in full (dumped to a
+      scratch file for review, since discarded -- not part of the deliverable).
+- [x] Read all 25 `src/lib/engines/*.ts` VCEL engine files in full, and grepped real exported function names
+      from every relevant `erp-*-service.ts` (accounting, financial-report, fixed-assets, payroll, inventory,
+      stock, procurement-workflow, buying, selling, cash, bank-reconciliation, invoicing, vendor-master,
+      budget) and `construction-*-service.ts` (boq, progress, dashboard, kpi, labour, valuation, reports,
+      prediction) file, plus `crm-service.ts`/`crm-activities-service.ts`/`crm-accounts-service.ts`.
+- [x] Backed up `sap_mapping.sqlite` (`sap_mapping.sqlite.bak-pre-veridian-mapping-20260728`) before any write.
+- [x] Discovered a real, undisclosed schema/spec mismatch: `sap_reports.veridian_mapping_status` had a CHECK
+      constraint restricting it to `('NOT_MAPPED','PARTIALLY_MAPPED','FULLY_MAPPED','NOT_APPLICABLE')` --
+      incompatible with the spec's required `REUSE_EXISTING(id)/EXTEND_EXISTING(id)/BUILD_NEW` values.
+      Widened the constraint additively (old values remain valid; recreated the table via the standard
+      SQLite copy-drop-rename procedure since SQLite can't ALTER a CHECK in place) rather than picking
+      a lossy workaround.
+- [x] Wrote real, evidence-cited `veridian_mapping_status` / `veridian_existing_equivalent` /
+      `veridian_gap_notes` for all 80 rows (verified: 0 unmapped remaining). Every `BUILD_NEW`/`EXTEND_EXISTING`
+      verdict cites a specific grep/read that came up empty or partial, not an assumption; every
+      `REUSE_EXISTING(id)` cites a real file:function or table. Breakdown: **35 REUSE_EXISTING, 31
+      EXTEND_EXISTING, 14 BUILD_NEW**.
+      - Confirmed real `BUILD_NEW` gaps (grepped, zero hits): CO-006 (statistical key figures), FI-AP-005
+        (payment run/proposal), FI-AP-006 & FI-AR-006 (vendor/customer payment-behavior DPO/DSO analysis),
+        FI-AP-007 (subcontractor retention -- only client-side retention exists), FI-AP-008 (subcontractor
+        payment-application workflow), FI-AA-006 (asset-to-GL reconciliation), FI-GL-007 (subledger-to-GL
+        reconciliation), FI-AR-004 (dunning), HCM-006 (certified payroll / Davis-Bacon), SD-002 (billing due
+        list), SD-006 (sales by material/service type), SD-007 (document-flow trace), CRM-007 (sales rep
+        performance dashboard).
+
+## Remaining
+- [ ] None -- all 80 rows mapped, DB updated and verified, backup retained, claim registered. This
+      PROGRESS.md commit is the final unit of work for this task.
