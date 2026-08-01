@@ -60,6 +60,11 @@ active:
       token-usage-service.ts's existing anomaly/forecast code (additive
       only: byOrg groupLabel join + type change), schema.ts (additive
       table), or any other in-flight claim below.
+
+      STATUS UPDATE: implementation complete, verified (tsc/lint/full test
+      suite/all governance checks green), PR opened:
+      https://github.com/FChecklist/compliance-tracker/pull/687 -- awaiting
+      CI + supervisor audit before merge.
     scope_note: |
       src/app/(app)/ai-cost-governance/**, src/app/api/finance/**,
       src/lib/services/cost-reconciliation-service.ts(+.test.ts),
