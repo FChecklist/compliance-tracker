@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260731-043738-crm--project-team-junction-table) -- Task #46 CRM feature-parity gap: project-team multi-user assignment [DONE THIS SESSION, PR #663 OPEN]"
+    claimed_at: "2026-07-31T (this session, closed same session)"
+    claim: |
+      Task #46 gap: projects.leadUserId only ever carried a single owner --
+      no junction table for multiple project assignees. Read the real
+      pmsMeetingParticipants/userClientAccess/conversationParticipants shape
+      (none actually carry orgId directly -- they rely on parent-table
+      scoping) plus the most recent real precedent,
+      0269_construction_progress_claims_workflow.sql (direct org_id column +
+      app_runtime_tenant_isolation/service_role_bypass RLS, no REFERENCES FK
+      constraints). New project_team_members junction table
+      (drizzle/0302_project_team_members.sql, fetched origin/main fresh --
+      0301 was the real highest prefix) with its own org_id column (matches
+      pms_meetings' depth off projects, not the two-hop
+      pms_meeting_participants). Service-layer add/remove/list functions
+      placed in product-service.ts, NOT crm-service.ts -- product-service.ts
+      is the real, established home of every other projects-table function
+      (listProjects/createProject/createProjectDirect); crm-service.ts has
+      zero project-related code today (it's leads/opportunities only).
+      leadUserId kept as the single source of truth for every existing
+      reader (untouched), synced via two extracted pure helpers
+      (resolveLeadUserIdOnAdd/resolveLeadUserIdOnRemove, unit-tested in
+      product-service.test.ts, no live-DB test per this repo's established
+      convention). No collision found with PR #658 (Task #46's own
+      auto-distribution/assignment-overview work, scoped to
+      crm_leads/crm_opportunities only, zero schema/file overlap).
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts (new
+      projectTeamMembers table + relations, projects.leadUserId untouched),
+      drizzle/0302_project_team_members.sql (new),
+      drizzle/meta/_journal.json (new entry), src/lib/services/product-service.ts
+      (3 new functions + 2 new pure helpers, additive),
+      src/lib/services/product-service.test.ts (new),
+      ai-os/registry/asset-registry-coverage.yaml (project_team_members
+      exempted as a pure join table), PROGRESS.md, this file. No other
+      Task #46 items (Leads/Deals attribution, Campaigns, Announcements,
+      Import/Export, Items Master) touched.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
