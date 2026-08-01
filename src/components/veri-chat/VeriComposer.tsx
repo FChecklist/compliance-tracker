@@ -483,10 +483,16 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   // only the typed message, so selectedPath stays intact for the next
   // instruction against that identical chain right away.
   async function createSimilarTaskAgain() {
+    if (sending) return;
     const text = value.trim();
     if (!text || !chainComplete) return;
-    await dispatchInstruction(selectedPath, text);
-    setValue("");
+    setSending(true);
+    try {
+      await dispatchInstruction(selectedPath, text);
+      setValue("");
+    } finally {
+      setSending(false);
+    }
   }
 
   // Restores a previously-cached workflow into the composer. Local-cache
@@ -678,7 +684,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
             </button>
             <div className="flex items-center gap-2">
               {isChainMode && !isThreadOpen && (
-                <button type="button" onClick={createSimilarTaskAgain} disabled={!chainComplete || !value.trim()} title="Dispatch this against the same chain, keeping it selected for the next one"
+                <button type="button" onClick={createSimilarTaskAgain} disabled={sending || !chainComplete || !value.trim()} title="Dispatch this against the same chain, keeping it selected for the next one"
                   className="px-3 h-9 rounded-lg text-[12.5px] font-semibold text-ct-slate border border-ct-border hover:bg-ct-cloud disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
                   Create similar task again
                 </button>
