@@ -4061,6 +4061,34 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      Confirmed real storage locations for all 3 cross-reference targets:
+      VCEL registry = Postgres compliance.computation_engines (schema.ts:9488,
+      backed by 25 files under src/lib/engines/*.ts); report_definitions =
+      Postgres compliance.report_definitions (schema.ts:4650), executed via
+      report-engine-service.ts/cataloged via report-catalog-service.ts;
+      wiring_registry = the SEPARATE claude-control repo's
+      ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json (not this repo -- tracks
+      AI-OS/platform wiring, used as corroborating evidence only). No live
+      DATABASE_URL/Supabase MCP available this session -- cross-referenced
+      against real source code (all 25 engine files + every relevant
+      erp-*-service.ts/construction-*-service.ts export) instead of a live
+      query, disclosed as a real limitation. Read all 80 sap_reports rows'
+      calculation_logic in full and wrote evidence-cited
+      veridian_mapping_status/veridian_existing_equivalent/veridian_gap_notes
+      for all of them (35 REUSE_EXISTING, 31 EXTEND_EXISTING, 14 BUILD_NEW;
+      0 unmapped). Found and fixed a real schema/spec mismatch:
+      sap_reports.veridian_mapping_status's CHECK constraint only allowed
+      the OLD NOT_MAPPED/PARTIALLY_MAPPED/FULLY_MAPPED/NOT_APPLICABLE
+      vocabulary -- widened it additively (old values still valid) via the
+      standard SQLite table-recreate procedure, backed up the sqlite file
+      first. No PR: the only data change is to
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite, which is shared non-git
+      infra state (confirmed, same as the prior engine_track task); the only
+      repo change is this file + PROGRESS.md (commits 1467a051, ee757052,
+      pushed to worker/task-20260728-160934-cross-reference-sap-reports-vs-existing).
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
