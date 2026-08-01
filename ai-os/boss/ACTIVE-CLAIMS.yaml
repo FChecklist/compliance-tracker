@@ -40,6 +40,110 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Fix-forward on the still-open PR #610 (branch
+      worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co,
+      claim entry immediately below, from the original authoring session).
+      Audit-confirmed gap: migration
+      drizzle/0269_sales_pipeline_dashboard_targets.sql creates the
+      org-scoped table compliance.crm_sales_targets with zero Row Level
+      Security -- no ENABLE ROW LEVEL SECURITY, no
+      app_runtime_tenant_isolation policy, no service_role_bypass policy,
+      no index on org_id -- unlike every other org-scoped table in this
+      repo. Amended 0268 in place (not yet merged, safe to amend --
+      confirmed via grep no other file references it) to add RLS + the
+      standard two-policy pair matching
+      drizzle/0101_wave115_construction_boq_progress_diary.sql's pattern
+      exactly, plus org_id and (org_id, month) indexes matching
+      sales-pipeline-dashboard-service.ts's query patterns. Added a real
+      SQL-content test (src/lib/services/sales-pipeline-rls.test.ts,
+      DB-independent, no live Postgres available in this sandbox) plus
+      app-level tenant-isolation coverage for the two new crm-service.ts
+      functions in tenant-isolation.test.ts. Discovered but explicitly did
+      NOT fix (out of this task's scope, flagging for the
+      supervisor/original session instead): PR #610 already fails CI's
+      Asset Registry Coverage Check (crm_sales_targets neither
+      registered nor exempted) and the terminology guardrail
+      (--diff-only, pre-existing hardcoded 2026-07-27-era dates in
+      schema.ts/crm-service.ts) -- confirmed both pre-existing (identical
+      failing output with and without this session's changes stashed),
+      not introduced by this fix.
+    scope_note: |
+      File scope: compliance-tracker only --
+      drizzle/0269_sales_pipeline_dashboard_targets.sql,
+      src/lib/services/sales-pipeline-rls.test.ts (new),
+      src/lib/services/tenant-isolation.test.ts (2 new tests appended),
+      on branch worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co
+      (PR #610). Did not touch dashboard/chart UI or aggregation logic
+      (audit already confirmed those correct, out of scope per task spec).
+  - session_label: "claude-code (task-20260727-193351-sales-pipeline-interactive-dashboard--co) -- Real interactive Sales Pipeline dashboard, CRM module [PUSHED, PR #610 OPEN, awaiting supervisor audit]"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner-supplied mockup: 6 KPI tiles (Sales Value/Hold%/Lost%/Success%/
+      Health%/Regret%) + 2 filter dropdowns, 2 bar charts (Sales Lead
+      Performance Overview, Pipeline Status Overview across 8 named
+      statuses: Awarded/Lost/Hold/Pitched/Lead/Regret/Estimation/Follow up),
+      a Monthly Revenue Trend line chart (Target/Achieved/Shortfall) + KPI
+      table, a scrollable Project Value Status Analysis deal list, and
+      cross-filtering (clicking a Pipeline Status bar filters everything
+      else + changes the page heading).
+
+      Confirmed gap: crmOpportunities.stage (schema.ts:4838) is a free-text
+      column with only 5 real legacy values (prospecting/proposal/
+      negotiation/won/lost) -- none of the 8 mockup status names exist
+      anywhere in this codebase (grepped for Awarded/Pitched/Regret/
+      Estimation, zero hits outside veri-reward-service.ts's unrelated
+      "system-awarded" comment). Building a normalization/mapping layer
+      (legacy 5 -> 5 of the 8 canonical names, remaining 3 pass through
+      case-insensitively since the column has no CHECK/enum constraint) --
+      NOT renaming existing data, NOT touching crm/opportunities kanban or
+      the create/update-stage flow. Also confirmed no existing "monthly
+      revenue target" concept anywhere (grepped schema.ts/src/lib/services
+      for target/quota) -- adding one small additive table
+      (crm_sales_targets: orgId/month/targetValue) since Achieved/Shortfall
+      are derivable from real Awarded-opportunity data but Target is a
+      genuine new input.
+
+      Health%/Success% definitions: reusing crm-service.ts's existing
+      getSalesPipelineOverview winRate formula (won/(won+lost), i.e.
+      Awarded/(Awarded+Lost)) for Success% rather than inventing a new one;
+      Health% derived from the existing per-opportunity aiWinProbability
+      AI field (crmOpportunities.aiWinProbability, already real, already
+      scored by analyzeOpportunity() in crm-service.ts) averaged over
+      non-terminal deals in the filtered set -- no new AI scoring call.
+
+      File scope: src/lib/db/schema.ts (crm_sales_targets table + migration
+      only -- no changes to crm_leads/crm_opportunities columns), new
+      src/lib/services/sales-pipeline-dashboard-service.ts (pure,
+      no-DB-import aggregation module, unit-tested), new
+      src/app/api/crm/sales-pipeline/** routes, new
+      src/app/(app)/crm/sales-pipeline/page.tsx. Does not touch
+      crm-service.ts's existing lead/opportunity create/update functions,
+      crm/opportunities/page.tsx's kanban, or crm-enablement-service.ts.
+
+      Collision check before starting: grepped this file for "sales
+      pipeline"/"crm"/"opportunit" -- no other active entry names
+      sales-pipeline-dashboard-service.ts, crm_sales_targets, or a CRM
+      dashboard/cross-filter build. The BoQ/valuation claim just below is
+      PROJEXA construction-billing, disjoint file scope. The Sales/CRM
+      Priority-15 entries further down are closed (see
+      recently_completed) and built leads/opportunities/quotations CRUD,
+      not a dashboard.
+
+      Update 2026-07-29 (task-20260729-104734, fresh-conflict re-sweep):
+      textual git conflict against main was already resolved by an earlier
+      pass, but a real semantic collision survived it -- main independently
+      landed drizzle/0268_pms_time_entry_approval_flow.sql (PR #613) while
+      this branch's own migration also used prefix 0268
+      (0268_sales_pipeline_dashboard_targets.sql), and this branch's file
+      was never registered in drizzle/meta/_journal.json in the first
+      place. Neither problem is caught by current CI --
+      scripts/check-migration-collision.mjs exists but is not wired into
+      any .github/workflows/*.yml job. Renamed to
+      0269_sales_pipeline_dashboard_targets.sql, added its journal entry,
+      updated the two test files that reference the old filename by name.
   - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
     claimed_at: "2026-07-29T (this session, closed same session)"
     claim: |
@@ -3992,7 +4096,57 @@ active:
       part of this claim-registration task. No implementation, no reading
       of the reference docs themselves, and no other file changed in the
       PR that adds this entry.
+
+  - session_label: "claude-code (server-side session, VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01) -- VERI Chat mockup-to-production: composer/chain-picker/sidebar-sync/task-document-screen"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      Implementing VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md (PR #675,
+      audited and merged this session) end to end, per its own section 4
+      checklist, one item at a time in dependency order, verifying each live
+      in the browser before moving to the next. File scope: VeriComposer.tsx
+      (selectedPath lift, chain-mode overlay/collapse, per-segment x,
+      "Create similar task again", resizable composer, external-AI copy
+      link), ChainSelector.tsx (deepest-row-only render, deriveDocumentTitle
+      helper), AppSidebar.tsx (sidebar-click composer sync), veri-chat-
+      context.tsx (selectedPath/documentScreenActive lift), a new
+      src/components/veri-chat/TaskDocumentScreen.tsx, home/page.tsx and
+      AppShell.tsx (full-takeover wiring), VERI_CHAT_COMPOSER_DESIGN.md
+      (mapping-table update for the removed queue mechanism). Does not touch
+      @fchecklist/veridian-ui-kit itself (the spec's item 16, sidebar
+      spacing, is out of scope for this repo per its own direction).
+      Re-checked this file fresh before starting: the one entry touching
+      these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
+      is long since superseded -- package.json already pins v0.2.2, so that
+      migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      Confirmed real storage locations for all 3 cross-reference targets:
+      VCEL registry = Postgres compliance.computation_engines (schema.ts:9488,
+      backed by 25 files under src/lib/engines/*.ts); report_definitions =
+      Postgres compliance.report_definitions (schema.ts:4650), executed via
+      report-engine-service.ts/cataloged via report-catalog-service.ts;
+      wiring_registry = the SEPARATE claude-control repo's
+      ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json (not this repo -- tracks
+      AI-OS/platform wiring, used as corroborating evidence only). No live
+      DATABASE_URL/Supabase MCP available this session -- cross-referenced
+      against real source code (all 25 engine files + every relevant
+      erp-*-service.ts/construction-*-service.ts export) instead of a live
+      query, disclosed as a real limitation. Read all 80 sap_reports rows'
+      calculation_logic in full and wrote evidence-cited
+      veridian_mapping_status/veridian_existing_equivalent/veridian_gap_notes
+      for all of them (35 REUSE_EXISTING, 31 EXTEND_EXISTING, 14 BUILD_NEW;
+      0 unmapped). Found and fixed a real schema/spec mismatch:
+      sap_reports.veridian_mapping_status's CHECK constraint only allowed
+      the OLD NOT_MAPPED/PARTIALLY_MAPPED/FULLY_MAPPED/NOT_APPLICABLE
+      vocabulary -- widened it additively (old values still valid) via the
+      standard SQLite table-recreate procedure, backed up the sqlite file
+      first. No PR: the only data change is to
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite, which is shared non-git
+      infra state (confirmed, same as the prior engine_track task); the only
+      repo change is this file + PROGRESS.md (commits 1467a051, ee757052,
+      pushed to worker/task-20260728-160934-cross-reference-sap-reports-vs-existing).
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
