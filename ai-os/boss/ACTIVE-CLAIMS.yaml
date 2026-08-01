@@ -40,6 +40,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260801-173901-retry-ai-engineering-quality-code-struct) -- VERIDIAN Review Framework gap-closure: AI Engineering Quality / Code Structure & Modularity (5 findings)"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      Redispatch of task-20260718-065002 (sub-task of UMR-20260801-170930-2080),
+      originally blocked at first invocation by the OpenRouter/Cerebras balance
+      hard-stop in preflight-guard.py, since removed (commit 7ff5be8). Closing 5
+      findings: Code Modularity (schema.ts/task-execution-engine.ts monoliths),
+      Component Reusability (no reuse-candidate index), Low Coupling/High
+      Cohesion (implicit FK-less org/user scoping), Design Pattern Consistency
+      (no lint enforcement of requireAuth()/ServiceError convention), File &
+      Folder Organization (ai-os/ subtree navigation).
+      Collision check: grepped this file for schema.ts/task-execution-engine --
+      no open active claim currently touches either; cross-checked all open PRs
+      via `gh pr diff --name-only` -- 8 open PRs (635/653/663/664/665/666/667/668)
+      touch src/lib/db/schema.ts (additive table/column changes only, nowhere
+      near a physical-split scope), ZERO touch src/lib/task-execution-engine.ts.
+      Given schema.ts's own header already flags it as "designed for an easy
+      future split" and 8 concurrent open PRs are actively appending to it right
+      now, judged a full physical per-domain-file split too collision-prone for
+      this pass (would force every one of those 8 PRs into a painful rebase for
+      a pure-refactor change) -- doing a lower-risk navigational improvement
+      there instead and documenting the deferred full split in PROGRESS.md.
+      task-execution-engine.ts has zero concurrent editors right now, so doing
+      the real service-extraction split there.
+      File scope: src/lib/db/schema.ts (header/nav comment only, no code moves),
+      src/lib/task-execution-engine.ts + new src/lib/services/task-execution/*
+      (behavior-preserving extraction, same public API), new
+      REUSABLE-UTILITIES.md, drizzle/ (new incremental FK migration, org/user
+      scoping only), eslint config / new custom lint rule, ai-os/ navigation
+      docs. Explicitly NOT touching src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES table (additive-only if a new entry is ever needed).
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
