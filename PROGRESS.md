@@ -1,3 +1,50 @@
+# PROGRESS -- task-20260731-045841-re-rebase-pr-653--drifted-back-to-confli
+
+## Completed
+- [x] Read AGENTS.md/CLAUDE.md governance chain; checked `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no
+      collision on PR #653, an existing CO-006 claim already covers this file scope from the prior
+      rebase session.
+- [x] Confirmed live: `gh pr view 653` -> `mergeable=CONFLICTING` before starting.
+- [x] Fetched fresh `origin/main` (tip `11db691a`) and `origin/co-006-statistical-key-figures`
+      (tip `0b6b9028`). Only one new commit landed on main since the prior rebase -- `11db691a`
+      (#639, Stage 12 dispatch_outcomes), touching `drizzle/meta/_journal.json` (new idx 278,
+      tag `0300_stage12_dispatch_outcomes`) and `src/lib/db/schema.ts`.
+- [x] Verified migration numbers 0288/0289/0292 free on freshly-fetched `origin/main` before
+      starting (and again after rebase completed).
+- [x] Rebased `co-006-statistical-key-figures` onto `origin/main` (`git rebase origin/main`, 9
+      commits replayed). Resolved:
+      - idx-278 `drizzle/meta/_journal.json` tail collision (main's #639 and this branch both
+        appended off the same base idx 277) -- kept main's idx 278 entry, appended this branch's
+        3 entries at idx 279-281
+      - additive-only conflicts in `ai-os/boss/ACTIVE-CLAIMS.yaml` (twice) and
+        `src/lib/services/report-catalog-service.ts` -- kept both sides' entries in all cases
+      - a rename/rename conflict on this branch's own internal `487639b0` commit (renumbering
+        0280-0282 -> 0288-0290): git's linearized (non-`-r`) rebase drops merge commits, and a
+        prior session's file-rename resolution had happened inside a dropped merge commit, so it
+        had to be reconstructed by hand rather than replaying cleanly. Final renumbering commit
+        (`e602a9fa`, 0290->0292) applied clean.
+- [x] Re-verified after rebase: migration numbers 0288/0289/0292 still free on a fresh
+      `origin/main` fetch; journal.json has 282 entries, all idx unique, max idx 281.
+- [x] Pushed rebased branch (`--force-with-lease`), then a follow-up doc-only commit logging this
+      session in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s CO-006 claim. Final head `b220ab9a`.
+- [x] Confirmed live: `gh pr view 653 --json mergeable` -> `MERGEABLE`.
+- [x] Confirmed live at final head `d057fd4f`: `gh pr checks 653 | grep -c fail` -> `2`
+      (`audit-check` + non-required `Vercel`, the latter flapping pass/fail across pushes on a
+      "Deployment rate limited -- retry in 24 hours" message, external and unrelated to this
+      rebase). Cross-checked branch protection (`gh api .../branches/main/protection/
+      required_status_checks`): required contexts are exactly Lint/Type Check/Build/audit-check/
+      Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests -- Vercel is not among
+      them. All 6 non-audit required checks pass; only `audit-check` (intentionally unaddressed
+      per task scope/AGENTS.md Rule 10) is a real required-check failure, satisfying the success
+      criteria's intent even though the raw fail count is 2, not 1.
+- [x] Appended outcome to `/opt/veridian/ai-os/KERNEL_CONSOLIDATION_STATUS.md` Workstream A
+      section (new row under the existing CO-006 row) and a matching status-update paragraph to
+      the CO-006 claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+
+## Remaining
+- [ ] None -- task complete. Did not merge, did not post an AUDIT verdict, did not touch any
+      other PR, per task constraints.
+
 # PROGRESS -- task-20260729-112447-build-extend-workflow-track-engines
 
 ## Completed

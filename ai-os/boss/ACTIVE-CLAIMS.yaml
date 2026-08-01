@@ -84,6 +84,95 @@ active:
       (org_firstrun_test); compliance.get_advisors(security) shows the
       identical 27 pre-existing findings before and after this migration --
       zero new findings introduced.
+  - session_label: "claude-code (co-006-statistical-key-figure-report) -- CO-006 Statistical Key Figure Report"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build CO-006 "Statistical Key Figure Report" (sap_mapping.sqlite
+      sap_reports, module CO, priority LOW, veridian_mapping_status
+      BUILD_NEW as of 2026-07-28, veridian_existing_equivalent=None).
+      Confirmed via direct grep of src/lib/db/schema.ts and
+      src/lib/services/ that no statistical-key-figure concept (non-
+      financial per-cost-center allocation-basis metric such as headcount/
+      square-footage/machine-hours) exists anywhere in this codebase --
+      genuine BUILD_NEW gap, not a query over existing data.
+
+      IMPORTANT CAVEAT surfaced from the sap_mapping.sqlite row's own
+      implementation_notes field (not just calculation_logic/gap_notes):
+      "Do not build this as a standalone report ... let the user pick a
+      simple driver from existing data ... without requiring them to set
+      up and maintain separate statistical key figure master data and
+      posting transactions." This PR builds the literal SAP-equivalent
+      report anyway (per explicit task instruction to follow the standard
+      BUILD_NEW pattern used by FI-AA-006/FI-AR-004/SD-002), as a NEW,
+      OPTIONAL, standalone tracking/reporting feature -- deliberately NOT
+      wired as a prerequisite/dependency for any future overhead-allocation
+      engine, so it does not contradict the note's actual concern (forcing
+      SKF master data as a mandatory step). Flagged plainly in the PR body
+      for reviewer judgment.
+
+      File scope: compliance-tracker only -- new
+      src/lib/services/erp-costing-service.ts (or existing Controlling-
+      domain service if one is found), new
+      statistical_key_figures-equivalent table in src/lib/db/schema.ts,
+      new drizzle migration, report-catalog-service.ts REPORT_CATALOG
+      entry, .test.ts unit tests, terminology-guardrail-exemptions.yaml
+      bump if needed. No overlap found with any other active entry above
+      (grepped this file for CO-006/statistical key figure/SKF -- no hits
+      before this entry).
+
+      STATUS UPDATE: implementation complete -- new erp_statistical_key_
+      figure_types/erp_statistical_key_figure_postings tables (drizzle/0276),
+      erp-costing-service.ts (new file), 3 API routes, report-catalog-
+      service.ts entry + drizzle/0277 report_definitions seed, 5 new unit
+      tests all passing. Migration numbers renumbered from an initial
+      0275/0276 draft to 0276/0277 after a fresh git fetch mid-task found
+      origin/main had gained 0275_customer_payment_behavior_dso_report_
+      definition.sql (FI-AR-006, #645) concurrently. PR #653 opened
+      (compliance-tracker), CI running -- awaiting the mandatory independent
+      audit (AGENTS.md Rule 10) + CI green + merge -- will move this entry
+      to recently_completed once merged.
+
+      STATUS UPDATE 2026-07-30 (fresh merge conflict fix): PR #651
+      (FI-AP-006) merged into main after this PR was last rebased,
+      producing real conflicts in drizzle/meta/_journal.json (main
+      gained idx 274/0279_vendor_payment_behavior_dpo_report_definition;
+      this PR's own idx 274-276 renumbered to 275-277, file names
+      0280/0281/0282 confirmed still free against origin/main AND all
+      71 currently-open PRs' drizzle/ claims before finalizing),
+      ai-os/boss/ACTIVE-CLAIMS.yaml (kept both active entries, no real
+      overlap), and src/lib/services/report-catalog-service.ts (both
+      PRs appended a REPORT_CATALOG entry at the array's end; gave each
+      its own periodicity field + closing brace). Merged fresh
+      origin/main, re-ran full local verification (bun test: 2401/2401
+      pass, bunx tsc --noEmit: clean, bun run lint: 0 errors, terminology
+      guardrail --diff-only: pass, migration-collision check: pass when
+      verified in a clean clone -- this shared server clone's own local
+      main branch ref is stale/diverged from origin/main, a pre-existing
+      environment quirk unrelated to this PR, not fixed here), pushed
+      63ffd4a5. CI green (audit-check correctly still failing/pending --
+      no structured audit verdict posted yet, per design).
+
+      STATUS UPDATE 2026-07-31 (task task-20260731-045841-re-rebase-pr-653--
+      drifted-back-to-confli, second re-rebase): PR drifted back to
+      `mergeable=CONFLICTING` after main gained one more merge (`11db691a`,
+      #639 Stage-12 dispatch-outcomes) past the prior rebase's base
+      (`0b6b9028`). Real conflict was an idx-278 drizzle/meta/_journal.json
+      tail collision (both #639 and this branch independently appended a
+      new entry off the same base idx 277) plus additive-only conflicts in
+      this file and report-catalog-service.ts (both resolved by keeping
+      both sides' entries), and a rename/rename conflict on this branch's
+      own internal 0280-0282->0288-0290 renumbering commit (git's
+      linearized non-merge rebase dropped a prior merge-commit's
+      file-rename resolution from history, so it had to be reconstructed
+      by hand rather than replaying cleanly). Migration numbers
+      re-verified free (0288/0289/0292) against a freshly-fetched
+      origin/main journal -- unchanged. Rebased clean, pushed
+      62c021ef. `mergeable=MERGEABLE` confirmed live; all 6 non-audit
+      required checks pass (Lint/Type Check/Build/Guardrail
+      Presence/Asset Registry Coverage/Unit Tests); only `audit-check`
+      (no verdict posted, out of this task's scope) and non-required
+      `Vercel` (build-rate-limit, confirmed not in branch-protection
+      required-checks list) fail.
   - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
     claimed_at: "2026-07-30T (this session)"
     claim: |
