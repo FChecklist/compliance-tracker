@@ -3956,6 +3956,57 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260731-042721-rebase-pr-643--calc-engines-rescue--clea) -- rebase + prune PR #643's calculation-track engine rescue"
+    claimed_at: "2026-07-31T (this session)"
+    claim: |
+      PR #643 (`worker/task-20260730-041950-build-extend-calculation-track-
+      engines`, DIRECTIVE-001-PHASE-3-BUILD-CALC) went CONFLICTING/stale
+      after 10 of 14 Task #17 SAP-report PRs merged since it opened. Its own
+      claim (still `active:` above under `task-20260730-041950`, not yet
+      corrected) says 8 engines were rescued from dead-attempt worktrees:
+      FI-AR-006/FI-AP-006 (erp-payment-entries-service.ts), FI-AA-006
+      (erp-fixed-assets-service.ts), CO-001/CO-003
+      (erp-accounting-service.ts), FI-GL-002/007/008
+      (erp-financial-report-service.ts). Checked each of the 8 against
+      current `origin/main` (11db691a) directly, not assumed:
+      - FI-AR-006 `customerPaymentBehaviorReport` -- ALREADY MERGED, PR #645,
+        in `erp-invoicing-service.ts` (different file/impl than #643's).
+      - FI-AP-006 `vendorPaymentBehaviorReport` -- ALREADY MERGED, PR #651,
+        same file as FI-AR-006.
+      - FI-AA-006 `assetToGlReconciliation` -- ALREADY MERGED, PR #648, in
+        `erp-fixed-assets-service.ts` -- main's version is materially more
+        complete (per-category asset/accumulated-depreciation GL mapping +
+        tolerance-based status) than #643's single-control-account version.
+      - FI-GL-007 `subledgerReconciliationToGl` -- NOT merged, but PR #647
+        (`feat/fi-gl-007-subledger-gl-reconciliation`, OPEN, MERGEABLE,
+        updated today) already builds the same gap as
+        `subledgerToGlReconciliation()` with a report_definitions row, API
+        route, 11 unit tests, and live-data verification against real
+        Supabase -- #643's version has none of that. Dropped from the
+        rebase to avoid landing a thinner duplicate alongside a
+        more-complete in-flight PR for the identical gap.
+      - CO-001 `listJournalEntryLinesByCostCenter`, CO-003
+        `costCenterHierarchyReport`, FI-GL-002 `glAccountBalanceDisplay`,
+        FI-GL-008 `glAccountGroupBalancesSummary` -- confirmed NOT present
+        anywhere on current main and NOT claimed by any other open PR
+        (grepped all four names repo-wide) -- genuinely real, still-needed
+        work. Kept.
+      Net: rebased PR #643 onto current `origin/main` keeping only these 4
+      surviving functions in `erp-accounting-service.ts` (CO-001/CO-003) and
+      `erp-financial-report-service.ts` (FI-GL-002/FI-GL-008); dropped the
+      redundant `erp-payment-entries-service.ts`/`erp-fixed-assets-service.ts`/
+      `erp-invoicing-service.ts` diffs entirely (fully superseded by
+      #645/#648/#651), and dropped the stray `package-lock.json` the dead
+      sandbox attempt had generated (this repo uses `bun.lock`, not npm).
+    scope_note: >-
+      File scope: compliance-tracker only -- force-pushed a rewritten
+      history onto PR #643's existing branch
+      (`worker/task-20260730-041950-build-extend-calculation-track-engines`),
+      not a new PR. Superseded (not deleted) the stale `task-20260730-041950`
+      claim entry above; leaving that entry in place with this newer entry
+      correcting it, since editing another session's own claim text in place
+      felt riskier than appending a dated correction per this file's own
+      "note it, don't silently work around it" protocol (#4).
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"

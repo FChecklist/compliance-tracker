@@ -454,3 +454,107 @@ export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate
     }
   })
 }
+
+function dayBefore(isoDate: string): string {
+  const d = new Date(isoDate)
+  d.setDate(d.getDate() - 1)
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * SAP FS10N equivalent (FI-GL-002, EXTEND_EXISTING): trialBalance already
+ * computes every account's cumulative closing balance -- per gap_notes this
+ * is meant to stay "a direct filter of this existing output, not new logic".
+ * The one genuine addition is the opening/period-debit/period-credit
+ * breakdown FS10N shows per account, which trialBalance's single asOfDate
+ * snapshot doesn't expose -- built from two more accountBalancesInRange
+ * calls, the same primitive trialBalance itself is built on.
+ */
+export async function glAccountBalanceDisplay(ctx: { orgId: string }, accountIds: string[], fromDate: string, toDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  const [opening, period, closing] = await Promise.all([
+    accountBalancesInRange(ctx.orgId, null, dayBefore(fromDate), companyIds),
+    accountBalancesInRange(ctx.orgId, fromDate, toDate, companyIds),
+    accountBalancesInRange(ctx.orgId, null, toDate, companyIds),
+  ])
+  const openingById = new Map(opening.map((b) => [b.accountId, b]))
+  const periodById = new Map(period.map((b) => [b.accountId, b]))
+  const idSet = new Set(accountIds)
+
+  const accounts = closing
+    .filter((b) => idSet.has(b.accountId))
+    .map((b) => {
+      const o = openingById.get(b.accountId)
+      const p = periodById.get(b.accountId)
+      return {
+        accountId: b.accountId,
+        accountName: b.accountName,
+        accountNumber: b.accountNumber,
+        rootType: b.rootType,
+        accountType: b.accountType,
+        openingBalance: o?.netBalance ?? 0,
+        periodDebit: p?.totalDebit ?? 0,
+        periodCredit: p?.totalCredit ?? 0,
+        closingBalance: b.netBalance,
+      }
+    })
+    .sort((a, b) => (a.accountNumber ?? "").localeCompare(b.accountNumber ?? ""))
+
+  return { fromDate, toDate, accounts }
+}
+
+/**
+ * SAP FI-GL-008 (EXTEND_EXISTING): erpAccounts already carries the same real
+ * parentAccountId/isGroup hierarchy pattern as erpCostCenters -- trialBalance
+ * gives per-account closing balances, but nothing rolls those up to each
+ * group node. Recursive roll-up mirrors erp-accounting-service.ts's
+ * costCenterHierarchyReport (same shape of problem, different tree).
+ */
+export type GlAccountGroupNode = {
+  accountId: string
+  accountName: string
+  accountNumber: string | null
+  isGroup: boolean
+  rootType: string
+  ownBalance: number
+  totalBalance: number
+  children: GlAccountGroupNode[]
+}
+
+export async function glAccountGroupBalancesSummary(ctx: { orgId: string }, asOfDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const trial = await trialBalance(ctx, asOfDate, scope)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const allAccounts = await db.query.erpAccounts.findMany({ where: eq(erpAccounts.orgId, ctx.orgId) })
+    const balanceByAccountId = new Map(trial.accounts.map((a) => [a.accountId, a.netBalance]))
+    const childrenByParent = new Map<string | null, typeof allAccounts>()
+    for (const a of allAccounts) {
+      const key = a.parentAccountId ?? null
+      if (!childrenByParent.has(key)) childrenByParent.set(key, [])
+      childrenByParent.get(key)!.push(a)
+    }
+
+    function rollUp(accountId: string): number {
+      const own = balanceByAccountId.get(accountId) ?? 0
+      const children = childrenByParent.get(accountId) ?? []
+      return own + children.reduce((sum, c) => sum + rollUp(c.id), 0)
+    }
+
+    function buildNode(a: (typeof allAccounts)[number]): GlAccountGroupNode {
+      return {
+        accountId: a.id,
+        accountName: a.accountName,
+        accountNumber: a.accountNumber,
+        isGroup: a.isGroup,
+        rootType: a.rootType,
+        ownBalance: balanceByAccountId.get(a.id) ?? 0,
+        totalBalance: rollUp(a.id),
+        children: (childrenByParent.get(a.id) ?? []).map(buildNode),
+      }
+    }
+
+    const roots = childrenByParent.get(null) ?? []
+    return { asOfDate, groups: roots.map(buildNode) }
+  })
+}
