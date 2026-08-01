@@ -160,7 +160,13 @@ const REQUIRED_MARKERS = [
   // marker check still catches the function itself, or its use in the
   // core task-execution path, being silently gutted.
   { file: "src/lib/audit.ts", mustContain: ["export async function logActivity"] },
-  { file: "src/lib/task-execution-engine.ts", mustContain: ["logActivity("] },
+  // Retargeted 2026-08-01 (VERIDIAN Review Framework gap-closure, Code
+  // Modularity): this call site moved from task-execution-engine.ts to
+  // src/lib/services/task-execution/tool-dispatch.ts when dispatchTool()
+  // was extracted into its own module (task-execution-engine.ts still
+  // re-exports dispatchTool, so the guardrail itself is unweakened -- only
+  // its file location changed).
+  { file: "src/lib/services/task-execution/tool-dispatch.ts", mustContain: ["logActivity("] },
 
   // Mandatory Structured Handover Protocol (Wave 167,
   // ai-os/tree4-unified/10-merged-governance-layer.yaml U-D17.B1.S1,
@@ -345,6 +351,18 @@ const REQUIRED_MARKERS = [
   // silently dropped either.
   { file: "scripts/check-metadata-index-coverage.mjs", mustContain: ["realItems", "OS_YAML"] },
   { file: ".github/workflows/ci.yml", mustContain: ["check-metadata-index-coverage.mjs"] },
+
+  // Added 2026-08-01 (VERIDIAN Review Framework gap-closure, Design Pattern
+  // Consistency): the requireAuth() presence gate script itself, so it
+  // can't be silently gutted. NOT paired with a ci.yml wiring-line marker
+  // (unlike the metadata-index-coverage entry above) -- this session's gh
+  // token lacks the `workflow` scope needed to push a .github/workflows/
+  // change (see PROGRESS.md); the ci.yml job is prepared but not included
+  // in this push. Add the paired `{ file: ".github/workflows/ci.yml",
+  // mustContain: ["check-requireauth-presence.mjs"] }` marker in the same
+  // follow-up PR that lands the CI wiring, per this file's own
+  // self-anchoring pattern.
+  { file: "scripts/check-requireauth-presence.mjs", mustContain: ["EXEMPT_ROUTES", "requireAuth"] },
 ]
 
 let failed = false
