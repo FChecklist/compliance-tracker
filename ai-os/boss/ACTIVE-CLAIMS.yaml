@@ -3956,6 +3956,28 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+
+  - session_label: "claude-code (server-side session, VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01) -- VERI Chat mockup-to-production: composer/chain-picker/sidebar-sync/task-document-screen"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      Implementing VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md (PR #675,
+      audited and merged this session) end to end, per its own section 4
+      checklist, one item at a time in dependency order, verifying each live
+      in the browser before moving to the next. File scope: VeriComposer.tsx
+      (selectedPath lift, chain-mode overlay/collapse, per-segment x,
+      "Create similar task again", resizable composer, external-AI copy
+      link), ChainSelector.tsx (deepest-row-only render, deriveDocumentTitle
+      helper), AppSidebar.tsx (sidebar-click composer sync), veri-chat-
+      context.tsx (selectedPath/documentScreenActive lift), a new
+      src/components/veri-chat/TaskDocumentScreen.tsx, home/page.tsx and
+      AppShell.tsx (full-takeover wiring), VERI_CHAT_COMPOSER_DESIGN.md
+      (mapping-table update for the removed queue mechanism). Does not touch
+      @fchecklist/veridian-ui-kit itself (the spec's item 16, sidebar
+      spacing, is out of scope for this repo per its own direction).
+      Re-checked this file fresh before starting: the one entry touching
+      these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
+      is long since superseded -- package.json already pins v0.2.2, so that
+      migration is done, not a live conflict.
 recently_completed:
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
