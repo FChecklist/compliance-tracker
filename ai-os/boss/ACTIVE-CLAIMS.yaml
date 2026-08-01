@@ -71,6 +71,17 @@ active:
       recommended approach. Does not touch permission-service.ts's
       ERP_ACTION_ROLES table or any other in-flight worker's declared
       scope.
+
+      STATUS UPDATE (2026-08-01, same session): implementation complete,
+      pushed across 2 commits, PR opened:
+      https://github.com/FChecklist/compliance-tracker/pull/685. One known
+      blocker, documented in PROGRESS.md: this session's gh token lacks
+      `workflow` scope, so the ~9-line CI job wiring check-doc-drift.mjs
+      into .github/workflows/ci.yml could not be pushed -- the check itself
+      is fully committed and runnable standalone; needs a manual push by
+      whoever has workflow scope. Left in `active:` (not moved to
+      `recently_completed:`) since the PR is not yet merged, per this
+      file's own protocol.
     claimed_at: "2026-07-28T (this session)"
     claim: |
       Fix-forward on the still-open PR #610 (branch
