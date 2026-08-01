@@ -3957,6 +3957,32 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260731-044026-pm--teams---project-groups-templates) -- Task #47 PM gap: generic PM Teams grouping + Project Groups/Templates [PR #667 open, awaiting CI + audit]"
+    claimed_at: "2026-07-31T (this session, closed same session)"
+    claim: |
+      PR #667 opened (not yet merged). Built genuinely new, generic pmTeams
+      (decoupled from helpdesk ticket_teams -- read only as a reference
+      shape, not extended, since ticket_teams has no membership table to
+      extend) with a real pm_team_members roster, many-to-many
+      projectGroups (project_group_projects), and projectTemplates that
+      snapshot a project's phases/tasks as JSON and clone that structure
+      (plus default team assignment) into a new project via
+      createProjectFromTemplate(). New hand-written migration
+      drizzle/0302_pm_teams_project_groups_templates.sql (RLS
+      app_runtime_org_scoped + service_role_bypass on every table,
+      covering indexes on every FK). Clone targets new, minimal, ungated
+      project_phases/project_tasks tables, deliberately not
+      pms_issues/pms_milestones (out of scope, PMS-branch-gated). bun test
+      on the 3 new service test files: 21 pass/0 fail. check-migration-
+      collision.mjs and check-guardrail-presence.mjs both clean. Local
+      `bunx tsc --noEmit` OOM'd due to shared-machine memory contention
+      from other concurrent sessions (13Gi/15Gi used, swap exhausted by
+      unrelated processes) -- not a code issue; deferred full type-check
+      verification to CI's dedicated tsc step on a fresh runner. Out of
+      scope (per finalized gap analysis): pms_issues columns, Automation
+      Rules, other Project columns (status/access/rollup -- see sibling
+      worktree feat/pms-rollup-completion-task47 for that separate slice
+      of "Task #47"), user types, social feed.
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
