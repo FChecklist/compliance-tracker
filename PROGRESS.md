@@ -12,5 +12,8 @@
 - [x] Confirmed zero `@testing-library/react` usage anywhere in `src` (verifies PR body's "no existing component-render test convention" claim)
 - [x] Confirmed both real call sites of the exported `ChainRows` (VeriComposer.tsx:597, ChainSelector.tsx:369 ChainSelectorDialog) are affected as claimed; `ForgeIntakeComposer.tsx`'s same-named local function is unrelated/unaffected
 
+- [x] Posted structured `AUDIT: PASS` comment (8/8 required fields) on PR #680: https://github.com/FChecklist/compliance-tracker/pull/680#issuecomment-5150878104
+- [x] Verified via `gh pr view 680 ... | grep -c "^AUDIT:"` -> 1
+
 ## Remaining
-- [ ] Post structured AUDIT: PASS/FAIL comment (8 required fields) on PR #680
+- [ ] None -- audit complete, verdict posted (PASS), PR not merged (audit-only per task constraints)
