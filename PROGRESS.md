@@ -1,3 +1,241 @@
+# PROGRESS -- task-20260801-173901-retry-ai-engineering-quality-code-struct
+
+VERIDIAN Review Framework gap-closure: AI Engineering Quality / Code
+Structure & Modularity (5 findings). Redispatch of task-20260718-065002 --
+this invocation resumed mid-flight work left by an earlier invocation of
+this same task (see "Inherited state" below) rather than starting fresh.
+
+## Completed
+
+- [x] Read AGENTS.md/CONSTITUTION.yaml/ACTIVE-CLAIMS.yaml governance chain.
+      Claim was already registered by an earlier invocation of this task
+      (commit `57a21930`, `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `active:` list)
+      with a real collision check against schema.ts/task-execution-engine.ts
+      -- re-verified that check is still accurate: `gh pr diff <n>
+      --name-only` against the current open-PR list confirms zero collision
+      (PR #683 is a different, unrelated gap area; PR #635 touches
+      schema.ts additively, not a physical-split scope).
+
+- [x] **Inherited state audited before continuing** (this task's own
+      instruction: "do not assume the gap description is still accurate").
+      An earlier invocation had left real, uncommitted, mostly-correct work
+      in the tree with **zero PROGRESS.md record of it** and one real bug:
+      `src/lib/services/task-execution/engine-dispatch.ts`'s `dispatchEngine`
+      was defined without an `export` keyword, while
+      `task-execution-engine.ts` already imported `{ dispatchEngine }` from
+      it -- a guaranteed `tsc` failure that had never actually been run to
+      confirm. Fixed (added `export`) before doing anything else, then
+      confirmed the rest of the inherited extraction was sound.
+
+- [x] **Finding 1 (Code Modularity) -- task-execution-engine.ts split.**
+      Confirmed real per direct read (2,567 lines, multiple distinct
+      responsibilities). The inherited work already did the right split,
+      now verified end-to-end:
+      - `dispatchTool()` (structured/deterministic tool dispatch for the
+        free-text planning path) extracted unchanged into
+        `src/lib/services/task-execution/tool-dispatch.ts` (283 lines).
+        Re-exported from `task-execution-engine.ts` (`export {
+        dispatchTool }`) since it has real external callers
+        (`app/api/v1/projexa/assistant/route.ts`,
+        `lib/services/fde-service.ts`) that import it from the original
+        path -- confirmed both still resolve correctly.
+      - `dispatchEngine()` (the ~185-key VCEL calculation-engine dispatch
+        switch, by far the largest single responsibility -- over half the
+        original file) extracted unchanged into
+        `src/lib/services/task-execution/engine-dispatch.ts` (1,268 lines,
+        now properly exported). Only called internally by
+        `executeEngineDispatch()`, not part of the file's external API --
+        left un-re-exported, matching its actual usage.
+      - `task-execution-engine.ts` itself: 2,567 -> 1,055 lines.
+      - `scripts/check-guardrail-presence.mjs`'s `logActivity(` marker
+        retargeted from `task-execution-engine.ts` to the new
+        `tool-dispatch.ts` (the call site's real new home) -- the marker
+        itself, not just the code, moved, so the guardrail stays live
+        instead of silently stopping to check anything.
+      - `ai-os/registry/terminology-guardrail-exemptions.yaml`: added
+        exemption entries for the two new files' inherited dated
+        gap-closure comments (3 + 4 `hardcoded_iso_date` findings,
+        same reviewed-false-positive class as the pre-existing
+        `task-execution-engine.ts` entry they moved out of).
+      - Verified: `dispatchTool`/`dispatchEngine` have no other importers
+        anywhere in `src/` that would break; `bun test
+        src/lib/task-execution-engine.test.ts` -- 7 pass.
+
+- [x] **Finding 1 (Code Modularity) -- schema.ts split: investigated,
+      deliberately NOT done.** Confirmed real gap on direct read --
+      `src/lib/db/schema.ts` is 11,466 lines, hundreds of tables, one file.
+      Not attempted this session: 8 other currently-open PRs (#635, #653,
+      #663, #664, #665, #666, #667, #668) are all actively appending new
+      tables/columns to this exact file right now. A physical split into
+      per-domain files re-exported from an index is the right end state,
+      but doing it today would force every one of those in-flight PRs into
+      a rebase/re-split conflict the moment schema.ts's physical layout
+      changes -- a large, genuinely multi-session mechanical migration (not
+      a same-PR-sized task), with a blast radius this task's own scope
+      (4 other findings, one session) shouldn't take on unilaterally while
+      that much concurrent traffic is live. Recommend as its own dedicated
+      follow-up task once schema.ts's open-PR traffic quiets down, not
+      bundled into this gap-closure pass.
+
+- [x] **Finding 2 (Component Reusability) -- REUSABLE-UTILITIES.md.**
+      Added at repo root (matching `CLAUDE.md`/`AGENTS.md`/`FOLLOWUPS.md`'s
+      existing root-level-doc convention). Real, measured import counts
+      (not estimates) across 3 categories -- core `src/lib/` cross-cutting
+      helpers (`auth-guard.ts` used in 934 files, `db.ts` in 356,
+      `tenant-scoped.ts` in 305, `audit.ts` in 105, down to
+      `policy-enforcement-engine.ts` at 16), shared UI components
+      (`button.tsx` 187, `card.tsx` 167, ... down to `ProjectPicker.tsx`
+      at 11), and other genuinely cross-domain service helpers
+      (`currency-format.ts`, `embeddings.ts`, `activity-log-service.ts`,
+      `webhook-deliver.ts`, `org-license-service.ts`, each reused across
+      multiple unrelated feature areas). Includes an "Honorable mentions"
+      section for `StatusBadge`/`DataTable` -- clean, generic, but only
+      2-3 real call sites today, flagged so new list/status screens reach
+      for them instead of rolling their own. Explicitly documented as a
+      periodic index, not CI-enforced (no automated drift check) --
+      matches the "short index" scope the finding actually asked for, not
+      a new registry/coverage-check class of thing.
+
+- [x] **Finding 3 (Low Coupling / High Cohesion) -- FK constraints.**
+      Confirmed real gap: 322 `orgId` + 46 `userId` columns across
+      `schema.ts`, zero with a Drizzle `.references()` -- org/user scoping
+      enforced entirely in application code today. Added
+      `drizzle/0304_org_user_scope_fk_constraints.sql`: `NOT VALID` FK
+      constraints (safe-for-live-large-table pattern -- enforces all new/
+      updated rows immediately without a full-table lock or an
+      all-or-nothing validation gate) on the 5 highest-traffic tables:
+      `compliance_items.org_id`, `documents.org_id`,
+      `notifications.user_id`, `audit_logs.{org_id,user_id}`,
+      `tasks.{org_id,user_id}` -- plus supporting indexes on the
+      previously-unindexed FK columns. Deliberately scoped to these 5, not
+      all 322/46 columns (a much larger, separate undertaking; this is the
+      "starting with" slice the finding itself asks for). Verified: every
+      referenced column/table exists with the exact name used (checked
+      each of the 5 tables' real column defs against the migration's SQL);
+      `drizzle/meta/_journal.json` entry added (idx 281, tag
+      `0304_org_user_scope_fk_constraints`); `node
+      scripts/check-migration-collision.mjs` passes (no number collision
+      against origin/main).
+
+- [x] **Finding 4 (Design Pattern Consistency) -- requireAuth() lint
+      rule.** Added `scripts/check-requireauth-presence.mjs`: fails if a
+      `src/app/api/**/route.ts` calls neither `requireAuth()` nor has a
+      reasoned entry in its `EXEMPT_ROUTES` allowlist (same
+      reviewable-diff-guarantee class as `check-guardrail-presence.mjs`,
+      documented honestly as such in its own header). Running it for real
+      found one genuine, previously-undocumented gap:
+      `src/app/api/ai/team/log-usage/route.ts` calls neither -- it's
+      secret-gated (`AI_TEAM_LOG_SECRET` bearer header, called by
+      `scripts/ai-workforce-agent.mjs` from GitHub Actions, no Supabase
+      session possible), a legitimate exemption class already established
+      for the internal cron routes, so added it to `EXEMPT_ROUTES` with
+      that reason rather than forcing a session-auth requireAuth() call
+      onto a route that structurally can't have one. Final tally: 927 of
+      991 route.ts files call `requireAuth()` directly (93.5%), the other
+      64 are now all documented exemptions, script passes clean.
+      Self-anchored in `check-guardrail-presence.mjs`'s `REQUIRED_MARKERS`
+      (the script file itself, not paired with a ci.yml marker -- see the
+      CI-wiring note below for why).
+      - ServiceError half of this finding: checked, not a real gap --
+        `grep -rl "ServiceError" src/lib/services/*.ts` already matches
+        51/51 top-level service files (100%), so there is no adoption gap
+        to enforce; the requireAuth() script covers the actual open half
+        of the finding.
+
+- [x] **Finding 5 (File & Folder Organization) -- ai-os/ subtree
+      consolidation: investigated, confirmed NOT a real gap, no change
+      made.** Per this task's own instruction ("if the described gap
+      doesn't match what you find in the code, say so rather than making
+      an unnecessary change"): `ai-os/tree4-unified/`, `ai-os/audit-tree/`,
+      and `ai-os/system-tree/` are not overlapping/duplicative --
+      `ai-os/OS.yaml` (lines ~93-99) documents them as three deliberately
+      sequential, distinct-purpose stages (Tree 1 = requirements
+      transcription from the Owner's source docs, Tree 3 = audited
+      code-grepped inventory of what's actually built, Tree 4 = the
+      Tree-1-vs-Tree-3 gap comparison). No governance doc anywhere
+      (`stale-doc-manifest.yaml`, `MASTER-TRACKER.yaml`, `OS.yaml`,
+      `docs/master/INDEX.md`) actually directs consolidating these three
+      trees as a trio -- `stale-doc-manifest.yaml` only quarantines
+      specific already-superseded subfolders
+      (`tree4-unified/50-completion-plan/archive/`,
+      `audit-tree/archive/`), which is already done (bannered in place).
+      The real prior consolidation this finding is likely echoing already
+      happened (commit `78cc8ae4`, tree4-unified's gap backlog folded into
+      `MASTER-TRACKER.yaml`) and `system-tree/` is still actively
+      refreshed, not dead weight. Recommend closing this finding as
+      resolved/premise-mismatched rather than forcing a restructuring
+      pass on three directories that are working as designed.
+
+- [x] Full verification pass (after all changes above): `NODE_OPTIONS=
+      "--max-old-space-size=8192" bun x tsc --noEmit` -- clean, 0 errors.
+      `bun test` -- 2,470 pass, 0 fail, 4,925 `expect()` calls (215 files;
+      the handful of console.error lines in the output are intentional
+      fail-closed-scenario test logging, not failures). `bun run lint` --
+      0 errors, 3 pre-existing warnings in untouched files. All 8
+      `check-*.mjs` CI gates re-run locally and pass: guardrail-presence
+      (89 markers), requireauth-presence (927/991 + 64 documented
+      exemptions), asset-registry-coverage (443 tables), metadata-index-
+      coverage (112 items), terminology-guardrail --diff-only (0 new
+      findings), migration-collision (0 collisions), doc-quarantine-banner
+      (44 files), doc-cross-references (427 references resolved).
+      `permission-service.ts` confirmed untouched (task constraint).
+
+## Remaining
+
+- [ ] **CI wiring for `check-requireauth-presence.mjs` is prepared but NOT
+      pushed.** `.github/workflows/ci.yml` has a local, uncommitted
+      `requireauth-presence` job (mirrors the existing `guardrail-presence`
+      job exactly, calls the new script) -- but this session's `gh` token
+      (account FChecklist) lacks the `workflow` OAuth scope, and GitHub
+      rejects any push whose branch touches `.github/workflows/*.yml`.
+      Directly confirmed this session (not assumed from memory): pushed a
+      throwaway branch containing only the ci.yml change, got GitHub's
+      exact "refusing to allow an OAuth App to create or update workflow
+      ... without `workflow` scope" rejection, then discarded that branch.
+      **This PR is therefore opened WITHOUT the ci.yml change** -- the
+      script itself (`scripts/check-requireauth-presence.mjs`) is real,
+      tested, and included; only its CI job registration is missing. The
+      exact job block to add (paste into `.github/workflows/ci.yml` right
+      after the `guardrail-presence` job) is:
+      ```yaml
+        requireauth-presence:
+          name: requireAuth Presence Check
+          runs-on: ubuntu-latest
+          steps:
+            - uses: actions/checkout@v7
+            - run: node scripts/check-requireauth-presence.mjs
+      ```
+      Once that's landed (by the Owner, or a token with `workflow` scope),
+      also add the paired self-anchor marker back into
+      `scripts/check-guardrail-presence.mjs`'s `REQUIRED_MARKERS`:
+      `{ file: ".github/workflows/ci.yml", mustContain:
+      ["check-requireauth-presence.mjs"] }` (deliberately left out of this
+      PR too, since adding a marker that requires text that isn't actually
+      in ci.yml yet would fail the Guardrail Presence Check on this exact
+      PR).
+
+- [ ] **Migration 0304's `VALIDATE CONSTRAINT` follow-up, as flagged in
+      the migration's own header.** The 5 new FK constraints were added
+      `NOT VALID` (enforces all new/updated rows immediately, doesn't
+      touch existing rows or take a blocking full-table lock). Running
+      `VALIDATE CONSTRAINT` against the live dataset to confirm zero
+      pre-existing orphan rows (and fix any that are found) is a
+      deliberately separate follow-up, not bundled into this migration --
+      flagging it here so it isn't forgotten, not silently deferred.
+
+- [ ] **schema.ts physical split** (see Finding 1 above) -- real gap,
+      intentionally not attempted this session given 8 concurrently-open
+      PRs actively touching that file. Recommend as its own dedicated
+      task once that traffic quiets down.
+
+- [ ] Awaiting fresh supervisor audit + PR merge (this task does not
+      self-merge, matching every prior gap-closure task's own pattern in
+      this file's history below). Once merged: move this task's
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` entry from `active:` to
+      `recently_completed:`.
+
+---
+
 # PROGRESS -- task-20260731-130837-commit-procurement-erp-gap-analysis-docu
 
 ## Completed
