@@ -324,6 +324,8 @@ registered:
   - table: construction_progress_claims
     reason: "PHASE-2-CROSSREF workflow-track gap-closure (SD-002/SD-007, drizzle/0269 creates the table, drizzle/0270 registers it): asset_type=workflow -- the table IS the milestone_achieved->drafted->submitted->client_approved->invoiced state machine, not master data, distinct from construction_interim_bills (still grandfather-exempted) which holds the computed bill amount this workflow eventually produces -- auto_register_asset_trg attached, name_column=milestone_description (no dedicated display-name column), org_column=org_id, owner_column=created_by_id, active_column=NULL (status is a 6-value enum, not boolean)"
 exempted:
+  - table: crm_sales_targets
+    reason: "Sales Pipeline dashboard (2026-07-28): org-scoped monthly sales target row, real RLS attached (drizzle/0268), not yet reviewed for UMR auto_register_asset_trg registration -- tracked as a follow-on, same as this repo established pattern for newly-added tables pending full registry review."
   - table: crm_lost_reasons
     reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): a small org-configurable picklist of Lost Reasons for crm_opportunities.lost_reason_id (Odoo reference pattern) -- comparable to a status/enum table, not itself a trackable business asset, matching this schema's own precedent of not registering lookup/config tables. Deliberately NOT registered, judgment documented in drizzle/0251's own header at the time it was written."
   - table: access_review_certifications
@@ -418,6 +420,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_labour_roster
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: construction_prevailing_wage_rates
+    reason: "HCM-006 Certified Payroll Report (added this PR): has org_id/project_id but no single display-name column -- identity is a (project_id, trade, effective_from) compound (the government wage determination for a given trade classification on a given public-works project, effective as of a date), same shape as erp_statutory_rules' own exemption reason (Priority 4 domain B), not expressible via the trigger's single name_column pointer."
   - table: construction_punch_list_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_site_diaries

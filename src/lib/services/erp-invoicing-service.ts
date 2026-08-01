@@ -31,6 +31,7 @@ import { logActivity } from "@/lib/audit"
 import { isPeriodOpenForDate, trialBalance, profitAndLoss } from "./erp-financial-report-service"
 import { didRevenuePost, recordAuditTrigger } from "@/lib/audit-event-triggers"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { listBankAccounts } from "./erp-vendor-master-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -1440,6 +1441,123 @@ export async function customerPaymentBehaviorReport(
       .sort((a, b) => (b.dso ?? 0) - (a.dso ?? 0))
 
     return { asOfDate: asOf, periodDays, customers }
+  })
+}
+
+/**
+ * FI-AP-005 (SAP F110 "Payment Proposal List" equivalent, sap_mapping.sqlite
+ * gap analysis, BUILD_NEW/HIGH): every vendor bill that is due or already
+ * overdue as of asOfDate, grouped by vendor with a total-per-vendor, the
+ * review worklist a finance user checks *before* actually paying (converting
+ * the proposal into a real payment run is a separate, later feature -- this
+ * is deliberately review-only, matching F110's own propose-then-run split).
+ * Pure aggregation over erp_purchase_invoices' own outstandingAmount/dueDate
+ * -- no new schema, mirroring arAgingReport's identical precedent for the AR
+ * side (this file, above).
+ *
+ * Real, honest gap: SAP F110 proposals also show an early-payment cash
+ * discount (e.g. "2% 10 Net 30") per line, computed from the vendor's
+ * payment terms. Neither erp_suppliers nor erp_purchase_invoices has any
+ * discount-percent/discount-days field -- erp_suppliers.defaultPaymentTermsDays
+ * is a plain net-due-in-N-days figure, not a discount schedule. Rather than
+ * fabricate a discount column with a made-up rate, this omits it entirely;
+ * see this PR's description for the same note.
+ *
+ * Bank details (for "payment method and bank details" in the SAP concept)
+ * reuse the real erp_supplier_bank_accounts row via erp-vendor-master-
+ * service.ts's existing listBankAccounts() -- never the raw encrypted
+ * account number, same masking that function already enforces.
+ */
+export type PaymentProposalBill = {
+  id: string; invoiceNumber: number; supplierId: string; supplierName: string | null
+  postingDate: string; dueDate: string | null; outstandingAmount: string | number; status: string
+}
+export type PaymentProposalBankAccount = { bankName: string; accountNumberMasked: string; ifscCode: string | null } | null
+
+/**
+ * Pure core: due/overdue computation + vendor grouping, extracted so it's
+ * independently unit-testable without a DB, matching this repo's established
+ * .test.ts convention (e.g. this same file's computeInvoiceTaxTotals, PR #596).
+ * bankAccountsBySupplier is precomputed by the caller (a DB-touching lookup)
+ * and merged in here as plain data.
+ */
+export function computePaymentProposal(
+  bills: PaymentProposalBill[],
+  asOfDate: string,
+  bankAccountsBySupplier: Map<string, PaymentProposalBankAccount>,
+  minAmount?: number
+) {
+  const asOfMs = new Date(asOfDate).getTime()
+
+  // A payment PROPOSAL is for bills that need paying now -- due today or
+  // already overdue -- not every future-dated bill still on credit terms,
+  // matching F110's own "invoices due by the next payment run date" scope.
+  const dueBills = bills
+    .filter((inv) => Number(inv.outstandingAmount) > 0.01)
+    .filter((inv) => new Date(inv.dueDate ?? inv.postingDate).getTime() <= asOfMs)
+    .filter((inv) => minAmount == null || Number(inv.outstandingAmount) >= minAmount)
+
+  const lines = dueBills
+    .map((inv) => {
+      const dueMs = new Date(inv.dueDate ?? inv.postingDate).getTime()
+      const daysOverdue = Math.max(0, Math.floor((asOfMs - dueMs) / 86400000))
+      const bankAccount = bankAccountsBySupplier.get(inv.supplierId) ?? null
+      return {
+        invoiceId: inv.id, invoiceNumber: inv.invoiceNumber,
+        supplierId: inv.supplierId, supplierName: inv.supplierName,
+        postingDate: inv.postingDate, dueDate: inv.dueDate ?? inv.postingDate,
+        daysOverdue, isOverdue: daysOverdue > 0,
+        outstandingAmount: inv.outstandingAmount, status: inv.status,
+        bankAccount,
+      }
+    })
+    .sort((a, b) => b.daysOverdue - a.daysOverdue)
+
+  const bySupplier = new Map<string, { supplierId: string; supplierName: string | null; totalAmount: number; lines: typeof lines }>()
+  for (const line of lines) {
+    if (!bySupplier.has(line.supplierId)) bySupplier.set(line.supplierId, { supplierId: line.supplierId, supplierName: line.supplierName, totalAmount: 0, lines: [] })
+    const group = bySupplier.get(line.supplierId)!
+    group.lines.push(line)
+    group.totalAmount += Number(line.outstandingAmount)
+  }
+
+  const suppliers = [...bySupplier.values()].sort((a, b) => b.totalAmount - a.totalAmount)
+  const totalProposedAmount = suppliers.reduce((sum, s) => sum + s.totalAmount, 0)
+
+  return { asOfDate, totalProposedAmount, supplierCount: suppliers.length, lineCount: lines.length, suppliers }
+}
+
+export async function paymentProposalList(
+  ctx: { orgId: string },
+  filters: { asOfDate?: string; supplierId?: string; minAmount?: number } = {}
+) {
+  await requireErpEnabled(ctx.orgId)
+  const asOf = filters.asOfDate ?? new Date().toISOString().slice(0, 10)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoices = await db.query.erpPurchaseInvoices.findMany({
+      where: and(
+        eq(erpPurchaseInvoices.orgId, ctx.orgId),
+        inArray(erpPurchaseInvoices.status, ["submitted", "partially_paid", "overdue"]),
+        ...(filters.supplierId ? [eq(erpPurchaseInvoices.supplierId, filters.supplierId)] : []),
+      ),
+      with: { supplier: true },
+    })
+
+    const bills: PaymentProposalBill[] = invoices.map((inv) => ({
+      id: inv.id, invoiceNumber: inv.invoiceNumber, supplierId: inv.supplierId, supplierName: inv.supplier?.supplierName ?? null,
+      postingDate: inv.postingDate, dueDate: inv.dueDate, outstandingAmount: inv.outstandingAmount, status: inv.status,
+    }))
+
+    const supplierIds = [...new Set(bills.map((inv) => inv.supplierId))]
+    const bankAccountsBySupplier = new Map<string, PaymentProposalBankAccount>()
+    for (const supplierId of supplierIds) {
+      const accounts = await listBankAccounts({ orgId: ctx.orgId }, supplierId)
+      const primary = accounts.find((a) => a.isPrimary) ?? accounts[0] ?? null
+      bankAccountsBySupplier.set(supplierId, primary ? { bankName: primary.bankName, accountNumberMasked: primary.accountNumberMasked, ifscCode: primary.ifscCode } : null)
+    }
+
+    return computePaymentProposal(bills, asOf, bankAccountsBySupplier, filters.minAmount)
   })
 }
 
