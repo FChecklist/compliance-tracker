@@ -75,6 +75,7 @@ import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
+import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1303,6 +1304,78 @@ async function computeBillingDueList(ctx: { orgId: string }, params: Record<stri
   })
 }
 
+/**
+ * FI-AR-006 (SAP gap analysis, "Customer Payment Behavior / DSO", HIGH
+ * priority, BUILD_NEW, re-verified directly against this repo
+ * and the live Supabase project -- see erp-invoicing-service.ts's
+ * customerPaymentBehaviorReport() for the full real-vs-honest-gap writeup,
+ * which this thin wrapper reuses rather than re-querying (same
+ * cross-service-reuse precedent as computeBillingDueList's sibling
+ * imports from construction-reports-service.ts above). Distinct from
+ * arAgingReport (point-in-time snapshot) and FI-AR-004's dunning list
+ * (active overdue workflow): this is the only one of the three that reads
+ * historical PAID-invoice payment dates.
+ */
+async function computeCustomerPaymentBehavior(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const periodDays = typeof params.periodDays === "number" && params.periodDays > 0 ? params.periodDays : 90
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : undefined
+  const report = await customerPaymentBehaviorReport(ctx, { periodDays, asOfDate })
+
+  return {
+    columns: ["Customer", "Invoices", "Avg Days to Pay", "Avg Credit Days", "DSO", "Outstanding AR", "Credit Sales (Period)", "Reliability"],
+    rows: report.customers.map((c) => ({
+      Customer: c.customerName,
+      Invoices: c.invoiceCount,
+      "Avg Days to Pay": c.avgDaysToPay ?? "n/a -- no real payment date recorded (see note)",
+      "Avg Credit Days": c.avgCreditDays,
+      DSO: c.dso ?? "n/a -- no credit sales in period",
+      "Outstanding AR": c.outstandingAR,
+      "Credit Sales (Period)": c.creditSalesInPeriod,
+      Reliability: c.paymentReliability ?? "unknown",
+    })),
+    note: report.customers.every((c) => c.avgDaysToPay === null)
+      ? `No customer in this org has a real, discoverable payment-completion date as of ${report.asOfDate} -- every 'paid' invoice's status was set without going through either real payment-recording path (recordSalesInvoicePayment's direct posting or the erp_payment_entries approval workflow). Avg Days to Pay/Reliability are honestly "n/a"/"unknown", not fabricated. DSO and Outstanding AR are still real and computed from real invoice data.`
+      : `DSO period: ${report.periodDays} days ending ${report.asOfDate}. Avg Days to Pay only counts invoices with a real, discoverable payment-completion date -- see erp-invoicing-service.ts#customerPaymentBehaviorReport for which customers (if any) are missing one.`,
+  }
+}
+
+/**
+ * FI-AP-006 (SAP gap analysis, "Vendor Payment History / Payment Behavior
+ * Analysis", MEDIUM priority, BUILD_NEW). This wraps
+ * erp-invoicing-service.ts's vendorPaymentBehaviorReport() rather than
+ * re-querying (same cross-service-reuse precedent as computeBillingDueList's
+ * sibling imports from construction-reports-service.ts above) -- see that
+ * function's own header comment for the full real-vs-honest-gap writeup,
+ * including why this is a fresh implementation with distinct top-level names
+ * (vendorDaysToPay/computeDpoFormula/classifyVendorPaymentReliability/
+ * vendorPaymentBehaviorReport) mirroring FI-AR-006's calculation SHAPE
+ * (immediately above, PR #645) rather than importing it, adapted
+ * customer->vendor / DSO->DPO, at the time this PR was built (#645 was still
+ * open then; both now coexist in this file cleanly under distinct names).
+ */
+async function computeVendorPaymentBehavior(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const periodDays = typeof params.periodDays === "number" && params.periodDays > 0 ? params.periodDays : 90
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : undefined
+  const report = await vendorPaymentBehaviorReport(ctx, { periodDays, asOfDate })
+
+  return {
+    columns: ["Supplier", "Invoices", "Avg Days to Pay", "Avg Credit Days", "DPO", "Outstanding AP", "Credit Purchases (Period)", "Reliability"],
+    rows: report.suppliers.map((s) => ({
+      Supplier: s.supplierName,
+      Invoices: s.invoiceCount,
+      "Avg Days to Pay": s.avgDaysToPay ?? "n/a -- no real payment date recorded (see note)",
+      "Avg Credit Days": s.avgCreditDays,
+      DPO: s.dpo ?? "n/a -- no credit purchases in period",
+      "Outstanding AP": s.outstandingAP,
+      "Credit Purchases (Period)": s.creditPurchasesInPeriod,
+      Reliability: s.paymentReliability ?? "unknown",
+    })),
+    note: report.suppliers.every((s) => s.avgDaysToPay === null)
+      ? `No supplier in this org has a real, discoverable payment-completion date as of ${report.asOfDate} -- every 'paid' invoice's status was set without going through the only real vendor payment-recording path (the erp_payment_entries approval workflow, paymentType='pay'/invoiceType='purchase_invoice'/status='approved'). Avg Days to Pay/Reliability are honestly "n/a"/"unknown", not fabricated. DPO and Outstanding AP are still real and computed from real invoice data.`
+      : `DPO period: ${report.periodDays} days ending ${report.asOfDate}. Avg Days to Pay only counts invoices with a real, discoverable payment-completion date -- see erp-invoicing-service.ts#vendorPaymentBehaviorReport for which suppliers (if any) are missing one.`,
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
@@ -1341,6 +1414,8 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   interior_profit_by_room_analysis: interiorProfitByRoomAnalysis,
   interior_designer_productivity_analysis: interiorDesignerProductivityAnalysis,
   billing_due_list: computeBillingDueList,
+  customer_payment_behavior_dso: computeCustomerPaymentBehavior,
+  vendor_payment_behavior_dpo: computeVendorPaymentBehavior,
 }
 
 // ─── AI recipe executor (ai_recipe) ───────────────────────────────────────

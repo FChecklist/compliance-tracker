@@ -1898,6 +1898,69 @@
       "when": 1785325200004,
       "tag": "0273_asset_to_gl_reconciliation_report_definition",
       "breakpoints": true
+    },
+    {
+      "idx": 271,
+      "version": "7",
+      "when": 1785402700000,
+      "tag": "0274_sd007_sales_order_document_flow_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 272,
+      "version": "7",
+      "when": 1785402700001,
+      "tag": "0275_customer_payment_behavior_dso_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 273,
+      "version": "7",
+      "when": 1785403893145,
+      "tag": "0291_ap_purchase_invoice_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 274,
+      "version": "7",
+      "when": 1785402700002,
+      "tag": "0279_vendor_payment_behavior_dpo_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 275,
+      "version": "7",
+      "when": 1785412479905,
+      "tag": "0284_content_search_tasks",
+      "breakpoints": true
+    },
+    {
+      "idx": 276,
+      "version": "7",
+      "when": 1785403893146,
+      "tag": "0285_ap_payment_proposal_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 277,
+      "version": "7",
+      "when": 1785409433591,
+      "tag": "0301_construction_prevailing_wage_rates",
+      "breakpoints": true
+    },
+    {
+      "idx": 278,
+      "version": "7",
+      "when": 1785416573445,
+      "tag": "0300_stage12_dispatch_outcomes",
+      "breakpoints": true
+    },
+    {
+      "idx": 279,
+      "version": "7",
+      "when": 1785416573446,
+      "tag": "0302_sales_pipeline_dashboard_targets",
+      "breakpoints": true
     }
   ]
 }
