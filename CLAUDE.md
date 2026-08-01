@@ -54,3 +54,28 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - DO NOT commit `.env` files
 - All API routes MUST use Drizzle — zero Prisma imports
 - All API routes MUST call `requireAuth()` from `@/lib/supabase/auth-guard`
+
+## High-Risk Files (AI Modification Caution)
+
+VERIDIAN Review Framework gap-closure (2026-08-01), "AI Modification Readiness" -- Medium: "No single readiness score; depends heavily on which file." There is no automated per-file readiness score in this repo (and none is being added here — that's a bigger build than this gap calls for). What follows is a manual snapshot, criterion-based, not a live check: files under `src/lib/` and `src/lib/services/` at **≥400 lines with no dedicated `<file>.test.ts` sibling**, as of 2026-08-01 (re-run the one-liner below before trusting this list if it's been a while — it drifts as files change):
+
+```
+for f in src/lib/*.ts src/lib/services/*.ts; do
+  [[ "$f" == *.test.ts ]] && continue
+  lines=$(wc -l < "$f"); base="${f%.ts}"
+  [[ ! -f "${base}.test.ts" && $lines -ge 400 ]] && echo "$lines $f"
+done | sort -rn
+```
+
+| File | Lines | Note |
+|---|---|---|
+| `src/lib/services/erp-accounting-service.ts` | 592 | No dedicated test file; referenced by `tenant-isolation.test.ts` (RLS coverage only, not business-logic coverage) |
+| `src/lib/services/compliance-service.ts` | 580 | No dedicated test file; referenced by 3 other test files (`exception-taxonomy.test.ts`, `connector-data-service.test.ts`, `erp-selling-service.test.ts`) — partial, not full coverage |
+| `src/lib/activity-log-service.ts` | 509 | No dedicated test file. Load-bearing for governance — `scripts/check-guardrail-presence.mjs` names several of its exports as required guardrail markers |
+| `src/lib/services/veri-reward-service.ts` | 461 | No dedicated test file; zero references in any `*.test.ts` |
+| `src/lib/services/erp-financial-report-service.ts` | 456 | No dedicated test file; zero references in any `*.test.ts` |
+| `src/lib/services/erp-procurement-workflow-service.ts` | 452 | No dedicated test file; referenced by one other test file, not its own |
+| `src/lib/services/workspace-memory-service.ts` | 445 | No dedicated test file; zero references in any `*.test.ts` |
+| `src/lib/services/veri-meeting-service.ts` | 434 | No dedicated test file; referenced by one other test file, not its own |
+
+If a task requires modifying one of these files (or a file that later grows into this bracket): read the whole file first rather than patching blind from a search hit, prefer additive changes over restructuring, and add or extend test coverage for the function you touch as part of the same change rather than after — this list existing is not a substitute for that.

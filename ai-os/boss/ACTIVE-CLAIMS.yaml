@@ -40,6 +40,36 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260801-173859-retry-ai-engineering-quality-ai-modifica) -- VERIDIAN Review Framework gap-closure: AI Engineering Quality / AI-Modification Readiness [DONE THIS SESSION, PR pending]"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      Redispatch of task-20260718-064006 (original blocked at first invocation by the
+      OpenRouter/Cerebras balance hard-stop, since removed from preflight-guard.py,
+      commit 7ff5be8). 2 findings: [Low] Code Readability for AI (comment discipline
+      not enforced by tooling) and [Medium] AI Modification Readiness (no single
+      readiness score; depends heavily on which file).
+
+      Verified both gaps still real before writing code: grepped all 300
+      src/lib/services/*.ts files, confirmed 299/300 already follow an unenforced
+      header-comment convention (only context.ts doesn't); computed real
+      large(>=400 lines)+untested(no dedicated *.test.ts sibling) files across
+      src/lib/ + src/lib/services/ (8 files), cross-checked each against every
+      test file's imports so coverage claims aren't overstated.
+
+      Added scripts/check-service-header-comment.mjs (new-files-only
+      reviewable-diff ratchet, same class as check-terminology-guardrail.mjs).
+      NOT wired into .github/workflows/ci.yml in this PR -- this session's gh
+      token lacks `workflow` scope, GitHub rejects any push touching that path
+      (see memory gh-token-lacks-workflow-scope); the exact job YAML to add is
+      recorded in PROGRESS.md for a follow-up from a session/token with that
+      scope. Added a "High-Risk Files (AI Modification Caution)" section to
+      CLAUDE.md listing the 8 files with accurate per-file coverage notes + the
+      regeneration one-liner.
+
+      File scope: scripts/check-service-header-comment.mjs (new), CLAUDE.md
+      (new section only), PROGRESS.md. Did not touch
+      .github/workflows/ci.yml or src/lib/services/permission-service.ts, or any
+      other file.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
