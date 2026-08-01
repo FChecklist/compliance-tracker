@@ -40,24 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260801-123640-retry-audit-pr-678) -- Independent Rule 7(c)/10 audit of PR #678 (feat/lead-source-effectiveness-report), audit-only, no code changes"
-    claimed_at: "2026-08-01T (this session)"
-    claim: |
-      Auditing PR #678 (CRM Lead Source Effectiveness report,
-      aggregateLeadSourceEffectiveness() in src/lib/services/crm-service.ts)
-      per AGENTS.md Rule 7(c) -- original implementing session cannot
-      self-certify. Verifying: function logic vs. its own tests and stated
-      formulas, the sap_reports gap claim (query
-      /opt/veridian/ai-os/memory/sap_mapping.sqlite directly), and running
-      the real test suite + tsc --noEmit in a fresh clone/worktree. Posting
-      a structured AUDIT: PASS/FAIL comment on the PR. Audit-only: does not
-      merge, does not modify PR #678's code.
-    scope_note: |
-      File scope: read-only review of PR #678's diff + a fresh throwaway
-      clone/worktree for running tests/tsc; only repo-tracked write is this
-      claims-registry entry and PROGRESS.md in this task's own workspace.
-      No overlap with any other active entry (none reference PR #678 or
-      lead-source-effectiveness).
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
@@ -4101,6 +4083,26 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260801-123640-retry-audit-pr-678) -- Independent Rule 7(c)/10 audit of PR #678 (feat/lead-source-effectiveness-report) [DONE, AUDIT: PASS posted, PR not merged -- audit-only per task scope]"
+    claimed_at: "2026-08-01T (this session, closed same session)"
+    claim: |
+      Independently audited PR #678 (CRM Lead Source Effectiveness report)
+      since the original implementing session could not self-certify per
+      AGENTS.md Rule 7(c). Hand-traced aggregateLeadSourceEffectiveness()
+      in src/lib/services/crm-service.ts against all 5 of its own new tests
+      -- conversionRate/avgWonDealSize formulas, unattributed-source
+      bucketing, and no-leadId exclusion all confirmed correct. Verified
+      the PR's sap_reports gap claim directly against
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite (zero rows match
+      '%Lead Source%' in the 80-row table). Ran the real test suite and
+      tsc --noEmit in a fresh clone (feat/lead-source-effectiveness-report
+      @ 94d581f4) rather than trusting the PR description -- 12/12 tests
+      pass, 0 type errors, migration-collision/asset-registry/terminology
+      guardrail scripts all clean. Posted a structured 8-field
+      "AUDIT: PASS" comment on PR #678
+      (https://github.com/FChecklist/compliance-tracker/pull/678#issuecomment-5151468896).
+      Did not merge the PR and did not modify its code -- audit-only per
+      this task's own constraints.
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
