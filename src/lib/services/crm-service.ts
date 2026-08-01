@@ -603,6 +603,73 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
   })
 }
 
+// sap_reports gap analysis, lead_source_effectiveness (BUILD_NEW, no existing
+// catalog row -- confirmed absent from the 80-row sap_reports classification
+// PR #677 completed). Pure aggregation kept separate from the DB-fetch below,
+// matching this repo's established "no live DB from a .test.ts file"
+// convention (see sales-pipeline-dashboard-service.ts's own split). Per the
+// gap analysis's own note: CAC is omitted entirely when no marketing-spend-
+// by-source data exists, rather than fabricating a cost figure with no real
+// input -- this schema has no spend-by-source table today, so CAC is never
+// computed here, not silently zeroed.
+export type LeadSourceRow = { id: string; source: string | null; status: string }
+export type OpportunityForSourceRow = { leadId: string | null; stage: string; estimatedValue: string | number | null }
+
+export function aggregateLeadSourceEffectiveness(leads: LeadSourceRow[], opportunities: OpportunityForSourceRow[]) {
+  // Every real lead attributes its own opportunities via leadId -- an
+  // opportunity's source is inherited from the lead it originated from,
+  // never re-declared independently (opportunities created directly against
+  // an existing client, with no leadId, have no attributable source and are
+  // excluded, same "unattributed, not zero" honesty as crmLeads.companyId).
+  const oppsByLeadId = new Map<string, OpportunityForSourceRow[]>()
+  for (const o of opportunities) {
+    if (!o.leadId) continue
+    const bucket = oppsByLeadId.get(o.leadId) ?? []
+    bucket.push(o)
+    oppsByLeadId.set(o.leadId, bucket)
+  }
+
+  const bySource: Record<string, { totalLeads: number; wonDeals: number; totalDeals: number; wonValue: number }> = {}
+  for (const lead of leads) {
+    const key = lead.source?.trim() || "unattributed"
+    const bucket = (bySource[key] ??= { totalLeads: 0, wonDeals: 0, totalDeals: 0, wonValue: 0 })
+    bucket.totalLeads += 1
+    const opps = oppsByLeadId.get(lead.id) ?? []
+    for (const o of opps) {
+      if (o.stage !== "won" && o.stage !== "lost") continue
+      bucket.totalDeals += 1
+      if (o.stage === "won") {
+        bucket.wonDeals += 1
+        bucket.wonValue += o.estimatedValue != null ? Number(o.estimatedValue) : 0
+      }
+    }
+  }
+
+  const bySourceReport = Object.entries(bySource)
+    .map(([source, b]) => ({
+      source,
+      totalLeads: b.totalLeads,
+      conversionRate: b.totalDeals > 0 ? b.wonDeals / b.totalDeals : null,
+      avgWonDealSize: b.wonDeals > 0 ? b.wonValue / b.wonDeals : null,
+      wonDeals: b.wonDeals,
+      totalDeals: b.totalDeals,
+    }))
+    .sort((a, b) => b.totalLeads - a.totalLeads)
+
+  return { bySource: bySourceReport }
+}
+
+export async function getLeadSourceEffectivenessReport(ctx: { orgId: string }) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [leads, opportunities] = await Promise.all([
+      db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId), columns: { id: true, source: true, status: true } }),
+      db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId), columns: { leadId: true, stage: true, estimatedValue: true } }),
+    ])
+    return aggregateLeadSourceEffectiveness(leads, opportunities)
+  })
+}
+
 // ─── Wave 75 (CRM Intelligence, AI_OS_CERTIFICATION.md §3.3 NOT_BUILT) ────
 // crmLeads/crmOpportunities were pure CRUD with zero AI reasoning. Both
 // functions reason over each record's own structured fields (source/status/
