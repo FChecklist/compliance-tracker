@@ -81,6 +81,8 @@ verify it, close any real gaps, and land it.
 - [x] Committed all work and pushed to
       `worker/task-20260801-173614-retry-ai-cost-governance-finops-cost-vis`.
 
+- [x] Opened PR #687: https://github.com/FChecklist/compliance-tracker/pull/687
+
 ## Remaining
 - [ ] Not started
 - [ ] Open a PR (all 4 findings covered as one coherent piece of work, per
@@ -89,6 +91,8 @@ verify it, close any real gaps, and land it.
       no exceptions) and the historical convention every other completed
       task in this repo's PROGRESS.md history has followed (awaiting fresh
       CI + supervisor audit before merge).
+- [ ] Confirm CI passes on PR #687, then awaiting fresh supervisor audit
+      before merge (per this repo's Rule 6 -- not self-merged).
 - [ ] `FChecklist/projexa#68`'s CI wiring is still pending someone with the
       GitHub `workflow` OAuth scope (or the web UI) -- not this task's repo
       to fix, disclosed here so it isn't silently forgotten.
