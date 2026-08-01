@@ -2769,6 +2769,12 @@ export const ingestionBatches = complianceSchemaDB.table('ingestion_batches', {
   aiModel: text('ai_model'),
   extractionSummary: text('extraction_summary'),
   errorMessage: text('error_message'),
+  // Task #46 CRM gap analysis item 7 (drizzle/0302_crm_import_export_target_entity.sql):
+  // discriminates a CRM import batch ('crm_lead' | 'crm_opportunity' |
+  // 'crm_account' | 'crm_contact') from the pre-existing compliance-item
+  // ingest batches, which leave this NULL. Bare text, app-validated -- same
+  // convention as ingestion_items.status/priority below, not a DB enum.
+  targetEntity: text('target_entity'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   confirmedAt: timestamp('confirmed_at'),
   cancelledAt: timestamp('cancelled_at'),
