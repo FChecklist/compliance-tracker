@@ -9534,6 +9534,18 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   // attempted" contract as prompt_cache_metrics.cache_read_tokens -- see
   // llm-client.ts's estimateCacheSavingsUsd for the computation.
   cacheSavingsUsd: numeric('cache_savings_usd'),
+  // AI-usage billing engine (extends this ledger, see
+  // src/lib/billing/ai-usage-billing.ts): classifies which side of the
+  // Owner's real cost split (see PRICING_CONFIG comments) this call's
+  // token count belongs to -- 'fixed_estimated' for calls made through a
+  // flat-rate/subscription AI source where no per-call meter exists (so
+  // promptTokens+completionTokens on this row are already a human/tool
+  // guesstimate, not an exact metered count), 'metered_actual' for calls
+  // through a real pay-per-token API (Groq/OpenRouter/Cerebras/direct --
+  // promptTokens+completionTokens here are exact). Nullable: existing rows
+  // logged before this column existed have no classification and are
+  // excluded from billing-engine aggregation rather than guessed at.
+  costModelType: text('cost_model_type'), // 'fixed_estimated' | 'metered_actual' | null
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
