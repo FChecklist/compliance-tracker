@@ -1,0 +1,110 @@
+meta:
+  task: task-20260729-001528-cross-reference-sap-reports-vs-existing
+  purpose: >-
+    Discoverability pointer + independent verification record. This task's own SPEC ("for every
+    sap_reports row, cross-reference against VCEL/report_definitions/wiring_registry, record
+    REUSE_EXISTING(id)/EXTEND_EXISTING(id)/BUILD_NEW") was ALREADY FULLY COMPLETED the day before,
+    by a different session (task-20260728-160934-cross-reference-sap-reports-vs-existing), but that
+    work is invisible from this git repo: the sap_reports table itself lives outside this repo, and
+    the completing session's commits were pushed to a branch that was never opened as a PR, so
+    ai-os/boss/ACTIVE-CLAIMS.yaml on main never recorded it. That is very likely *why* this
+    duplicate task got spawned at all. This file exists so a third session never repeats the mistake:
+    grep this repo for "sap_reports" and land here instead of finding nothing.
+  generated_date: '2026-07-29'
+  written_by: task-20260729-001528-cross-reference-sap-reports-vs-existing
+
+real_storage_locations:
+  sap_reports_table: >-
+    NOT in this repo (compliance-tracker) and NOT a Postgres table -- confirmed via git log --all,
+    find, and direct grep of src/lib/db/schema.ts (zero hits for sap_reports/sapReports anywhere).
+    It is a SQLite table at /opt/veridian/ai-os/memory/sap_mapping.sqlite (shared, non-git,
+    cross-session infra state on the host). 80 rows, columns include report_name,
+    sap_transaction_code, business_purpose, calculation_logic, veridian_mapping_status,
+    veridian_existing_equivalent, veridian_gap_notes, engine_track, priority. Two dated backups
+    sit alongside it (sap_mapping.sqlite.bak-pre-engine_track-20260728,
+    sap_mapping.sqlite.bak-pre-veridian-mapping-20260728) from the two write sessions below.
+  vcel_calculation_engine_registry: >-
+    Postgres compliance.computation_engines (src/lib/db/schema.ts:9488, table 'computation_engines'),
+    backed by the 25 real files under src/lib/engines/*.ts. This is the VCEL catalog the SPEC refers
+    to -- not a JSON file, not assumed.
+  report_definitions: >-
+    Postgres compliance.report_definitions (src/lib/db/schema.ts:4650), seeded via
+    drizzle/0180-0183_*.sql and executed/dispatched through report-engine-service.ts's
+    FORMULA_REGISTRY / TABLE_REGISTRY / AI-recipe executor (see that file's own header).
+  wiring_registry: >-
+    NOT in this repo. Lives in the SEPARATE claude-control repo:
+    /opt/veridian/repos/claude-control/ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json (~5.8MB,
+    confirmed present there, confirmed absent here). Tracks AI-OS/platform wiring (7711 entities:
+    function/file/supabase_table/ai_role/engine/route/etc.), not a per-SAP-report business registry
+    -- useful only as corroborating evidence that a given engine is genuinely wired end-to-end, not
+    as the primary source for a per-report verdict.
+
+lineage:
+  - task: task-20260728-123644-classify-87-sap-reports-into-engine-track
+    what: >-
+      Classified sap_mapping.sqlite's sap_reports rows into engine_track (calculation/hybrid/
+      workflow): 67 calculation, 9 hybrid, 4 workflow per that session's own PROGRESS.md.
+    repo_state: >-
+      PR #624 (FChecklist/compliance-tracker, branch
+      worker/task-20260728-123644-classify-87-sap-reports-into-engine-trac) is OPEN, MERGEABLE, but
+      BEHIND main as of 2026-07-29 -- never merged. Needs update-branch + CI + merge by a future
+      session/owner; not touched by this task (out of this task's own scope, flagging only).
+  - task: task-20260728-160934-cross-reference-sap-reports-vs-existing
+    what: >-
+      This task's own predecessor -- literally the same title and SPEC as
+      task-20260729-001528 (this task). Completed the full cross-reference: read all 80 rows'
+      calculation_logic, read all 25 VCEL engine files in full, grepped every relevant
+      erp-*-service.ts/construction-*-service.ts/crm-*-service.ts export, and wrote real
+      evidence-cited veridian_mapping_status/veridian_existing_equivalent/veridian_gap_notes for
+      all 80 rows directly into sap_mapping.sqlite. Also discovered and fixed a real schema/spec
+      mismatch: the table's veridian_mapping_status CHECK constraint only allowed the OLD
+      NOT_MAPPED/PARTIALLY_MAPPED/FULLY_MAPPED/NOT_APPLICABLE vocabulary, incompatible with this
+      SPEC's required REUSE_EXISTING(id)/EXTEND_EXISTING(id)/BUILD_NEW values -- widened it
+      additively (old values still valid) via SQLite's standard copy-drop-rename procedure,
+      backing up the file first.
+    repo_state: >-
+      Commits 1467a051 (claim registered) / ee757052 (cross-reference done, PROGRESS.md updated) /
+      556595ec (claim closed, moved active -> recently_completed in ACTIVE-CLAIMS.yaml) exist on
+      origin/worker/task-20260728-160934-cross-reference-sap-reports-vs-existing but were NEVER
+      merged to main and NO PR was ever opened for them (confirmed via `gh pr list --search 160934`
+      -- zero results). The session's own stated reasoning ("no PR: the only data change is to the
+      shared non-git sqlite file, the only repo change is this file + PROGRESS.md") skipped Rule 6's
+      PR/CI gate even for the docs-only repo change, which is why ai-os/boss/ACTIVE-CLAIMS.yaml on
+      main never reflected any of this -- the most likely root cause of task-20260729-001528 (this
+      task) being spawned as an apparent duplicate.
+
+independent_verification_2026-07-29:
+  method: >-
+    Opened /opt/veridian/ai-os/memory/sap_mapping.sqlite read-only (mode=ro, no write) via Python's
+    stdlib sqlite3 and queried it directly, rather than trusting the prior session's PROGRESS.md
+    prose. Spot-checked 6 of the 80 rows' veridian_existing_equivalent citations against real source
+    (grep for the exact exported function name) before accepting the verdicts as genuine.
+  row_count_and_verdict_split: >-
+    80 rows total, 0 unmapped (veridian_mapping_status is never NULL/empty). Live counts: 37
+    REUSE_EXISTING, 29 EXTEND_EXISTING, 14 BUILD_NEW (sums to 80). NOTE: the prior session's own
+    PROGRESS.md self-reported "35 REUSE_EXISTING, 31 EXTEND_EXISTING, 14 BUILD_NEW" -- off by 2 in
+    the REUSE/EXTEND split (BUILD_NEW count matches exactly). Flagging this discrepancy honestly;
+    the live query above is authoritative, not the prose recap. Did not investigate which 2 rows
+    were miscounted in the prose -- immaterial to the verdicts themselves, which were checked
+    directly.
+  citations_spot_checked_and_confirmed_real:
+    - "erp-invoicing-service.ts:653 exports arAgingReport (cited for FI-AR-002-family REUSE_EXISTING rows)"
+    - "erp-buying-service.ts:201 exports getSupplierScorecard"
+    - "project-management-engine.ts:69 (src/lib/engines/) exports calculateEarnedValueMetrics"
+    - "FI-AP-005 (Payment Run) BUILD_NEW verdict re-confirmed: grep for paymentRun/paymentProposal/automaticPayment across src/lib/services/*.ts, zero hits"
+    - "FI-AR-004 (Dunning) BUILD_NEW verdict re-confirmed: grep for 'dunning' across every service file, zero hits"
+    - "FI-AR-001/PS-001 EXTEND_EXISTING verdicts cite real schema.ts:6012/6030 erpJournalEntryLines columns -- confirmed present"
+  conclusion: >-
+    The prior session's cross-reference work is real, specific, and verified -- not fabricated or
+    guessed. No re-work needed. This task's own deliverable is this discoverability file plus
+    landing the missing ACTIVE-CLAIMS.yaml record on main (see that file's recently_completed
+    section, entry for task-20260729-001528).
+
+if_you_are_a_future_session_reading_this: >-
+  Query /opt/veridian/ai-os/memory/sap_mapping.sqlite directly for the current, authoritative
+  mapping -- do not re-derive it from this file's prose, and do not re-run the cross-reference from
+  scratch. If the row count is no longer 80, or veridian_mapping_status has NULL/empty rows, or the
+  CHECK constraint has regressed to rejecting REUSE_EXISTING(...)/EXTEND_EXISTING(...)/BUILD_NEW,
+  treat this document as stale and re-verify before trusting any of the above. Before starting new
+  SAP-mapping work of any kind, also re-check PR #624's merge status (see lineage above) and
+  ai-os/boss/ACTIVE-CLAIMS.yaml's active: section for anything newer than this file's generated_date.

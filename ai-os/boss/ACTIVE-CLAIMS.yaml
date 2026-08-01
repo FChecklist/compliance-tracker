@@ -3957,6 +3957,46 @@ active:
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
 recently_completed:
+  - session_label: "claude-code (task-20260729-001528-cross-reference-sap-reports-vs-existing) -- Found the SPEC already fully done by a prior, un-PR'd session; independently verified it; landed the missing registry record + a discoverability doc [no code change, docs-only PR]"
+    claimed_at: "2026-07-29T (this session, closed same session)"
+    claim: |
+      This task's SPEC ("for every sap_reports row, cross-reference against VCEL calculation-engine
+      registry/report_definitions/wiring_registry, record REUSE_EXISTING(id)/EXTEND_EXISTING(id)/
+      BUILD_NEW in veridian_mapping_status with real findings in veridian_existing_equivalent/
+      veridian_gap_notes") is IDENTICAL to task-20260728-160934-cross-reference-sap-reports-vs-existing,
+      completed the day before. That session did the real work directly against
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite (sap_reports lives there, NOT in this repo --
+      confirmed via git log --all/find/schema.ts grep, zero hits) and pushed 3 commits (1467a051/
+      ee757052/556595ec) to origin/worker/task-20260728-160934-cross-reference-sap-reports-vs-existing,
+      but never opened a PR for them (its own reasoning: "the only data change is to the shared
+      non-git sqlite file"), so ai-os/boss/ACTIVE-CLAIMS.yaml on main never recorded any of it --
+      almost certainly why this duplicate task got spawned at all.
+      Verified the prior work independently rather than trusting it or blindly redoing it: opened
+      sap_mapping.sqlite read-only via Python's stdlib sqlite3, confirmed all 80 rows have a non-empty
+      veridian_mapping_status (37 REUSE_EXISTING / 29 EXTEND_EXISTING / 14 BUILD_NEW live count --
+      note the prior session's own PROGRESS.md self-reported 35/31/14, off by 2 in the REUSE/EXTEND
+      split; flagged, not corrected, since the live table is authoritative and the individual verdicts
+      were checked directly), and spot-checked 6 of the 80 rows' veridian_existing_equivalent citations
+      against real source (e.g. erp-invoicing-service.ts:653 genuinely exports arAgingReport,
+      erp-buying-service.ts:201 genuinely exports getSupplierScorecard, and the two re-confirmed
+      BUILD_NEW verdicts' "grepped X, zero hits" claims were re-run and still return zero hits).
+      Found it genuine, evidence-cited, and complete -- 0 unmapped rows, no fabricated citations.
+      Landed what was actually missing: this ACTIVE-CLAIMS.yaml record (crediting the original
+      session's real work, which self-closed on its own branch but never reached main) and a new
+      ai-os/tasks/sap_mapping/SAP_REPORTS_80_CROSS_REFERENCE_STATUS.yaml discoverability file (+
+      updated that directory's ai-os/OS.yaml index entry) so a third session greps the repo and finds
+      this instead of finding nothing and redoing the same 80-row cross-reference a third time.
+      Also found (not fixed, out of this task's scope, flagged in the new status file): PR #624
+      (task-20260728-123644's 87-report engine_track classification, the direct predecessor to this
+      cross-reference) is OPEN and MERGEABLE but BEHIND main -- needs an update-branch + CI + merge
+      by a future session or the Owner.
+    scope_note: >-
+      No functional code changed in either repo. This session's only writes: this
+      ACTIVE-CLAIMS.yaml entry, ai-os/tasks/sap_mapping/SAP_REPORTS_80_CROSS_REFERENCE_STATUS.yaml
+      (new file), ai-os/OS.yaml (one covers-text update), and this task's own PROGRESS.md. Did not
+      touch /opt/veridian/ai-os/memory/sap_mapping.sqlite (opened strictly read-only, mode=ro) --
+      no reason to re-write data that was already correctly written and verified. Did not open a PR
+      for PR #624 or touch its branch -- different task's scope.
   - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
