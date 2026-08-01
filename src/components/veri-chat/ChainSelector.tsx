@@ -170,9 +170,15 @@ export function ChainRows({
 
   const normalizedFilter = filterQuery?.trim().toLowerCase() ?? "";
 
+  // VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md §3.2.2: "why show all
+  // layers, the chatbox already shows the full chain" -- render only the
+  // current (deepest, still-being-picked) row. The full `rows` array above
+  // is left untouched (other logic -- the breadcrumb, chainComplete --
+  // still needs the complete path); only this render step changes, from
+  // mapping every row to mapping just the last one.
   return (
     <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-1">
-      {rows.map((row) => {
+      {rows.slice(-1).map((row) => {
         const isDeepestRow = row.depth === rows.length - 1;
         const visibleOptions = isDeepestRow && normalizedFilter
           ? row.options.filter((o) => o.label.toLowerCase().includes(normalizedFilter))
