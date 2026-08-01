@@ -1050,6 +1050,10 @@ exemptions:
     reason: "5 real dated comments (2026-07-10/14/18) documenting prior Owner-spec/gap-closure work in this file's own history, same genre as other dated fix-comments elsewhere in this registry."
     findings_by_category:
       hardcoded_iso_date: 5
+  - file: src/components/veri-chat/ChainSelector.tsx
+    reason: "1 real dated comment (2026-07-18) documenting when the AI Suggested Calculations feature (VERIDIAN Review Framework gap closure) was added to this file -- pre-existing, surfaced only because VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md's ChainRows deepest-row-only change (PR #680) touches this same file, same genre as other dated fix-comments elsewhere in this registry."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/lib/browser-execution/client-compile.ts
     reason: "Real dated comment (2026-07-25) referencing the Owner's UX-directive reconciliation (phase_5 browser-to-server handoff contract)."
     findings_by_category:
