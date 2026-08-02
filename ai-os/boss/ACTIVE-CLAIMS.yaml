@@ -40,6 +40,50 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-172443-amendment--end-to-end-end-user-certifica) -- AMENDMENT to UMR-20260802-104058-25ba: real end-to-end end-user certification pass on PROJEXA-AI.COM (live browser testing, not code review)"
+    claimed_at: "2026-08-02T17:24Z (this session)"
+    claim: |
+      SPEC: Owner directive OCID-20260802-020, PROMPT_PRIORITY=HIGHEST.
+      Amendment to the existing canonical artifact
+      ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (parent UMR
+      UMR-20260802-104058-25ba). No new module/database/implementation for
+      this directive itself -- testing and certification only.
+
+      Pre-work collision check (per this file's own protocol): grepped this
+      file + ai-os/boss/COMPLETED.yaml + ai-os/audits/ for
+      "end-to-end-end-user-certifica"/"OCID-20260802-020"/"product
+      certification" -- no hits, no duplicate in flight. Found and will
+      build on real prior work instead of restarting: (a) the matrix's own
+      item 11 ("End-to-End Testing ~40%") already documents that 22 real
+      Playwright specs exist in projexa/e2e/, target the real live
+      https://projexa-ai.com site with real seeded users/data, but have
+      **never been run as a full suite** (no CI job, "no recent full-suite
+      run on record"); (b) a 2026-07-19 5-phase "PROJEXA E2E testing
+      program" (ACTIVE-CLAIMS entries around line ~1212-1290, now in
+      recently_completed) wrote those specs but was a code-authoring pass,
+      not a real full-suite execution+certification pass; (c)
+      ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md is a real
+      independent re-audit but of 5 specific PRs' source code/tests, not a
+      live end-user browser run. None of these constitute the real,
+      live, full-suite, browser-driven end-user certification this
+      directive asks for -- proceeding is not a duplication.
+
+      Plan: run the real existing Playwright suite (25 spec files) against
+      the real live projexa-ai.com with real seeded users, record genuine
+      pass/fail/screenshot/error evidence, manually walk additional flows
+      the suite doesn't cover (VERI Chat, prompt flow, cache, search,
+      multi-tenant/multi-brand behavior) via direct HTTP/API probing where
+      a real browser session is available, and amend
+      IMPLEMENTATION_MATRIX_2026-08-02.md item 11 (and any other item the
+      real findings touch) in place -- not a new file, not a new module.
+    scope_note: >-
+      File scope: ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (amend in
+      place), this ACTIVE-CLAIMS.yaml entry, PROGRESS.md. Test execution
+      happens against /opt/veridian/repos/projexa's existing e2e/ suite
+      (read-only, running existing specs, no new spec files unless a real
+      coverage gap is found and named). No compliance-tracker application
+      code changes expected -- this is a testing/certification pass per
+      the directive's own explicit instruction not to build or duplicate.
   - session_label: "claude-code (task-20260802-040131-parallel-job--collate-existing-module-en) -- Collate existing module/engine wiring+UTM map, spot-verify it, cross-reference against master directive priority list [DOCS/COLLATION ONLY, no code]"
     claimed_at: "2026-08-02T04:01Z (this session)"
     claim: |
