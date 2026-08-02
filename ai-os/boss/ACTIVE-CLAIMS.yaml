@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-074148-governance-regression--restore-reconcile) -- Restore reconcile_stale_heartbeats() regression in FChecklist/veridian-scripts"
+    claimed_at: "2026-08-02T (this session)"
+    claim: |
+      Sentinel finding 2026-08-02 07:30 UTC: a post-2026-07-30 deploy to
+      /opt/veridian/scripts/resource_governor.py (FChecklist/veridian-scripts,
+      NOT this repo) silently dropped reconcile_stale_heartbeats() and its
+      --reconcile-stale CLI arg while resource_governor_tick_loop.sh kept
+      invoking it every 30s (7946 "unrecognized arguments" errors logged).
+      Diffed live file against resource_governor.py.bak-predeploy-20260730-040659
+      -- confirmed the same deploy also dropped state-file flock locking,
+      MAX_TASK_IDENTITY_LEN, the Stage 4/5/6 duplicate-PR guard, submit()'s
+      task_spec validation, _perform_spawn()'s crash-proofing, and the
+      one-time --backfill-null-heartbeats sweep (root cause looks like the
+      same "deploy built from a stale copy" pattern as the disk_io regression
+      already fixed in veridian-scripts commit 8d23406). Restoring ONLY
+      reconcile_stale_heartbeats() + --reconcile-stale in this task (explicit
+      task scope) via an isolated worktree
+      (fix/restore-reconcile-stale-heartbeats branch); also added a
+      loud-failure guard to resource_governor_tick_loop.sh so a missing
+      subcommand logs a distinct CRITICAL line instead of silently spamming
+      argparse usage text. The other dropped functionality is NOT restored
+      here -- flagging as a follow-up gap for MASTER-TRACKER.
+    scope_note: |
+      File scope: FChecklist/veridian-scripts only --
+      resource_governor.py, resource_governor_tick_loop.sh. This
+      compliance-tracker repo is touched only for PROGRESS.md and this
+      claims-registry entry (no code fix lives here -- see
+      [[veridian-scripts-separate-repo-live-checkout]] memory note on why).
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
