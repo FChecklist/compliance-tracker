@@ -36,19 +36,43 @@ independently verified complete.
       'departmentMembers' })` and `usersRelations.department: one(departments,
       {..., relationName: 'departmentMembers' })`; `ai-os/MASTER-TRACKER.yaml`
       has `GAP-ERP-CRM-403-NO-UX-EXPLANATION` (single entry, no duplication).
+- [x] Opened PR #743 (reconciled `ACTIVE-CLAIMS.yaml`/`PROGRESS.md`), got an
+      independent audit (Rule 7c — a fresh, non-implementing agent verified
+      the PR's claims directly against `origin/main` via `git cat-file -p`/
+      `git merge-base --is-ancestor`, not by trusting the PR body) which
+      posted the required structured `AUDIT: PASS` comment, hit and worked
+      around the known issue-comment/head-SHA CI bug (empty commit to force
+      a real `synchronize` event), then merged once all 7 required checks
+      (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset
+      Registry Coverage Check, Unit Tests) were green — merged
+      `2026-08-02T22:30:58Z`.
+- [x] **Independently retested the EXACT SAME real flow that crashed, live,
+      against the real deployed app, with a real fresh account (not
+      guessed/assumed):** real signup via the Supabase Admin API (public
+      `/signup` was rate-limited, 429 — used the admin `/auth/v1/admin/users`
+      endpoint instead, with the same `full_name`/`organisation`
+      `user_metadata` shape `src/app/signup/page.tsx` sends, so
+      `autoProvisionUser()` still runs the normal way on first authenticated
+      request — did not touch or mutate the other concurrent session's own
+      test account found mid-flight), confirmed-email, real login on
+      `https://projexa-ai.com` (title "VERIDIAN COGNITIVE AI OS" confirms
+      this domain does serve compliance-tracker, per prior session's finding)
+      → real navigation to `/home`, then real `GET /compliance` and
+      `GET /compliance?status=overdue`. Real captured network response:
+      `200 GET https://projexa-ai.com/api/departments` →
+      `{"departments":[]}` (empty array is correct — fresh org, zero
+      departments created yet; this is a real success shape, not the old
+      500/error-object shape). Both pages rendered the real Compliance
+      Register UI with zero "Application error" client crash (confirmed via
+      `page.locator('body').innerText()` not containing that string, plus
+      full-page screenshots — Compliance Register header, "0 compliance
+      items tracked", VERI Chat composer all rendered normally). **Fix
+      confirmed live, for real, not assumed because CI passed.**
 
 ## Remaining
-- [ ] Independently retest the EXACT SAME real flow that crashed, against the
-      real deployed app now that the fix is merged: sign in to
-      `https://projexa-ai.com` (or whichever real live domain currently serves
-      this app — re-verify per prior session's live finding that
-      `projexa-ai.com` now serves compliance-tracker, not standalone PROJEXA),
-      click "Register" / "Pendency View" (or `GET /compliance`,
-      `GET /compliance?status=overdue` directly) — confirm no more
-      "Application error: a client-side exception has occurred", confirm
-      `GET /api/departments` returns real `200` with a real `{departments: [...]}`
-      body, screenshot as evidence.
-- [ ] After the fix is independently verified live: resume the broader real
-      certification sweep per the PM spec — multi-tenant, multi-brand,
-      first-time-onboarding, cache and search, remaining nav surface — reporting
-      real incremental findings every cycle, not one final claim.
+- [ ] Resume the broader real certification sweep per the PM spec —
+      multi-tenant, multi-brand, first-time-onboarding, cache and search,
+      remaining nav surface — reporting real incremental findings every
+      cycle, not one final claim. Not started yet this session (budget/scope
+      prioritized closing out the Finding-A fix + verification first, per
+      the PM's own explicit sequencing).
