@@ -2412,14 +2412,30 @@ export const userClientAccessRelations = relations(userClientAccess, ({ one }) =
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
   org: one(organisations, { fields: [departments.orgId], references: [organisations.id] }),
   head: one(users, { fields: [departments.headId], references: [users.id], relationName: 'deptHead' }),
-  users: many(users),
+  // UMR-20260802-165606-4413: `departments` and `users` have TWO distinct FK
+  // relations to each other (this member-of-department pair, and the
+  // headId-based `head`/`headOfDept` pair above). Drizzle's relational query
+  // builder requires every relation pair between two tables to be named with
+  // `relationName` once more than one pair exists -- leaving this pair
+  // unnamed while `head`/`headOfDept` was named made drizzle unable to
+  // resolve `with: { users: ... }` on `departments.findMany`, throwing
+  // "There are multiple relations between 'users' and 'departments'. Please
+  // specify relation name" at query-build time (before any network I/O,
+  // confirmed via direct reproduction against the real DB with RLS
+  // enforced, for both a fresh self-signup org and an old seeded org --
+  // this was never RLS/tenant-context-dependent). That 500 is what
+  // cascaded into the Compliance Register / Pendency View client-side
+  // crash. Do not remove this relationName without also removing
+  // `deptHead` -- Drizzle needs both sides of the ambiguity named, or
+  // neither.
+  users: many(users, { relationName: 'departmentMembers' }),
   complianceItems: many(complianceItems),
   notices: many(notices),
 }))
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   org: one(organisations, { fields: [users.orgId], references: [organisations.id] }),
-  department: one(departments, { fields: [users.departmentId], references: [departments.id] }),
+  department: one(departments, { fields: [users.departmentId], references: [departments.id], relationName: 'departmentMembers' }),
   assignedCompliance: many(complianceItems, { relationName: 'assignedTo' }),
   auditPointAssignments: many(auditPoints, { relationName: 'auditAssignee' }),
   headOfDept: one(departments, { fields: [users.id], references: [departments.headId], relationName: 'deptHead' }),
