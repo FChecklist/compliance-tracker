@@ -69,10 +69,44 @@ independently verified complete.
       items tracked", VERI Chat composer all rendered normally). **Fix
       confirmed live, for real, not assumed because CI passed.**
 
+- [x] **First real incremental finding for the broader sweep: multi-tenant
+      isolation, positively confirmed.** Note: the prior OCID-020 redo
+      session's own claim
+      (`task-20260802-190820`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) targeted a
+      *different* app/repo (`https://projexa-smoky.vercel.app`, the
+      standalone PROJEXA codebase) for the broader sweep, and its branch is
+      already merged+deleted (PR #737) — no live collision picking this up
+      against compliance-tracker's own `projexa-ai.com` deployment instead.
+      Created two real, separate fresh orgs via Supabase Admin API (public
+      `/signup` still rate-limited), logged in as each, created a
+      department scoped to Org B via `POST /api/departments` (real
+      `Org-B-Only-Department` created, `orgId: "dane6ps2f1k1fmg1tgndvl85"`),
+      then `GET /api/departments` for that same Org B session returned
+      exactly 2 departments (its own auto-provisioned "General" +
+      the just-created one) — **not** anything from Org A, confirming real
+      tenant-scoped `withTenantContext`/RLS isolation holds for this route.
+      A separate clean single-account run (`provcheck-*`) also confirmed
+      normal provisioning: real `admin` role, real auto-created "General"
+      department, `GET /api/users` and `GET /api/departments` both scoped
+      correctly.
+      **Honest limitation, not swept under the rug**: two earlier attempts
+      in this same investigation (both org A and org B in one run; org A
+      alone in a second run) got `401`/`403` instead of the expected
+      success — root-caused as *most likely* a test-harness artifact (rapid
+      back-to-back Supabase password-grant logins from the same
+      browser/IP within the same script run, not a real per-request race in
+      `autoProvisionUser()` itself — a slower, isolated single-account retry
+      each time succeeded cleanly). **Not confirmed as a real product bug**
+      — logging this honestly as inconclusive/needs-a-slower-retest rather
+      than either asserting it's a real bug or silently discarding the
+      observation. If a future pass reproduces the same failure with
+      requests spaced apart (no rapid-fire), that would be real evidence of
+      an actual `autoProvisionUser()` race and should be filed as a tracked
+      gap at that point — not before.
+
 ## Remaining
-- [ ] Resume the broader real certification sweep per the PM spec —
-      multi-tenant, multi-brand, first-time-onboarding, cache and search,
-      remaining nav surface — reporting real incremental findings every
-      cycle, not one final claim. Not started yet this session (budget/scope
-      prioritized closing out the Finding-A fix + verification first, per
-      the PM's own explicit sequencing).
+- [ ] Continue the broader real certification sweep per the PM spec —
+      multi-brand, first-time-onboarding UX detail, cache and search,
+      remaining nav surface, and (if reproduced cleanly/slowly) the
+      auth-race question flagged above — reporting real incremental
+      findings every cycle, not one final claim.
