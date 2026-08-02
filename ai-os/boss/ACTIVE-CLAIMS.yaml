@@ -4119,6 +4119,26 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260802-065304-pm-decision--unblock-task-20260802-05521) -- PM decision: unblocked task-20260802-055214 (PR #697), logged quality-gate.sh gap"
+    claimed_at: "2026-08-02T (this session, closed same session)"
+    claim: |
+      Verified task-20260802-055214's build-gate exit_code=124 failure was
+      resource contention (concurrent next build for task-20260802-055208 +
+      status-remediation-tick.py, load 7.97-8.73 on an 8-core box), not a
+      code defect -- lint passed clean, and the PR's real diff (confirmed via
+      gh pr view --json files) touches only PROGRESS.md,
+      ai-os/MASTER_INDEX.yaml, ai-os/OS.yaml,
+      ai-os/VERIDIAN_KERNEL_1.0_RECONCILIATION_REPORT_2026-08-02.md,
+      ai-os/boss/ACTIVE-CLAIMS.yaml. That task's status was already moved to
+      pending_review (task.yaml, checkpoint 2026-08-02T06:50:27Z, decision id
+      UMR-20260802-064914-ec5b) by the time this session started -- verified
+      the transition and its note field rather than duplicating the decision.
+      Did NOT merge PR #697 -- mandatory Rule 10 audit still required.
+      Separately logged GAP-QGATE-DOCSONLY-BUILD in MASTER-TRACKER.yaml's
+      real_gaps_not_yet_built (quality-gate.sh has no path-based exemption
+      for doc/registry-only diffs, so they pay for a full `next build` and
+      are exposed to exactly this timeout flakiness under concurrent load) --
+      logged only, not implemented, per this task's explicit scope.
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
