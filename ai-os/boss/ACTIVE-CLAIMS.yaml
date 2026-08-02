@@ -6869,3 +6869,49 @@ recently_completed:
       self-certify it); left failing, flagged for a separate agent/session
       to review and post a real AUDIT: PASS/FAIL comment. Did not merge PR
       #563 (out of this task's scope).
+
+# ── claim closed 2026-08-02 (task-20260802-084829) ──────────────────────
+  - session_label: "claude-code (task-20260802-084829-pm-decision--reconcile-master-index-yaml) -- verified pre-existing reconciliation work, no duplicate PR opened [CLOSED]"
+    claimed_at: "2026-08-02T (this session, closed same session)"
+    claim: |
+      Dispatched to resolve PM decision for UMR-20260802-080051-6e48
+      (MASTER_INDEX.yaml 3-way divergence: claude-control, live
+      veridian-ai-os copy, sync-repos.sh gap). On starting, found the same
+      investigation had ALREADY been resolved minutes earlier by another
+      session under PM decision UMR-20260802-083104-5987: PR #17
+      (veridian-scripts, sync-repos.sh gap fix) and PR #121 (claude-control,
+      content reconciliation) both open, not merged. Did NOT duplicate this
+      work. Instead independently re-verified it from scratch using
+      `git cat-file -p` + real `yaml.safe_load` set-diffs (not shell
+      grep/diff, which this environment silently truncates on large output
+      -- confirmed reproducible, a 295KB file came back as 1.9KB with a
+      fabricated "... more files changed" trailer). Real re-derived numbers:
+      claude-control pre-PR = 114 registries, live pre-reconciliation = 104,
+      exactly 17 ids unique to claude-control, all 17 correctly carried
+      forward into both PRs' resulting files, 0 dropped, 0 fabricated --
+      the "17 entries" claim in both PRs checks out. (First comparison
+      pass used the wrong baseline -- post-reconciliation live instead of
+      pre-reconciliation -- and wrongly suggested 0 unique entries; caught
+      before concluding anything, re-derived against the correct parent
+      commit.) Posted verification comments on both PRs (claude-control#121,
+      veridian-scripts#17) citing this methodology and the real ids. Found
+      one real gap: the live server's own `veridian-ai-os` repo had its
+      matching reconciliation commit (`2795213`) sitting local-only,
+      unpushed, on `pre-workflow-main` -- pushed it (fast-forward,
+      `c3087c4..2795213`) to preserve it. Did NOT open a `pre-workflow-main`
+      -> `main` PR for that repo: this session's gh token lacks the OAuth
+      `workflow` scope needed to push any new ref containing
+      `.github/workflows/ci.yml` (confirmed via a throwaway push attempt),
+      and which branch is canonical for that repo was already flagged by
+      the prior session as an open PM question, not something to force a
+      decision on outside this task's scope. Did not merge either PR (per
+      instruction -- normal audit still applies, this session's comments
+      are a second independent check, not a self-certification of either
+      PR's own authorship).
+    scope_note: >-
+      No compliance-tracker code changes. Touched: claude-control PR #121
+      (comment only), veridian-scripts PR #17 (comment only), veridian-ai-os
+      repo (pushed existing local commit to its own existing remote branch
+      pre-workflow-main, no new branch, no main-branch change). This
+      compliance-tracker workspace's own ai-os/boss/ACTIVE-CLAIMS.yaml and
+      PROGRESS.md are the only local-repo edits.
