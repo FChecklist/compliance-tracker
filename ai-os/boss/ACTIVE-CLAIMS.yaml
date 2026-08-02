@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-194612-pm-decision--ocid-020-certification-targ) -- PM decision: OCID-020 certification target confirmed as veridian-compliance-ai [DOCS ONLY, no code]. DONE, ready to move to recently_completed on merge."
+    claimed_at: "2026-08-02T19:46Z (this session)"
+    claim: |
+      PM directive (this task's own prompt.txt): resolves the OCID-020
+      certification-target ambiguity left open by task-20260802-172443
+      (status: failed, never merged) -- confirms `veridian-compliance-ai`
+      is the correct target, not `projexa-smoky.vercel.app`, per the real
+      Owner domain-revert decision already documented at item 12 /
+      UMR-20260802-134939-145d, UMR-20260802-123246-f2e7,
+      UMR-20260802-124023-371b. Independently re-verified before writing
+      the amendment: `curl -I https://projexa-ai.com` -> real 200; task
+      172443's own report confirmed the same Supabase-project-routing fact
+      but drew the wrong conclusion (treated the deliberate revert as an
+      accident to route around); its task.yaml status is `failed` and
+      `gh pr list`/`gh pr list --search 172443` show no merged or open PR
+      from it -- no conflicting conclusion ever reached `main`.
+
+      Real work confirmed already correctly targeting `veridian-compliance-ai`
+      and left open to build on, not restarted: PR #727
+      (docs/projexa-ai-com-authenticated-audit-2026-08-02) and PR #735
+      (docs/projexa-ai-com-e2e-certification-phase1-2026-08-02), both open,
+      both real evidence (real signup, real Supabase project ID match, one
+      real independent bug found -- broken Google OAuth on
+      projexa-ai.com/login). Both currently fail CI's Metadata Index
+      Coverage Check (new top-level ai-os/ docs not yet indexed in
+      OS.yaml) and have no posted AUDIT verdict -- named as real, mechanical
+      next-step blockers for the next continuation session rather than
+      fixed under this narrower decision-recording task's own scope.
+
+      Collision check performed before starting (per this file's own
+      protocol): grepped this file + COMPLETED.yaml for `172443` -- only
+      hit is task-172449's own stale stand-down label, no actual competing
+      active claim. task-172443's task.yaml confirms `status: failed`.
+
+      File scope: this repo's `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (amendment, PM-decision record), this ACTIVE-CLAIMS entry,
+      `PROGRESS.md`. No src/ or drizzle/ changes, no new PR merges forced.
   - session_label: "claude-code (task-20260802-171740-amendment--consolidate-a-single-unified) -- AMENDMENT: consolidate/verify the single unified project memory model every AI instance reads/writes [DOCS ONLY, no code, no new DB]"
     claimed_at: "2026-08-02T17:17Z (this session)"
     claim: |

@@ -658,3 +658,60 @@ trees are both reachable from this workspace and were not a hard blocker, just o
 this pass.
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-02): PM decision — OCID-020 certification target confirmed as `veridian-compliance-ai`
+
+PM answer to a queued question this session raised rather than resolving it alone, checked
+against real established evidence before deciding. `UMR-20260802-165606-4413` (OCID-20260802-020),
+amending parent `UMR-20260802-104058-25ba`.
+
+**Decision**: the real target for OCID-020 certification is **`veridian-compliance-ai`**, because
+that is the real, current, live content actually served at the real domain `projexa-ai.com` right
+now. This is not a new call — it follows directly from the real Owner decision made earlier the
+same day (2026-08-02T13:50 UTC) to revert `projexa-ai.com`/`www.projexa-ai.com` back to the Wave 10
+merge state, served by `veridian-compliance-ai` (see item 12 above, `UMR-20260802-134939-145d`,
+`UMR-20260802-123246-f2e7`, `UMR-20260802-124023-371b`, executed via the real Vercel API, DNS, and
+page-body verification: `<title>VERIDIAN COGNITIVE AI OS`, "PROJEXA" absent). Certifying
+`PROJEXA-AI.COM` means certifying whatever real content that domain actually serves today —
+`veridian-compliance-ai` — not the separate standalone Projexa app at `projexa-smoky.vercel.app`.
+That standalone app is a real, different product on a different real domain and is out of scope
+for this specific certification UMR unless a future, separate directive names it explicitly.
+
+**Why this needed a PM ruling, not just a re-read of the matrix**: a separate, larger-mandate task
+(`task-20260802-172443-amendment--end-to-end-end-user-certifica`, `status: failed`, never merged —
+`gh pr list` for its branch and for `172443` returns nothing beyond the unrelated PR #731) ran a
+real Playwright suite against `projexa-ai.com`, found it resolves to `veridian-compliance-ai`'s own
+Supabase project (not PROJEXA's), and treated that as a "SPEC premise contradicted" finding,
+redirecting its own testing to `projexa-smoky.vercel.app` instead. That finding is factually
+correct about what's being served — it's the same real DNS/domain fact `UMR-20260802-134939-145d`
+already documented — but it drew the wrong conclusion from it: the domain-serving-compliance-ai
+state is the deliberate, Owner-confirmed, executed outcome (item 12 above), not an accident to
+route around. That task never merged (`failed`, its report rejected — "no matching approved plan
+for this task_id/increment"), so no conflicting conclusion reached `main`. This amendment closes
+that ambiguity for any future session reading this file: `veridian-compliance-ai` is correct,
+confirmed twice independently (the Owner's live-executed domain decision, and this PM ruling).
+
+**Real work already done on the correct target, to build on rather than restart**:
+- PR #727 (`docs/projexa-ai-com-authenticated-audit-2026-08-02`, open) — real signup against
+  `projexa-ai.com`'s live Supabase project (`pcrjmlpuqsbocqfwoxod`, confirmed = `veridian-compliance-ai`'s
+  own project), confirmed email-confirmation is genuinely enforced, verdict **NOT ASSESSED** for
+  authenticated screens (blocked on real inbox access this sandbox lacks) — an honest coverage
+  gap, not a pass/fail.
+- PR #735 (`docs/projexa-ai-com-e2e-certification-phase1-2026-08-02`, open) — continuation: root-caused
+  the domain-routing state at the application/auth layer (same conclusion as item 12, independently
+  re-derived), found 3 distinct dead account-access paths, and found one real independent bug
+  (`projexa-ai.com/login`'s "Sign in with Google" hits a real `400 provider is not enabled`).
+- Both PRs currently fail CI's Metadata Index Coverage Check (each adds a new top-level `ai-os/`
+  doc not yet indexed in `OS.yaml`) and have no posted `AUDIT:` verdict yet — real, mechanical,
+  pre-merge blockers, not scope or correctness problems. Left open for the next continuation pass
+  rather than force-merged under this decision-recording task's own narrower scope.
+
+**Next steps for whichever session continues OCID-020**: index both PRs' new doc paths in
+`ai-os/OS.yaml`, get a real (non-self) `AUDIT:` verdict posted per Rule 7(c)/Operating Rule 10,
+merge both, then continue authenticated-screen coverage on `veridian-compliance-ai` (real inbox
+access or a Supabase admin-created/pre-confirmed test user would unblock the `NOT ASSESSED` gap in
+PR #727) — real screenshots, real evidence, no self-certification, per this task's own directive.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
