@@ -465,4 +465,6 @@ UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
 - [x] Committed and pushed this branch.
 
 ## Remaining
-- [ ] None — this task is a verification/checkpoint-refresh with no further action required. If a PR is expected for this branch, open one; CI is expected green since only docs/governance files changed (no `src/`, `drizzle/`, or `.github/workflows/` touched).
+- [x] Opened PR: https://github.com/FChecklist/compliance-tracker/pull/734
+- [ ] Await CI (expected green — docs/governance only, no `src/`/`drizzle/`/`.github/workflows/` touched)
+- [ ] Await independent `AUDIT: PASS`/`FAIL` comment per AGENTS.md Rule 10 (mandatory-audit-check) before merge — this session does not self-certify its own PR
