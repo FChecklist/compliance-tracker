@@ -301,3 +301,27 @@
 ## Remaining
 - [ ] None -- all 80 rows mapped, DB updated and verified, backup retained, claim registered. This
       PROGRESS.md commit is the final unit of work for this task.
+
+# PROGRESS -- task-20260802-094001-add-headless-claude-code-cli-triage-judg
+
+## Completed
+- [x] Read AGENTS.md / CONSTITUTION.yaml / ACTIVE-CLAIMS.yaml governance docs
+- [x] Located target repo: `/opt/veridian/repos/veridian-scripts` (FChecklist/veridian-scripts), NOT compliance-tracker -- the real deliverable for this task lives there, not in this workspace
+- [x] Discovered the real implementation was already done and pushed to PR #14 (`feat/dispatch-tick-stuck-task-heartbeat`) in prior context, extending `dispatch-tick.py` in-place (same file, same tick, no new script/cron/timer):
+  - `should_triage_pm()` -- deterministic zero-cost pre-filter (stuck tasks / fresh audit-fail checkpoint note / real tmux pending-input line via `tmux capture-pane`, fail-closed)
+  - `_invoke_triage_claude()` -- `claude -p` with `--allowedTools ""` (no tool access), no `--dangerously-skip-permissions`, no `--continue`, `--max-budget-usd 0.50`, scoped prompt asking only YES/NO + evidence-cited reason, explicitly out-of-scope for product/dispatch/KERNEL_CONFLICT decisions
+  - `append_pm_triage_alert()` -- this script (never the model) appends timestamped entries to append-only alert file
+  - `_summarize_evidence()` -- bounds evidence to 10 records + honest `_omitted_count` (real ARG_MAX fix from live 846-task run)
+- [x] Verified alert file location against `MASTER_INDEX.yaml` convention (per spec, checked first) -- registered under `registries.pm_triage_alerts`, path `ai-os/PM_TRIAGE_ALERTS.md` (live at `/opt/veridian/ai-os/PM_TRIAGE_ALERTS.md`)
+- [x] Independently re-verified real tests: `python3 -m pytest test_pm_triage.py -q` -> 18 passed; combined with `test_stuck_task_heartbeat.py` -> 21 passed, no regressions
+- [x] Independently verified a real live production alert entry already exists in `/opt/veridian/ai-os/PM_TRIAGE_ALERTS.md` (timestamp 2026-08-02T09:23:46Z, real 846-task run, pre-filter tripped on 425 stuck + 56 audit-fail tasks, real `claude -p` invocation ran, real YES judgment with evidence-cited reason written)
+- [x] Found PR #14's body only documented the original base heartbeat commit, not the two PM-triage follow-up commits already on the branch -- updated it via `gh api PATCH` (`gh pr edit` failed on an unrelated GraphQL Projects-classic deprecation error) to document the PM-triage feature for the auditor
+- [x] Confirmed PR #14 is OPEN, MERGEABLE, not self-merged (per spec: "do not self merge" -- awaiting normal audit); no `.github/workflows/` configured in veridian-scripts (no CI gate exists in that repo, unlike compliance-tracker's mandatory-audit-check.yml)
+- [x] Caught and corrected a self-inflicted mistake: an earlier `Write` to this file replaced 300+ lines of this workspace's accumulated cross-task PROGRESS.md history with just this task's own section, because `Read`/`git show` output was silently truncated (~31 of 303 real lines shown, ending in a misleading "... more files changed" line that was itself stale prior-task content, not a truncation marker) -- confirmed via `git cat-file -p`/blob size that the real committed history was 303 lines/23.9KB. Restored full history via `git cat-file -p` on the pre-mistake blob and appended this task's section instead of overwriting, before pushing (the bad commit was never pushed).
+
+## Remaining
+- [ ] None -- awaiting normal PR audit/merge on veridian-scripts PR #14 (out of this task's scope per spec: "do not self merge")
+
+## Result
+- PR: https://github.com/FChecklist/veridian-scripts/pull/14 (branch `feat/dispatch-tick-stuck-task-heartbeat`)
+- Alert file: `ai-os/PM_TRIAGE_ALERTS.md` (live path `/opt/veridian/ai-os/PM_TRIAGE_ALERTS.md`), append-only, verified with a real production entry
