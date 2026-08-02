@@ -45,6 +45,15 @@ on:
   pull_request:
     branches: [main]
     types: [opened, synchronize, reopened]
+  # Added: without this, posting the required audit verdict comment does not
+  # re-trigger the check -- it keeps showing its last (pre-comment) result,
+  # typically a stale FAIL, until someone manually reruns the job (`gh run
+  # rerun <run-id> --failed`). Found during FI-AA-006's real audit (PR #648).
+  # `created` only, not `edited`/`deleted`: a new verdict comment is the
+  # event that should re-evaluate; editing/deleting an old one shouldn't spend
+  # another CI run.
+  issue_comment:
+    types: [created]
 
 permissions:
   contents: read
@@ -52,6 +61,9 @@ permissions:
 
 jobs:
   audit-check:
+    # issue_comment fires for comments on both issues and PRs -- github.event.issue.pull_request
+    # is only present when the comment is on a PR, which is what this check requires.
+    if: github.event_name == 'pull_request' || github.event.issue.pull_request != null
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -61,7 +73,10 @@ jobs:
       - name: Validate the structured audit verdict
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
+          # pull_request events carry the PR number at github.event.pull_request.number;
+          # issue_comment events (guarded to PR comments only, above) carry it at
+          # github.event.issue.number instead -- same underlying PR either way.
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
           REPO: ${{ github.repository }}
           # GAP-UNIFIED-SOT-REMAINDER slice (d): optional, additive. If the
           # DATABASE_URL secret isn't set at the repo/org level yet, this

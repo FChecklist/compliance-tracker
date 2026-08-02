@@ -1357,6 +1357,42 @@ export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_override
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the AI Dev
+// Team dispatch system's persistent-memory table -- every runRole()
+// (team-service.ts) / dispatchRepoTask() (dispatch-repo.ts) completion
+// writes one row here, success or failure, independent of whether the
+// caller has an orgId (dispatch/route.ts's `if (orgId) recordActivity(...)`
+// means activity_log alone misses every orgId-less platform-internal
+// dispatch). orgId nullable, same convention as platformAssets/
+// taskCapabilities/aiTeamRoleOverrides: null = a platform-internal AI Dev
+// Team dispatch (the common case -- the AI Dev Team builds VERIDIAN, it
+// doesn't run inside a customer org's workflow, team-service.ts's own
+// header), a real orgId only for the rarer case a veridian_admin dispatch
+// happens to run inside an org context. requestFingerprint backs
+// checkForDuplicateDispatch() in dispatch-outcomes.ts, the same
+// category/keyword-match "have we done this before" principle as
+// ai-os/scripts/superboss-register.py's check_duplicate(), applied here
+// against real dispatch history instead of the server's sqlite index.
+export const dispatchOutcomes = platformSchemaDB.table('dispatch_outcomes', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull(),
+  dispatchPath: text('dispatch_path').notNull().default('advisory'), // 'advisory' | 'repo_write'
+  objective: text('objective').notNull(),
+  scope: text('scope'),
+  successCriteria: text('success_criteria'),
+  complexityTier: text('complexity_tier'),
+  requestFingerprint: text('request_fingerprint').notNull(),
+  status: text('status').notNull(), // 'success' | 'failure' | 'blocked'
+  prUrl: text('pr_url'),
+  errorDetail: text('error_detail'),
+  modelUsed: text('model_used'),
+  orgId: text('org_id'), // nullable = platform-internal dispatch
+  dispatchedBy: text('dispatched_by'),
+  dispatchedAt: timestamp('dispatched_at').notNull().defaultNow(),
+  completedAt: timestamp('completed_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const orchestraLayers = complianceSchemaDB.table('orchestra_layers', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   layerKey: text('layer_key').notNull(),
@@ -4916,6 +4952,24 @@ export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
   note: text('note'),
   changedById: text('changed_by_id'),
   changedAt: timestamp('changed_at').notNull().defaultNow(),
+})
+
+// Sales Pipeline Interactive Dashboard (2026-07-27): the Monthly Revenue
+// Trend Analysis chart needs 3 series (Target/Achieved/Shortfall). Achieved
+// and Shortfall are both derivable from real crmOpportunities data (Awarded
+// deals summed by month), but "Target" has no existing source anywhere in
+// this schema -- it's a genuine new per-org, per-month input, not a
+// renaming of anything. Small, additive, no FK (same bare-text-id
+// convention as crmOpportunities.accountId above) -- does not touch
+// crm_leads/crm_opportunities.
+export const crmSalesTargets = complianceSchemaDB.table('crm_sales_targets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  month: date('month', { mode: 'string' }).notNull(), // first-of-month, e.g. '2026-01-01'
+  targetValue: numeric('target_value').notNull(),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ─── VERIDIAN CRM Accounts & Contacts (Review Framework Wave B, 2026-07-17) ─
