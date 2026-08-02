@@ -23,7 +23,7 @@
 | 9 | Multi Brand | ~15% | No | Fields exist, zero rendering/DNS/TLS, zero real org adoption | UMR-20260802-034545-3388 |
 | 10 | Kernel | ~40% | **No** | PR #697 unmerged; real content conflict since resolved (see item 14) — now awaiting fresh Rule 10 audit | UMR-20260802-054239-4251, UMR-20260802-034545-3388 |
 | 11 | End-to-End Testing | ~40% | No | 22 real Playwright specs exist, hit real infra, but **no CI job runs them** | UMR-20260802-034545-3388 |
-| 12 | Go Live (PROJEXA-AI.COM) | ~30% | **No** | No Rule 7(e) Owner sign-off on record; 2 Vercel projects both bound to the same domain; still Hobby tier | UMR-20260802-034545-3388 |
+| 12 | Go Live (PROJEXA-AI.COM) | ~30% | No | No Rule 7(e) Owner sign-off on record; still Hobby tier. Domain-collision finding retracted 2026-08-02 (UMR-20260802-123246-f2e7): re-verified live, no longer real | UMR-20260802-034545-3388 |
 | 13 | UMR-20260802-040056-5319 (module/wiring collation) — verification | content ~85% accurate; ~40% production-live | No | PR #692 unmerged, `mergeable: CONFLICTING` — deliverable file absent from `main` | UMR-20260802-034545-3388 |
 | 14 | UMR-20260802-054239-4251 (Kernel reconciliation report) — verification | see detail below | No | Same as #10 | UMR-20260802-034545-3388 |
 
@@ -86,8 +86,12 @@
 
 ## 12. Go Live (PROJEXA-AI.COM) — ~30%
 **Evidence**: `curl -I https://projexa-ai.com` → live `HTTP/2 200`, real Vercel/Next.js traffic.
-**Remaining gap**: still Vercel **Hobby tier** (`billing.plan=="hobby"`, per live census in `MASTER_INDEX.yaml`). **Two separate Vercel projects** (`veridian-compliance-ai` and `projexa`) are both bound to the same `projexa-ai.com` apex domain simultaneously — a real, unresolved production collision. No record anywhere in `ai-os/` that `compliance-tracker/AGENTS.md` Rule 7(e)'s required explicit Owner go-live confirmation was ever given — the site appears to have gone live incrementally through ordinary wave-by-wave PR merges, not a deliberate, confirmed go-live event.
-**Production ready**: **No.** Most urgent finding in this matrix, independent of percentage — the domain collision is a live production risk, not just an incompleteness gap.
+**Remaining gap**: still Vercel **Hobby tier** (`billing.plan=="hobby"`, per live census in `MASTER_INDEX.yaml`). No record anywhere in `ai-os/` that `compliance-tracker/AGENTS.md` Rule 7(e)'s required explicit Owner go-live confirmation was ever given — the site appears to have gone live incrementally through ordinary wave-by-wave PR merges, not a deliberate, confirmed go-live event.
+**Production ready**: No (Hobby tier, no Rule 7(e) confirmation on record).
+
+**CORRECTION (2026-08-02, per UMR-20260802-123246-f2e7, cited under UMR-20260802-124023-371b)**: this entry originally claimed "two separate Vercel projects (`veridian-compliance-ai` and `projexa`) are both bound to the same `projexa-ai.com` apex domain simultaneously" as an active production risk. That claim was sourced from `MASTER_INDEX.yaml`'s `vercel.projects` census, timestamped **2026-07-26T10:33:37Z**, which genuinely was real and confirmed *at that time* ("this is real current Vercel domain-assignment state, not a data-entry error in this census" — its own words). It was never re-verified against live state before being reported in this matrix — a real staleness gap in that finding, not a fabrication.
+
+**Re-verified live, 2026-08-02T12:35 UTC** (`GET /v9/projects`, `GET /v9/projects/{id}/domains` against all 3 real projects, team-scoped confirmed — only one team exists; plus DNS + live `curl`): **no domain collision exists now.** `projexa-ai.com` / `www.projexa-ai.com` are bound *exclusively* to the `projexa` project. `veridian-compliance-ai`'s real domains are `veridian-aios.com`, `veridian-ai-os.vercel.app`, `veridian-compliance-ai.vercel.app` — no `projexa-ai.com` reference. DNS resolves cleanly to real Vercel anycast IPs, single answer, no split. The 07-26 collision was real and has since been resolved (`veridian-compliance-ai` moved to its own `veridian-aios.com` domain) — consistent with the known 2026-07-27/28 domain-misconfiguration incident history. **No fix was made or needed** — investigation-only, real current state already correct.
 
 ## 13. UMR-20260802-040056-5319 (module/wiring collation) — verification
 **Content accuracy**: ~85% (7 of 8 independently re-checked claims held up under normal organic drift; the 8th — "104 registries" — was already stale same-day, real count is 123).
@@ -111,5 +115,5 @@ Went through the reconciliation report's own citations claim-by-claim against li
 
 ## Two most urgent findings, independent of percentage complete
 
-1. **Item 12 (Go Live)**: two live Vercel projects bound to the same production domain simultaneously. This is a real, present production risk, not an incompleteness gap — worth Owner/PM attention regardless of where it ranks by percentage.
-2. **Item 11 (E2E Testing)**: 22 real, non-mocked Playwright tests exist and hit real production infrastructure, but provide **zero actual regression protection today** because no CI job runs them on any PR.
+1. ~~**Item 12 (Go Live)**: two live Vercel projects bound to the same production domain simultaneously.~~ **RETRACTED 2026-08-02** (UMR-20260802-123246-f2e7): re-verified live against the real Vercel API + DNS + `curl` — no domain collision exists currently. The underlying 2026-07-26 census this was based on was real at the time but had already been resolved by 2026-08-02; the matrix cited it without a fresh live check. See item 12's own entry for full detail.
+2. **Item 11 (E2E Testing)**: 22 real, non-mocked Playwright tests exist and hit real production infrastructure, but provide **zero actual regression protection today** because no CI job runs them on any PR. This is now the single most urgent finding in this matrix.
