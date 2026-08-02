@@ -57,6 +57,22 @@
       pattern (e.g. same target PR number dispatched under unrelated task names/titles) -- only the
       naming-pattern-based dedup was completed this session.
 
+## Completed (part 2, same invocation -- UMR-tagging gap, Part 2 item 3)
+- [x] Found the real UMR-tagging gap the first pass of this report undercounted: 709 of 842 task dirs had
+      ZERO umr_tasks row (resource_governor.py/umr_tasks only exists since 2026-07-27; tasks from
+      2026-07-17..07-26 predate it entirely). Report section 10 corrected in place.
+- [x] Backfilled 703 real UMR IDs directly via superboss-register.py's upsert_umr_task() (same
+      _write_lock()/_connect() discipline resource_governor.py uses), every row a TERMINAL status
+      (completed/failed/killed, never queued/dispatched/running) so none can ever be live-dispatched by
+      dispatch_one(). Verified via a 3-record test batch + live query before the full run given this is a
+      shared production DB with ~100 other concurrent processes. umr_tasks: 222 -> 925 rows.
+- [x] Found and characterized the 11 task dirs with no task.yaml at all: 1 synthetic test fixture
+      (excluded), 2 genuinely empty dirs (flagged, not deleted), and 8 with real git commits + real PRs
+      but no tracking record -- 2 of those 8 have a real OPEN PR (#632, #635) with zero task-system
+      visibility. All 8 included in the UMR backfill with status inferred from real PR state.
+- [x] Logged this backfill action itself with its own UMR (UMR-20260802-051901-f565) via
+      dispatch-owner-task.sh, per Part 2 item 6.
+
 ## Report
 Full findings: /opt/veridian/ai-os/TASK_AUDIT_800_FINDINGS_2026-08-02.md
 Crontab-retriage task-id list: /opt/veridian/ai-os/TASK_AUDIT_800_CRONTAB_RETRIAGE_LIST_2026-08-02.txt
