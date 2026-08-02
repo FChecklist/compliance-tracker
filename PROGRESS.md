@@ -11,6 +11,8 @@
 - [x] Confirmed `ai-os/CONSTITUTION.yaml` still parses as valid YAML after edits (`python3 -c "import yaml..."`); confirmed the ACTIVE-CLAIMS.yaml parse error this session hit is a **pre-existing** issue (reproduces identically against HEAD before my edit, via `git stash`) and not caused by this change -- not fixed here, out of this task's scope, and CI does not machine-parse that file (no script references it)
 - [x] Committed and pushed to `worker/task-20260802-034711-amendment-to-master-directive-umr-202608`
 
+- [x] Opened PR #689: https://github.com/FChecklist/compliance-tracker/pull/689
+
 ## Remaining
-- [ ] Open PR against `main` per Rule 6 (PR/CI gate) and confirm CI passes -- not yet done as of this checkpoint
+- [ ] Confirm CI passes on PR #689 (Lint/Type Check/Build/Unit Tests) -- not yet confirmed as of this checkpoint; do not treat this task as complete until it does
 - [ ] Out of scope for this task, explicitly NOT claimed complete here: the amendment's own retroactive-review clause (re-verifying "completed" claims under Phase 2 / Kernel investigation / UI-UX audit / PR backlog / SAP reports / CRM-PM gap-closure builds) is real, ongoing work that belongs to whichever session is actively driving each of those (UMR-20260802-032455-f94b, UMR-20260802-030121-ae66, UMR-20260802-024829-75ae) -- this task only puts the binding rule in place, it does not itself perform that re-audit
