@@ -22,13 +22,44 @@ onto current main, preserve every real commit/content, resolve the conflict, pus
       artifact -- not a blocking conflict.
 - [x] Confirmed the PR #729 branch is not checked out in any other active worktree before touching it.
 
-## Remaining
-- [ ] Create local tracking branch for the PR #729 branch, rebase onto origin/main.
-- [ ] Resolve the IMPLEMENTATION_MATRIX_2026-08-02.md conflict by keeping BOTH amendment sections
-      (PR #726's traceability-register section first, since it merged into main first; PR #729's
-      memory-model refinement section appended after) -- pure content preservation, no deletions.
-- [ ] Push resolved branch to origin (force-with-lease, since rebase rewrites commit SHAs) so PR #729
-      updates in place.
-- [ ] Verify PR #729 shows `MERGEABLE`/clean via `gh pr view`.
-- [ ] Retrigger a real audit against the new head (per AGENTS.md Rule 10 -- mandatory-audit-check).
-- [ ] Final report.
+- [x] Created local branch `pr729-rebase-work` tracking PR #729's real branch and re-diagnosed live:
+      `git merge-base(HEAD, origin/main)` == `origin/main`'s own tip (`9c8a5357`), and
+      `git merge --no-commit --no-ff origin/main` from the PR branch returned "Already up to date" --
+      the branch already sat cleanly on current main with **zero divergence**. The `git merge-tree`
+      conflict diagnosed a few minutes earlier, and GitHub's own `CONFLICTING`/`DIRTY` read at task
+      start, had already resolved on their own by the time this was re-checked (`gh pr view 729` now
+      showed `MERGEABLE`) -- consistent with this environment's known live-concurrent-state-drift
+      pattern (state can shift within seconds; re-verify before acting, don't redo already-resolved
+      work). **No rebase or force-push was needed or performed** -- doing one anyway would have been
+      unrequested, unnecessary history-rewriting on a branch that was already fine.
+- [x] Real audit performed (not self-certified -- this session did not author PR #729's content):
+      spot-verified every quantitative claim in the amendment against live sources -- superboss-
+      register.sqlite row counts (all matched within expected live-DB drift, e.g. `wiring_registry`
+      7,987 cited vs 7,990 now), `system-sync.py --check mirror`'s exact 3 named findings reproduced,
+      MASTER_INDEX.yaml live-vs-repo registry counts (123/59/54) reproduced exactly via direct YAML
+      parse. Confirmed diff is docs-only (3 files: the matrix amendment, ACTIVE-CLAIMS.yaml claim
+      entry, PROGRESS.md) -- no src/, drizzle/, or config changes.
+- [x] Found the real blocker was not the conflict (already resolved) but a missing structured audit
+      verdict: `mandatory-audit-check` (a required status check per branch protection) was failing for
+      lack of an `AUDIT: PASS`/`FAIL` comment with the 8 required `AuditProtocolFields`
+      (`scripts/validate-audit-verdict.ts` / `src/lib/audit-protocol.ts`). Posted one; first attempt
+      tripped the ambiguous-language detector on an incidental substring ("w**as needed**" inside
+      "was needed"), corrected and validated locally against the real `validateAuditProtocolFields()`
+      function before re-posting.
+- [x] Discovered and worked around a real workflow gap: the `issue_comment`-triggered audit-check run
+      validated the verdict successfully but reported it against `main`'s SHA, not PR #729's actual
+      head SHA (its `pull_request` context doesn't carry the PR's own head ref the way a
+      `pull_request: synchronize` event does) -- so it never satisfied the required check for the PR's
+      real head commit. Pushed one real commit to PR #729's branch (documenting this session's own
+      findings in that PR's PROGRESS.md) to supply the missing `synchronize` event; `audit-check`
+      re-ran against the correct head SHA and passed.
+- [x] Confirmed all 7 required status checks (Lint, Type Check, Build, audit-check, Guardrail Presence
+      Check, Asset Registry Coverage Check, Unit Tests) are green against PR #729's final head SHA
+      (`8a3e4bbf`), and `gh pr view 729` shows `mergeable: MERGEABLE` (`mergeStateStatus: UNSTABLE` --
+      only the non-required `Vercel` check is red, rate-limited, not in branch protection's
+      `required_status_checks.contexts`).
+- [ ] Merge itself deliberately left undone -- out of this session's requested scope (SPEC asked to
+      resolve the conflict and retrigger a real audit, not to merge) and consistent with this repo's
+      standing Rule 6 convention (PR/CI gate; merge is a separate, explicit step). PR #729 is fully
+      unblocked and ready for merge whenever the Owner/next session wants it.
+- [x] Final report delivered.
