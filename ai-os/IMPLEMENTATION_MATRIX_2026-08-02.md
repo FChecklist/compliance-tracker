@@ -164,3 +164,224 @@ not rewritten, not duplicated. Status inherited from parent `UMR-20260802-104058
 
 1. ~~**Item 12 (Go Live)**: two live Vercel projects bound to the same production domain simultaneously.~~ **RETRACTED 2026-08-02** (UMR-20260802-123246-f2e7): re-verified live against the real Vercel API + DNS + `curl` — no domain collision exists currently. The underlying 2026-07-26 census this was based on was real at the time but had already been resolved by 2026-08-02; the matrix cited it without a fresh live check. See item 12's own entry for full detail.
 2. **Item 11 (E2E Testing)**: 22 real, non-mocked Playwright tests exist and hit real production infrastructure, but provide **zero actual regression protection today** because no CI job runs them on any PR. This is now the single most urgent finding in this matrix.
+
+---
+
+## Amendment (2026-08-02): Master Execution Framework — design only, not dispatched
+
+Per Owner directive `UMR-20260802-164801-2ab9` (OCID-20260802-015), amending both parent UMRs
+`UMR-20260802-054239-4251` and `UMR-20260802-104058-25ba`, inheriting their status. **Design
+only** — nothing below has been dispatched, implemented, or acted on. No new database, table,
+repository, module, or architecture created; this uses only real, already-existing artifacts
+(this matrix, `ai-os/MASTER-TRACKER.yaml`, `ai-os/CONSTITUTION.yaml`, real repo state) as its
+evidence base.
+
+### Real correction found while building this design
+
+Item 1 (ERP Modules)'s "Remaining gap" cites "PM-platform (PROJEXA) doesn't consume
+compliance-tracker's ERP engines (`ai-os/MASTER-TRACKER.yaml` OPEN-08, 8-item list still open)"
+— **this is stale.** Direct re-check of `OPEN-08` in `ai-os/MASTER-TRACKER.yaml` (name field
+literally reads `"...CLOSED 2026-07-14 (items 1-6 of the corrected list)"`, full `status_update`
+confirms **5 real PRs merged across 2 repos** — compliance-tracker#290/#292/#293, projexa#4/#5 —
+each independently audited before merge, per the Owner's own explicit "Priority 13" directive.
+The real remaining ERP gap is narrower than item 1 currently states: Gate Pass tracking, 3-tier
+Divisions, UOM master table, cost-center fields on `erp_purchase_requisitions`, multi-state GST
+array, Debit Notes as a distinct document type — 6 named items, not an open PM-platform
+integration gap. Not corrected in item 1's own text in this pass (out of scope for a design
+document) — flagged here for a future amendment.
+
+### Real current-state summary (evidence: this file's own 14 items + the correction above)
+
+12 product streams at real, verified completion: ERP ~55-60% (corrected scope above), UI/UX 70%,
+Reports 46%, Prompt Library 1%, Web Browser 75%, VERI Chat 75%, VERI Assistant 65%, Multi Tenant
+75%, Multi Brand 15%, Kernel 85% (merged), E2E Testing 40%, Go Live 30%. Plus 2 real infrastructure
+findings from tonight's closure-checklist work (`UMR-20260802-124633-ad05`/`152716-6f73`): (a) at
+least one task's own `task.yaml` carried stale `repo:`/`branch:` fields that broke the real
+supervisor's PR-resolution and caused 2 spurious `AUDIT: FAIL` comments on an unrelated PR before
+being found and fixed — real scope of how many *other* tasks carry the same latent bug is
+currently unknown; (b) an oversized (6766+ line) diff proved unreliable for the real automated
+review pipeline, worked around by splitting into a minimal diff — a real, load-bearing pattern for
+any future large reconciliation.
+
+### Execution stream list
+
+Each stream: single purpose, single scope, single canonical artifact, single traceability path,
+parent UMR cited. "Deterministic/close-ended" = yes only if the real remaining work is a named,
+bounded list, not an open-ended exploration.
+
+| Stream | Purpose | Real scope (bounded) | Canonical artifact | Deterministic/close-ended | Parent UMR |
+|---|---|---|---|---|---|
+| **A. Reports completion** | Close the 43 remaining SAP-equivalent reports | 29 EXTEND_EXISTING + 14 BUILD_NEW, named rows in `sap_mapping.sqlite` | `sap_mapping.sqlite` + item 3 of this matrix | Yes | `104058-25ba` |
+| **B. Prompt Library completion** | Reach the 10,000-prompt target | 9,999 real prompts remain, ~42 manual Owner-driven ChatGPT-paste cycles | `chatgpt-prompt-library/CSV/` + item 4 | **No** — real external human bottleneck (Owner-dependent manual step), not AI-executable end to end | `104058-25ba` |
+| **C. E2E CI-gate wiring** | Make the 22 real Playwright specs run on every PR | Add one CI job to `projexa/.github/workflows/ci.yml` | `projexa/.github/workflows/ci.yml` + item 11 | Yes | `104058-25ba` |
+| **D. Multi-tenant RLS table-by-table verification** | Prove RLS coverage beyond the current app-layer test | Build a real DB-level cross-org leak test against existing tenant-scoped tables | `src/lib/services/tenant-isolation.test.ts` + item 8 | Yes, if scoped to *existing* tables only | `104058-25ba` |
+| **E. Multi-brand real build-out** | Make stored brand fields actually render + real domain routing | Hostname-to-brand resolution for anon pages, DNS/TLS custom-domain routing — real scope not yet fully defined | `org-branding-service.ts` + item 9 | **No** — needs its own scoping pass before it can be called close-ended | `104058-25ba` |
+| **F. Web Browser engine live-wiring** | Connect built+tested NPU/WebLLM/Transformers engines into the real chat send path | Wire `tier-orchestrator.ts` into `VeriComposer.tsx`'s send handler | `src/lib/browser-execution/*` + item 5 | Yes | `104058-25ba` |
+| **G. VERI Chat task-level AI-reply** | Give `/api/tasks/[id]/chat` the same real LLM generation `/api/conversations/[id]/messages` already has | One route, one real gap, named | `src/app/api/tasks/[id]/chat/route.ts` + item 6 | Yes | `104058-25ba` |
+| **H. VERI Assistant Mother Router migration** | Finish migrating the 35 self-documented unmigrated call sites | 35 named files (per Mother Router's own 2026-07-20 re-verification) | `src/lib/ai-router/mother-router.ts` + item 7 | Yes | `104058-25ba` |
+| **I. UI/UX composer completion** | Build the 6 remaining spec'd composer UX items | sidebar-composer sync, overlay/backdrop, breadcrumb reposition, per-segment ×, external-AI handoff link, resizable composer | `VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md` + item 2 | Yes | `104058-25ba` |
+| **J. Go-Live readiness** | Get PROJEXA-AI.COM to a real, governed go-live state | Vercel Hobby→Pro/Team tier upgrade (real spend decision) + `AGENTS.md` Rule 7(e) explicit Owner sign-off | item 12 | **No** — both real remaining actions are Owner-only, not AI-executable | `104058-25ba` |
+| **K1. Kernel doc-citation fix** | Correct `MASTER_INDEX.yaml`'s `PROTOCOL_OWNER_AI.yaml` citation to its real cross-repo location | One field, already diagnosed (found live at `/opt/veridian/ai-os/OWNER_DIRECTIVES/`, not in compliance-tracker) | `ai-os/MASTER_INDEX.yaml` + item 10 | Yes | `054239-4251` |
+| **K2. OCID supply** | Owner supplies the Kernel's own required `OWNER_CHAT=(OCID)` value | One value | Kernel reconciliation report + item 10 | **No** — Owner-only action | `054239-4251` |
+| **L. Server-artifact traceability register** | Real UMR-to-artifact / artifact-to-UMR mapping, orphans, duplicates | In progress this same session (`UMR-20260802-164659-9a31`) | This matrix + `MASTER_INDEX.yaml` | Partially — explicitly incremental by its own directive | `054239-4251` + `104058-25ba` |
+| **M. Task-dispatch pipeline reliability hardening** | Find and fix other tasks carrying the same stale `repo:`/`branch:` field bug found tonight | Real scope currently unknown — needs a discovery pass across real `task.yaml` files before it can be called close-ended | `ai-os/tasks/*/task.yaml` | **No** — needs its own scoping pass first | `054239-4251` |
+| **N. ERP remaining gaps** | Close the 6 real, narrower ERP gaps (corrected scope above) | Gate Pass, 3-tier Divisions, UOM master, cost-center fields, multi-state GST, Debit Notes | `src/lib/db/schema.ts` + item 1 | Yes | `104058-25ba` |
+
+### Real overlaps found, flagged not resolved (design only)
+
+- **F and I both touch `src/components/veri-chat/VeriComposer.tsx`** — real file-level collision
+  risk if dispatched in parallel. Recommend sequencing, not parallel dispatch.
+- **H (Mother Router migration) may include `G`'s own target route** (`/api/tasks/[id]/chat`)
+  among its 35 unmigrated sites — not yet verified which specific 35 files are named. Recommend
+  checking for overlap before dispatching G and H in parallel.
+- **N (ERP schema additions) should logically precede D (RLS verification)** if D is meant to
+  cover the new fields N adds — otherwise D's real coverage is incomplete by construction.
+
+No other real overlaps found between the 14 streams above; each targets a distinct, named file or
+file-set.
+
+### Proposed stream execution order (design only, not dispatched)
+
+1. **Phase 1 — foundational, low-risk**: C (E2E CI gate), K1 (doc-citation fix), L (traceability
+   register — already in progress).
+2. **Phase 2 — bounded, independent product gaps**: A (Reports), G (VERI Chat task-reply), N (ERP
+   remaining 6 items).
+3. **Phase 3 — needs sequencing due to real file overlap**: F then I (both touch
+   `VeriComposer.tsx`); verify G/H overlap before dispatching H.
+4. **Phase 4 — needs a scoping pass before execution**: M (pipeline reliability discovery), E
+   (Multi-brand scoping), D (RLS verification, ideally after Phase 2's schema work).
+5. **Phase 5 — Owner-gated, not AI-executable**: J (Go-Live: Vercel tier + Rule 7(e) sign-off), K2
+   (OCID), and B (Prompt Library, bounded by the real manual-paste bottleneck, not by AI capacity).
+
+### Relation to existing UMRs, audits, and implementations
+
+Every stream above maps to a real, already-existing item in this matrix (items 1-14) or the Kernel
+reconciliation report — no new work area was invented for this design. Streams C, F, G, H, I, K1,
+N are genuinely close-ended and could be dispatched as real, bounded UMRs today, each inheriting
+`104058-25ba` or `054239-4251` as parent, per this file's own established amendment convention.
+Streams B, E, J, K2, M are explicitly **not yet dispatchable as close-ended work** — each needs
+either a real Owner decision/action, or a further scoping pass, before it would meet this design's
+own "deterministic and close-ended" bar. This distinction is the deliverable's central honest
+finding: not every real gap in this matrix is currently AI-executable end to end.
+
+**Not acted on.** No stream above has been dispatched, implemented, or given a new UMR. Awaiting
+Owner review per explicit instruction.
+
+---
+
+## Amendment (2026-08-02): Standing gatekeeper rule (`UMR-20260802-165034-5747`)
+
+Amends `UMR-20260802-054239-4251` and `UMR-20260802-104058-25ba`, inheriting their status. This is
+a **standing rule**, not a one-off task — no new implementation or audit was created for this
+directive itself.
+
+**Rule, effective immediately for all future work from this session:** before starting any new
+work, run a real gatekeeper check against real server state — existing implementation, existing
+GitHub PR, existing CI/audit run, existing running worker/supervisor (`systemctl --user list-units
+'veridian-worker@*' 'veridian-supervisor@*'`), existing task (`ai-os/tasks/*/task.yaml`), existing
+UMR (`resource_governor.py --query-umr`), existing canonical artifact, existing wiring/metadata. If
+found: extend/update it, never rebuild or duplicate. If genuinely blocked: report the real root
+cause, never guess. If evidence needed to decide is missing: stop and report, never assume.
+
+**Demonstrated application (real, this session, this exact turn):** before writing this section,
+ran the check against its own action —
+```
+gh pr list --repo raajatagarwal/compliance-tracker --state open \
+  --search "master-execution-framework in:title,body"   →  []  (none open)
+systemctl --user list-units 'veridian-worker@*' 'veridian-supervisor@*' --state=running
+  → only task-20260802-163326 (the PR-to-UMR mapping worker, already known, not a duplicate)
+grep -rl "165034-5747|master-execution-framework|gatekeeper" ai-os/tasks/*/task.yaml → none
+```
+**Gatekeeper decision: ALLOWED — no existing implementation, PR, worker, or task found for this
+specific work; proceeding is not a duplication.** This same check-before-act sequence is the
+pattern to repeat for every future task, and is now the documented standing procedure rather than
+an ad hoc habit — it was already being followed inconsistently throughout tonight's session (see
+the repeated `ACTIVE-CLAIMS.yaml`-read and `resource_governor.py --query-umr` checks in the PR-to-
+UMR mapping amendment above); this section makes it an explicit, citable rule going forward.
+
+---
+
+## Amendment (2026-08-02): Unified project memory model (`UMR-20260802-165434-cd91`)
+
+Amends `UMR-20260802-054239-4251` and `UMR-20260802-104058-25ba`, inheriting their status. No new
+database, repository, or memory system was created for this — this section documents which real,
+already-existing files already serve as canonical state and formalizes the read/write flow between
+them; it consolidates the model, not the files themselves (no file merge was needed — each real
+file already has a distinct, non-overlapping role, verified below).
+
+**Real discovery (evidence: this session's own repeated use of each, plus direct inspection):**
+
+| Real file/table | Real role | Read by | Written by |
+|---|---|---|---|
+| `umr_tasks` table (`ai-os/memory/superboss-register.sqlite`, queried via `resource_governor.py --query-umr`) | **The single decision log** — one row per UMR, `task_identity`, `status` (`queued/dispatched/running/completed/failed/rejected_duplicate/sigterm_sent/killed`), `metadata_json.reuse_check_result.intent_text` | any AI instance, via `resource_governor.py --query-umr --search/--task-identity` | `resource_governor.py --submit`/`--tick`, and PM-side UMR issuance |
+| `ai-os/tasks/<task_id>/task.yaml` | **The single per-task state + checkpoint log** — `status`, `repo:`/`branch:`, `checkpoints:` list (`veridian-task.py checkpoint`) | `dispatch-tick.py`, `check_latest_task.py`, any session picking up a task | `veridian-task.py adopt/checkpoint`, dispatch/supervisor scripts |
+| `STUCK_TASKS_HEARTBEAT.json` | **The single point-in-time liveness snapshot** across all tasks (by design, not cumulative — see `dispatch-tick.py:553`) | `pm_triage_tick()`, any session checking real current stuck-task count | `dispatch-tick.py`'s `write_stuck_tasks_heartbeat()`, every real tick (10-min systemd timer, confirmed: `veridian-cron-dispatch-tick.timer`, `OnUnitActiveSec=10min`) |
+| `ai-os/MASTER_INDEX.yaml` (compliance-tracker AND claude-control AND live-server, 3 real distinct files) | **The single per-repo governance-file cross-reference index** — what other tracking docs exist and what they're for | any session starting work in that repo (`CLAUDE.md` Rule 3) | whichever PR touches that repo's governance surface |
+| `ai-os/boss/ACTIVE-CLAIMS.yaml` | **The single real-time in-flight-work registry** — prevents duplicate concurrent work across parallel sessions | every session, **before** picking a task (`CLAUDE.md`/`AGENTS.md` Rule 11, mandatory) | every session, on claiming a task |
+| `ai-os/boss/COMPLETED.yaml` | **The single closed-work log** | any session verifying whether something already shipped | doer + auditor, on real completion (Rule 7d) |
+| `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (this file) | **The single canonical product-completion state + amendment trail** | PM and this session, every status question | this session, via amendment (never rewrite) |
+
+**Verified: these are already the single canonical place for each concern — not scattered
+duplicates.** The one real overlap found is intentional, not redundant: 3 separate
+`MASTER_INDEX.yaml` files exist because they index 3 separate real repos (compliance-tracker,
+claude-control, live-server `/opt/veridian/ai-os/`) — each is the sole index for its own repo, not
+a copy of another. No consolidation action is needed or was taken; this section is the
+documentation of the model, per the directive's own instruction to use what already exists.
+
+**The real read/write flow, going forward, for any AI instance (present or future) with no prior
+session memory:**
+1. Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first (what's in flight).
+2. Query `umr_tasks` via `resource_governor.py --query-umr` for the specific UMR/task_identity (the
+   decision log — what was decided and why).
+3. Read the relevant `ai-os/tasks/<task_id>/task.yaml` for that task's real current status and
+   checkpoint history.
+4. Read `STUCK_TASKS_HEARTBEAT.json` for real current liveness if triaging stuck work.
+5. Read this matrix (`IMPLEMENTATION_MATRIX_2026-08-02.md`) for real current product-completion
+   state and prior amendment history.
+6. Read `ai-os/boss/COMPLETED.yaml` to confirm whether the specific deliverable already shipped.
+7. Write back only to the one file matching the concern (never invent a parallel file) — task
+   state to `task.yaml` via `veridian-task.py checkpoint`, decisions to `umr_tasks` via
+   `resource_governor.py --submit`, product-completion state to this matrix via amendment,
+   completed work to `COMPLETED.yaml`.
+
+This closes the "any one chat/session remembering things on its own" dependency described in the
+directive: every one of these 7 files is real, on-disk, server-side, and readable by a fresh
+session with zero prior context — which is exactly how the discovery agents behind the traceability
+register (`UMR-20260802-164659-9a31`, findings above) were run and how this very turn picked up
+mid-task after a context compaction.
+
+---
+
+## Amendment (2026-08-02): Recovery matrix (`UMR-20260802-165541-c27d`)
+
+Amends `UMR-20260802-054239-4251` and `UMR-20260802-104058-25ba`, inheriting their status. Real,
+directly-verified current behavior only — no new architecture proposed except where a genuine gap
+is named below.
+
+| Real failure class | Real current detection | Real current recovery | Resumes from checkpoint or restarts? | Status |
+|---|---|---|---|---|
+| Worker process failing | `systemd` `Restart=on-failure`, `RestartSec=30` on `veridian-worker@.service` (verified: `systemctl --user cat`); `check_latest_task.py` also auto-`systemctl start`s a stalled task if `active_count==0` and `status!='completed'` | Restarts the same unit; work resumes from `task.yaml`'s own `checkpoints:` list (`veridian-task.py checkpoint`, verified real field + writer) | **Resumes from checkpoint** | Handled |
+| Supervisor process failing | `Restart=no` on `veridian-supervisor@.service` (verified: `systemctl --user cat`) | **None automatic** — a failed supervisor run does not self-restart | N/A | **Real gap** — no automatic recovery; today's workaround (used repeatedly this session) is manual re-trigger via `systemctl --user start veridian-supervisor@<task_id>.service` after archiving a stale `review.json` |
+| tmux session itself failing | No dedicated detector found | The real 10-min `veridian-cron-dispatch-tick.timer` (`OnUnitActiveSec=10min`, confirmed active) is independent of any tmux session — it is systemd-scheduled, not tmux-scheduled | Dispatch/triage continues regardless of tmux state | Handled (by architecture — tmux is not actually load-bearing for the real dispatch cadence) |
+| Claude Desktop (laptop) session disconnecting | N/A — by explicit design (`AGENTS.md` "Contact" section, 2026-07-31 Owner directive, quoted verbatim: "laptop can be closed, still the server and claude code cli will keep working") | Server-side dispatch/supervisor/governor loops are fully independent of the laptop | Continues uninterrupted | Handled by design |
+| CI failing | GitHub Actions status on the PR (`gh pr checks`) | Established this-session workaround: real empty `git commit --allow-empty -m "chore: re-trigger"` forces a fresh CI run against true head — used repeatedly tonight (PR #716/#692/#14) | Resumes at CI level; underlying commits are untouched | Handled (manual trigger, not automatic) |
+| PR failing (real posted `AUDIT: FAIL`) | Real posted GitHub PR comment, `.body startswith("AUDIT:")`, matched against current head SHA | Fix exactly what the real comment named, push, re-trigger supervisor — established 6-point protocol (`UMR-20260802-124713-c38d`) | Resumes from the existing branch/commits, no restart from scratch | Handled |
+| Task failing (`status=failed`/`sigterm_sent`/`killed` in `umr_tasks`) | `resource_governor.py`'s stuck-task protocol: "timeout → SIGTERM → grace period → SIGKILL" (verified, `resource_governor.py:78`); `find_stuck_tasks()` in `dispatch-tick.py` | `pm_triage_tick()` surfaces it to `PM_TRIAGE_ALERTS.md` (cooldown-gated, this session's own PR #14 fix); `--reconcile-stale`/`--scan-stuck` flags exist on `resource_governor.py` for reconciliation | Task's own `checkpoints:` list preserved; new attempt can reference it, not blind restart | Handled |
+| Real network failure (GitHub/gh API) | Hard subprocess timeout (`GH_PR_CHECK_TIMEOUT_SECONDS`, default 8s) on every `gh` call in the duplicate-PR guard (verified, `resource_governor.py:809-830`, real quoted source) | **Explicit, documented fail-OPEN**: "returns 'no duplicate found' and logs to ATTENTION.md... must never degrade to 'queue permanently wedged'" — a deliberate, named tradeoff, not an oversight | Dispatch proceeds; no work lost, but the duplicate-guard is temporarily weaker | Handled, with an explicitly accepted tradeoff (documented, not a silent gap) |
+
+**Honest gap summary:** 7 of 8 real failure classes have a real, verified, existing recovery
+mechanism (worker restart+checkpoint resume, PR-fail fix-and-retry, task SIGTERM/reconcile,
+network fail-open, tmux-independent cadence, laptop-independent architecture, CI manual re-
+trigger). **1 real gap found**: supervisor-process failure has no automatic restart
+(`Restart=no`) and no automatic detection distinct from a human/session noticing a stale/missing
+`review.json` — today's only recovery path is the manual `systemctl --user start
+veridian-supervisor@<task_id>.service` re-trigger this session has used repeatedly. Per the
+directive's own instruction, this is named as a real gap, not silently patched with new
+architecture in this pass — a minimal fix (mirroring `veridian-worker@.service`'s own
+`Restart=on-failure`/`RestartSec=30`) would close it but was not applied here, since this
+directive was explicitly scoped to detection/verification, not new implementation.
+
+**Hard rule confirmed already in force, not newly added:** none of the mechanisms above spin up a
+duplicate worker/task/PR/audit as a side effect — `check_latest_task.py` only restarts the *same*
+unit for the *same* `latest` task id; `resource_governor.py`'s own duplicate-PR guard (item above)
+exists specifically to prevent exactly this class of duplication.
