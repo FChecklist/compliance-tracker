@@ -31,14 +31,39 @@ Parent UMR: UMR-20260801-153900-9100 | This task's own UMR: UMR-20260802-051325-
   separate blockers). Re-verifying freshness via `gh pr view` before closing each (not just trusting the
   sibling's snapshot).
 
+## Batch 1: DONE -- 25 tasks CLOSED (status=superseded), all via `veridian-task.py checkpoint`, each with
+individually-verified real-completion or real-duplicate evidence (not a blanket disposition):
+- 8x claude-control-repo retry-storm duplicates whose real work was done by an EARLIER task id, confirmed
+  via that repo's own phase-plan `status: done` / `produced_by_task` citations or `git merge-base
+  --is-ancestor <branch> origin/master`: task-20260724-123006 (phase3-task-gateway, real work by
+  task-20260724-122137), task-20260724-150010/153010/160022/163011/170010/173010/180011 (phase7-evaluate
+  x7, real work by task-20260724-144911, phase_7 confirmed status:done).
+- 6x more claude-control/compliance-tracker tasks with individually-confirmed real completion or
+  duplication: task-20260725-131506 (task2-dedup, superseded by later task-20260725-160908 which merged),
+  task-20260726-053322 (status-monitor, own branch merged c913d33), task-20260726-055454 (migration-drift,
+  real work by task-20260726-071400), task-20260726-055619 (phase5-browser, real work landed via PR #586 +
+  07-27 docs), task-20260726-083946 (fix-task-lifecycle, real fix recovered+merged via PR #84), task-
+  20260726-085132 (fix-ddl-gate, own branch pr79-work confirmed merge-ancestor of master).
+- 10x SUPERBOSS_V2_PLAN continuation tasks (task-20260726-171129/171157/171926/171942/171946/171954/
+  171957/172000/172004/172016) -- fresh `gh pr view` on each cited PR (#563 MERGED, #489 OPEN-stale, #578
+  OPEN-WIP, #581 MERGED, #580 MERGED, #575 OPEN-Owner-cost-decision, #576 OPEN-mechanical-gate, #583
+  OPEN-review-rejected, #582 OPEN-review-rejected, #585 OPEN) confirms real work exists on each PR's own
+  trail; cross-referenced against sibling batch UMR-20260801-170930-2080's already-established V2-plan
+  findings where applicable. None of these are fixable by re-dispatching this exact task -- the crontab
+  gate was never their real remaining blocker.
+
 ## Remaining
-- [ ] Batch 1: disposition the 29 never-worked tasks (RETRY vs CLOSE, title-by-title -- some are
-  time-sensitive one-off alerts likely stale, some are still-live directives).
-- [ ] Batch 2: disposition the 8 SUPERBOSS_V2_PLAN continuation tasks (cross-reference above) via a
-  fresh `gh pr view` check per PR, then `veridian-task.py checkpoint`.
-- [ ] Batch 3+: disposition the remaining ~76 worked tasks, including large title-duplicate clusters
-  (8x phase7-evaluate-whether-vericomposer-cha retry storm, 15x build-extend-calculation-track-engines,
-  11x build-extend-workflow-track-engines, 3x resolve-fresh-conflict-on-pr--610, 9x rca-task-* RCA
-  chains, 10x CRM/PM Task #46/#47 singletons, 3x rebase-pr-* large rescue tasks, singletons).
+- [ ] Batch 3: the 14-task rca-task-* diagnostic-retry cluster (RCA sub-analyses of already-known-fixed
+  crontab-blocked tasks -- this audit + parent audit already supersede their purpose; verify a few have
+  real merged fixes on master before closing).
+- [ ] Batch 4: the 29 never-worked tasks (RETRY vs CLOSE, title-by-title -- some are time-sensitive
+  one-off 2026-08-01 alerts likely stale, some may be still-live directives). NOTE: 2 of these (rca-task-
+  20260726-083946/171129 2nd-gen retries) overlap Batch 3's rca cluster, will fold in there.
+- [ ] Batch 5+: remaining ~49 worked tasks: 15x build-extend-calculation-track-engines, 11x
+  build-extend-workflow-track-engines, 3x resolve-fresh-conflict-on-pr--610, 10x CRM/PM Task #46/#47
+  singletons, 3x rebase-pr-* large rescue tasks, ~7 other singletons (independent-audit-of-pr-652,
+  re-rebase-pr-653/630, fresh-audit-of-pr-655, deterministic-per-task-type-verification, register-active-
+  claims-entry-for-procure, commit-procurement-erp-gap-analysis-docu, integrate-knowledge-engine, build-a-
+  commission-calculator, build-a-quasar-flux-telemetry-ingestion).
 - [ ] Final tally + report per spec section 5 (retried-completed/still-blocked, closed/end-dated,
   deleted-as-duplicate, ambiguous).
