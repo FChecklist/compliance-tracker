@@ -2412,14 +2412,14 @@ export const userClientAccessRelations = relations(userClientAccess, ({ one }) =
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
   org: one(organisations, { fields: [departments.orgId], references: [organisations.id] }),
   head: one(users, { fields: [departments.headId], references: [users.id], relationName: 'deptHead' }),
-  users: many(users),
+  users: many(users, { relationName: 'departmentMembers' }),
   complianceItems: many(complianceItems),
   notices: many(notices),
 }))
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   org: one(organisations, { fields: [users.orgId], references: [organisations.id] }),
-  department: one(departments, { fields: [users.departmentId], references: [departments.id] }),
+  department: one(departments, { fields: [users.departmentId], references: [departments.id], relationName: 'departmentMembers' }),
   assignedCompliance: many(complianceItems, { relationName: 'assignedTo' }),
   auditPointAssignments: many(auditPoints, { relationName: 'auditAssignee' }),
   headOfDept: one(departments, { fields: [users.id], references: [departments.headId], relationName: 'deptHead' }),
