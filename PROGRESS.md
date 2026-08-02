@@ -445,10 +445,9 @@ UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
 ## Completed
 - [x] Verified PM's PR #725 merge claim against real git log (merge commit `d3d88751`, PR #726 also present as a follow-on merge)
 - [x] Recorded PM decision in `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`: OCID-015/017/018/019 CLOSED, PR #711 no action
-- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` for OCID-020 (projexa-ai.com authenticated-screen testing) and OCID-016 tranche 2 (traceability register continuation) — no collision found
-- [x] Confirmed real capacity exists for OCID-020: `/opt/veridian/repos/projexa` has an installed Playwright e2e suite (22 specs) already targeting live `https://projexa-ai.com` with real seeded auth users
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` for OCID-020 and OCID-016 tranche 2 — no collision found at claim time
+- [x] OCID-016 tranche 2: traceability scan of this repo's `ai-os/boss/`, `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/` (51 files) — zero new orphans, zero new genuine duplicates, documented as a matrix amendment, committed + pushed
+- [x] OCID-020: **stood down mid-session, real collision found.** Confirmed real capacity exists (Docker `mcr.microsoft.com/playwright:v1.61.1-noble` runs against live projexa-ai.com; this sandbox's own local chromium is missing `libnspr4.so`, no root to fix — real, separate infra gap worth a future flag), but discovered a separate, already-running task (`task-20260802-172443-amendment--end-to-end-end-user-certifica`, `systemctl --user` confirmed active) already owns this exact OCID-020 scope with a materially larger mandate (25 specs, manual verification, go-live certification verdict) and was actively mid-edit on the shared `/opt/veridian/repos/projexa` checkout during this session's one test run. Per the standing gatekeeper rule and this session's own collision-avoidance protocol: did not continue, did not report that one test run's 4/4 login failures as a real finding (captured mid-race against the other session's own live selector edits, not reliable evidence), left the other session's `test-results/`/`playwright/.auth/*.json` artifacts untouched. Full detail recorded in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `status_update_2026-08-02T17:40Z`.
 
 ## Remaining
-- [ ] OCID-020: run the existing projexa e2e suite against live projexa-ai.com, capture real pass/fail + screenshots for gaps, document findings as a matrix amendment
-- [ ] OCID-016 tranche 2: traceability scan of this repo's `ai-os/boss/`, `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/` subdirectories, document as a matrix amendment
-- [ ] Commit + push each unit as it completes
+- [ ] None for this task — PM's queued question answered and recorded; OCID-020 correctly deferred to `task-20260802-172443`, which is still running

@@ -76,7 +76,7 @@ active:
       File scope: this repo's `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
       (amendment, in place) + this ACTIVE-CLAIMS entry + PROGRESS.md. No
       src/ or drizzle/ changes, no new database/table/file.
-  - session_label: "claude-code (task-20260802-172449-pm-answer---next-steps--pr-725-and-711-s) -- Record PM decision closing OCID-015/017/018/019 (PR #725 merged); begin OCID-020 (projexa-ai.com authenticated-screen testing, real Playwright run against live site + auth setup already present in repos/projexa) and OCID-016 tranche 2 (server-wide artifact traceability, subdirectories beyond PR #723's top-level tranche)"
+  - session_label: "claude-code (task-20260802-172449-pm-answer---next-steps--pr-725-and-711-s) -- Record PM decision closing OCID-015/017/018/019 (PR #725 merged); OCID-016 tranche 2 (server-wide artifact traceability, compliance-tracker subdirectories beyond PR #723's top-level tranche). STOOD DOWN from OCID-020 mid-session — see status_update below, real collision found with task-20260802-172443, which already owns this scope"
     claimed_at: "2026-08-02T17:25Z (this session)"
     claim: |
       PM directive (queued-question answer, this task's own prompt.txt):
