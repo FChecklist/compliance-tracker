@@ -658,3 +658,62 @@ trees are both reachable from this workspace and were not a hard blocker, just o
 this pass.
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-02): PM decision — PR #737 kept on record under its own standalone UMR, independent of OCID-020
+
+PM answer to a queued question (`UMR-20260802-201526-48ed`): **PR #737 represents a real, genuine
+bug and fix, found through real triage, and must not be discarded — but it tested the wrong target
+and is therefore out of scope for the actual OCID-020 certification UMR.**
+
+**What PR #737 actually is**: `task-20260802-190820`'s resumption of OCID-020 work ran the real,
+full 22-spec Playwright e2e suite (`/opt/veridian/repos/projexa`) against
+`projexa-smoky.vercel.app` — the standalone Projexa app — not against the real OCID-020
+certification target. Real result: **85 passed / 20 failed / 2 skipped**, every failure triaged
+(not blind re-runs): most are stale test selectors from a genuine UI refactor (composer DOM,
+permits copy); two are confirmed real, still-open bugs (procurement requisition `500`, new
+Knowledge Base read-path `500`); one real bug (Wiki `organizationId`) was found, fixed, and shipped
+as `FChecklist/projexa#69` — not yet independently re-verified against a live deploy.
+
+**Why the target was wrong**: `projexa-smoky.vercel.app` is out of scope for
+`UMR-20260802-165606-4413` (OCID-20260802-020's own certification UMR) per real Owner/PM decision
+`UMR-20260802-192538-d700` — the real OCID-020 certification target is `projexa-ai.com`, which
+serves `veridian-compliance-ai` (not the standalone Projexa app), per the real, deliberate,
+executed Owner domain decision `UMR-20260802-134939-145d` (Wave 10 revert, `ai-os/boss/COMPLETED.yaml`
+`WAVE-10-REDO` entry, PR #720 — see item 12 above for the full live-verified record). This is the
+same ambiguity independently resolved by PR #736 (`docs: PM decision — OCID-020 certification
+target confirmed as veridian-compliance-ai`, open as of this writing) — this amendment does not
+duplicate that PR's own decision record, it applies the same real conclusion to PR #737's specific
+disposition.
+
+**Decision, in full**:
+1. **PR #737 is kept on record and merged on its own real merits**, under its own standalone UMR
+   `UMR-20260802-201605-08b8` — not conflated with, and not counted as evidence toward,
+   `UMR-20260802-165606-4413`. The real bug found and fixed (`FChecklist/projexa#69`) and the two
+   still-open real bugs (procurement `500`, KB read-path `500`) are genuine findings on a genuine
+   product surface (Projexa standalone) and have standalone value regardless of which UMR
+   certifies OCID-020.
+2. Merge is conditioned on a **real, independent, non-self-certified audit** per Rule 7(c)/
+   Operating Rule 10 — not yet satisfied: PR #737's CI `audit-check` currently **fails** (the
+   posted `AUDIT: PASS` comment's "Evidence Recorded" field contains the literal word "etc.",
+   which `scripts/validate-audit-verdict.ts` correctly rejects as vague/unresolved language). A
+   future continuation session should post a corrected, specific `AUDIT:` verdict (not this
+   decision-recording task's own scope — this task did not implement PR #737 and does not
+   self-certify it).
+3. **The actual OCID-020 certification is not satisfied by PR #737's results and must be
+   independently redone** against the real correct target, `projexa-ai.com` (serving
+   `veridian-compliance-ai`) — the same real 22-spec e2e suite, run for real against that target,
+   not a re-read of the mistargeted run. Cite `UMR-20260802-165606-4413` for this certification
+   redo; reference `UMR-20260802-134939-145d` for why `veridian-compliance-ai` is the real correct
+   target. Real work already in progress on the correct target, to build on rather than restart:
+   PR #727 (`docs/projexa-ai-com-authenticated-audit-2026-08-02`) and PR #735
+   (`docs/projexa-ai-com-e2e-certification-phase1-2026-08-02`), both open — see PR #736's own
+   amendment (once merged) for their real current blockers (Metadata Index Coverage Check, no
+   posted `AUDIT:` verdict yet).
+
+**Do not treat any part of PR #737's 85/20/2 run, or its shipped fix, as certification evidence for
+OCID-020** — it is real, valuable, standalone work product on a different real target, not a
+substitute for the real correct-target run.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.

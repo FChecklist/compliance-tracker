@@ -40,6 +40,57 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-202322-pm-decision--pr-737-kept-as-its-own-real) -- PM decision: PR #737 kept on record under its own standalone UMR-20260802-201605-08b8, independent of OCID-020's UMR-20260802-165606-4413 [DOCS ONLY, no code]. DONE, ready to move to recently_completed on merge."
+    claimed_at: "2026-08-02T20:23Z (this session)"
+    claim: |
+      PM directive (this task's own prompt.txt / SPEC): PR #737 (real bug
+      + fix found via OCID-020 e2e triage) is real and must not be
+      discarded, but tested the wrong target (`projexa-smoky.vercel.app`)
+      and is out of scope for OCID-020's own certification UMR
+      (`UMR-20260802-165606-4413`). Kept on record under its own separate
+      UMR (`UMR-20260802-201605-08b8`, already present in PR #737's own
+      body -- minted by `task-20260802-190820` before this task started,
+      per real `updated_at` timestamp 20:18:15Z vs this task's 20:23:22Z
+      creation), to be merged on its own real merits once it has a real
+      (non-vague, non-self-certified) audit -- independent of OCID-020.
+      Separately: the real OCID-020 certification must redo the same real
+      22-spec suite against the real correct target, `projexa-ai.com`
+      (serving `veridian-compliance-ai`), citing `UMR-20260802-165606-4413`
+      for the redo and `UMR-20260802-134939-145d` for why that target is
+      correct. Full decision recorded as a matrix amendment (not just this
+      entry) -- see `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s "PM
+      decision — PR #737 kept on record..." amendment.
+
+      Real state verified before writing this decision down (not narrated
+      from the SPEC alone): `gh pr view 737` confirms the PR body already
+      states this exact decision (minted by task-190820 itself, its last
+      commit 9acc79b7 + a body edit at 20:18:15Z, before this task
+      existed) -- this task's job was to make that decision visible in the
+      canonical cross-session governance file, which task-190820 had not
+      done (its own commits only touched `PROGRESS.md`). Independently
+      confirmed PR #737's CI `audit-check` currently fails
+      (`scripts/validate-audit-verdict.ts` rejects the posted `AUDIT:
+      PASS` comment's "Evidence Recorded" field for containing the literal
+      word "etc.") -- real, mechanical, not-yet-resolved merge blocker,
+      named as a next step rather than fixed under this narrower
+      decision-recording task's own scope (this task did not implement PR
+      #737 and does not self-certify it). Also confirmed PR #736 (open,
+      the sibling PM-decision PR resolving OCID-020's target ambiguity)
+      is a real, complementary, non-duplicate record -- this amendment
+      does not restate its decision, only applies it to PR #737's specific
+      disposition.
+
+      Collision check performed before starting (per this file's own
+      protocol): grepped this file + `ai-os/boss/COMPLETED.yaml` for
+      `201526-48ed`, `201605-08b8`, `192538-d700`, `task-20260802-190820`,
+      `task-20260802-172443` -- no active claim or completed entry found
+      for this exact scope (only the unrelated stale stand-down label from
+      `task-172449`). No live collision.
+
+      File scope: this repo's `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (amendment, PM-decision record), this ACTIVE-CLAIMS entry,
+      `PROGRESS.md`. No src/ or drizzle/ changes, no PR merges or CI
+      actions taken on PR #737 itself.
   - session_label: "claude-code (task-20260802-171740-amendment--consolidate-a-single-unified) -- AMENDMENT: consolidate/verify the single unified project memory model every AI instance reads/writes [DOCS ONLY, no code, no new DB]"
     claimed_at: "2026-08-02T17:17Z (this session)"
     claim: |
