@@ -41,6 +41,21 @@ not when a PR is open or a checkbox is ticked.
       (owner-task-20260802-035748-1658138), asking for a fresh AUDIT:
       PASS/FAIL on both PRs' new heads.
 
+- [x] Checked the directive's other two named in-flight items for the same
+      false-"running" failure mode, cheaply (systemctl + PROGRESS.md only,
+      no work started on either): both UMR-20260802-030121-ae66
+      (task-20260802-030125-real-completion-audit--ui-ux--veri-chat, the
+      UI/UX + VERI Chat/assistant completion audit) and
+      UMR-20260802-024829-75ae
+      (task-20260802-024838-merge-the-8-clean-ci-green-compliance-tr, the
+      PR-backlog remediation) show the SAME pattern: status=running in
+      resource_governor.py, no systemd unit found, PROGRESS.md still "Not
+      started". This is not a one-off -- it looks like a systemic dispatch
+      pipeline reliability issue (worker unit fails to actually start, or
+      dies immediately, while the governor keeps reporting running/queued).
+      Worth flagging to the Owner/next session as its own real gap, separate
+      from any individual task's content.
+
 ## Remaining
 - [ ] Priority #1 (Phase 2 closure): awaiting UMR-20260802-035749-55a1's
       independent audit verdict on PR #630/#632, then merge, then verify
@@ -49,8 +64,14 @@ not when a PR is open or a checkbox is ticked.
       start until #1 is verified MERGED, not just audited.
 - [ ] Priorities #3-#10 (ERP module completion, SAP reports, prompt library,
       UI/UX + VERI Chat/assistant completion audit, multi-tenant coverage,
-      E2E testing gate, go-live): not yet started this session -- large
-      multi-day scope, each has real in-flight work already dispatched per
-      the directive (UMR-20260802-030121-ae66 for UI/UX+VERI, UMR-20260802-024829-75ae
-      for the PR backlog) that should be checked for real (not assumed)
-      status before extending, same zero-duplication discipline as #1.
+      E2E testing gate, go-live): not yet started this session -- each has
+      real in-flight work already dispatched per the directive, but both
+      checked instances (UMR-20260802-030121-ae66, UMR-20260802-024829-75ae)
+      turned out to be stalled with zero real work done (see finding above).
+      Next session should resume those two directly (same pattern used here
+      for priority #1) rather than treating them as "in progress" or
+      redispatching duplicates.
+- [ ] Flag for Owner: investigate why resource_governor.py-dispatched worker
+      systemd units are silently failing to start/persist across at least 3
+      recent dispatches tonight (close-phase-2, UI/UX audit, PR-backlog
+      merge) -- a pipeline-level reliability gap, not a content gap.
