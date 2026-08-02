@@ -40,6 +40,57 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-190820-resume-real-ocid-020-certification--usin) -- Resume real OCID-020 end-user certification of PROJEXA-AI.COM (UMR-20260802-165606-4413), per Owner directive UMR-20260802-181025-0d4b (stand-down/resume decision for the prior stuck worker)"
+    claimed_at: "2026-08-02T19:30Z (this session)"
+    claim: |
+      SPEC (Owner directive UMR-20260802-181025-0d4b): resume real OCID-20260802-020
+      end-user certification of projexa-ai.com, using launchPersistentChrome +
+      the existing ~/.cache/ms-playwright chromium binaries directly (never
+      `playwright install-deps` -- the prior worker confirmed live that the existing
+      binaries already work with zero install-deps step before it was stopped on a
+      doomed sudo call). Cover real login, workspace, multi-tenant, multi-brand,
+      every menu/module/function/screen, prompt flow, browser<->server round trip,
+      reports, cache, search, VERI Chat/AI assistant, ERP workflows, real business
+      scenarios, first-time + power user. Real evidence only (screenshots,
+      reproduction paths, independently retested fixes). Blocks
+      UMR-20260802-173631-ca85 (ERP Functional Completeness Master Program
+      implementation) until independently verified complete.
+
+      Collision check performed before starting (per this file's own protocol):
+      the immediately-following active-claims entry for this same scope
+      (`task-20260802-172449`, see below) explicitly stood down mid-session from
+      OCID-020, citing collision with a DIFFERENT task (`task-20260802-172443`, not
+      present as its own active entry in this file -- either never registered or
+      already rolled off). No currently-active, non-stood-down claim for OCID-020
+      exists in this file as of this session's start. This session's own prompt
+      (UMR-20260802-181025-0d4b) is itself the Owner's real-time authorization to
+      resume, citing the specific prior worker (stuck on sudo) this session
+      continues from -- treating that as sufficient collision clearance rather than
+      re-blocking on an ambiguous, unlisted `task-20260802-172443` reference.
+
+      **Major real finding already surfaced this session (see this repo's own
+      `PROGRESS.md` and `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` for full detail):
+      `https://projexa-ai.com` does not serve the PROJEXA application right now** --
+      confirmed live (fresh, uncached) as compliance-tracker's generic shell, per the
+      real, Owner-approved `WAVE-10-REDO` domain re-cutover
+      (`UMR-20260802-134939-145d`) -- this is intentional, current, correct infra
+      state, NOT a bug to fix. The real, still-open gap is that host-header brand
+      routing to make `projexa-ai.com` look like PROJEXA was explicitly deferred and
+      never built (confirmed via grep: zero host/hostname routing logic anywhere in
+      compliance-tracker's `src/`). Real certification testing for this session
+      therefore targets PROJEXA's actual current live URL,
+      `https://projexa-smoky.vercel.app` (same codebase, same seeded E2E org),
+      which is the only way to produce real, meaningful end-user certification
+      evidence for the PROJEXA product itself -- the brand-routing gap is flagged
+      as its own separate finding, not silently worked around.
+
+      File scope: `/opt/veridian/repos/projexa-ocid020-wt` (new isolated git
+      worktree off fresh `origin/main`, branch
+      `worker/task-20260802-190820-ocid020-certification` -- the shared checkout at
+      `/opt/veridian/repos/projexa` is mid-flight on an unrelated branch/task and
+      was left untouched). This repo: `PROGRESS.md`, this ACTIVE-CLAIMS entry,
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment, findings appended as
+      real work completes).
   - session_label: "claude-code (task-20260802-171740-amendment--consolidate-a-single-unified) -- AMENDMENT: consolidate/verify the single unified project memory model every AI instance reads/writes [DOCS ONLY, no code, no new DB]"
     claimed_at: "2026-08-02T17:17Z (this session)"
     claim: |
