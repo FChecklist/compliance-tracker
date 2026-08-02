@@ -821,3 +821,104 @@ governance/metadata artifacts throughout, consistent with the directive's own fr
 ai-os, and any repo not yet covered"), not literal every file on the server.
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-02): Server-wide artifact traceability register — tranche 4 (`UMR-20260802-164659-9a31`, OCID-20260802-016)
+
+**Checkpoint-refresh correction first, before the real findings**: the checkpoint-refresh prompt
+that opened this session claimed only tranches 1-2 (PR #726, #731-equivalent) had merged, with
+"zero further real commits ... since [tranche 2] merged, roughly four hours ago." That premise was
+already stale at task creation: tranche 3 (PR #746, 493 files, running total 925) had merged
+`2026-08-02T22:52:42Z` — about 22 minutes *before* this task's own creation timestamp
+(`task-20260802-231505`), not four hours prior. Verified directly via `git log`/`gh pr view 746`,
+not assumed. Tranche 3's own text asserts "no other named zone from tranches 1-2's honest remaining
+scope lists remains outstanding" — true for the zones it *named*, but this tranche found real,
+un-named residual zones by independently re-listing each parent directory rather than trusting the
+prior tranche's named list, per this register's own established practice of not silently trusting
+a prior summary without checking the real filesystem.
+
+**Real coverage this tranche: 83 files**, all newly-discovered zones that no prior tranche named:
+
+| Zone | Files | Why missed by tranches 1-3 |
+|---|---|---|
+| live-server `/opt/veridian/ai-os/{audits,stage_c_review_2026-07-29_NOT_INSTALLED,DISABLED_WORKER_UNITS_BACKUP_2026-07-26,DISABLED_WORKER_UNITS_BACKUP_2026-08-01,PAUSED_FOR_RECOVERY_2026-08-01,locks}/` | 51 | Not named in tranche 1's or tranche 2's "honest remaining scope" lists (both enumerated 13 specific subdirs; these 6 exist on disk but were never named), and tranche 3's own zone-breakdown table only covers the 13 named ones |
+| `/opt/veridian/repos/veda-advisors/ai-os/{boss,engines,registry,schemas,scripts,secrets,sentinel,specs}/` | 25 | veda-advisors is a distinct repo from projexa (different GitHub remote) — tranche 1 covered only its `ai-os/` *top-level*, under a table row combining it with projexa; no tranche ever descended into its subdirectories |
+| `/opt/veridian/repos/projexa/ai-os/{boss,scripts}/` | 3 | Same gap as above, projexa side |
+| `/opt/veridian/repos/veridian-ui-kit/ai-os/` (`FUNCTION_CATALOG.json`, `scripts/extract-function-catalog.mjs`) | 2 | `veridian-ui-kit` was never in any tranche's repo list at all |
+| `/opt/veridian/ai-os-scripts/` (`populate_capability_registry.py`, `generate_route_registry_candidates.py`) | 2 | Distinct top-level directory from both `/opt/veridian/ai-os/` and `/opt/veridian/scripts/` — name-adjacent enough to the directive's own wording to be in real scope, but never enumerated by any tranche |
+| **Total** | **83** | |
+
+Real environment note, same class as tranche 3's: this sandbox's `find`/`grep` wrappers were
+re-confirmed to silently truncate large recursive listings (`... more files` trailer) even here;
+every count above was cross-checked with `python3 os.walk()`/`os.listdir()`, not raw `find` output.
+
+### Findings
+
+**0 files with a real UMR reference. 2 files traceable via pre-UMR task-id + commit history**
+(`ai-os-scripts/populate_capability_registry.py` → `task-20260724-083420-phase1-capability-
+registry-live-wiring`; `ai-os-scripts/generate_route_registry_candidates.py` →
+`task-20260724-063645`, both cited in the files' own docstrings and cross-checked against
+`MASTER_INDEX.yaml`). **81 files: no mapping possible** — every one confirmed pre-dating the
+UMR-`YYYYMMDD-HHMMSS`-hex convention (earliest commit dates checked: veda-advisors `boss/BOSS.yaml`
+2026-06-28, veridian-ui-kit `FUNCTION_CATALOG.json` 2026-07-20, the live-server backup/pointer dirs
+2026-07-26 through 2026-08-01) — consistent with tranche 1's structural finding, not re-litigated.
+
+**Zero genuine orphans.** Every one of the 6 live-server directories resolved to a real, live-
+referenced artifact on inspection, not a bare guess: `audits/` is a self-documented pointer to the
+real external `zai-independent-audit-2026-07-30` GitHub repo; `stage_c_review_2026-07-29_NOT_INSTALLED`,
+both `DISABLED_WORKER_UNITS_BACKUP_*` dirs, `PAUSED_FOR_RECOVERY_2026-08-01`, and `locks/` are all
+cited by path in live runtime state (`logs/security-check-state.json`, `logs/file-inventory-cron.log`,
+`session_metadata/WORK_IN_PROGRESS_METADATA.json`) and/or governance docs (`OWNER_DECISIONS_NEEDED_
+2026-07-23.yaml`, `KERNEL_CONSOLIDATION_STATUS.md`, `PARALLEL_COMPLETION_STEP1_REPORT_2026-07-29.md`).
+veda-advisors' `ai-os/boss/BOSS.yaml` self-declares `status: active` and is its own real, distinct
+governance root (`VEDAADVISORBOSS`) — not an orphaned copy of compliance-tracker's `ai-os/boss/`,
+a genuinely different project with its own repo. projexa's `ai-os/scripts/*.mjs` and veridian-ui-kit's
+matching `extract-function-catalog.mjs` are real, self-documented generator tools referenced by
+their own output files.
+
+**Zero new genuine duplicates** — one real near-duplicate-shaped pair was checked and *rejected*:
+`DISABLED_WORKER_UNITS_BACKUP_2026-07-26/list.txt` (44 lines) vs `DISABLED_WORKER_UNITS_BACKUP_
+2026-08-01/list.txt` (24 lines) `diff`ed directly — genuinely different worker-unit snapshots taken
+6 days apart for two different real stop events, not a duplicate pair, consistent with the
+established "sequential backup snapshot, by design" convention from tranche 1's own `STRATEGIC_
+PLAN_2026-07-21.yaml` vs `_v2.yaml` precedent.
+
+### Real drift findings (not per-file orphans, worth recording per this register's own established practice)
+
+1. **`ai-os/templates/` is referenced but does not exist.** `STRATEGIC_PLAN_2026-07-21_v2.yaml`
+   names `ai-os/templates/3-ROUND-AUDIT-CHECKLIST.yaml` as "the literal deliverable this task asked
+   for," and 4 other files (`WIRING_ENGINE_REGISTRY_2026-07-25.json`, `KERNEL_CONSOLIDATION_
+   STATUS.md`, `FUNCTION_CATALOG.json`, `logs/security-check-state.json`) also reference the
+   `templates/` path — but the real directory on disk is empty (0 files, confirmed via `os.walk`
+   after an initial `find` reported 1 file, itself a truncation artifact) and has no git history at
+   all. The named deliverable appears to have never actually been created.
+2. `DISABLED_WORKER_UNITS_BACKUP_2026-08-01/symlink_targets.txt` is a real 0-byte file (its
+   2026-07-26 counterpart is 6,439 bytes) — an incomplete capture at that backup event, not fixed
+   here, discovery-only per this register's scope.
+3. veridian-ui-kit's `FUNCTION_CATALOG.json` is 0 bytes despite the generator script
+   (`extract-function-catalog.mjs`) being real and last run 2026-07-20 — a stale/never-populated
+   output, same class as `MASTER_INDEX.yaml`'s prior-noted live-vs-repo drift.
+
+No fixes applied — flagging only, per this directive's own discovery/classification scope.
+
+### Real running total, this register, all 4 tranches
+
+**381 (tranche 1) + 51 (tranche 2) + 493 (tranche 3) + 83 (tranche 4) = 1,008 real files classified.**
+
+### Honest remaining scope (still not covered by any tranche)
+
+Same standing exclusions as tranche 3: `/opt/veridian/ai-os/tasks/` (899 real task directories,
+explicitly out of scope by design) and product source-code trees (`src/`, `drizzle/`, etc.) in any
+repo, which this register has never claimed to cover. **New, named this tranche**: this session
+also enumerated `/opt/veridian/`'s other top-level directories while investigating `ai-os-scripts/`
+— `shared/`, `logs/`, `chatgpt-prompt-library/`, `browser/`, `.claude/`, `enduser-home/`, `docker/`,
+`apps/`, `isolated_chrome/`, `workspace/`, `external_users/`, `chatgpt-audit/`, `reconciliation/`,
+`data/`, `backups/` — none scanned this tranche (literally outside the directive's own named scope
+of "scripts, ai-os, and any repo," and each is plausibly large enough to be its own tranche); named
+here so a future tranche doesn't have to rediscover them. A prior tranche's own "no zone remains
+outstanding" claim should be read as "no *named* zone" — this tranche is direct evidence that a
+fresh independent listing pass, not just trusting a prior tranche's named list, can still surface
+real un-named residual scope; the same caveat should be applied to this tranche's own claim.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
