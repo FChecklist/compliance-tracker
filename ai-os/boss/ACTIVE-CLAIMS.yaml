@@ -40,6 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-231505-ocid-016-checkpoint-refresh-continue-ful) -- OCID-016 checkpoint-refresh: server-wide artifact traceability register, tranche 4 (UMR-20260802-164659-9a31)"
+    claimed_at: "2026-08-02T23:15Z (this session)"
+    claim: |
+      SPEC (checkpoint-refresh prompt): continue the server-wide artifact traceability scan
+      (UMR-20260802-164659-9a31, OCID-20260802-016) with the next tranche, covering
+      /opt/veridian/scripts, /opt/veridian/ai-os, and any repo not yet covered by tranches 1-2.
+
+      The prompt's own premise was already stale at task creation: it claimed only tranches 1-2
+      had merged, "zero further real commits ... roughly four hours ago." Real check (git log,
+      gh pr view 746) showed tranche 3 (PR #746, 493 files, running total 925) merged
+      2026-08-02T22:52:42Z -- ~22 minutes before this task's own creation timestamp, not four
+      hours prior. Did not redo tranche 3's work.
+
+      Instead independently re-listed (not just trusted tranche 3's named list) the parent
+      directories and found real, un-named residual zones: 6 live-server ai-os/ subdirectories
+      (audits, stage_c_review_2026-07-29_NOT_INSTALLED, both DISABLED_WORKER_UNITS_BACKUP_* dirs,
+      PAUSED_FOR_RECOVERY_2026-08-01, locks), veda-advisors + projexa ai-os/ subdirectories
+      (distinct repos, subdirectories never descended into by any tranche), veridian-ui-kit/ai-os/
+      (never in any tranche's repo list), and /opt/veridian/ai-os-scripts/ (a distinct top-level
+      dir). 83 real files classified, folded into ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md as
+      tranche 4. Real running total: 381+51+493+83 = 1,008.
+
+      File scope: this repo's ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (amendment, tranche 4),
+      this ACTIVE-CLAIMS entry, PROGRESS.md. No src/ or drizzle/ changes, no new database/table.
   - session_label: "claude-code (task-20260802-210700-pm-decision--fix-the-real-high-severity) -- PM decision: fix the real high-severity GET /api/departments 500 (UMR-20260802-165606-4413, OCID-020 Finding A) before resuming the broader certification sweep"
     claimed_at: "2026-08-02T21:07Z (this session)"
     claim: |
