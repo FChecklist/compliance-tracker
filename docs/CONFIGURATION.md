@@ -9,8 +9,15 @@ that aren't env vars but function as configuration.
 
 ## Environment variables
 
-Found via `grep -r "process.env\." src/` (11 distinct names, deduped;
-`CLAUDE.md`'s existing 4 marked accordingly).
+Found via a full-tree `process\.env\.[A-Z_]+` scan of `src/` (33 distinct
+names, deduped; `CLAUDE.md`'s existing 4 marked accordingly). Correction
+(2026-08-02, independent audit on PR #684): an earlier version of this
+table said 11 and claimed LLM provider credentials are never read from
+`process.env` at all — both were wrong. `src/lib/llm-client.ts` itself
+does have zero `process.env` references (DB-stored per-org credentials
+are still the primary path, see below), but `src/lib/orchestra-model-
+resolver.ts`'s `platformApiKeyFor()` does read 6 provider keys as a real
+platform-level fallback/default when no per-org key is configured.
 
 | Var | Required | Purpose |
 |---|---|---|
@@ -23,16 +30,20 @@ Found via `grep -r "process.env\." src/` (11 distinct names, deduped;
 | `CRON_SECRET` | Yes for scheduled jobs | Authenticates Vercel Cron → `internal/loops/run` and the other cron-triggered internal endpoints. **Historical note**: this was empty in production for a period, silently disabling all 3 scheduled cron jobs — see `TEST_LOG.md`. Fixed; don't re-flag as open. |
 | `PLATFORM_AUDIT_ORG_ID` | Platform-level audit tooling only | Scopes cross-org audit/reporting scripts to a specific real org id. |
 | `VERCEL_DEPLOYMENT_WEBHOOK_SECRET` | Deployment-webhook consumers only | Verifies Vercel deployment webhook payloads. |
-| `NEXT_PUBLIC_SENTRY_DSN` | Optional | Sentry error tracking — absent means no error tracking, not a broken build. |
-| `NODE_ENV` / `NEXT_RUNTIME` | Framework-managed | Standard Next.js/Node runtime vars, not VERIDIAN-specific config. |
+| `NEXT_PUBLIC_SENTRY_DSN` / `SENTRY_DSN` | Optional | Sentry error tracking — absent means no error tracking, not a broken build. |
+| `NODE_ENV` / `NEXT_RUNTIME` / `VERCEL_URL` / `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Framework-managed | Standard Next.js/Node/Vercel runtime vars, not VERIDIAN-specific config. |
+| `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY` | Optional, platform-level fallback only | Read by `orchestra-model-resolver.ts`'s `platformApiKeyFor()` as a fallback when an org has no DB-stored per-org model credential configured. Not the primary credential path (see below) — an org with its own `customerModelConfig`/`clientModelConfig` entry never touches these. |
+| `COMPOSIO_API_KEY`, `EXCHANGE_RATE_API_KEY`, `RESEND_API_KEY` | Feature-specific | Composio connector auth, live FX-rate feed, transactional email (`email.ts`) respectively. |
+| `AI_CONFIG_ENCRYPTION_KEY` | Yes if any org has a DB-stored AI model credential | Encrypts/decrypts `customerModelConfig`/`clientModelConfig` secrets at rest. |
+| `SUPABASE_DB_PASSWORD`, `GITHUB_DISPATCH_PAT`, `OPS_SYNC_SECRET`, `DEMO_API_KEY_IDS`, `MEMVID_TELEMETRY`, `ORCHESTRA_PAYLOAD_RETENTION_DAYS` | Various ops/tooling | Narrow-purpose vars for specific scripts/integrations — see each var's own call site for detail, not repeated here to avoid drifting out of sync with the code. |
 
-**Not an env var, by design**: LLM provider credentials (Groq/OpenAI/
-Anthropic/Google/OpenRouter). `src/lib/llm-client.ts` has zero
-`process.env` references — provider credentials are DB-stored per org via
-`customerModelConfig`/`clientModelConfig`/BYO-model config (see
-`docs/master/MODULE_MAP.md`'s Orchestra section), not `.env` keys. Do not
-add an `OPENAI_API_KEY`-shaped var expecting it to do anything — it won't
-be read.
+**DB-stored, not env-var, by design (primary path)**: LLM provider
+credentials for a specific org are stored via `customerModelConfig`/
+`clientModelConfig`/BYO-model config (see `docs/master/MODULE_MAP.md`'s
+Orchestra section), not `.env` keys — this is intentional so each org/
+tenant can bring its own model credentials. The 6 provider `*_API_KEY`
+vars above are the platform-level fallback for orgs that haven't
+configured their own, not a substitute for the per-org path.
 
 ## Notable in-code constants & flags
 

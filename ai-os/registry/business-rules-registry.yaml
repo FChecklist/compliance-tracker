@@ -176,7 +176,7 @@ domains:
         enforced_by:
           file: src/lib/services/hr-attendance-service.ts
           function: syncLeaveIntoAttendance
-          line: 22
+          line: 546
           note: >-
             Imported and called from src/lib/services/hr-service.ts (line
             199) on leave-request approval -- the rule's call site and its
