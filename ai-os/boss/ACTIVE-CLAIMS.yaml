@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-171740-amendment--consolidate-a-single-unified) -- AMENDMENT: consolidate/verify the single unified project memory model every AI instance reads/writes [DOCS ONLY, no code, no new DB]"
+    claimed_at: "2026-08-02T17:17Z (this session)"
+    claim: |
+      SPEC (Owner directive OCID-20260802-018): AMENDMENT to parent UMRs
+      UMR-20260802-054239-4251 (Kernel reconciliation report verification)
+      and UMR-20260802-104058-25ba (implementation matrix) -- no new
+      implementation or audit for this directive itself, inherits parent
+      status. Real discovery + verification of whether a single project
+      state/decision log/traceability path/dependency graph/findings
+      record/evidence trail already exists, or is scattered -- consolidate
+      into the existing canonical files (no new DB/repo/duplicate).
+
+      Collision check performed before starting (per this file's own
+      protocol): grepped this file + ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
+      for this exact directive/OCID -- none found. A closely-related prior
+      amendment already exists in the same canonical file (`## Amendment
+      (2026-08-02): Unified project memory model (UMR-20260802-165434-cd91)`,
+      merged via PR #725, commit 75cd6554) covering 7 file-based governance
+      artifacts -- this is a distinct, later Owner directive (OCID-018 vs
+      the untagged prior pass) asking for a more exhaustive real-discovery
+      sweep. Per the gatekeeper rule (`UMR-20260802-165034-5747`, same file):
+      EXTEND the existing amendment, do not duplicate or rebuild it -- this
+      task's own real DB inspection (`/opt/veridian/ai-os/memory/superboss-register.sqlite`)
+      found the prior pass omitted 4 real, live, actively-written tables
+      inside that same DB (knowledge_engine 376 rows, wiring_registry 7,987
+      rows, audit_findings 16,672 rows, task_claims 43 rows) that are
+      directly relevant to the directive's "single findings record" /
+      "single dependency graph" questions -- and found a real, currently-
+      open drift gap between the live-server and repo copies of
+      `MASTER_INDEX.yaml` (123 vs 59 registries, confirmed live via
+      `system-sync.py --check mirror` this session), which the prior
+      amendment's "not scattered duplicates" conclusion did not check.
+
+      File scope: this repo's `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (amendment, in place) + this ACTIVE-CLAIMS entry + PROGRESS.md. No
+      src/ or drizzle/ changes, no new database/table/file.
   - session_label: "claude-code (task-20260802-040131-parallel-job--collate-existing-module-en) -- Collate existing module/engine wiring+UTM map, spot-verify it, cross-reference against master directive priority list [DOCS/COLLATION ONLY, no code]"
     claimed_at: "2026-08-02T04:01Z (this session)"
     claim: |
