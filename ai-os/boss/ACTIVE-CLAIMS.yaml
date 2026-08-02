@@ -4170,6 +4170,46 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (task-20260802-171733-amendment--design-a-master-execution-fra) -- Master Execution Framework design request found ALREADY DONE, not re-executed [duplicate-dispatch finding, no new design content]"
+    claimed_at: "2026-08-02T17:17Z (this session)"
+    claim: |
+      SPEC (Owner directive OCID-20260802-015): design a master execution
+      framework of deterministic, non-overlapping execution streams, amending
+      parent UMRs UMR-20260802-054239-4251 and UMR-20260802-104058-25ba.
+
+      GATEKEEPER CHECK RUN FIRST (per this file's own Rule 11 protocol and the
+      standing gatekeeper rule in ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md,
+      UMR-20260802-165034-5747): this exact deliverable already exists. The
+      matrix file's own "Amendment (2026-08-02): Master Execution Framework"
+      section (merged via PR #725, commit 75cd6554/d3d88751, already an
+      ancestor of this task's own branch) amends the SAME two parent UMRs and
+      delivers the SAME 14-stream list, dependency/overlap map, and phased
+      execution order this task was dispatched to produce. Real evidence:
+      the merging task's own task.yaml
+      (task-20260802-165846-adopted-amend-matrix-execution-framework-gatekee,
+      status: completed, adopted_pr_url -> PR #725) and direct git ancestry
+      check (not narrated).
+
+      NOT RE-EXECUTED. Added a verification-only cross-reference note to the
+      matrix file (no new design content, per the no-duplication rule) and
+      recommended to the Owner that this task close as already-satisfied.
+
+      FLAG FOR SIBLING SESSIONS: 4-5 other tasks dispatched in the same
+      ~14-second window (task-20260802-171730 x2,
+      task-20260802-171736-amendment--standing-pre-execution-gateke,
+      task-20260802-171740-amendment--consolidate-a-single-unified,
+      task-20260802-171744-amendment--continuous-recovery-framework) each map
+      1:1 onto a different section PR #725 already delivered (gatekeeper rule,
+      unified memory model, recovery matrix, traceability register
+      respectively) -- likely the same OCID-20260802-015 directive dispatched
+      redundantly after the work was already merged. If you are one of those
+      sessions reading this: run the same check before writing new content.
+    scope_note: >-
+      File scope: this task's own PROGRESS.md, a verification-only note
+      appended to ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (not a rewrite of
+      its existing content), and this ACTIVE-CLAIMS.yaml entry. No new
+      design/architecture/database/module created, per the task's own
+      explicit instruction and because none was needed.
 recently_completed:
   - session_label: "claude-code (task-20260802-055214-register-veridian-kernel-1-0---kernel-co) -- Reconciled dispatched VERIDIAN_KERNEL=1.0 text against real AI-OS governance [DONE, PR pending]"
     claimed_at: "2026-08-02T (this session, closed same session)"
