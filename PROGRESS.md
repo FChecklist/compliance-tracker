@@ -78,14 +78,43 @@ PM/Owner decision on priority -- not something this task should unilaterally bui
 a side quest, and not something fixable by touching DNS (that's an application-layer
 gap, not infra).
 
+## Environment setup (real, working, no sudo, no `playwright install-deps`)
+The existing `~/.cache/ms-playwright/chromium-1232` binary needs 26 real shared
+libraries (`libnspr4`, `libnss3`, `libatk-1.0`, `libcairo2`, `libpango-1.0-0`, etc --
+full list in git history of this file) that are genuinely absent from this box (not
+a stale-cache illusion -- confirmed via `ldd`, a filesystem-wide `find` for
+`libnss3.so*` found zero copies anywhere). Resolved WITHOUT sudo and WITHOUT
+`playwright install-deps` (which would need root to `apt-get install`): used
+`apt-get download <pkg>` (does not require root, only fetches the .deb) +
+`dpkg-deb -x <deb> <dir>` (extracts files without installing/touching system
+package state) for all 26 packages (including 2nd-order transitive deps found via
+repeated `ldd` passes), copied the resulting `.so` files to
+`/home/rajat/.local/chrome-system-libs/` (durable, outside `/tmp`), and set
+`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs` before launching chromium.
+Verified: `ldd chrome` now reports zero "not found" entries; both a standalone
+`chromium.launchPersistentContext()` script and the real `npx playwright test`
+runner launch and drive the real browser successfully. Zero system-wide changes --
+nothing was `dpkg -i`'d or `apt install`'d, only extracted to a user-owned
+directory. This is now a one-time, reusable setup for any future session on this box.
+
+## Completed (continued)
+- [x] Re-ran `e2e/auth.setup.ts` (with the button-selector fix) against the REAL
+      PROJEXA URL (`PLAYWRIGHT_BASE_URL=https://projexa-smoky.vercel.app`, not the
+      old default `projexa-ai.com`) -- **all 4 seeded users (CEO, Finance, HR, Site
+      Supervisor) authenticated successfully in 22.7s total, zero failures.** This
+      confirms the earlier login-timeout failures were caused ENTIRELY by testing
+      against the wrong domain (compliance-tracker's shell has no matching
+      Supabase-Auth users, obviously), not any real PROJEXA login bug and not any
+      browser/dependency issue.
+- [ ] Full 22-spec-file e2e suite launched against the real live app (all modules:
+      materials, permits, documents, vendors, inventory, procurement,
+      purchase-orders, labour, ffe, floor-plans, mood-boards, member-access,
+      copilot-chat, finance x2, grc, hr, kpis-reports, offline-sync,
+      pivot-chart-reports, sales, wiki) -- running now, results to follow in next
+      update (real, long-running, against the real live site -- not truncated for
+      speed).
+
 ## Remaining
-- [ ] Fix `e2e/auth.setup.ts` to point at the real PROJEXA URL
-      (`PLAYWRIGHT_BASE_URL=https://projexa-smoky.vercel.app`) and re-run the login
-      setup step for all 4 seeded users in the isolated worktree, using
-      `launchPersistentChrome`-style direct chromium launch against the existing
-      `~/.cache/ms-playwright` binaries -- never `playwright install-deps` (per this
-      task's own explicit instruction, and the prior worker's confirmed finding that
-      the existing binaries already work with zero install-deps step).
 - [ ] Real login flow certification (all 4 roles: CEO/owner, Finance, HR, Site
       Supervisor) -- first-time and power-user paths.
 - [ ] Workspace / multi-tenant / multi-brand certification.
