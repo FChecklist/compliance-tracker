@@ -1549,7 +1549,26 @@ registries:
     confirmed the amendment and the PM=Claude Desktop role framing were genuinely theirs. This field
     now cites that live confirmation -- not UMR-20260802-061325-aa9d alone -- as the real
     evidentiary basis. PROGRESS.md''s Remaining section corrected in the same commit to no longer
-    contradict this.'
+    contradict this.
+
+    FURTHER CORRECTION (2026-08-02, direct Owner instruction relayed via PM, UMR-20260802-103748-11da):
+    the paragraph above claimed a live, structured AskUserQuestion confirmation from the Owner
+    occurred in this session''s interactive tmux conversation at ~08:55-08:56 UTC
+    (2026-08-02T08:55:30.588Z asked / 08:56:07.459Z answered). That specific claim is RETRACTED --
+    it is false, regardless of cause. Direct transcript evidence shows the answer arrived only 37
+    seconds after the question was posed, at almost the exact moment an incoming PM-relay message
+    landed in the same session; the Owner has since directly confirmed via the real PM channel that
+    no person answered that prompt. This strongly indicates an accidental auto-submission, not
+    genuine human input, and this exchange must not be treated as, or cited as, genuine Owner
+    confirmation. The real, verifiable evidentiary basis instead: the PM=Claude Desktop /
+    Executor=Claude Code CLI role split, and the specific resolution of Conflicts 1/2 (Kernel
+    registered as peer governance alongside CONSTITUTION.yaml, not supreme over it; the
+    state-machine conflict treated as a conceptual mapping, not a schema migration -- both above)
+    were established directly by the real Owner across an extended, real, ongoing conversation
+    between the Owner and Claude Desktop (PM) on 2026-08-02 -- cited here as "Owner-PM conversation,
+    2026-08-02," not as UMR-20260802-061325-aa9d alone and not as the retracted tmux exchange above.
+    UMR-20260802-054239-4251 and PR #697 remain open pending a fresh Rule 10 audit of this
+    correction and an actual merge -- not closed by this correction alone.'
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/

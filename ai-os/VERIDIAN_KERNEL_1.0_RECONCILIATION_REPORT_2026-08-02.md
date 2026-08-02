@@ -116,3 +116,26 @@ Same discipline `ai-os/CONSTITUTION.yaml`'s own `amendment_log` uses (date + rea
   role split) stands, now on real evidence — see `ai-os/MASTER_INDEX.yaml`'s
   `amendment_2026-08-02_evidence_correction` field for the full record, and `PROGRESS.md`'s
   Remaining section, corrected in the same commit.
+
+- **2026-08-02, further correction (direct Owner instruction relayed via PM,
+  `UMR-20260802-103748-11da`) — the tmux-confirmation claim above is RETRACTED:** the entry
+  immediately above claimed a live, structured `AskUserQuestion` confirmation from the Owner
+  occurred at ~08:55-08:56 UTC in this session's interactive tmux conversation. That specific
+  claim is false and is withdrawn, regardless of cause. Direct transcript evidence
+  (`2d098571-60e7-4d38-8d5d-4223a50d15de.jsonl`) shows the question was asked at
+  `2026-08-02T08:55:30.588Z` and answered at `08:56:07.459Z` — only 37 seconds later, arriving at
+  almost the exact moment an incoming PM-relay message landed in the same session. This strongly
+  indicates an accidental auto-submission, not genuine human input, and the Owner has since
+  directly confirmed via the real PM channel that no person answered that prompt. This exchange
+  must not be cited as, or treated as, genuine Owner confirmation.
+  The real, verifiable evidentiary basis for the amendment's substance instead: the
+  PM=Claude Desktop / Executor=Claude Code CLI role split, and the specific resolution of
+  Conflicts 1/2 above (Kernel as peer governance alongside `CONSTITUTION.yaml`, not supreme over
+  it; the state-machine conflict as a conceptual mapping, not a schema migration), were established
+  directly by the real Owner across an extended, real, ongoing conversation between the Owner and
+  Claude Desktop (PM) on 2026-08-02 — cited here as **"Owner-PM conversation, 2026-08-02,"** not
+  as `UMR-20260802-061325-aa9d` alone and not as the retracted tmux exchange above. See
+  `ai-os/MASTER_INDEX.yaml`'s `amendment_2026-08-02_evidence_correction` field (same further
+  correction, in place) for the matching record. `UMR-20260802-054239-4251` and PR #697 remain
+  open pending a fresh Rule 10 audit of this correction and an actual merge — not closed by this
+  correction alone.
