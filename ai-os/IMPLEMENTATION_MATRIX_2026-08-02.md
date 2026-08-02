@@ -385,3 +385,21 @@ directive was explicitly scoped to detection/verification, not new implementatio
 duplicate worker/task/PR/audit as a side effect — `check_latest_task.py` only restarts the *same*
 unit for the *same* `latest` task id; `resource_governor.py`'s own duplicate-PR guard (item above)
 exists specifically to prevent exactly this class of duplication.
+
+---
+
+## Verification note (2026-08-02): duplicate dispatch of the Master Execution Framework request found and NOT re-executed
+
+Per the standing gatekeeper rule above (`UMR-20260802-165034-5747`: *"If found: extend/update it,
+never rebuild or duplicate"*), `task-20260802-171733` (OCID-20260802-015, citing the same two parent
+UMRs, `UMR-20260802-054239-4251` and `UMR-20260802-104058-25ba`) ran the required check before doing
+any design work and found the **"Amendment (2026-08-02): Master Execution Framework"** section above
+(this same file) already delivers the exact deliverable requested — 14-stream list, dependency/overlap
+map, phased execution order, relation-to-existing-UMRs section — merged to `main` via PR #725
+(`75cd6554`/`d3d88751`), predating this task's own creation by ~15 minutes. Real evidence: `git log`
+ancestry (PR #725's merge commit is already this task branch's own ancestor) and
+`ai-os/tasks/task-20260802-165846-adopted-amend-matrix-execution-framework-gatekee/task.yaml`
+(`status: completed`, `adopted_pr_url` pointing at PR #725). **No new design content added — this
+note is a verification record only, per this file's own no-duplication rule.** Recommendation to the
+Owner: close `task-20260802-171733` as already-satisfied rather than merging a second, redundant
+design amendment. Full evidence chain: this task's own `PROGRESS.md`.
