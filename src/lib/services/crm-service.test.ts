@@ -7,7 +7,7 @@
 // a .test.ts file (see crm-accounts-service.test.ts's own header note).
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { computeRoundRobinAssignment } from "./crm-service"
+import { computeRoundRobinAssignment, aggregateLeadSourceEffectiveness } from "./crm-service"
 
 describe("computeRoundRobinAssignment -- deterministic, zero-AI load-balanced distribution", () => {
   test("distributes evenly round-robin across multiple active users (Auto Assign mode, no cap)", () => {
@@ -80,5 +80,64 @@ describe("computeRoundRobinAssignment -- deterministic, zero-AI load-balanced di
     expect(assignments).toHaveLength(3)
     expect(assignments.every((a) => a.userId === "u1")).toBe(true)
     expect(perUser).toEqual({ u1: 3 })
+  })
+})
+
+describe("aggregateLeadSourceEffectiveness -- sap_reports lead_source_effectiveness gap", () => {
+  test("conversion rate and avg won-deal size computed per source, from real won/lost opportunities only", () => {
+    const leads = [
+      { id: "l1", source: "referral", status: "converted" },
+      { id: "l2", source: "referral", status: "lost" },
+      { id: "l3", source: "website", status: "qualified" },
+    ]
+    const opportunities = [
+      { leadId: "l1", stage: "won", estimatedValue: "10000" },
+      { leadId: "l2", stage: "lost", estimatedValue: "5000" },
+      { leadId: "l3", stage: "won", estimatedValue: "4000" },
+    ]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, opportunities)
+    const referral = bySource.find((r) => r.source === "referral")!
+    const website = bySource.find((r) => r.source === "website")!
+    expect(referral.totalLeads).toBe(2)
+    expect(referral.wonDeals).toBe(1)
+    expect(referral.totalDeals).toBe(2)
+    expect(referral.conversionRate).toBe(0.5)
+    expect(referral.avgWonDealSize).toBe(10000)
+    expect(website.conversionRate).toBe(1)
+    expect(website.avgWonDealSize).toBe(4000)
+  })
+
+  test("open (not won/lost) opportunities never count toward conversion rate or deal totals", () => {
+    const leads = [{ id: "l1", source: "cold_outreach", status: "qualified" }]
+    const opportunities = [{ leadId: "l1", stage: "proposal", estimatedValue: "8000" }]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, opportunities)
+    const row = bySource.find((r) => r.source === "cold_outreach")!
+    expect(row.totalDeals).toBe(0)
+    expect(row.wonDeals).toBe(0)
+    expect(row.conversionRate).toBeNull()
+    expect(row.avgWonDealSize).toBeNull()
+  })
+
+  test("null/blank source buckets as 'unattributed', not dropped or crashed on", () => {
+    const leads = [{ id: "l1", source: null, status: "new" }, { id: "l2", source: "  ", status: "new" }]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, [])
+    expect(bySource).toHaveLength(1)
+    expect(bySource[0].source).toBe("unattributed")
+    expect(bySource[0].totalLeads).toBe(2)
+  })
+
+  test("opportunity with no leadId (created directly against a client) is excluded, not misattributed", () => {
+    const leads = [{ id: "l1", source: "referral", status: "converted" }]
+    const opportunities = [
+      { leadId: "l1", stage: "won", estimatedValue: "1000" },
+      { leadId: null, stage: "won", estimatedValue: "999999" }, // must never leak into any source's totals
+    ]
+    const { bySource } = aggregateLeadSourceEffectiveness(leads, opportunities)
+    expect(bySource).toHaveLength(1)
+    expect(bySource[0].avgWonDealSize).toBe(1000)
+  })
+
+  test("zero leads is a real no-op -- empty report, not a crash", () => {
+    expect(aggregateLeadSourceEffectiveness([], [])).toEqual({ bySource: [] })
   })
 })
