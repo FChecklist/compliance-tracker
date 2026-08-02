@@ -137,6 +137,8 @@ meta:
     - { date: "2026-07-18", change: "Review Framework gap-closure (AI Architecture / Domain Accuracy & Quality): added DMP-02A (embeddings.ts/whisper-client.ts as approved capability-tree/policy-gate exceptions, additive documentation only -- narrows nothing); updated GP-08's mechanism/gap to reflect policy-enforcement-engine.ts::hasGroundingData(), a new deterministic pre-call grounding-presence gate wired into report-engine-service.ts's ai_recipe executor and (via enforcePolicy()) ai-report-builder-service.ts's upload-to-report flow -- the two remaining free-text LLM call sites in the codebase that had zero policy gate (every other call site already had one).", by: "claude-code (background sub-agent)" }
     - { date: "2026-07-18", change: "Checks & Balances / Exception Handling & Recovery gap closure: updated HAB-02 (checkHighImpactConfirmation() extracted as the one reusable confirm-gate function), AUDIT-03's L3 cadence entry (Rolling Health Audit now PARTIALLY_ENFORCED via controls-health-audit.ts, on-demand not scheduled), and GP-29 (named Exception Handling Framework taxonomy on ServiceError + real compensating-rollback/automatic-recovery in the fixed-assets JE-posting flows and the approval-decide route).", by: "claude-code (interactive session, task-20260718-091002)" }
     - { date: "2026-07-19", change: "AIROUTER-01 Phase 2: added ai_orchestra_tiers.software_team_l0_l5_implementation -- AI_ORCHESTRA_HIERARCHY.md's Table 1 (Software Development) is now a real, built implementation (L0-L5 dispatch wiring, Instruction Contract/Execution Report task register, capability-based routing matrix seeded into ai_routing_policies), not just a documented mapping. 3 rounds of independent GLM-5.2 audit completed -- see ai-os/AIROUTER_SOFTWARE_TEAM_AUDIT_LOG.md.", by: "claude-code (worker task-20260719-122711-airouter-01-phase-2--software-team-l0-l5)" }
+    - { date: "2026-07-21", change: "Audit198 gap closure (CACHING category, RULE-076/077, ARTICLE-051/053/054/055): added src/lib/cache-governance.ts (cache registry + logCacheEvent()), wired hit/miss/write/invalidate logging into llm-response-cache.ts, asset-registry-cache.ts, and instruction-execution-cache-service.ts; added invalidateLlmResponseCache()/invalidateAllLlmResponseCache() (previously TTL-expiry was the ONLY freshness mechanism for that cache); added GET /api/ai/cache/governance (veridian_admin-gated monitoring endpoint). Added CACHE-05 through CACHE-10 below.", by: "claude-code (audit198-gap-wave5, CACHING/INTEGRATIONS_API_GOVERNANCE/COMPLETION_RATE_KPI/DOCUMENTATION/GOVERNANCE_OWNERSHIP cluster)" }
+    - { date: "2026-07-21", change: "Audit198 gap closure continued (DOCUMENTATION, GOVERNANCE_OWNERSHIP, COMPLETION_RATE_KPI, INTEGRATIONS_API_GOVERNANCE categories): built platform.production_issues knowledge-repository table + API (ARTICLE-076, was NOT_YET_BUILT), ai-os/registry/deprecations.yaml + scripts/check-deprecations.mjs CI check (ARTICLE-079), .github/CODEOWNERS (RULE-048), and added COMPLETION_RATE_KPI/DOCUMENTATION/GOVERNANCE_OWNERSHIP entries to category-checkers.mjs's CATEGORY_INFRA (previously absent for all 3 categories, meaning every item in them was structurally capped below ENFORCED regardless of real code). Added DOC-01..03, OWN-01..02, KPI-01..04, API-01..04 below.", by: "claude-code (audit198-gap-wave5, same cluster)" }
 
 # ============================================================================
 # 1. IDENTITY AND PURPOSE
@@ -806,6 +808,138 @@ prompt_cache_framework:
       rule: "This table is metrics only -- it is not a cache store. The actual cached content lives on the provider's own infrastructure (Anthropic's 5-minute-TTL server-side cache); VERIDIAN's own code never stores or serves cached prompt content itself."
       status: ENFORCED
       note: "A prior draft of this framework proposed a 'cache_registry' as if it were a data store -- corrected before implementation: there is nothing for VERIDIAN to store, since the provider already stores it. Recorded here so a future session doesn't rebuild a redundant local cache."
+    - id: CACHE-05
+      rule: "Browser cache, application cache, server cache, metadata cache, and workflow cache are maximized wherever appropriate, alongside the AI provider cache, to reduce latency, reduce AI cost, and improve user experience."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/browser-intent-cache.ts (browser, client IndexedDB), src/lib/services/instruction-execution-cache-service.ts (application/workflow, pgvector instruction-reuse), src/lib/llm-response-cache.ts (server, DB-backed LLM completions), src/lib/services/asset-registry-cache.ts (metadata, in-process compiled registry), src/lib/prompt-cache/* (AI provider -- see CACHE-01..CACHE-04 above). Full inventory + declared policy: src/lib/cache-governance.ts::CACHE_REGISTRY."
+      gap: "All six named cache types have a real, wired implementation as of 2026-07-21 (previously true but never cross-referenced together in one place) -- 'maximized wherever appropriate' is not yet literally true everywhere: llm-response-cache is opt-in at only 2 call sites (src/app/api/ai/orchestrate/route.ts, src/lib/services/fde-service.ts), not automatic at every AI invocation site across the codebase's 400+ API routes. Breadth of adoption, not existence of the mechanisms, is the remaining gap."
+      source: "RULES_ARTICLES_198.json RULE-076; audit198 gap-closure 2026-07-21"
+    - id: CACHE-06
+      rule: "Cache invalidation follows predefined governance rules, and every cache layer is monitored, audited, measured, and optimized continuously by software, without requiring AI intervention."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/cache-governance.ts::CACHE_REGISTRY (declared TTL/invalidation policy per cache, hand-verified against each cache's real code), GET /api/ai/cache/governance (veridian_admin-gated monitoring, zero AI call in the route), GET /api/assets/cache/stats (asset-registry-cache-specific), llm-response-cache.ts::invalidateLlmResponseCache()/invalidateAllLlmResponseCache()/purgeExpiredLlmResponseCache() (explicit invalidation + TTL-expiry sweep, added this pass -- TTL was previously the ONLY freshness mechanism for that cache), asset-registry-cache.ts::invalidateOrgCache()/invalidateAllCaches() (pre-existing). Every operation above is deterministic software, zero LLM/AI call."
+      gap: "instruction-execution-cache has no explicit invalidation function (TTL-expiry-only is not even applicable -- rows persist until manually pruned; recorded honestly in cache-governance.ts's registry notes rather than glossed over). llm-response-cache's invalidateLlmResponseCache(orgId) cannot address a single org's rows without a schema change (cacheKey is a single sha256 hash with no separate orgId column) -- it currently performs a full clear, documented as a known limitation, not silently overclaimed."
+      source: "RULES_ARTICLES_198.json RULE-077, ARTICLE-054; audit198 gap-closure 2026-07-21"
+    - id: CACHE-07
+      rule: "The system shall reuse historical knowledge before generating new AI responses."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/services/instruction-execution-cache-service.ts::findPriorExecutionPath() -- embeds the instruction, cosine-matches against platform.instruction_execution_cache, returns the prior resolution above MATCH_THRESHOLD (0.95) instead of re-deriving one; called from src/lib/services/fde-service.ts. Hit/miss now logged via cache-governance.ts::logCacheEvent() (added 2026-07-21, see CACHE-09)."
+      gap: "Wired at exactly one call site (fde-service.ts's VERI FDE resolution path), not every AI-response-generating call site in the codebase."
+      source: "RULES_ARTICLES_198.json ARTICLE-051; audit198 gap-closure 2026-07-21"
+    - id: CACHE-08
+      rule: "Cache is checked before invoking AI."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/llm-response-cache.ts::callLLMCached()/callLLMJsonCached() query the DB-backed cache and return on a fresh hit before ever calling callLLM() -- wired at src/app/api/ai/orchestrate/route.ts and src/lib/services/fde-service.ts."
+      gap: "Not literally 'always' -- opt-in at 2 wired call sites, not automatic at every AI invocation site across the codebase's 400+ API routes (same breadth gap as CACHE-05)."
+      source: "RULES_ARTICLES_198.json ARTICLE-053; audit198 gap-closure 2026-07-21"
+    - id: CACHE-09
+      rule: "Cache hit and cache miss are logged."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/cache-governance.ts::logCacheEvent() (structured JSON hit/miss/write/invalidate/expire event log + in-memory counters, exposed via GET /api/ai/cache/governance, veridian_admin-gated) wired into llm-response-cache.ts, asset-registry-cache.ts, and instruction-execution-cache-service.ts on 2026-07-21 -- none of this logging existed before this pass; each file's hit/miss behavior was previously observable only by reading the caller's own control flow."
+      gap: "browser-intent-cache.ts (client-side IndexedDB) cannot be observed or logged by this server-process-scoped mechanism -- a genuine technical constraint (no server visibility into browser storage), recorded honestly in cache-governance.ts's registry rather than silently excluded."
+      source: "RULES_ARTICLES_198.json ARTICLE-055; audit198 gap-closure 2026-07-21"
+    - id: CACHE-10
+      rule: "Cache invalidation shall follow predefined governance rules."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/cache-governance.ts::CACHE_REGISTRY declares each cache's TTL + invalidation policy (hand-verified against real code 2026-07-21). llm-response-cache.ts::invalidateLlmResponseCache()/invalidateAllLlmResponseCache()/purgeExpiredLlmResponseCache() (explicit invalidation + TTL sweep, added 2026-07-21 -- TTL expiry was previously the ONLY freshness mechanism this cache offered). asset-registry-cache.ts::invalidateOrgCache()/invalidateAllCaches() (pre-existing explicit invalidation)."
+      gap: "instruction-execution-cache has no explicit invalidation function at all (rows persist until manually pruned) -- recorded honestly in the registry, not glossed over. llm-response-cache's org-scoped invalidation cannot address a single org (cacheKey is a single sha256 hash, no separate org_id column) -- performs a full clear instead, a documented known limitation."
+      source: "RULES_ARTICLES_198.json ARTICLE-054; audit198 gap-closure 2026-07-21"
+
+# ============================================================================
+# AUDIT198 GAP CLOSURE, 2026-07-21 -- DOCUMENTATION + GOVERNANCE_OWNERSHIP
+# ============================================================================
+documentation_governance:
+  rules:
+    - id: DOC-01
+      rule: "Every production issue is documented in a knowledge repository."
+      status: PARTIALLY_ENFORCED
+      mechanism: "platform.production_issues table (drizzle/0251_production_issues_knowledge_repository.sql) + GET/POST /api/engineering/production-issues + PATCH /api/engineering/production-issues/[id] (veridian_admin-gated). Fields: title, component, severity, status, description, root_cause, resolution, prevention_action, related_pr, tags, discovered_at, resolved_at -- a real postmortem/knowledge-base shape, not a bare log. Distinct from compliance.incidents (GRC/business incident register, no description/root-cause/resolution field) -- see schema.ts's table comment for why these are genuinely different concerns."
+      gap: "Built 2026-07-21 with zero historical backfill -- no production issue from before this date has an entry yet. No UI page yet (API-only); no automated ingestion from error tracking (Sentry, per src/instrumentation.ts) into this table -- issues must be entered manually today."
+      source: "RULES_ARTICLES_198.json ARTICLE-076 (num 76, DOCUMENTATION category); audit198 gap-closure 2026-07-21"
+    - id: DOC-02
+      rule: "Every engineering decision shall document its assumptions, constraints, and trade-offs."
+      status: PARTIALLY_ENFORCED
+      mechanism: "ai-os/CONSTITUTION.yaml's own amendment_rule + amendment_log (this file, meta section) requires a dated one-line reason for any amendment that changes what a rule permits -- a real, enforced (by the amendment_rule's own stated discipline, followed consistently across every amendment_log entry above) engineering-decision record. Separately, this codebase's own file-header-comment culture (see src/lib/cache-governance.ts, src/lib/llm-response-cache.ts, src/lib/services/asset-registry-cache.ts, src/lib/services/instruction-execution-cache-service.ts for examples written/extended 2026-07-21) routinely states the alternative considered, why it was rejected, and the honest limitation of what was built -- a real, widespread pattern, not formalized as a single named mechanism."
+      gap: "Not a single enforced mechanism -- amendment_log covers CONSTITUTION.yaml changes specifically; header-comment discipline is a strong observed convention, not a CI-checked requirement (no automated check that a new/changed .ts file's header documents assumptions/trade-offs)."
+      source: "RULES_ARTICLES_198.json ARTICLE-077 (num 77, DOCUMENTATION category); audit198 gap-closure 2026-07-21"
+    - id: DOC-03
+      rule: "Every software module, workflow, API, AI agent, automation, integration, and scheduled process shall have complete documentation of inputs, outputs, validation rules, guardrails, dependencies, reporting, and escalation paths."
+      status: PARTIALLY_ENFORCED
+      mechanism: "ai-os/registry/deprecations.yaml + scripts/check-deprecations.mjs (CI-enforced, added 2026-07-21) covers the deprecation/retirement-schedule slice. ai-os/registry/asset-registry-coverage.yaml + scripts/check-asset-registry-coverage.mjs (pre-existing) covers per-table registration. .github/CODEOWNERS (added 2026-07-21) covers per-module ownership/escalation routing. No single mechanism covers the full input/output/validation/guardrail documentation surface this rule names for EVERY module."
+      gap: "The individual pieces (deprecation, asset registration, ownership) are each real and CI-enforced, but there is no single per-module 'complete documentation' artifact or check -- this remains the most architecturally broad item in the category and the least mechanically verifiable as one thing."
+      source: "RULES_ARTICLES_198.json RULE-091 (num 91, DOCUMENTATION category); audit198 gap-closure 2026-07-21"
+
+ownership_governance:
+  rules:
+    - id: OWN-01
+      rule: "Every software module and AI component shall have clearly defined ownership, responsibilities, authority, inputs, outputs, reporting requirements, and escalation paths."
+      status: PARTIALLY_ENFORCED
+      mechanism: ".github/CODEOWNERS (added 2026-07-21) -- real GitHub PR-review-routing enforcement per module path (governance/CI/DB-schema/AI-platform paths explicitly routed, default owner for everything else). AI component ownership: src/lib/ai-team/roster.ts + ai-os/CONSTITUTION.yaml's orchestrator_governance section (pre-existing) define role/authority for the AI Team dispatch system itself. AGENTS.md Operating Rules 1-11 define the escalation path (PR/CI gate, agent authorization, no-override-without-owner-directive)."
+      gap: "CODEOWNERS names one owner (@FChecklist) for every path today (single-collaborator repo, confirmed via gh api) -- per-module OWNERSHIP is structurally declared but not yet DIFFERENTIATED (no module has a distinct owner from any other yet). Responsibilities/authority/reporting for most individual modules still live in scattered header comments, not one indexed place."
+      source: "RULES_ARTICLES_198.json RULE-048 (num 48, GOVERNANCE_OWNERSHIP category); audit198 gap-closure 2026-07-21"
+    - id: OWN-02
+      rule: "Users shall only perform activities that fall within the authorized scope of the product, subscribed modules, assigned permissions, and defined business guardrails."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/classification.ts::canAccess() (role/classification-level gate, e.g. incidents.route.ts's per-record classification check), src/lib/policy-enforcement-engine.ts::enforcePolicy() (business-purpose + role/RLS gate for AI calls), src/lib/module-rules-resolver.ts::resolveModuleRule() (per-org/per-module rule override, e.g. incidents' regulatory_notify_triggers), requireAuth()/requireRole() (src/lib/supabase/auth-guard.ts, used across every admin/member-gated route in this codebase)."
+      gap: "These are real, independently-verified gates at their respective call sites, but there is no single 'authorized scope' registry cross-referencing product/subscribed-modules/permissions/guardrails together -- enforcement is real and distributed, completeness across every route is not independently audited as one thing."
+      source: "RULES_ARTICLES_198.json RULE-050 (num 50, GOVERNANCE_OWNERSHIP category); audit198 gap-closure 2026-07-21"
+
+# ============================================================================
+# AUDIT198 GAP CLOSURE, 2026-07-21 -- COMPLETION_RATE_KPI + INTEGRATIONS_API_GOVERNANCE
+# ============================================================================
+completion_rate_kpi_governance:
+  rules:
+    - id: KPI-01
+      rule: "The target completion rate for all valid business tasks is 100%, subject only to user permissions, business rules, and external system availability."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/qa-precompletion-gate.ts::checkQaPreCompletionGate() gates a dispatch from reaching lifecycle_stage='completed' without a structured self-assessment or explicit override; src/lib/activity-log-service.ts::getGovernanceHealthCounts()/listStuckActivities() surface non-completing work for follow-up."
+      gap: "No single dashboard/metric currently reports 'actual completion rate vs the 100% target' as one number -- the gating mechanism prevents silent fake-completion, but doesn't itself compute or publish a completion-rate KPI."
+      source: "RULES_ARTICLES_198.json RULE-088 (num 88, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21"
+    - id: KPI-02
+      rule: "Every completed task shall generate structured completion evidence."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/lib/qa-precompletion-gate.ts::buildDispatchSelfAssessment() produces a HandoverFields-shaped structured record for every ai_team_dispatch completion (see CONSTITUTION.yaml GP-26 above)."
+      gap: "Scoped to the ai_team_dispatch activityType only (same honest scope GP-26 already states) -- not yet generic across every activity_log activityType."
+      source: "RULES_ARTICLES_198.json ARTICLE-041 (num 41, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21"
+    - id: KPI-03
+      rule: "Every business metric shall have a measurable definition and authoritative data source."
+      status: PARTIALLY_ENFORCED
+      mechanism: "compliance.report_definitions table (src/lib/db/schema.ts) -- name/description/category/executionType/executionConfig fields give every registered report a measurable definition; executionConfig cites the real data source per report. src/lib/services/report-engine-service.ts executes against that definition."
+      gap: "Covers metrics that have been registered as a report_definitions row -- a business metric referenced only informally in code/UI (not yet promoted to a report definition) has no enforced measurable-definition record."
+      source: "RULES_ARTICLES_198.json ARTICLE-086 (num 86, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21"
+    - id: KPI-04
+      rule: "Every operational process shall be measurable through defined Key Performance Indicators (KPIs)."
+      status: PARTIALLY_ENFORCED
+      mechanism: "construction_kpi_definitions/construction_kpi_entries tables (designer-fills/manager-approves KPI workflow) + reportsKpisSlas jsonb field (worker_agents and related tables) give a real, queried KPI-definition mechanism for the modules that use it."
+      gap: "construction_kpi_definitions is scoped to the PROJEXA/construction domain -- not every operational process across the platform has a defined KPI yet."
+      source: "RULES_ARTICLES_198.json ARTICLE-095 (num 95, COMPLETION_RATE_KPI category); audit198 gap-closure 2026-07-21"
+
+integrations_api_governance_extra:
+  rules:
+    - id: API-01
+      rule: "The platform shall integrate securely with email systems, third-party software, business applications, APIs, ERP systems, CRM systems, accounting platforms, communication tools, and cloud services to create a unified business workspace."
+      status: PARTIALLY_ENFORCED
+      mechanism: "src/app/api/v1/* (199 exported route handlers, versioned REST surface), src/components/ApiKeySection.tsx + POST /api/settings/api-keys (external-caller auth), src/lib/gst/adapters/tally-xml-adapter.ts (accounting-platform adapter), CRM/ERP/procurement modules under src/app/api/v1/projexa/*, resend (email, package.json dependency). Every external call site goes through requireAuth()/API-key validation, never unauthenticated."
+      gap: "Broad, multi-system integration breadth is real but not centrally inventoried in one registry cross-referencing which of the 9 named integration classes (email/third-party/business-apps/APIs/ERP/CRM/accounting/communication/cloud) has a live adapter today."
+      source: "RULES_ARTICLES_198.json RULE-075 (num 75, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21"
+    - id: API-02
+      rule: "Every public interface shall maintain backward compatibility or provide a documented migration path."
+      status: PARTIALLY_ENFORCED
+      mechanism: "/api/v1 versioning prefix (ARTICLE-010, ENFORCED above) + ai-os/registry/deprecations.yaml (added 2026-07-21, replacement field documents the migration path for each deprecated feature, e.g. mcp_access_codes -> api_keys)."
+      gap: "The migration-path documentation mechanism (deprecations.yaml) is new and currently covers only the 1 deprecation that exists in the codebase today -- not yet exercised against a larger public-interface change."
+      source: "RULES_ARTICLES_198.json ARTICLE-078 (num 78, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21"
+    - id: API-03
+      rule: "Every deprecated feature shall include a planned retirement schedule."
+      status: PARTIALLY_ENFORCED
+      mechanism: "ai-os/registry/deprecations.yaml + scripts/check-deprecations.mjs (CI job 'Deprecation Registry Coverage Check', added 2026-07-21) -- fails the build if a src/ @deprecated marker has no matching registry entry, or if a registry entry references a marker that no longer exists. Both real @deprecated markers in this codebase (src/app/api/mcp/tokens/route.ts, src/lib/db/schema.ts's mcpAccessCodes) are now tracked."
+      gap: "Neither tracked deprecation has a set retirement_date yet (both 'not_yet_scheduled', stated honestly in the registry) -- the TRACKING mechanism is now enforced, but no deprecated feature in this codebase has an actual scheduled date today."
+      source: "RULES_ARTICLES_198.json ARTICLE-079 (num 79, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21"
+    - id: API-04
+      rule: "Every system dependency shall be monitored for security, compatibility, licensing, and lifecycle status."
+      status: PARTIALLY_ENFORCED
+      mechanism: ".github/dependabot.yml (npm + github-actions ecosystems, weekly schedule) -- automated security/lifecycle monitoring, real PRs generated on outdated/vulnerable dependencies (12 jspdf CVEs + 7 Dependabot PRs fixed 2026-07-10, see compliance_tracker_dependency_cleanup session record). Compatibility is exercised by the CI build/typecheck/test jobs running against every dependency bump PR before merge."
+      gap: "No automated licensing check (e.g. a license-compliance CI step) exists -- licensing is the one of the 4 named dimensions (security/compatibility/licensing/lifecycle) with no software mechanism today."
+      source: "RULES_ARTICLES_198.json ARTICLE-080 (num 80, INTEGRATIONS_API_GOVERNANCE category); audit198 gap-closure 2026-07-21"
 
 # ============================================================================
 # HOW TO KEEP THIS FILE HONEST

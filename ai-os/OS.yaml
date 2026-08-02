@@ -107,6 +107,12 @@ index:
       covers: "VERIDIAN Review Framework gap-closure (2026-07-18): pointer + methodology doc for the consolidated Maintainability score (guardrail-violation rate + continuous-improvement backlog + dependency health, all real signals already persisted elsewhere) -- live number via GET /api/ai/team/maintainability-dashboard (veridian_admin-only), computed by src/lib/services/maintainability-dashboard-service.ts. This doc is not itself a data snapshot -- query the API for the current score."
     - path: ai-os/registry/stale-doc-manifest.yaml
       covers: "GAP-UNIFIED-SOT-REMAINDER (b) quarantine manifest -- every root-level stale doc moved to docs/archive/ plus every file already under the tree4-unified/audit-tree archive dirs, each must carry the exact ARCHIVED/STALE banner, enforced by scripts/check-doc-quarantine-banner.mjs on every PR."
+    - path: ai-os/registry/deprecations.yaml
+      covers: "Audit198 gap closure, 2026-07-21 (ARTICLE-079 planned retirement schedule): every @deprecated marker in src/ must have a matching entry (feature/deprecated_since/replacement/retirement_date), enforced by scripts/check-deprecations.mjs on every PR."
+    - path: ai-os/RULES_ARTICLES_198.json
+      covers: "The 198 Owner Rules/Articles source-of-truth (99 rules + 99 articles), machine-readable, consumed by ai-os/scripts/audit198/run-audit.mjs. Owner directive 2026-07-21: software-driven audit of every item against this codebase -- see ai-os/scripts/audit198/ below for the audit engine itself."
+    - path: ai-os/scripts/audit198
+      covers: "Reusable software-driven gap-audit framework (evidence-engine.mjs, category-checkers.mjs, rules-taxonomy.mjs, constitution-index.mjs, run-audit.mjs) that scores all 198 items in ai-os/RULES_ARTICLES_198.json against live repo evidence (grep, file markers, ai-os/CONSTITUTION.yaml cross-reference) -- deterministic, no LLM judgment call in the verdict derivation. Re-run via `node ai-os/scripts/audit198/run-audit.mjs`; results in ai-os/scripts/audit198/results/. Gap-closure work against this framework's own findings is tracked per-category across several parallel branches (audit198-gap-wave1..wave5+), not a single PR."
     - path: ai-os/LIFECYCLE.yaml
       covers: "Which of the 11 lifecycle stages (UNDERSTAND..IMPROVE) the project is currently in. Currently MONITOR (ongoing operation, not a one-time build)."
     - path: scripts/check-doc-cross-references.mjs

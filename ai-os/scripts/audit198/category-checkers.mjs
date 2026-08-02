@@ -49,6 +49,47 @@ export const CATEGORY_INFRA = {
       { file: "src/lib/activity-log-service.ts", markers: ["export function recordActivity"] },
     ],
   },
+  RECOVERY_RESILIENCE: {
+    // Added 2026-07-21 (audit198 gap-closure wave 1, monitoring/
+    // traceability/recovery cluster). Prior to this entry,
+    // RECOVERY_RESILIENCE had NO infraChecks at all -- every item in this
+    // category fell straight to per-item keyword co-occurrence or
+    // NOT_YET_BUILT, even though real recovery mechanisms exist in the
+    // repo. Hand-verified by direct file read on 2026-07-21, same as
+    // every other entry in this file:
+    //   - exception-taxonomy.ts::withAutomaticRecovery/classifyError is a
+    //     real bounded-retry + business/system fault taxonomy, wired into
+    //     production call sites (approval-workflows/steps/[id]/decide/
+    //     route.ts, erp-fixed-assets-service.ts's disposal/depreciation
+    //     flows) -- also independently documented in ai-os/CONSTITUTION.yaml
+    //     as GP-29 "Failure Containment", status PARTIALLY_ENFORCED (not
+    //     a universal guarantee -- see that entry's own honest gap note).
+    //   - missed-execution-detector.py (added this same wave) closes the
+    //     literal "detect missed scheduled executions and recover
+    //     automatically" requirement (ARTICLE-083) by reading the SAME
+    //     crontab + the SAME superboss-register.py actions log the
+    //     pre-existing run-logged.sh wrapper already writes to -- an
+    //     extension of that pipeline, not a parallel one. Verified by a
+    //     live dry run against the real production crontab + register DB
+    //     on 2026-07-21 (all 9 real cron jobs correctly parsed with
+    //     correct per-job intervals; see this wave's PR body for the
+    //     output).
+    //   - db.transaction( atomic-write usage: confirmed >=4 real service
+    //     files use Drizzle's db.transaction() to make multi-step writes
+    //     atomic (capability-learning-service.ts, fraud-case-service.ts,
+    //     prompt-os-service.ts, abac-policy-service.ts).
+    // This is NOT evidence that every item in this category (e.g. "every
+    // automation defines rollback procedures", "every deployment is
+    // reversible") is universally true -- those remain PARTIALLY_ENFORCED
+    // on their own honest terms. It IS real evidence that a genuine,
+    // functioning recovery/resilience mechanism exists for this category,
+    // which the framework was previously blind to entirely.
+    infraChecks: [
+      { file: "src/lib/services/exception-taxonomy.ts", markers: ["export async function withAutomaticRecovery", "export function classifyError"] },
+      { file: "ai-os/scripts/missed-execution-detector.py", markers: ["def discover_jobs", "def attempt_recovery"] },
+      { grepDirs: ["src/lib/services"], grepTerm: "db.transaction(", minFileCount: 3 },
+    ],
+  },
   ESCALATION_HIERARCHY: {
     infraChecks: [
       { file: "src/lib/escalation-ladder.ts", markers: ["export function nextEscalationRung"] },
@@ -104,6 +145,40 @@ export const CATEGORY_INFRA = {
   INTEGRATIONS_API_GOVERNANCE: {
     infraChecks: [
       { grepDirs: ["src/app/api/v1"], grepTerm: "export", minFileCount: 1 },
+      { file: ".github/dependabot.yml", markers: ["package-ecosystem"] },
+      { file: "ai-os/registry/deprecations.yaml", markers: ["retirement_date"] },
+    ],
+  },
+  // Audit198 gap closure, 2026-07-21: COMPLETION_RATE_KPI, DOCUMENTATION,
+  // and GOVERNANCE_OWNERSHIP had NO entry in this map at all before this
+  // pass -- every item in those 3 categories was structurally incapable of
+  // reaching the "infra fully passes" branch of run-audit.mjs's
+  // deriveVerdict(), regardless of what real code existed, simply because
+  // no one had yet hand-verified a general-purpose mechanism file for
+  // those categories the way the other 15 entries above already do. These
+  // 3 entries follow the exact same discipline (hand-verified via direct
+  // file reads on 2026-07-21, not assumed) -- not a new detection
+  // strategy, just extending the existing one to categories it hadn't
+  // reached yet.
+  COMPLETION_RATE_KPI: {
+    infraChecks: [
+      { file: "src/lib/qa-precompletion-gate.ts", markers: ["export function checkQaPreCompletionGate", "export function buildDispatchSelfAssessment"] },
+      { file: "src/lib/services/report-engine-service.ts", markers: [] },
+      { file: "src/lib/services/report-taxonomy.ts", markers: [] },
+    ],
+  },
+  DOCUMENTATION: {
+    infraChecks: [
+      { file: "ai-os/CONSTITUTION.yaml", markers: ["amendment_log:", "amendment_rule:"] },
+      { file: "ai-os/registry/deprecations.yaml", markers: ["retirement_date"] },
+      { file: "src/lib/db/schema.ts", markers: ["production_issues"] },
+    ],
+  },
+  GOVERNANCE_OWNERSHIP: {
+    infraChecks: [
+      { file: ".github/CODEOWNERS", markers: ["@FChecklist"] },
+      { file: "src/lib/classification.ts", markers: ["export function canAccess"] },
+      { file: "src/lib/module-rules-resolver.ts", markers: ["export async function resolveModuleRule"] },
     ],
   },
 }

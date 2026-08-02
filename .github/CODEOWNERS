@@ -1,0 +1,51 @@
+# Audit198 gap closure, 2026-07-21 (GOVERNANCE_OWNERSHIP category --
+# RULE-048 "Every software module and AI component shall have clearly
+# defined ownership, responsibilities, authority, inputs, outputs,
+# reporting requirements, and escalation paths."). GitHub's own CODEOWNERS
+# mechanism (real PR-review-routing enforcement, not just a doc) is the
+# per-module ownership half of RULE-048; ai-os/CONSTITUTION.yaml's
+# reconciled_against_code_2026-07-14 list + AGENTS.md's Operating Rules
+# 1-11 (PR/CI gate, agent authorization) are the escalation-path half
+# (an AI agent or human contributor cannot merge without review routed
+# through the owner(s) named here).
+#
+# Single-collaborator repo as of 2026-07-21 (confirmed via
+# `gh api repos/FChecklist/compliance-tracker/collaborators`) -- every
+# path below names the same owner today. Recorded per-module rather than
+# as one blanket "*" line so this file is READY for the moment a second
+# owner is added to a specific module (change one line, not restructure
+# the whole file), and so the module boundaries this repo actually has
+# are visible in one place -- itself part of what RULE-048 asks for.
+#
+# AI components (the "AI component" half of RULE-048): ownership of the
+# AI Team roster/dispatch system itself is documented in
+# src/lib/ai-team/roster.ts and ai-os/CONSTITUTION.yaml's
+# orchestrator_governance section, not duplicated here -- CODEOWNERS
+# governs human-reviewable code paths, not runtime AI role assignments.
+
+# Default owner for anything not matched more specifically below.
+*                                   @FChecklist
+
+# Governance / constitution / audit -- highest-sensitivity paths, always
+# routed to the repo owner.
+/ai-os/CONSTITUTION.yaml           @FChecklist
+/ai-os/                            @FChecklist
+/AGENTS.md                         @FChecklist
+/CLAUDE.md                         @FChecklist
+
+# CI/CD + guardrail scripts -- changes here can silently weaken every
+# other coverage/guardrail check, so review routing is explicit rather
+# than falling through to the blanket rule by coincidence.
+/.github/workflows/                @FChecklist
+/scripts/                          @FChecklist
+
+# Database schema + migrations -- irreversible-by-nature changes.
+/src/lib/db/schema.ts              @FChecklist
+/drizzle/                          @FChecklist
+
+# AI platform core (policy enforcement, model routing, caching, AI team
+# dispatch) -- the "AI component" surface area RULE-048 names explicitly.
+/src/lib/policy-enforcement-engine.ts   @FChecklist
+/src/lib/ai-team/                       @FChecklist
+/src/lib/llm-response-cache.ts          @FChecklist
+/src/lib/cache-governance.ts            @FChecklist

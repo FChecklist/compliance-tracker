@@ -21,11 +21,21 @@
 // (org, provider, model, systemPrompt, userMessage) tuple is likely to
 // repeat and safe to reuse verbatim -- e.g. VERI FDE's task-similarity
 // evaluation. Never caches an error or a policy-denied response.
+//
+// Audit198 gap closure, 2026-07-21 (CACHING category -- RULE-077,
+// ARTICLE-054, ARTICLE-055): every hit/miss/invalidation now calls
+// logCacheEvent() (src/lib/cache-governance.ts) for structured,
+// software-only logging + counters, and two explicit invalidation
+// functions were added (previously TTL expiry was the ONLY freshness
+// mechanism this file offered -- a real gap, not a detection miss: no
+// invalidate* export existed here before this pass).
 import { db, llmResponseCache } from "@/lib/db";
 import { eq, lt } from "drizzle-orm";
 import { createHash } from "crypto";
 import { callLLM, stripJsonFence, LLMVerificationError, type LLMProvider, type CallLLMOptions, type LLMFallback, type LLMResult, type LLMUsage } from "@/lib/llm-client";
+import { logCacheEvent } from "@/lib/cache-governance";
 
+const CACHE_NAME = "llm-response-cache";
 const DEFAULT_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours -- business-data answers go stale, unlike static embedded text
 
 function buildCacheKey(orgId: string, provider: LLMProvider, model: string, systemPrompt: string, userMessage: string): string {
@@ -47,10 +57,12 @@ export async function callLLMCached(
 
   const hit = await db.query.llmResponseCache.findFirst({ where: eq(llmResponseCache.cacheKey, cacheKey) });
   if (hit && hit.expiresAt > now) {
+    logCacheEvent(CACHE_NAME, "hit", { orgId: ctx.orgId, provider, model, fn: "callLLMCached" });
     // durationMs: 0 -- a cache hit made no real provider call, so there is
     // no latency to report (distinct from a genuinely instant 0ms call).
     return { content: hit.content, usage: { promptTokens: hit.promptTokens, completionTokens: hit.completionTokens }, durationMs: 0, cached: true };
   }
+  logCacheEvent(CACHE_NAME, "miss", { orgId: ctx.orgId, provider, model, fn: "callLLMCached" });
 
   const result = await callLLM(provider, model, apiKey, systemPrompt, userMessage, options, fallback);
 
@@ -64,6 +76,7 @@ export async function callLLMCached(
       cacheKey, content: result.content, promptTokens: result.usage.promptTokens, completionTokens: result.usage.completionTokens, expiresAt,
     }).catch(() => {}); // best-effort -- a duplicate-key race losing to a concurrent identical call is harmless, never fail the caller's real response over it
   }
+  logCacheEvent(CACHE_NAME, "write", { orgId: ctx.orgId, provider, model, fn: "callLLMCached" });
 
   return { ...result, cached: false };
 }
@@ -90,8 +103,10 @@ export async function callLLMJsonCached<T>(
     const now = new Date();
     const hit = await db.query.llmResponseCache.findFirst({ where: eq(llmResponseCache.cacheKey, cacheKey) });
     if (hit && hit.expiresAt > now) {
+      logCacheEvent(CACHE_NAME, "hit", { orgId: ctx.orgId, provider, model, fn: "callLLMJsonCached" });
       return { content: hit.content, usage: { promptTokens: hit.promptTokens, completionTokens: hit.completionTokens }, cached: true };
     }
+    logCacheEvent(CACHE_NAME, "miss", { orgId: ctx.orgId, provider, model, fn: "callLLMJsonCached" });
     const result = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true }, fallback);
     const expiresAt = new Date(now.getTime() + DEFAULT_TTL_MS);
     if (hit) {
@@ -99,6 +114,7 @@ export async function callLLMJsonCached<T>(
     } else {
       await db.insert(llmResponseCache).values({ cacheKey, content: result.content, promptTokens: result.usage.promptTokens, completionTokens: result.usage.completionTokens, expiresAt }).catch(() => {});
     }
+    logCacheEvent(CACHE_NAME, "write", { orgId: ctx.orgId, provider, model, fn: "callLLMJsonCached" });
     return { ...result, cached: false };
   })();
 
@@ -113,5 +129,36 @@ export async function callLLMJsonCached<T>(
 /** Opportunistic cleanup of expired entries -- called from the existing daily loop infrastructure, not a new cron. */
 export async function purgeExpiredLlmResponseCache(): Promise<number> {
   const deleted = await db.delete(llmResponseCache).where(lt(llmResponseCache.expiresAt, new Date())).returning({ id: llmResponseCache.id });
+  if (deleted.length > 0) logCacheEvent(CACHE_NAME, "expire", { count: deleted.length, fn: "purgeExpiredLlmResponseCache" });
+  return deleted.length;
+}
+
+// Audit198 gap closure, 2026-07-21 (ARTICLE-054: "Cache invalidation shall
+// follow predefined governance rules" -- see src/lib/cache-governance.ts's
+// CACHE_REGISTRY entry for this cache's declared policy). Before this
+// pass, TTL expiry was the ONLY freshness mechanism this cache offered --
+// no way to force-invalidate a stale answer (e.g. after an admin corrects
+// underlying business data) without waiting up to 24h. Mirrors the
+// explicit-invalidation pattern asset-registry-cache.ts already
+// established (invalidateOrgCache/invalidateAllCaches).
+export async function invalidateLlmResponseCache(orgId: string): Promise<number> {
+  // Honest constraint, not a shortcut: cacheKey is a single sha256 hash of
+  // "orgId|provider|model|systemPrompt|userMessage" (buildCacheKey() above)
+  // -- the orgId is hashed IN, not stored as its own column or a plaintext
+  // prefix, so no query can select "every row for this org" without a
+  // schema change (llm_response_cache has no orgId column, confirmed by
+  // reading schema.ts directly). Rather than fake org-scoping with a
+  // fragile reformat of every existing key, this calls out the real
+  // current behavior: any explicit invalidation today clears every org's
+  // entries. Org-scoped invalidation is tracked as an open follow-up in
+  // cache-governance.ts's registry notes, not silently claimed as done.
+  logCacheEvent(CACHE_NAME, "invalidate", { orgId, fn: "invalidateLlmResponseCache", scopeNote: "org-scoped key not addressable -- full clear performed" });
+  return invalidateAllLlmResponseCache();
+}
+
+/** Force-clears every cached LLM response regardless of TTL. Used by invalidateLlmResponseCache() above and available directly for admin/ops use. */
+export async function invalidateAllLlmResponseCache(): Promise<number> {
+  const deleted = await db.delete(llmResponseCache).returning({ id: llmResponseCache.id });
+  logCacheEvent(CACHE_NAME, "invalidate", { count: deleted.length, fn: "invalidateAllLlmResponseCache" });
   return deleted.length;
 }
