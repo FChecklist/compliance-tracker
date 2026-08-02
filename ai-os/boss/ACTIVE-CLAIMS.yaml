@@ -40,7 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260802-040131-parallel-job--collate-existing-module-en) -- Collate existing module/engine wiring+UTM map, spot-verify it, cross-reference against master directive priority list [DOCS/COLLATION ONLY, no code]"
+  - session_label: "claude-code (task-20260802-163326-amendment--map-6-merged-prs-to-implement) -- AMENDMENT to UMR-20260802-104058-25ba: map 6 real merged PRs (compliance-tracker #716/#717/#692/#720, veridian-scripts #14, claude-control #122) to their real dispatch UMR/task_identity, classify real-implementation vs governance-only [amends ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md only, no new canonical artifact]"
+    claimed_at: "2026-08-02T16:33Z (this session)"
+    claim: |
+      SPEC (Owner directive OCID-20260802-013, PROMPT_PRIORITY=HIGHEST): amendment
+      to PARENT_UMR UMR-20260802-104058-25ba (the 14-item implementation matrix) --
+      not a new implementation, not a new audit, not a new canonical artifact.
+      Queried resource_governor.py's real backing store
+      (/opt/veridian/ai-os/memory/superboss-register.sqlite, umr_tasks table)
+      directly for each PR's cited UMR id (CLI --search only indexes
+      task_identity/source_trigger/logs_ref via FTS5, NOT umr_id -- had to query
+      the sqlite file directly for exact umr_id lookups). Real mapping found for
+      all 6: PR #716->UMR-20260802-111942-8d94, PR #717->UMR-20260802-113654-271b
+      (its own cited split-dispatch UMR-20260802-121158-d557 is
+      status=rejected_duplicate in the DB citing PR #700 -- verified #700 is a
+      real but UNRELATED PR, different topic/timestamp; #717 is the real PR that
+      delivered this content, a genuine discrepancy in the duplicate-guard's own
+      reason field, flagged not silently resolved), PR #692->UMR-20260802-040056-5319
+      (status completed -- NOT the master directive UMR-20260802-034545-3388 cited
+      in its PR body, which is itself status=rejected_duplicate/cancelled),
+      PR #720->UMR-20260802-134939-145d, PR #14 (veridian-scripts)->
+      UMR-20260802-090702-c813 (PM-triage extension; base stuck-task/heartbeat
+      commit has no explicit UMR, cited only as "PM directive" in the PR body),
+      PR #122 (claude-control)->UMR-20260802-154546-ceb6. Real-vs-governance
+      classification: PR #14 is the only one of the 6 with real functional code
+      (dispatch-tick.py new functions + 2 new test files, real py_compile +
+      pytest run, real dry-run against 842 live task.yaml files) -- the other 5
+      are all documentation/registry-only diffs (.md/.yaml files, zero src/
+      touched). Also found and flagged a live-state-drift item: the existing
+      matrix's item 13 claims PR #692 is "still OPEN, mergeable CONFLICTING" --
+      real current `gh pr view 692` shows state=MERGED, mergedAt
+      2026-08-02T15:34:16Z, contradicting that claim; noted as a correction in
+      this amendment, not silently overwritten.
+
+      File scope: amends ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (append-only
+      new section, no existing rows rewritten/duplicated) + this ACTIVE-CLAIMS
+      entry + PROGRESS.md. No src/ or drizzle/ changes.
     claimed_at: "2026-08-02T04:01Z (this session)"
     claim: |
       SPEC (Owner directive, Chat ID 2082026-02, parallel job): feeds into
