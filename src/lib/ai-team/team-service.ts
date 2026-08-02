@@ -31,6 +31,11 @@ import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
 import { resolveEffectiveModel } from "./roster-overrides"
 import type { LLMProvider } from "@/lib/llm-client"
+import {
+  checkForDuplicateDispatch,
+  recordDispatchOutcome,
+  type DuplicateDispatchWarning,
+} from "./dispatch-outcomes"
 
 // Local shape of mother-router.ts's ResolvedTenantAiConfig (avoids a
 // circular import: mother-router.ts imports from ./roster, and this module
@@ -43,6 +48,26 @@ export type TenantAiOverride = {
   model: string
   apiKey: string
   baseUrl: string | null
+}
+
+// Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the
+// optional real-dispatch context a caller supplies when a runRole() call IS
+// a genuine top-level AI Dev Team dispatch (as opposed to a guardrail
+// sub-call or the AI Router's classification call, neither of which has a
+// TightTask-shaped objective/scope and neither of which should create a
+// dispatch_outcomes row). Deliberately optional and additive -- every
+// pre-existing caller (runGuardrailLevel, classifyTask, and any other
+// direct runRole() call that omits it) keeps behaving exactly as before,
+// with no dispatch_outcomes write and no duplicate-check performed. Real
+// callers with real TightTask context (advisory-dispatch-service.ts's
+// dispatchAdvisoryTask) opt in by passing this.
+export type DispatchOutcomeContext = {
+  objective: string
+  scope?: string | null
+  successCriteria?: string | null
+  complexityTier?: string | null
+  orgId?: string | null
+  dispatchedBy?: string | null
 }
 
 function platformOpenRouterKey(): string {
@@ -83,11 +108,63 @@ function requireCallableRole(roleKey: string): RoleDefinition {
  * The cost policy + token-usage ledger reflect whichever model actually
  * ran. Omitted by every pre-existing caller (ordinary platform dispatch)
  * -> behaves exactly as before (platform key, effectiveModel).
+ *
+ * `dispatchContext` (Stage 12, VERIDIAN_CONSOLIDATED_COMPLETION plan):
+ * optional real-dispatch tracking. When supplied, this call:
+ *   1. runs checkForDuplicateDispatch() BEFORE the LLM call and attaches
+ *      any warning to the returned `duplicateWarning` (never blocks --
+ *      surfaces, per Stage 12's own scope, so a caller can still choose to
+ *      proceed on a genuine intentional retry);
+ *   2. writes one platform.dispatch_outcomes row on completion, success or
+ *      failure (recordDispatchOutcome never throws, so a persistence
+ *      failure here can't mask or replace the real LLM-call outcome).
+ * Omitted (the default) -> zero behavior change from before Stage 12.
  */
 export async function runRole(
   roleKey: string,
   input: string,
-  tenantConfig?: TenantAiOverride
+  tenantConfig?: TenantAiOverride,
+  dispatchContext?: DispatchOutcomeContext
+): Promise<LLMResult & { role: RoleDefinition; duplicateWarning?: DuplicateDispatchWarning }> {
+  let duplicateWarning: DuplicateDispatchWarning | undefined
+  if (dispatchContext) {
+    const duplicateCheck = await checkForDuplicateDispatch({
+      roleKey,
+      objective: dispatchContext.objective,
+      scope: dispatchContext.scope,
+      successCriteria: dispatchContext.successCriteria,
+      complexityTier: dispatchContext.complexityTier,
+    })
+    if (duplicateCheck.isDuplicate) duplicateWarning = duplicateCheck
+  }
+
+  try {
+    const executed = await runRoleAndRecord(roleKey, input, tenantConfig, dispatchContext)
+    return { ...executed, duplicateWarning }
+  } catch (err) {
+    if (dispatchContext) {
+      void recordDispatchOutcome({
+        roleKey,
+        dispatchPath: "advisory",
+        objective: dispatchContext.objective,
+        scope: dispatchContext.scope,
+        successCriteria: dispatchContext.successCriteria,
+        complexityTier: dispatchContext.complexityTier,
+        status: "failure",
+        errorDetail: err instanceof Error ? err.message : String(err),
+        orgId: dispatchContext.orgId,
+        dispatchedBy: dispatchContext.dispatchedBy,
+      })
+    }
+    throw err
+  }
+}
+
+async function runRoleAndRecord(
+  roleKey: string,
+  input: string,
+  tenantConfig: TenantAiOverride | undefined,
+  dispatchContext: DispatchOutcomeContext | undefined
 ): Promise<LLMResult & { role: RoleDefinition }> {
   const role = requireCallableRole(roleKey)
   const systemPrompt = await resolvePromptTemplate(role.promptKey!)
@@ -162,6 +239,25 @@ export async function runRole(
     model: effectiveModel,
     usage: result.usage,
   })
+
+  // Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan): a genuine top-level
+  // dispatch (dispatchContext supplied) writes its success outcome here,
+  // fire-and-forget -- recordDispatchOutcome never throws, so a persistence
+  // failure can't mask the real, already-succeeded LLM call.
+  if (dispatchContext) {
+    void recordDispatchOutcome({
+      roleKey,
+      dispatchPath: "advisory",
+      objective: dispatchContext.objective,
+      scope: dispatchContext.scope,
+      successCriteria: dispatchContext.successCriteria,
+      complexityTier: dispatchContext.complexityTier,
+      status: "success",
+      modelUsed: effectiveModel,
+      orgId: dispatchContext.orgId,
+      dispatchedBy: dispatchContext.dispatchedBy,
+    })
+  }
 
   // `role` returned with its own `.model` set to the model actually called
   // (not necessarily roster.ts's static default) -- every existing
