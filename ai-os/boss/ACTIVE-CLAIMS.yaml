@@ -4082,6 +4082,32 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (task-20260802-035819-independent-audit--pr--630-and-pr--632) -- Mandatory Rule 7c independent audit of PR #630 and PR #632's migration/YAML rebase, ahead of Phase 2 Task 44 closure"
+    claimed_at: "2026-08-02T (this session)"
+    claim: |
+      Owner directive: Phase 2 (Task #44) needs PR #630 (branch
+      task-20260729-120933-stage9-content-search-view) and PR #632 (branch
+      task-20260729-152041-stage11-end-user-receptionist-notice-status)
+      merged. Both were rebased by task-20260802-032508 (a different,
+      already-finished session -- no active or recently_completed entry for
+      it exists in this file, PROGRESS.md in that task's own workspace
+      already describes the rebase as done). Per Rule 7c that rebasing
+      session cannot self-certify, so this session is the independent
+      auditor: re-verified the 0302->0311 migration renumbering on PR #630
+      against fresh origin/main and all 81 currently-open PRs' actual
+      changed files (zero other PR claims drizzle/0311_), diffed the merged
+      terminology-guardrail-exemptions.yaml block on PR #632 against main's
+      pre-PR baseline, confirmed all required CI checks green on both heads
+      besides the pre-existing audit-check (expected to fail until this
+      session posts the verdict comment), and posted structured AUDIT: PASS
+      comments on both. File scope: read-only diff/CI verification via `gh`,
+      plus a same-purpose trivial empty commit pushed directly to each of
+      the two PR branches above (not this repo's own branch) to force a
+      fresh pull_request:synchronize event, working around the known
+      mandatory-audit-check.yml issue_comment-vs-head-SHA gap (see this
+      session's own memory note veridian-audit-check-issue-comment-sha-bug).
+      Did not touch either PR's actual feature code.
 recently_completed:
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
