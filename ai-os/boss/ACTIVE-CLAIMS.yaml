@@ -71,17 +71,32 @@ active:
       session rebased its branch onto `main` to drop the now-redundant
       duplicate commits rather than re-litigate already-settled work.
 
-      Remaining real work this session is doing now: independently retest
-      the exact same real flow that crashed
-      (`GET /compliance`, `GET /compliance?status=overdue` on the real
-      deployed app) against the now-merged fix, then resume the broader
-      OCID-020 certification sweep per the original PM spec.
+      UPDATE 2 (this session): independently retested live, for real, with
+      a real freshly-created account (Admin-API signup, since public
+      `/signup` was rate-limited 429 -- did not touch or reuse another
+      concurrent session's own live test account found mid-flight).
+      Confirmed real `200 GET https://projexa-ai.com/api/departments` ->
+      `{"departments":[]}` (correct empty-array shape for a brand-new org,
+      not the old 500/error-object shape), and both
+      `GET /compliance`/`GET /compliance?status=overdue` render the real
+      Compliance Register UI with zero "Application error" client crash
+      (screenshots captured). **Finding A is fixed and independently
+      verified live -- closed.** PR #743 (the ACTIVE-CLAIMS/PROGRESS.md
+      reconciliation) got an independent audit per Rule 7c (a fresh agent
+      that did not implement it verified the PR's claims directly against
+      `origin/main`, not by trusting the PR body) and merged
+      2026-08-02T22:30:58Z.
+
+      Remaining real work: resume the broader OCID-020 certification sweep
+      per the original PM spec (multi-tenant, multi-brand,
+      first-time-onboarding, cache/search, remaining nav surface) --  not
+      yet started this session.
     scope_note: >-
       No file changes of its own beyond this ACTIVE-CLAIMS entry and
       `PROGRESS.md` -- the actual fix landed via PR #740/#742 from a
-      parallel session. This session's remaining scope is live
-      verification + resuming the broader certification sweep (read-only
-      against the deployed app, plus incremental findings docs).
+      parallel session. This session's remaining scope is resuming the
+      broader certification sweep (read-only against the deployed app, plus
+      incremental findings docs).
   - session_label: "claude-code (task-20260802-190820-resume-real-ocid-020-certification--usin) -- Resume real OCID-020 end-user certification of PROJEXA-AI.COM (UMR-20260802-165606-4413), per Owner directive UMR-20260802-181025-0d4b (stand-down/resume decision for the prior stuck worker)"
     claimed_at: "2026-08-02T19:30Z (this session)"
     claim: |
