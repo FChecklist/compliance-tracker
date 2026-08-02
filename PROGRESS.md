@@ -1,78 +1,54 @@
-# PROGRESS -- task-20260802-210700-pm-decision--fix-the-real-high-severity
-
-Cites: `UMR-20260802-165606-4413` (OCID-020) throughout. `UMR-20260802-173631-ca85`
-stays locked until this fix AND the rest of the real certification sweep are
-independently verified complete.
+# PROGRESS -- task-20260802-231514-pm-confirmation-of-task-210700-real-stat
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` + found the real prior finding this PM
-      decision is about: OCID-020 redo session (PR #737) — Finding A, real
-      `500` on `GET /api/departments` crashing the Compliance Register
-      (`/compliance`) and Pendency View (`/compliance?status=overdue`) with a
-      client-side `TypeError: z.map is not a function`.
-- [x] Root-caused directly (not narrated): reproduced locally by building the
-      exact same Drizzle relational query (`db.query.departments.findMany({with:
-      {head, complianceItems, users}})`, verbatim from
-      `src/app/api/departments/route.ts`) against the real `src/lib/db/schema.ts`
-      via `drizzle-orm`. Real error reproduced: `There are multiple relations
-      between "users" and "departments". Please specify relation name.`
-- [x] Shipped a fix (`relationName: 'departmentMembers'`), opened PR #741,
-      logged Finding B in `ai-os/MASTER-TRACKER.yaml`.
-- [x] **On resume (invocation 2/20)**: discovered a genuinely parallel session
-      independently root-caused and fixed the identical bug (same root cause,
-      same fix shape) with additional defensive frontend handling and real
-      regression tests, via PR #740 — which merged first (`c0df6f02` on
-      `main`, independently re-verified via `git diff-tree -p c0df6f02 --
-      src/lib/db/schema.ts`, not just trusted). This session's own duplicate
-      PR #741 was correctly closed as superseded by that other session. Finding
-      B (`GAP-ERP-CRM-403-NO-UX-EXPLANATION`) is likewise already merged into
-      `ai-os/MASTER-TRACKER.yaml` via PR #742.
-- [x] Rebased this session's branch onto `main` (`git rebase origin/main`,
-      skipping the now-redundant duplicate schema-fix commit, resolving
-      conflicts in `ai-os/boss/ACTIVE-CLAIMS.yaml` and this file to reflect
-      current reality rather than keeping two stale/duplicate claim entries).
-- [x] Confirmed on `main`: `src/lib/db/schema.ts` has
-      `departmentsRelations.users: many(users, { relationName:
-      'departmentMembers' })` and `usersRelations.department: one(departments,
-      {..., relationName: 'departmentMembers' })`; `ai-os/MASTER-TRACKER.yaml`
-      has `GAP-ERP-CRM-403-NO-UX-EXPLANATION` (single entry, no duplication).
-- [x] Opened PR #743 (reconciled `ACTIVE-CLAIMS.yaml`/`PROGRESS.md`), got an
-      independent audit (Rule 7c — a fresh, non-implementing agent verified
-      the PR's claims directly against `origin/main` via `git cat-file -p`/
-      `git merge-base --is-ancestor`, not by trusting the PR body) which
-      posted the required structured `AUDIT: PASS` comment, hit and worked
-      around the known issue-comment/head-SHA CI bug (empty commit to force
-      a real `synchronize` event), then merged once all 7 required checks
-      (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset
-      Registry Coverage Check, Unit Tests) were green — merged
-      `2026-08-02T22:30:58Z`.
-- [x] **Independently retested the EXACT SAME real flow that crashed, live,
-      against the real deployed app, with a real fresh account (not
-      guessed/assumed):** real signup via the Supabase Admin API (public
-      `/signup` was rate-limited, 429 — used the admin `/auth/v1/admin/users`
-      endpoint instead, with the same `full_name`/`organisation`
-      `user_metadata` shape `src/app/signup/page.tsx` sends, so
-      `autoProvisionUser()` still runs the normal way on first authenticated
-      request — did not touch or mutate the other concurrent session's own
-      test account found mid-flight), confirmed-email, real login on
-      `https://projexa-ai.com` (title "VERIDIAN COGNITIVE AI OS" confirms
-      this domain does serve compliance-tracker, per prior session's finding)
-      → real navigation to `/home`, then real `GET /compliance` and
-      `GET /compliance?status=overdue`. Real captured network response:
-      `200 GET https://projexa-ai.com/api/departments` →
-      `{"departments":[]}` (empty array is correct — fresh org, zero
-      departments created yet; this is a real success shape, not the old
-      500/error-object shape). Both pages rendered the real Compliance
-      Register UI with zero "Application error" client crash (confirmed via
-      `page.locator('body').innerText()` not containing that string, plus
-      full-page screenshots — Compliance Register header, "0 compliance
-      items tracked", VERI Chat composer all rendered normally). **Fix
-      confirmed live, for real, not assumed because CI passed.**
+- [x] **Independently re-verified task-20260802-210700's real status directly on the
+      server (not narrated, not taken from the incoming spec).** Findings, checked
+      2026-08-02 ~23:15-23:18Z:
+  - `task.yaml` `status: in_progress` — **confirmed real**, field reads exactly that.
+  - Checkpoint at `2026-08-02T23:04:25.926541+00:00` (the timestamp the incoming spec
+    cited) is real and does exist in `task.yaml` — but it is **not the latest
+    checkpoint**. A newer one exists at `2026-08-02T23:09:29.787443+00:00`, ~5 min
+    later. So the spec's "essentially the same moment this was checked" framing was
+    already one cycle stale when written.
+  - **The spec's "real CPU usage counter also confirms the process is alive and
+    consuming CPU" claim did not hold up.** At time of check: `systemctl` shows the
+    task's service unit not loaded at all; `ps -ef` has zero processes matching
+    `claude|bun|node|playwright|chromium|python` anywhere on the box. No live process
+    for task-210700 was found. Checkpoints had landed roughly every ~5 min
+    (22:44→22:49→22:54→22:59→23:04→23:09) up to 23:09:29, then nothing for 9+ minutes
+    as of the last check (23:18:23Z) with no process alive to produce one. This may be
+    a normal between-invocations gap for this task's supervisor model
+    (`.invocation_count` = 2, `restart_count: 1`, completed_steps reference
+    "invocation 2/20") rather than a genuine stall — but it is **not** currently-active
+    CPU usage, contrary to what the spec asserted. Flagging as unconfirmed / possibly
+    idle-between-invocations, not asserting either a stall or continued activity beyond
+    what was directly observed.
+  - The cited `UMR-20260802-165606-4413` is real — it traces to commit `15f2180c
+    docs: register PM-decision claim + log medium-sev 403 UX gap
+    (UMR-20260802-165606-4413)`, present in task-210700's own recent-commits history.
+  - The multi-tenant Playwright isolation finding and the honest inconclusive
+    auth-flakiness note described in the spec are real and match task-210700's own
+    `PROGRESS.md`/`task.yaml` completed_steps verbatim — this part of the spec checks
+    out.
+  - Spot-checked current memory/swap on this box (`free -h`): 3.4Gi/15Gi RAM used,
+    2.6Gi/4.0Gi swap used, 1.4Gi swap still free — not in an alarming state right now.
+    Did not independently re-derive the *investigation's* full history/conclusion
+    beyond this current spot-check.
+  - **The spec's premise of "a pending question sitting in the tmux input line"
+    asking about task-210700's status did not match live reality.** `tmux capture-pane`
+    on session `claude` showed that session **actively mid-task** (a spinner:
+    "Verifying Phase 2 / Task #44 closure...", `esc to interrupt` visible, not an idle
+    prompt) working on an unrelated broader initiative (Phase 2/Task #44 closure
+    audit). No literal question text about task-210700's status, and no citation of
+    the UMR ID, appears anywhere in the available scrollback. Given the pane was
+    actively busy (not idle-waiting), and per this repo's own caution about two live
+    sessions colliding (`AGENTS.md` Rule 6's founding incident), **did not send any
+    `tmux send-keys` into that session** — injecting into another live agent's input
+    while it's mid-execution risks exactly the kind of collision that rule exists to
+    prevent. This finding (real verified status of task-210700) is recorded here
+    instead, for the owner/PM record.
 
 ## Remaining
-- [ ] Resume the broader real certification sweep per the PM spec —
-      multi-tenant, multi-brand, first-time-onboarding, cache and search,
-      remaining nav surface — reporting real incremental findings every
-      cycle, not one final claim. Not started yet this session (budget/scope
-      prioritized closing out the Finding-A fix + verification first, per
-      the PM's own explicit sequencing).
+- [ ] If the owner confirms the pending-question tmux premise refers to a different
+      session/pane than `claude`, re-check that specific pane and answer there once
+      it is confirmed idle (not mid-execution).
