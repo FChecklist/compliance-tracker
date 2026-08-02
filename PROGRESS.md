@@ -29,17 +29,38 @@
       passes (0 files checked). Pushed (0112ad9c -> 53a25e7a). `gh pr view 632`
       now reports `mergeable: MERGEABLE`.
 
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` for this
+      invocation (Rule 11), pushed (0e5d2f83).
+- [x] Confirmed via `gh pr checks`: every CI check on both PRs (Lint, Type
+      Check, Build, Unit Tests, E2E, Migration Number Collision Check,
+      Guardrail Presence Check, Terminology Guardrail Check, etc.) passes
+      against the rebased heads (52f567d0 / 53a25e7a). Only `audit-check`
+      fails on both, and only because no fresh AUDIT comment exists yet
+      against these heads -- confirms the rebase itself introduced no CI
+      regressions.
+- [x] Dispatched two independent background audit sub-agents (no prior
+      context on this task -- satisfies Rule 7c "did not implement" test,
+      since this session performed the rebase itself last invocation) to
+      review PR #630 and PR #632 fresh and each post a structured 8-field
+      `AUDIT: PASS`/`FAIL` PR comment per `src/lib/audit-protocol.ts` /
+      `scripts/validate-audit-verdict.ts`'s exact contract.
+
 ## Remaining
-- [ ] Both PRs' `mergeStateStatus` still reads `BLOCKED` pending CI re-run on
-      the new commits and a **fresh** independent `AUDIT: PASS`/`FAIL`
-      comment against the new heads (52f567d0 / 53a25e7a). PR #630's existing
-      `AUDIT: FAIL` comment is stale -- it predates this rebase and was about
-      the old (already-superseded) 0283 collision with PR #637, which merged
-      separately as 0285.
-- [ ] Per Rule 7c (no self-certification): this session did the rebase, so it
-      cannot also post the audit verdict. Handing off as a separate audit ask
-      via dispatch-owner-task.sh rather than short-circuiting that rule.
-- [ ] Once both PRs pass audit-check and merge: Phase 2 (Task #44) is closed,
+- [ ] Await both audit sub-agents' verdicts. If either FAILs with a real
+      finding, fix forward on that PR's branch and re-audit (do not
+      short-circuit by self-certifying).
+- [ ] Per the known `issue_comment` SHA bug (audit-check's re-run off a
+      posted comment reports against `main`'s HEAD, not the PR's head, per
+      memory `veridian-audit-check-issue-comment-sha-bug`): after each PASS
+      comment lands, trigger a fresh `pull_request: synchronize` event on
+      that branch (e.g. merge latest main into it again) so audit-check
+      re-evaluates against the PR's actual head SHA and the required check
+      shows green on the PR itself, not just in the comment thread.
+- [ ] Once both PRs show all-green required checks including `audit-check`:
+      merge both (respecting Rule 6 -- PR/CI gate, no direct push to main).
+- [ ] Once both PRs #630/#632 are merged: Phase 2 (Task #44) is closed,
       which is the gate for TWO_ENGINE_TASK Phase 3 / Kernel consolidation
-      (Task #45) -- verify that follow-on actually starts, don't just assume
-      it auto-fires.
+      (Task #45) -- update `ai-os/MASTER-TRACKER.yaml` and
+      `ai-os/boss/COMPLETED.yaml` accordingly, move this session's
+      ACTIVE-CLAIMS.yaml entry to `recently_completed`, and verify Task #45
+      actually starts rather than assuming it auto-fires.
