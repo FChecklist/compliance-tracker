@@ -1569,6 +1569,36 @@ registries:
     2026-08-02," not as UMR-20260802-061325-aa9d alone and not as the retracted tmux exchange above.
     UMR-20260802-054239-4251 and PR #697 remain open pending a fresh Rule 10 audit of this
     correction and an actual merge -- not closed by this correction alone.'
+- id: implementation_matrix_2026_08_02
+  type: point_in_time_audit_doc
+  path: ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
+  scope: 'Real, evidence-based 14-item implementation matrix per PM decision UMR-20260802-104058-25ba
+    (scope-extended by UMR-20260802-105532-775a): the 12 top-level product deliverables (ERP Modules,
+    UI/UX, Reports, Prompt Library, Web Browser, VERI Chat, VERI assistant, Multi Tenant, Multi Brand,
+    Kernel, End-to-End Testing, Go Live/PROJEXA-AI.COM) plus 2 UMR-level verifications
+    (module/wiring collation UMR-20260802-040056-5319, Kernel reconciliation report
+    UMR-20260802-054239-4251). Every item cites real commit hashes, file paths, table/row counts, or
+    CI check results gathered by 5 independent research passes against live server state -- no
+    UMR/task status label used as evidence, no completion inferred from governance/paperwork alone.
+    Recovered into this durable file per UMR-20260802-111942-8d94 after the original compilation
+    existed only as conversational text. Point-in-time; will go stale as real work lands -- re-verify
+    rather than trust on a future pass.
+
+    CORRECTION (2026-08-02T12:35 UTC, UMR-20260802-123246-f2e7, per PM decision UMR-20260802-124023-371b,
+    filed under this same UMR-20260802-104058-25ba -- no new file, no new UMR): item 12''s original
+    "2 Vercel projects both bound to the same domain" claim was true and genuinely confirmed as of
+    the 2026-07-26T10:33:37Z census this matrix cited, but was never re-verified before being repeated
+    here -- a real staleness gap, not a fabrication. Re-verified live via `GET /v9/projects/{id}/domains`
+    against all 3 real Vercel team-scoped projects, plus DNS + curl: no collision exists now --
+    projexa-ai.com/www.projexa-ai.com belong exclusively to the projexa project; veridian-compliance-ai
+    has moved to its own veridian-aios.com domain. Retraction already applied in place in
+    ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (summary table row 12, item 12 detail section, and the
+    "two most urgent findings" section) -- this note documents the same correction in this file''s own
+    census entry. Same correction applied at the source census in the separate veridian-ai-os repo,
+    commit baa5232. This is exactly the kind of drift this entry''s own "will go stale, re-verify"
+    disclaimer warned about.'
+  status: live
+  query_command: cat ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/
