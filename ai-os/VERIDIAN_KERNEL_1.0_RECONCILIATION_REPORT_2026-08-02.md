@@ -139,3 +139,107 @@ Same discipline `ai-os/CONSTITUTION.yaml`'s own `amendment_log` uses (date + rea
   correction, in place) for the matching record. `UMR-20260802-054239-4251` and PR #697 remain
   open pending a fresh Rule 10 audit of this correction and an actual merge — not closed by this
   correction alone.
+
+- **2026-08-02, KERNEL_AMENDMENT (direct Owner instruction via PM, `UMR-20260802-113654-271b`,
+  amending this same UMR-20260802-054239-4251) — instruction and plan only, not implemented in
+  this pass:**
+
+  **Real motivation:** tonight this exact task narrated completion twice (a matrix file, a
+  commit, a `MASTER_INDEX.yaml` registration) that did not actually exist on the real disk paths
+  checked, before being caught and corrected. Root cause judged structural, not a one-off: any AI
+  instance working a task currently has the technical ability to describe UMR-level state
+  (decision logs, `MASTER_INDEX.yaml` amendment entries, completion claims) as part of its own
+  narration, with no gate separating doing the work from recording the work as real.
+
+  **Amendment text, verbatim, confirmed understood:**
+  1. A UMR is one single project-state record: one owner, one state, one decision log, one
+     traceability record, one evidence record. A UMR may have many tasks under it, worked by many
+     AI instances, including in parallel. Every individual AI instance is stateless with respect
+     to the UMR itself.
+  2. Rules for any AI instance executing an assigned task (Executor role, interactive or
+     headless): load only the assigned task's own package and instructions; do not load or
+     re-derive the full UMR history or full project context. Do not create private
+     memory/scratchpad files for governance, state, or decision content. Do not change the UMR's
+     own state fields directly — do not edit decision logs, `MASTER_INDEX.yaml` amendment entries,
+     or any UMR-level record as part of completing a task. Write only the task's own output: a
+     real file, a real commit, a real result, plus a heartbeat/progress note. Stop cleanly when
+     the task is done; do not self-extend scope into UMR-level decisions.
+  3. Rules for the UMR owner (PM role, Claude Desktop): only the PM assigns tasks. Only the PM
+     updates UMR state, decision log, traceability, and evidence — and only after independently
+     verifying the real task output exists, never from trusting a task's own narrated completion
+     claim. This makes this session's standing no-false-completion rule structural rather than
+     just a reminder.
+  4. Rules for task output itself: every task output must cite which UMR it belongs to, which
+     specific task, and which AI instance produced it, and must be independently traceable — a
+     real file path or commit hash, not prose describing an intended action.
+
+  **Effective immediately per the amendment's own text; not yet enforced by any code change —
+  see the implementation plan below, explicitly not built in this pass per direct Owner
+  instruction.**
+
+  **Implementation plan (real evidence for current state; proposed changes, not built):**
+
+  - **Does `worker-entrypoint.sh` currently let a worker write UMR-level state?** Yes, with no
+    gate. `worker-entrypoint.sh` invokes `claude -p "$PROMPT" ... --dangerously-skip-permissions`
+    (line 193, and again at line 506 for auto-fix retries) with **no `--allowedTools` /
+    `--disallowedTools` restriction at all** — the dispatched Claude instance has unrestricted
+    file-write access to any path in its workspace, including `ai-os/MASTER_INDEX.yaml`,
+    `ai-os/boss/ACTIVE-CLAIMS.yaml`, or this very report. Nothing in the shell script itself
+    touches those files — the current separation (if any) exists purely as a prompt-level
+    convention (`TASK_PACKAGE`/`prompt.txt` instructions), not a technical one. *Proposed change:*
+    add a `--disallowedTools` entry (or an equivalent pre/post-flight path check, matching the
+    pattern already used by `scope-check.py` for file-ownership violations) blocking direct
+    `Write`/`Edit` on a small, explicit list of UMR-level paths
+    (`ai-os/MASTER_INDEX.yaml`'s `amendment_*` fields specifically, not the whole file since other
+    legitimate task-scoped edits to that file are common; `ai-os/boss/ACTIVE-CLAIMS.yaml`'s
+    decision-log-shaped entries) unless the task's own `task.yaml` carries an explicit
+    `pm_authorized_umr_write: true` flag set only by the PM at dispatch time.
+
+  - **Does `veridian-task.py` currently let a worker write UMR-level state?** No — confirmed by
+    direct grep, `veridian-task.py`'s `cmd_checkpoint()` only ever writes to the task's own
+    `task.yaml` (`checkpoints`/`status` fields), never touches `MASTER_INDEX.yaml`,
+    `ACTIVE-CLAIMS.yaml`, or `umr_tasks`. This part of the mechanism already correctly matches
+    Rule 2's task-vs-UMR distinction — no change needed here.
+
+  - **Does the `umr_tasks` table (`superboss-register.py`) have an owner-vs-task-record gate?**
+    No. `update_umr_task(conn, umr_id, **fields)` (superboss-register.py:3043) is a plain function
+    with no role/permission check anywhere in the file — confirmed by grep, zero hits for any
+    `is_pm`/`owner_only`/role-check pattern near the UMR functions. The backing file
+    (`ai-os/memory/superboss-register.sqlite`) is a single shared sqlite file with ordinary
+    filesystem permissions — any process (worker, interactive session, or this session tonight)
+    with local access can call `update_umr_task()` on any `umr_id` directly, exactly how tonight's
+    UMR closures were performed. *Proposed change:* introduce a `written_by` / `authorized_by`
+    column (already has `source_trigger`, which is unauthenticated free-text — the same weakness
+    the earlier tmux-confirmation correction already flagged for a different reason) plus a thin
+    wrapper (`update_umr_task_as_pm()`) that only the PM-role invocation path calls, with the raw
+    `update_umr_task()` reserved for task-level fields only (`ts_dispatched`, `last_heartbeat`,
+    `metric_snapshot_json`) — not `status`, `reason`, or `outputs_json` when those represent a
+    decision-log-level claim rather than a worker's own progress note. Needs a real definition of
+    which fields are "task progress" vs. "UMR decision" before this split can be built correctly —
+    not yet drawn in this pass.
+
+  - **Does `ACTIVE-CLAIMS.yaml` currently distinguish an owner-record from a task-record?** No —
+    confirmed by direct read of its own header: "Sessions cannot literally message each other —
+    this file IS the message." It is free-text YAML, `active:`/`recently_completed:` lists, edited
+    directly by any session's own git commits, with no schema separating a task's own
+    work-in-progress claim (legitimately Executor-writable, matches Rule 2's "task's own output")
+    from anything resembling a UMR-level decision log (which this file was never really designed
+    to carry — the decision-log-shaped content that caused tonight's incidents actually lived in
+    `MASTER_INDEX.yaml`'s `amendment_*` fields and this report's own Section 7, not here).
+    *Proposed change:* none needed to this file's own schema — the real gap is `MASTER_INDEX.yaml`
+    and this report's Section 7 being writable by any task, addressed above; `ACTIVE-CLAIMS.yaml`
+    already matches Rule 2's intent as-is.
+
+  - **`TASK_PACKAGE`/dispatch-template change:** `task-gateway.py`'s `cmd_submit()` already scopes
+    what a worker receives to `prompt.txt` + `task.yaml` for its own task directory only — no
+    evidence found of a worker being hard-coded to load full UMR history today (Rule 1's "load
+    only the assigned task's own package" is already the real behavior of the dispatch mechanism
+    itself; the gap is what the worker is *technically permitted to write*, covered above, not
+    what it's handed to read). *Proposed change:* add an explicit `umr_context: null` /
+    `umr_context: read_only_summary` field to the `TASK_PACKAGE` schema so this is a stated
+    contract, not just current incidental behavior — low priority relative to the write-gate
+    change above.
+
+  **Not implemented in this pass, per explicit Owner instruction** — instruction and plan only.
+  `UMR-20260802-054239-4251` and PR #697 remain open pending a fresh Rule 10 audit and an actual
+  merge, unaffected by this amendment.
