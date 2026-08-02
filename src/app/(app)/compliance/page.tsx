@@ -111,8 +111,29 @@ export default function CompliancePage() {
   useEffect(() => {
     fetch("/api/departments")
       .then((r) => r.json())
-      .then((d) => setDepartments(d.departments ?? d))
-      .catch(() => {});
+      .then((d) => {
+        // UMR-20260802-165606-4413: a backend failure here returns
+        // `{ error: "..." }` (see src/app/api/departments/route.ts's catch
+        // block), which is an object, not an array. `d.departments ?? d`
+        // used to fall back to that whole error object when `d.departments`
+        // was undefined, so `departments` state ended up holding
+        // `{ error: "..." }` instead of an array -- and the `.map()` below
+        // (department filter options) threw a client-side TypeError that
+        // crashed the entire Compliance Register / Pendency View page.
+        // A malformed or missing `departments` array must never reach
+        // `.map()`; any non-array response degrades to an empty list plus a
+        // visible, real error toast instead of a page-level crash.
+        if (Array.isArray(d?.departments)) {
+          setDepartments(d.departments);
+        } else {
+          setDepartments([]);
+          toast.error("Couldn't load departments. The department filter is unavailable for now.");
+        }
+      })
+      .catch(() => {
+        setDepartments([]);
+        toast.error("Couldn't load departments. The department filter is unavailable for now.");
+      });
   }, []);
 
   useEffect(() => {

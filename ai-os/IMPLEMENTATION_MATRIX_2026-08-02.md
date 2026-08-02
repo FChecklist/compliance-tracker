@@ -658,3 +658,80 @@ trees are both reachable from this workspace and were not a hard blocker, just o
 this pass.
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-02): `UMR-20260802-165606-4413` — Compliance Register crash fix (Finding A closed), CRM/ERP 403 UX gap tracked separately (Finding B)
+
+Amends parent `UMR-20260802-104058-25ba`. Source: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md`'s
+Findings A/B/C (real end-user certification pass on `projexa-ai.com`, real fresh self-signup org
+"OCID-020 Redo Certification Test Org", user `82af2932-57f4-42b0-b51c-fa6d54f13c4f`).
+
+### Finding A — fixed, this PR
+
+Real, reproducible client-side crash on the Compliance Register (`/compliance`) and Pendency View
+(`/compliance?status=overdue`), root-caused to a real `HTTP 500` on `GET /api/departments`.
+
+**Real root cause** (confirmed by direct reproduction against the real Supabase Postgres DB, RLS
+enforced, for both the real fresh self-signup org above and an older seeded org — identical
+failure both times, proving this was never RLS- or tenant-context-specific): `src/lib/db/schema.ts`
+defines two distinct FK relation pairs between `departments` and `users`
+(`head`/`headOfDept` via `departments.headId`, and the department-membership pair via
+`users.departmentId`), but only the `head`/`headOfDept` pair had an explicit `relationName`.
+Drizzle's relational query builder requires every relation pair between two tables to be named
+once more than one pair exists; the unnamed membership pair made `with: { users: ... }` throw
+`"There are multiple relations between 'users' and 'departments'. Please specify relation name"`
+at query-build time (before any network I/O), which `src/app/api/departments/route.ts`'s catch
+block turned into a bare `500`. The frontend (`src/app/(app)/compliance/page.tsx`) then treated
+that error-shaped response as an array, and `.map()` on the resulting non-array `departments`
+state crashed the page.
+
+**Real fix, both layers**:
+- `src/lib/db/schema.ts`: named the department-membership relation pair `'departmentMembers'`
+  (matching the existing `'deptHead'` pattern), resolving the ambiguity.
+- `src/app/(app)/compliance/page.tsx`: the departments-fetch effect now only ever sets state to
+  `d.departments` when it's actually an array; any other shape (error object, non-2xx body, fetch
+  rejection) sets an empty array and surfaces a real, visible `toast.error(...)` instead of letting
+  a malformed value reach `.map()` — so a backend 500 degrades the department filter, it no longer
+  crashes the page, regardless of root cause.
+
+**Real regression coverage added**: `src/lib/db/schema.relations.test.ts` (schema-config check,
+no live DB — confirmed the ambiguity check runs before any network I/O by timing it against a
+deliberately unroutable host, ~2ms) and `src/app/api/departments/route.test.ts` (route wiring:
+auth-guard enforcement, no-org 200-empty-array, real-query-failure 500 shape, success-path
+shaping). Both fail against the pre-fix schema and pass against the fix (verified directly, not
+assumed).
+
+**Real retest**: direct reproduction against the real production database (`APP_RUNTIME_DATABASE_URL`'s
+target, RLS enforced via `SET ROLE app_runtime`) for the exact real org this certification pass
+created — before the fix: `GET`-equivalent query throws the relation-ambiguity error for this org;
+after the fix (same schema file, same org, same RLS context): real success, returns the org's one
+seeded "General" department with `head: null`, `complianceItems: []`, `users: [{ id: ... }]` —
+the exact shape `route.ts` needs to build its response. A live redeploy + browser retest against
+`https://projexa-ai.com` itself was not performed as part of this PR (requires merge + deploy,
+which per `AGENTS.md` Rule 6 this agent cannot self-authorize) — the DB-level retest above is the
+real, executed verification this PR relies on; a post-merge browser retest against the live site
+is recommended before closing this UMR.
+
+### Finding B — tracked separately, not fixed by this PR (by design — do not conflate with Finding A)
+
+Real `403 Forbidden` across CRM and ERP backing APIs for a fresh self-signup org, severity medium,
+real behavior observed same certification pass:
+- `/crm` shell renders; `/api/crm/leads`, `/api/crm/accounts`, `/api/crm/campaigns`,
+  `/api/crm/contacts`, `/api/crm/opportunities` all `403`.
+- `/erp/procurement` shell renders; `/api/erp/procurement/quotations`, `/requisitions`, `/rfqs`
+  all `403`.
+- `/erp/journal-entries` shell renders; `/api/erp/buying/suppliers`, `/api/erp/accounts`,
+  `/api/erp/cost-centers`, `/api/erp/journal-entries`, `/api/erp/companies` all `403`.
+- Consistent with `erp-enablement-service.ts`'s `requireErpEnabled()` gate — plausibly correct,
+  safe-by-default behavior for a brand-new org with no ERP/CRM module explicitly enabled. Not
+  asserted as a bug in the gate itself; the real gap is UX: a fresh self-signup user sees
+  empty-looking CRM/ERP pages with backing calls silently `403`ing and no "module not enabled,
+  contact your admin" messaging to explain why.
+- **Not addressed in this PR** — this UMR's priority, per the owner, was the high-severity
+  Compliance Register crash (Finding A) only. Logged here as its own named, tracked gap so it
+  isn't lost: needs a real "module not enabled" empty-state / explanatory UI wired to the same
+  `requireErpEnabled()`-style gates across `/crm`, `/erp/procurement`, `/erp/journal-entries` (and
+  plausibly other ERP/CRM surfaces sharing the same gate — not independently re-audited here).
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
