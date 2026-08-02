@@ -550,6 +550,55 @@ open_items:
       recommendation: "Do NOT start any veda-advisors <-> VERIDIAN integration work without a separate, explicit Owner go-ahead -- this entry exists to record the scope decision and prevent 2 opposite mistakes: (a) a future session assuming veda-advisors is already VERIDIAN-integrated because it's declared in-scope, and (b) a future session starting the actual migration unprompted because the declaration exists. Treat this exactly like Priority 13's BIM/IFC item -- deliberately deferred, not ratified-against, do not re-raise as a build task until the Owner brings it up again."
       first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
 
+    - id: OPEN-11
+      name: "resource_governor.py (FChecklist/veridian-scripts) -- backfill_null_heartbeats() still needs an explicit Owner go-ahead to run; Phase 7 / disk-io improvement are kept-as-is, not a restore question"
+      detail: |
+        CORRECTED 2026-08-02 (same day, after further investigation -- see
+        superseded first version of this entry's reasoning in git history
+        of this file): task-20260802-074400-pm-decision--scope-the-
+        reconcile-stale-h's own PM-decision spec said to restore ONLY
+        reconcile_stale_heartbeats() narrowly and file everything else
+        found vs. the pristine pre-bad-deploy backup
+        (/opt/veridian/scripts/resource_governor.py.bak-predeploy-20260730-040659)
+        as a finding. This task initially opened FChecklist/veridian-scripts#16
+        as that narrow PR, and initially logged FChecklist/veridian-scripts#13
+        (which bundled the same restore together with 8 other fixes, and had
+        already been live-hotpatched to /opt/veridian/scripts/resource_governor.py
+        directly) as an uncoordinated scope violation by a parallel session.
+
+        That characterization was wrong. A separate, independent task
+        (task-20260802-074148-governance-regression--restore-reconcile,
+        dispatched 07:41:49, ~2 min before this one) reached the identical
+        narrow diagnosis and was mid-restoration when it was cancelled at
+        07:49:02 with this recorded reason (its own task.yaml, not this
+        session's inference): "duplicate of the same Sentinel finding...
+        The interactive session's work, done with **explicit Owner
+        approval**, additionally restores 7 more silently-lost functions...
+        Superseded, not lost." That is independent, contemporaneous
+        confirmation that #13's broader bundle was a real-time, explicit
+        Owner decision, not scope creep. #16 was closed as redundant (see
+        its closing comment) in favor of #13, which is the real PR for
+        reconcile_stale_heartbeats() and the 8 other fixes: find_pr_for_task_identity()
+        (Stage 4/5/6 duplicate-PR dispatch guard), exception-safety wrapping
+        in submit()/_perform_spawn(), MAX_TASK_IDENTITY_LEN cap,
+        _state_file_lock(), a zombie-worker systemctl-disable fix inside
+        scan_stuck_tasks()'s SIGKILL path, and forensic EMERGENCY_STOP
+        metrics logging.
+
+        Still genuinely open, not shipped by anyone: backfill_null_heartbeats()
+        (added to the file by #13 but deliberately NOT invoked -- a
+        one-time, dry-run-by-default data operation its own docstring says
+        needs a separate explicit go-ahead, distinct from the Owner approval
+        already given for the rest of #13's bundle). Also found in the same
+        backup diff but NOT a restore question either way -- both already
+        present/kept in the current live base, recorded here only because
+        the diff-against-backup surfaced them: an already-built Phase 7
+        reuse-check-enforcement-gate feature, and an improved
+        disk_io_percent() (io_ticks_ms-based, more accurate than the
+        backup's sector-based version).
+      recommendation: "Only one real open call left: whether/when to run backfill_null_heartbeats() -- a one-time data op, needs its own explicit go-ahead per its own docstring, separate from the approval already given for the rest of #13. Everything else this entry originally flagged is resolved (#13, Owner-approved, OPEN not yet merged) or was never actually a restore question (Phase 7 / disk-io, kept as-is)."
+      first_raised: "2026-08-02, task-20260802-074400-pm-decision--scope-the-reconcile-stale-h"
+
   real_gaps_not_yet_built:
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
