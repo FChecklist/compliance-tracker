@@ -110,3 +110,69 @@ independently verified complete.
       remaining nav surface, and (if reproduced cleanly/slowly) the
       auth-race question flagged above — reporting real incremental
       findings every cycle, not one final claim.
+
+# PROGRESS -- task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next
+
+Cites: `UMR-20260802-165606-4413` and the standing rebase directive
+`UMR-20260802-223426-f1d5` for PR #744 on compliance-tracker.
+
+## Completed
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting.
+- [x] Independently reconfirmed PR #744 state via `gh pr view 744`: still
+      `mergeStateStatus: DIRTY` at head `2a85f63b`, unchanged since the
+      earlier strip. Root cause confirmed: PR #745 and PR #746 both merged
+      onto `main` afterward and touched the same shared `PROGRESS.md` /
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` files PR #744 also touches (`git log`
+      on `main`: `71f3538b` merge of #746, `cc4ddffc` #745).
+- [x] **CORRECTION (per PM decision UMR-20260802-235349-9387, independently verified
+      directly on the server, not narrated):** the claim below, as originally
+      written, is FALSE and is retracted. This task originally asserted
+      `task-20260802-210700-pm-decision--fix-the-real-high-severity` was
+      "genuinely active, not stalled or silently dead" based on reading
+      `task.yaml`'s `status: in_progress` field and a `worker.log` tail
+      showing a lint pass. **Real `systemctl --user status` for that exact
+      unit shows `Active: inactive (dead)`, with its journal's only
+      lifecycle event being a `SIGTERM` sent to the main process and all
+      children on client request at `23:14:21Z` — five minutes before this
+      task even opened PR #748 (`23:19:41Z`) — and no `Started` entry after
+      that.** The original verification read a stale `task.yaml` status
+      field and stale `worker.log` content without checking for a live
+      process — the exact status-label-unreliability pattern this session
+      had already independently identified and disclosed elsewhere. This is
+      now recorded as a real, concrete supporting example for the recovery
+      matrix's OCID-019 status-field-staleness gap
+      (`UMR-20260802-165541-c27d`, PR #750): `task.yaml`'s `status` field
+      can read `in_progress` for a task that was already cleanly terminated.
+      Real, current fact: task-210700's own valuable finding (multi-tenant
+      isolation) was independently rescued and already merged via PR #747;
+      it is not, and was never after 23:14:21Z, still running.
+- [x] Confirmed the idle-time decision already reached (checking other
+      pending PRs while waiting on the task-210700 monitor) is correct and
+      does not conflict with the safety wait: this session's own workspace
+      is current with `origin/main` (`71f3538b`, includes #745+#746);
+      `gh api repos/FChecklist/compliance-tracker/pulls` shows 112 open PRs
+      -- no action taken against any of them (out of this task's scope,
+      and several have their own active-session claims per
+      `ACTIVE-CLAIMS.yaml`).
+- [x] Established baseline on current `main` (before any PR #744 rebase):
+      grep for `GAP-ERP-CRM-403-NO-UX-EXPLANATION` in
+      `ai-os/MASTER-TRACKER.yaml` shows exactly 1 match.
+- [x] Opened PR #748 for this session's own docs-only claim/status update
+      (`PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) -- `mergeable:
+      MERGEABLE`, `mergeStateStatus: BLOCKED` (pending required CI checks,
+      normal for a fresh PR). Not merging until CI is green.
+
+## Remaining
+- [x] ~~Keep respecting the safety wait...~~ Superseded by the correction
+      above: task-210700 was already terminated by `23:14:21Z`, well before
+      this task's own checkpoint. The safety wait itself was correct
+      discipline; the specific "still genuinely in_progress" reading was not.
+- [ ] Once task-210700 is confirmed complete: rebase PR #744
+      (`worker/task-20260802-220756-pm-decision--close-pr-741-as-superseded`)
+      onto the then-current `main` (will already include #745+#746),
+      resolve `PROGRESS.md` / `ai-os/boss/ACTIVE-CLAIMS.yaml` conflicts the
+      same way the first rebase did.
+- [ ] Re-confirm the `GAP-ERP-CRM-403-NO-UX-EXPLANATION` grep still shows
+      exactly 1 match after the rebase.
+- [ ] Push the rebased branch and report real MERGEABLE/CONFLICTING status.
+      Do NOT merge until CI is green; do NOT force past a real conflict.
