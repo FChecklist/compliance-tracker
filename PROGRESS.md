@@ -10,5 +10,7 @@
 - [x] Wrote a new amendment section to the canonical artifact (`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`), citing both parent UMRs, refining the memory model with the DB-table findings above and naming the MASTER_INDEX.yaml drift as the one real open gap.
 - [x] Committed + pushed the amendment.
 
+- [x] Opened PR #729: https://github.com/FChecklist/compliance-tracker/pull/729
+
 ## Remaining
-- [ ] Open PR, confirm CI, note in this file once merged.
+- [ ] Confirm CI passes on PR #729, note here once merged (merge itself is out of this session's hands per Rule 6 -- PR/CI gate, no direct push to main).
