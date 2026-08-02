@@ -2898,3 +2898,48 @@ entries:
         IDX-20260721-185951-dd1d). Rollback/upgrade procedures and a
         maintenance guide for adding future filters are in
         ai-os/boss/completed-work/snip-integration/07-09*.md.
+  - id: WAVE-10-REDO
+    title: "Redo the Wave 10 projexa-ai.com/www.projexa-ai.com DNS/Vercel cutover, undoing an undocumented 2026-07-27 reversal"
+    doer:
+      agent: "claude-code (interactive session, direct SSH to VERIDIAN-DEV, PM=Claude Desktop dispatched)"
+      date: "2026-08-02"
+      pr: "None -- live infra action (Vercel domain-to-project reassignment), not a code change. Documented here per the Owner's explicit instruction, closing the exact governance gap (task-20260802-123916's finding) that made this redo necessary in the first place."
+      summary: >
+        REAL PROBLEM: Wave 10 (ai-os/boss/completed-work/wave10-dns-cutover.md) originally cut
+        projexa-ai.com/www.projexa-ai.com over from the standalone `projexa` Vercel project to
+        `veridian-compliance-ai`, as the final step of the VERIDIAN/PROJEXA brand-layer merge. At
+        some point on or around 2026-07-27, both domains were reversed back to the standalone
+        `projexa` project -- found by task-20260802-123916 (real Vercel API investigation) and
+        independently confirmed by this session (UMR-20260802-123246-f2e7) via live
+        GET /v9/projects/{id}/domains -- with NO record of that reversal anywhere in ai-os/, exactly
+        the documentation gap this entry closes.
+
+        REAL OWNER DECISION (UMR-20260802-134939-145d, given directly): revert to the Wave 10 state.
+        Executed via the real Vercel API (VERCEL_ACCESS_TOKEN, team meet-track-s-projects), mirroring
+        the wave10 runbook's own documented mechanism -- since a direct POST with the domain already
+        attached elsewhere returns 409 domain_already_in_use, did it as the CLI's own real 2-step
+        equivalent: DELETE /v9/projects/{projexa}/domains/{domain} (HTTP 200 for both domains), then
+        POST /v10/projects/veridian-compliance-ai/domains (HTTP 200 for both, body {"name": domain}).
+
+        VERIFIED LIVE, NOT NARRATED (per the Owner's explicit instruction not to self-certify):
+        - GET /v9/projects/veridian-compliance-ai/domains/projexa-ai.com -> HTTP 200,
+          projectId=prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII (veridian-compliance-ai), verified=true.
+        - GET /v9/projects/veridian-compliance-ai/domains/www.projexa-ai.com -> HTTP 200, same
+          projectId, verified=true.
+        - GET /v9/projects/projexa/domains confirms projexa's real remaining domains are now only
+          ['projexa-smoky.vercel.app'] -- neither apex nor www remains attached there.
+        - curl -I https://projexa-ai.com and https://www.projexa-ai.com -> both real HTTP/2 200,
+          server: Vercel, real response headers changed from the pre-cutover baseline (now preloading
+          /logo-mark.svg, which the pre-cutover response did not).
+        - Real page body fetched and parsed: <title>VERIDIAN COGNITIVE AI OS -- AI Cognitive
+          Research</title>, "THE FIRM" and "VERIDIAN" present, "PROJEXA" and "compliance-tracker"
+          absent -- confirms the served content is genuinely the VERIDIAN/compliance-tracker brand,
+          not standalone PROJEXA, not a cached/stale response.
+
+        Nothing deleted: the `projexa` Vercel project and FChecklist/projexa GitHub repo were not
+        touched beyond the domain detach, matching the wave10 runbook's own stated rollback-safety
+        property in reverse. The 6 api_keys/veridian_credentials rows from Wave 10 Part 1 were not
+        touched (out of scope for a DNS-only action, per that runbook's own rollback-runbook note).
+
+        ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md item 12 (Go Live) corrected to reflect this in a
+        separate real commit, cited under UMR-20260802-104058-25ba.
