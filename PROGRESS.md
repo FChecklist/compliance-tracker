@@ -105,6 +105,9 @@ UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
       ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md -- explicitly
       linked to UMR-20260802-034545-3388, cites the traceability job's
       file as the complementary (not competing) index.
+- [x] Committed + pushed (e2c589df), opened PR #692.
+- [x] Updated ACTIVE-CLAIMS.yaml with done/PR-open status (commit
+      1736301c, pushed).
 
 ## Remaining
 - [ ] Confirm CI passes (do not merge, do not post audit verdict) -- monitoring in progress
@@ -392,3 +395,7 @@ UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
    citations, one claiming .yaml, one .md) but does not exist on disk -- needs either (re)writing or a
    MASTER_INDEX.yaml correction.
 - [ ] Commit + push the collated doc. Final report to Owner/session.
+- [ ] None for this task's own scope -- awaiting CI + merge on PR #692
+      (out of this session's control). Priorities #5 (prompt library) and
+      #8 (multi-tenant/brand) were flagged as not spot-verified this pass
+      (doc Section 2/6) for whoever picks those up next.
