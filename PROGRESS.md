@@ -67,12 +67,31 @@ individually-verified real-completion or real-duplicate evidence (not a blanket 
 Running total: 25 (Batch 1) + 11 (Batch 3 closed) = 36 CLOSED, 3 flagged-ambiguous-blocked, 0 retried yet,
 0 deleted.
 
+## Batch 4a: DONE -- 12 of the 27 never-worked tasks CLOSED (status=superseded), each individually
+verified (not blanket): 3 with confirmed real completion via `gh pr view` (PR #675/#678 MERGED same-day
+via a different path -- task-20260801-043356, 064531), 4 self-described smoke tests explicitly saying "no
+real work needed" (063806, 112939, 112944, 113701, 114112 -- 5 actually), 2 stale point-in-time sentinel
+monitoring nudges now moot (120528, 130426), 1 duplicate of the parent audit's own already-diagnosed
+umr_tasks.last_heartbeat systemic bug (123454), 2 broad standing Owner directives with no single scoped
+deliverable, substance already carried forward by ordinary ongoing dispatch (073643, 134516).
+
+Running total: 36 (through Batch 3) + 12 = 48 CLOSED, 3 flagged-ambiguous-blocked, 0 retried, 0 deleted.
+
 ## Remaining
-- [ ] Batch 4: the 27 remaining never-worked tasks (the other 2 of the original 29 were rca-task-
-  20260726-083946/171129 2nd-gen retries already folded into Batch 3 above as duplicates -- 195236/195240).
-  RETRY vs CLOSE, title-by-title -- some are time-sensitive one-off 2026-08-01 alerts likely stale, some
-  may be still-live directives. Re-check headroom before any real RETRY dispatch (swap was 95%+ full at
-  last check).
+- [ ] Batch 4b: 13 remaining never-worked tasks (2026-08-01 15:18 through 2026-08-02 03:01) -- includes a
+  live-looking revert/re-fix saga around dynamic concurrency capping (172049 scale-up, 172431 urgent-
+  replace-hardcoded-cap, 190141 revert-pr--9, 190802 revert-dynamic-cap-to-fixed-plus-veto, 030047
+  merge-pr--9-fixed-co) that may still be operationally relevant given today's own observed high load/swap
+  pressure -- needs real investigation, not a blanket close. Plus 2 build-extend-*-track-engines
+  never-worked instances (040657, 040705) deferred into the large build-extend cluster batch below.
+- [ ] Batch 5+: remaining ~49 worked tasks: 15x build-extend-calculation-track-engines (+1 never-worked =
+  16), 11x build-extend-workflow-track-engines (+1 never-worked = 12), 3x resolve-fresh-conflict-on-pr--
+  610, 10x CRM/PM Task #46/#47 singletons, 3x rebase-pr-* large rescue tasks, ~7 other singletons
+  (independent-audit-of-pr-652, re-rebase-pr-653/630, fresh-audit-of-pr-655, deterministic-per-task-type-
+  verification, register-active-claims-entry-for-procure, commit-procurement-erp-gap-analysis-docu,
+  integrate-knowledge-engine, build-a-commission-calculator, build-a-quasar-flux-telemetry-ingestion).
+- [ ] Final tally + report per spec section 5 (retried-completed/still-blocked, closed/end-dated,
+  deleted-as-duplicate, ambiguous).
 - [ ] Batch 5+: remaining ~49 worked tasks: 15x build-extend-calculation-track-engines, 11x
   build-extend-workflow-track-engines, 3x resolve-fresh-conflict-on-pr--610, 10x CRM/PM Task #46/#47
   singletons, 3x rebase-pr-* large rescue tasks, ~7 other singletons (independent-audit-of-pr-652,
