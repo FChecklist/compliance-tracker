@@ -34,7 +34,12 @@ Cites `UMR-20260802-164659-9a31` (OCID-20260802-016, server-wide artifact tracea
       `chatgpt-audit/`, `reconciliation/`, `data/`, `backups/`) — outside the directive's literal
       "scripts, ai-os, and any repo" wording, each plausibly its own future tranche.
 
+- [x] Opened PR #749, dispatched an independent auditor agent per Rule 7c (no self-certification)
+      to verify the PR's factual claims and post the required `AUDIT: PASS`/`FAIL` structured
+      comment (`.github/workflows/mandatory-audit-check.yml` gate).
+
 ## Remaining
+- [ ] Awaiting the independent auditor's verdict comment on PR #749, then merge once CI is green.
 - [ ] A future tranche, if the directive is broadened: the 15 other `/opt/veridian/` top-level
       dirs named above.
 - [ ] Standing exclusions (same as tranche 3, not this session's scope): `ai-os/tasks/` (899 task
