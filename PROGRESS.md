@@ -21,10 +21,11 @@
       `ai-os/UMR-20260802-104058-25ba_SCOPE_EXTENSION_2026-08-02.md` (14-item combined
       scope: original 12 deliverables unchanged + items 13-14 verified here).
 - [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` under `active:`.
-- [x] Committed and pushed; opened PR (see below for number once created).
+- [x] Committed and pushed; opened PR #715
+      (https://github.com/FChecklist/compliance-tracker/pull/715).
 
 ## Remaining
-- [ ] PR review/merge (CI gate, Rule 6) -- out of this session's control once pushed.
+- [ ] PR #715 review/merge (CI gate, Rule 6) -- out of this session's control once pushed.
 - [ ] Combined 14-item report synthesis is owned by `task-20260802-110424-...` (the
       running audit) -- this session's job was to verify and hand off items 13-14, not
       to author the final combined report itself.
