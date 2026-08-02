@@ -4119,6 +4119,41 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260802-055214-register-veridian-kernel-1-0---kernel-co) -- Reconciled dispatched VERIDIAN_KERNEL=1.0 text against real AI-OS governance [DONE, PR pending]"
+    claimed_at: "2026-08-02T (this session, closed same session)"
+    claim: |
+      Owner dispatch asked to register a pasted VERIDIAN_KERNEL=1.0 pseudo-DSL
+      (PM/PLANNER/DISPATCHER/WORKER roles, an 11-state task machine,
+      SEARCH/CACHE/EVIDENCE/COMPLETE/RCA/INFRA rules) as the Single Source of
+      Truth for this AI workforce, merged with existing real governance.
+      Surveyed the real system instead of trusting the dispatch's own file
+      list (2 research passes: ai-os/CONSTITUTION.yaml, MASTER_INDEX.yaml,
+      LIFECYCLE.yaml, STANDING_DIRECTIVE.yaml, boss/*.yaml, MASTER-TRACKER.yaml;
+      and ai-os/scripts/dispatch_core.py, task-gateway.py, resource_governor.py,
+      worker-entrypoint.sh, tight_task_validation.py, ddl_authorization_check.py,
+      credit-accountant.py, superboss-register.py, supervisor-entrypoint.sh,
+      recover-failed-workers.py, queue-dispatcher.py, module-queue-dispatcher.py,
+      dispatch-owner-task.sh). Found most Kernel concepts already have a real,
+      differently-named implementation (full mapping with file:line citations
+      in the report below); found 2 real CONFLICTS applied the Kernel's own
+      KERNEL_CONFLICT rule to (STOP, no new rule/file, report, wait for
+      decision) rather than executing past them: (1) CONSTITUTION.yaml already
+      holds SOLE_AUTHORITY status via an explicit 2026-07-14 Owner directive
+      with its own amendment_rule -- this dispatch did not go through that
+      path; (2) the Kernel's 11 task states match none of 3 real,
+      independently-enforced state vocabularies already in production
+      (umr_tasks SQL CHECK constraint, task.yaml's 7 states, module-queue's 4
+      states) -- reconciling them is a breaking-change engineering task
+      needing explicit Owner sign-off, not something to do silently here.
+      Also found and documented (not fixed, out of scope): a dangling
+      MASTER_INDEX.yaml reference to ai-os/OWNER_DIRECTIVES/PROTOCOL_OWNER_AI.yaml,
+      which does not exist anywhere on disk. Deliverables: full report at
+      ai-os/VERIDIAN_KERNEL_1.0_RECONCILIATION_REPORT_2026-08-02.md (RCA + gap
+      analysis + implementation report, all citations verified by direct
+      read/grep/find against the canonical repo, not assumed), one extension
+      registry entry (id: veridian_kernel_1_0) appended to MASTER_INDEX.yaml's
+      registries: list, status proposed_pending_owner_decision. No code,
+      schema, or existing governance-file logic changed.
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
