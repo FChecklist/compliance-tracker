@@ -12,5 +12,28 @@
 
 - [x] Opened PR #729: https://github.com/FChecklist/compliance-tracker/pull/729
 
+- [x] Follow-up session (task-20260802-172702-resolve-pr-729-real-merge-conflict--pres): re-verified live
+      `mergeable`/`mergeStateStatus` -- the earlier `CONFLICTING`/`DIRTY` read had already resolved to
+      `MERGEABLE` on its own (live-state drift, not a real unresolved conflict: `git merge-base` of this
+      branch and `origin/main` equals `origin/main`'s own tip, and a local `git merge --no-commit --no-ff
+      origin/main` from this branch returns "Already up to date") -- no rebase or force-push was needed.
+- [x] Independently spot-verified every quantitative claim in the DB-layer-refinement amendment above
+      against live sources (superboss-register.sqlite row counts, `system-sync.py --check mirror`'s 3
+      named findings, MASTER_INDEX.yaml live-vs-repo registry counts 123/59/54) -- all reproduced exactly
+      or within expected live-DB drift.
+- [x] Posted the mandatory structured `AUDIT: PASS` verdict comment (8-field `AuditProtocolFields`
+      contract, `scripts/validate-audit-verdict.ts`) -- first attempt tripped the ambiguous-language
+      detector on an incidental substring ("w**as needed**" inside "was needed"), corrected and validated
+      locally against the real `validateAuditProtocolFields()` before re-posting.
+
 ## Remaining
-- [ ] Confirm CI passes on PR #729, note here once merged (merge itself is out of this session's hands per Rule 6 -- PR/CI gate, no direct push to main).
+- [ ] The `issue_comment`-triggered `mandatory-audit-check` run validated the verdict successfully but
+      reported it against `main`'s SHA, not this PR's actual head SHA (known workflow gap -- the check
+      only re-triggers on `issue_comment: created`, and that event's `pull_request` context doesn't carry
+      the PR's own head ref/SHA the way a `pull_request: synchronize` event does). This commit's own push
+      supplies that missing `synchronize` event so `audit-check` re-runs against this branch's real head
+      commit and picks up the already-posted PASS verdict.
+- [ ] Confirm all required status checks (Lint/Type Check/Build/audit-check/Guardrail Presence
+      Check/Asset Registry Coverage Check/Unit Tests) are green against the new head SHA, then merge PR
+      #729 (merge itself is out of this session's hands per Rule 6 -- PR/CI gate, no direct push to main;
+      this session does not have merge/admin rights to bypass that gate even if it wanted to).
