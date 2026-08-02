@@ -40,6 +40,47 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260801-170950-batch-disposition-of-166-balance-exhaust) -- Batch-dispositioning the 47 real ai-os/tasks/* records blocked by the now-removed OpenRouter balance hard-stop (check_openrouter_balance(), removed in preflight-guard.py commit 7ff5be8)"
+    claimed_at: "2026-08-02T (this session)"
+    claim: |
+      Scope: /opt/veridian/ai-os/tasks/*/task.yaml + task.yaml's own
+      checkpoint history (via `veridian-task.py checkpoint --status --note`),
+      for the specific 47 task records whose task.yaml/worker.log contain
+      the exact fail-reason string `openrouter_balance_exhausted`. Does NOT
+      touch task records blocked by the separate, still-live
+      `credit_accountant_rejected` gate (different check,
+      check_credit_accountant_approval(), not removed) -- those are out of
+      scope for this task and still correctly blocked.
+
+      IMPORTANT CORRECTION vs this task's own title: verified via direct
+      grep across every ai-os/tasks/*/task.yaml + worker.log that the real,
+      exact-string-matched population is 47 tasks (48 files matched the
+      exact-match grep incl. one already-completed task), not 166 -- no
+      document in this repo (MASTER-TRACKER.yaml, COMPLETED.yaml,
+      CONTROLLER.yaml, LIVE_STATUS_*.yaml) substantiates a "166" figure tied
+      to this gate, and the removal commit's own message ("no recent worker
+      logs show it having tripped") is consistent with the real, smaller
+      47-unit population, not 166. The "166" figure appears to have been an
+      unverified estimate carried into this sub-task's own title/prompt by
+      the parent 800-task audit (UMR-20260801-153900-9100), which had not
+      yet produced its own findings list as of this session (its own
+      workspace/PROGRESS.md was still "Not started"). Proceeding on the
+      real, verified 47-task population per the prompt's own fallback
+      ("derive independently" when the parent audit hasn't produced a
+      list yet); flagging this discrepancy explicitly in the final report
+      rather than silently working to the stale headline number.
+
+      Resource-headroom check per this task's own process step 2: at claim
+      time, `free -h`/`vmstat` showed active swap I/O (si/so both nonzero,
+      swap 2.9/4.0Gi used) and load average 9.65 on 8 cores -- matching the
+      Jul26/31 OOM-incident pattern the task warns about. Per that
+      instruction, deferring all real RETRY re-dispatches (each spins up a
+      new systemd worker unit) to a later invocation/session once headroom
+      is confirmed clear; this session is only doing the safe, no-new-process
+      work this pass: CLOSE dispositions (task.yaml checkpoint status update
+      only, no dispatch) for records with solid evidence the underlying work
+      is already done or superseded elsewhere, plus investigation/labeling
+      of the rest for the next batch.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
