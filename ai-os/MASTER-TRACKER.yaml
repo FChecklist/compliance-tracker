@@ -759,6 +759,14 @@ open_items:
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
 
+    - id: GAP-BUILD-TIMEOUT-AUTOPROCEED
+      name: "Load-driven build-gate timeouts (exit_code 124) require a manual PM decision to unstick every time, even though the RCA already treats them as non-blocking in principle"
+      old_ids: []
+      detail: "task-20260727-043407's RCA already establishes that quality-gate.sh's 1800s `next build` timeout under real concurrent-build load is a resource-contention false-positive, not a code defect, and that a worker's own credit accountant correctly refuses to spend further auto-fix credits against it (existing-mechanism match, nothing to code-fix in a timeout). What's still missing is the mechanical follow-through: nothing automatically proceeds a task past a load-timeout build failure to pending_review when its other real gates (lint, etc.) passed -- each instance still lands in `blocked` and needs a separate manual PM decision to move it forward. Confirmed repeating 3 times in one night (2026-08-02): task-20260802-055214 (Kernel registration), task-20260802-032508 (close-phase-2 final gates), and task-20260802-035819 (independent audit of PR #630/#632) all hit the identical build-timeout -> credit-accountant-block -> stuck-blocked sequence within about 90 minutes of each other, each requiring its own separate PM-decision task to unblock (UMR-20260802-064914-ec5b for the Kernel task, UMR-20260802-065733-923f for the other two)."
+      size: deferred_small
+      priority: P3 (real fix worth doing so this stops repeating, not urgent -- logged 2026-08-02 per PM directive, do not implement without separate authorization)
+      recommendation: "Teach the worker/supervisor pipeline (wherever the credit-accountant rejection is handled, e.g. the same call site that currently just leaves the task in `blocked`) to recognize the specific signature already visible in quality-gate-0.json (build gate exit_code=124 with the 'TIMED OUT after Ns and was killed' message, all other ran gates passed) and auto-checkpoint to pending_review with a note citing the RCA, instead of waiting on a human PM decision every time. Should reuse the exact reasoning already applied manually three times tonight, not invent new logic."
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
