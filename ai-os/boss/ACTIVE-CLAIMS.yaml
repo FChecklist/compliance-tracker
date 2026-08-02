@@ -4250,6 +4250,34 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (OCID-20260802-020 Phase 1: PROJEXA-AI.COM E2E certification, account access + core nav) -- UMR-20260802-165606-4413, amending UMR-20260802-104058-25ba [DONE, PR opened]"
+    claimed_at: "2026-08-02T19:00Z-19:15Z (this session, closed same session)"
+    claim: |
+      Continuation of PR #727's real signup attempt (same UMR/OCID) -- tried
+      3 further real account-access paths on the live projexa-ai.com: (a) the
+      pre-existing test alias (no known password, dead as briefed), (b) a
+      fresh real signup (200, real "check your email" state, blocked on real
+      inbox confirmation this sandbox cannot open), (c) the real, documented
+      seeded Projexa E2E CEO credentials (`e2e/users.ts`) -- real 400
+      invalid_credentials on projexa-ai.com. Root-caused (c): projexa-ai.com's
+      real auth calls target Supabase project `pcrjmlpuqsbocqfwoxod`, but the
+      seeded credentials belong to the real Projexa app's own project
+      `evpckeuxgvahguwsaeul` -- confirmed by the same credentials succeeding
+      (real 200, real /dashboard) against `https://projexa-smoky.vercel.app`
+      instead. This directly re-confirms, at the application/auth layer, the
+      parent matrix's item 12 finding (real Owner domain reversion,
+      UMR-20260802-134939-145d/PR #720): projexa-ai.com currently serves
+      veridian-compliance-ai, not the standalone projexa app. Also found a
+      real, live product bug independent of this: "Sign in with Google" on
+      projexa-ai.com/login hits a real 400 `provider is not enabled` (OAuth
+      not configured on that Supabase project). Captured a real top-level
+      menu inventory of the actual Projexa product (18 categories, real org
+      data) at projexa-smoky.vercel.app as context/evidence only -- not this
+      task's own scope, flagged as an open PM/Owner scoping question for the
+      next phase rather than decided unilaterally. Full detail + 15 real
+      screenshots: ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_PHASE1_2026-08-02.md.
+      No authenticated screen was reached on projexa-ai.com itself this pass
+      -- reported plainly as a real, honest blocker, not hidden.
   - session_label: "claude-code (task-20260802-055214-register-veridian-kernel-1-0---kernel-co) -- Reconciled dispatched VERIDIAN_KERNEL=1.0 text against real AI-OS governance [DONE, PR pending]"
     claimed_at: "2026-08-02T (this session, closed same session)"
     claim: |
