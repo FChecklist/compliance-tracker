@@ -385,3 +385,83 @@ directive was explicitly scoped to detection/verification, not new implementatio
 duplicate worker/task/PR/audit as a side effect — `check_latest_task.py` only restarts the *same*
 unit for the *same* `latest` task id; `resource_governor.py`'s own duplicate-PR guard (item above)
 exists specifically to prevent exactly this class of duplication.
+
+---
+
+## Amendment (2026-08-02): Server-wide artifact traceability register — first tranche (`UMR-20260802-164659-9a31`, OCID-20260802-016)
+
+Amends `UMR-20260802-054239-4251` and `UMR-20260802-104058-25ba`, inheriting their status.
+Explicitly incremental per the directive's own permission ("work it incrementally and report
+real progress rather than rushing an incomplete claim"). This tranche consolidates 4 real,
+independent discovery passes completed this session into the one canonical artifact, rather than
+leaving the findings scattered across agent transcripts.
+
+**Real coverage this tranche: 381 top-level files across 4 zones**, each covered completely (not
+sampled): `/opt/veridian/scripts/*.py,*.sh` (104), compliance-tracker `ai-os/` top-level (50),
+claude-control `ai-os/` top-level (76), live-server `/opt/veridian/ai-os/` top-level + veda-
+advisors/projexa `ai-os/` (151).
+
+### Aggregate findings
+
+| Zone | Files | Have a real UMR ref | No mapping possible (pre-dates UMR system) | Genuine orphans flagged | Genuine duplicates flagged |
+|---|---|---|---|---|---|
+| `/opt/veridian/scripts/` | 104 | 7 (+1 traceable via commit history) | 96 | 0 (all 14 zero-cross-ref candidates had clear self-documented purpose) | 1 pair: `anthropic_openrouter_proxy.py` (v1, zero refs) vs `_v2.py` (live-wired, systemd) |
+| compliance-tracker `ai-os/` | 50 | 6 | 44 | 0 (all referenced in `OS.yaml`/`MASTER_INDEX.yaml`) | 0 confirmed; 1 soft flag (`STATUS-REPORT.md` vs `MASTER-TRACKER.yaml`, not self-marked stale) |
+| claude-control `ai-os/` | 76 | 1 (`MASTER_INDEX.yaml`) | 75 | 0 | 1 pair: `METADATA_ENGINE_RECONCILIATION_2026-07-24.yaml` vs `METADATA_KNOWLEDGE_ENGINE_RECONCILIATION_2026-07-24.yaml` (same phase/day/objective, different tasks, genuinely overlapping) |
+| live-server `ai-os/` + veda-advisors/projexa | 151 | 8 | ~90 (bootstrap-only history) | 8: `CORE_KERNEL_31_CONTRACT_MERGED_ANALYSIS_2026-07-30.md`, `OWNER_ENGINE_31_CONTRACT_FRAMEWORK_ANALYSIS_2026-07-30.md`, `HANDOFF_2026-07-30_LAPTOP_SESSION.md`, `LIVE_SCRIPT_CLOBBERING_INVESTIGATION_2026-07-30.md`, `OWNER_STANDING_DIRECTIVE_FULL_AUTONOMY_2026-07-31.md`, `.credit_accountant_disabled`, `umr_tasks.db`, `superboss_register.sqlite3` | ~39 `.gitignore`-policy-excluded backup/superseded files (expected, by design — `*.bak*`/`*.pre-*`/`*.superseded*`/`*.lock`/`*.sqlite*` are deliberately untracked); 3 pairs flagged real content-differing duplicates: `STRATEGIC_PLAN_2026-07-21.yaml` vs `_v2.yaml`, `PENDING_OWNER_REVIEW.md` vs `_2026-07-28.md`, and the `superboss-register.sqlite` vs `superboss_register.sqlite3` naming-inconsistency stray (latter has zero references anywhere) |
+| **Total** | **381** | **22** | **~305** | **8 hard orphans + 5 `.superseded-by-INS-*` orphans-in-place** | **3 genuine pairs** |
+
+### Real structural finding, not a per-file anomaly
+
+**94% of files with no UMR mapping (305/324) is not a coverage gap in this register — it is
+because those files chronologically predate the UMR-YYYYMMDD-HHMMSS-hex tracking convention.**
+Verified independently in 3 of 4 zones: earliest UMR string found anywhere in compliance-tracker's
+own `ai-os/` content is `UMR-20260801-175205-de64` (2026-08-01); claude-control's `ai-os/` content
+is dated 2026-07-23 through 2026-07-27 with zero UMR strings in any commit message across full
+history; live-server files split similarly (2026-07-20 through 2026-07-31, bootstrap commit only).
+Inventing a mapping for these would violate the directive's own explicit instruction ("never
+invent a new one") — they are correctly left unmapped, not silently forced onto a nearby UMR.
+
+### Genuine orphans (13 total, real, no owner/purpose/mapping found)
+
+Live-server zone: `CORE_KERNEL_31_CONTRACT_MERGED_ANALYSIS_2026-07-30.md`,
+`OWNER_ENGINE_31_CONTRACT_FRAMEWORK_ANALYSIS_2026-07-30.md` (possible near-duplicate pair of each
+other), `HANDOFF_2026-07-30_LAPTOP_SESSION.md`, `LIVE_SCRIPT_CLOBBERING_INVESTIGATION_2026-07-30.md`,
+`OWNER_STANDING_DIRECTIVE_FULL_AUTONOMY_2026-07-31.md`, `.credit_accountant_disabled`,
+`umr_tasks.db` (0 refs anywhere despite the UMR-suggestive name), `superboss_register.sqlite3`
+(0 refs, likely a naming-inconsistency stray of the real `superboss-register.sqlite`). Plus 5
+`.superseded-by-INS-*` remnant files with no active counterpart present at their directory level
+(`completion_of_pending_tasks.md`, `completion_of_projexa_ai_com.md`, `standing_execution_directive.md`,
+`two_engine_task.md`, `uncomplicate_unduplicate_task.md`).
+
+### Genuine duplicates (3 pairs, real content overlap, not self-marked stale)
+
+1. `anthropic_openrouter_proxy.py` (v1, 0 refs) vs `anthropic_openrouter_proxy_v2.py` (live-wired
+   to `veridian-glm-proxy.service`) — v1 is dead weight.
+2. `METADATA_ENGINE_RECONCILIATION_2026-07-24.yaml` vs `METADATA_KNOWLEDGE_ENGINE_RECONCILIATION_2026-07-24.yaml`
+   (claude-control) — same phase, same day, same core objective, produced by 2 different tasks 6
+   minutes apart.
+3. `STRATEGIC_PLAN_2026-07-21.yaml` vs `_v2.yaml`, and `PENDING_OWNER_REVIEW.md` vs
+   `_2026-07-28.md` (live-server) — confirmed to genuinely differ in content, not `.bak`-pattern
+   self-backups; naming-convention cleanup candidates, not accidental duplication.
+
+No fixes applied in this pass — flagging only, per the directive's own scope (discovery/
+classification, not remediation).
+
+### Honest remaining scope (not yet covered — named, not silently skipped)
+
+This tranche covered 4 top-level zones only. Real, named zones still outstanding for a future
+tranche: subdirectories within each repo's `ai-os/` tree (compliance-tracker: `boss/`, `sentinel/`,
+`registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/`; claude-control:
+`dependency-cruiser/`, `eslint/`, `guardrail-findings/`, `openapi/`, `pgaudit/`, `promptfoo/`,
+`reports/`, `schemas/`, `testing_engine_evidence/`, `wiring_engine_evidence/`,
+`workflow-transitions/`; live-server: `audit198/` (51 files), `logs/` (55), `memory/` (32),
+`pending_remediation/` (166), `OWNER_DIRECTIVES/` (9), `reference/` (14), `scripts/` (22),
+`catalogs/`, `generated/`, `patches/`, `planning/`, `queues/`, `session_metadata/`). **Explicitly
+out of scope for this register**: `/opt/veridian/ai-os/tasks/` (899 real task directories) — each
+task's own `task.yaml` is already the canonical per-task state per the unified memory model
+amendment above; re-registering 899 individual task dirs here would duplicate that model, not
+extend it.
+
+Canonical artifact updated: this file (`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`), same
+amendment convention as PR #723/#725 — not rewritten, not duplicated.
