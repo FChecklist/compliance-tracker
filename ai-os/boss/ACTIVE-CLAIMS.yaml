@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-171744-amendment--continuous-recovery-framework) -- AMENDMENT: continuous recovery framework verification, extends existing Recovery matrix section [DOCS ONLY, ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md, no code]"
+    claimed_at: "2026-08-02T17:17Z (this session)"
+    claim: |
+      SPEC (Owner directive OCID-20260802-019, PROMPT_PRIORITY=HIGHEST). Amends
+      both UMR-20260802-054239-4251 (Kernel reconciliation) and
+      UMR-20260802-104058-25ba (implementation matrix), inheriting their
+      status -- no new implementation/audit for this directive itself.
+
+      GATEKEEPER CHECK PERFORMED BEFORE WRITING (per this file's own protocol
+      + the standing gatekeeper rule already in `ai-os/IMPLEMENTATION_MATRIX_
+      2026-08-02.md`): `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` already
+      contains an "Amendment: Recovery matrix (UMR-20260802-165541-c27d)"
+      section (merged to main via PR #725, commit 75cd6554/d3d88751) covering
+      7 of the 8 failure classes this directive asks about nearly verbatim.
+      This task's scope is therefore an EXTENSION of that existing section,
+      not a rewrite: (1) a distinct "audit failing" row (previously folded
+      into "PR failing"), backed by real live evidence (STUCK_TASKS_HEARTBEAT
+      .json's task-20260718-061002, status=blocked, 22240min stuck, "supervisor
+      failed to produce a review verdict") and this session's own prior
+      verified finding (AUDIT-comment issue_comment SHA mismatch, see this
+      session's own memory); (2) a correction to the existing "supervisor
+      process failing: no automatic recovery" verdict -- `dispatch-tick.py`'s
+      `supervisor_sweep_tick()` (added 2026-07-26, task-20260726-210339
+      consolidation) DOES auto-restart a missed/crashed supervisor via the
+      10-min `veridian-cron-dispatch-tick.timer`, confirmed active via
+      systemctl -- this is real tick-level recovery the existing matrix
+      undercredited, distinct from unit-level `Restart=no` (still true).
+
+      REAL COLLISION NOTED (not this task's to fix, flagging only): 3 sibling
+      worker sessions running in parallel right now --
+      task-20260802-171733-amendment--design-a-master-execution-fra,
+      task-20260802-171736-amendment--standing-pre-execution-gateke,
+      task-20260802-171740-amendment--consolidate-a-single-unified -- whose
+      titles map to 3 sections ALREADY present and merged in this same matrix
+      file (Master Execution Framework, Standing gatekeeper rule, Unified
+      project memory model, all landed via PR #725). These may be redundant
+      re-dispatches of already-completed work; out of this task's file scope
+      to resolve, surfaced here per Rule 11 for PM/Owner awareness.
+
+      File scope: `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amend in place,
+      append-only) + this ACTIVE-CLAIMS.yaml entry + PROGRESS.md. No src/,
+      no drizzle/, no new file.
   - session_label: "claude-code (task-20260802-040131-parallel-job--collate-existing-module-en) -- Collate existing module/engine wiring+UTM map, spot-verify it, cross-reference against master directive priority list [DOCS/COLLATION ONLY, no code]"
     claimed_at: "2026-08-02T04:01Z (this session)"
     claim: |
