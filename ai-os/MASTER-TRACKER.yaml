@@ -759,6 +759,52 @@ open_items:
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
 
+    - id: GAP-ERP-CRM-403-NO-UX-EXPLANATION
+      name: "Fresh self-signup org gets silent 403s across CRM/ERP APIs, no user-facing 'module not enabled' explanation (severity: medium)"
+      old_ids: []
+      detail: |
+        Real finding, `UMR-20260802-165606-4413` (OCID-020 redo session, PR
+        #737, Finding B) -- `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md`
+        lines 183-199. A fresh self-signup org (real signup on
+        `projexa-ai.com/signup`, real Admin-API email-confirm bypass, real
+        login) sees its `/crm` and `/erp/*` page shells render, but every real
+        backing API call `403`s:
+          - `/crm`: `/api/crm/leads`, `/api/crm/accounts`, `/api/crm/campaigns`,
+            `/api/crm/contacts`, `/api/crm/opportunities` (screenshot
+            `ocid020-redo-33-crm.png`)
+          - `/erp/procurement`: `/api/erp/procurement/quotations`,
+            `/requisitions`, `/rfqs`
+          - `/erp/journal-entries`: `/api/erp/buying/suppliers`,
+            `/api/erp/accounts`, `/api/erp/cost-centers`,
+            `/api/erp/journal-entries`, `/api/erp/companies`
+        Real reproduction path: sign up fresh -> confirm email -> log in ->
+        click "CRM" or any ERP nav item in the left nav -> page shell loads,
+        but every list/table on the page silently shows empty with no
+        explanation.
+        Root cause is plausibly correct, safe-by-default behavior, not a bug
+        in isolation -- consistent with the parent matrix's own
+        `erp-enablement-service.ts` `requireErpEnabled()` gate finding: ERP/CRM
+        modules are not enabled by default for a brand-new org. What IS a real
+        gap: the real UI gives no visible "module not enabled, contact your
+        admin to enable this" messaging anywhere on these pages -- a real
+        self-signup user just sees empty-looking ERP/CRM screens with zero
+        explanation for why, which reads as broken even though the
+        underlying access gate is working as designed.
+      size: deferred_medium
+      recommendation: |
+        Not urgent (no data-integrity or security risk -- the gate itself is
+        correct and fail-closed). When picked up: the fix belongs at the UI
+        layer, not the gate -- have the CRM/ERP page shells detect a 403 with
+        a module-not-enabled reason (or check module-enablement status
+        up-front via an existing settings/entitlements call) and render a
+        real "this module isn't enabled for your organisation yet -- contact
+        your admin" empty-state instead of a silently-empty list/table.
+        `requireErpEnabled()`'s existing 403 response shape should be checked
+        first to see if it already carries a machine-readable reason code the
+        client can key off, before inventing a new one.
+      status: open
+      first_raised: "OCID-020 redo, 2026-08-02 (UMR-20260802-165606-4413)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
