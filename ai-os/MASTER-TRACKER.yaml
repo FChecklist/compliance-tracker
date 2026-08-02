@@ -558,6 +558,20 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-QUALITY-GATE-DOC-ONLY-BUILD-EXEMPTION
+      name: "quality-gate.sh forces a full production `next build` even for governance/documentation-only diffs"
+      detail: "Flagged by PM decision (UMR-20260802-064914-ec5b, 2026-08-02) while resolving task-20260802-055214 (PR #697, compliance-tracker): that PR's real diff touched only PROGRESS.md, ai-os/MASTER_INDEX.yaml, ai-os/OS.yaml, a new .md report, and ai-os/boss/ACTIVE-CLAIMS.yaml -- zero application code or schema -- yet still ran a full `next build` gate, which timed out (exit_code=124, 1800s) under real concurrent load (a second simultaneous build for task-20260802-055208 plus a heavy status-remediation-tick.py run, confirmed via quality-gate-0.json and the credit-accountant's own correct rejection of an auto-fix spend attempt). This is the same failure class already root-caused once for Phase 2/Task #44 and the 8-clean-PR-merge task tonight (see the worker-entrypoint.sh search-terms fix, PR #11 on veridian-scripts) -- a resource-contention timeout misclassified as a gate failure, not a code defect, wasting a full build cycle and a credit-accountant round-trip on a diff that could never have failed a real build check in the first place."
+      size: small
+      recommendation: "A path-based exemption in quality-gate.sh (e.g. skip the `build` gate, or downgrade it to a lint-only check, when the real diff -- via `git diff --name-only` against the base branch -- touches only docs/ai-os/*.md/*.yaml governance paths and zero src/**, drizzle/**, or package.json/lockfile changes) would close this without weakening the gate for any diff that could actually break a build. Low priority, not urgent -- explicitly logged per PM instruction, not implemented in this pass."
+      status: "open, not started"
+
+    - id: GAP-BUILD-TIMEOUT-AUTO-PROCEED
+      name: "Load-timeout build-gate failures require manual PM intervention to unstick, each time, instead of auto-proceeding"
+      detail: "Flagged by PM decision (UMR-20260802-065733-923f, 2026-08-02): three independent tasks tonight (task-20260802-055214/PR #697, task-20260802-032508 Phase 2/Task #44, task-20260802-035819 PR #630/#632 audit) each hit the identical sequence -- build gate exit_code=124 (1800s timeout under real concurrent load, per task-20260727-043407's RCA, not a code defect) -> credit-accountant correctly rejects further auto-fix spend (existing-mechanism match) -> task sits `blocked` -- and each needed a separate manual PM decision to move it to `pending_review`. The RCA already establishes build timeouts as a failed-but-not-blocking gate in principle; the mechanical follow-through (auto-proceeding a task past a load-timeout build failure once every OTHER real gate has passed) does not exist, so the same manual intervention repeats per instance instead of happening once in the mechanism."
+      size: small
+      recommendation: "In worker-entrypoint.sh's gate-failure path (near the credit-accountant rejection block, see GAP-QUALITY-GATE-DOC-ONLY-BUILD-EXEMPTION above for the same call site), detect the specific signature of 'every gate passed except build, and build's own failure reason is the quality-gate.sh 1800s-timeout message (not a real compile/type error)' and auto-transition to pending_review with a note citing the timeout, instead of leaving it blocked pending manual review. Should reuse the same real-diff-scope / real-exit-code evidence this pass's three manual decisions already established as the correct check, not invent a new heuristic. Tier 3, not urgent -- explicitly logged per PM instruction, not implemented in this pass."
+      status: "open, not started"
+
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
       old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]
