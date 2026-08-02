@@ -49,7 +49,8 @@ independently verified complete.
       now fixed by the same 2-line schema change (not separately touched).
 
 ## Remaining
-- [ ] Commit + push this fix, open PR, let CI run.
+- [x] Commit + push this fix, open PR (#741:
+      https://github.com/FChecklist/compliance-tracker/pull/741), CI running.
 - [ ] Merge once CI is green (per AGENTS.md Rule 6 — no direct push to `main`).
 - [ ] Independently retest the EXACT SAME real flow that crashed, against the
       real deployed app once this fix ships: sign in to `https://projexa-ai.com`,
@@ -61,13 +62,13 @@ independently verified complete.
       cannot be done from this isolated task workspace (no `.env`/DB creds
       here) until the fix is merged and Vercel's own build/deploy for `main`
       completes.
-- [ ] Log Finding B (real `403 Forbidden` on CRM/ERP APIs for a fresh
+- [x] Log Finding B (real `403 Forbidden` on CRM/ERP APIs for a fresh
       self-signup org, medium severity, real UX gap — no
       "module not enabled" messaging) as its own real, named, tracked gap in
-      `ai-os/MASTER-TRACKER.yaml`, with the real reproduction path from the
-      OCID-020 redo findings doc.
-- [ ] Register this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` per its
-      own protocol.
+      `ai-os/MASTER-TRACKER.yaml` (`GAP-ERP-CRM-403-NO-UX-EXPLANATION`), with
+      the real reproduction path from the OCID-020 redo findings doc.
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` per
+      its own protocol.
 - [ ] After the fix is independently verified live: resume the broader real
       certification sweep per the PM spec — multi-tenant, multi-brand,
       first-time-onboarding, cache and search, remaining nav surface — reporting

@@ -40,6 +40,58 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-210700-pm-decision--fix-the-real-high-severity) -- PM decision: fix the real high-severity GET /api/departments 500 (UMR-20260802-165606-4413, OCID-020 Finding A) before resuming the broader certification sweep"
+    claimed_at: "2026-08-02T21:07Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own prompt.txt): the OCID-020 redo
+      session's Finding A (`ai-os/boss/ACTIVE-CLAIMS.yaml` recently_completed,
+      "OCID-20260802-020 real redo" entry; full detail
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md` lines
+      161-181; PR #737) -- a real, high-severity, reproducible `500` on
+      `GET /api/departments` that crashes the Compliance Register
+      (`/compliance`) and Pendency View (`/compliance?status=overdue`) with a
+      client-side `TypeError: z.map is not a function` -- is fixed FIRST,
+      before continuing the broader certification sweep, since it blocks a
+      core real product flow. Root cause directly, ship a real fix,
+      independently retest the exact same real flow. Separately log Finding B
+      (real medium-severity `403`s across CRM/ERP APIs for a fresh
+      self-signup org) as its own tracked gap, but the fix is the immediate
+      priority. `UMR-20260802-173631-ca85` stays locked until this fix AND
+      the rest of the real certification sweep are independently verified
+      complete.
+
+      Collision check performed before starting (per this file's own
+      protocol): the OCID-020 redo session's own claim (above,
+      recently_completed) already closed cleanly with PR #737 merged --
+      no other active claim in this file currently touches
+      `src/lib/db/schema.ts`'s `departmentsRelations`/`usersRelations` or
+      `src/app/api/departments/route.ts`.
+
+      Real work done this session: root-caused directly by reproducing the
+      exact `db.query.departments.findMany({with:{head,complianceItems,
+      users}})` call against the real `src/lib/db/schema.ts` via
+      `drizzle-orm` locally (not guessed) -- real error reproduced: `There
+      are multiple relations between "users" and "departments". Please
+      specify relation name.` Drizzle 0.45 requires ALL relation pairs
+      between two tables to carry an explicit `relationName` once more than
+      one pair exists -- `departmentsRelations.head`/`usersRelations.headOfDept`
+      already had one (`'deptHead'`), the remaining
+      `departmentsRelations.users`/`usersRelations.department` pair did not.
+      Fixed by naming that pair `'departmentMembers'` (2-line change, no
+      migration). Verified the fix directly by re-running the same repro
+      against the patched schema (real SQL now builds, no error) plus a
+      clean `tsc --noEmit`. PR #741 opened
+      (https://github.com/FChecklist/compliance-tracker/pull/741), CI
+      running. Also logged Finding B in `ai-os/MASTER-TRACKER.yaml`
+      (`GAP-ERP-CRM-403-NO-UX-EXPLANATION`).
+
+      Full detail: this repo's own `PROGRESS.md`.
+    scope_note: >-
+      File scope: `src/lib/db/schema.ts` (2-line relation-naming fix),
+      `ai-os/MASTER-TRACKER.yaml` (new gap entry), `PROGRESS.md`, this
+      ACTIVE-CLAIMS entry. No migration, no other route/service files
+      touched.
+
   - session_label: "claude-code (task-20260802-190820-resume-real-ocid-020-certification--usin) -- Resume real OCID-020 end-user certification of PROJEXA-AI.COM (UMR-20260802-165606-4413), per Owner directive UMR-20260802-181025-0d4b (stand-down/resume decision for the prior stuck worker)"
     claimed_at: "2026-08-02T19:30Z (this session)"
     claim: |
