@@ -40,23 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (fix/departments-500-compliance-register-crash) -- Fix Finding A from ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md: real HTTP 500 on GET /api/departments crashing the Compliance Register / Pendency View (UMR-20260802-165606-4413, amends UMR-20260802-104058-25ba). PM-prioritized fix ahead of the broader certification sweep (UMR-20260802-205538-0abb)."
-    claimed_at: "2026-08-02T21:00Z (this session)"
+  - session_label: "claude-code (task-20260802-210700-pm-decision--fix-the-real-high-severity) -- PM decision: fix the real high-severity GET /api/departments 500 (UMR-20260802-165606-4413, OCID-020 Finding A) before resuming the broader certification sweep"
+    claimed_at: "2026-08-02T21:07Z (this session)"
     claim: |
-      Narrow scope, does not collide with the broader OCID-020 certification-sweep
-      claim below (that claim covers running further certification passes; this
-      claim covers fixing one already-confirmed bug that certification pass found).
-      Files touched: src/lib/db/schema.ts (departmentsRelations/usersRelations
-      relation-naming fix), src/app/(app)/compliance/page.tsx (defensive
-      non-array-response handling), src/app/api/departments/route.test.ts (new),
-      src/lib/db/schema.relations.test.ts (new), ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
-      (amendment logging Finding A as fixed + Finding B as a separately tracked gap).
-      Root cause confirmed by direct reproduction against the real production
-      Supabase Postgres DB (RLS enforced) for the real fresh self-signup org this
-      certification pass created -- not guessed, not RLS/tenant-context-related as
-      initially hypothesized. See PR for full evidence. Opened as a PR per
-      AGENTS.md Rule 6 (no direct push to main) -- not self-merged, not
-      self-certified (Rule 7c).
+      SPEC (PM decision, this task's own prompt.txt): the OCID-020 redo
+      session's Finding A -- a real, high-severity, reproducible `500` on
+      `GET /api/departments` that crashes the Compliance Register
+      (`/compliance`) and Pendency View (`/compliance?status=overdue`) with a
+      client-side `TypeError: z.map is not a function` -- is fixed FIRST,
+      before continuing the broader certification sweep. `UMR-20260802-173631-ca85`
+      stays locked until this fix AND the rest of the real certification
+      sweep are independently verified complete.
+
+      UPDATE (this session, after resuming from checkpoint): while this
+      session was working, a genuinely parallel session
+      (`fix/departments-500-compliance-register-crash`, this entry's former
+      other half) independently root-caused and fixed the identical bug --
+      same root cause (`departmentsRelations.users`/`usersRelations.department`
+      missing `relationName` while `head`/`headOfDept` had one), same fix
+      shape (`relationName: 'departmentMembers'`), plus additional
+      defensive frontend handling (`src/app/(app)/compliance/page.tsx`) and
+      real regression tests (`src/app/api/departments/route.test.ts`,
+      `src/lib/db/schema.relations.test.ts`). That session's PR #740 merged
+      first (real merge commit `c0df6f0205bd2a436bd4ed5987b9d82b2e19b8c4` on
+      `main`, independently re-verified via `git show`/`git diff-tree` in
+      this session, not just trusted). This session's own duplicate PR #741
+      was correctly closed as superseded (by that same other session, not
+      self-closed). Finding B (`GAP-ERP-CRM-403-NO-UX-EXPLANATION`) is also
+      already merged into `ai-os/MASTER-TRACKER.yaml` via PR #742. This
+      session rebased its branch onto `main` to drop the now-redundant
+      duplicate commits rather than re-litigate already-settled work.
+
+      Remaining real work this session is doing now: independently retest
+      the exact same real flow that crashed
+      (`GET /compliance`, `GET /compliance?status=overdue` on the real
+      deployed app) against the now-merged fix, then resume the broader
+      OCID-020 certification sweep per the original PM spec.
+    scope_note: >-
+      No file changes of its own beyond this ACTIVE-CLAIMS entry and
+      `PROGRESS.md` -- the actual fix landed via PR #740/#742 from a
+      parallel session. This session's remaining scope is live
+      verification + resuming the broader certification sweep (read-only
+      against the deployed app, plus incremental findings docs).
   - session_label: "claude-code (task-20260802-190820-resume-real-ocid-020-certification--usin) -- Resume real OCID-020 end-user certification of PROJEXA-AI.COM (UMR-20260802-165606-4413), per Owner directive UMR-20260802-181025-0d4b (stand-down/resume decision for the prior stuck worker)"
     claimed_at: "2026-08-02T19:30Z (this session)"
     claim: |
