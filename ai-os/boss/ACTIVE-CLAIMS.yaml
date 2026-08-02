@@ -4082,6 +4082,41 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (this session, CLI) -- task-20260802-035159-parallel-job--cross-reference-every-rele: cross-reference master go-live directive against every currently-relevant UMR/PR"
+    claimed_at: "2026-08-02T (this session)"
+    claim: |
+      Owner-directed PARALLEL job (Chat ID 2082026-02), explicitly non-
+      blocking on the master directive UMR-20260802-034545-3388 and its
+      amendment UMR-20260802-034651-6b2c. Scope: for every currently-
+      running UMR (`resource_governor.py --query-umr --status running`)
+      and every currently-open PR on compliance-tracker/projexa/
+      veridian-scripts that is genuinely part of the master directive's
+      priority list, add a durable cross-reference back to the two master
+      UMR IDs -- via superboss-register.py log-work (--ai-task-id, real
+      mechanism, confirmed already wired: INS-20260802-034542-3049 ->
+      WRK-20260802-034546-1b56 -> UMR-20260802-034545-3388 and the
+      amendment's equivalent already exist) and a short PR comment citing
+      the master UMR ID. Also writes a single durable reference doc,
+      ai-os/MASTER_INITIATIVE_CROSS_REFERENCE_2026-08-02.md, listing every
+      linked ID + real current status for at-a-glance lookup.
+      Tracking/traceability only -- no code/logic changes. Does not
+      duplicate-dispatch anything already in flight; only adds
+      cross-reference records to existing UMR/PR rows and files. Checked
+      first whether the entity/relation graph work from PR #8 on
+      veridian-scripts (UMR-20260801-142246-8d51 area) had landed as the
+      mechanism to use -- it has NOT merged yet (still open, and the live
+      superboss-register.sqlite has no entity_relationships table), so
+      falling back to the existing log-work linking + reference-file
+      approach per this task's own spec.
+    scope_note: >-
+      Writes: ai-os/boss/ACTIVE-CLAIMS.yaml (this entry),
+      ai-os/MASTER_INITIATIVE_CROSS_REFERENCE_2026-08-02.md (new),
+      PROGRESS.md, plus additive log-work rows in the live
+      superboss-register.sqlite (no existing rows mutated) and PR
+      comments on the specific PRs identified as in-scope. Does not touch
+      any application code, schema, or the umr_tasks/work_items rows
+      created by other sessions -- read-only against those.
 recently_completed:
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
