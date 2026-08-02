@@ -504,9 +504,17 @@ for the redo and `UMR-20260802-134939-145d` for why that target is correct.
       (the exact regression already fixed twice before, `e9a3340a` and `f3362a25`) -- reverted via a
       follow-up commit that restores all prior sections in full and appends this section after them.
 
+- [x] Committed + pushed, opened PR #738: https://github.com/FChecklist/compliance-tracker/pull/738
+- [x] Confirmed all mechanical CI checks pass on PR #738 (Lint/Type Check/Analyze/Unit
+      Tests/Guardrail Presence/Asset Registry Coverage/Metadata Index Coverage/Terminology
+      Guardrail/Doc Cross-Reference/Doc Quarantine Banner/Migration Number Collision/Secret
+      Scanning/Documentation Sentinel — all pass; `Build`/`Vercel` still running as of last check).
+      `audit-check` correctly fails — no `AUDIT:` verdict posted yet, and per Rule 10 this session
+      (as PR #738's own author) cannot self-certify it.
+
 ## Remaining
-- [ ] Commit + push this branch, open a PR.
-- [ ] Await CI + a real (non-self) `AUDIT:` verdict per Rule 7(c)/Operating Rule 10, then merge.
+- [ ] Await a real, independent (non-self) `AUDIT:` verdict on PR #738 per Rule 7(c)/Operating
+      Rule 10, then merge (not this session's to do — it authored the PR).
 - [ ] Not this task's scope, named for a future continuation session: (a) post a corrected, specific
       `AUDIT:` verdict on PR #737 (remove "etc.", replace with the actual finding) so its
       `audit-check` can pass and it can merge on its own real merits; (b) the actual OCID-020
