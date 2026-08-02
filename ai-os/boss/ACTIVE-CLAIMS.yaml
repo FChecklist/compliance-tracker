@@ -4082,6 +4082,26 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (task-20260802-034711-amendment-to-master-directive-umr-202608) -- Amendment to master directive UMR-20260802-034545-3388: no false-completion reporting"
+    claimed_at: "2026-08-02T (this session)"
+    claim: |
+      Owner amendment (Chat ID 2082026-02): completion must mean real,
+      working code/logic verified end-to-end, never a status label, open
+      PR, or ticked checkbox rounded up to "complete." Recorded as a
+      standing constitutional rule, not just this task's own chat reply:
+      added ai-os/CONSTITUTION.yaml TASK-06 (real_completion_verification,
+      under task_lifecycle, status PARTIALLY_ENFORCED, cross-referencing
+      the 3 existing partial mechanisms -- ai-reply-gate.ts,
+      claim-verification.ts, qa-precompletion-gate.ts -- and GP-22's
+      already-documented generic gap) plus a matching amendment_log entry,
+      and mirrored it as AGENTS.md Operating Rule 12. File scope this task:
+      ai-os/CONSTITUTION.yaml, AGENTS.md, this file, PROGRESS.md only --
+      does not perform the retroactive re-verification of Phase 2/Kernel/
+      UI-UX-audit/PR-backlog/SAP-reports/CRM-PM claims the amendment's own
+      text raises; that stays with whichever session is actively touching
+      each of those (UMR-20260802-032455-f94b, UMR-20260802-030121-ae66,
+      UMR-20260802-024829-75ae) going forward, now bound by this rule.
 recently_completed:
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
