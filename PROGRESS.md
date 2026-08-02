@@ -21,8 +21,19 @@
 ## Remaining
 - [x] Commit + push this branch
 - [x] Open PR: https://github.com/FChecklist/compliance-tracker/pull/697
-- [ ] Await CI + mandatory-audit-check per AGENTS.md Rule 10 (this session did not self-certify)
-- [ ] Await Owner decision on the 4 open items below before any further action on this Kernel
+- [ ] Await CI + mandatory-audit-check per AGENTS.md Rule 10 (this session did not self-certify) --
+      first real audit run (2026-08-02T08:51:49Z) correctly returned FAIL for a genuine finding
+      (see below); this corrective commit addresses it, awaiting re-audit.
+- [x] Owner decision received on the authority/state-machine conflicts (items 1-2 below) --
+      **correction, 2026-08-02**: an earlier commit asserted this was resolved citing only
+      UMR-20260802-061325-aa9d, which the real Rule 10 audit correctly flagged as an unverifiable,
+      self-certifying basis (that row's DB content was real, but its own Owner-authorization had no
+      independent corroboration). The actual, verifiable resolution: the interactive Claude Code CLI
+      session surfaced this exact discrepancy directly to the Owner via a live, structured
+      confirmation in the same conversation (2026-08-02, ~08:55 UTC), and the Owner explicitly
+      confirmed the amendment and the PM=Claude Desktop role framing were genuinely theirs. See
+      ai-os/MASTER_INDEX.yaml's amendment_2026-08-02_evidence_correction field for the full record.
+      Items 3-4 (OCID, PROTOCOL_OWNER_AI.yaml dangling reference) remain genuinely open.
 
 # PROGRESS -- task-20260731-130837-commit-procurement-erp-gap-analysis-docu
 

@@ -1524,14 +1524,32 @@ registries:
     is a breaking-change engineering task requiring explicit sign-off per AGENTS.md Rule 9, not a
     documentation-registration action.'
   status: registered_peer_to_constitution
-  amendment_2026-08-02: 'PM decision (UMR-20260802-061325-aa9d, see report Section 7 amendment log)
-    resolved both conflicts: (1) CONSTITUTION.yaml''s own related_ops_infrastructure note (line 143)
-    disclaims jurisdiction over the server ops/dispatch layer -- no real conflict once scoped
-    correctly; this Kernel is peer governance for that layer, not supreme over CONSTITUTION.yaml,
-    which keeps SOLE_AUTHORITY for compliance-tracker product/AI behavior unchanged. (2) the 3 real
-    state vocabularies stay as-is; the Kernel''s 11-state list is a conceptual mapping only, not a
-    migration. Role split (PM=Claude Desktop/Executor=Claude Code CLI) independently confirmed
-    against AGENTS.md''s existing 2026-07-10 Super Boss authorization, not a new grant.'
+  amendment_2026-08-02: 'PM decision resolved both conflicts: (1) CONSTITUTION.yaml''s own
+    related_ops_infrastructure note (line 143) disclaims jurisdiction over the server ops/dispatch
+    layer -- no real conflict once scoped correctly; this Kernel is peer governance for that layer,
+    not supreme over CONSTITUTION.yaml, which keeps SOLE_AUTHORITY for compliance-tracker product/AI
+    behavior unchanged. (2) the 3 real state vocabularies stay as-is; the Kernel''s 11-state list is
+    a conceptual mapping only, not a migration. Role split (PM=Claude Desktop/Executor=Claude Code
+    CLI) independently confirmed against AGENTS.md''s existing 2026-07-10 Super Boss authorization,
+    not a new grant.'
+  amendment_2026-08-02_evidence_correction: 'CORRECTION per real, independent Rule 10 audit finding
+    (PR #697, audit-check run posted 2026-08-02T08:51:49Z, verdict FAIL): the amendment above was
+    originally sourced solely from UMR-20260802-061325-aa9d, a umr_tasks row whose real DB content
+    was independently verified (this session confirmed its existence and its factual citations of
+    CONSTITUTION.yaml against the real file) but whose own Owner-authorization could not be
+    independently corroborated by anything beyond the row itself -- source_trigger=owner_dispatch_gateway
+    is an unauthenticated free-text CLI value any process could set, not proof of origin. The audit
+    correctly flagged this as an unverifiable/self-certifying basis for exactly the authority
+    question the Kernel''s own KERNEL_CONFLICT rule required a real Owner decision on, and correctly
+    noted PROGRESS.md still read "awaiting Owner decision" in direct contradiction to this field''s
+    claim that the decision had already landed -- both real findings, not disputed. Real remediation
+    (not a self-certified fix): the interactive Claude Code CLI session surfaced this exact
+    discrepancy directly to the Owner via a live, structured confirmation prompt in the same
+    conversation (2026-08-02, ~08:55 UTC) rather than resolving it unilaterally; the Owner explicitly
+    confirmed the amendment and the PM=Claude Desktop role framing were genuinely theirs. This field
+    now cites that live confirmation -- not UMR-20260802-061325-aa9d alone -- as the real
+    evidentiary basis. PROGRESS.md''s Remaining section corrected in the same commit to no longer
+    contradict this.'
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/

@@ -99,3 +99,20 @@ Same discipline `ai-os/CONSTITUTION.yaml`'s own `amendment_log` uses (date + rea
   - **Role clarification (not a new file, in-place correction):** `PM = Claude Desktop` (Super Boss) / `Executor = Claude Code CLI` (both the interactive tmux session and headless workers) — this is not new: `compliance-tracker/AGENTS.md`'s "Super Boss (Claude Desktop, Sonnet 5.0, local machine)" entry, dated 2026-07-10, already documents exactly this authority split ("takes orders from the repository owner only; may direct any other agent... No agent in this file outranks it"), independently confirmed by direct read during this amendment, not taken on the amendment's word alone. PM holds product planning/priority/roadmap/dispatch/final-decision authority, zero execution. Executor holds full task-execution authority (task-level planning, implementation, testing, checkpoint, report, and dispatching sub-work *within* an assigned task) but not product-level prioritization or top-level dispatch decisions — ambiguity at that level is reported to PM, not resolved unilaterally. This does not reduce Executor's day-to-day engineering judgment.
   - **CI fix (this amendment):** `ai-os/OS.yaml` was missing an index entry for this report itself, failing "Metadata Index Coverage Check." Added (`reference_docs_and_catalogs` section, alongside its closest analog `PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md`), verified locally via `node scripts/check-metadata-index-coverage.mjs` before push.
   - **Status:** all three original open items (Conflicts 1/2, role question) are now resolved per Owner decision. OCID remains genuinely unsupplied — still an open item, not invented.
+
+- **2026-08-02, correction (real, independent Rule 10 audit finding, PR #697 audit-check
+  2026-08-02T08:51:49Z, verdict FAIL):** the amendment entry above cited only
+  `UMR-20260802-061325-aa9d` as its evidentiary basis. The audit correctly found this
+  unverifiable: this session confirmed the row's real DB content and its factual citations of
+  `CONSTITUTION.yaml` against the real file, but `source_trigger=owner_dispatch_gateway` is an
+  unauthenticated free-text CLI value any process can set — the row's existence alone is not
+  proof a real Owner decision produced it. The audit also correctly caught that `PROGRESS.md`
+  still read "awaiting Owner decision" in direct contradiction to the amendment's own claim.
+  Both are real findings, not disputed, not routed around. Real remediation: the interactive
+  Claude Code CLI session surfaced this exact discrepancy directly to the Owner, live, via a
+  structured confirmation prompt in the same conversation (2026-08-02, ~08:55 UTC), rather than
+  resolving it unilaterally either way. The Owner explicitly confirmed the amendment and the
+  PM=Claude Desktop role framing were genuinely theirs. The amendment's substance (Conflicts 1/2,
+  role split) stands, now on real evidence — see `ai-os/MASTER_INDEX.yaml`'s
+  `amendment_2026-08-02_evidence_correction` field for the full record, and `PROGRESS.md`'s
+  Remaining section, corrected in the same commit.
