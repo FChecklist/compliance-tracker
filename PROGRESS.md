@@ -7,35 +7,34 @@
       via the interactive tmux session (`tmux capture-pane -t claude:0`) and
       `/opt/veridian/scripts/resource_governor.py.bak-predeploy-20260730-040659` (the
       pristine pre-bad-deploy backup)
-- [x] **Found a collision**: the interactive tmux session did NOT wait for this PM decision --
-      at 07:49:53 (5 min after this task was dispatched at 07:44:00) it committed (95f5da9) and
-      opened `FChecklist/veridian-scripts#13` bundling reconcile_stale_heartbeats together with
-      8 other restorations (find_pr_for_task_identity, exception-safety wrapping, MAX_TASK_IDENTITY_LEN,
-      _state_file_lock, a separate zombie-worker fix, backfill_null_heartbeats (added but not
-      invoked), forensic EMERGENCY_STOP metrics logging) -- violating the narrow-scope decision.
-      It also already live-hotpatched `/opt/veridian/scripts/resource_governor.py` directly
-      (uncommitted, ahead of git) with the same full bundle.
-- [x] Decision: did not revert the already-live production hotpatch (destructive, re-risks real
-      bugs the other 8 items were fixing, not asked of me) and did not rewrite/force-push PR #13
-      (another live session's active work). Instead opened a clean, independent, narrowly-scoped
-      PR off `origin/main` containing only reconcile_stale_heartbeats() + `--reconcile-stale` +
-      its hard dependency `_unit_exit_terminal_status()` (called from inside
-      reconcile_stale_heartbeats itself -- not scope creep) + the `run_governor` exit-code guard
-      in `resource_governor_tick_loop.sh` that makes the original silent-failure regression class
-      loud next time.
-- [x] Verified: `python3 -m py_compile` + `bash -n` both clean; new standalone test
-      `test_reconcile_stale_heartbeats.py` (same no-pytest convention as this repo's other
-      `test_*.py` files) exercises the real systemd KEY=VALUE parsing + NULL/fresh/still-active
-      skip paths against a temp sqlite DB -- **PASS**; manual CLI run
-      (`--reconcile-stale` against a throwaway DB) returns `{"actions": []}` clean
-- [x] Opened **FChecklist/veridian-scripts#16** (https://github.com/FChecklist/veridian-scripts/pull/16)
-      -- OPEN, MERGEABLE. Repo has no CI (`.github/workflows` doesn't exist there), so Rule 10's
-      mandatory-audit-check doesn't apply to this repo; left the PR open rather than self-merging.
-- [x] Logged the finding (the ~8 other already-shipped-outside-scope restorations,
-      backfill_null_heartbeats still genuinely not run, Phase 7/disk-io kept-as-is) in two durable
-      places: `ai-os/boss/ACTIVE-CLAIMS.yaml` (2026-08-02 entry, full collision writeup) and
-      `ai-os/MASTER-TRACKER.yaml` `open_items.needs_owner_decision` as `OPEN-11`
+- [x] First pass: opened a narrowly-scoped PR (`FChecklist/veridian-scripts#16`) containing
+      only `reconcile_stale_heartbeats()` + `--reconcile-stale` + its hard dependency
+      `_unit_exit_terminal_status()` + the tick-loop exit-code guard, verified with
+      `py_compile`/`bash -n`/a new standalone test (PASS) -- believing at the time that
+      `FChecklist/veridian-scripts#13` (which bundled the same restore with 8 others, and
+      had already been live-hotpatched) was an uncoordinated scope violation by a parallel
+      session.
+- [x] **Found and corrected a mistaken conclusion**: `task-20260802-074148-governance-regression--restore-reconcile`
+      (dispatched 07:41:49, ~2 min before this task) independently reached the identical
+      narrow diagnosis and was mid-restoration when cancelled at 07:49:02; its own task.yaml
+      records the reason verbatim -- "duplicate of the same Sentinel finding... The
+      interactive session's work, done with **explicit Owner approval**, additionally
+      restores 7 more silently-lost functions... Superseded, not lost." This is
+      independent, contemporaneous confirmation that PR #13's broader bundle was a
+      real-time, explicit Owner decision, not scope creep.
+- [x] Closed PR #16 as redundant (comment explains why, links to #13). #13 is the real,
+      Owner-approved PR that covers reconcile_stale_heartbeats() (and 8 other restorations).
+- [x] Corrected `ai-os/boss/ACTIVE-CLAIMS.yaml` (added a CORRECTION addendum after the
+      original entry, not a silent rewrite) and rewrote `ai-os/MASTER-TRACKER.yaml`'s
+      `OPEN-11` to reflect the corrected picture: the only genuinely still-open item is
+      `backfill_null_heartbeats()` needing its own explicit Owner go-ahead to run (a
+      one-time data op, deliberately not bundled into #13's approval). Phase 7 / disk-io
+      were never a restore question -- both already kept as-is in the live base.
+- [x] Opened `FChecklist/compliance-tracker#703` for these docs-only governance changes.
 
 ## Remaining
-- [ ] None -- task complete. PR #16 awaiting Owner review/merge; OPEN-11 awaiting Owner
-      priority/retroactive-scope decision on PR #13's bundle + the backfill go-ahead
+- [ ] None -- task complete. Real PR for `reconcile_stale_heartbeats()`: **#13**
+      (https://github.com/FChecklist/veridian-scripts/pull/13), OPEN, Owner-approved,
+      awaiting merge (not by this task). `#16` closed as redundant. `OPEN-11` (only
+      remaining item: `backfill_null_heartbeats()` go-ahead) logged in both
+      `ai-os/MASTER-TRACKER.yaml` and `ai-os/boss/ACTIVE-CLAIMS.yaml`.

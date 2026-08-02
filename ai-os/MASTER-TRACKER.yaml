@@ -551,50 +551,52 @@ open_items:
       first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
 
     - id: OPEN-11
-      name: "resource_governor.py (FChecklist/veridian-scripts) -- ~8 other backup-restorable fixes already shipped outside their approved narrow scope, plus 1 explicitly-deferred data operation and 2 kept-as-is features, all needing an Owner priority/retroactive-scope call"
+      name: "resource_governor.py (FChecklist/veridian-scripts) -- backfill_null_heartbeats() still needs an explicit Owner go-ahead to run; Phase 7 / disk-io improvement are kept-as-is, not a restore question"
       detail: |
-        task-20260802-074400-pm-decision--scope-the-reconcile-stale-h's PM
-        decision was to restore ONLY reconcile_stale_heartbeats() (+ its
-        --reconcile-stale CLI arg + guard) now, scoped narrowly for
-        auditability, and file everything else found missing/different vs.
-        the pristine pre-bad-deploy backup
+        CORRECTED 2026-08-02 (same day, after further investigation -- see
+        superseded first version of this entry's reasoning in git history
+        of this file): task-20260802-074400-pm-decision--scope-the-
+        reconcile-stale-h's own PM-decision spec said to restore ONLY
+        reconcile_stale_heartbeats() narrowly and file everything else
+        found vs. the pristine pre-bad-deploy backup
         (/opt/veridian/scripts/resource_governor.py.bak-predeploy-20260730-040659)
-        as a finding rather than restore it. Real PR:
-        FChecklist/veridian-scripts#16 (OPEN), scoped exactly to that.
+        as a finding. This task initially opened FChecklist/veridian-scripts#16
+        as that narrow PR, and initially logged FChecklist/veridian-scripts#13
+        (which bundled the same restore together with 8 other fixes, and had
+        already been live-hotpatched to /opt/veridian/scripts/resource_governor.py
+        directly) as an uncoordinated scope violation by a parallel session.
 
-        Separately, an uncoordinated interactive tmux session did NOT wait
-        for this decision -- 5 minutes after the task was dispatched it
-        opened FChecklist/veridian-scripts#13 bundling ALL of the following
-        together and ALSO already live-hotpatched
-        /opt/veridian/scripts/resource_governor.py directly (uncommitted on
-        that live checkout's main, ahead of git) with the same bundle,
-        before this task could intervene. Full detail in
-        ai-os/boss/ACTIVE-CLAIMS.yaml's 2026-08-02 entry for this task.
-
-        Already shipped outside the approved scope (via #13 + the live
-        hotpatch, not via this task): find_pr_for_task_identity() (Stage
-        4/5/6 duplicate-PR dispatch guard), exception-safety wrapping in
-        submit()/_perform_spawn() (malformed spec -> clean JSON error
-        instead of a raw traceback), MAX_TASK_IDENTITY_LEN cap,
-        _state_file_lock() (closes a real race on the emergency-stop/metric
-        state files), a second, separate zombie-worker `systemctl disable`
-        fix inside scan_stuck_tasks()'s SIGKILL path (distinct from the one
-        already inside reconcile_stale_heartbeats() itself, which #16 does
-        include as part of that function's own body), and forensic
-        EMERGENCY_STOP metrics logging in _shed_load()/_write_emergency_stop()/
-        _record_emergency_tick().
+        That characterization was wrong. A separate, independent task
+        (task-20260802-074148-governance-regression--restore-reconcile,
+        dispatched 07:41:49, ~2 min before this one) reached the identical
+        narrow diagnosis and was mid-restoration when it was cancelled at
+        07:49:02 with this recorded reason (its own task.yaml, not this
+        session's inference): "duplicate of the same Sentinel finding...
+        The interactive session's work, done with **explicit Owner
+        approval**, additionally restores 7 more silently-lost functions...
+        Superseded, not lost." That is independent, contemporaneous
+        confirmation that #13's broader bundle was a real-time, explicit
+        Owner decision, not scope creep. #16 was closed as redundant (see
+        its closing comment) in favor of #13, which is the real PR for
+        reconcile_stale_heartbeats() and the 8 other fixes: find_pr_for_task_identity()
+        (Stage 4/5/6 duplicate-PR dispatch guard), exception-safety wrapping
+        in submit()/_perform_spawn(), MAX_TASK_IDENTITY_LEN cap,
+        _state_file_lock(), a zombie-worker systemctl-disable fix inside
+        scan_stuck_tasks()'s SIGKILL path, and forensic EMERGENCY_STOP
+        metrics logging.
 
         Still genuinely open, not shipped by anyone: backfill_null_heartbeats()
         (added to the file by #13 but deliberately NOT invoked -- a
         one-time, dry-run-by-default data operation its own docstring says
-        needs a separate explicit go-ahead, not bundled into a routine
-        restore). Also found in the same backup diff but NOT a restore
-        question either way -- both are already present/kept in the current
-        live base, this is just recording that the diff-against-backup
-        surfaced them: an already-built Phase 7 reuse-check-enforcement-gate
-        feature, and an improved disk_io_percent() (io_ticks_ms-based,
-        more accurate than the backup's sector-based version).
-      recommendation: "Two separate Owner calls needed, not one: (1) whether the ~8 items #13/the live hotpatch already shipped outside the approved narrow-scope decision are retroactively acceptable as-is (they appear to be real, individually-reasoned fixes, not junk), or whether that PR should be split/reverted to match the narrow-scope precedent going forward -- this is as much a process-discipline question (an agent bundled scope beyond what was asked, before a pending PM decision could land) as a code one. (2) Whether/when to run backfill_null_heartbeats() (still not run, real one-time data op, needs its own explicit go-ahead per its own docstring) -- unrelated to (1), do not conflate the two."
+        needs a separate explicit go-ahead, distinct from the Owner approval
+        already given for the rest of #13's bundle). Also found in the same
+        backup diff but NOT a restore question either way -- both already
+        present/kept in the current live base, recorded here only because
+        the diff-against-backup surfaced them: an already-built Phase 7
+        reuse-check-enforcement-gate feature, and an improved
+        disk_io_percent() (io_ticks_ms-based, more accurate than the
+        backup's sector-based version).
+      recommendation: "Only one real open call left: whether/when to run backfill_null_heartbeats() -- a one-time data op, needs its own explicit go-ahead per its own docstring, separate from the approval already given for the rest of #13. Everything else this entry originally flagged is resolved (#13, Owner-approved, OPEN not yet merged) or was never actually a restore question (Phase 7 / disk-io, kept as-is)."
       first_raised: "2026-08-02, task-20260802-074400-pm-decision--scope-the-reconcile-stale-h"
 
   real_gaps_not_yet_built:

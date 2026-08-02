@@ -6933,3 +6933,22 @@ recently_completed:
       way) -- none of this was restored or PR'd by this task, per the PM
       decision. This is a product-priority call for the Owner, not a
       task-level one.
+
+      CORRECTION (same session, same day, found while double-checking for
+      other in-flight duplicate work): the "COLLISION FOUND" framing above
+      is wrong. task-20260802-074148-governance-regression--restore-reconcile
+      (dispatched 07:41:49, ~2 min before this task) independently reached
+      the identical narrow diagnosis and was mid-restoration when it was
+      cancelled at 07:49:02; its own task.yaml records the cancellation
+      reason verbatim: "duplicate of the same Sentinel finding... The
+      interactive session's work, done with **explicit Owner approval**,
+      additionally restores 7 more silently-lost functions... Superseded,
+      not lost." That is independent, contemporaneous confirmation that #13
+      was a real-time, explicit Owner decision to go broader -- not an
+      uncoordinated scope violation by an agent exceeding its mandate, as
+      this entry originally characterized it above. #16 has been closed
+      (see its own closing comment on GitHub) as redundant in favor of #13,
+      which is the real, Owner-approved PR that should merge. MASTER-TRACKER.yaml's
+      OPEN-11 has been rewritten to match -- the only genuinely open item
+      left is backfill_null_heartbeats() still needing its own explicit
+      go-ahead to run, unrelated to (and not blocked by) #13's own review/merge.
