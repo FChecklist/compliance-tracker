@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 // module, matching how crm/accounts already stood on its own.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { UserPlus, Target, Building2, Users, Megaphone, Sparkles } from "lucide-react";
+import { UserPlus, Target, Building2, Users, Megaphone, Sparkles, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 type Counts = { leads: number; opportunities: number; accounts: number; contacts: number; campaigns: number };
@@ -49,9 +49,14 @@ export default function CrmPage() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <h1 className="text-2xl font-heading text-ct-navy flex items-center gap-2"><Sparkles className="size-5 text-ct-saffron" /> CRM</h1>
-        <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, and keep the ones you have.</p>
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <div>
+          <h1 className="text-2xl font-heading text-ct-navy flex items-center gap-2"><Sparkles className="size-5 text-ct-saffron" /> CRM</h1>
+          <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, and keep the ones you have.</p>
+        </div>
+        <Link href="/crm/sales-pipeline" className="flex items-center gap-1.5 text-sm text-ct-saffron hover:text-ct-navy transition-colors">
+          <TrendingUp className="size-4" /> Sales Pipeline Dashboard
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
