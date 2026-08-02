@@ -6869,3 +6869,67 @@ recently_completed:
       self-certify it); left failing, flagged for a separate agent/session
       to review and post a real AUDIT: PASS/FAIL comment. Did not merge PR
       #563 (out of this task's scope).
+
+# ── claim closed 2026-08-02 (task-20260802-074400-pm-decision--scope-the-reconcile-stale-h) ──────────────────────
+  - session_label: "claude-code (task-20260802-074400-pm-decision--scope-the-reconcile-stale-h) -- PM decision executed: reconcile_stale_heartbeats restored narrowly [PUSHED, PR OPEN]"
+    claimed_at: "2026-08-02T (this session, closed same session)"
+    claim: |
+      SPEC: PM already decided (option 2 of a 2-option select menu the
+      interactive tmux session had shown): restore ONLY
+      reconcile_stale_heartbeats() (+ its --reconcile-stale CLI arg + its
+      guard) now, in its own narrowly-scoped PR; file the ~11 other missing
+      functions found vs. the same backup, plus an already-built Phase 7
+      feature and a disk-io improvement also found in that backup, as one
+      finding for future PM triage -- explicitly NOT to be restored/PR'd now.
+
+      COLLISION FOUND (real, disclosed here per Rule 11's own purpose): the
+      interactive tmux session (`tmux capture-pane -t claude:0`) did not
+      wait for this decision to land. 5 minutes after this task was
+      dispatched (07:44:00), it committed 95f5da9 (07:49:53) and opened
+      FChecklist/veridian-scripts#13, bundling reconcile_stale_heartbeats()
+      together with 8 other restorations (find_pr_for_task_identity dedup
+      guard, exception-safety wrapping in submit()/_perform_spawn(),
+      MAX_TASK_IDENTITY_LEN, _state_file_lock, a separate zombie-worker
+      systemctl-disable fix inside scan_stuck_tasks, backfill_null_heartbeats
+      (added, explicitly not invoked), forensic EMERGENCY_STOP metrics
+      logging) -- violating the narrow-scope decision. It had also already
+      live-hotpatched /opt/veridian/scripts/resource_governor.py directly
+      (uncommitted on that live checkout's `main`, ahead of git) with the
+      same full bundle before this task could intervene.
+
+      DECISION: did not revert the already-live production hotpatch
+      (destructive, re-risks real bugs the other 8 items were fixing, and
+      was never asked of me) and did not rewrite/force-push #13 (another
+      live session's active work, not mine to unilaterally rewrite).
+      Instead opened an independent, cleanly-scoped PR off origin/main:
+      FChecklist/veridian-scripts#16
+      (https://github.com/FChecklist/veridian-scripts/pull/16) --
+      OPEN, MERGEABLE, contains exactly reconcile_stale_heartbeats() +
+      --reconcile-stale + its hard dependency _unit_exit_terminal_status()
+      (a real dependency, not scope creep -- reconcile_stale_heartbeats()
+      calls it directly, would NameError without it) + the
+      resource_governor_tick_loop.sh run_governor() guard that makes a
+      future silent-argparse-failure regression loud instead of accumulating
+      silently (root cause of the original ~7949-error incident). Diff
+      verified to add exactly 2 new functions to resource_governor.py (`git
+      diff | grep '^+def '`). Verified via python3 -m py_compile + bash -n
+      (clean) and a new standalone test, test_reconcile_stale_heartbeats.py
+      (same no-pytest convention as this repo's other test_*.py files) --
+      exercises the real systemd KEY=VALUE parsing plus the
+      NULL-heartbeat/fresh/still-active skip paths against a temp sqlite DB;
+      PASS. veridian-scripts has no .github/workflows CI, so Rule 10's
+      mandatory-audit-check does not apply here -- left #16 OPEN, not
+      self-merged.
+
+      FINDING for PM triage (also logged as MASTER-TRACKER.yaml OPEN-11):
+      the ~8 other restorations above (already shipped via #13 + the live
+      hotpatch, outside the approved scope -- a real process-discipline gap
+      worth the Owner's attention on its own, separate from whether each fix
+      is individually correct), backfill_null_heartbeats() (added but
+      deliberately not run -- a one-time data operation needing its own
+      explicit go-ahead per its own docstring), the already-built Phase 7
+      reuse-check feature, and the improved disk-io calculation (both kept
+      as-is in the live base, not reverted, not further acted on either
+      way) -- none of this was restored or PR'd by this task, per the PM
+      decision. This is a product-priority call for the Owner, not a
+      task-level one.
