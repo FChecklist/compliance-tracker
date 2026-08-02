@@ -329,13 +329,50 @@ counted as merged/production-ready).
       was mistaken for this task's actual starting state instead of being checked
       against origin/main's committed version first.
 
+- [x] Direct evidence gathered (no agent needed): Go-Live -- projexa-ai.com NOT
+      aliased yet (org-branding-service.ts:62 explicit in-code admission); E2E
+      Testing -- only 1 real Playwright spec exists total
+      (e2e/browser-execution-tiers.spec.ts, capability-detection only, no
+      authenticated user-workflow test; playwright.config.ts's own comment:
+      "Wave 79 note (still true): zero E2E tests exist yet" for real UI flows)
+- [x] Direct evidence: Kernel prerequisite Task #44 -- PR #630 MERGED, PR #632
+      still OPEN -- Phase 2 closure not fully landed
+- [x] Direct evidence: SAP-reports Task #17 6-item gap backlog
+      (ai-os/tasks/sap_reports/PHASE_1_SAP_LOGIC_EXTRACTED.yaml) -- 4/6 now
+      built (AR Aging: src/app/api/v1/projexa/ar-aging real route+service;
+      Lead Source Effectiveness: PR #678; Earned Value/CPI:
+      report-engine-service.ts computeCpi() real formula) -- Cash Flow
+      Forecast, SAP-style Sales Pipeline probability report, Stock/Inventory
+      Turnover: zero code hits, still real gaps. Plus large separate
+      calculation-track engine build-out confirmed merged (FI-AR-004/006,
+      FI-AP-006, SD-002, SD-006, GL/CO/AP/AR groups).
+- [x] Background agent results in:
+      - [x] Kernel Phase 3 (Policy Engine/Metadata Engine bridge/Owner-ops
+            connection): 0% on main -- zero KERNEL-named commits, zero
+            metadata-engine/owner-ops code; only unrelated point solutions
+            (abac.ts, cost-policy.ts) partially overlap in spirit
+      - [x] UI/UX component/design-system layer: ~75-80%, real shadcn
+            integration + all 7 CLAUDE.md-named components real + design
+            tokens live-wired in globals.css -- explicitly NOT equivalent to
+            live click-through verification (not done)
+      - [x] VERI Chat: ~90%, real LLM calls (llm-client.ts), real DB
+            persistence, real policy gating, live since Wave 131
+      - [x] VERI assistant/orchestration: ~85%, real dispatch via
+            team-service.ts callLLM, real guardrails, 35 files still bypass
+            Mother Router (disclosed gap)
+      - [x] ERP Modules: CRM ~90% real end-to-end (27 API routes, 10 UI
+            pages, no stubs); Finance/GL ~85-90% real (real SQL aggregation,
+            3 report routes spot-checked); PM ~50% -- calculateEarnedValueMetrics
+            is real math but isolated calculator, not wired to live project
+            cost data, no WBS table
+      - [x] Prompt Library: ~75% -- real code (14 files, 12 test files),
+            real UI (prompt-eval page), real production caller
+            (VeriComposer.tsx -> /api/prompt-compiler/execute) but that
+            caller is fire-and-forget telemetry, not response-shaping
+      - [ ] Multi Tenant + Multi Brand -- pending
+
 ## Remaining
-- [ ] Dispatch real-evidence verification (grep/read live src, drizzle, tests, API
-      routes) across the 12 deliverables, grouped:
-      - [ ] Group A: ERP Modules, Multi Tenant, Multi Brand
-      - [ ] Group B: UI/UX, Reports, Prompt Library
-      - [ ] Group C: Web Browser, VERI Chat, VERI (assistant)
-      - [ ] Group D: Kernel, End-to-End Testing, Go Live (PROJEXA-AI.COM)
+- [ ] Await final background agent result (Multi Tenant/Multi Brand)
 - [ ] Compile findings into the 6-field matrix (percent, evidence, gap, prod-ready,
       blocker, dependent UMR) per deliverable
 - [ ] Cross-link every incomplete deliverable back to UMR-20260802-034545-3388
