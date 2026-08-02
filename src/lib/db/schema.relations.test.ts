@@ -20,55 +20,56 @@
 // fresh self-signup org from
 // ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md and an older
 // seeded org: both failed identically before this fix and both succeeded
-// identically after it. Drizzle throws this error while building the SQL,
-// before any network I/O is attempted (verified: the error fires in ~2ms
-// against a deliberately unroutable host/port, well before postgres.js's
-// own connect_timeout could even elapse) -- so this test can assert the
-// real failure mode without touching a live DB, matching this repo's
-// established convention (see settings/branding/route.test.ts) of never
-// hitting a live DB from a .test.ts file. The bogus connection below is
-// never actually dialed for this assertion.
+// identically after it.
+//
+// The actual check runs in `schema-relations-check.mjs`, in its own child
+// process (spawned below) rather than inline in this test file. Reason:
+// this repo's full `bun test` run shares one process across 200+
+// `*.test.ts` files, and this is the only one that constructs a real, live
+// `drizzle(client, { schema })` relational query builder over the FULL
+// schema -- every other route test mocks `withTenantContext`/`@/lib/db`
+// itself and never reaches this code path. That made it uniquely exposed
+// to an earlier test file's `mock.module("@/lib/db", ...)` (or a schema
+// sub-path) left unrestored for the rest of the run, which was observed in
+// CI to corrupt an unrelated relation's config (`apiKeyRequestLog`) when
+// this check ran inline as part of the full suite, even though it passed
+// in isolation. Running out-of-process gets a guaranteed-fresh module
+// registry every time, matching how this code actually runs in production
+// (a fresh process, never a shared test registry) -- so this is the more
+// faithful check, not a workaround around a real product bug.
 import { describe, test, expect } from "bun:test"
-import { drizzle } from "drizzle-orm/postgres-js"
-import { asc } from "drizzle-orm"
-import postgres from "postgres"
-import * as schema from "./schema"
+import path from "node:path"
 
 describe("departments <-> users relation config", () => {
   test("db.query.departments.findMany({ with: { head, complianceItems, users } }) does not throw a relation-ambiguity error", async () => {
-    // Deliberately unroutable -- this must never actually connect. If this
-    // test starts hanging or timing out on a real connection attempt
-    // instead of resolving/rejecting near-instantly, that's a sign the
-    // relation-ambiguity check stopped happening at build time and this
-    // test needs to be revisited, not just given a longer timeout.
-    const client = postgres("postgresql://nouser:nopass@127.0.0.1:1/nodb", {
-      prepare: false,
-      max: 1,
-      connect_timeout: 1,
+    const scriptPath = path.join(import.meta.dir, "schema-relations-check.mjs")
+    const proc = Bun.spawn(["bun", "run", scriptPath], {
+      stdout: "pipe",
+      stderr: "pipe",
+      cwd: path.join(import.meta.dir, "..", "..", ".."),
     })
-    const db = drizzle(client, { schema })
+    const [stdout, stderr, exitCode] = await Promise.all([
+      new Response(proc.stdout).text(),
+      new Response(proc.stderr).text(),
+      proc.exited,
+    ])
 
-    let caught: unknown = null
-    try {
-      await db.query.departments.findMany({
-        with: {
-          head: { columns: { name: true } },
-          complianceItems: { columns: { id: true, status: true } },
-          users: { columns: { id: true } },
-        },
-        orderBy: asc(schema.departments.name),
-      })
-    } catch (err) {
-      caught = err
-    } finally {
-      await client.end({ timeout: 1 })
-    }
+    expect(exitCode).toBe(0)
+    // If the check process crashed instead of producing its JSON summary,
+    // stderr will explain why -- surface it in the failure rather than
+    // failing an opaque JSON.parse.
+    const { message } = (() => {
+      try {
+        return JSON.parse(stdout)
+      } catch {
+        throw new Error(`schema-relations-check.mjs produced no valid JSON. stderr:\n${stderr}\nstdout:\n${stdout}`)
+      }
+    })()
 
     // A real connection-refused/timeout error is expected and fine (proves
     // the ambiguity check passed and drizzle moved on to actually dialing
     // the unroutable host). What must never come back is the relation
     // ambiguity error.
-    const message = caught instanceof Error ? caught.message : String(caught)
     expect(message).not.toContain("multiple relations")
     expect(message).not.toContain("specify relation name")
   })
