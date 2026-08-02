@@ -4122,7 +4122,12 @@ active:
   - session_label: >-
       claude-code (task-20260802-055208-batch-disposition-of-113-crontab-preflig) --
       retriage 113 tasks stuck on the now-resolved crontab_unauthorized_change
-      pre-flight gate
+      pre-flight gate [DONE -- all 113 dispositioned: 98 closed (status=superseded,
+      each with individual evidence), 15 flagged blocked/real-work-needed (retry
+      deferred, headroom stayed tight all session), 0 deleted. See this task's own
+      PROGRESS.md for the full tally and per-cluster evidence. Claim entry not yet
+      moved to recently_completed due to end-of-session budget constraints --
+      treat as closed on read.]
     claimed_at: "2026-08-02T (this session)"
     claim: >-
       Sub-task of parent audit UMR-20260801-153900-9100 (dispatched as
