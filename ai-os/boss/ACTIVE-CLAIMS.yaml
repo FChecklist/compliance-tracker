@@ -78,6 +78,47 @@ active:
       (`worker/task-20260802-220756-pm-decision--close-pr-741-as-superseded`)
       is in scope only after task-210700 completes -- not touched yet. No
       src/, schema, or CI changes.
+  - session_label: "claude-code (task-20260802-231454-ocid-020-continue-certification-sweep-ac) -- Continue OCID-020 real E2E certification sweep of projexa-ai.com (UMR-20260802-165606-4413), targeting the nav surface + scenarios the prior redo pass (PR #739) explicitly did not reach"
+    claimed_at: "2026-08-02T23:14Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own prompt.txt): Finding A (departments
+      500 crash) and the 85/20/2 suite run already closed out the coverage
+      the prior task (task-20260802-190820) reached before correctly
+      standing down at pending_review with zero new commits. The real
+      remaining gap: most of the ~118-item real nav surface enumerated in
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md` (Step 3d)
+      has never actually been clicked/loaded (~15 of 118 areas covered by
+      that pass). This session continues real end-to-end click-through
+      certification of the live `projexa-ai.com` (serving
+      `veridian-compliance-ai`), focused specifically on: (1) multi-tenant /
+      brand isolation across >=2 distinct real orgs, (2) the complete
+      first-time self-signup onboarding flow including firsthand
+      reproduction of `GAP-ERP-CRM-403-NO-UX-EXPLANATION`
+      (`ai-os/MASTER-TRACKER.yaml`), (3) cache/search behavior, (4) the
+      remaining real nav surface. Real fixes ship for any new high-severity
+      finding (same bar as the departments-500 fix, PR #740/#742). Any real
+      finding that is out of scope for this OCID-020 target gets its own
+      separate UMR (PR #737 pattern), not folded in here. Final report
+      states plainly what fraction of the real nav surface has now actually
+      been exercised, not just what was fixed.
+
+      Collision check performed before starting (per this file's own
+      protocol): the immediately-following active-claims entry
+      (`task-20260802-210700-pm-decision...`) covers Finding A's fix, which
+      is already independently verified merged (PR #740/#742) per that
+      entry's own UPDATE 2 -- no overlap, this session picks up exactly
+      where that one's "remaining real work" note left off. No other active
+      entry claims the broader OCID-020 nav-sweep scope.
+
+      File scope: `/opt/veridian/repos/projexa-ocid020-wt` (existing
+      isolated worktree from the prior OCID-020 session, branch
+      `worker/task-20260802-190820-ocid020-certification`, reused rather
+      than re-created -- confirmed up to date with `origin/main`) for any
+      live-testing scratch scripts; this repo's `PROGRESS.md`, this
+      ACTIVE-CLAIMS entry, `ai-os/MASTER-TRACKER.yaml`, and a new
+      certification findings doc under `ai-os/` for real findings. Real
+      code fixes (if any high-severity finding surfaces) land via their own
+      PR/branch off `main`, not silently bundled into this worktree.
   - session_label: "claude-code (task-20260802-210700-pm-decision--fix-the-real-high-severity) -- PM decision: fix the real high-severity GET /api/departments 500 (UMR-20260802-165606-4413, OCID-020 Finding A) before resuming the broader certification sweep"
     claimed_at: "2026-08-02T21:07Z (this session)"
     claim: |

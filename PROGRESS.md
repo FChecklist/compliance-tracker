@@ -291,3 +291,22 @@ correction spec directing this task to fix PR #748's false claim).
 
 ## Remaining
 - [ ] None -- this task's scope was to confirm and answer, not to unblock task-20260802-231454 (that belongs to its own owning task/session, same pattern as task-20260802-231514's credit-accountant block).
+
+# PROGRESS -- task-20260802-231454-ocid-020-continue-certification-sweep-ac
+
+## Completed
+- [x] Read governance docs (ACTIVE-CLAIMS, CONSTITUTION, MASTER-TRACKER), confirmed no collision
+- [x] Registered ACTIVE-CLAIMS.yaml entry for this session's scope
+- [x] Located real browser infra (`/opt/veridian/scripts/browser/persistent-profile.js`,
+      `launchPersistentChrome`, real Chrome binary + libs) and prior worktree
+      (`/opt/veridian/repos/projexa-ocid020-wt`, up to date with origin/main)
+
+## Remaining
+- [ ] Write/run automated nav-surface sweep script against projexa-ai.com (real login, walk
+      all 118 nav hrefs, capture HTTP status / console errors / failed API calls per page)
+- [ ] Multi-tenant / brand isolation test across >=2 distinct real orgs
+- [ ] Full first-time self-signup onboarding flow, firsthand repro of GAP-ERP-CRM-403-NO-UX-EXPLANATION
+- [ ] Cache and search behavior testing
+- [ ] Log genuine findings; ship real fixes for high-severity ones
+- [ ] Mint separate UMR for any out-of-scope finding
+- [ ] Report real fraction of nav surface exercised
