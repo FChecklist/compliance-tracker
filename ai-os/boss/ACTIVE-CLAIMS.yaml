@@ -40,8 +40,22 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260802-152728-closure-checklist--nudge-d-e-audits--clo) -- Closure checklist: nudge Item D/E audits + close #713 + document projexa cutover [PUSHED]"
-    claimed_at: "2026-08-02T (this session)"
+  - session_label: "claude-code (task-20260802-152728-closure-checklist--nudge-d-e-audits--clo) -- Closure checklist: nudge Item D/E audits + close #713 + document projexa cutover [DONE, PR #722 OPEN]"
+    claimed_at: "2026-08-02T (this session, closed same session)"
+    status_update: |
+      All 4 items resolved (none as literally specified -- 3 of 4 spec
+      premises were stale/wrong on live verification, see PR #722's
+      description and this session's PROGRESS.md for full evidence):
+      (1) Item D: real AUDIT: FAIL already existed against current head,
+      not duplicated. (2) Item E: PR #692 under active live iteration by
+      another process (head moved past spec's target, live audit-check CI
+      just ran and failed against current head) -- declined to touch to
+      avoid collision. (3) #713 NOT closed -- "superseded by PR #14" was
+      wrong; #713 is still legitimately twice-rejected for an unrelated,
+      unresolved ACTIVE-CLAIMS/PROGRESS.md disclosure gap. Posted an
+      accurate status comment instead of closing. (4) Item F: added
+      WAVE-201 to ai-os/boss/COMPLETED.yaml, verified via the real Vercel
+      domains API (not header inference) -- PR #722 open, not self-merged.
     claim: |
       Four distinct closure actions from a Boss-supplied closure checklist,
       each citing its own UMR chain:
