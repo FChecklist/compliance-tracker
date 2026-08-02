@@ -299,6 +299,29 @@ an ad hoc habit — it was already being followed inconsistently throughout toni
 the repeated `ACTIVE-CLAIMS.yaml`-read and `resource_governor.py --query-umr` checks in the PR-to-
 UMR mapping amendment above); this section makes it an explicit, citable rule going forward.
 
+**Second real demonstrated application — this rule catching a real duplicate (2026-08-02, task
+`task-20260802-171736-amendment--standing-pre-execution-gateke`, Owner directive
+`OCID-20260802-017`):** a separate directive re-issued this exact same standing-rule request
+(same two parent UMRs, same rule text) and dispatched it as a standalone worker task
+15 minutes *after* this section had already been written and merged to `main` (PR #725,
+merge commit `d3d88751`, `mergedAt: 2026-08-02T17:02:41Z`; this task's own `task.yaml` shows
+`created_at: 2026-08-02T17:17:38Z`). Running the gatekeeper check this rule itself prescribes
+against real state — `resource_governor.py --query-umr --search`, `gh pr view 725`, this file's
+own on-disk content (already present in this task's branch via the merge base) — found the
+canonical artifact, the UMR (`UMR-20260802-165034-5747`), and the merged PR all already exist.
+**Gatekeeper decision: BLOCKED (as new implementation) — real canonical artifact, real UMR, and
+real merged PR already exist for this exact directive; registering a second copy of this section
+would itself violate the rule being registered.** No new implementation, PR, or audit was created
+for `task-20260802-171736`; this paragraph is the task's entire real output, added in place to the
+existing section per the "extend, don't rebuild" rule. Root cause of the duplicate dispatch: 5
+sibling tasks (`task-20260802-171730/733/736/740/744`) were fanned out in the same ~15s dispatch
+batch for directives OCID-20260802-015/016/017/018/019, but by the time these individual worker
+sessions started, a separate session (the dispatching Boss/Super-Boss context, not one of these 5
+workers) had already implemented and merged all four amendment sections directly — the other three
+sibling tasks (design-a-master-execution-fra, consolidate-a-single-unified,
+continuous-recovery-framework) are, on the same evidence, real duplicates of already-merged work
+too, though verifying and closing those is out of scope for this task's own branch.
+
 ---
 
 ## Amendment (2026-08-02): Unified project memory model (`UMR-20260802-165434-cd91`)
