@@ -369,11 +369,44 @@ counted as merged/production-ready).
             real UI (prompt-eval page), real production caller
             (VeriComposer.tsx -> /api/prompt-compiler/execute) but that
             caller is fire-and-forget telemetry, not response-shaping
-      - [ ] Multi Tenant + Multi Brand -- pending
+      - [x] Multi Tenant: ~55% -- 304/308 org-scoped tables have RLS, but 4
+            org-scoped tables (incl. compliance.users, compliance.departments)
+            have ZERO RLS; zero middleware-based tenant routing exists
+            anywhere (no middleware.ts found repo-wide); zero DB-level
+            integration tests exercise real Postgres cross-org rejection
+      - [x] Multi Brand: ~70% -- real logo/favicon/color/product-branch
+            branding, real admin UI + API + tests, product_branches table
+            real with distinct rows; customDomain field stored/validated but
+            has zero routing effect (no hostname-to-brand resolution exists)
+- [x] IMPORTANT CORRECTION during compilation: initial Go-Live evidence
+      (org-branding-service.ts:62 comment, "no tenant-routing middleware
+      yet... once projexa-ai.com is actually aliased") was STALE --
+      written 2026-07-21T06:53 (Wave 5), 10 hours BEFORE the real DNS
+      cutover (ai-os/boss/completed-work/wave10-dns-cutover.md,
+      2026-07-21T17:14). Verified LIVE right now during this audit:
+      `curl https://projexa-ai.com/` -> HTTP 200. Domain infra IS real and
+      live; only the anonymous-visitor brand-by-hostname piece is the real
+      gap (consistent with Multi Brand finding above, and with
+      wave10-dns-cutover.md's own honest caveat about generic branding on
+      the anonymous marketing page).
+- [x] Task #46 (CRM gap analysis) / Task #47 (PM-platform gap analysis)
+      referenced in the SPEC could NOT be located as files anywhere in this
+      repo or in ai-os/boss/ACTIVE-CLAIMS.yaml / COMPLETED.yaml /
+      MASTER-TRACKER.yaml -- these appear to be local numbering from the
+      live interactive Owner-PM session's own todo list, not persisted
+      artifacts this task workspace has access to. Performed independent
+      direct-code verification for CRM/PM instead (see ERP Modules
+      finding above) rather than fabricating a citation.
+- [x] UI/UX completion audit UMR-20260802-030121-ae66
+      (task-20260802-030125-real-completion-audit--ui-ux--veri-chat)
+      confirmed real but status=blocked; worker.log contains only systemd
+      noise, no actual audit output -- that audit never actually executed,
+      so nothing to build on for the Web Browser / live click-through
+      deliverable; independent verification used instead (confirmed only
+      1 narrow Playwright spec exists total, no real click-through
+      evidence anywhere).
+- [x] Compiled final 6-field matrix, reported to Owner as this UMR's output
 
 ## Remaining
-- [ ] Await final background agent result (Multi Tenant/Multi Brand)
-- [ ] Compile findings into the 6-field matrix (percent, evidence, gap, prod-ready,
-      blocker, dependent UMR) per deliverable
-- [ ] Cross-link every incomplete deliverable back to UMR-20260802-034545-3388
-- [ ] Final report to Owner as this UMR's output; commit PROGRESS.md
+- [ ] None -- task complete. This PROGRESS.md commit is the final unit of
+      work for this task.
