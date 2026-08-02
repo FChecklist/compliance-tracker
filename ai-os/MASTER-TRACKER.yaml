@@ -759,6 +759,13 @@ open_items:
       size: "XS per table, ongoing"
       priority: P2 (low, mechanical when wanted)
 
+    - id: GAP-QGATE-DOCSONLY-BUILD
+      name: "quality-gate.sh runs a full production `next build` even for governance/documentation-only diffs, with no path-based exemption"
+      old_ids: []
+      detail: "Raised as a PM decision note (task-20260802-065304, resolving task-20260802-055214 / PR #697's blocked status): PR #697's real diff was 3 files (a markdown report, one MASTER_INDEX.yaml entry, one ACTIVE-CLAIMS.yaml entry) -- zero application code or schema -- yet quality-gate.sh's build gate still ran a full `next build`, which was killed by the script's own 1800s safety valve (exit_code=124) purely from resource contention (server load 7.97-8.73 on an 8-core box, with a second concurrent `next build` for task-20260802-055208 plus a heavy status-remediation-tick.py run competing for the same cores at the same time) -- confirmed not a code defect (lint passed clean, exit_code=0). This is the second time this exact pattern has occurred (same RCA shape as task-20260727-043407). The underlying gate has no notion of 'this diff can't possibly break the build' for doc/registry-only changes, so every such task is needlessly exposed to build-timeout flakiness under concurrent load."
+      size: small
+      recommendation: "Low priority, not urgent -- add a path-based exemption to quality-gate.sh (e.g. skip or shortcut the build gate when the diff touches only *.md / ai-os/*.yaml governance files and no src/, drizzle/, package.json, or config files) so documentation/registry-only tasks don't pay for a full production build they can't structurally break. Logged for future action only -- not implemented as part of this PM decision, which was scoped to unblocking task-20260802-055214, not fixing the gate itself."
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
