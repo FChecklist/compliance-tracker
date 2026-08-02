@@ -19,9 +19,10 @@
 - [x] Validated MASTER_INDEX.yaml still parses as valid YAML after edit (python3 yaml.safe_load)
 
 ## Remaining
-- [ ] Commit + push this branch
-- [ ] Open PR (cannot push to main directly per AGENTS.md Rule 6)
+- [x] Commit + push this branch
+- [x] Open PR: https://github.com/FChecklist/compliance-tracker/pull/697
 - [ ] Await CI + mandatory-audit-check per AGENTS.md Rule 10 (this session did not self-certify)
+- [ ] Await Owner decision on the 4 open items below before any further action on this Kernel
 
 # PROGRESS -- task-20260731-130837-commit-procurement-erp-gap-analysis-docu
 
