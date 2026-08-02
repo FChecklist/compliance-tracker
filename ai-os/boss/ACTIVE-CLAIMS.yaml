@@ -4060,6 +4060,42 @@ active:
       the 8 domains, PROJEXA module-exposure section, sanity checks all
       run). PR #615 opened (compliance-tracker), awaiting CI + merge --
       will move this entry to recently_completed once merged.
+  - session_label: >-
+      laptop-handoff-session -- procurement-ERP gap-closure (Task: generic
+      ERP gap-closure against 10-phase reference docs)
+    claimed_at: "2026-07-31T13:00:21Z (this session)"
+    claim: >-
+      Owner-directed initiative: read+gap-analysis+implementation effort
+      against 10 reverse-engineering reference documents saved at
+      ai-os/reference/procurement-erp-reverse-engineering/ (Organization/
+      Master Data, Vendor Management, Inventory/Item Management,
+      Requisitions, Quotations/Purchase Orders, Invoicing/Payments/
+      Financial Documents, Inventory Gate Pass, Application Overview/
+      Architecture, Auth/User Management/Access Control, Entity
+      Relationships/API/Business Rules) -- a generic ERP gap-closure task
+      spanning both FChecklist/compliance-tracker and FChecklist/projexa,
+      treated as one integrated system per this task's own explicit
+      instruction. This is a large-scope, multi-wave initiative; the real
+      file/directory implementation surface is not yet known and will only
+      be narrowed once a gap-analysis document (separate, subsequent work,
+      not yet written) identifies concrete gaps against the 10 reference
+      areas above. This claim registers the initiative itself, per this
+      file's own Rule 11 protocol, before any reading of the reference
+      docs or implementation work begins.
+    scope_note: >-
+      File scope: deliberately broad at this stage -- both
+      FChecklist/compliance-tracker and FChecklist/projexa repos in their
+      entirety are potentially in-scope, since the eventual implementation
+      surface across the 10 reference-doc areas (org/master-data, vendor
+      management, inventory/item management, requisitions, quotations/POs,
+      invoicing/payments/financial documents, inventory gate pass,
+      application architecture, auth/access control, entity relationships/
+      API/business rules) is not yet known. Will be narrowed to concrete
+      file/directory claims once the gap-analysis document identifies
+      specific gaps -- that narrowing is separate, subsequent work, not
+      part of this claim-registration task. No implementation, no reading
+      of the reference docs themselves, and no other file changed in the
+      PR that adds this entry.
 
   - session_label: "claude-code (server-side session, VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01) -- VERI Chat mockup-to-production: composer/chain-picker/sidebar-sync/task-document-screen"
     claimed_at: "2026-08-01T (this session)"
