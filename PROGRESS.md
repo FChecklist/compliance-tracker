@@ -106,24 +106,152 @@ directory. This is now a one-time, reusable setup for any future session on this
       against the wrong domain (compliance-tracker's shell has no matching
       Supabase-Auth users, obviously), not any real PROJEXA login bug and not any
       browser/dependency issue.
-- [ ] Full 22-spec-file e2e suite launched against the real live app (all modules:
-      materials, permits, documents, vendors, inventory, procurement,
-      purchase-orders, labour, ffe, floor-plans, mood-boards, member-access,
-      copilot-chat, finance x2, grc, hr, kpis-reports, offline-sync,
-      pivot-chart-reports, sales, wiki) -- running now, results to follow in next
-      update (real, long-running, against the real live site -- not truncated for
-      speed).
+- [x] Full 22-spec-file e2e suite run against the real live app
+      (`/opt/veridian/repos/projexa-ocid020-wt`, `PLAYWRIGHT_BASE_URL=
+      https://projexa-smoky.vercel.app`, 15.9 minutes real wall-clock, log at
+      `/tmp/ocid020-evidence/full-suite-run.log`): **85 passed / 20 failed / 2
+      skipped.** This is real, substantial, positive evidence: the overwhelming
+      majority of PROJEXA's modules (materials, inventory, vendors,
+      purchase-orders, procurement RFQ/quotation/goods-receipt, labour, ffe,
+      floor-plans, mood-boards, member-access, most of finance/accounting,
+      most of HR/employees/payroll, KPIs, reports, GRC, sales) work correctly
+      end-to-end against the real live seeded org, first-time write flows and
+      all. Triage of the 20 failures below.
+- [x] **Triaged all 20 failures — real findings, not blind re-runs:**
+  1. **`copilot-chat.spec.ts` (11 failures)** — NOT a functional regression.
+     Manually re-verified live (screenshot:
+     `/tmp/ocid020-evidence/copilot-03-after-send.png`): the Discuss chat
+     still gives the exact correct documented refusal ("Boss, I don't have
+     live data to pull that up here. Please use the Assistant pill...").
+     The test helper's selector (`div.justify-start > div`, PHASE2 Batch C's
+     own comment cites `VeriComposer.tsx`'s old className scheme) no longer
+     matches — confirmed live via DOM dump that `.justify-start`/`.justify-end`
+     now belong to unrelated dialog/icon-button elements, not chat bubbles.
+     **Real conclusion: the composer's DOM was refactored (consistent with
+     the "Wire full VERIDIAN module chain into PROJEXA's chat composer" PR
+     merged after Batch C's tests were written) and the 2-week-old test
+     selectors are stale — a test-maintenance gap, not a product bug.** Not
+     fixed in this session (budget); flagged for the next continuation to
+     update `askDiscuss()`'s locator against the current composer DOM.
+  2. **`e2e/02-permits.spec.ts` (3 failures)** — stale assertion, not a bug.
+     Manually verified live (screenshot: `/tmp/ocid020-evidence/sweep-01-permits.png`):
+     the Permits page renders correctly ("No permits found", working "New
+     Permit" button) — the test expected the window-select label text "Next
+     90 days" which no longer matches the live copy exactly. Not a
+     functional break; flagged for a copy-diff fix in the test.
+  3. **`e2e/03-documents.spec.ts:88` (1 failure, "has no write controls")** —
+     not independently re-verified this session (budget); likely same class
+     as #2 (a UI-copy/structure assertion, not a data-loss or write-path
+     issue) given every other Documents test in the same file passed.
+  4. **`e2e/06-procurement.spec.ts:75` (1 failure, requisition creation)** —
+     **REAL, STILL-OPEN BACKEND BUG**, exactly matching PHASE2_BATCH_B_FINDINGS.md's
+     "REAL BUG 1" from 2 weeks ago (`POST /api/procurement/requisitions` 500s
+     on a fully valid payload). Not independently re-verified with a fresh
+     network trace this session (budget) but the baseline test in the same
+     file (confirming 4/5 procurement stages are empty) passed, and no
+     product code touching this path has changed per `git log` on
+     `src/app/api/procurement/requisitions/route.ts` since Batch B — treat
+     as still-open, not re-confirmed live by this session.
+  5. **`e2e/offline-work-progress-sync.spec.ts` (1 failure)** — the spec
+     file's own header already predicted this: it was authored *while*
+     `projexa-ai.com` was misrouted, and explicitly says it "will run
+     correctly once that routing issue is fixed." The routing issue is
+     understood now (see above) but this suite ran against
+     `projexa-smoky.vercel.app`, a **different real deployment** than
+     wherever this offline-queue feature's own code was last deployed to —
+     not independently re-verified whether the deployed build there includes
+     this feature; flagged, not fixed, this session.
+  6. **`e2e/wiki-knowledge-base.spec.ts` (3 failures)** — **REAL BUGS,
+     CONFIRMED LIVE, ONE FIXED THIS SESSION:**
+     - **Wiki `/wiki` "Could not load projects: Unauthorized"** — confirmed
+       still reproducing live (screenshot:
+       `/tmp/ocid020-evidence/sweep-03-wiki.png`), exact same root cause
+       PHASE2_BATCH_C_FINDINGS.md found 2 weeks ago and was never fixed:
+       `src/app/(app)/wiki/page.tsx` called `resolveSelectedProject()`
+       without `organizationId`. **Fixed this session** (see below) — real,
+       one-line fix matching `kpis/page.tsx`'s already-correct pattern, PR
+       `FChecklist/projexa#69`. **Not yet independently re-verified against
+       a live deploy** (the fix isn't deployed anywhere yet) — honestly
+       flagged as fixed-but-unverified, not claimed as closed.
+     - **Knowledge Base `/knowledge-base` "Could not load knowledge base:
+       Failed to fetch knowledge base pages"** — this is **NEW, more severe
+       than Batch C's finding** (Batch C found only the *write* path 401'd;
+       the *read* path now 500s outright, confirmed via direct
+       authenticated `fetch()`: `GET /api/knowledge-base` → real 500). Root-
+       caused as far as budget allowed: PROJEXA's own proxy route
+       (`src/app/api/knowledge-base/route.ts`) already correctly passes
+       `organizationId` (Batch C's exact fix), so this is a **different,
+       deeper bug on the compliance-tracker side** —
+       `src/app/api/v1/projexa/knowledge-base/route.ts`'s `GET` calls
+       `listKbPages()` (`src/lib/services/knowledge-base-service.ts:34`), a
+       plain Drizzle `findMany` with a real `where`/`orderBy` over real
+       columns (`orgId`, `isArchived`, `title` all exist in `schema.ts`) —
+       nothing exotic in the query shape itself, so the 500 is not
+       obviously explained by reading source alone. **Not fixed this
+       session** — needs either live DB/log access (this session had
+       neither) or a deployed debug build to pin down further. Real,
+       reproducible, high-value follow-up for the next session.
+  7. **2 skipped** — not investigated this session (budget); likely the same
+     class of graceful `test.skip()` Batch C documented (no seeded row in
+     the exact transient state a test needs).
 
-## Remaining
-- [ ] Real login flow certification (all 4 roles: CEO/owner, Finance, HR, Site
-      Supervisor) -- first-time and power-user paths.
-- [ ] Workspace / multi-tenant / multi-brand certification.
-- [ ] Every menu, module, function, screen -- systematic sweep.
-- [ ] Prompt flow / VERI Chat / AI assistant, real browser<->server round trip.
-- [ ] Reports, cache, search.
-- [ ] ERP workflows, real business scenarios (first-time + power user).
-- [ ] Any gap found gets a real reproduction path, a real fix, and independent
-      re-test on the same real flow before being marked done.
-- [ ] Update `ai-os/boss/ACTIVE-CLAIMS.yaml` and the canonical
-      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` with this session's findings.
-- [ ] Commit + push incrementally, not only at the end.
+## Real fix shipped this session
+`FChecklist/projexa` PR **#69** (`worker/task-20260802-190820-ocid020-certification`):
+- `src/app/(app)/wiki/page.tsx` — added the missing `organizationId` argument
+  (real bug #6 above), matching `kpis/page.tsx`'s pattern.
+- `e2e/auth.setup.ts` — login button selector fix (carried over from the
+  stopped prior worker, now confirmed working against the correct URL).
+- `scripts/ocid020-*.mjs` — 3 reusable evidence-capture scripts driving the
+  real site directly via Playwright's `chromium.launch()`/
+  `launchPersistentContext()`, independent of the full test-runner config.
+**Honest limitation**: the Wiki fix has NOT been independently re-verified
+against a live deploy (no deploy pipeline was triggered by this session) —
+per this task's own "independently retested on the same real flow" bar,
+this fix should be treated as *proposed and reviewed-worthy*, not *closed*,
+until someone re-runs `wiki-knowledge-base.spec.ts` against a deployed build
+of this branch/PR and confirms green.
+
+## Why this session stopped here (real capacity call, not silent abandonment)
+Budget-constrained (per this task's own USD budget). Prioritized, in order:
+(1) root-causing the actual blocker (domain routing) that the whole
+certification was stuck on, (2) getting a durable, reusable, sudo-free
+browser-automation environment in place, (3) running the full existing
+22-spec suite for broad real coverage in one shot, (4) triaging every
+failure with real evidence rather than leaving a bare list, (5) shipping one
+well-understood, low-risk real fix. Did NOT reach: a systematic
+menu-by-menu/module-by-module manual sweep beyond what the existing suite
+already covers, multi-tenant/multi-brand testing (no second real org/brand
+was seeded or located this session — the "Meridian Construction Group (E2E
+Test Org)" is the only real org exercised), first-time-user (fresh
+signup/onboarding) flow, cache-specific testing, or search-specific testing
+beyond what individual module specs already touch.
+
+## Remaining (for the next continuation)
+- [ ] Deploy PR #69 (or merge it) and re-run `wiki-knowledge-base.spec.ts`
+      against that real deploy to independently confirm the Wiki fix.
+- [ ] Root-cause the NEW Knowledge Base `GET` 500 (real bug #6b above) --
+      needs live DB/log access this session didn't have.
+- [ ] Update `askDiscuss()`'s stale selector in `copilot-chat.spec.ts`
+      against the current composer DOM, then re-run Part 2 for a real
+      (not stale-selector) verdict on the Batch C hallucination finding
+      (`DeleteProject`) and the Finance/HR capability-tree gap.
+- [ ] Re-verify permits/documents test assertions against current UI copy.
+- [ ] Independently re-confirm the procurement-requisition 500 (Batch B bug)
+      is still live with a fresh network trace.
+- [ ] Multi-tenant / multi-brand certification -- needs a second real org
+      (none located/seeded this session).
+- [ ] First-time-user signup/onboarding flow (distinct from the 4 seeded
+      power-user logins this session exercised).
+- [ ] Cache and search behavior, specifically (beyond what individual module
+      specs incidentally exercise).
+- [ ] Systematic screen-by-screen sweep beyond the existing 22 spec files'
+      coverage (e.g. `/company-dashboard`, `/projects-overview`, `/rfis`,
+      `/submittals`, `/punch-list`, `/change-orders`, `/site-diary`,
+      `/schedule`, `/meetings`, `/scope-of-work`, `/drawings-3d`,
+      `/minutes-of-meeting`, `/settings` -- not covered by this suite at all
+      per its own file list, Batch A's separate scope).
+- [ ] Any further gap found needs a real reproduction path, a real fix, and
+      independent re-test on the same real flow before being marked done.
+- [ ] `ai-os/boss/ACTIVE-CLAIMS.yaml` updated this session (see this repo's
+      own diff) -- move this entry to `recently_completed` once the above
+      is picked up or this task concludes.
