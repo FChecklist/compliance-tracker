@@ -40,29 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260802-074612-extend-dispatch-tick-py-with-stuck-task) -- extend /opt/veridian/scripts/dispatch-tick.py (separate live-checkout repo, FChecklist/veridian-scripts) with stuck-task detection + real heartbeat"
-    claimed_at: "2026-08-02T (this session)"
-    claim: |
-      PM-directed, tier 1, real infra work. Extends the existing
-      dispatch-tick.py tick (runs every 10 min via
-      veridian-cron-dispatch-tick.timer, already EMERGENCY_STOP-gated via
-      resource_governor.py) with two read-only additions in the SAME file,
-      SAME tick -- no new script, no new timer:
-      (1) stuck-task detection: any task.yaml with status=blocked whose
-      last_checkpoint_at is older than a configurable threshold (default 30
-      min) is surfaced with task id / blocked-duration / last checkpoint
-      note.
-      (2) a real heartbeat: timestamp, real os.getloadavg(), whether
-      resource_governor's EMERGENCY_STOP sentinel is present, and current
-      blocked/in_progress task counts.
-      Both write to one canonical file,
-      /opt/veridian/ai-os/STUCK_TASKS_HEARTBEAT.json (checked
-      MASTER_INDEX.yaml's registries/quick_reference first -- no existing
-      heartbeat/stuck-task file convention found to extend instead).
-      Read-only w.r.t. task state -- reports only, never auto-resolves or
-      dispatches. Scope is /opt/veridian/scripts/dispatch-tick.py +
-      /opt/veridian/scripts/test_stuck_task_heartbeat.py (new test) in the
-      veridian-scripts repo, not compliance-tracker app code.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
@@ -4142,6 +4119,34 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260802-074612-extend-dispatch-tick-py-with-stuck-task) -- extend /opt/veridian/scripts/dispatch-tick.py (separate live-checkout repo, FChecklist/veridian-scripts) with stuck-task detection + real heartbeat [PR #14 on veridian-scripts, awaiting normal audit -- not self-merged]"
+    claimed_at: "2026-08-02T (this session, closed same session)"
+    claim: |
+      PM-directed, tier 1, real infra work. Extended the existing
+      dispatch-tick.py tick (runs every 10 min via
+      veridian-cron-dispatch-tick.timer, already EMERGENCY_STOP-gated via
+      resource_governor.py) with two read-only additions in the SAME file,
+      SAME tick -- no new script, no new timer:
+      (1) find_stuck_tasks(): any task.yaml with status=blocked whose
+      last_checkpoint_at is older than a configurable threshold (default 30
+      min, VERIDIAN_STUCK_TASK_THRESHOLD_MINUTES) is surfaced with task id /
+      blocked-duration / last checkpoint note. Never auto-resolves.
+      (2) write_stuck_tasks_heartbeat(): real timestamp, real
+      os.getloadavg(), whether resource_governor's EMERGENCY_STOP sentinel
+      is present, and current blocked/in_progress task counts.
+      Both write to one canonical file,
+      /opt/veridian/ai-os/STUCK_TASKS_HEARTBEAT.json (checked
+      MASTER_INDEX.yaml's registries/quick_reference first -- no existing
+      heartbeat/stuck-task file convention found to extend instead; ai-os/
+      is the existing non-git live-runtime-state dir CONTROLLER.yaml/
+      ATTENTION.md already use). Read-only w.r.t. task state throughout.
+      Real tests added (test_stuck_task_heartbeat.py, 27 assertions) plus a
+      read-only dry-run against the real 842 task.yaml files on the box
+      (424 genuinely stuck found, correct real load average/counts) before
+      opening the PR. Scope: /opt/veridian/scripts/dispatch-tick.py +
+      /opt/veridian/scripts/test_stuck_task_heartbeat.py in the SEPARATE
+      FChecklist/veridian-scripts live-checkout repo, not compliance-tracker
+      app code -- PR opened against that repo's main, not this one.
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
