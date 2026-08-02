@@ -454,3 +454,18 @@ export function requireRoleOrScope(
   }
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
 }
+
+// task-20260727-101145 (external-AI-facing reporting API gateway): a
+// dedicated read gate for src/app/api/v1/reports/**, separate from
+// requireRoleOrScope's single-scope check because this route needs OR
+// semantics -- accept EITHER the pre-existing broad "read" scope (so every
+// key minted before this task keeps working unchanged) OR the new,
+// narrower "read:reports" scope (mintable via POST /api/settings/api-keys
+// for a customer who wants to hand an external AI/ChatGPT/z.ai reports-only
+// access, without also granting it "read" on every other /v1/* domain).
+// A session user always passes, same as every other combined-auth gate.
+export function requireReportsReadAccess(ctx: CombinedAuthContext): NextResponse | null {
+  if (ctx.dbUser) return null
+  if (ctx.apiKey && (ctx.apiKey.scopes.includes("read") || ctx.apiKey.scopes.includes("read:reports"))) return null
+  return NextResponse.json({ error: "This action requires a read or read:reports-scoped API key" }, { status: 403 })
+}

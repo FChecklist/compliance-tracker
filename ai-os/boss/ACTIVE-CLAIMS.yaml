@@ -40,25 +40,568 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
+  - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Fix-forward on the still-open PR #610 (branch
+      worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co,
+      claim entry immediately below, from the original authoring session).
+      Audit-confirmed gap: migration
+      drizzle/0269_sales_pipeline_dashboard_targets.sql creates the
+      org-scoped table compliance.crm_sales_targets with zero Row Level
+      Security -- no ENABLE ROW LEVEL SECURITY, no
+      app_runtime_tenant_isolation policy, no service_role_bypass policy,
+      no index on org_id -- unlike every other org-scoped table in this
+      repo. Amended 0268 in place (not yet merged, safe to amend --
+      confirmed via grep no other file references it) to add RLS + the
+      standard two-policy pair matching
+      drizzle/0101_wave115_construction_boq_progress_diary.sql's pattern
+      exactly, plus org_id and (org_id, month) indexes matching
+      sales-pipeline-dashboard-service.ts's query patterns. Added a real
+      SQL-content test (src/lib/services/sales-pipeline-rls.test.ts,
+      DB-independent, no live Postgres available in this sandbox) plus
+      app-level tenant-isolation coverage for the two new crm-service.ts
+      functions in tenant-isolation.test.ts. Discovered but explicitly did
+      NOT fix (out of this task's scope, flagging for the
+      supervisor/original session instead): PR #610 already fails CI's
+      Asset Registry Coverage Check (crm_sales_targets neither
+      registered nor exempted) and the terminology guardrail
+      (--diff-only, pre-existing hardcoded 2026-07-27-era dates in
+      schema.ts/crm-service.ts) -- confirmed both pre-existing (identical
+      failing output with and without this session's changes stashed),
+      not introduced by this fix.
+    scope_note: |
+      File scope: compliance-tracker only --
+      drizzle/0269_sales_pipeline_dashboard_targets.sql,
+      src/lib/services/sales-pipeline-rls.test.ts (new),
+      src/lib/services/tenant-isolation.test.ts (2 new tests appended),
+      on branch worker/task-20260727-193351-sales-pipeline-interactive-dashboard--co
+      (PR #610). Did not touch dashboard/chart UI or aggregation logic
+      (audit already confirmed those correct, out of scope per task spec).
+  - session_label: "claude-code (task-20260727-193351-sales-pipeline-interactive-dashboard--co) -- Real interactive Sales Pipeline dashboard, CRM module [PUSHED, PR #610 OPEN, awaiting supervisor audit]"
     claimed_at: "2026-07-27T (this session)"
     claim: |
-      Fix GitHub Dependabot security alert #34 on FChecklist/compliance-tracker
-      (main): npm package sharp at ^0.34.3 is affected by GHSA-f88m-g3jw-g9cj
-      (CVE-2026-33327, CVE-2026-33328, CVE-2026-35590, CVE-2026-35591 --
-      inherited libvips vulnerabilities), severity high. Bumping to ^0.35.3
-      (first_patched_version 0.35.0, advisory names 0.35.3 as latest,
-      libvips 8.18.3) in package.json, updating bun.lock via `bun install`.
-      Implementation-only task per Rule 7(c) -- a separate supervising
-      session audits and merges; this session does not self-certify.
+      Owner-supplied mockup: 6 KPI tiles (Sales Value/Hold%/Lost%/Success%/
+      Health%/Regret%) + 2 filter dropdowns, 2 bar charts (Sales Lead
+      Performance Overview, Pipeline Status Overview across 8 named
+      statuses: Awarded/Lost/Hold/Pitched/Lead/Regret/Estimation/Follow up),
+      a Monthly Revenue Trend line chart (Target/Achieved/Shortfall) + KPI
+      table, a scrollable Project Value Status Analysis deal list, and
+      cross-filtering (clicking a Pipeline Status bar filters everything
+      else + changes the page heading).
 
-      File scope: package.json (sharp dependency line only), bun.lock
-      (sharp + its own transitive tree only). No other files touched.
+      Confirmed gap: crmOpportunities.stage (schema.ts:4838) is a free-text
+      column with only 5 real legacy values (prospecting/proposal/
+      negotiation/won/lost) -- none of the 8 mockup status names exist
+      anywhere in this codebase (grepped for Awarded/Pitched/Regret/
+      Estimation, zero hits outside veri-reward-service.ts's unrelated
+      "system-awarded" comment). Building a normalization/mapping layer
+      (legacy 5 -> 5 of the 8 canonical names, remaining 3 pass through
+      case-insensitively since the column has no CHECK/enum constraint) --
+      NOT renaming existing data, NOT touching crm/opportunities kanban or
+      the create/update-stage flow. Also confirmed no existing "monthly
+      revenue target" concept anywhere (grepped schema.ts/src/lib/services
+      for target/quota) -- adding one small additive table
+      (crm_sales_targets: orgId/month/targetValue) since Achieved/Shortfall
+      are derivable from real Awarded-opportunity data but Target is a
+      genuine new input.
 
-      Collision check before starting: grepped this file for "sharp"/
-      "dependabot" -- only unrelated hits (image blur-detection feature,
-      an older unrelated Dependabot/recharts PR triage entry). No active
-      claim on this alert or on package.json's sharp line.
+      Health%/Success% definitions: reusing crm-service.ts's existing
+      getSalesPipelineOverview winRate formula (won/(won+lost), i.e.
+      Awarded/(Awarded+Lost)) for Success% rather than inventing a new one;
+      Health% derived from the existing per-opportunity aiWinProbability
+      AI field (crmOpportunities.aiWinProbability, already real, already
+      scored by analyzeOpportunity() in crm-service.ts) averaged over
+      non-terminal deals in the filtered set -- no new AI scoring call.
+
+      File scope: src/lib/db/schema.ts (crm_sales_targets table + migration
+      only -- no changes to crm_leads/crm_opportunities columns), new
+      src/lib/services/sales-pipeline-dashboard-service.ts (pure,
+      no-DB-import aggregation module, unit-tested), new
+      src/app/api/crm/sales-pipeline/** routes, new
+      src/app/(app)/crm/sales-pipeline/page.tsx. Does not touch
+      crm-service.ts's existing lead/opportunity create/update functions,
+      crm/opportunities/page.tsx's kanban, or crm-enablement-service.ts.
+
+      Collision check before starting: grepped this file for "sales
+      pipeline"/"crm"/"opportunit" -- no other active entry names
+      sales-pipeline-dashboard-service.ts, crm_sales_targets, or a CRM
+      dashboard/cross-filter build. The BoQ/valuation claim just below is
+      PROJEXA construction-billing, disjoint file scope. The Sales/CRM
+      Priority-15 entries further down are closed (see
+      recently_completed) and built leads/opportunities/quotations CRUD,
+      not a dashboard.
+
+      Update 2026-07-29 (task-20260729-104734, fresh-conflict re-sweep):
+      textual git conflict against main was already resolved by an earlier
+      pass, but a real semantic collision survived it -- main independently
+      landed drizzle/0268_pms_time_entry_approval_flow.sql (PR #613) while
+      this branch's own migration also used prefix 0268
+      (0268_sales_pipeline_dashboard_targets.sql), and this branch's file
+      was never registered in drizzle/meta/_journal.json in the first
+      place. Neither problem is caught by current CI --
+      scripts/check-migration-collision.mjs exists but is not wired into
+      any .github/workflows/*.yml job. Renamed to
+      0269_sales_pipeline_dashboard_targets.sql, added its journal entry,
+      updated the two test files that reference the old filename by name.
+  - session_label: "claude-code (task-20260729-215500-stage12-tasks-content-search) -- Stage 12: extend compliance.content_search to compliance.tasks [DONE THIS SESSION, PR OPEN]"
+    claimed_at: "2026-07-29T (this session, closed same session)"
+    claim: |
+      VERIDIAN_CONSOLIDATED_COMPLETION Stage 9 (PR #630) explicitly flagged
+      8 remaining real entity types with no unified-search coverage:
+      tasks/projects/tickets/crm_leads/notices/comments/conversations/
+      notifications. Picked tasks by real evidence (row counts checked via
+      Supabase MCP list_tables, not assumed): tasks 1899, crm_leads 517,
+      conversations 366, notifications 70, tickets 53, projects 36,
+      comments 36, notices 3 -- tasks is by far the highest-volume real
+      candidate. Confirmed compliance.tasks had zero tsvector/search index
+      today (only btree + an hnsw vector-embedding index on task_embedding,
+      a different mechanism) -- genuinely new work, not an extension of an
+      existing index, unlike compliance_items/documents. Added a
+      trigger-maintained search_vector column (BEFORE INSERT OR UPDATE
+      trigger, not a plain column) + GIN index + one-time backfill for the
+      1899 existing rows, then extended compliance.content_search with a
+      third UNION ALL branch for tasks, same security_invoker=true +
+      explicit org_id = current_org_id() convention as the other two
+      branches (confirmed via pg_policy that compliance.tasks' own RLS
+      already uses this exact expression). Real, notable finding along the
+      way: compliance.comments already has a search_vector column, GIN
+      index, AND a wired BEFORE INSERT/UPDATE trigger (tsv_ct2_comments) --
+      but all 36 existing rows have search_vector IS NULL, because the
+      trigger was added with no backfill. Documented in this migration's
+      own header as the specific mistake this task's backfill step avoids
+      repeating for tasks; comments itself is unfixed here (out of scope,
+      flagged as a real remaining gap for whichever session next tackles
+      comments' own content_search branch).
+    scope_note: >-
+      File scope: compliance-tracker only -- drizzle/0271_content_search_tasks.sql
+      (new migration; also applied live via Supabase MCP apply_migration,
+      project pcrjmlpuqsbocqfwoxod/verdian-ai, migration label
+      stage12_content_search_tasks) + this ACTIVE-CLAIMS.yaml entry. No
+      application code changed (content_search has no existing API
+      consumer yet -- same as Stage 9's own scope). Verified live: trigger
+      fires on both INSERT and UPDATE with no manual search_vector write
+      (tested with a real insert+update+delete against a synthetic test
+      row, cleaned up after); view returns 0 rows with no
+      app.current_org_id set (fail-closed); returns the test row only under
+      its own org (org_001) and not under a different real org
+      (org_firstrun_test); compliance.get_advisors(security) shows the
+      identical 27 pre-existing findings before and after this migration --
+      zero new findings introduced.
+  - session_label: "claude-code (fi-ap-006-vendor-payment-behavior) -- FI-AP-006 Vendor Payment History / Payment Behavior Analysis"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build FI-AP-006 "Vendor Payment History / Payment Behavior
+      Analysis" (sap_mapping.sqlite sap_reports, module FI-AP, priority
+      MEDIUM, veridian_mapping_status BUILD_NEW as of 2026-07-28). The
+      row's own veridian_gap_notes says this "mirrors the equally-absent
+      FI-AR-006" (Customer Payment Behavior / DSO, AR side). PR #645
+      (FI-AR-006) is OPEN, not yet merged, as of this claim -- reusing its
+      calculation shape (daysToPay/classifyPaymentReliability/
+      computeDsoFormula pattern in erp-invoicing-service.ts) adapted
+      customer->vendor, DSO->DPO, for the AP side. Scope: a new
+      vendorPaymentBehaviorReport()-equivalent function + 3 pure helper
+      functions in src/lib/services/erp-invoicing-service.ts, a
+      report_definitions migration, a thin /api/v1/projexa route, and
+      unit tests. No collision found with any other active claim in this
+      file as of this timestamp (grepped for FI-AP-006/FI-AR-006, no
+      hits).
+  - session_label: "claude-code (sd-007-sales-order-document-flow-overview) -- SD-007 Sales Order Document-Flow Overview"
+    claimed_at: "2026-07-30T (this session)"
+    claim: |
+      Task: build SD-007 "Sales Order -- Status Overview" (sap_mapping.sqlite
+      sap_reports, module SD, priority HIGH, veridian_mapping_status
+      BUILD_NEW as of 2026-07-28) as a report_definitions-registered
+      document-flow report, following the executionType='external_service'
+      convention PR #637 (FI-AP-005) established (migration seeds a
+      compliance.report_definitions row pointing at a real service function
+      + a thin /api/v1/projexa route).
+
+      COLLISION FOUND AND RESOLVED before writing code (per this file's own
+      protocol): PR #629 ("Build workflow-track engines: progress-claim
+      billing state machine (SD-002/SD-007)", OPEN, not yet merged) already
+      built a function also self-labeled "SD-007 'Claim Timeline' document-
+      flow trace" -- `getClaimTimeline()` in the NEW
+      construction-billing-workflow-service.ts, scoped entirely to the NEW
+      construction_progress_claims table (milestone_achieved -> drafted ->
+      submitted -> client_approved -> invoiced state machine), with its own
+      timeline API route and unit tests.
+
+      Verified directly (git show / gh pr diff / gh pr view, not the sqlite
+      file's citations) that this is a DIFFERENT domain from what this claim
+      covers: PR #629's chain lives entirely inside brand-new construction-
+      specific tables from that same PR. This claim instead targets the
+      GENERIC ERP Sales & Distribution chain that already exists on main
+      today (Priority 15/Wave 60-84, zero dependency on PR #629 or PR #638):
+      erp_quotations (quotationId) -> erp_sales_orders (soNumber/status) ->
+      erp_sales_invoices (salesOrderId) -> erp_payment_entries
+      (invoiceType='sales_invoice'/invoiceId) + erp_sales_credit_notes
+      (salesInvoiceId) + erp_sales_returns (salesInvoiceId). This is the
+      literal SAP VBAK/sales-order document-flow scope the gap analysis
+      describes, distinct from PR #629's construction-progress-claim
+      billing-workflow scope -- no file/table overlap with PR #629's diff
+      (confirmed via `gh pr diff 629 --name-only`).
+      Also confirmed PR #638 (SD-002 report track, OPEN) adds
+      `erp_sales_invoices.billing_schedule_id` on its own branch only --
+      not depended on here; this claim reads only columns already on main.
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/erp-selling-service.ts (new getSalesOrderDocumentFlow
+      function, additive), src/lib/services/erp-selling-service.test.ts (new
+      tests), src/app/api/v1/projexa/sales-order-document-flow/route.ts
+      (new route), a new hand-written drizzle migration seeding one
+      compliance.report_definitions row, PROGRESS.md, this file. No overlap
+      with PR #629 (construction-billing-workflow-service.ts,
+      construction_progress_claims/*) or PR #638
+      (erp-contract-service.ts, erp_contract_billing_schedules).
+  - session_label: "claude-code (task-20260729-112447-build-extend-workflow-track-engines) -- Build/extend workflow-track (state-machine) engines from PHASE-2-CROSSREF"
+    claimed_at: "2026-07-29T (this session)"
+    claim: |
+      SPEC: build/extend only workflow-track engines marked BUILD_NEW/EXTEND_EXISTING in the
+      real PHASE-2-CROSSREF (sap_reports table, /opt/veridian/ai-os/memory/sap_mapping.sqlite,
+      veridian_mapping_status column -- not a markdown file, confirmed via direct sqlite query).
+      Scope: engine_track='workflow' AND veridian_mapping_status IN (BUILD_NEW, EXTEND_EXISTING)
+      = exactly 2 rows: SD-002 (Billing Due List -> "Ready to Bill" claim-workflow queue,
+      BUILD_NEW) and SD-007 (Sales Order Status Overview -> "Claim Timeline" document-flow-trace
+      view, BUILD_NEW). engine_track='workflow' has 0 EXTEND_EXISTING rows and 1 REUSE_EXISTING
+      row (Treasury-002, out of scope by spec). NOT touching engine_track='hybrid' rows (separate
+      track, no task dispatched for it that I could find) or engine_track='calculation' rows
+      (PHASE-3-BUILD-CALC's scope, not mine).
+      COLLISION CHECK (per this file's own protocol): `git for-each-ref` shows 8 other sibling
+      branches with the identical task title spawned 2026-07-29T09:29Z-11:19Z (a known dispatcher
+      duplication storm affecting both workflow-track and calculation-track engine-build tasks
+      today -- see task-20260729-110351's PROGRESS.md for the calc-track side of this). Of those
+      8, only 2 (103545, 105042) have any commit beyond main, and both are claim-registration-only
+      (zero engine code, no PR, `gh pr list` clean for both). None of the other 6 have any commit
+      at all. Given the tiny real scope here (2 engines, not calc-track's 36), and zero actual
+      implementation progress on any sibling, proceeding rather than blocking on a stale-but-not-4h
+      claim registration -- documenting this honestly rather than silently duplicating. Will move
+      fast and note this collision in the PR description.
+      wiring_registry rule (same as PHASE-3-BUILD-CALC's spec text: "register every new/extended
+      engine in wiring_registry immediately on creation, not batched"): the real wiring_registry is
+      a live sqlite table in /opt/veridian/ai-os/memory/superboss-register.sqlite (host-level,
+      shared across repos, NOT the compliance-tracker repo), populated via
+      /opt/veridian/scripts/superboss-register.py's `register-entity` CLI for single ad hoc rows
+      (per ai-os/WIRING_ENGINE_SCHEMA_2026-07-25.yaml in the separate claude-control repo). New
+      engine files here get registered as entity_type=file rows there immediately after creation,
+      same convention as existing src/lib/engines/*.ts entries -- not a compliance-tracker repo
+      change.
+    status_update_2026-07-30: |
+      Picked up by a NEW session (task-20260730-040813-build-extend-workflow-track-engines) --
+      same dispatcher-duplication class this entry already documented, one day later. Verified
+      directly against the sqlite (`engine_track='workflow' AND veridian_mapping_status IN
+      (BUILD_NEW, EXTEND_EXISTING)`): still exactly the same 2 rows (SD-002, SD-007), both already
+      fully implemented here. PR #629 (this branch) was open with 3 failing checks: Terminology
+      Guardrail (8 unexempted test-fixture ISO dates in construction-billing-workflow-service.test.ts)
+      + Asset Registry Coverage (construction_progress_claims table needed a real registered/exempted
+      decision) + audit-check (no structured AUDIT verdict comment posted yet). Rather than
+      duplicate the already-complete engine build, fixed all 3 directly on this branch: registered
+      construction_progress_claims as asset_type=workflow (drizzle/0270, name_column=
+      milestone_description, org_column=org_id, owner_column=created_by_id -- the table IS the state
+      machine, distinct from construction_interim_bills which holds the computed amount), added the
+      8-finding test-fixture exemption to terminology-guardrail-exemptions.yaml (same class as
+      hr-shift-service.test.ts's precedent), and am posting the structured audit verdict as a
+      genuinely independent auditor (did not implement the original engine code, per Rule 7c). All
+      local checks (terminology guardrail, asset registry coverage, guardrail presence, metadata
+      index coverage, migration collision, `bun test` on the new service, `tsc --noEmit`) pass clean
+      after the fix. No engine logic touched.
+  - session_label: "claude-code (task-20260728-050606-verify-excel-boq-importer-against-real-p) -- Verify/fix Excel BoQ importer against real prospect file shape"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Owner-directed verification of construction-boq-import-service.ts (PR
+      #596) against the real prospect BoQ Excel structure referenced in
+      ai-os/PROSPECT_GAP_BACKLOG_2026-07-28.md ("Sample Scope with Sub
+      Task.xlsx", 160 rows, Sl No/Category/Dwg Code/Description (Task)/Sub
+      Task/QTY/UNIT/Breakdown %/RATE/AMOUNT columns). Reconstructed the
+      exact structural quirks as a real .xlsx test fixture (category header
+      rows, multi-line descriptions with embedded "Location :" text,
+      unlabeled sub-task rows) and ran it through the real importer:
+      confirmed a real bug (mapBoqHeaders picked the "Category" column over
+      "Description (Task)" for the description field, and "Sl No" was not
+      recognized as an itemCode alias at all -- all 9 real task/sub-task
+      rows were dropped, keeping only 2 garbage category-label rows).
+      Fixed construction-boq-import-service.ts's header-alias matching and
+      added positional parent-child inference for unlabeled sub-task rows.
+      Did not touch computeHierarchicalAmount() or any other calculation
+      logic (out of scope per task spec).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/lib/services/construction-boq-import-service.ts and its .test.ts
+      file. No schema changes, no changes to construction-boq-service.ts's
+      computeHierarchicalAmount(). Checked this file for collisions: no
+      other active entry names construction-boq-import-service.ts.
+  - session_label: "claude-code (task-20260727-153104-re-audit-reporting-module-end-user-for-1) -- Independent re-audit of reporting_module_end_user scope"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner-directed re-verification of whether the reporting_module_end_user
+      scope (task-20260727-093931) is genuinely 100% complete, from real
+      current main-branch code and real test output. Report-only: writing
+      findings to ai-os/audits/reporting_module_reaudit_2026-07-27.md in
+      compliance-tracker, on a new branch, PR containing only that report.
+      No code changes outside ai-os/audits/ in either repo.
+  - session_label: "claude-code (task-20260727-182023-fix-veri-erp-product-chain-bug--shows-pr) -- Fix VERI ERP chain-selector Product branch returning Project rows/actions"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Live-reproduced bug: /chat -> VERI ERP -> Product -> "Demo Company
+      Platform" surfaces two Project records ("Website Revamp"/
+      "ERP Rollout - Phase 2", ids demo_project_website/...) as children
+      instead of real Product sub-items, and offers project-management
+      actions instead of product-management actions. Customer/Vendor
+      branches are confirmed correct and must NOT be modified beyond
+      adding a regression test. Root-causing the entity-type resolution
+      logic behind ChainSelector.tsx/VeriComposer.tsx/chat-service.ts (or
+      whichever API route actually resolves chain children/actions by
+      entity type) and fixing the Product branch specifically.
+      File scope (expected, subject to change after reading current code):
+      likely src/lib/services/chat-service.ts and/or a chain-resolution API
+      route, src/components/veri-chat/ChainSelector.tsx (read-only unless
+      the bug is genuinely in this file), src/lib/db/schema.ts (read-only,
+      confirming real table names). NOT touching Customer or Vendor
+      resolution logic except to add regression tests per task spec.
+      Checked this file for collisions: no other active entry currently
+      claims the Product-entity branch of chain resolution specifically;
+      several older entries (2026-07-18/07-19) touch ChainSelector.tsx/
+      VeriComposer.tsx for unrelated concerns (chat efficiency findings,
+      ui-kit swap) and are stale (>4h, no matching open PR checked).
+  - session_label: "claude-code (task-20260727-190116-work-progress-report--projexa) -- PROJEXA Work Progress Report feature"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Per SPEC for a real PROJEXA Work Progress Report (daily activity qty
+      + photo entry against BoQ line items, Prev/Current/Total Qty/Amt/%
+      report, category/scope/manpower/vendor breakdowns). PROJEXA-side work
+      is out of this repo's scope (separate repo). The ONLY compliance-
+      tracker change needed: `GET /api/v1/construction/boq` (and its
+      /api/v1/projexa/scope alias) currently returns BOQ headers only, no
+      line items -- confirmed by reading listBoqs() in
+      construction-boq-service.ts, which the WPR report needs (rate/amount
+      per line) and has no other way to reach. Enriching that route
+      handler's response with each boq's lineItems by calling the
+      already-existing getBoq() service function per boq -- read-only,
+      additive field, zero schema change, zero change to
+      construction-boq-service.ts itself.
+      Collision check: the hierarchical-boq-breakdown entry below claims
+      schema.ts/construction-boq-service.ts/construction-valuation-service.ts
+      -- none of those are touched here; this only edits
+      src/app/api/v1/construction/boq/route.ts (a route handler file, not
+      the service).
+    scope_note: >-
+      File scope: compliance-tracker only --
+      src/app/api/v1/construction/boq/route.ts (GET handler only, additive
+      lineItems field) and
+      src/app/api/v1/projexa/work-progress/activities/route.ts (GET handler
+      only, additive categories field). No schema changes, no
+      service-layer changes. Branch: feat/boq-line-items-in-v1-list. Not
+      self-merged -- this task's own PR requires a fresh supervisor audit
+      before merge.
+  - session_label: "claude-code (task-20260727-122632-projexa-e2e--hierarchical-boq-breakdown) -- Hierarchical BoQ breakdown-%, interim-billing/valuation/retention engine, Excel BoQ importer"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Per Owner directive PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
+      closing 3 confirmed-real gaps: (1) extend constructionBoqLineItems
+      (schema.ts:9446-9483) with parentLineItemId self-reference +
+      breakdownPercentage column, update construction-boq-service.ts to
+      compute Sub-Task Amount = Main QTY * Main RATE * Breakdown % and make
+      revision-chain diff hierarchy-aware; (2) new
+      construction-valuation-service.ts: interim/RA bill from
+      constructionWorkProgressEntries, configurable retention %, emits a
+      real invoice via the existing sales-invoice schema/service (modeled
+      on firm-billing-service.ts's generateInvoiceFromUnbilledTime(), not a
+      new invoice table); (3) new Excel BoQ importer (service + API route)
+      modeled on src/lib/gst/adapters/spreadsheet-adapter.ts, parsing into
+      the new hierarchical schema.
+
+      Collision check before starting: this file has zero entries naming
+      construction-boq-service.ts, constructionBoqLineItems,
+      construction-valuation-service.ts, or a BoQ Excel importer. The only
+      other invoicing-shaped work referenced anywhere nearby is a separate
+      parallel task (PM gaps, PR #592) building PMS timesheet-to-invoice
+      via resolveBillableRate()/pms-invoice-service.ts -- a distinct
+      feature; this task does not touch pms-invoice-service.ts or
+      pms-time-service.ts.
+    scope_note: >-
+      File scope: compliance-tracker only -- src/lib/db/schema.ts
+      (constructionBoqLineItems + one migration), src/lib/construction-boq-service.ts,
+      new src/lib/construction-valuation-service.ts, new BoQ Excel import
+      service + API route under src/app/api/. No changes to
+      pms-invoice-service.ts, pms-time-service.ts, or any PM-gaps file.
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
+  - session_label: "claude-code (task-20260727-101145-reporting-api-gateway--external-ai-scope) -- external-AI-facing reporting API gateway (CRITICAL_ERP_REPORTING_MODULE_WITH_AI_API_INTEGRATION)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive: expose the existing report_definitions catalog +
+      executeReportDefinition() dispatcher (report-engine-service.ts,
+      ~200-row live catalog, built Wave 175 2026-07-13) through this repo's
+      existing external-API convention (src/app/api/v1/*, see
+      compliance/route.ts) with a scoped, tenant-bound API-key token.
+      REUSE-ONLY per the task's own constraints -- NOT a new reporting
+      engine, NOT a new auth/token mechanism (requireAuthOrApiKey() +
+      validateApiKey() + compliance.api_keys, already live), NOT new
+      tenant-isolation logic (withTenantContext() already wired into
+      executeReportDefinition() at ~30 call sites -- this task only gets
+      the right orgId into that existing call). Building new
+      src/app/api/v1/reports/** (catalog list + definitions/[id]/run,
+      requireAuthOrApiKey()), a minimal additive "read:reports" scope
+      value alongside the existing read/write scopes (compliance.api_keys'
+      scopes column is free-text comma-separated already -- extending the
+      accepted-values whitelist in POST /api/settings/api-keys, not a
+      schema change), and a small new server-safe (non-"use client")
+      export-builder module so report_definitions execution output can
+      flow through the SAME CSV/XLSX generation logic report-export.ts /
+      reports/page.tsx already use (those existing functions are
+      browser-only Blob-download triggers and cannot run in a server API
+      route as-is -- extracting the pure byte-generation part is the
+      minimal change needed, not new export logic).
+      Top priority per Owner: a real, automated cross-org tenant-isolation
+      penetration test (Org B's API key must not be able to read Org A's
+      report data through the new route) -- part of the PR's test suite,
+      not a manual check.
+      Checked this file for collisions before starting: no other active
+      entry names src/app/api/v1/reports/**, report-export.ts, or
+      compliance.api_keys' scopes validation as in-progress work. The
+      closed 2026-07-16 PROJEXA-reports entries below (projexa-reports-
+      catalog-ui) built a DIFFERENT, already-merged path
+      (src/app/api/v1/projexa/reports/**, PROJEXA-product-specific) --
+      this task's src/app/api/v1/reports/** (no /projexa/ segment) is a
+      distinct, generic external-AI-facing surface, not a duplicate.
+      File scope: src/app/api/v1/reports/** (new), src/lib/report-export*
+      (new server-safe module, existing client file read-only unless a
+      genuinely minimal extraction is needed), src/app/api/settings/api-keys/
+      route.ts (scope whitelist only), src/lib/supabase/auth-guard.ts
+      (hasScope/requireRoleOrScope type widening only, if needed) tests
+      under src/app/api/v1/reports/**.test.ts. Branch:
+      task-20260727-101145-reporting-api-gateway--external-ai-scope (this
+      task's own dispatched branch/worktree). Not self-merged -- tier2
+      (HOLD_FOR_OWNER_SIGNOFF per the task's own COMPLEXITY_TIER), and
+      Rule 7(c) requires an independent, non-self auditor regardless.
+  - session_label: "claude-code (task-20260727-132826-fix-pr-597--budget-undercount-roster-gap) -- fixing 3 audit-confirmed issues on PR #597 before merge (does not replace the PR's own claim, this is a fix-forward on the same branch)"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      PR #597 (branch worker/task-20260727-122935-timesheet-budget-vs-actual,
+      "Timesheet report: Category/Designer/Project/Status Budget-vs-Actual")
+      got an AUDIT: FAIL verdict on issue #597: (1) budget-undercount bug --
+      aggregateDesignerTimesheetCosts()'s designerStatusByUser built only
+      from time entries, dropping any budgeted-but-entryless designer from
+      byDesignerStatus; (2) real N+1 -- designerTimesheetReport() called
+      resolveBillableRate() (a DB round-trip) once per time entry in the
+      entire org instead of fetching pms_billable_rates once and using the
+      existing pure resolvePmsBillableRatePure(); (3) response mixed
+      project-scoped and org-wide fields under one flat object with no
+      scope indication. Fixing all 3 directly on the SAME branch/PR (not
+      opening a new one), per this task's own EXPECTED_OUTPUT.
+
+      File scope: src/lib/services/construction-reports-service.ts (the 3
+      fixes above only -- not rewriting the already-correct parts of
+      aggregateDesignerTimesheetCosts() per this task's own CONSTRAINTS),
+      src/lib/services/construction-reports-service.test.ts (new tests
+      proving each fix), ai-os/registry/terminology-guardrail-exemptions.yaml
+      (test-fixture date-literal exemption), PROGRESS.md.
+
+      Collision check before starting: grepped ACTIVE-CLAIMS.yaml for
+      "597"/"timesheet-budget-vs-actual"/"construction-reports-service" --
+      only this PR's own original build claim (already moved out of
+      `active:` by the time this session started; confirmed via
+      `gh pr view 597` showing state OPEN, mergeable). No other session
+      currently claims this file. `git pull origin main` run fresh
+      immediately before this entry (this file itself lives on `main`;
+      the actual fix commits go to the PR's own branch, not main).
+  - session_label: "claude-code (task-20260727-122821-projexa-e2e--pwa-offline-sync---real-tas) -- pms-issue-service.ts real dependency-blocking enforcement"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Owner directive PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION.
+      updateIssue() currently accepts any statusId/completionPercentage
+      patch with no check against pmsIssueRelations -- extending it to
+      reject a transition to a "done"/completed status when a real
+      pmsIssueRelations predecessor edge exists and that predecessor issue
+      is not itself complete (specific error, not a silent no-op; issues
+      with no relations are unaffected). Also adding a conflict check to
+      addIssueRelation() rejecting a new relation that would immediately
+      leave an already-completed successor violating an incomplete
+      predecessor. File scope: src/lib/services/pms-issue-service.ts and
+      its colocated test file only. Does NOT touch
+      construction-boq-service.ts or the BoQ schema (separate parallel
+      task). Companion PROJEXA-side PR (PWA/offline infra) tracked in that
+      repo's own ACTIVE-CLAIMS.yaml, not this one.
+
+      Collision check before starting: grepped this file for
+      "pms-issue-service"/"pmsIssueRelations" -- only stale (2026-07-14,
+      >4h, work already merged per PROJEXA_GAP_ANALYSIS.md's own
+      described-as-current behavior) entries about route/UI creation, not
+      this validation logic. No active claim on this file.
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj)"
+  - session_label: "claude-code (task-20260727-100954-erp-hr-gaps--expense-reimbursement--loan) -- Phase 0 HR gap closure: employee expense/reimbursement, employee loans/salary advances, KRA/weighted-goal + 360 performance appraisal, shift management/roster"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      4 real, code-verified HR gaps per DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE
+      Phase 0 investigation (2026-07-27): (1) employee expense claims/
+      reimbursement -- confirmed constructionExpenseEntries (schema.ts:9661)
+      is project-cost tracking, not employee reimbursement, zero overlap;
+      (2) employee loans/salary advances -- confirmed absent (grepped
+      "loan"/"advance" across schema.ts); (3) KRA/weighted-goal +
+      multi-rater (360) performance appraisal, extending (not replacing)
+      performanceReviews/performance-service.ts; (4) shift-type/roster
+      table + attendance deriving expected-shift context, extending (not
+      replacing) hrAttendanceRecords/hr-attendance-service.ts. Loan and
+      expense-reimbursement both integrate into erp-payroll-service.ts's
+      processPayrollRun() (deduction/earning lines), per this task's own
+      SUCCESS_CRITERIA.
+
+      File scope: new hr-expense-service.ts, hr-loan-service.ts,
+      hr-shift-service.ts (+ .test.ts each), schema.ts additions (new
+      tables only, no existing table altered), erp-payroll-service.ts
+      (processPayrollRun extended, additive), performance-service.ts
+      (extended, additive), hr-attendance-service.ts (shift-context lookup
+      added, additive), new src/app/api/hr/expenses/**,
+      src/app/api/hr/loans/**, src/app/api/hr/shifts/**,
+      src/app/api/performance-reviews/reviews/[id]/goals/**,
+      src/app/api/performance-reviews/reviews/[id]/raters/**, new
+      drizzle/ migration SQL, PROGRESS.md. Also fixing the stale
+      hr-service.ts:1-6 "Payroll deliberately out of scope" comment (now
+      wrong -- erp-payroll-service.ts is a real 513-line payroll engine)
+      per this task's own KNOWN_CONTEXT instruction.
+
+      Collision check before starting: grepped this file for "expense"/
+      "reimburs"/"loan"/"advance"/"shift"/"roster"/"kra"/"360" -- only
+      unrelated hits found (a banking-domain loan_schedule_generator/
+      amortization_engine Chain Selector fix, task-20260718-084004, and
+      roster.ts AI-team-model-roster entries, both a different domain
+      entirely). No open PR found via `gh pr list --state open` touching
+      any of this task's file scope. `git pull origin main` run fresh
+      immediately before this entry.
+  - session_label: "claude-code (task-20260727-101123-erp-project-management-gaps--timesheet-t) -- ERP PM gap closure: PMS timesheet->invoice, Gantt/critical-path UI verification, resource-allocation conflict detection [PUSHED, PR pending]"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE Phase 0
+      gap closure, 3 narrow real gaps in compliance-tracker's existing
+      pms_* PM module (not a from-scratch PM build). File scope: new
+      src/lib/services/pms-invoice-service.ts (+ .test.ts),
+      src/lib/services/pms-time-service.ts (added resolvePmsBillableRatePure
+      export + .test.ts), src/lib/services/schedule-service.ts (added
+      detectResourceConflicts/getResourceConflicts + .test.ts),
+      src/app/api/pms/invoices/generate/route.ts,
+      src/app/api/pms/schedule/resource-conflicts/route.ts,
+      src/app/api/v1/projexa/schedule/resource-conflicts/route.ts, edits to
+      src/app/api/pms/schedule/resource-allocations/route.ts and
+      src/app/api/v1/projexa/schedule/workload/route.ts (added `conflicts`
+      to POST response), 3 new columns on pms_time_entries (schema.ts +
+      drizzle/0264_pms_timesheet_invoice_link.sql, hand-authored -- see
+      PROGRESS.md for why drizzle-kit generate wasn't usable in this repo's
+      current meta/ state).
+
+      Confirmed via direct code read (not re-derived): Gantt/critical-path
+      UI (this task's Gap 2) ALREADY EXISTS, merged 2026-07-09 (commit
+      e1572a4, FChecklist/projexa) -- ScheduleGanttClient.tsx already
+      consumes GET /api/v1/projexa/schedule/gantt and already shows
+      isCritical/floatDays as a grid column. No PROJEXA changes made, no
+      PROJEXA PR opened -- there was nothing to build. This task's own
+      SPEC KNOWN_CONTEXT's "zero .tsx Gantt matches" was from grepping the
+      wrong repo (compliance-tracker has no UI at all; the real UI is in
+      the separate PROJEXA repo).
+
+      Collision check before starting: grepped this file for "pms"/
+      "timesheet"/"gantt"/"resource-alloc"/"invoice" -- no active entry
+      touches this file/directory scope. `git pull origin main` run fresh
+      immediately before this entry.
+
   - session_label: "claude-code (task-20260727-094843-architecture-phase-8-increment-1--dspy-e) -- VERIDIAN_Architecture_v2.0 phase_8 increment 1: DSPy evaluation/decision + engine-ai-learning wiring + scoping-only pass for 5 zero-prior-art engines"
     claimed_at: "2026-07-27T (this session)"
     claim: |
@@ -3412,7 +3955,241 @@ active:
       (voice-tickets GAP-MOM-VOICE-TICKETS, already closed; payroll/tax
       "slabs"; generic cron-timing "SLA" mentions). No other active entry
       claims schema.ts's tickets/SLA area or a Helpdesk gap.
+  - session_label: "claude-code (task-20260727-153107-re-audit-projexa-erp-e2e-for-100pct-comp) -- independent re-verification of PROJEXA ERP E2E (task-20260727-104516)'s claimed 100% completion across 5 PRs"
+    claimed_at: "2026-07-27T (this session)"
+    claim: |
+      Verification-only re-audit, no code changes. Re-checking real current
+      main-branch code + real test/tsc output in both projexa and
+      compliance-tracker repos against 5 previously-merged PRs claimed to
+      close PROJEXA ERP E2E scope: projexa PR #52 (AppShellFrame header
+      fix), PR #54 (PWA manifest + offline-shell SW + IndexedDB
+      work-progress sync queue -- specifically re-checking the queue is
+      per-user-scoped with a real dedup/mutex against duplicate sync
+      submissions), PR #56 (PM/Site-Engineer/Client-Viewer roles +
+      server-side route gating + last-owner/admin demotion guard --
+      specifically re-checking role-gating covers every
+      role/membership-mutating PATCH/DELETE endpoint, not just the one
+      originally audited), and compliance-tracker PR #596 (hierarchical BoQ
+      breakdown-%, interim-billing/valuation/retention -- specifically
+      re-checking a real test invoice produces nonzero tax and retention no
+      longer reduces the taxable subtotal) and PR #597 (timesheet
+      budget-vs-actual report fix). Output is a single findings report,
+      COMPLETE or INCOMPLETE-WITH-GAPS per PR.
+
+      File scope: read-only in both repos except writing
+      ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md in this repo
+      (compliance-tracker) only. No edits to any other file in either repo.
+      Note for other sessions: this claim reads (does not lock) the file
+      areas of the PR-54-audit-findings and PR-53/56 last-owner-demotion
+      fix-forward work already visible as merged commits on projexa main
+      (b5014d9, 173b9ab, 77de705, 114d0ee) -- if a session is still
+      iterating on those in-flight, this re-audit's findings reflect
+      whatever is on main at read time and will note the commit SHA
+      verified against.
+
+      STATUS UPDATE: verification work complete. All 5 PRs independently
+      re-confirmed COMPLETE (report: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md).
+      PR #603 opened (compliance-tracker), awaiting CI + merge -- will move
+      this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260728-051733-owner-engine-phase-5-real-gaps) -- OWNER_ENGINE phase_5 real gap closure: NPU/Built-in-AI real inference, cross-tier storage, browser-sync engine"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Per audit-confirmed gaps (ai-os/audits/owner_engine_reaudit_2026-07-27.md,
+      merged) in phase_5_browser_execution_tiers: detectNpuTier()/
+      detectBuiltinAiTier() in src/lib/browser-execution/tier-detection.ts are
+      detection-only, model-cache.ts is scoped per-engine only (not the
+      general cross-tier OPFS+Cache API+IndexedDB storage layer), and zero
+      code implements the browser-sync engine. Building: (1) real WebNN NPU
+      inference (src/lib/browser-execution/npu-engine.ts, reusing the same
+      Xenova/all-MiniLM-L6-v2 model transformers-engine.ts already targets,
+      via @huggingface/transformers' real `device: "webnn-npu"` backend);
+      (2) real Chrome Built-in AI inference (new
+      src/lib/browser-execution/builtin-ai-engine.ts, window.LanguageModel /
+      window.ai.languageModel real call path); (3) new
+      src/lib/browser-execution/cross-tier-storage.ts (OPFS + Cache API
+      backends, reusing model-cache.ts's IndexedDbModelCache as the third
+      backend rather than replacing it); (4) new
+      src/lib/browser-execution/sync-engine.ts (offline queue with real
+      same-entity coalescing, remote conflict resolution, delta sync,
+      sync mutex) -- SPEC's cited PROJEXA prior art
+      (src/lib/offline/work-progress-queue.ts, PR #54) does not actually
+      exist anywhere in this repo's history (verified via `git log --all`
+      and `gh pr view 54`, which is the unrelated VERI Reward engine) so
+      this is built fresh, not adapted from that file. Also adding a real
+      litert-spike registry entry to this repo's own ai-os/MASTER_INDEX.yaml
+      (canonical_path_repo per that file's own header) -- no cross-repo
+      write needed, compliance-tracker is both this task's repo and that
+      file's designated canonical repo copy.
+      File scope: src/lib/browser-execution/npu-engine.ts (new),
+      src/lib/browser-execution/builtin-ai-engine.ts (new),
+      src/lib/browser-execution/cross-tier-storage.ts (new),
+      src/lib/browser-execution/sync-engine.ts (new) + each file's
+      .test.ts, src/lib/browser-execution/tier-orchestrator.ts (additive
+      shouldAttemptNpu/shouldAttemptBuiltinAi gates only, same pattern as
+      existing shouldAttemptWebLlm), ai-os/MASTER_INDEX.yaml (new registry
+      entry + regenerated quick_reference). NOT touching Phase 4
+      (defense-in-depth) or Phase 9 (gateway wiring) per this task's own
+      CONSTRAINTS. Checked this file for collisions: no other active entry
+      names src/lib/browser-execution/** or phase_5 browser-execution-tier
+      work.
+
+      STATUS UPDATE: implementation complete -- all 4 gaps closed (npu-engine.ts,
+      builtin-ai-engine.ts, cross-tier-storage.ts, sync-engine.ts, tier-orchestrator.ts
+      gates, litert-spike MASTER_INDEX.yaml registration). 108 tests pass,
+      `npx tsc --noEmit` clean. PR opened (compliance-tracker), awaiting fresh
+      supervisor audit + CI + merge per this task's own EXPECTED_OUTPUT -- will
+      move this entry to recently_completed once merged.
+  - session_label: "claude-code (task-20260728-050704-sap-informed-veridian-phase-0--baseline) -- SAP-informed VERIDIAN Phase 0: business-domain baseline inventory"
+    claimed_at: "2026-07-28T (this session)"
+    claim: |
+      Owner directive Phase 0 of a larger SAP-architecture-understanding /
+      VERIDIAN-completion effort. Scope is deliberately narrow:
+      documentation-only inventory of existing business-domain tables/API
+      routes/PROJEXA module exposure across CRM, Sales, Purchase, Inventory,
+      Accounting/GST, HR, Project Management, Helpdesk, Construction/BoQ --
+      explicitly excludes Manufacturing/Production-Planning/Plant-
+      Maintenance. Primary sources: ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json,
+      ai-os/DATABASE_CATALOG.json, plus real grep of src/lib/db/schema.ts
+      and src/app/api. No schema design, no SAP research, no code changes --
+      output is a single new file, ai-os/tasks/sap_mapping/PHASE_0_BASELINE.yaml,
+      committed on a new branch with a PR opened. Does not touch any file
+      area claimed by other active entries above (read-only over schema.ts/
+      src/app/api, no edits to either).
+
+      STATUS UPDATE: inventory complete (213 tables + 508 API routes across
+      the 8 domains, PROJEXA module-exposure section, sanity checks all
+      run). PR #615 opened (compliance-tracker), awaiting CI + merge --
+      will move this entry to recently_completed once merged.
+  - session_label: >-
+      laptop-handoff-session -- procurement-ERP gap-closure (Task: generic
+      ERP gap-closure against 10-phase reference docs)
+    claimed_at: "2026-07-31T13:00:21Z (this session)"
+    claim: >-
+      Owner-directed initiative: read+gap-analysis+implementation effort
+      against 10 reverse-engineering reference documents saved at
+      ai-os/reference/procurement-erp-reverse-engineering/ (Organization/
+      Master Data, Vendor Management, Inventory/Item Management,
+      Requisitions, Quotations/Purchase Orders, Invoicing/Payments/
+      Financial Documents, Inventory Gate Pass, Application Overview/
+      Architecture, Auth/User Management/Access Control, Entity
+      Relationships/API/Business Rules) -- a generic ERP gap-closure task
+      spanning both FChecklist/compliance-tracker and FChecklist/projexa,
+      treated as one integrated system per this task's own explicit
+      instruction. This is a large-scope, multi-wave initiative; the real
+      file/directory implementation surface is not yet known and will only
+      be narrowed once a gap-analysis document (separate, subsequent work,
+      not yet written) identifies concrete gaps against the 10 reference
+      areas above. This claim registers the initiative itself, per this
+      file's own Rule 11 protocol, before any reading of the reference
+      docs or implementation work begins.
+    scope_note: >-
+      File scope: deliberately broad at this stage -- both
+      FChecklist/compliance-tracker and FChecklist/projexa repos in their
+      entirety are potentially in-scope, since the eventual implementation
+      surface across the 10 reference-doc areas (org/master-data, vendor
+      management, inventory/item management, requisitions, quotations/POs,
+      invoicing/payments/financial documents, inventory gate pass,
+      application architecture, auth/access control, entity relationships/
+      API/business rules) is not yet known. Will be narrowed to concrete
+      file/directory claims once the gap-analysis document identifies
+      specific gaps -- that narrowing is separate, subsequent work, not
+      part of this claim-registration task. No implementation, no reading
+      of the reference docs themselves, and no other file changed in the
+      PR that adds this entry.
+
+  - session_label: "claude-code (server-side session, VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01) -- VERI Chat mockup-to-production: composer/chain-picker/sidebar-sync/task-document-screen"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      Implementing VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md (PR #675,
+      audited and merged this session) end to end, per its own section 4
+      checklist, one item at a time in dependency order, verifying each live
+      in the browser before moving to the next. File scope: VeriComposer.tsx
+      (selectedPath lift, chain-mode overlay/collapse, per-segment x,
+      "Create similar task again", resizable composer, external-AI copy
+      link), ChainSelector.tsx (deepest-row-only render, deriveDocumentTitle
+      helper), AppSidebar.tsx (sidebar-click composer sync), veri-chat-
+      context.tsx (selectedPath/documentScreenActive lift), a new
+      src/components/veri-chat/TaskDocumentScreen.tsx, home/page.tsx and
+      AppShell.tsx (full-takeover wiring), VERI_CHAT_COMPOSER_DESIGN.md
+      (mapping-table update for the removed queue mechanism). Does not touch
+      @fchecklist/veridian-ui-kit itself (the spec's item 16, sidebar
+      spacing, is out of scope for this repo per its own direction).
+      Re-checked this file fresh before starting: the one entry touching
+      these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
+      is long since superseded -- package.json already pins v0.2.2, so that
+      migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      Confirmed real storage locations for all 3 cross-reference targets:
+      VCEL registry = Postgres compliance.computation_engines (schema.ts:9488,
+      backed by 25 files under src/lib/engines/*.ts); report_definitions =
+      Postgres compliance.report_definitions (schema.ts:4650), executed via
+      report-engine-service.ts/cataloged via report-catalog-service.ts;
+      wiring_registry = the SEPARATE claude-control repo's
+      ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json (not this repo -- tracks
+      AI-OS/platform wiring, used as corroborating evidence only). No live
+      DATABASE_URL/Supabase MCP available this session -- cross-referenced
+      against real source code (all 25 engine files + every relevant
+      erp-*-service.ts/construction-*-service.ts export) instead of a live
+      query, disclosed as a real limitation. Read all 80 sap_reports rows'
+      calculation_logic in full and wrote evidence-cited
+      veridian_mapping_status/veridian_existing_equivalent/veridian_gap_notes
+      for all of them (35 REUSE_EXISTING, 31 EXTEND_EXISTING, 14 BUILD_NEW;
+      0 unmapped). Found and fixed a real schema/spec mismatch:
+      sap_reports.veridian_mapping_status's CHECK constraint only allowed
+      the OLD NOT_MAPPED/PARTIALLY_MAPPED/FULLY_MAPPED/NOT_APPLICABLE
+      vocabulary -- widened it additively (old values still valid) via the
+      standard SQLite table-recreate procedure, backed up the sqlite file
+      first. No PR: the only data change is to
+      /opt/veridian/ai-os/memory/sap_mapping.sqlite, which is shared non-git
+      infra state (confirmed, same as the prior engine_track task); the only
+      repo change is this file + PROGRESS.md (commits 1467a051, ee757052,
+      pushed to worker/task-20260728-160934-cross-reference-sap-reports-vs-existing).
+  - session_label: "claude-code (task-20260728-043316-design-studio-timesheets--designer-wise) -- Design Studio timesheets: approval workflow + designer-wise status/work-analysis reports [PR #613, awaiting supervisor audit]"
+    claimed_at: "2026-07-28T (this session, closed same session)"
+    claim: |
+      PR #613 opened (not yet merged -- awaiting the mandatory supervisor
+      audit per this task's own EXPECTED_OUTPUT). Extended PR #597's
+      construction-reports-service.ts rather than rebuilding it: confirmed
+      the designer-wise Budget-vs-Actual cut (byDesigner) and the KPI
+      designer-fills/manager-approves flow already existed and left both
+      untouched. Closed the real gap -- pms_time_entries had no approval-
+      status field/flow at all -- by adding draft/submitted/approved/
+      rejected (new enum + approvedById/approvedAt/rejectionReason columns,
+      hand-written migration drizzle/0268_*.sql per the drizzle/meta
+      snapshot gap 0267 documents), submitTimeEntry/approveTimeEntry/
+      rejectTimeEntry in pms-time-service.ts (modeled on
+      construction-kpi-service.ts's submit/approveKpiEntry, self-approval
+      blocked), new /api/pms/time-entries/[id]/{submit,approve,reject}
+      routes (manager-role-gated via requireRole), and 2 new reports
+      (designer-approval-status, work-analysis) registered in the existing
+      REPORT_REGISTRY/dispatcher. bunx tsc --noEmit clean; full bun test
+      2244 pass/0 fail including every pre-existing PR #597 test
+      unmodified.
+  - session_label: "claude-code (task-20260727-093117-fix-dependabot-alert34-sharp-cve) -- Dependabot alert #34: bump sharp to ^0.35.3 (GHSA-f88m-g3jw-g9cj) [MERGED PR #594]"
+    claimed_at: "2026-07-27T (this session, closed same session)"
+    claim: |
+      COMPLETED: PR #594 merged 2026-07-27T12:18:49Z (mergeCommit 7ce01a38),
+      closes GitHub Dependabot alert #34 (GHSA-f88m-g3jw-g9cj, sharp <0.35.0
+      libvips CVEs). sharp bumped ^0.34.3 -> ^0.35.3 in package.json + bun.lock,
+      verified present on origin/main after merge. Dispatched via
+      task-gateway.py (task-20260727-093117-fix-dependabot-alert34-sharp-cve,
+      instruction INS-20260727-092902-c75b); implementing worker got blocked by
+      a credit-accountant false-positive dedup match after substantive work was
+      done (package.json/bun.lock bumped, lint/tsc clean, committed+pushed) --
+      the supervising session completed the remaining mechanics (opened PR,
+      resolved a real merge conflict against main in PROGRESS.md/this file,
+      posted the structured AUDIT: PASS verdict per Rule 7(c) since it did not
+      author the diff, merged once CI was green). task-gateway.py close
+      verdict=DONE. Also found and fixed a real bug in task-gateway.py's
+      check_branch_merged_to_master() along the way: it hardcoded
+      "FChecklist/claude-control" regardless of the task's real repo, so every
+      compliance-tracker task's close call checked the wrong repo and then hit
+      a KeyError on a field (commits_ahead_of_master) that function never
+      actually returns -- now reads the repo from task.yaml and uses the real
+      open_pr_number key.
   - session_label: "claude-code (task-20260727-082615-architecture-phase-9--gateway-knowledge) -- phase_9_gateway_knowledge_sync_infrastructure [PRs OPEN, NOT MERGED]"
     claimed_at: "2026-07-27T (this session, closed same session)"
     claim: |
@@ -5818,6 +6595,47 @@ recently_completed:
       CI-trigger anomaly flagged as its own separate open item.
 
 # ── claim registered 2026-07-19 ~17:30 UTC ──────────────────────────────
+- session_label: >-
+    claude-code (this session, CLI)
+    task-20260719-171130-reevaluate-2045-row-veridian-framework-r
+    -- SUPERBOSS v2: reevaluate all 2045 Review-Framework rows against
+    everything actually shipped + close every genuinely-closable gap
+  claimed_at: 2026-07-19T17:30:00Z (this session)
+  claim: >-
+    Owner-directed REEVALUATE-2045-FRAMEWORK-AND-PLAN task
+    (SUPERBOSS_IMPLEMENTATION_PLAN v2). Scope: read the authoritative
+    claude-control/VERIDIAN_Review_Framework_evaluated_2045rows.csv fresh,
+    re-score every one of its 2045 rows against what has ACTUALLY shipped
+    since 2026-07-16 (Mother Router Phase 1 #433, Software Team L0-L5
+    #483, GLM-5.2/OpenRouter routing, AI_TEAM_LOG_SECRET fix, the full
+    9-workstream Wave B already present server-side: Fixed Assets /
+    CRM Accounts+Contacts / HR Attendance / Payment Entries approval /
+    Training LMS / BYOB white-label branding, plus prior Priority 10-22
+    waves and PLATFORM-01/DOMAIN-01/02), produce a real current gap count
+    + a 111-row decision log for the previously-deferred set + an
+    extended implementation plan (SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md)
+    sized into task-shaped units tagged L1-L4 for Mother Router routing,
+    register in both repos' ACTIVE-CLAIMS.yaml, open a tier1 docs-only PR.
+    THIS SESSION'S OWN DECISION (Owner pre-authorized, applying it):
+    treat the 9-workstream laptop worktree work as superseded/abandoned
+    per the task's explicit OWNER-AUTHORIZED DECISION -- and, per live
+    evidence gathered this session, that work is in fact ALREADY
+    superseded by complete server-side implementations in this repo
+    (schema + service + API routes + UI pages + tests all present for
+    Fixed Assets, CRM Accounts, HR Attendance, Payment Entries, Training
+    LMS, BYOB white-label). So no re-do is needed for those; the v2 plan
+    records this plainly rather than scheduling duplicate builds. The
+    genuinely-remaining gaps (e.g. CRM Contacts list-route+page, BYOB
+    bring-your-own-AI-model wiring, the 111 deferred rows re-examined
+    under granted decision authority) ARE scheduled. Docs-only PR; no
+    code/schema changes from this task itself.
+  scope_note: >-
+    File scope this task writes: ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md
+    (new), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md.
+    Read-mostly against claude-control CSV + CONTROLLER + this repo's
+    schema/src to ground the gap count. No collision: the v2 plan is a
+    fresh doc; the v1 plan (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md,
+    PR #485) is already merged and is being EXTENDED, not duplicated.
   - session_label: >-
       claude-code (this session, CLI)
       task-20260719-171130-reevaluate-2045-row-veridian-framework-r
