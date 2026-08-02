@@ -40,6 +40,44 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-084936-advance-in-flight-batches-toward-concurr) -- reduce open-PR backlog on compliance-tracker: review/fix-CI/merge mergeable PRs from the in-flight 166-task and 800-task audit batches"
+    claimed_at: "2026-08-02T08:52Z (this session)"
+    claim: |
+      Per SPEC: real worker utilization is low (2/5 CONCURRENCY_CAP) while
+      94 open PRs / 113 running UMRs back up. Not starting a new parallel
+      initiative -- picking up unmerged real units from the already
+      in-flight 166-task batch (UMR-20260801-170930-2080) and 800-task audit
+      (UMR-20260801-153900-9100) by clearing the open-PR queue: independent
+      review, CI/audit-check fixes, and merges only, no new feature work.
+      Found PR #691 (branch
+      worker/task-20260802-024838-merge-the-8-clean-ci-green-compliance-tr,
+      opened 2026-08-02T04:07Z, still open/CONFLICTING as of this claim) --
+      a parallel session that already did a live categorization of the full
+      80+ PR backlog same day: merged #539 and #671; found #528/529/530/532/
+      534/536 structurally conflict each other (shared audit198 generated
+      report files, only one can land per cycle); flagged #151 and #410
+      dependabot bumps as real, previously-audited upstream incompatibilities
+      (do not merge); #305 as superseded by an already-merged PR #308;
+      #628/#683/#685/#688 as already carrying an independent AUDIT: PASS
+      verdict (safe to merge once mergeable, no re-audit needed); #684 and
+      #687 as carrying AUDIT: FAIL with specific, itemized real defects;
+      #686 as needing a first-time independent audit. Building on that
+      analysis rather than re-deriving it -- re-verifying live state
+      immediately before acting on each PR (state drifts fast under
+      concurrent-session load, per that same PR's own note). Scope: PR
+      review/merge/CI-fix actions only across the existing open PR set on
+      FChecklist/compliance-tracker; no new schema/feature/route changes of
+      my own except where a fix is small, mechanical, and needed purely to
+      unblock an already-audited PR's merge (e.g. terminology-guardrail
+      exemption entries, branch updates, conflict resolution that doesn't
+      change reviewed logic).
+    scope_note: >-
+      File scope: FChecklist/compliance-tracker open PRs (gh pr
+      view/checks/merge/comment operations) + this repo's ai-os/boss/
+      ACTIVE-CLAIMS.yaml and PROGRESS.md for this task's own tracking. No
+      overlap with other active entries' named feature/file claims below --
+      this is queue-clearing/merge work on PRs those sessions already
+      opened, not new competing implementations of the same gaps.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
