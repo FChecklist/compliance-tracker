@@ -6904,3 +6904,56 @@ recently_completed:
       self-certify it); left failing, flagged for a separate agent/session
       to review and post a real AUDIT: PASS/FAIL comment. Did not merge PR
       #563 (out of this task's scope).
+  - session_label: "claude-code (task-20260802-133445-pm-decision--do-not-stop-the-4-workers) -- PM decision: do not stop the 4 concurrent workers + closure-checklist cycle 2"
+    claimed_at: "2026-08-02T13:34Z (this session, closed same session)"
+    claim: |
+      Dispatched as the real PM decision on a pending question from 4
+      concurrently-running workers (task-20260802-123916, -124055,
+      -124650, -124726), umbrella UMR-20260802-104058-25ba. Per Hard Rule
+      3, independently re-verified the dispatch's own claims rather than
+      trusting them: all 4 task directories/task.yaml files confirmed to
+      exist and be real (an initial `ls`/`git worktree list` grep came up
+      empty due to this session's own known shell-output-truncation issue;
+      `find /opt/veridian -maxdepth 3 -iname "*task-20260802-12*"` found
+      all 4 correctly). Findings:
+      (1) task-123916 (investigate/fix Vercel domain conflict) and
+      task-124055 (correct the Go Live matrix finding) are the real,
+      distinct root-fix/doc-correction halves of item F -- confirmed via
+      each task's own completed_steps: 123916 found NO live dual-binding
+      (domain conflict already self-reverted 2026-07-27, undocumented,
+      real PM/Owner decision still needed on which side is intended --
+      matches this session's own prior memory of the same finding);
+      124055 already pushed the matching doc correction to PR #716. Not
+      duplicates.
+      (2) task-124650 (closure checklist cycle 1) and task-124726 (formal
+      audit job description) share scope (same 5 PRs: 716, 717, 692
+      compliance-tracker; 14 veridian-scripts; 121 claude-control) but are
+      not duplicates -- one is action/verification, one is a process
+      spec. task-124726's own remaining_steps show it independently
+      pushed real fixes to #717 (update-branch) and #692 (conflict
+      resolution) that cycle-1's own PROGRESS.md then observed and
+      verified as "already resolved by other live processes" -- real
+      concurrent, non-colliding work, not a race. Per the dispatched
+      decision: task-124726 should finish the audit job spec first and
+      hand it to task-124650 to apply, rather than the two proceeding
+      blind to each other.
+      Decision: none of the 4 are confirmed duplicates by real evidence.
+      Do not stop any of them.
+      Closure-checklist cycle 2 (items A-E, re-verified live via `gh pr
+      view`/`gh pr checks` against current heads, not cycle-1's
+      self-reported ones): **no state change since cycle 1.** A (#716,
+      head 028fe69f), B (#717, head ac8cc3f3), E (#692, head d3920d5f):
+      all still `mergeable=MERGEABLE`/`mergeStateStatus=BLOCKED`, all
+      required checks pass except `audit-check` (fails only because no
+      real `AUDIT: PASS`/`AUDIT: FAIL` comment has posted yet -- this is
+      Rule 10's gate working as designed, not a bug to fix). C (#14, head
+      dc3521a2) and D (#121, head fedaffc9): both `MERGEABLE`, still zero
+      real audit comment (only a non-audit re-verification note on #121).
+      No action was taken/possible from this session on any of the 5 --
+      this session is not the assigned independent auditor for any of
+      them (would be self-certification per Rule 10/7c given this
+      session's proximity to the same task family), and the real blocker
+      is the missing independent audit itself, which is exactly the gap
+      task-124726 is formalizing a process for. Nothing to nudge
+      mechanically (no stale audit-check-vs-head-SHA drift found this
+      cycle -- heads match what audit-check last ran against).
