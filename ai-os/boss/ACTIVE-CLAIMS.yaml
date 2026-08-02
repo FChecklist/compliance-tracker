@@ -40,6 +40,58 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-040131-parallel-job--collate-existing-module-en) -- Collate existing module/engine wiring+UTM map, spot-verify it, cross-reference against master directive priority list [DOCS/COLLATION ONLY, no code]"
+    claimed_at: "2026-08-02T04:01Z (this session)"
+    claim: |
+      SPEC (Owner directive, Chat ID 2082026-02, parallel job): feeds into
+      master directive UMR-20260802-034545-3388 (+ amendment
+      UMR-20260802-034651-6b2c) without blocking it. Collate the REAL
+      existing host-level AI-OS infrastructure that already maps how
+      modules/engines/scripts are wired -- MASTER_INDEX.yaml (host-level
+      /opt/veridian/ai-os/, the 31-registry entrypoint), the system-tree
+      (ai-os/system-tree/tree1-4), superboss-register.sqlite's
+      wiring_registry table, the UTM tagging convention (SQLite + Postgres
+      sides), module_gap_audit_lib.py, the knowledge_engine, and existing
+      server-wide search tooling -- into one reference, cross-referenced
+      against the master directive's priority list (#2 Kernel, #3 ERP,
+      #4 Reports, #5 Prompt library, #6 UI/UX, #7 VERI Chat/assistant,
+      #8 multi-tenant/brand), with the highest-stakes claims spot-verified
+      against real current source (not trusted wholesale -- this session's
+      own Kernel/TWO_ENGINE Phase 3 investigation already found one
+      registry claim, a Policy Engine "shared-citation bridge", did NOT
+      hold up against real source).
+
+      Collision check performed before starting (per this file's own
+      protocol): the traceability/cross-reference job dispatched alongside
+      this one (UMR-20260802-035156-85d2 /
+      task-20260802-035159-parallel-job--cross-reference-every-rele) is a
+      DIFFERENT, complementary scope -- it links UMR/task/PR/CI IDs back to
+      the master directive (a traceability index, see its own
+      ai-os/MASTER_INITIATIVE_CROSS_REFERENCE_2026-08-02.md, uncommitted in
+      its own workspace as of this check). This task instead collates and
+      verifies the pre-existing MODULE/ENGINE/WIRING infrastructure map
+      itself (what's built and how it's wired, not which UMR/PR touched
+      it). No file/output overlap -- confirmed by reading that job's own
+      in-progress output directly rather than assuming from its title.
+
+      File scope: host-level /opt/veridian/ai-os/ (read-only research) +
+      this repo's ai-os/ (new collated reference doc + this ACTIVE-CLAIMS
+      entry + PROGRESS.md). No src/ or drizzle/ changes -- collation,
+      verification, and cross-referencing only, per the task's own explicit
+      "do not touch code/logic" instruction.
+
+    status_update_2026-08-02T04:29Z: |
+      DONE THIS SESSION, PR #692 OPEN. Delivered
+      ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md (commit
+      e2c589df) -- collated all named infra (MASTER_INDEX.yaml/
+      wiring_registry/knowledge_engine/system_index/UTM convention/
+      module_gap_audit_lib.py/system-tree/server-wide search), cross-
+      referenced against master directive priorities #2-#8, spot-verified
+      7 highest-stakes claims (5 held up, 2 did not -- see doc's own
+      "known-bad/stale claims" section: the Policy Engine "shared-citation
+      bridge" is confirmed false, and this task's own SPEC premises about
+      registry count (real 104, not 31) and UTM scope (SQLite-side only,
+      not Postgres) were themselves stale). Awaiting CI + merge.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
