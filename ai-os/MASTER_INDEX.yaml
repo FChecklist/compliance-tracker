@@ -1523,7 +1523,15 @@ registries:
     (umr_tasks CHECK constraint, task.yaml''s 7 states, module-queue''s 4 states) -- reconciling them
     is a breaking-change engineering task requiring explicit sign-off per AGENTS.md Rule 9, not a
     documentation-registration action.'
-  status: proposed_pending_owner_decision
+  status: registered_peer_to_constitution
+  amendment_2026-08-02: 'PM decision (UMR-20260802-061325-aa9d, see report Section 7 amendment log)
+    resolved both conflicts: (1) CONSTITUTION.yaml''s own related_ops_infrastructure note (line 143)
+    disclaims jurisdiction over the server ops/dispatch layer -- no real conflict once scoped
+    correctly; this Kernel is peer governance for that layer, not supreme over CONSTITUTION.yaml,
+    which keeps SOLE_AUTHORITY for compliance-tracker product/AI behavior unchanged. (2) the 3 real
+    state vocabularies stay as-is; the Kernel''s 11-state list is a conceptual mapping only, not a
+    migration. Role split (PM=Claude Desktop/Executor=Claude Code CLI) independently confirmed
+    against AGENTS.md''s existing 2026-07-10 Super Boss authorization, not a new grant.'
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/
