@@ -9,10 +9,10 @@
 -- No entity_relationships graph edges are added this migration (schema
 -- only -- see design doc's "no real chokepoint" reasoning per field).
 
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS classification jsonb;
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS owner_department_id text;
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS input_contract jsonb;
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS output_contract jsonb;
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS ai_config jsonb;
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS workflow_steps_config jsonb;
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS linked_knowledge_base_page_ids jsonb NOT NULL DEFAULT '[]';
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS classification jsonb;
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS owner_department_id text;
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS input_contract jsonb;
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS output_contract jsonb;
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS ai_config jsonb;
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS workflow_steps_config jsonb;
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS linked_knowledge_base_page_ids jsonb NOT NULL DEFAULT '[]';
