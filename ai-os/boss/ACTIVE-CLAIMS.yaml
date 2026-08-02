@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260802-055212-fix-worker-entrypoint-sh-479-hardcoded-g) -- Fix hardcoded auto-fix gate-name placeholder in worker-entrypoint.sh:479 [PUSHED, PR OPEN on FChecklist/veridian-scripts, not compliance-tracker]"
+  - session_label: "claude-code (task-20260802-055212-fix-worker-entrypoint-sh-479-hardcoded-g) -- Fix hardcoded auto-fix gate-name placeholder in worker-entrypoint.sh:479 [ALREADY DONE by a prior interrupted attempt -- PR #11 on FChecklist/veridian-scripts already OPEN+mergeable, independently re-verified correct, did not duplicate]"
     claimed_at: "2026-08-02T (this session)"
     claim: |
       Different repo than compliance-tracker: target file is
@@ -74,17 +74,25 @@ active:
       task-20260801-153920-audit-and-clean-800-ai-os-task-records, part of
       the linked audit) -- real gate names (e.g. "build,lint") now surface
       instead of the old constant string.
+
+      Found while building this out from scratch: `git push` of my own
+      branch was rejected -- a prior interrupted attempt at this exact task
+      had already pushed the identical fix and opened
+      github.com/FChecklist/veridian-scripts/pull/11 (OPEN, mergeable,
+      commit 85aec0f), same root-cause writeup, same UMR linkage. Diffed my
+      independently-written fix against PR #11's committed version: byte-
+      identical. Treated that as confirmation, not a collision -- discarded
+      my redundant local branch/worktree rather than opening a duplicate
+      PR. PR #11 is the actual deliverable; not merged by this session
+      (out of this task's stated scope, and no CI is configured on
+      veridian-scripts to gate it either way).
     scope_note: |
       File scope: /opt/veridian/scripts/worker-entrypoint.sh only (repo:
-      FChecklist/veridian-scripts, branch
-      fix/worker-entrypoint-real-failing-gate-names). Did not touch
-      quality-gate.sh or superboss-register.py, both of which had unrelated
-      uncommitted WIP from other concurrent sessions in the same shared live
-      checkout -- extracted only this fix into an isolated git worktree
-      rather than committing the shared checkout's working tree wholesale,
-      to avoid bundling another session's in-flight work into this PR.
-      compliance-tracker file scope: this ACTIVE-CLAIMS.yaml entry + PROGRESS.md
-      only.
+      FChecklist/veridian-scripts). Did not touch quality-gate.sh or
+      superboss-register.py, both of which had unrelated uncommitted WIP
+      from other concurrent sessions in the same shared live checkout --
+      left those alone. compliance-tracker file scope: this
+      ACTIVE-CLAIMS.yaml entry + PROGRESS.md only.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |

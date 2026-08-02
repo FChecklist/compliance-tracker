@@ -38,8 +38,30 @@ contributor under the existing 800-task audit UMR-20260801-153900-9100.
       now surface instead of the old constant string. Confirmed the
       `unknown` fallback still holds for a missing/corrupt JSON. `bash -n`
       syntax-checked the patched file clean.
-- [x] Committed + pushed `fix/worker-entrypoint-real-failing-gate-names` to
-      `FChecklist/veridian-scripts`, opened PR
+- [x] Correction: before pushing, discovered `git push` was rejected --
+      branch `fix/worker-entrypoint-real-failing-gate-names` already existed
+      on `origin` with **PR #11** already open
+      (`fix(worker-entrypoint): surface real failing gate name(s) instead of
+      hardcoded placeholder`, state OPEN, mergeable, commit `85aec0f`). A
+      prior interrupted attempt at this exact task (the one whose leftover
+      uncommitted edit I found in step above) had already completed the
+      full cycle -- fix, verification, push, PR -- before being interrupted
+      only on the PROGRESS.md/claim-registration bookkeeping. Read PR #11's
+      full body: independently identical root-cause analysis and fix,
+      cites the same `UMR-20260801-153900-9100` linkage, includes its own
+      `bash -n` + real-JSON verification. My own from-scratch fix (built
+      before discovering PR #11) matched it byte-for-byte once diffed --
+      independent confirmation the fix is correct. Discarded my redundant
+      worktree/branch rather than opening a duplicate PR.
+- [x] Left `/opt/veridian/scripts`' live uncommitted `worker-entrypoint.sh`
+      alone (byte-identical to PR #11's committed diff) -- since
+      `veridian-worker@*.service` runs directly off this live checkout, the
+      fix is already effectively active in production ahead of PR #11
+      merging; discarding it would revert live behavior back to the bug.
 
 ## Remaining
-- [ ] None -- PR open, awaiting CI/merge
+- [ ] None -- fix confirmed correct and already live server-side; PR #11
+      (https://github.com/FChecklist/veridian-scripts/pull/11) already open
+      and mergeable, no further action needed from this task. Did not merge
+      it myself -- out of this task's stated scope ("open a PR ... as
+      usual"), and it's not this session's PR to claim credit for merging.
