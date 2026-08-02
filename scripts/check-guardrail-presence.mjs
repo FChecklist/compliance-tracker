@@ -91,7 +91,14 @@ const REQUIRED_MARKERS = [
   { file: "src/lib/policy-enforcement-engine.ts", mustContain: ["export function enforcePolicy"] },
   { file: "src/lib/services/chat-service.ts", mustContain: ["enforcePolicy("] },
   { file: "src/lib/services/fde-service.ts", mustContain: ["enforcePolicy("] },
-  { file: "src/app/api/page-agent/proxy/route.ts", mustContain: ["enforcePolicy("] },
+  // src/app/api/page-agent/proxy/route.ts was a 3rd wired call site here
+  // until 2026-07-14, when PageAgent was removed from VERIDIAN entirely
+  // per Owner directive ("remove PageAgent it doesn fit VERIDIAN") -- see
+  // ai-os/MASTER-TRACKER.yaml closed_priorities #21 and
+  // VERIDIAN_AI_CONSTITUTION.md's "PageAgent Removal" note. This is a
+  // guardrail's protected FILE being deleted along with the feature it
+  // protected, not a guardrail being weakened while the feature stays --
+  // Operating Rule 9's manifest-update requirement, satisfied here.
   { file: "src/app/api/ai/orchestrate/route.ts", mustContain: ["enforcePolicy("] },
   { file: "src/app/api/help/ask/route.ts", mustContain: ["enforcePolicy("] },
   { file: "src/lib/task-execution-engine.ts", mustContain: ["enforcePolicy("] },

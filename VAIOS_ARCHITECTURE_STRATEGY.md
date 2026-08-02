@@ -1,5 +1,7 @@
 # VAIOS Architecture Strategy — Build vs. Integrate the Frappe Family
 
+> **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict (see its `architecture_rules.ARCH-07`). This document remains as the detailed narrative decision record -- read it for full license/infrastructure reasoning, not to determine current status.
+
 **Decision date:** 2026-07-05. **Status: decided and acted on.** This document
 records a real architectural decision made mid-build, grounded in verified
 facts (license checks + actual tool capability), not a hypothetical. It

@@ -16,19 +16,24 @@ import {
   Webhook,
   Bot,
   Rocket,
-  Cpu,
   ShieldAlert,
   Users2,
   TrendingUp,
+  KeyRound,
+  Paintbrush,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
+import BrandingSection from "@/components/BrandingSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
 import OrchestraModelConfigSection from "@/components/OrchestraModelConfigSection";
+import TenantAiConfigSection from "@/components/TenantAiConfigSection";
 import AiAssistantsSection from "@/components/AiAssistantsSection";
-import PersonalAiConfigSection from "@/components/PersonalAiConfigSection";
+import AiTeamRosterSection from "@/components/AiTeamRosterSection";
 import ApiKeySection from "@/components/ApiKeySection";
+import WorkspaceMemorySection from "@/components/WorkspaceMemorySection";
 import MfaSection from "@/components/MfaSection";
+import PasscodeSection from "@/components/PasscodeSection";
 import WebhookSection from "@/components/WebhookSection";
 import PmsEnablementSection from "@/components/PmsEnablementSection";
 import SsoSection from "@/components/SsoSection";
@@ -57,13 +62,15 @@ const SETTINGS_NAV = [
   { id: "notifications", label: "Notifications", icon: Bell },
   { id: "ai-config", label: "AI Configuration", icon: Brain },
   { id: "ai-assistants", label: "AI Assistants", icon: Bot },
-  { id: "my-ai", label: "My AI", icon: Cpu },
+  { id: "ai-team-roster", label: "AI Team Roster", icon: Bot },
+  { id: "workspace-memory", label: "Workspace Memory", icon: Brain },
   { id: "preferences", label: "Preferences", icon: Palette },
   { id: "pms", label: "Project Management", icon: Rocket },
   { id: "security", label: "Security (MFA)", icon: ShieldCheck },
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "org-limits", label: "Seats & AI Spend", icon: Users2 },
+  { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
   { id: "about", label: "About", icon: Info },
@@ -90,10 +97,6 @@ export default function SettingsPage() {
   const [orgSaving, setOrgSaving] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // PageAgent org-level toggle
-  const [pageAgentOrgEnabled, setPageAgentOrgEnabled] = useState(true);
-  const [pageAgentToggleSaving, setPageAgentToggleSaving] = useState(false);
-
   useEffect(() => {
     fetch('/api/me').then(r => r.json()).then(d => {
       setProfileName(d.name ?? '');
@@ -103,29 +106,8 @@ export default function SettingsPage() {
       setOrgAccountType(d.orgAccountType ?? 'company');
       setOrgRegulatoryEntityType(d.orgRegulatoryEntityType ?? 'general');
       setIsAdmin(d.role === 'admin');
-      setPageAgentOrgEnabled(d.pageAgentEnabled ?? true);
     }).catch(() => {});
   }, []);
-
-  const togglePageAgentOrgEnabled = async (next: boolean) => {
-    setPageAgentToggleSaving(true);
-    const previous = pageAgentOrgEnabled;
-    setPageAgentOrgEnabled(next);
-    try {
-      const res = await fetch('/api/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pageAgentEnabled: next }),
-      });
-      if (!res.ok) throw new Error();
-      toast.success(next ? 'PageAgent enabled for your organisation' : 'PageAgent disabled for your organisation');
-    } catch {
-      setPageAgentOrgEnabled(previous);
-      toast.error('Failed to update PageAgent setting');
-    } finally {
-      setPageAgentToggleSaving(false);
-    }
-  };
 
   const saveProfile = async () => {
     setProfileSaving(true);
@@ -350,6 +332,17 @@ export default function SettingsPage() {
                   <OrchestraModelConfigSection />
                 </CardContent>
               </Card>
+              {/* Super Boss v2 plan task V2-5 (BYOB, 2026-07-20): per-org BYO
+                  AI model for the software_team scope (the AI Dev Team
+                  dispatch path), the software_team-scope analog of the
+                  OrchestraModelConfigSection above (which serves the
+                  end_user_org / Orchestra Layer scope). Tenant-admin only;
+                  the section self-hides for non-admins. */}
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardContent className="pt-6">
+                  <TenantAiConfigSection />
+                </CardContent>
+              </Card>
             </div>
           )}
 
@@ -367,37 +360,20 @@ export default function SettingsPage() {
             </Card>
           )}
 
-          {activeSection === "my-ai" && (
-            <div className="space-y-6">
-              {isAdmin && (
-                <Card className="rounded-xl shadow-card bg-white">
-                  <CardHeader>
-                    <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-                      <Cpu className="size-4" />
-                      PageAgent (Organisation)
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label className="text-sm font-medium text-ct-navy">Enable PageAgent for this organisation</Label>
-                        <p className="text-xs text-ct-muted mt-0.5">
-                          When off, no one in your organisation gets the PageAgent assistant, regardless of
-                          their personal configuration below.
-                        </p>
-                      </div>
-                      <Switch
-                        checked={pageAgentOrgEnabled}
-                        onCheckedChange={togglePageAgentOrgEnabled}
-                        disabled={pageAgentToggleSaving}
-                        className="data-[state=checked]:bg-ct-saffron"
-                      />
-                    </div>
-                  </CardContent>
-                </Card>
-              )}
-              <PersonalAiConfigSection />
-            </div>
+          {activeSection === "ai-team-roster" && <AiTeamRosterSection />}
+
+          {activeSection === "workspace-memory" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Brain className="size-4" />
+                  Workspace Memory
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <WorkspaceMemorySection />
+              </CardContent>
+            </Card>
           )}
 
           {activeSection === "preferences" && (
@@ -474,17 +450,35 @@ export default function SettingsPage() {
           )}
 
           {activeSection === "security" && (
-            <Card className="rounded-xl shadow-card bg-white">
-              <CardHeader>
-                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-                  <ShieldCheck className="size-4" />
-                  Two-Factor Authentication
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <MfaSection />
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                    <ShieldCheck className="size-4" />
+                    Two-Factor Authentication
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <MfaSection />
+                </CardContent>
+              </Card>
+
+              {/* Priority 14 Wave 2 (GAP-AUTH-REBUILD): additive 4-digit
+                  return-login passcode -- separate card from 2FA above,
+                  since it's the opposite kind of control (a faster
+                  optional login method, not an extra factor). */}
+              <Card className="rounded-xl shadow-card bg-white">
+                <CardHeader>
+                  <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                    <KeyRound className="size-4" />
+                    Passcode Sign-In
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PasscodeSection />
+                </CardContent>
+              </Card>
+            </div>
           )}
 
           {activeSection === "api-access" && (
@@ -528,6 +522,24 @@ export default function SettingsPage() {
                   <OrgLimitsSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change seat and spend limits.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "branding" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Paintbrush className="size-4" />
+                  Branding
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isAdmin ? (
+                  <BrandingSection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view and change organisation branding.</p>
                 )}
               </CardContent>
             </Card>

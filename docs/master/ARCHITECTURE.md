@@ -53,7 +53,9 @@ Full detail, worked examples, and the exact RLS SQL template: `MASTER_AI_OS_ARCH
 
 ## 5. MCP Integration (`MCP_PROTOCOL.md`)
 
-Two-server architecture: **MCP Server 1** (`/api/mcp`, Vercel Edge, public — compliance data reads/writes for customer AI agents) and **MCP Server 2** (Supabase Edge Function, internal-only — dev dispatch). Both authenticate via the unified `apiKeys` table (Wave 9-10; `mcp_access_codes` retired but not dropped). 9 tools live, sourced from `workerAgents` (tier=global) with a hardcoded fallback. **9 of ~40+ modules are MCP-reachable** — everything built since Wave 11 waits on its domain getting a service layer extracted first (`src/lib/services/*.ts` — only ~15 of ~40 domains have one; the rest still have logic inline in route handlers).
+**Corrected 2026-07-15** (`ai-os/CONSTITUTION.yaml` DEBT-02 — this section previously described a two-server architecture as both live; re-verified by direct grep of `src/`, not assumed): only **MCP Server 1** (`/api/mcp`, Vercel Edge, public — compliance data reads/writes for customer AI agents) is real. It authenticates via the unified `apiKeys` table (Wave 9-10; `mcp_access_codes` retired but not dropped) and exposes **9 tools live** (`list_notices`, `get_task_status`, `list_compliance_items`, `get_compliance_stats`, `get_overdue_items`, `create_compliance_item`, `update_compliance_status`, `list_departments`, `get_penalty_estimate` — confirmed by reading `src/app/api/mcp/route.ts` directly). **9 of ~40+ modules are MCP-reachable** — everything built since Wave 11 waits on its domain getting a service layer extracted first (`src/lib/services/*.ts` — only ~15 of ~40 domains have one; the rest still have logic inline in route handlers).
+
+"MCP Server 2" (a Supabase Edge Function, internal-only, Groq-orchestrator-driven dev dispatch) is a **design spec only** — `MCP_PROTOCOL.md` describes it in detail, but zero matching code exists anywhere in this repo (no `mcp-dev` function, no `MCP_DEV_SECRET`, no Groq orchestrator dispatcher). Never built, or built-then-removed with no record.
 
 ## 6. The VERIDIAN AI Constitution — governance for AI behavior
 
@@ -66,9 +68,9 @@ Auth → Role/RLS → Domain Validity → Prompt-Injection Check → Business-Pu
   → DENY (logged, zero LLM call, zero cost) or ALLOW → provider call → audit log
 ```
 
-**Wired call sites (3, Wave 46):** VERI Chat, VERI FDE, Page Agent proxy — VERIDIAN's 3 surfaces where arbitrary free-text reaches an LLM with real side effects.
+**Wired call sites (2, Wave 46; was 3 until PageAgent's 2026-07-14 removal):** VERI Chat, VERI FDE — VERIDIAN's remaining surfaces where arbitrary free-text reaches an LLM with real side effects. (The 3rd, Page Agent proxy, was removed from the codebase entirely per Owner directive — see `VERIDIAN_AI_CONSTITUTION.md`'s "PageAgent Removal" note.)
 
-**Explicitly NOT yet wired (honest, stated in the source doc, not hidden):** `src/lib/loops/*.ts` (system-generated, not user-facing), `document-extraction-service.ts` (structured extraction, lower injection surface but untested), `api/ai/orchestrate/route.ts` + `task-execution-engine.ts` (operates on system-generated task descriptions today, not raw chat — should be wired as task-creation surfaces grow). **This is the concrete detail behind the audit's "policy enforcement only covers 3 of N call sites" finding** — see `CRITICAL_GAPS.md`.
+**Explicitly NOT yet wired (honest, stated in the source doc, not hidden):** `src/lib/loops/*.ts` (system-generated, not user-facing), `document-extraction-service.ts` (structured extraction, lower injection surface but untested), `api/ai/orchestrate/route.ts` + `task-execution-engine.ts` (operates on system-generated task descriptions today, not raw chat — should be wired as task-creation surfaces grow). **This is the concrete detail behind the audit's original "policy enforcement only covers 3 of N call sites" finding (now 2 of N, one surface having been removed rather than wired)** — see `CRITICAL_GAPS.md`.
 
 **Real, honestly-graded gaps in the Constitution itself** (not exhaustive — full grading is in the source doc):
 - §9 (Coding Governance) — "Level 1 only" is an *organizational* boundary (who has repo access) today, not a runtime AI-level check. No code distinguishes "Claude Code acting as Level 1" from any other authenticated session.

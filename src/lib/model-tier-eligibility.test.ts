@@ -25,9 +25,12 @@ describe("isModelEligibleForTier", () => {
 
   test("only judgment-eligible models pass the judgment tier", () => {
     expect(isModelEligibleForTier("z-ai/glm-5.2", "judgment")).toBe(true)
-    expect(isModelEligibleForTier("openai/gpt-5.5", "judgment")).toBe(true)
     expect(isModelEligibleForTier("deepseek/deepseek-v4-pro", "judgment")).toBe(false)
     expect(isModelEligibleForTier("openai/gpt-oss-120b", "judgment")).toBe(false)
+  })
+
+  test("gpt-5.5 is no longer judgment-eligible -- removed 2026-07-14 (founder directive: cost + unbounded-escalation-pattern concern)", () => {
+    expect(isModelEligibleForTier("openai/gpt-5.5", "judgment")).toBe(false)
   })
 
   test("an unknown/new model defaults to mechanical-only, not broadly trusted", () => {
@@ -40,12 +43,12 @@ describe("isModelEligibleForTier", () => {
 describe("requiresMandatoryAudit", () => {
   test("judgment-eligible models do not require mandatory audit", () => {
     expect(requiresMandatoryAudit("z-ai/glm-5.2")).toBe(false)
-    expect(requiresMandatoryAudit("openai/gpt-5.5")).toBe(false)
   })
 
-  test("GPT-OSS-120B and DeepSeek V4 Pro require mandatory audit -- neither has earned judgment-tier trust", () => {
+  test("GPT-OSS-120B, DeepSeek V4 Pro, and gpt-5.5 require mandatory audit -- none has earned judgment-tier trust (gpt-5.5's removed 2026-07-14, see roster.ts's GPT_55 comment)", () => {
     expect(requiresMandatoryAudit("openai/gpt-oss-120b")).toBe(true)
     expect(requiresMandatoryAudit("deepseek/deepseek-v4-pro")).toBe(true)
+    expect(requiresMandatoryAudit("openai/gpt-5.5")).toBe(true)
   })
 
   test("an unknown model requires mandatory audit by default", () => {

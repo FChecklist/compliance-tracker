@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import { Input } from "@/components/ui/input";
 
 type Enablement = { isEnabled: boolean; enabledAt: string | null; disabledAt: string | null };
@@ -15,6 +16,7 @@ type PmsModule = { moduleKey: string; displayName: string; description: string |
 type BillableRate = { id: string; userId: string | null; hourlyRate: string; validFrom: string };
 
 export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) {
+  const currencies = useCurrencies();
   const [enablement, setEnablement] = useState<Enablement | null>(null);
   const [modules, setModules] = useState<PmsModule[]>([]);
   const [rates, setRates] = useState<BillableRate[]>([]);
@@ -55,6 +57,17 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
       const res = await fetch("/api/pms/enablement", { method: enable ? "POST" : "DELETE" });
       if (!res.ok) throw new Error();
       toast.success(enable ? "VERIDIAN AI PMS enabled" : "VERIDIAN AI PMS disabled");
+      // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+      // Trigger B): enabling a branch may have just auto-upgraded some of
+      // this org's stage-0 users to real membership -- surface both counts
+      // here so an admin isn't left guessing. `blocked` (already belongs to
+      // a different org) is surfaced, not silently dropped.
+      if (enable) {
+        const data: { stage0AutoUpgrade?: { upgraded: number; blocked: number } } = await res.json().catch(() => ({}));
+        const su = data.stage0AutoUpgrade;
+        if (su && su.upgraded > 0) toast.success(`${su.upgraded} stage-0 user${su.upgraded === 1 ? "" : "s"} auto-upgraded to full membership`);
+        if (su && su.blocked > 0) toast.info(`${su.blocked} stage-0 user${su.blocked === 1 ? "" : "s"} could not auto-upgrade -- already belong to another organization`);
+      }
       await load();
     } catch {
       toast.error(`Failed to ${enable ? "enable" : "disable"} VERIDIAN AI PMS`);
@@ -138,7 +151,7 @@ export default function PmsEnablementSection({ isAdmin }: { isAdmin: boolean }) 
                 <p className="text-xs text-ct-muted">Org default hourly rate, used when time-entry budget actuals have no per-user rate set.</p>
                 {rates.filter((r) => r.userId === null).map((r) => (
                   <div key={r.id} className="flex items-center justify-between text-sm text-ct-navy">
-                    <span>₹{Number(r.hourlyRate).toFixed(2)}/hr</span>
+                    <span>{currencyLabel(undefined, currencies)}{Number(r.hourlyRate).toFixed(2)}/hr</span>
                     <span className="text-xs text-ct-muted">since {r.validFrom}</span>
                   </div>
                 ))}

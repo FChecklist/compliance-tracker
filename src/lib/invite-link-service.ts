@@ -218,6 +218,24 @@ export async function consumeInviteLinkAndProvisionUser(
     return { ok: false, reason: "This invite link has an invalid role and cannot be redeemed." }
   }
 
+  // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+  // Trigger A): this invitee's email may already belong to a stage-0-only
+  // person (users.orgId IS NULL). Previously this fell straight into the
+  // insert below and hit the users.email UNIQUE constraint, an unhandled
+  // failure. tryUpgradeStage0UserInPlace upgrades that same row in place
+  // (real member now, same id -- stage0Sources/task assignments/message
+  // senderId all keep working) rather than trying to insert a duplicate.
+  // If this email already has a DIFFERENT real home org, reject clearly --
+  // never silently reassign it.
+  const { tryUpgradeStage0UserInPlace } = await import("./services/stage0-service")
+  const upgrade = await tryUpgradeStage0UserInPlace(authUser.email, { orgId: row.orgId, role: row.role, authUserId: authUser.id })
+  if (upgrade.ok) return { ok: true, user: upgrade.user }
+  if (upgrade.reason === "different_org") {
+    return { ok: false, reason: "This email already belongs to a different organisation and cannot be moved via an invite link." }
+  }
+  // reason === "not_found" -- no existing row at all, proceed with the
+  // normal brand-new-user insert below, completely unchanged.
+
   const [newUser] = await db.insert(users).values({
     name: authUser.fullName,
     email: authUser.email,

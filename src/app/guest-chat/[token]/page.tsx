@@ -10,6 +10,7 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import { Loader2, Send } from "lucide-react";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
+import Stage0SignupForm from "@/components/Stage0SignupForm";
 
 const POLL_MS = 5000;
 
@@ -114,6 +115,11 @@ export default function GuestChatPage() {
             <p className="text-sm text-ct-error">{error}</p>
           ) : (
             <>
+              {/* Priority 18b (Owner directive 2026-07-15): "Sign up free
+                  (Stage 0)" CTA next to the guest's own read/write access --
+                  the natural landing spot per the design doc, since a guest
+                  already sees the org/conversation context before deciding. */}
+              <Stage0SignupForm token={params.token} />
               {data?.messages.map((m, i) => (
                 <div key={i} className={m.isGuestMessage ? "text-right" : "text-left"}>
                   <div className={`inline-block max-w-[85%] rounded-lg px-3 py-2 text-sm ${m.isGuestMessage ? "bg-ct-teal text-white" : "bg-ct-cloud text-ct-navy"}`}>

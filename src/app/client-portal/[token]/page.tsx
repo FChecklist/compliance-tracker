@@ -13,7 +13,16 @@ type Deliverable = { id: string; engagementId: string; title: string; dueDate: s
 type InvoiceLineItem = { description: string; amount: string };
 type Invoice = { id: string; invoiceNumber: string; issueDate: string; dueDate: string | null; status: string; totalAmount: string; lineItems: InvoiceLineItem[] };
 type PortalDoc = { id: string; name: string; category: string | null; createdAt: string };
-type PortalData = { clientName: string; engagements: Engagement[]; deliverables: Deliverable[]; invoices: Invoice[]; documents: PortalDoc[] };
+type PortalData = { clientName: string; baseCurrencyCode: string | null; engagements: Engagement[]; deliverables: Deliverable[]; invoices: Invoice[]; documents: PortalDoc[] };
+// Priority 17 re-sweep fix: was hardcoding "₹" -- this token page has no
+// session so it can't use the shared @/lib/currency-format hook (which
+// calls the session-authenticated /api/erp/currencies route); the org's
+// base currency code is instead threaded through this page's own
+// already-existing token-scoped response (getClientPortalData(), see
+// firm-client-portal-service.ts).
+function currencyLabel(baseCurrencyCode: string | null): string {
+  return baseCurrencyCode ? `${baseCurrencyCode} ` : "₹";
+}
 
 const STATUS_COLORS: Record<string, string> = { pending: "bg-amber-100 text-amber-700", in_progress: "bg-blue-100 text-blue-700", done: "bg-green-100 text-green-700", blocked: "bg-red-100 text-red-700" };
 const INVOICE_COLORS: Record<string, string> = { draft: "bg-gray-100 text-gray-700", sent: "bg-blue-100 text-blue-700", paid: "bg-green-100 text-green-700", overdue: "bg-red-100 text-red-700", void: "bg-gray-100 text-gray-700" };
@@ -129,7 +138,7 @@ export default function ClientPortalPage() {
                 <div key={inv.id} className="flex items-center justify-between text-sm border-b border-ct-border pb-2">
                   <div><span className="font-medium text-ct-navy">{inv.invoiceNumber}</span><span className="text-ct-muted text-xs ml-2">{inv.issueDate}</span></div>
                   <div className="flex items-center gap-2">
-                    <span className="text-ct-navy">₹{Number(inv.totalAmount).toLocaleString("en-IN")}</span>
+                    <span className="text-ct-navy">{currencyLabel(data.baseCurrencyCode)}{Number(inv.totalAmount).toLocaleString("en-IN")}</span>
                     <span className={`text-xs px-2 py-0.5 rounded-full ${INVOICE_COLORS[inv.status] ?? ""}`}>{inv.status}</span>
                   </div>
                 </div>

@@ -4,6 +4,8 @@ import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import { ShieldCheck, ArrowRight, Loader2, CheckCircle2, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,6 +22,8 @@ type JoinCodePreview =
   | { valid: false; reason: string };
 
 function SignupForm() {
+  const t = useTranslations("Signup");
+  const tAuth = useTranslations("Auth");
   const router = useRouter();
   const searchParams = useSearchParams();
   // Wave 109 (Sales Engine): a /r/[token] redirect appends ?ref=<token> --
@@ -87,7 +91,7 @@ function SignupForm() {
     e.preventDefault();
 
     if (password.length < 6) {
-      toast.error("Password must be at least 6 characters");
+      toast.error(t("passwordTooShort"));
       return;
     }
 
@@ -152,19 +156,20 @@ function SignupForm() {
                   <CheckCircle2 className="size-7 text-emerald-600" />
                 </div>
                 <h2 className="text-xl font-semibold text-ct-navy">
-                  Check your email
+                  {t("checkEmailTitle")}
                 </h2>
                 <p className="text-sm text-ct-muted leading-relaxed">
-                  We&apos;ve sent a confirmation link to{" "}
-                  <span className="font-medium text-ct-navy">{email}</span>.
-                  Click the link to verify your account and get started.
+                  {t.rich("checkEmailBody", {
+                    email,
+                    bold: (chunks) => <span className="font-medium text-ct-navy">{chunks}</span>,
+                  })}
                 </p>
                 <Button
                   variant="outline"
                   className="mt-4"
                   onClick={() => router.push("/login")}
                 >
-                  Back to Sign In
+                  {t("backToSignIn")}
                 </Button>
               </CardContent>
             </Card>
@@ -193,7 +198,7 @@ function SignupForm() {
               </span>
             </div>
             <p className="text-white/60 text-sm">
-              One Portal. One Truth.
+              {tAuth("tagline")}
             </p>
           </div>
 
@@ -201,22 +206,22 @@ function SignupForm() {
           <Card className="rounded-2xl shadow-xl border-0">
             <CardHeader className="pb-4">
               <CardTitle className="text-xl font-semibold text-ct-navy text-center">
-                Create your account
+                {t("createAccount")}
               </CardTitle>
               <p className="text-sm text-ct-muted text-center">
-                Start managing compliance in minutes
+                {t("subtitle")}
               </p>
             </CardHeader>
             <CardContent className="space-y-5">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-1.5">
                   <Label htmlFor="fullName" className="text-xs font-semibold text-ct-muted uppercase">
-                    Full Name
+                    {t("fullNameLabel")}
                   </Label>
                   <Input
                     id="fullName"
                     type="text"
-                    placeholder="Rajesh Sharma"
+                    placeholder={t("fullNamePlaceholder")}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     required
@@ -228,8 +233,12 @@ function SignupForm() {
                   <div className="flex items-start gap-2.5 rounded-lg bg-ct-teal/10 border border-ct-teal/30 px-3 py-2.5">
                     <Users className="size-4 text-ct-teal mt-0.5 shrink-0" />
                     <p className="text-sm text-ct-navy">
-                      You&apos;re joining <span className="font-semibold">{invitePreview.orgName}</span> as{" "}
-                      <span className="font-semibold capitalize">{invitePreview.role}</span>.
+                      {t.rich("joiningOrgAs", {
+                        orgName: invitePreview.orgName,
+                        roleName: invitePreview.role,
+                        org: (chunks) => <span className="font-semibold">{chunks}</span>,
+                        role: (chunks) => <span className="font-semibold capitalize">{chunks}</span>,
+                      })}
                     </p>
                   </div>
                 ) : hasValidJoinCode && joinCodePreview?.valid ? (
@@ -237,8 +246,12 @@ function SignupForm() {
                     <div className="flex items-start gap-2.5 rounded-lg bg-ct-teal/10 border border-ct-teal/30 px-3 py-2.5">
                       <Users className="size-4 text-ct-teal mt-0.5 shrink-0" />
                       <p className="text-sm text-ct-navy">
-                        You&apos;re joining <span className="font-semibold">{joinCodePreview.orgName}</span> as{" "}
-                        <span className="font-semibold capitalize">{joinCodePreview.role}</span>.
+                        {t.rich("joiningOrgAs", {
+                          orgName: joinCodePreview.orgName,
+                          roleName: joinCodePreview.role,
+                          org: (chunks) => <span className="font-semibold">{chunks}</span>,
+                          role: (chunks) => <span className="font-semibold capitalize">{chunks}</span>,
+                        })}
                       </p>
                     </div>
                     <button
@@ -246,37 +259,37 @@ function SignupForm() {
                       onClick={() => { setJoinCode(""); setJoinCodePreview(null); }}
                       className="text-xs text-ct-muted hover:underline"
                     >
-                      Not your organisation? Clear code
+                      {t("notYourOrg")}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-1.5">
                     <Label htmlFor="org" className="text-xs font-semibold text-ct-muted uppercase">
-                      Organisation
+                      {t("organisationLabel")}
                     </Label>
                     <Input
                       id="org"
                       type="text"
-                      placeholder="Acme Financial Services Pvt. Ltd."
+                      placeholder={t("organisationPlaceholder")}
                       value={organisation}
                       onChange={(e) => setOrganisation(e.target.value)}
                       className="h-10"
                     />
                     {invite && invitePreview && !invitePreview.valid && (
                       <p className="text-xs text-ct-error">
-                        This invite link is no longer valid ({invitePreview.reason.replace(/_/g, " ")}) -- creating a new organisation instead.
+                        {t("inviteInvalid", { reason: invitePreview.reason.replace(/_/g, " ") })}
                       </p>
                     )}
 
                     {showJoinCodeField ? (
                       <div className="pt-2 space-y-1">
                         <Label htmlFor="joinCode" className="text-xs font-semibold text-ct-muted uppercase">
-                          Organisation Join Code
+                          {t("joinCodeLabel")}
                         </Label>
                         <Input
                           id="joinCode"
                           type="text"
-                          placeholder="ABCD-EFGH-JKMN"
+                          placeholder={t("joinCodePlaceholder")}
                           value={joinCode}
                           onChange={(e) => setJoinCode(e.target.value)}
                           className="h-10 uppercase"
@@ -284,8 +297,8 @@ function SignupForm() {
                         {joinCode.trim().length >= 6 && joinCodePreview && !joinCodePreview.valid && (
                           <p className="text-xs text-ct-error">
                             {joinCodePreview.reason === "rate_limited"
-                              ? "Too many attempts -- please wait a few minutes and try again."
-                              : `That code isn't valid (${joinCodePreview.reason.replace(/_/g, " ")}).`}
+                              ? t("joinCodeRateLimited")
+                              : t("joinCodeInvalid", { reason: joinCodePreview.reason.replace(/_/g, " ") })}
                           </p>
                         )}
                       </div>
@@ -295,7 +308,7 @@ function SignupForm() {
                         onClick={() => setShowJoinCodeField(true)}
                         className="text-xs text-ct-saffron font-medium hover:underline"
                       >
-                        Have an organisation join code?
+                        {t("haveJoinCode")}
                       </button>
                     )}
                   </div>
@@ -303,12 +316,12 @@ function SignupForm() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="email" className="text-xs font-semibold text-ct-muted uppercase">
-                    Work Email
+                    {t("workEmailLabel")}
                   </Label>
                   <Input
                     id="email"
                     type="email"
-                    placeholder="you@company.com"
+                    placeholder={t("workEmailPlaceholder")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
@@ -318,12 +331,12 @@ function SignupForm() {
 
                 <div className="space-y-1.5">
                   <Label htmlFor="password" className="text-xs font-semibold text-ct-muted uppercase">
-                    Password
+                    {t("passwordLabel")}
                   </Label>
                   <Input
                     id="password"
                     type="password"
-                    placeholder="Min. 6 characters"
+                    placeholder={t("passwordPlaceholder")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
@@ -340,7 +353,7 @@ function SignupForm() {
                   {loading ? (
                     <Loader2 className="size-4 animate-spin mr-2" />
                   ) : null}
-                  {loading ? "Creating account..." : "Create Account"}
+                  {loading ? t("creatingAccount") : t("createAccountCta")}
                 </Button>
               </form>
 
@@ -350,18 +363,18 @@ function SignupForm() {
                   <span className="w-full border-t border-ct-border" />
                 </div>
                 <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-ct-muted">or</span>
+                  <span className="bg-white px-2 text-ct-muted">{tAuth("or")}</span>
                 </div>
               </div>
 
               {/* Login CTA */}
               <p className="text-center text-sm text-ct-muted">
-                Already have an account?{" "}
+                {t("alreadyHaveAccount")}{" "}
                 <Link
                   href="/login"
                   className="text-ct-saffron font-medium hover:underline"
                 >
-                  Sign in
+                  {t("signIn")}
                 </Link>
               </p>
             </CardContent>
@@ -369,8 +382,11 @@ function SignupForm() {
 
           {/* Footer */}
           <p className="text-center text-xs text-white/40 mt-6">
-            Built for Indian compliance management
+            {tAuth("footer")}
           </p>
+          <div className="mt-3 flex justify-center">
+            <LanguageSwitcher className="text-[11px] bg-white/10 border border-white/20 rounded-md px-1.5 py-0.5 text-white/70" />
+          </div>
         </div>
       </div>
     </div>

@@ -9,7 +9,7 @@
 // accepting an arbitrary caller-supplied number.
 import { erpItems, erpWarehouses, erpStockLedgerEntries, erpStockValuationLayers, erpItemBatches, users } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, asc, sql } from "drizzle-orm"
+import { and, eq, asc, sql, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
@@ -17,6 +17,20 @@ import { convertToStockUom } from "./erp-uom-batch-service"
 import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+
+// Priority 17 Wave 1 (PROJEXA Inventory/Stock exposure): recordStockReceipt/
+// recordStockIssue previously required a real dbUser session, but PROJEXA's
+// callVeridian() proxy always calls server-to-server with a shared Bearer
+// API key and never carries a session cookie (requireAuthOrApiKey's
+// discriminated CombinedAuthContext) -- same class of gap already fixed for
+// erp-invoicing-service.ts's createSalesInvoice and erp-accounting-
+// service.ts's createJournalEntry. logActivity already has the matching
+// dbUser-or-apiKey discriminated union (Wave 9); these two functions just
+// hadn't been wired to accept it yet.
+export type ActorCtx = { orgId: string; userId: string } & (
+  | { dbUser: typeof users.$inferSelect; apiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string } }
+)
 
 async function currentBalance(db: TenantDb, itemId: string, warehouseId: string): Promise<{ qty: number; value: number }> {
   const [row] = await db
@@ -38,7 +52,7 @@ export type StockReceiptInput = {
 }
 
 /** Records a stock receipt and opens a new FIFO layer for it. */
-export async function recordStockReceipt(ctx: ErpContext, input: StockReceiptInput) {
+export async function recordStockReceipt(ctx: ActorCtx, input: StockReceiptInput) {
   await requireErpEnabled(ctx.orgId)
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
   if (input.rate < 0) throw new ServiceError("rate cannot be negative", 400)
@@ -77,7 +91,7 @@ export async function recordStockReceipt(ctx: ErpContext, input: StockReceiptInp
       receiptDate: input.postingDate, originalQty: stockQty.toString(), remainingQty: stockQty.toString(), rate: input.rate.toString(),
     })
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_stock.received", entityType: "erp_stock_ledger_entry", entityId: entry.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_stock.received", entityType: "erp_stock_ledger_entry", entityId: entry.id })
     return entry
   })
 }
@@ -93,7 +107,7 @@ export type StockIssueInput = {
  * average cost of what was actually consumed, not an arbitrary number --
  * this is the core fix: previously nothing computed this at all.
  */
-export async function recordStockIssue(ctx: ErpContext, input: StockIssueInput) {
+export async function recordStockIssue(ctx: ActorCtx, input: StockIssueInput) {
   await requireErpEnabled(ctx.orgId)
   if (input.quantity <= 0) throw new ServiceError("quantity must be positive", 400)
 
@@ -140,7 +154,7 @@ export async function recordStockIssue(ctx: ErpContext, input: StockIssueInput) 
       transactionUom: input.uom, transactionQty: input.uom ? input.quantity.toString() : undefined,
     }).returning()
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_stock.issued", entityType: "erp_stock_ledger_entry", entityId: entry.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_stock.issued", entityType: "erp_stock_ledger_entry", entityId: entry.id })
     return entry
   })
 }
@@ -160,5 +174,55 @@ export async function listStockLedger(ctx: { orgId: string }, filters: { itemId?
     if (filters.itemId) conditions.push(eq(erpStockLedgerEntries.itemId, filters.itemId))
     if (filters.warehouseId) conditions.push(eq(erpStockLedgerEntries.warehouseId, filters.warehouseId))
     return db.query.erpStockLedgerEntries.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.postingDate) })
+  })
+}
+
+// Priority 17 Wave 1 (PROJEXA Inventory/Stock exposure): "what stock do I
+// have, and where" -- a per item/warehouse balance grouped straight off the
+// same append-only ledger every other read in this file already trusts
+// (never a separately-maintained running-total table). Only pairs with a
+// nonzero balance are returned so a fully-consumed item/warehouse pair
+// doesn't clutter the list forever.
+export async function listStockBalances(ctx: { orgId: string }, filters: { warehouseId?: string; itemId?: string } = {}) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpStockLedgerEntries.orgId, ctx.orgId)]
+    if (filters.warehouseId) conditions.push(eq(erpStockLedgerEntries.warehouseId, filters.warehouseId))
+    if (filters.itemId) conditions.push(eq(erpStockLedgerEntries.itemId, filters.itemId))
+
+    const rows = await db
+      .select({
+        itemId: erpStockLedgerEntries.itemId,
+        warehouseId: erpStockLedgerEntries.warehouseId,
+        qty: sql<string>`sum(${erpStockLedgerEntries.quantityChange})`,
+        value: sql<string>`sum(${erpStockLedgerEntries.quantityChange} * ${erpStockLedgerEntries.valuationRate})`,
+      })
+      .from(erpStockLedgerEntries)
+      .where(and(...conditions))
+      .groupBy(erpStockLedgerEntries.itemId, erpStockLedgerEntries.warehouseId)
+
+    const balances = rows
+      .map((r) => ({ itemId: r.itemId, warehouseId: r.warehouseId, qty: Number(r.qty), value: Number(r.value) }))
+      .filter((r) => Math.abs(r.qty) > 1e-9)
+
+    if (balances.length === 0) return []
+
+    const itemIds = [...new Set(balances.map((b) => b.itemId))]
+    const warehouseIds = [...new Set(balances.map((b) => b.warehouseId))]
+    const [items, warehouses] = await Promise.all([
+      db.query.erpItems.findMany({ where: and(eq(erpItems.orgId, ctx.orgId), inArray(erpItems.id, itemIds)) }),
+      db.query.erpWarehouses.findMany({ where: and(eq(erpWarehouses.orgId, ctx.orgId), inArray(erpWarehouses.id, warehouseIds)) }),
+    ])
+    const itemMap = new Map(items.map((i) => [i.id, i]))
+    const warehouseMap = new Map(warehouses.map((w) => [w.id, w]))
+
+    return balances.map((b) => ({
+      ...b,
+      averageCost: b.qty !== 0 ? b.value / b.qty : 0,
+      itemCode: itemMap.get(b.itemId)?.itemCode ?? null,
+      itemName: itemMap.get(b.itemId)?.itemName ?? null,
+      uom: itemMap.get(b.itemId)?.uom ?? null,
+      warehouseName: warehouseMap.get(b.warehouseId)?.warehouseName ?? null,
+    }))
   })
 }

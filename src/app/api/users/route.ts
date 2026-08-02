@@ -66,7 +66,26 @@ export async function POST(request: NextRequest) {
     // Email is globally unique (mirrors the auth.users constraint) -- this
     // check is intentionally NOT tenant-scoped, unlike everything else here.
     const existing = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase().trim()) })
-    if (existing) return NextResponse.json({ error: "A user with this email already exists" }, { status: 409 })
+    if (existing) {
+      // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+      // Trigger A): a stage-0-only person (orgId IS NULL) being directly
+      // added as a real member -- upgrade their existing row in place
+      // instead of a flat 409. They already have a real Supabase Auth
+      // identity from their stage-0 signup, so this skips the
+      // inviteUserByEmail step entirely (that call would fail/duplicate
+      // against an email Supabase Auth already knows). A different real
+      // home org elsewhere still gets the original, honest 409 -- never
+      // silently reassigned.
+      if (existing.orgId) {
+        return NextResponse.json({ error: "A user with this email already belongs to a different organisation" }, { status: 409 })
+      }
+      const { tryUpgradeStage0UserInPlace } = await import("@/lib/services/stage0-service")
+      const upgrade = await tryUpgradeStage0UserInPlace(existing.email, { orgId, role: userRole })
+      if (!upgrade.ok) {
+        return NextResponse.json({ error: "A user with this email already exists" }, { status: 409 })
+      }
+      return NextResponse.json({ id: upgrade.user.id, name: upgrade.user.name, email: upgrade.user.email, role: upgrade.user.role }, { status: 200 })
+    }
 
     // Create auth user via Supabase Admin API and send invite email
     const supabaseAdmin = createAdminClient(

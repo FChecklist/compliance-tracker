@@ -67,3 +67,10 @@ server.log
 # wasm binaries copied from node_modules by scripts/spike-litert-copy-wasm.mjs,
 # regenerated on demand rather than committed (~18MB, two variants)
 /public/litert-spike/wasm/
+
+# litert-spike-embeddings (experimental, see src/app/litert-spike-embeddings/page.tsx)
+# -- wasm runtime (Apache-2.0) copied from node_modules, plus the esbuild worker
+# bundle, by scripts/spike-litert-embeddings-setup.mjs -- regenerated on demand
+# rather than committed. The model/vocab themselves are fetched directly from
+# HuggingFace at inference time (never written to disk here).
+/public/litert-spike-embeddings/wasm/

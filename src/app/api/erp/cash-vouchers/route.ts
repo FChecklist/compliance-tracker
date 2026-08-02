@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listCashVouchers, createAndPostCashVoucher, ServiceError } from "@/lib/services/erp-cash-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function GET(request: NextRequest) {
   const { response, orgId } = await requireAuth()
@@ -22,6 +23,9 @@ export async function POST(request: Request) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // manager: posts to GL and moves money
+  const roleErr = requirePermissionForUser(dbUser, "erp.cash_vouchers.create_and_post")
+  if (roleErr) return roleErr
 
   try {
     const body = await request.json()

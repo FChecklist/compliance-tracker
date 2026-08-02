@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listLandedCostVouchers, createLandedCostVoucher, ServiceError } from "@/lib/services/erp-goods-receipt-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, orgId } = await requireAuth()
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // manager: affects inventory valuation, hard to undo
+  const roleErr = requirePermissionForUser(dbUser, "erp.goods_receipts.landed_costs")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

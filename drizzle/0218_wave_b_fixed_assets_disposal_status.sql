@@ -1,0 +1,26 @@
+-- Wave B (VERIDIAN Review Framework remediation, "Fixed Assets wiring"
+-- workstream, 2026-07-17): erp_fixed_assets/erp_asset_categories/
+-- erp_depreciation_schedules/erp_asset_movements/erp_asset_disposals have
+-- existed since drizzle/0042 (Wave 49) with zero service/API/UI consumer --
+-- confirmed via a fresh grep of src/ immediately before this migration was
+-- written. This wave adds the first real service layer
+-- (erp-fixed-assets-service.ts), API routes (src/app/api/erp/fixed-assets/**)
+-- and UI (src/app/(app)/erp/fixed-assets/**) on top of the existing schema.
+--
+-- The ONLY schema change genuinely required: erp_asset_disposals had no
+-- status column at all, so there was no way to represent "disposal awaiting
+-- approval" vs "finalized" vs "rejected" once a real approval-gated
+-- disposal workflow was wired (erp-fixed-assets-service.ts's
+-- initiateAssetDisposal starts an approval-workflow instance via the
+-- existing shared engine, approval-workflow-service.ts -- the same
+-- startApprovalWorkflow precedent already used by submitJournalEntry /
+-- submitPurchaseRequisition). Every other table in this wave's scope needed
+-- no schema change at all.
+--
+-- Additive, non-breaking: plain text column (not a new pg enum) with a
+-- default, matching this same table's own disposalType column precedent
+-- (also plain text, not an enum, per its inline comment). No existing rows
+-- are affected -- this table has had zero writes anywhere in the codebase
+-- before this wave, so the DEFAULT 'pending' backfill value is inert in
+-- practice, not a guess about real data.
+ALTER TABLE compliance.erp_asset_disposals ADD COLUMN IF NOT EXISTS status text NOT NULL DEFAULT 'pending';

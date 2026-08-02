@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 
 type Client = { id: string; name: string };
 type StaffUser = { id: string; name: string };
@@ -35,6 +36,7 @@ const INVOICE_STATUS_COLORS: Record<string, string> = { draft: "bg-ct-cloud text
 const SERVICE_LINES = ["ca_services", "cs_services", "legal_services", "grc_services", "audit_services"];
 
 export default function TheFirmPracticePage() {
+  const currencies = useCurrencies();
   const [enabled, setEnabled] = useState<boolean | null>(null);
   const [enabling, setEnabling] = useState(false);
   const [clients, setClients] = useState<Client[]>([]);
@@ -99,6 +101,14 @@ export default function TheFirmPracticePage() {
     setEnabling(false);
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to enable"); return; }
     toast.success("THE FIRM AI OS enabled");
+    // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+    // Trigger B) -- same surface as PmsEnablementSection.tsx's identical
+    // addition: surface both counts, never silently drop the "already
+    // belongs elsewhere" information.
+    const data: { stage0AutoUpgrade?: { upgraded: number; blocked: number } } = await res.json().catch(() => ({}));
+    const su = data.stage0AutoUpgrade;
+    if (su && su.upgraded > 0) toast.success(`${su.upgraded} stage-0 user${su.upgraded === 1 ? "" : "s"} auto-upgraded to full membership`);
+    if (su && su.blocked > 0) toast.info(`${su.blocked} stage-0 user${su.blocked === 1 ? "" : "s"} could not auto-upgrade -- already belong to another organization`);
     setEnabled(true);
   };
 
@@ -289,7 +299,7 @@ export default function TheFirmPracticePage() {
                                 <SelectContent><SelectItem value="fixed">Fixed</SelectItem><SelectItem value="hourly">Hourly</SelectItem><SelectItem value="retainer">Retainer</SelectItem></SelectContent>
                               </Select>
                             </div>
-                            <div className="flex-1"><Label>Fee Amount (₹)</Label><Input type="number" value={engFeeAmount} onChange={e => setEngFeeAmount(e.target.value)} /></div>
+                            <div className="flex-1"><Label>Fee Amount ({currencyLabel(undefined, currencies).trim()})</Label><Input type="number" value={engFeeAmount} onChange={e => setEngFeeAmount(e.target.value)} /></div>
                           </div>
                           <div><Label>Start Date</Label><Input type="date" value={engStartDate} onChange={e => setEngStartDate(e.target.value)} /></div>
                           <div className="flex gap-3">
@@ -327,7 +337,7 @@ export default function TheFirmPracticePage() {
                               </span>
                             )}
                           </div>
-                          <div className="flex items-center gap-2"><span className="text-ct-muted text-xs">{e.feeType}{e.feeAmount ? ` · ₹${Number(e.feeAmount).toLocaleString("en-IN")}` : ""}</span><Badge className="bg-ct-cloud text-ct-muted">{e.status}</Badge></div>
+                          <div className="flex items-center gap-2"><span className="text-ct-muted text-xs">{e.feeType}{e.feeAmount ? ` · ${currencyLabel(undefined, currencies)}${Number(e.feeAmount).toLocaleString("en-IN")}` : ""}</span><Badge className="bg-ct-cloud text-ct-muted">{e.status}</Badge></div>
                         </div>
                       ))}
                     </div>
@@ -493,7 +503,7 @@ export default function TheFirmPracticePage() {
                         <div key={inv.id} className="flex items-center justify-between text-sm border-b border-ct-border pb-1.5">
                           <div><span className="text-ct-navy font-medium">{inv.invoiceNumber}</span><span className="text-ct-muted text-xs ml-2">{inv.issueDate}</span></div>
                           <div className="flex items-center gap-2">
-                            <span className="text-ct-navy">₹{Number(inv.totalAmount).toLocaleString("en-IN")}</span>
+                            <span className="text-ct-navy">{currencyLabel(undefined, currencies)}{Number(inv.totalAmount).toLocaleString("en-IN")}</span>
                             <Badge className={INVOICE_STATUS_COLORS[inv.status] ?? ""}>{inv.status}</Badge>
                             {inv.status === "draft" && <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => transitionInvoice(inv.id, "send")}>Send</Button>}
                             {inv.status === "sent" && <Button size="sm" variant="outline" className="h-6 text-xs" onClick={() => transitionInvoice(inv.id, "paid")}><CheckCircle2 className="w-3 h-3 mr-1" />Paid</Button>}

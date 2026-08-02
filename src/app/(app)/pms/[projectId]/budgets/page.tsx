@@ -15,6 +15,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
 import ProjectNav from "@/components/pms/ProjectNav";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 
 type Budget = { id: string; name: string; fixedDate: string | null };
 type BudgetDetail = Budget & {
@@ -25,6 +26,7 @@ type BudgetDetail = Budget & {
 };
 
 export default function BudgetsPage() {
+  const currencies = useCurrencies();
   const params = useParams<{ projectId: string }>();
   const projectId = params.projectId;
 
@@ -157,11 +159,11 @@ export default function BudgetsPage() {
                     <div className="grid grid-cols-3 gap-3 text-sm">
                       <div>
                         <p className="text-xs text-ct-muted uppercase">Planned</p>
-                        <p className="font-semibold text-ct-navy">₹{detail.plannedTotal.toFixed(2)}</p>
+                        <p className="font-semibold text-ct-navy">{currencyLabel(undefined, currencies)}{detail.plannedTotal.toFixed(2)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-ct-muted uppercase">Actual Labor</p>
-                        <p className="font-semibold text-ct-navy">₹{detail.actualLaborCost.toFixed(2)}</p>
+                        <p className="font-semibold text-ct-navy">{currencyLabel(undefined, currencies)}{detail.actualLaborCost.toFixed(2)}</p>
                       </div>
                       <div>
                         <p className="text-xs text-ct-muted uppercase">Hours Logged</p>
@@ -172,7 +174,7 @@ export default function BudgetsPage() {
                   {detail?.lineItems.map((li) => (
                     <div key={li.id} className="flex items-center justify-between text-sm py-1 border-b border-ct-border last:border-0">
                       <span className="text-ct-navy capitalize">{li.kind}{li.description ? `: ${li.description}` : ""}</span>
-                      <span className="text-ct-muted">₹{Number(li.amount).toFixed(2)}</span>
+                      <span className="text-ct-muted">{currencyLabel(undefined, currencies)}{Number(li.amount).toFixed(2)}</span>
                     </div>
                   ))}
                   {lineItemBudgetId === budget.id ? (

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { createClient } from "./server"
-import { db, users, organisations, departments, aiAssistants, productBranches, orgProductBranchEnablements, accessReviewCertifications } from "@/lib/db"
+import { db, users, organisations, aiAssistants, accessReviewCertifications } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
@@ -9,6 +9,7 @@ import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
 import { redeemJoinCodeAndProvisionUser } from "@/lib/org-join-code-service"
 import { recordSessionAndCheckLimit } from "@/lib/services/session-limit-service"
+import { provisionOrganisation } from "@/lib/services/org-provisioning-service"
 
 export type AuthContext = {
   user: Awaited<ReturnType<Awaited<ReturnType<typeof createClient>>['auth']['getUser']>>['data']['user']
@@ -53,15 +54,6 @@ export function requireRole(dbUser: typeof users.$inferSelect | null, minimumRol
   return null
 }
 
-function slugify(name: string): string {
-  return name
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 60) || "org"
-}
-
 /**
  * Auto-provisions a brand-new tenant (organisation + admin user + a default
  * department) for a Supabase Auth identity that has no compliance.users row
@@ -81,9 +73,30 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   const email = authUser.email
   if (!email) return null
 
-  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string; inviteToken?: string; orgJoinCode?: string } | null
+  const meta = authUser.user_metadata as { full_name?: string; organisation?: string; ref?: string; vid?: string; vref?: string; inviteToken?: string; orgJoinCode?: string; stage0Token?: string } | null
   const fullName = meta?.full_name?.trim() || email.split("@")[0]
   const orgName = meta?.organisation?.trim() || `${fullName}'s Organisation`
+
+  // Priority 18b (Owner directive 2026-07-15, Option B): checked FIRST,
+  // before inviteToken/orgJoinCode -- a stage-0 signup is even more "not a
+  // full org member" than either of those. Mirrors their exact
+  // early-return-either-way posture: a bad/expired/revoked stage0Token must
+  // never silently fall through to "create me a brand-new org." See
+  // stage0-service.ts for the real provisioning logic (self-serve, zero
+  // admin approval, off an existing guest-access/share-link token).
+  const stage0Token = meta?.stage0Token?.trim()
+  if (stage0Token) {
+    try {
+      const { consumeStage0TokenAndProvisionUser } = await import("@/lib/services/stage0-service")
+      const result = await consumeStage0TokenAndProvisionUser(stage0Token, { id: authUser.id, email, fullName })
+      if (result.ok) return result.user
+      console.warn(`Stage-0 token redemption failed for ${email}: ${result.reason}`)
+      return null
+    } catch (err) {
+      console.error("Stage-0 token redemption threw unexpectedly:", err)
+      return null
+    }
+  }
 
   // Area 15/18 (Secure Invite Link): a signup that carried ?invite=<token>
   // (threaded into signUp()'s options.data by /signup, see
@@ -135,73 +148,24 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
   }
 
   try {
-    const baseSlug = slugify(orgName)
-    let slug = baseSlug
-    let attempt = 0
-    // Find a free slug (organisations.slug is unique).
-    while (await db.query.organisations.findFirst({ where: eq(organisations.slug, slug) })) {
-      attempt += 1
-      slug = `${baseSlug}-${attempt}`
-      if (attempt > 20) break // pathological collision case, give up gracefully
-    }
-
-    const [org] = await db.insert(organisations).values({
-      name: orgName,
-      slug,
-      plan: "free",
-    }).returning()
-
-    // Wave 113 (VERI Treasure): free/on-by-default for every org, unlike
-    // opt-in branches like PMS -- 0098_veri_reward_branch.sql backfills
-    // orgs that already existed before this wave; every org created from
-    // here on gets it via this insert instead. Uses the same raw db this
-    // whole function already deliberately uses (org doesn't exist in any
-    // tenant context until this point). Never blocks signup on failure.
-    try {
-      const veriRewardBranch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_reward") })
-      if (veriRewardBranch) {
-        await db.insert(orgProductBranchEnablements).values({
-          orgId: org.id,
-          productBranchId: veriRewardBranch.id,
-          isEnabled: true,
-          enabledAt: new Date(),
-        })
-      }
-    } catch (err) {
-      console.warn("VERI Treasure auto-enablement failed (non-fatal):", err)
-    }
-
-    // Wave 131: VERI Chat (persistent composer) rolled out platform-wide
-    // 2026-07-09 -- same free/on-by-default shape as VERI Treasure above,
-    // not an opt-in vertical. 0112_veri_chat_v2_rollout.sql backfills orgs
-    // that already existed before this wave; every org created from here on
-    // gets it via this insert instead. Never blocks signup on failure.
-    try {
-      const veriChatV2Branch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_chat_v2") })
-      if (veriChatV2Branch) {
-        await db.insert(orgProductBranchEnablements).values({
-          orgId: org.id,
-          productBranchId: veriChatV2Branch.id,
-          isEnabled: true,
-          enabledAt: new Date(),
-        })
-      }
-    } catch (err) {
-      console.warn("VERI Chat v2 auto-enablement failed (non-fatal):", err)
-    }
-
-    const [dept] = await db.insert(departments).values({
-      name: "General",
-      orgId: org.id,
-    }).returning()
+    // PLATFORM-01 Wave 1: org/branch-enablement/department creation is now
+    // shared with the service-to-service provisioning path
+    // (POST /api/v1/platform/provision-org) via provisionOrganisation() --
+    // same slug-collision loop, same VERI Reward/VERI Chat v2 auto-enable,
+    // same default "General" department, same order of operations as
+    // before this refactor. This path passes no primaryProductBranchId
+    // (undefined -> null), matching every pre-existing human-signup org's
+    // real state -- it predates the concept of "primarily belongs to one
+    // product branch."
+    const { organisationId, defaultDepartmentId } = await provisionOrganisation({ name: orgName })
 
     const [newUser] = await db.insert(users).values({
       name: fullName,
       email,
       passwordHash: "supabase-auth-managed", // legacy NOT NULL column, real auth is via Supabase
       role: "admin",
-      orgId: org.id,
-      departmentId: dept.id,
+      orgId: organisationId,
+      departmentId: defaultDepartmentId,
       authUserId: authUser.id,
       onboardingCompleted: false,
     }).returning()
@@ -235,7 +199,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
         await recordReferralSignupAndOrgProvisioned({
           refToken: ref,
           authUserId: authUser.id,
-          orgId: org.id,
+          orgId: organisationId,
           ipAddress: h.get("x-forwarded-for")?.split(",")[0]?.trim() ?? h.get("x-real-ip") ?? null,
           userAgent: h.get("user-agent") ?? null,
         })
@@ -250,7 +214,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
     if (vid) {
       try {
         const { recordVisitorConversion } = await import("@/lib/services/visitor-intelligence-service")
-        await recordVisitorConversion(vid, org.id)
+        await recordVisitorConversion(vid, organisationId)
       } catch (err) {
         console.warn("Visitor conversion linking failed (non-fatal):", err)
       }
@@ -269,7 +233,7 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
         const referral = await recordReferralSignupCompleted({
           refToken: vref,
           referredUserId: newUser.id,
-          referredOrgId: org.id,
+          referredOrgId: organisationId,
         })
         if (referral?.rewardPoints) {
           await withTenantContext({ orgId: referral.orgId, userId: referral.referrerUserId }, (tdb) =>
@@ -489,4 +453,19 @@ export function requireRoleOrScope(
     return null
   }
   return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+}
+
+// task-20260727-101145 (external-AI-facing reporting API gateway): a
+// dedicated read gate for src/app/api/v1/reports/**, separate from
+// requireRoleOrScope's single-scope check because this route needs OR
+// semantics -- accept EITHER the pre-existing broad "read" scope (so every
+// key minted before this task keeps working unchanged) OR the new,
+// narrower "read:reports" scope (mintable via POST /api/settings/api-keys
+// for a customer who wants to hand an external AI/ChatGPT/z.ai reports-only
+// access, without also granting it "read" on every other /v1/* domain).
+// A session user always passes, same as every other combined-auth gate.
+export function requireReportsReadAccess(ctx: CombinedAuthContext): NextResponse | null {
+  if (ctx.dbUser) return null
+  if (ctx.apiKey && (ctx.apiKey.scopes.includes("read") || ctx.apiKey.scopes.includes("read:reports"))) return null
+  return NextResponse.json({ error: "This action requires a read or read:reports-scoped API key" }, { status: 403 })
 }

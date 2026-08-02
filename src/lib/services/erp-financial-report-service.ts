@@ -7,9 +7,9 @@
 // aggregation, not new tables. Also owns isPeriodOpenForDate(), the
 // Tier 1 #3 fix (erp_accounting_periods) that gates journal-entry
 // posting so these reports stay trustworthy in production.
-import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems } from "@/lib/db"
+import { erpAccounts, erpJournalEntries, erpJournalEntryLines, erpAccountingPeriods, erpFiscalYears, erpPeriodClosingChecklistItems, erpCostCenters } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, lte, gte, sql, inArray, ne } from "drizzle-orm"
+import { and, eq, lte, gte, sql, inArray, ne, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { getCompanyDescendantIds } from "./erp-company-service"
@@ -368,4 +368,89 @@ export async function cashFlowStatement(ctx: { orgId: string }, fromDate: string
     // unbalanced ledger), not just a display rounding issue.
     isBalanced: Math.abs(netChangeInCash - cashChange) < 0.01,
   }
+}
+
+/**
+ * Priority 15 (PROJEXA Accounting depth, per-project P&L): a construction/
+ * interior-design firm running ~500 projects needs revenue/expense visible
+ * PER PROJECT, not just company-wide -- profitAndLoss above already answers
+ * "how is the company doing", this answers "how is THIS project doing".
+ * erp_cost_centers.projectId (Wave 52/124) already links a cost center to a
+ * construction project; every journal-entry LINE (not header) carries an
+ * optional costCenterId (Wave 52). This groups submitted income/expense
+ * postings by costCenterId over a date range -- pure aggregation over
+ * existing columns, no new schema. Lines with no costCenterId at all are
+ * excluded (an org that never tags cost centers on its postings gets an
+ * empty list here, not a misleading "Unassigned" bucket that would imply
+ * this report tried and failed to attribute them).
+ *
+ * Priority 17 Wave 1: gained the same optional CompanyScope every other
+ * report in this file already supports -- erp_cost_centers itself carries
+ * no companyId (a cost center/project is org-wide, not owned by one legal
+ * entity), so scoping is applied the same way as accountBalancesInRange:
+ * filtering the underlying erp_journal_entries.companyId, not the cost
+ * center row.
+ */
+export async function profitAndLossByCostCenter(ctx: { orgId: string }, fromDate: string, toDate: string, scope?: CompanyScope) {
+  await requireErpEnabled(ctx.orgId)
+  const companyIds = await resolveCompanyScope(ctx, scope)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [
+      eq(erpJournalEntries.orgId, ctx.orgId),
+      eq(erpJournalEntries.status, "submitted"),
+      gte(erpJournalEntries.postingDate, fromDate),
+      lte(erpJournalEntries.postingDate, toDate),
+      inArray(erpAccounts.rootType, ["income", "expense"]),
+      isNotNull(erpJournalEntryLines.costCenterId),
+    ]
+    if (companyIds) conditions.push(inArray(erpJournalEntries.companyId, companyIds))
+
+    const rows = await db
+      .select({
+        costCenterId: erpJournalEntryLines.costCenterId,
+        rootType: erpAccounts.rootType,
+        totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
+        totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
+      })
+      .from(erpJournalEntryLines)
+      .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+      .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+      .where(and(...conditions))
+      .groupBy(erpJournalEntryLines.costCenterId, erpAccounts.rootType)
+
+    const costCenters = await db.query.erpCostCenters.findMany({ where: eq(erpCostCenters.orgId, ctx.orgId) })
+    const costCenterById = new Map(costCenters.map((c) => [c.id, c]))
+
+    const byCostCenter = new Map<string, { income: number; expense: number }>()
+    for (const r of rows) {
+      if (!r.costCenterId) continue
+      const entry = byCostCenter.get(r.costCenterId) ?? { income: 0, expense: 0 }
+      const debit = Number(r.totalDebit)
+      const credit = Number(r.totalCredit)
+      // Income accounts are credit-natured; expense accounts are debit-natured -- same sign convention as profitAndLoss above.
+      if (r.rootType === "income") entry.income += credit - debit
+      else entry.expense += debit - credit
+      byCostCenter.set(r.costCenterId, entry)
+    }
+
+    const costCenterRollups = Array.from(byCostCenter.entries()).map(([costCenterId, v]) => {
+      const cc = costCenterById.get(costCenterId)
+      return {
+        costCenterId,
+        costCenterName: cc?.name ?? "Unknown cost center",
+        projectId: cc?.projectId ?? null,
+        income: v.income,
+        expense: v.expense,
+        netProfit: v.income - v.expense,
+      }
+    }).sort((a, b) => b.netProfit - a.netProfit)
+
+    return {
+      fromDate,
+      toDate,
+      costCenters: costCenterRollups,
+      totalIncome: costCenterRollups.reduce((sum, c) => sum + c.income, 0),
+      totalExpense: costCenterRollups.reduce((sum, c) => sum + c.expense, 0),
+    }
+  })
 }

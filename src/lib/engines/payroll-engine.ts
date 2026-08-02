@@ -1,6 +1,7 @@
 // VCEL Payroll Engine (computation_engines: gratuity_calculator). Standard
 // Indian Payment of Gratuity Act, 1972 formula -- deterministic.
 import Decimal from "decimal.js"
+import type { CalculationBreakdown } from "@/lib/engines/breakdown"
 
 export type GratuityInput = {
   lastDrawnMonthlySalary: number // basic + DA
@@ -8,7 +9,13 @@ export type GratuityInput = {
   isCoveredUnderAct?: boolean // default true: 15/26 formula; false: 15/30 (non-covered establishments)
 }
 
-export type GratuityResult = { gratuityAmount: number; roundedYearsOfService: number; statutoryCapApplied: boolean }
+export type GratuityResult = {
+  gratuityAmount: number; roundedYearsOfService: number; statutoryCapApplied: boolean
+  // Calculation Explainability (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): optional, additive -- see income-tax-engine.ts's
+  // IncomeTaxResult for the same convention.
+  breakdown?: CalculationBreakdown
+}
 
 // Sec 4(2): part of a year >= 6 months counts as a full year, under 6 months is ignored.
 function roundYearsOfService(years: number): number {
@@ -29,11 +36,23 @@ export function calculateGratuity(input: GratuityInput): GratuityResult {
 
   const raw = new Decimal(lastDrawnMonthlySalary).mul(15).div(divisor).mul(roundedYears)
   const capped = raw.gt(STATUTORY_CAP)
+  const rawAmount = raw.toDecimalPlaces(2).toNumber()
 
   return {
-    gratuityAmount: capped ? STATUTORY_CAP : raw.toDecimalPlaces(2).toNumber(),
+    gratuityAmount: capped ? STATUTORY_CAP : rawAmount,
     roundedYearsOfService: roundedYears,
     statutoryCapApplied: capped,
+    breakdown: {
+      steps: [
+        { label: "Years of service (Sec 4(2) rounding)", formula: `${input.yearsOfService} years`, value: roundedYears },
+        {
+          label: `Gratuity formula (${isCoveredUnderAct ? "covered, 15/26" : "not covered, 15/30"})`,
+          formula: `${lastDrawnMonthlySalary} x 15 / ${divisor} x ${roundedYears}`,
+          value: rawAmount,
+        },
+        ...(capped ? [{ label: "Payment of Gratuity Act statutory cap applied", formula: `min(${rawAmount}, ${STATUTORY_CAP})`, value: STATUTORY_CAP }] : []),
+      ],
+    },
   }
 }
 

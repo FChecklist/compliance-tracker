@@ -6,10 +6,16 @@
 // product index instead of pricing cards. Deliberately NO pricing anywhere —
 // cost is discussed as a philosophy (§ "On cost"), and each product page
 // (/office, /the-firm, /veri-fm-cs, /forge) carries its own full selling
-// motion. The four "research directions" are not marketing inventions: each
-// names a real subsystem shipped in this repo (orchestra-model-resolver's
-// four layers, VERIDIAN_AI_CONSTITUTION + policy-enforcement-engine,
-// capability-registry-service, orchestra-execution-logger).
+// motion. The five "research directions" are not marketing inventions: each
+// names a real subsystem shipped in this repo (task-execution-engine.ts's
+// deterministic-first dispatch order, orchestra-model-resolver's four
+// layers, VERIDIAN_AI_CONSTITUTION + policy-enforcement-engine,
+// capability-registry-service, orchestra-execution-logger). Gap closure
+// (VERIDIAN Review Framework, AI Innovation finding, 2026-07-18): the
+// software-first/AI-second architecture (Constitution §5, SF-01) was real
+// but not surfaced anywhere a visitor could see it as a differentiator --
+// added as the first research direction rather than buried in docs only
+// engineers read.
 //
 // Server component on purpose — no state, no client JS beyond Next's own.
 
@@ -65,6 +71,10 @@ const PRODUCTS = [
 ];
 
 const RESEARCH = [
+  {
+    title: "Software-first, AI second",
+    body: "Every request tries a deterministic software path before it ever reaches a model. Predictable, repetitive work runs as code — fast, free, and exactly reproducible. AI is the fallback for what software genuinely can't do yet, not the default answer to everything.",
+  },
   {
     title: "Layered cognition",
     body: "A four-layer orchestra — task, assistant, account, and global intelligence — where every request is resolved to the least cognition that answers it well. Frontier reasoning where it matters; none where it doesn't.",
@@ -163,11 +173,11 @@ export default async function CognitiveRootPage({
         </div>
       </section>
 
-      {/* research directions — four real subsystems, presented as research */}
+      {/* research directions — five real subsystems, presented as research */}
       <section id="research" className="mx-auto max-w-6xl px-6 py-20 md:py-24">
         <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">Research directions</div>
         <h2 className="mt-4 max-w-2xl font-heading text-3xl sm:text-4xl">
-          Four questions we keep answering in production
+          Five questions we keep answering in production
         </h2>
         <div className="mt-12 grid gap-x-12 gap-y-12 md:grid-cols-2">
           {RESEARCH.map((r, i) => (

@@ -37,6 +37,21 @@ export async function listChangeOrders(ctx: { orgId: string }, projectId: string
   })
 }
 
+// Priority 18a (VERI Chat second-screen unification): the panel's Approvals
+// tab needs one org-wide "what's waiting on a decision" query -- listChangeOrders
+// above requires a projectId because every existing caller (PROJEXA's
+// per-project Change Orders page) is already scoped to one project. This is
+// the same table/tenant-scope, just without that filter, so a cross-project
+// attention feed doesn't need to loop every project the org has.
+export async function listChangeOrdersAwaitingApproval(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.constructionChangeOrders.findMany({
+      where: and(eq(constructionChangeOrders.orgId, ctx.orgId), eq(constructionChangeOrders.status, "pending_approval")),
+      orderBy: (t, { desc }) => desc(t.number),
+    })
+  )
+}
+
 export async function getChangeOrder(ctx: { orgId: string }, changeOrderId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const row = await db.query.constructionChangeOrders.findFirst({ where: and(eq(constructionChangeOrders.id, changeOrderId), eq(constructionChangeOrders.orgId, ctx.orgId)) })
@@ -72,10 +87,21 @@ export async function submitChangeOrderForApproval(
   })
 }
 
-// Called from the e-signature completion path (or manually) once every
-// signer has signed -- marks the change order approved. Rejection is a
-// separate explicit action (a signer declining isn't auto-detected here;
-// see esignature-service.ts's own signer-status tracking for that detail).
+// NOT called from anywhere as of the e-signature wiring fix below --
+// esignature-service.ts's submitSignature() now updates
+// constructionChangeOrders directly instead of calling this (it runs on
+// the public, tokenized-signer-access path with no real ctx.userId this
+// function requires, and importing it would create a circular import with
+// this file's own import of createSignatureRequest from esignature-service.ts).
+// This function used to be reachable via a v1/projexa PATCH `action:
+// "approve"` branch that let ANY caller flip a change order to approved
+// with zero signature ever happening -- that branch was removed as a real
+// integrity bypass, not just dead-coded here. Left in place (not deleted)
+// as a real, correct building block for a possible future *properly
+// audited* manual-override path, should one ever be built -- do not wire
+// a new unaudited caller to this without an explicit elevated-permission
+// gate and a visible "manually overridden" trail distinguishing it from a
+// real signature.
 export async function markChangeOrderApproved(ctx: { orgId: string; userId: string }, changeOrderId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [row] = await db.update(constructionChangeOrders).set({
@@ -86,6 +112,9 @@ export async function markChangeOrderApproved(ctx: { orgId: string; userId: stri
   })
 }
 
+// Same "not called from anywhere" note as markChangeOrderApproved() above
+// -- esignature-service.ts's declineSignature() updates
+// constructionChangeOrders directly instead of calling this now.
 export async function markChangeOrderRejected(ctx: { orgId: string }, changeOrderId: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const [row] = await db.update(constructionChangeOrders).set({ status: "rejected" })

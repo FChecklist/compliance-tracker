@@ -1,17 +1,12 @@
-import { policies, approvalRequests } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
-import { eq } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
-import { logActivity } from "@/lib/audit"
+import { updatePolicy, ServiceError } from "@/lib/services/risk-register-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
 
-// action='edit': bumps the minor version and appends to history, never
-// overwrites. action='request_publish': does NOT publish directly -- it
-// creates a pending approval_requests row; the status only actually flips
-// to 'published' when POST /api/approvals/[id]/decide approves it. This is
-// the real maker-checker demo, same as the mockup.
+// Priority 15: logic extracted verbatim into risk-register-service.ts so
+// PROJEXA's /api/v1/projexa/policies/[id] alias can call the exact same
+// implementation instead of duplicating it.
 export async function PATCH(request: NextRequest, context: RouteContext) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
@@ -23,41 +18,12 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     const { id } = await context.params
     const body = await request.json()
     const { action, note } = body
+    if (action !== "edit" && action !== "request_publish") return NextResponse.json({ error: "action must be 'edit' or 'request_publish'" }, { status: 400 })
 
-    const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
-      const existing = await db.query.policies.findFirst({ where: eq(policies.id, id) })
-      if (!existing) return null
-
-      if (action === "edit") {
-        const [major, minor] = existing.version.replace("v", "").split(".").map(Number)
-        const newVersion = `v${major}.${(minor || 0) + 1}`
-        const history = Array.isArray(existing.history) ? existing.history : []
-        const [updated] = await db.update(policies).set({
-          version: newVersion,
-          history: [{ version: newVersion, date: new Date().toLocaleDateString("en-IN"), editedBy: dbUser.name, note: note || "Updated" }, ...history],
-          updatedAt: new Date(),
-        }).where(eq(policies.id, id)).returning()
-        await logActivity({ tx: db, action: "update", entityType: "Policy", entityId: id, details: `"${existing.title}" updated to ${newVersion}`, orgId, dbUser, request })
-        return updated
-      }
-
-      if (action === "request_publish") {
-        if (existing.status === "published") return existing
-        const [approval] = await db.insert(approvalRequests).values({
-          requestType: "policy_publish", entityType: "Policy", entityId: id,
-          description: `${existing.title} (${existing.version})`, requestedById: dbUser.id, orgId,
-        }).returning()
-        await db.update(policies).set({ status: "under_review", updatedAt: new Date() }).where(eq(policies.id, id))
-        await logActivity({ tx: db, action: "update", entityType: "Policy", entityId: id, details: `Publish requested for "${existing.title}" — approval #${approval.id}`, orgId, dbUser, request })
-        return { ...existing, status: "under_review" }
-      }
-
-      return existing
-    })
-
-    if (!result) return NextResponse.json({ error: "Policy not found" }, { status: 404 })
+    const result = await updatePolicy({ orgId, userId: dbUser.id, dbUser }, id, action, note)
     return NextResponse.json({ id: result.id, version: result.version, status: result.status })
   } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("Policy PATCH error:", error)
     return NextResponse.json({ error: "Failed to update policy" }, { status: 500 })
   }

@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
@@ -9,6 +9,8 @@ import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
 import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/assistant-memory-service";
 import { assertValidDispatchOutput } from "@/lib/dispatch-output-validator";
+import { assertBusinessRulesBeforeExecution } from "@/lib/business-rule-validator";
+import { crossVerifyEmi, crossVerifyGratuity, assertCalculationVerified } from "@/lib/calculation-cross-verification";
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance-service";
 import { logActivity } from "@/lib/audit";
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
@@ -44,6 +46,14 @@ import { resolvePackageVariablesOrThrow, MissingInformationError } from "@/lib/s
 // specific to how task-execution-engine.ts phrases a planning-prompt hint,
 // not a generic UMR query concern.
 import { queryByKeywords, type PlatformAsset } from "@/lib/services/asset-query-service";
+// VCEL Calculation Auditability + Version Control (VERIDIAN Review
+// Framework gap closure, 2026-07-18): invokeEngine() is the thin
+// invoke-and-audit wrapper every engine dispatch now goes through (see
+// engine-invocation.ts's own header); CalculationBreakdown is the optional
+// step-by-step shape an engine's output may carry (breakdown.ts).
+import { invokeEngine } from "@/lib/engines/engine-invocation";
+import type { CalculationBreakdown } from "@/lib/engines/breakdown";
+import type { CalculationMessage } from "@/lib/structured-message";
 
 registerAllGuardrails();
 
@@ -77,6 +87,7 @@ registerAllGuardrails();
  */
 
 export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
+  assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
@@ -369,7 +380,8 @@ function parseNumberList(v: unknown): number[] {
   });
 }
 
-async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engineKey: string, inputs: Record<string, unknown>): Promise<unknown> {
+  assertBusinessRulesBeforeExecution(engineKey, inputs);
   // Zero typed fields -- validates a real GST return period's own confirmed
   // sales invoices, never a human-typed line-items list. Completes the GST
   // Engine category (16/16).
@@ -383,7 +395,7 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     });
     const totalTaxableValue = invoices.reduce((sum, i) => sum + Number(i.taxableValue), 0);
     const totalTaxPaid = invoices.reduce((sum, i) => sum + Number(i.cgstAmount) + Number(i.sgstAmount) + Number(i.igstAmount), 0);
-    const { validateGstReturn } = await import("@/lib/engines/gst-engine");
+    const { validateGstReturn } = await import("@/lib/engines/in/gst-engine");
     return validateGstReturn({
       gstin: period.gstin, period: period.period,
       totalTaxableValue, totalTaxPaid,
@@ -392,6 +404,58 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   }
 
   switch (engineKey) {
+    // VERIDIAN CRM Wave 4 (2026-07-21): structured, zero-LLM record
+    // creation -- the capability-tree leaf (capability-tree-service.ts's
+    // buildCrmQuickCreateNodes()) already collected every field via
+    // inputFields before this ever runs, so there is nothing left for an
+    // AI to interpret. userId (from this function's own new param, Wave 4)
+    // is what makes createdById real instead of a system placeholder.
+    case "crm_create_lead_engine": {
+      const { createLead } = await import("@/lib/services/crm-service");
+      const name = String(inputs.name ?? "").trim();
+      if (!name) throw new Error("name is required");
+      return createLead(
+        { orgId, userId },
+        {
+          name,
+          contactEmail: inputs.contactEmail ? String(inputs.contactEmail) : undefined,
+          contactPhone: inputs.contactPhone ? String(inputs.contactPhone) : undefined,
+          source: inputs.source ? String(inputs.source) : undefined,
+        }
+      );
+    }
+    case "crm_create_opportunity_engine": {
+      const { createOpportunity } = await import("@/lib/services/crm-service");
+      const name = String(inputs.name ?? "").trim();
+      const leadId = String(inputs.leadId ?? "").trim();
+      if (!name) throw new Error("name is required");
+      if (!leadId) throw new Error("leadId is required");
+      return createOpportunity(
+        { orgId, userId },
+        { name, leadId, estimatedValue: inputs.estimatedValue != null ? Number(inputs.estimatedValue) : undefined }
+      );
+    }
+    case "crm_create_activity_engine": {
+      const { createActivity } = await import("@/lib/services/crm-activities-service");
+      const entityType = String(inputs.entityType ?? "");
+      const entityId = String(inputs.entityId ?? "").trim();
+      const activityType = String(inputs.activityType ?? "");
+      const subject = String(inputs.subject ?? "").trim();
+      if (!["lead", "opportunity", "account", "contact"].includes(entityType)) throw new Error("entityType must be lead, opportunity, account, or contact");
+      if (!entityId) throw new Error("entityId is required");
+      if (!["task", "meeting", "call"].includes(activityType)) throw new Error("activityType must be task, meeting, or call");
+      if (!subject) throw new Error("subject is required");
+      return createActivity(
+        { orgId, userId },
+        { entityType: entityType as "lead" | "opportunity" | "account" | "contact", entityId, activityType: activityType as "task" | "meeting" | "call", subject, dueDate: inputs.dueDate ? String(inputs.dueDate) : undefined }
+      );
+    }
+    case "crm_create_campaign_engine": {
+      const { createCampaign } = await import("@/lib/services/crm-campaigns-service");
+      const name = String(inputs.name ?? "").trim();
+      if (!name) throw new Error("name is required");
+      return createCampaign({ orgId, userId }, { name, campaignType: inputs.campaignType ? String(inputs.campaignType) : undefined });
+    }
     // Mathematical Computation Engine (10 of 13 -- see capability-tree-
     // service.ts's comment for the 3 deferred, matrix/model-input ones).
     case "basic_arithmetic_engine": {
@@ -539,57 +603,57 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     case "cgst_engine":
     case "sgst_engine":
     case "igst_engine": {
-      const { splitGst } = await import("@/lib/engines/gst-engine");
+      const { splitGst } = await import("@/lib/engines/in/gst-engine");
       return splitGst(gstSplitInput());
     }
     case "utgst_engine": {
-      const { splitGstWithUtgst } = await import("@/lib/engines/gst-engine");
+      const { splitGstWithUtgst } = await import("@/lib/engines/in/gst-engine");
       return splitGstWithUtgst(gstSplitInput());
     }
     case "gst_calculation_engine": {
-      const { calculateGst } = await import("@/lib/engines/gst-engine");
+      const { calculateGst } = await import("@/lib/engines/in/gst-engine");
       return calculateGst(gstSplitInput());
     }
     case "reverse_charge_engine": {
-      const { computeReverseChargeLiability } = await import("@/lib/engines/gst-engine");
+      const { computeReverseChargeLiability } = await import("@/lib/engines/in/gst-engine");
       return computeReverseChargeLiability({ ...gstSplitInput(), isReverseCharge: truthy(inputs.isReverseCharge) });
     }
     case "hsn_validation_engine": {
-      const { isValidHsnFormat } = await import("@/lib/engines/gst-engine");
+      const { isValidHsnFormat } = await import("@/lib/engines/in/gst-engine");
       return { valid: isValidHsnFormat(String(inputs.hsn ?? "")) };
     }
     case "sac_validation_engine": {
-      const { isValidSacFormat } = await import("@/lib/engines/gst-engine");
+      const { isValidSacFormat } = await import("@/lib/engines/in/gst-engine");
       return { valid: isValidSacFormat(String(inputs.sac ?? "")) };
     }
     case "eway_bill_validation_engine": {
-      const { isValidEwayBillNumberFormat } = await import("@/lib/engines/gst-engine");
+      const { isValidEwayBillNumberFormat } = await import("@/lib/engines/in/gst-engine");
       return { valid: isValidEwayBillNumberFormat(String(inputs.ebn ?? "")) };
     }
     case "gst_exclusive_engine": {
-      const { gstExclusiveToInclusive } = await import("@/lib/engines/gst-engine");
+      const { gstExclusiveToInclusive } = await import("@/lib/engines/in/gst-engine");
       return gstExclusiveToInclusive(Number(inputs.taxableAmount), Number(inputs.gstRatePercent));
     }
     case "gst_inclusive_engine": {
-      const { gstInclusiveToTaxable } = await import("@/lib/engines/gst-engine");
+      const { gstInclusiveToTaxable } = await import("@/lib/engines/in/gst-engine");
       return gstInclusiveToTaxable(Number(inputs.inclusiveAmount), Number(inputs.gstRatePercent));
     }
     case "gst_interest_engine": {
-      const { calculateGstInterest } = await import("@/lib/engines/gst-engine");
+      const { calculateGstInterest } = await import("@/lib/engines/in/gst-engine");
       return { interest: calculateGstInterest({
         taxAmount: Number(inputs.taxAmount), daysLate: Number(inputs.daysLate),
         isExcessItcClaim: inputs.isExcessItcClaim ? truthy(inputs.isExcessItcClaim) : undefined,
       }) };
     }
     case "gst_late_fee_engine": {
-      const { calculateGstLateFee } = await import("@/lib/engines/gst-engine");
+      const { calculateGstLateFee } = await import("@/lib/engines/in/gst-engine");
       return calculateGstLateFee({
         daysLate: Number(inputs.daysLate),
         isNilReturn: inputs.isNilReturn ? truthy(inputs.isNilReturn) : undefined,
       });
     }
     case "itc_calculation_engine": {
-      const { calculateEligibleItc } = await import("@/lib/engines/gst-engine");
+      const { calculateEligibleItc } = await import("@/lib/engines/in/gst-engine");
       return calculateEligibleItc({
         totalItcAvailable: Number(inputs.totalItcAvailable), blockedCreditAmount: Number(inputs.blockedCreditAmount),
         exemptSupplyRatio: inputs.exemptSupplyRatio ? Number(inputs.exemptSupplyRatio) : undefined,
@@ -603,31 +667,31 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   // in income-tax-engine.ts itself, not duplicated here.
   switch (engineKey) {
     case "income_tax_calculator": {
-      const { calculateIncomeTax } = await import("@/lib/engines/income-tax-engine");
+      const { calculateIncomeTax } = await import("@/lib/engines/in/income-tax-engine");
       return calculateIncomeTax(Number(inputs.taxableIncome));
     }
     case "advance_tax_calculator": {
-      const { calculateAdvanceTaxInstallment } = await import("@/lib/engines/income-tax-engine");
+      const { calculateAdvanceTaxInstallment } = await import("@/lib/engines/in/income-tax-engine");
       const quarter = String(inputs.quarter ?? "");
       if (!["q1", "q2", "q3", "q4"].includes(quarter)) throw new Error("quarter must be one of q1, q2, q3, q4");
       return { installmentDue: calculateAdvanceTaxInstallment(Number(inputs.estimatedAnnualTax), quarter as "q1" | "q2" | "q3" | "q4", Number(inputs.alreadyPaid)) };
     }
     case "self_assessment_tax_calculator": {
-      const { calculateSelfAssessmentTax } = await import("@/lib/engines/income-tax-engine");
+      const { calculateSelfAssessmentTax } = await import("@/lib/engines/in/income-tax-engine");
       return { balanceDue: calculateSelfAssessmentTax(Number(inputs.totalTaxLiability), Number(inputs.tdsDeducted), Number(inputs.advanceTaxPaid), inputs.interestDue ? Number(inputs.interestDue) : undefined) };
     }
     case "income_tax_interest_calculator": {
-      const { calculateIncomeTaxInterest } = await import("@/lib/engines/income-tax-engine");
+      const { calculateIncomeTaxInterest } = await import("@/lib/engines/in/income-tax-engine");
       const section = inputs.section ? String(inputs.section) : "234B";
       if (!["234A", "234B", "234C"].includes(section)) throw new Error("section must be one of 234A, 234B, 234C");
       return { interest: calculateIncomeTaxInterest(Number(inputs.unpaidAmount), Number(inputs.monthsDelayed), section as "234A" | "234B" | "234C") };
     }
     case "income_tax_penalty_calculator": {
-      const { calculateLateFilingPenalty } = await import("@/lib/engines/income-tax-engine");
+      const { calculateLateFilingPenalty } = await import("@/lib/engines/in/income-tax-engine");
       return { penalty: calculateLateFilingPenalty(Number(inputs.totalIncome), truthy(inputs.filedAfterDueDate)) };
     }
     case "capital_gains_calculator": {
-      const { calculateCapitalGains } = await import("@/lib/engines/income-tax-engine");
+      const { calculateCapitalGains } = await import("@/lib/engines/in/income-tax-engine");
       const assetType = inputs.assetType ? String(inputs.assetType) : undefined;
       if (assetType && !["equity", "other"].includes(assetType)) throw new Error("assetType must be equity or other");
       return calculateCapitalGains({
@@ -638,15 +702,15 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
       });
     }
     case "indexation_calculator": {
-      const { calculateIndexedCost } = await import("@/lib/engines/income-tax-engine");
+      const { calculateIndexedCost } = await import("@/lib/engines/in/income-tax-engine");
       return { indexedCost: calculateIndexedCost(Number(inputs.originalCost), Number(inputs.costInflationIndexAtPurchase), Number(inputs.costInflationIndexAtSale)) };
     }
     case "mat_calculator": {
-      const { calculateMat } = await import("@/lib/engines/income-tax-engine");
+      const { calculateMat } = await import("@/lib/engines/in/income-tax-engine");
       return calculateMat(Number(inputs.bookProfit), Number(inputs.normalTaxLiability));
     }
     case "amt_calculator": {
-      const { calculateAmt } = await import("@/lib/engines/income-tax-engine");
+      const { calculateAmt } = await import("@/lib/engines/in/income-tax-engine");
       return calculateAmt(Number(inputs.adjustedTotalIncome), Number(inputs.normalTaxLiability));
     }
   }
@@ -657,25 +721,25 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   // rates isolated in tds-engine.ts itself, not duplicated here.
   switch (engineKey) {
     case "tcs_calculator": {
-      const { calculateTcs } = await import("@/lib/engines/tds-engine");
+      const { calculateTcs } = await import("@/lib/engines/in/tds-engine");
       return calculateTcs(Number(inputs.saleValue), Number(inputs.ratePercent), inputs.thresholdAmount ? Number(inputs.thresholdAmount) : undefined);
     }
     case "tds_threshold_checker": {
-      const { isTdsApplicable } = await import("@/lib/engines/tds-engine");
+      const { isTdsApplicable } = await import("@/lib/engines/in/tds-engine");
       return { applicable: isTdsApplicable(String(inputs.section ?? ""), Number(inputs.cumulativePaymentAmount)) };
     }
     case "tds_section_validation_engine": {
-      const { computeTdsForSection } = await import("@/lib/engines/tds-engine");
+      const { computeTdsForSection } = await import("@/lib/engines/in/tds-engine");
       return computeTdsForSection(String(inputs.section ?? ""), Number(inputs.paymentAmount), Number(inputs.cumulativePaymentAmount), inputs.hasPan === undefined ? true : truthy(inputs.hasPan));
     }
     case "tds_interest_engine": {
-      const { calculateTdsInterest } = await import("@/lib/engines/tds-engine");
+      const { calculateTdsInterest } = await import("@/lib/engines/in/tds-engine");
       const delayType = String(inputs.delayType ?? "");
       if (!["late_deduction", "late_deposit"].includes(delayType)) throw new Error("delayType must be late_deduction or late_deposit");
       return { interest: calculateTdsInterest(Number(inputs.tdsAmount), Number(inputs.monthsDelayed), delayType as "late_deduction" | "late_deposit") };
     }
     case "challan_matching_engine": {
-      const { matchTdsChallans } = await import("@/lib/engines/tds-engine");
+      const { matchTdsChallans } = await import("@/lib/engines/in/tds-engine");
       const deductions = inputs.deductions as { id: string; period: string; amount: number }[];
       const challans = inputs.challans as { id: string; period: string; amount: number }[];
       if (!Array.isArray(deductions) || !Array.isArray(challans)) throw new Error("deductions and challans must both be arrays");
@@ -706,10 +770,17 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
       return { closingBalance: computeClosingBalance(Number(inputs.openingBalance), Number(inputs.totalDebits), Number(inputs.totalCredits), truthy(inputs.isDebitNormal)) };
     }
     case "balance_verification_engine": {
-      const { verifyBalancesNetToZero } = await import("@/lib/engines/accounting-engine");
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): the *Explained() variant -- see accounting-engine.ts's
+      // header comment. Safe here specifically because this dispatch's
+      // return value is only ever JSON.stringify'd into a task chat message
+      // (executeEngineDispatch, below) and sanity-checked by
+      // assertValidDispatchOutput (tolerates any nested shape, only rejects
+      // NaN/Infinity numbers) -- adding fields doesn't break either.
+      const { verifyBalancesNetToZeroExplained } = await import("@/lib/engines/accounting-engine");
       const balances = inputs.balances as { accountId: string; debit: number; credit: number }[];
       if (!Array.isArray(balances)) throw new Error("balances must be an array");
-      return verifyBalancesNetToZero(balances);
+      return verifyBalancesNetToZeroExplained(balances);
     }
     case "consolidation_engine": {
       const { consolidateBalances } = await import("@/lib/engines/accounting-engine");
@@ -772,10 +843,13 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   switch (engineKey) {
     case "gratuity_calculator": {
       const { calculateGratuity } = await import("@/lib/engines/payroll-engine");
-      return calculateGratuity({
+      const gratuityInput = {
         lastDrawnMonthlySalary: Number(inputs.lastDrawnMonthlySalary), yearsOfService: Number(inputs.yearsOfService),
         isCoveredUnderAct: inputs.isCoveredUnderAct === undefined ? true : truthy(inputs.isCoveredUnderAct),
-      });
+      };
+      const gratuityResult = calculateGratuity(gratuityInput);
+      assertCalculationVerified(crossVerifyGratuity(gratuityInput, gratuityResult), "Gratuity calculation");
+      return gratuityResult;
     }
     case "eps_calculator": {
       const { calculateEps } = await import("@/lib/engines/payroll-engine");
@@ -991,7 +1065,10 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
     case "loan_schedule_generator":
     case "amortization_engine": {
       const { calculateEmi } = await import("@/lib/engines/banking-engine");
-      return calculateEmi({ principal: Number(inputs.principal), annualRatePercent: Number(inputs.annualRatePercent), tenureMonths: Number(inputs.tenureMonths) });
+      const emiInput = { principal: Number(inputs.principal), annualRatePercent: Number(inputs.annualRatePercent), tenureMonths: Number(inputs.tenureMonths) };
+      const emiResult = calculateEmi(emiInput);
+      assertCalculationVerified(crossVerifyEmi(emiInput, emiResult), "EMI/amortization calculation");
+      return emiResult;
     }
     case "banking_interest_calculator": {
       const { calculateBankingInterest } = await import("@/lib/engines/banking-engine");
@@ -1208,10 +1285,13 @@ async function dispatchEngine(db: TenantDb, orgId: string, engineKey: string, in
   // the registry's own recommended default, and IQR) via a `method` input.
   switch (engineKey) {
     case "trend_analysis_engine": {
-      const { analyzeTrend } = await import("@/lib/engines/analytics-engine");
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): same *Explained() wiring rationale as
+      // balance_verification_engine above.
+      const { analyzeTrendExplained } = await import("@/lib/engines/analytics-engine");
       const values = inputs.values as number[];
       if (!Array.isArray(values)) throw new Error("values must be an array of numbers");
-      return analyzeTrend(values.map(Number));
+      return analyzeTrendExplained(values.map(Number));
     }
     case "analytics_variance_engine": {
       const { analyzeAnalyticsVariance } = await import("@/lib/engines/analytics-engine");
@@ -1740,12 +1820,52 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
   });
 }
 
+// Calculation Explainability (VERIDIAN Review Framework gap closure,
+// 2026-07-18): true only for the representative statutory engines that
+// were given a real `breakdown` field (income tax, GST split, gratuity,
+// TDS -- see breakdown.ts's own header for which). Every other engine's
+// output is untouched by this check and falls through to the pre-existing
+// plain "Result: {...}" chat message, exactly as before this gap closure.
+function extractBreakdown(output: unknown): CalculationBreakdown | null {
+  if (!output || typeof output !== "object" || !("breakdown" in output)) return null;
+  const breakdown = (output as { breakdown?: unknown }).breakdown;
+  if (!breakdown || typeof breakdown !== "object" || !Array.isArray((breakdown as { steps?: unknown }).steps)) return null;
+  return breakdown as CalculationBreakdown;
+}
+
+// camelCase engine-result key -> "Title Case" label, e.g. "grossTax" ->
+// "Gross Tax". Pure string formatting, no engine-specific knowledge.
+function humanizeResultKey(key: string): string {
+  const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 async function executeEngineDispatch(orgId: string, userId: string, taskId: string, engineKey: string, engineInputs: Record<string, unknown>): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     try {
-      const output = await dispatchEngine(db, orgId, engineKey, engineInputs);
+      const output = await invokeEngine(
+        db, { orgId, userId, taskId }, engineKey,
+        (inputs: Record<string, unknown>) => dispatchEngine(db, orgId, userId, engineKey, inputs),
+        engineInputs
+      );
       assertValidDispatchOutput(output);
-      await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
+      const breakdown = extractBreakdown(output);
+      if (breakdown) {
+        const engineRow = await db.query.computationEngines.findFirst({
+          where: eq(computationEngines.engineKey, engineKey),
+          columns: { name: true, engineVersion: true },
+        });
+        const result = Object.entries(output as Record<string, unknown>)
+          .filter(([key]) => key !== "breakdown")
+          .map(([key, value]) => ({ label: humanizeResultKey(key), value: String(value) }));
+        const structured: CalculationMessage = {
+          type: "calculation", engineName: engineRow?.name ?? engineKey, engineVersion: engineRow?.engineVersion,
+          result, steps: breakdown.steps,
+        };
+        await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: JSON.stringify(structured) });
+      } else {
+        await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
+      }
       await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
@@ -1881,7 +2001,7 @@ async function executePackageDispatch(
       let effectiveConfig = modelConfig;
       const callPackage = () => callLLMJson<{ result: string }>(
         effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
-        systemPrompt, userMessage, { temperature: 0.1, maxTokens: 500 }, effectiveConfig.fallback
+        systemPrompt, userMessage, { temperature: 0.1, maxTokens: 500, enablePromptCache: true }, effectiveConfig.fallback
       );
       let { data, usage } = await callPackage();
 
@@ -1895,7 +2015,7 @@ async function executePackageDispatch(
       if (!modelConfig.isCustomerConfigured) {
         const lowConfidence = detectLowConfidenceResponse(data.result ?? "");
         if (lowConfidence.detected) {
-          const escalated = escalatedPlatformConfig();
+          const escalated = await escalatedPlatformConfig();
           if (escalated) {
             effectiveConfig = escalated;
             ({ data, usage } = await callPackage());
@@ -2237,7 +2357,7 @@ export async function executeTask(
       // above (the PACKAGE_AVAILABLE path), which runs the floor tier by
       // design and only escalates reactively if a package execution itself
       // hedges mid-flight.
-      const escalated = escalatedPlatformConfig();
+      const escalated = await escalatedPlatformConfig();
       if (escalated) {
         effectiveConfig = escalated;
         escalation = {
@@ -2256,9 +2376,19 @@ export async function executeTask(
     // TS's narrowing can't see that through the nested retry try/catch.
     let result!: PlanningResult;
     let usage!: Awaited<ReturnType<typeof callLLMJson<PlanningResult>>>["usage"];
+    // TASK 1.2 (2026-07-20): systemPrompt here is a DB-stored template
+    // (resolvePromptTemplate("task_execution.planning_system")) with only
+    // {{PURPOSE_CLAUSE}} substituted -- the exact "resolved+substituted
+    // template IS the static prefix boundary" shape callAnthropic's own
+    // header describes as the ideal caching case, and this is the real
+    // "AI Dev Team dispatch re-sends its full system prompt uncached"
+    // call site the Owner's finding named. enablePromptCache is a no-op
+    // for providers that don't support this shape (GLM/undocumented,
+    // most non-Anthropic OpenRouter models) -- see callOpenAICompatible's
+    // own header for exactly which providers this currently helps.
     const callPlanning = () => callLLMJson<PlanningResult>(
       effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage,
-      { temperature: 0.3, maxTokens: 800 }, effectiveConfig.fallback
+      { temperature: 0.3, maxTokens: 800, enablePromptCache: true }, effectiveConfig.fallback
     );
     try {
       ({ data: result, usage } = await callPlanning());
@@ -2306,7 +2436,7 @@ export async function executeTask(
     if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
       const lowConfidence = detectLowConfidenceResponse(result.summary ?? "");
       if (lowConfidence.detected) {
-        const escalated = escalatedPlatformConfig();
+        const escalated = await escalatedPlatformConfig();
         if (escalated) {
           const retried = await callLLMJson<{ summary: string; steps: { agentName: string | null; description: string }[] }>(
             escalated.provider, escalated.model, escalated.apiKey, systemPrompt, userMessage,

@@ -1,24 +1,13 @@
 import type { Metadata } from "next";
-import { Inter, DM_Serif_Display } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import QueryProvider from "@/components/providers/QueryProvider";
+import { NextIntlClientProvider } from "next-intl";
+import { getLocale, getMessages } from "next-intl/server";
+import { veridianHeadingFont, veridianSansFont } from "@fchecklist/veridian-ui-kit/tokens/fonts";
 import "./globals.css";
-
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const dmSerifDisplay = DM_Serif_Display({
-  variable: "--font-dm-serif-display",
-  weight: "400",
-  subsets: ["latin"],
-  display: "swap",
-});
 
 export const metadata: Metadata = {
   // Repositioned 2026-07-07 (Wave 112): the site root is now VERIDIAN
@@ -57,23 +46,33 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // PLATFORM-01 Wave 2 (Workstream 5): resolves via src/i18n/request.ts's
+  // cookie-based lookup (no [locale] URL segment in this app). Root-level
+  // provider so every "use client" component below it (AppSidebar,
+  // login/signup forms, etc.) can call useTranslations()/useLocale()
+  // without each needing its own provider.
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" suppressHydrationWarning>
-      <body className={`${inter.variable} ${dmSerifDisplay.variable} font-sans antialiased`}>
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem
-          disableTransitionOnChange
-        >
-          <QueryProvider>{children}</QueryProvider>
-        </ThemeProvider>
-        <Toaster position="top-right" richColors />
+    <html lang={locale} suppressHydrationWarning>
+      <body className={`${veridianSansFont.variable} ${veridianHeadingFont.variable} font-sans antialiased`}>
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem
+            disableTransitionOnChange
+          >
+            <QueryProvider>{children}</QueryProvider>
+          </ThemeProvider>
+          <Toaster position="top-right" richColors />
+        </NextIntlClientProvider>
         <Analytics />
         <SpeedInsights />
       </body>

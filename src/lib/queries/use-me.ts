@@ -7,6 +7,8 @@ export type MeResponse = {
   name: string | null;
   email: string | null;
   role: string | null;
+  // Priority 18b (Owner directive 2026-07-15): 'stage_0' | null.
+  accountStage: string | null;
   orgId: string | null;
   orgName: string | null;
   orgSlug: string | null;
@@ -16,9 +18,20 @@ export type MeResponse = {
   pmsEnabled: boolean;
   veriChatV2Enabled: boolean;
   firmEnabled: boolean;
-  pageAgentEnabled: boolean;
   orgPlan: string;
   trialEndsAt: string | null;
+  // Wave B (BYOB white-label branding): always already-defaulted server-side
+  // (org-branding-service.ts's resolveBranding()) -- orgLogoUrl is null only
+  // when the org hasn't set a custom logo (render the default /logo-mark.svg
+  // in that case), the two colors are never null for an org with a real
+  // orgId (they fall back to VERIDIAN AI's own default hex values).
+  orgLogoUrl: string | null;
+  orgBrandPrimaryColor: string | null;
+  orgBrandAccentColor: string | null;
+  // Wave 5 (CRM+PROJEXA-merge plan): the product name to show in the app
+  // chrome, resolved from the org's primaryProductBranchId. Always a real
+  // string (defaults to "VERIDIAN AI OS" server-side), never null.
+  brandName: string;
 };
 
 async function fetchMe(): Promise<MeResponse> {

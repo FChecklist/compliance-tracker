@@ -8,15 +8,16 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, sql, desc, lte } from "drizzle-orm"
+import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { and, eq, sql, desc, lte, gte, like } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { fetchLiveRates, buildLiveRatePairs, type SkippedCurrency } from "@/lib/exchange-rate-feed-client"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -172,6 +173,39 @@ export async function listJournalEntries(ctx: { orgId: string }, filters: { stat
   })
 }
 
+export type JournalEntryListFilters = { status?: string; fromDate?: string; toDate?: string; search?: string; page?: number; limit?: number }
+
+/**
+ * Priority 15 (PROJEXA Accounting depth, 500-project scale): a real, paged
+ * variant of listJournalEntries above -- a firm at this scale will have
+ * thousands of GL entries, so a flat unpaginated list isn't usable. Kept
+ * additive alongside listJournalEntries (not a breaking rewrite of it) so
+ * every existing caller of the plain array-returning function is
+ * unaffected; PROJEXA's alias route calls this one instead.
+ */
+export async function listJournalEntriesPaged(ctx: { orgId: string }, filters: JournalEntryListFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 25))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpJournalEntries.orgId, ctx.orgId)]
+    if (filters.status) conditions.push(eq(erpJournalEntries.status, filters.status as typeof erpJournalEntries.$inferSelect.status))
+    if (filters.fromDate) conditions.push(gte(erpJournalEntries.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpJournalEntries.postingDate, filters.toDate))
+    if (filters.search) conditions.push(like(erpJournalEntries.userRemark, `%${filters.search}%`))
+    const where = and(...conditions)
+
+    const [entries, [{ count }]] = await Promise.all([
+      db.query.erpJournalEntries.findMany({ where, orderBy: (t, { desc }) => desc(t.postingDate), limit, offset }),
+      db.select({ count: sql<number>`count(*)::int` }).from(erpJournalEntries).where(where),
+    ])
+
+    return { entries, total: count, page, limit, totalPages: Math.ceil(count / limit) }
+  })
+}
+
 export async function getJournalEntry(ctx: { orgId: string }, entryId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -182,7 +216,20 @@ export async function getJournalEntry(ctx: { orgId: string }, entryId: string) {
   })
 }
 
-export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInput) {
+// Priority 15 (PROJEXA GL alias): same dbUser-or-apiKey actor union
+// erp-invoicing-service.ts's createSalesInvoice adopted in Priority 13, for
+// the identical reason -- PROJEXA's callVeridian() Bearer-token path never
+// carries a session cookie, so requireAuthOrApiKey's ctx.dbUser is always
+// null on that route. Every other ErpContext-typed function in this file
+// (submitJournalEntry, listAccounts, etc.) keeps requiring a real dbUser
+// unchanged -- this is the one write PROJEXA's General Ledger view
+// legitimately needs (draft creation), matching the "basic create where it
+// makes sense" scope for this wave. Submitting into the GL (which starts an
+// approval workflow) is left to VERIDIAN's own UI for now.
+export async function createJournalEntry(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  input: JournalEntryInput
+) {
   await requireErpEnabled(ctx.orgId)
   if (!input.postingDate) throw new ServiceError("postingDate is required", 400)
   const { totalDebit, totalCredit } = validateBalanced(input.lines)
@@ -239,8 +286,47 @@ export async function createJournalEntry(ctx: ErpContext, input: JournalEntryInp
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_journal_entry.created", entityType: "erp_journal_entry", entityId: entry.id }
+    )
     return entry
+  })
+}
+
+/**
+ * Automatic Rollback & Recovery (VERIDIAN Review Framework gap closure,
+ * 2026-07-18): compensating action for the "create a draft JE, THEN
+ * separately mark the source document done" pattern used by
+ * erp-fixed-assets-service.ts's runDepreciationBatch/finalizeAssetDisposal
+ * (and any future caller with the same shape). createJournalEntry commits
+ * its own transaction independently -- if the caller's own follow-up write
+ * then throws, the JE is already posted but the source row still reads
+ * "pending", so a naive retry would post a SECOND journal entry for the same
+ * event. This voids the orphaned one so a retry starts clean.
+ *
+ * Never deletes the row (financial records are never physically removed in
+ * this codebase) -- moves it to the existing 'cancelled' status
+ * (erpJournalEntryStatusEnum already had this value; nothing wrote it until
+ * now) and appends the reason to userRemark, so the void itself leaves a
+ * readable trail. Only ever acts on an entry still in 'draft': if it was
+ * somehow already submitted in the gap between the two writes (a human
+ * manually submitting it from the Journal Entries UI, the one known,
+ * documented edge case this can't close), this refuses to touch it rather
+ * than cancelling a live submitted entry.
+ */
+export async function voidDraftJournalEntry(ctx: { orgId: string; userId: string; dbUser: typeof users.$inferSelect }, journalEntryId: string, reason: string): Promise<{ voided: boolean }> {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const entry = await db.query.erpJournalEntries.findFirst({ where: and(eq(erpJournalEntries.id, journalEntryId), eq(erpJournalEntries.orgId, ctx.orgId)) })
+    if (!entry || entry.status !== "draft") return { voided: false }
+
+    await db.update(erpJournalEntries).set({
+      status: "cancelled",
+      userRemark: `${entry.userRemark ?? ""} [Auto-voided: ${reason}]`.trim(),
+    }).where(eq(erpJournalEntries.id, journalEntryId))
+    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_journal_entry.voided_compensating", entityType: "erp_journal_entry", entityId: journalEntryId, details: reason })
+    return { voided: true }
   })
 }
 
@@ -362,6 +448,107 @@ export async function getLatestExchangeRate(ctx: { orgId: string }, fromCurrency
       orderBy: (t, { desc }) => desc(t.rateDate),
     })
   })
+}
+
+export type LiveRefreshResult = { baseCode: string; rateDate: string; refreshed: number; skipped: SkippedCurrency[] }
+
+// Shared core for both the single-org on-demand refresh and the all-orgs
+// cron sweep below. Idempotent per (orgId, rateDate): re-running on the same
+// day deletes and re-inserts only that day's source='live' rows (see
+// drizzle/0225_erp_exchange_rates_source.sql), so a manual on-demand refresh
+// and the nightly cron never duplicate or conflict with each other, and
+// neither ever touches a 'manual' rate an admin typed in by hand.
+async function refreshOrgLiveRates(
+  tdb: TenantDb,
+  orgId: string,
+  rateDate: string,
+  dbUser?: typeof users.$inferSelect
+): Promise<LiveRefreshResult> {
+  const currencies = await tdb.query.erpCurrencies.findMany({ where: eq(erpCurrencies.orgId, orgId) })
+  const base = currencies.find((c) => c.isBaseCurrency)
+  if (!base) throw new ServiceError("No base currency is configured for this organization yet", 400)
+
+  const others = currencies.filter((c) => c.id !== base.id)
+  if (others.length === 0) {
+    return { baseCode: base.code, rateDate, refreshed: 0, skipped: [] }
+  }
+
+  const live = await fetchLiveRates(base.code)
+  const { pairs, skipped } = buildLiveRatePairs(base, others, live, rateDate)
+
+  await tdb
+    .delete(erpExchangeRates)
+    .where(and(eq(erpExchangeRates.orgId, orgId), eq(erpExchangeRates.rateDate, rateDate), eq(erpExchangeRates.source, "live")))
+
+  if (pairs.length > 0) {
+    await tdb.insert(erpExchangeRates).values(pairs.map((p) => ({ orgId, ...p, source: "live" })))
+  }
+
+  if (dbUser) {
+    await logActivity({
+      tx: tdb,
+      orgId,
+      dbUser,
+      action: "erp_exchange_rate.live_refresh",
+      entityType: "erp_exchange_rate",
+      entityId: base.id,
+      details: `Refreshed ${pairs.length} live rate(s) against base ${base.code} for ${rateDate}; skipped ${skipped.length} currency(ies) not covered by the feed`,
+    })
+  }
+
+  return { baseCode: base.code, rateDate, refreshed: pairs.length, skipped }
+}
+
+/**
+ * On-demand live refresh for a single org (POST /api/erp/exchange-rates/refresh).
+ * Pulls open.er-api.com's latest rates for the org's configured base currency
+ * and writes both directions (base<->other) for every other currency the org
+ * has set up, tagged source='live' so they're distinguishable from rates an
+ * admin entered by hand via createExchangeRate.
+ */
+export async function refreshLiveExchangeRates(ctx: ErpContext): Promise<LiveRefreshResult> {
+  await requireErpEnabled(ctx.orgId)
+  const rateDate = new Date().toISOString().slice(0, 10)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (tdb) =>
+    refreshOrgLiveRates(tdb, ctx.orgId, rateDate, ctx.dbUser)
+  )
+}
+
+/**
+ * Cron entry point (/api/internal/exchange-rate-refresh/run): refreshes live
+ * rates for every org that has configured a base currency, one at a time so
+ * one org's feed/base-currency failure never blocks the rest. No per-row
+ * dbUser attribution here -- same reasoning as evaluateAllMetricAlertRules()
+ * in metric-alert-service.ts: a scheduled job has no single request-scoped
+ * user to attribute the write to, and fabricating one would be worse than
+ * recording none.
+ */
+export async function refreshLiveExchangeRatesForAllOrgs(): Promise<{
+  orgsRefreshed: number
+  orgsFailed: number
+  totalRatesRefreshed: number
+}> {
+  const rateDate = new Date().toISOString().slice(0, 10)
+  const baseCurrencies = await db.query.erpCurrencies.findMany({ where: eq(erpCurrencies.isBaseCurrency, true) })
+
+  let orgsRefreshed = 0
+  let orgsFailed = 0
+  let totalRatesRefreshed = 0
+
+  for (const base of baseCurrencies) {
+    try {
+      const result = await withTenantContext({ orgId: base.orgId }, (tdb) =>
+        refreshOrgLiveRates(tdb, base.orgId, rateDate)
+      )
+      orgsRefreshed++
+      totalRatesRefreshed += result.refreshed
+    } catch (err) {
+      orgsFailed++
+      console.error(`Live exchange-rate refresh failed for org ${base.orgId}:`, err)
+    }
+  }
+
+  return { orgsRefreshed, orgsFailed, totalRatesRefreshed }
 }
 
 // ============================================================

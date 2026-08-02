@@ -3,7 +3,8 @@ import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { customerModelConfig, orchestraLayers } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { and, eq, isNull } from "drizzle-orm";
-import { encryptApiKey } from "@/lib/ai-config-crypto";
+import { encryptApiKey, decryptApiKey } from "@/lib/ai-config-crypto";
+import { testProviderConnection } from "@/lib/orchestra-model-resolver";
 
 const VALID_PROVIDERS = ["groq", "openai", "anthropic", "google"] as const;
 type Provider = (typeof VALID_PROVIDERS)[number];
@@ -74,20 +75,54 @@ export async function POST(request: NextRequest) {
     if (!modelName || typeof modelName !== "string" || !modelName.trim()) {
       return NextResponse.json({ error: "modelName is required" }, { status: 400 });
     }
+    const trimmedModel = modelName.trim();
 
     const layerId = orchestraLayerId ?? null;
 
-    const result = await withTenantContext({ orgId }, async (db) => {
-      const existing = await db.query.customerModelConfig.findFirst({
+    // Review Framework remediation, Wave B (BYO-AI-model): read the existing
+    // row first, OUTSIDE any write transaction -- this route previously did
+    // its lookup+write in one withTenantContext transaction, which was fine
+    // when the callback was pure DB work, but the real connection test added
+    // below is a network call to a third-party provider and must not hold a
+    // pooled Postgres transaction open for however long that takes (up to
+    // ~1.2s of callLLM's own retry backoff on a transient failure).
+    const existing = await withTenantContext({ orgId }, (db) =>
+      db.query.customerModelConfig.findFirst({
         where: and(
           eq(customerModelConfig.orgId, orgId),
           layerId ? eq(customerModelConfig.orchestraLayerId, layerId) : isNull(customerModelConfig.orchestraLayerId)
         ),
-      });
+      })
+    );
 
+    // Real connectivity check BEFORE persisting anything -- previously this
+    // route only validated shape (provider in the enum, modelName
+    // non-empty), so a bad/expired key or a misspelled model name saved
+    // silently and only surfaced later as a confusing failure deep inside
+    // some unrelated Orchestra Layer call. Tests with whichever key will
+    // actually end up stored: the newly supplied one, or -- if the admin is
+    // only changing modelName/isActive/sharedPoolEligible and leaving the
+    // key field blank, which the UI documents as "leave blank to keep
+    // existing key" -- the existing encrypted key, decrypted here and never
+    // logged, never returned to the client. A brand-new config with no key
+    // supplied and nothing to reuse is still allowed to save (matches this
+    // route's pre-existing behavior of letting an admin fill in
+    // provider/model first and add the key in a follow-up edit) -- such a
+    // row is inert either way, since resolveModelConfig()'s own gate
+    // (`customerConfig?.encryptedApiKey && customerConfig.modelName`) skips
+    // any row missing a key and falls through to the platform default.
+    const keyToTest = apiKey || (existing?.encryptedApiKey ? await decryptApiKey(existing.encryptedApiKey) : undefined);
+    if (keyToTest) {
+      const testResult = await testProviderConnection(provider, trimmedModel, keyToTest);
+      if (!testResult.ok) {
+        return NextResponse.json({ error: `Connection test failed -- ${testResult.error}` }, { status: 400 });
+      }
+    }
+
+    const result = await withTenantContext({ orgId }, async (db) => {
       const patch: Partial<typeof customerModelConfig.$inferInsert> = {
         provider,
-        modelName: modelName.trim(),
+        modelName: trimmedModel,
         updatedAt: new Date(),
       };
       if (isActive !== undefined) patch.isActive = isActive;
@@ -110,7 +145,7 @@ export async function POST(request: NextRequest) {
           isActive: isActive ?? true,
           sharedPoolEligible: sharedPoolEligible ?? false,
           provider,
-          modelName: modelName.trim(),
+          modelName: trimmedModel,
           encryptedApiKey: patch.encryptedApiKey,
         })
         .returning();

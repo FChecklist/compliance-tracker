@@ -1,27 +1,21 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+/* @fchecklist/veridian-ui-kit is the shared VERIDIAN AI OS design-token
+   source (colors/fonts/chain-selector-chip/nav-item primitives) -- this repo
+   is the reference implementation those tokens were extracted FROM (see
+   veridian-scope-selector-in-home.html), so this import must stay
+   byte-identical to what every other consuming product (PROJEXA, future
+   FChecklist products) gets. Do NOT re-add a locally-shadowed copy of any
+   --color-ct--prefixed color token, or of --font-heading / --font-sans,
+   below -- that is exactly the per-product drift this package exists to end.
+   Genuinely new tokens this repo needs that aren't shell-generic (semantic
+   status colors, pendency colors, shadcn mappings) stay local, appended in
+   the second @theme block below. */
+@import "@fchecklist/veridian-ui-kit/tokens/globals.css";
 
 @custom-variant dark (&:is(.dark *));
 
-@font-face {
-  font-family: 'DM Serif Display';
-  font-style: normal;
-  font-weight: 400;
-  font-display: swap;
-  src: url('https://fonts.gstatic.com/s/dmserifdisplay/v15/rnCu-xXAiLp67Rmxx8sOu8VH.woff2') format('woff2');
-}
-
 @theme inline {
-  /* ─── Brand Colors ─── */
-  --color-ct-cream: #FFFDF9;
-  --color-ct-navy: #1C2B3A;
-  --color-ct-navy2: #2D3F52;
-  --color-ct-navy3: #3D5269;
-  --color-ct-saffron: #F5820A;
-  --color-ct-saffron-hover: #E0730A;
-  --color-ct-teal: #0E7C6E;
-  --color-ct-teal-hover: #0A6B5E;
-
   /* ─── Semantic Colors ─── */
   --color-ct-success: #16A34A;
   --color-ct-success-light: #F0FDF4;
@@ -38,13 +32,9 @@
   --color-ct-draft: #7C3AED;
   --color-ct-draft-light: #F5F3FF;
 
-  /* ─── Neutral Colors ─── */
-  --color-ct-cloud: #F0F4F8;
-  --color-ct-cloud2: #E8EEF5;
-  --color-ct-slate: #4A5568;
-  --color-ct-muted: #718096;
-  --color-ct-border: #E2E8F0;
-  --color-ct-border2: #CBD5E1;
+  /* ─── Neutral Colors ─── (cloud/cloud2/slate/muted/border/border2 come from
+     the veridian-ui-kit import above; only the 2 tokens it doesn't define
+     stay here) */
   --color-ct-white: #FFFFFF;
   --color-ct-row-hover: #FAFBFF;
 
@@ -68,8 +58,10 @@
   /* ─── shadcn/ui Mappings ─── */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-heading: 'DM Serif Display', Georgia, serif;
-  --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
+  /* --font-heading/--font-sans come from the veridian-ui-kit import above
+     (var(--veridian-font-heading, "DM Serif Display") / var(--veridian-font-sans, "Inter"))
+     -- layout.tsx supplies the actual next/font instances via
+     veridianHeadingFont.variable/veridianSansFont.variable. */
   --font-mono: var(--font-geist-mono);
 
   --color-sidebar-ring: var(--sidebar-ring);
@@ -148,6 +140,24 @@
   --sidebar-accent-foreground: #1C2B3A;
   --sidebar-border: #E2E8F0;
   --sidebar-ring: #F5820A;
+
+  /* Wave B (VERIDIAN Review Framework remediation, "BYOB white-label
+     branding", 2026-07-17): default per-tenant brand values, shadowed at
+     runtime by AppShell.tsx's inline style with the org's own configured
+     colors (org-branding-service.ts's resolveBranding(), via /api/me). A
+     deliberately NEW, separate pair of custom properties -- not an attempt
+     to make --color-ct-navy/--color-ct-saffron above runtime-overridable,
+     which Tailwind v4's `@theme inline` inlines as literal values into
+     every utility class at build time (bg-ct-saffron etc. would NOT pick up
+     a runtime override of --color-ct-saffron). Consumers that want
+     per-tenant theming reference these two vars directly (see
+     AppSidebar.tsx's logo wordmark/accent underline for the current usage)
+     rather than the ct-* Tailwind tokens, which stay the fixed VERIDIAN AI
+     defaults everywhere else in the app -- see this wave's PR description
+     for why a full re-theme of every ct-saffron usage was deliberately out
+     of scope ("at minimum the sidebar logo and a CSS custom property"). */
+  --org-brand-primary: #1C2B3A;
+  --org-brand-accent: #F5820A;
 }
 
 @layer base {
@@ -222,4 +232,85 @@
 }
 .animate-vd-orbit-rev {
   animation: vd-orbit 90s linear infinite reverse;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Print Stylesheet
+   ─────────────────────────────────────────────────────────────────────────
+   Covers the authenticated app shell (src/components/AppShell.tsx already
+   marks the persistent chrome -- sidebar, topbar, health ribbon, onboarding
+   checklist, trial banner, VERI Chat composer/panel, global chat dock, help
+   widget, task visibility panel -- with `print:hidden`/`print:*` utility
+   classes; the rules below handle the rest: page setup, and generic
+   content-area rules so anything rendered inside AppShell's `{children}`
+   slot -- e.g. Reports (`/reports`), ERP Invoicing (`/erp/invoicing`), and
+   any other data table/card/detail view -- prints cleanly without every
+   individual page needing its own print CSS.
+
+   Two escape-hatch utilities for page-specific fine-tuning beyond the
+   chrome-vs-content split AppShell already does:
+     .no-print    -- hide an in-page element only when printing (e.g. a
+                     page's own "Filter"/"Bulk actions" toolbar, action-menu
+                     buttons inside a table row).
+     .print-only  -- show an element only when printing (e.g. a "Printed
+                     from VERIDIAN AI on <date>" footer added to a specific
+                     report/invoice template).
+   ───────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  /* Respect background colors/shadows only where they're genuinely
+     content-carrying (status badges, chart colors); everything else -- most
+     saffron/teal chrome accents -- is cosmetic and just burns ink/toner on a
+     printed page, so we don't force color-adjust globally. Authors who need
+     a specific colored element to survive printing (e.g. a status badge)
+     should add `print:[print-color-adjust:exact]` on that element directly
+     rather than relying on a blanket override here. */
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Avoid splitting a table row, card, or heading across a page boundary --
+     the single highest-impact rule for "prints cleanly" on data-heavy
+     screens like Reports and Invoicing. */
+  table, tr, thead, tbody {
+    page-break-inside: avoid;
+  }
+  h1, h2, h3, h4, .font-heading {
+    page-break-after: avoid;
+  }
+  [data-slot="card"] {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid;
+  }
+
+  /* Scrollable containers throughout the app (data tables, panels) clip
+     content to a fixed viewport height on screen via overflow-auto/hidden --
+     on paper there's no viewport to scroll, so let content flow across
+     pages instead of getting cut off after one screen's worth. */
+  .overflow-auto, .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+
+.print-only {
+  display: none;
 }

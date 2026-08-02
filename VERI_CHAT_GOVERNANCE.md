@@ -1,5 +1,7 @@
 # VERI Chat Governance
 
+> **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict. This document remains as detailed narrative evidence and reasoning -- read it for full context and worked examples, not to determine current status.
+
 **Version 1.0 -- 2026-07-11. VERI's identity, its relationship to VERI Chat, and the VERI-Assisted Communication Protocol.**
 
 Adopted from "VERI AI and VERI Chat.docx". Same discipline as sibling documents: **[ENFORCED]**/**[PARTIALLY ENFORCED]**/**[POLICY ONLY]**/**[NOT APPLICABLE YET]**, cited by file:line.

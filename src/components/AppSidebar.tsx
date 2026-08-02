@@ -2,9 +2,12 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
+import { AppSidebar as SharedAppSidebar, type NavItem as SharedNavItem, type NavSection as SharedNavSection } from "@fchecklist/veridian-ui-kit/shell";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import {
   LayoutDashboard,
+  Mic,
   AlertTriangle,
   ClipboardList,
   FileCheck,
@@ -63,6 +66,21 @@ import {
   FlaskConical,
   Gem,
   Wrench,
+  Boxes,
+  CalendarCheck,
+  GraduationCap,
+  Copy,
+  Activity,
+  LayoutPanelLeft,
+  Palette,
+  Sofa,
+  Gauge,
+  NotebookPen,
+  FileCheck2,
+  ListChecks,
+  Ruler,
+  HardHat,
+  CircleDollarSign,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -82,13 +100,22 @@ type NavSection = {
   items: NavItem[];
 };
 
-function getNavSections(overdueCount: number, docCount: number, noticeCount: number, accountType: string, pmsEnabled: boolean, firmEnabled: boolean): NavSection[] {
+// PLATFORM-01 Wave 2 (Workstream 5, next-intl reference pattern): every
+// label below now resolves through `t()` (namespaced to "Nav", messages/
+// {locale}.json) instead of a hardcoded English string -- `t` is threaded
+// in as a parameter rather than called via a hook here because this is a
+// plain function, not a component. Section titles stay keyed to their
+// natural-case translated string (e.g. "Overview", not "OVERVIEW") -- the
+// visual all-caps look is a CSS `uppercase` transform already applied at
+// the render site below, not baked into the string, so translated
+// (non-Latin-cased) locales like Hindi aren't force-uppercased.
+function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: number, docCount: number, noticeCount: number, accountType: string, pmsEnabled: boolean, firmEnabled: boolean): NavSection[] {
   return [
     {
-      title: "OVERVIEW",
+      title: t("sections.overview.title"),
       items: [
         {
-          label: "Pendency View",
+          label: t("sections.overview.items.pendencyView"),
           href: "/compliance?status=overdue",
           icon: AlertTriangle,
           badge: overdueCount > 0 ? { count: overdueCount, color: "bg-red-500 text-white" } : undefined,
@@ -97,7 +124,7 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         // one client (CA firm / legal firm / consultant); a plain 'company'
         // account has one auto-backfilled "Self" client.
         ...(accountType !== "company"
-          ? [{ label: "VERI CUSTOMERS AI", href: "/clients", icon: Building2 }]
+          ? [{ label: t("sections.overview.items.veriCustomersAi"), href: "/clients", icon: Building2 }]
           : []),
       ],
     },
@@ -111,9 +138,9 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     // route and icon as before -- no duplicate nav entry (removed from
     // TOOLS below).
     {
-      title: "REPORTS & ANALYSIS",
+      title: t("sections.reportsAnalysis.title"),
       items: [
-        { label: "Reports & Analysis", href: "/reports", icon: BarChart3 },
+        { label: t("sections.reportsAnalysis.items.reportsAnalysis"), href: "/reports", icon: BarChart3 },
       ],
     },
     // VERI Treasure (Wave 113): the 'veri_reward' product branch, free and
@@ -123,9 +150,9 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     // branch has no disable-toggle UI built and defaults to enabled for
     // every org (existing + new) at signup time.
     {
-      title: "REWARDS",
+      title: t("sections.rewards.title"),
       items: [
-        { label: "VERI TREASURE", href: "/rewards", icon: Gem },
+        { label: t("sections.rewards.items.veriTreasure"), href: "/rewards", icon: Gem },
       ],
     },
     // Wave 105 (demo UX feedback #12): CRM was previously hidden for plain
@@ -133,24 +160,72 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     // full business system, not a client-firm tool -- every company runs
     // sales/CRM. Now surfaced for everyone as its own department.
     {
-      title: "SALES & CRM",
+      title: t("sections.salesCrm.title"),
       items: [
-        { label: "VERI CRM AI", href: "/crm", icon: TrendingUp },
+        { label: t("sections.salesCrm.items.veriCrmAi"), href: "/crm", icon: TrendingUp },
+        // VERIDIAN Review Framework Wave B (2026-07-17): the new crm_accounts/
+        // crm_contacts surface -- company-level account records with a
+        // contacts roster underneath, sibling to the existing Leads/
+        // Opportunities tabs on /crm.
+        { label: t("sections.salesCrm.items.accounts"), href: "/crm/accounts", icon: Building2 },
       ],
     },
     // Only shown once an org enables the separate, opt-in VERIDIAN AI PMS
     // product branch (Wave 25) -- absent by default for existing GRC orgs.
     ...(pmsEnabled
-      ? [{ title: "PROJECTS", items: [{ label: "VERI PROJECTS AI", href: "/pms", icon: Rocket }] }]
+      ? [{ title: t("sections.projects.title"), items: [{ label: t("sections.projects.items.veriProjectsAi"), href: "/pms", icon: Rocket }] }]
       : []),
+    // Wave 6 (compliance-tracker/PROJEXA merge): construction modules --
+    // backend (construction-*-service.ts / interior-*-service.ts) was
+    // already fully built across earlier PROJEXA-foundation waves and
+    // served only PROJEXA's own frontend before this; these are the first
+    // (app) pages for any of it. Shown unconditionally, same posture as
+    // the 'erp'/GRC sections below (no constructionEnabled-shaped flag
+    // exists anywhere in this codebase). Labour here is site-labour
+    // manpower (construction-labour-service.ts), a distinct concept from
+    // company-employee HR attendance under People & HR below.
+    //
+    // MERGE CONFLICT RESOLUTION (batch 1 / PR #514 vs batch 2 / PR #524):
+    // both waves independently added their own "Construction" nav section
+    // at this same spot, since neither branch was cut after the other's
+    // merge into main yet (disclosed by both PRs' own bodies as a
+    // foreseeable, non-design conflict). Resolved by combining into ONE
+    // "Construction" section with all 13 items from both waves -- batch
+    // 1's execution modules (site-diary/RFIs/submittals/punch-list/scope/
+    // labour/expenses) followed by batch 2's design+progress modules
+    // (floor-plans/mood-boards/FF&E/change-orders/work-progress/
+    // dashboard) -- rather than one wave's entries overwriting the
+    // other's. i18n keys are left under their original two namespaces
+    // (sections.construction.items.* and sections.constructionDesign.
+    // items.*) since both are merged into messages/en.json and
+    // messages/hi.json unchanged; only the nav section object itself is
+    // unified.
+    {
+      title: t("sections.construction.title"),
+      items: [
+        { label: t("sections.construction.items.siteDiary"), href: "/site-diary", icon: NotebookPen },
+        { label: t("sections.construction.items.rfis"), href: "/rfis", icon: HelpCircle },
+        { label: t("sections.construction.items.submittals"), href: "/submittals", icon: FileCheck2 },
+        { label: t("sections.construction.items.punchList"), href: "/punch-list", icon: ListChecks },
+        { label: t("sections.construction.items.scope"), href: "/scope", icon: Ruler },
+        { label: t("sections.construction.items.labour"), href: "/labour", icon: HardHat },
+        { label: t("sections.construction.items.expenses"), href: "/expenses", icon: CircleDollarSign },
+        { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
+        { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
+        { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },
+        { label: t("sections.constructionDesign.items.changeOrders"), href: "/change-orders", icon: FileSignature },
+        { label: t("sections.constructionDesign.items.workProgress"), href: "/work-progress", icon: Activity },
+        { label: t("sections.constructionDesign.items.dashboard"), href: "/construction-dashboard", icon: Gauge },
+      ],
+    },
     // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
     // real routes/UI this wave) -- gated behind its own 'the_firm' product
     // branch, same reversible-without-redeploy posture as PMS above.
     ...(firmEnabled
       ? [{
-          title: "THE FIRM",
+          title: t("sections.theFirm.title"),
           items: [
-            { label: "Practice Cockpit", href: "/the-firm-practice", icon: Briefcase },
+            { label: t("sections.theFirm.items.practiceCockpit"), href: "/the-firm-practice", icon: Briefcase },
           ],
         }]
       : []),
@@ -160,215 +235,219 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
     // gating this behind a still-unbuilt erpEnabled flag would just hide
     // real, working pages behind a switch nobody can flip.
     {
-      title: "FINANCE",
+      title: t("sections.finance.title"),
       items: [
-        { label: "Journal Entries", href: "/erp/journal-entries", icon: FileText },
-        { label: "Budgeting", href: "/erp/budgets", icon: Wallet },
-        { label: "Financial Reports", href: "/erp/reports", icon: TrendingUp },
-        { label: "Cash Management", href: "/erp/cash-management", icon: Banknote },
-        { label: "Credit Notes", href: "/erp/credit-notes", icon: FileMinus },
-        { label: "Inventory", href: "/erp/inventory", icon: Database },
-        { label: "Bank Reconciliation", href: "/erp/bank-reconciliation", icon: ArrowRightLeft },
-        { label: "GST Reconciliation", href: "/gst-reconciliation", icon: FileCheck },
-        { label: "TDS Returns", href: "/tds-returns", icon: FileCheck },
-        { label: "Procurement Workflow", href: "/erp/procurement", icon: ClipboardList },
-        { label: "Goods Receipt", href: "/erp/goods-receipt", icon: Database },
-        { label: "Inventory Planning", href: "/erp/inventory-planning", icon: RefreshCw },
-        { label: "Statutory Payroll", href: "/erp/payroll", icon: IndianRupee },
-        { label: "Invoicing", href: "/erp/invoicing", icon: Receipt },
-        { label: "Returns (RMA)", href: "/erp/returns", icon: Undo2 },
-        { label: "Contracts", href: "/erp/contracts", icon: FileSignature },
-        { label: "Clause Library & Templates", href: "/erp/clm-library", icon: BookText },
-        { label: "Customers", href: "/erp/customers", icon: Users },
-        { label: "Suppliers", href: "/erp/suppliers", icon: Building2 },
-        { label: "Master Data Quality", href: "/mdm-quality", icon: Fingerprint },
+        { label: t("sections.finance.items.journalEntries"), href: "/erp/journal-entries", icon: FileText },
+        { label: t("sections.finance.items.paymentEntries"), href: "/erp/payment-entries", icon: Banknote },
+        { label: t("sections.finance.items.fixedAssets"), href: "/erp/fixed-assets", icon: Boxes },
+        { label: t("sections.finance.items.budgeting"), href: "/erp/budgets", icon: Wallet },
+        { label: t("sections.finance.items.financialReports"), href: "/erp/reports", icon: TrendingUp },
+        { label: t("sections.finance.items.cashManagement"), href: "/erp/cash-management", icon: Banknote },
+        { label: t("sections.finance.items.creditNotes"), href: "/erp/credit-notes", icon: FileMinus },
+        { label: t("sections.finance.items.inventory"), href: "/erp/inventory", icon: Database },
+        { label: t("sections.finance.items.bankReconciliation"), href: "/erp/bank-reconciliation", icon: ArrowRightLeft },
+        { label: t("sections.finance.items.gstReconciliation"), href: "/gst-reconciliation", icon: FileCheck },
+        { label: t("sections.finance.items.tdsReturns"), href: "/tds-returns", icon: FileCheck },
+        { label: t("sections.finance.items.procurementWorkflow"), href: "/erp/procurement", icon: ClipboardList },
+        { label: t("sections.finance.items.goodsReceipt"), href: "/erp/goods-receipt", icon: Database },
+        { label: t("sections.finance.items.inventoryPlanning"), href: "/erp/inventory-planning", icon: RefreshCw },
+        { label: t("sections.finance.items.statutoryPayroll"), href: "/erp/payroll", icon: IndianRupee },
+        { label: t("sections.finance.items.invoicing"), href: "/erp/invoicing", icon: Receipt },
+        { label: t("sections.finance.items.returnsRma"), href: "/erp/returns", icon: Undo2 },
+        { label: t("sections.finance.items.contracts"), href: "/erp/contracts", icon: FileSignature },
+        { label: t("sections.finance.items.clauseLibrary"), href: "/erp/clm-library", icon: BookText },
+        { label: t("sections.finance.items.customers"), href: "/erp/customers", icon: Users },
+        { label: t("sections.finance.items.suppliers"), href: "/erp/suppliers", icon: Building2 },
+        { label: t("sections.finance.items.masterDataQuality"), href: "/mdm-quality", icon: Fingerprint },
       ],
     },
     {
-      title: "COMPLIANCE",
+      title: t("sections.compliance.title"),
       items: [
         {
-          label: "Register",
+          label: t("sections.compliance.items.register"),
           href: "/compliance",
           icon: ClipboardList,
         },
         {
-          label: "Notices",
+          label: t("sections.compliance.items.notices"),
           href: "/notices",
           icon: Bell,
           badge: noticeCount > 0 ? { count: noticeCount, color: "bg-amber-500 text-white" } : undefined,
         },
         {
-          label: "Audit Points",
+          label: t("sections.compliance.items.auditPoints"),
           href: "/compliance?status=in_progress",
           icon: FileCheck,
         },
         {
-          label: "Documents",
+          label: t("sections.compliance.items.documents"),
           href: "/compliance",
           icon: FileText,
           badge: docCount > 0 ? { count: docCount, color: "bg-amber-500 text-white" } : undefined,
         },
         {
-          label: "Bulk Import",
+          label: t("sections.compliance.items.bulkImport"),
           href: "/compliance",
           icon: Upload,
         },
       ],
     },
     {
-      title: "GOVERNANCE",
+      title: t("sections.governance.title"),
       items: [
-        { label: "Board & Governance", href: "/board", icon: Gavel },
-        { label: "Committees", href: "/committees", icon: Users },
-        { label: "Related Party Transactions", href: "/rpt", icon: ShieldAlert },
-        { label: "Delegation of Authority", href: "/doa", icon: Layers },
-        { label: "Director & KMP Register", href: "/directors", icon: BookOpen },
-        { label: "Board & Director Evaluation", href: "/board-evaluation", icon: CheckCircle2 },
-        { label: "Policy Management", href: "/policies", icon: FileText },
+        { label: t("sections.governance.items.boardGovernance"), href: "/board", icon: Gavel },
+        { label: t("sections.governance.items.committees"), href: "/committees", icon: Users },
+        { label: t("sections.governance.items.relatedPartyTransactions"), href: "/rpt", icon: ShieldAlert },
+        { label: t("sections.governance.items.delegationOfAuthority"), href: "/doa", icon: Layers },
+        { label: t("sections.governance.items.directorKmpRegister"), href: "/directors", icon: BookOpen },
+        { label: t("sections.governance.items.boardDirectorEvaluation"), href: "/board-evaluation", icon: CheckCircle2 },
+        { label: t("sections.governance.items.policyManagement"), href: "/policies", icon: FileText },
       ],
     },
     {
-      title: "COMPANY SECRETARIAL",
+      title: t("sections.companySecretarial.title"),
       items: [
-        { label: "Statutory Registers", href: "/statutory-registers", icon: BookOpen },
-        { label: "Share Capital & Cap Table", href: "/cap-table", icon: Wallet },
-        { label: "Charges (ROC)", href: "/charges", icon: Link2 },
-        { label: "Secretarial Audit", href: "/secretarial-audit", icon: ShieldCheck },
-        { label: "MCA e-Filing", href: "/mca-filings", icon: FileSignature },
+        { label: t("sections.companySecretarial.items.statutoryRegisters"), href: "/statutory-registers", icon: BookOpen },
+        { label: t("sections.companySecretarial.items.shareCapitalCapTable"), href: "/cap-table", icon: Wallet },
+        { label: t("sections.companySecretarial.items.chargesRoc"), href: "/charges", icon: Link2 },
+        { label: t("sections.companySecretarial.items.secretarialAudit"), href: "/secretarial-audit", icon: ShieldCheck },
+        { label: t("sections.companySecretarial.items.mcaEFiling"), href: "/mca-filings", icon: FileSignature },
       ],
     },
     {
-      title: "LEGAL",
+      title: t("sections.legal.title"),
       items: [
-        { label: "Legal Matters", href: "/legal-matters", icon: Scale },
-        { label: "External Counsel & Vendors", href: "/legal-vendors", icon: Scale },
-        { label: "Litigation & Disputes", href: "/litigation", icon: Gavel },
-        { label: "IP Portfolio", href: "/ip-portfolio", icon: BookOpen },
-        { label: "Legal Opinions", href: "/legal-opinions", icon: FileText },
+        { label: t("sections.legal.items.legalMatters"), href: "/legal-matters", icon: Scale },
+        { label: t("sections.legal.items.externalCounselVendors"), href: "/legal-vendors", icon: Scale },
+        { label: t("sections.legal.items.litigationDisputes"), href: "/litigation", icon: Gavel },
+        { label: t("sections.legal.items.ipPortfolio"), href: "/ip-portfolio", icon: BookOpen },
+        { label: t("sections.legal.items.legalOpinions"), href: "/legal-opinions", icon: FileText },
       ],
     },
     {
-      title: "PEOPLE & HR",
+      title: t("sections.peopleHr.title"),
       items: [
-        { label: "Payroll & HR Statutory Compliance", href: "/hr-compliance", icon: Briefcase },
-        { label: "Leave & Holiday Compliance", href: "/leave-holiday", icon: CheckSquare },
-        { label: "POSH Compliance", href: "/posh", icon: UserCheck },
-        { label: "VERI HR AI", href: "/hr", icon: Users },
-        { label: "Recruitment", href: "/recruitment", icon: UserPlus },
-        { label: "Performance Reviews", href: "/performance-reviews", icon: ClipboardCheck },
+        { label: t("sections.peopleHr.items.payrollHrCompliance"), href: "/hr-compliance", icon: Briefcase },
+        { label: t("sections.peopleHr.items.leaveHolidayCompliance"), href: "/leave-holiday", icon: CheckSquare },
+        { label: t("sections.peopleHr.items.poshCompliance"), href: "/posh", icon: UserCheck },
+        { label: t("sections.peopleHr.items.veriHrAi"), href: "/hr", icon: Users },
+        { label: t("sections.peopleHr.items.attendance"), href: "/hr/attendance", icon: CalendarCheck },
+        { label: t("sections.peopleHr.items.training"), href: "/training", icon: GraduationCap },
+        { label: t("sections.peopleHr.items.recruitment"), href: "/recruitment", icon: UserPlus },
+        { label: t("sections.peopleHr.items.performanceReviews"), href: "/performance-reviews", icon: ClipboardCheck },
       ],
     },
     {
-      title: "RISK",
-      items: [{ label: "Risk Register", href: "/risks", icon: ShieldAlert }],
+      title: t("sections.risk.title"),
+      items: [{ label: t("sections.risk.items.riskRegister"), href: "/risks", icon: ShieldAlert }],
     },
     {
-      title: "SECTOR REGULATORS",
+      title: t("sections.sectorRegulators.title"),
       items: [
-        { label: "SEBI (Listed Company)", href: "/sebi", icon: Landmark },
-        { label: "RBI (Bank / NBFC)", href: "/rbi", icon: Landmark },
-        { label: "IRDAI (Insurer)", href: "/irdai", icon: Landmark },
+        { label: t("sections.sectorRegulators.items.sebi"), href: "/sebi", icon: Landmark },
+        { label: t("sections.sectorRegulators.items.rbi"), href: "/rbi", icon: Landmark },
+        { label: t("sections.sectorRegulators.items.irdai"), href: "/irdai", icon: Landmark },
       ],
     },
     {
-      title: "AUDIT",
+      title: t("sections.audit.title"),
       items: [
-        { label: "Controls & Framework Library", href: "/frameworks", icon: ShieldCheck },
-        { label: "Audit Management", href: "/audit-engagements", icon: ClipboardList },
-        { label: "Audit Trail", href: "/audit", icon: History },
+        { label: t("sections.audit.items.controlsFrameworkLibrary"), href: "/frameworks", icon: ShieldCheck },
+        { label: t("sections.audit.items.auditManagement"), href: "/audit-engagements", icon: ClipboardList },
+        { label: t("sections.audit.items.auditTrail"), href: "/audit", icon: History },
       ],
     },
     {
-      title: "THIRD-PARTY & ESG",
+      title: t("sections.thirdPartyEsg.title"),
       items: [
-        { label: "Vendor & Third-Party Risk", href: "/vendor-risk", icon: ShieldAlert },
-        { label: "ESG & Sustainability (BRSR)", href: "/esg", icon: Leaf },
+        { label: t("sections.thirdPartyEsg.items.vendorThirdPartyRisk"), href: "/vendor-risk", icon: ShieldAlert },
+        { label: t("sections.thirdPartyEsg.items.esgSustainability"), href: "/esg", icon: Leaf },
       ],
     },
     {
-      title: "INTEGRITY",
+      title: t("sections.integrity.title"),
       items: [
-        { label: "Whistleblower & Ethics", href: "/whistleblower", icon: FileWarning },
-        { label: "Business Continuity", href: "/bcm", icon: Radio },
-        { label: "IT Disaster Recovery", href: "/it-dr", icon: ServerCrash },
-        { label: "Fraud Case Management", href: "/fraud-cases", icon: AlertOctagon },
-        { label: "Contract Compliance", href: "/contract-compliance", icon: FileSignature },
+        { label: t("sections.integrity.items.whistleblowerEthics"), href: "/whistleblower", icon: FileWarning },
+        { label: t("sections.integrity.items.businessContinuity"), href: "/bcm", icon: Radio },
+        { label: t("sections.integrity.items.itDisasterRecovery"), href: "/it-dr", icon: ServerCrash },
+        { label: t("sections.integrity.items.fraudCaseManagement"), href: "/fraud-cases", icon: AlertOctagon },
+        { label: t("sections.integrity.items.contractCompliance"), href: "/contract-compliance", icon: FileSignature },
       ],
     },
     {
-      title: "INCIDENTS & EVENTS",
-      items: [{ label: "Incident Management", href: "/incidents", icon: Siren }],
+      title: t("sections.incidentsEvents.title"),
+      items: [{ label: t("sections.incidentsEvents.items.incidentManagement"), href: "/incidents", icon: Siren }],
     },
     {
-      title: "ACCESS & APPROVALS",
-      items: [{ label: "Approval Queue", href: "/approvals", icon: CheckCircle2 }],
+      title: t("sections.accessApprovals.title"),
+      items: [{ label: t("sections.accessApprovals.items.approvalQueue"), href: "/approvals", icon: CheckCircle2 }],
     },
     {
-      title: "ADMIN",
+      title: t("sections.admin.title"),
       items: [
         {
-          label: "Users",
+          label: t("sections.admin.items.users"),
           href: "/users",
           icon: Users,
         },
         {
-          label: "Departments",
+          label: t("sections.admin.items.departments"),
           href: "/departments",
           icon: Building2,
         },
         {
-          label: "Access Review",
+          label: t("sections.admin.items.accessReview"),
           href: "/access-review",
           icon: ClipboardCheck,
         },
         {
-          label: "Settings",
+          label: t("sections.admin.items.settings"),
           href: "/settings",
           icon: Settings,
         },
         {
-          label: "Audit Log",
+          label: t("sections.admin.items.auditLog"),
           href: "/audit",
           icon: History,
         },
       ],
     },
     {
-      title: "TOOLS",
+      title: t("sections.tools.title"),
       items: [
         {
-          label: "VERI OPERATIONS AI",
+          label: t("sections.tools.items.veriOperationsAi"),
           href: "/orchestra",
           icon: Bot,
         },
         {
-          label: "Prompt Eval Lab",
+          label: t("sections.tools.items.promptEvalLab"),
           href: "/prompt-eval",
           icon: FlaskConical,
         },
         {
-          label: "Sales HQ",
+          label: t("sections.tools.items.salesHq"),
           href: "/sales-hq",
           icon: Users,
         },
         {
-          label: "Capability Improvements",
+          label: t("sections.tools.items.capabilityImprovements"),
           href: "/capability-improvements",
           icon: Wrench,
         },
         {
-          label: "Checklists",
+          label: t("sections.tools.items.checklists"),
           href: "/checklists",
           icon: CheckSquare,
         },
         {
-          label: "Tasks",
+          label: t("sections.tools.items.tasks"),
           href: "/tasks",
           icon: ListTodo,
         },
         {
-          label: "Documents",
+          label: t("sections.tools.items.documents"),
           href: "/documents",
           icon: FolderOpen,
         },
@@ -376,57 +455,72 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
         // "REPORTS & ANALYSIS" section (Priority 11) -- removed here to
         // avoid a duplicate nav entry pointing at the same route.
         {
-          label: "Enterprise KPI Hub",
+          label: t("sections.tools.items.enterpriseKpiHub"),
           href: "/kpi-hub",
           icon: LayoutDashboard,
         },
         {
-          label: "Knowledge Base",
+          label: t("sections.tools.items.aiObservability"),
+          href: "/ai-observability",
+          icon: Activity,
+        },
+        {
+          label: t("sections.tools.items.knowledgeBase"),
           href: "/knowledge-base",
           icon: BookOpen,
         },
         {
-          label: "Automation",
+          label: t("sections.tools.items.automation"),
           href: "/automation",
           icon: Zap,
         },
         {
-          label: "Metric Alerts",
+          label: t("sections.tools.items.metricAlerts"),
           href: "/metric-alerts",
           icon: Bell,
         },
         {
-          label: "Ticketing",
+          label: t("sections.tools.items.ticketing"),
           href: "/tickets",
           icon: Ticket,
         },
         {
-          label: "Capability Registry",
+          label: t("sections.tools.items.capabilityRegistry"),
           href: "/capability-registry",
           icon: Database,
         },
         {
-          label: "VERI TO DO AI",
+          label: t("sections.tools.items.taskDuplicates"),
+          href: "/task-duplicates",
+          icon: Copy,
+        },
+        {
+          label: t("sections.tools.items.veriTodoAi"),
           href: "/veri-todo",
           icon: CheckSquare,
         },
         {
-          label: "VERI MOM AI",
+          label: t("sections.tools.items.veriMomAi"),
           href: "/veri-meetings",
           icon: ClipboardList,
         },
         {
-          label: "Penalty Tracker",
+          label: t("sections.tools.items.voiceTickets"),
+          href: "/voice-tickets",
+          icon: Mic,
+        },
+        {
+          label: t("sections.tools.items.penaltyTracker"),
           href: "/penalties",
           icon: AlertCircle,
         },
         {
-          label: "Help Centre",
+          label: t("sections.tools.items.helpCentre"),
           href: "/help",
           icon: HelpCircle,
         },
         {
-          label: "Team",
+          label: t("sections.tools.items.team"),
           href: "/team",
           icon: Users,
         },
@@ -435,183 +529,150 @@ function getNavSections(overdueCount: number, docCount: number, noticeCount: num
   ];
 }
 
-function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
-  const pathname = usePathname();
-  const sections = getNavSections(overdueCount, docCount, noticeCount, accountType, pmsEnabled, firmEnabled);
 
+// veridian-ui-kit migration (2026-07-19): the shared AppSidebar component
+// owns only the generic nav-sections shell/style (logo row + scrollable
+// section list, per its own README scope boundary) -- this repo's real nav
+// DATA (top-pinned Home/Dashboard/Chat/Connectors/FDE links, all module
+// sections, badges) is built here and passed in as plain props, converted
+// to the shared component's NavItem/NavSection shape. The top-pinned links
+// (previously their own distinctly-styled block above the module sections)
+// are folded into an unlabeled first section -- the shared component's
+// `.veri-nav-item.active` style (solid navy background, ported verbatim
+// from the mockup) replaces the old bg-ct-accent/border-l-saffron treatment
+// for every nav item; this is the same class of mockup-alignment correction
+// as AppShellFrame's home-merge fix, not an accidental restyle.
+//
+// Disclosed, confirmed tradeoffs of this swap (none of them break
+// navigation/data -- all are visual/convenience only):
+// - Active-state highlighting: the shared component computes `active` via
+//   `pathname === href || pathname.startsWith(href + "/")`, with no
+//   query-string awareness. A few items route via query string (e.g.
+//   "/compliance?status=overdue") -- those links still navigate correctly,
+//   they just won't visually highlight as active while on that exact view.
+// - The BYOB white-label logo row's border-bottom accent line has no
+//   equivalent slot in the shared component's fixed logo-row template; the
+//   logo image itself stays real-org-aware (falls back to the default mark)
+//   and is wrapped in a Link to "/" for click-to-home, just without the
+//   accent underline.
+// - The org-name/language-switcher footer has no footer slot in the shared
+//   component's template (a single overflow-y-auto region covers header+nav
+//   together, no separate pinned-footer scroll region) -- kept as this
+//   repo's own sibling below the shared component instead of inside it.
+function toSharedItem(href: string, label: string, icon: React.ElementType, badge?: { count: number; color: string }): SharedNavItem {
+  return {
+    href,
+    label,
+    icon: <SidebarIcon icon={icon} />,
+    badge: badge ? <CountBadge count={badge.count} color={badge.color} /> : undefined,
+  };
+}
+
+function SidebarIcon({ icon: Icon }: { icon: React.ElementType }) {
+  return <Icon className="size-3.5 shrink-0" />;
+}
+
+function CountBadge({ count, color = "bg-ct-saffron text-white" }: { count: number; color?: string }) {
   return (
-    <div className="flex flex-col h-full">
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-3 px-5 py-5">
-        <Image src="/logo-mark.svg" alt="VERIDIAN AI" width={34} height={34} className="size-[34px]" unoptimized />
-        <span className="font-heading text-lg text-ct-navy tracking-tight">
-          VERIDIAN AI
-        </span>
-      </Link>
+    <Badge className={cn("h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 flex items-center justify-center", color)}>
+      {count}
+    </Badge>
+  );
+}
 
-      {/* Home + VERI Chat Intelligence Engine -- promoted top-level, above
-          the collapsible module sections (Wave 13 added Chat; Wave 15
-          promotes Home alongside it; Wave 37 splits the single "VERI Chat"
-          link into its two sub-modules -- VERI AI (user <-> system) and
-          VERI Chat (user <-> people, enterprise Slack/WhatsApp-style) --
-          which used to be conflated as one link with the AI thread just
-          pinned inside the same list. See PLATFORM_STRATEGY.md §18. */}
-      {/* Wave 105 (demo feedback): Home is now the assistant-first screen
-          (formerly "Home 2"); the old tabbed workspace became Dashboard
-          (opens on Analytics). VERI AI's standalone page is retired for
-          users -- the assistant lives on Home -- so its unread count now
-          badges Home. VERI FDE, renamed "Do It For Me" in plain language,
-          is promoted here. Order: Home, Dashboard, VERI Chat, Do It For Me. */}
-      <div className="px-3 mb-2 space-y-0.5">
-        <Link
-          href="/home"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname === "/home"
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Sparkles className={cn("size-3.5 shrink-0", pathname === "/home" ? "text-ct-saffron" : "text-ct-saffron/70")} />
-          <span className="flex-1">Home</span>
-          {unreadAiCount > 0 && (
-            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
-              {unreadAiCount}
-            </Badge>
-          )}
-        </Link>
-        <Link
-          href="/dashboard"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/dashboard")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <LayoutDashboard className={cn("size-3.5 shrink-0", pathname.startsWith("/dashboard") && "text-ct-saffron")} />
-          <span className="flex-1">Dashboard</span>
-        </Link>
-        <Link
-          href="/chat"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/chat")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <MessageSquare className={cn("size-3.5 shrink-0", pathname.startsWith("/chat") && "text-ct-saffron")} />
-          <span className="flex-1">VERI Chat</span>
-          {unreadChatCount > 0 && (
-            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
-              {unreadChatCount}
-            </Badge>
-          )}
-        </Link>
-        {/* Connectors (Connectors.docx wave, 2026-07-10): promoted from a
-            buried ADMIN-section link ("VERI CONNECT") to a top-level entry so
-            users can actually discover VERI Connect exists -- mirrors why
-            Home/Dashboard/VERI Chat are promoted here instead of living in a
-            collapsible section. */}
-        <Link
-          href="/connectors"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/connectors")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Link2 className={cn("size-3.5 shrink-0", pathname.startsWith("/connectors") && "text-ct-saffron")} />
-          <span className="flex-1">Connectors</span>
-          {connectedConnectorsCount > 0 && (
-            <Badge className="h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 bg-ct-saffron text-white flex items-center justify-center">
-              {connectedConnectorsCount}
-            </Badge>
-          )}
-        </Link>
-        <Link
-          href="/fde"
-          className={cn(
-            "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
-            pathname.startsWith("/fde")
-              ? "bg-ct-accent text-ct-saffron border-l-[3px] border-ct-saffron"
-              : "text-ct-navy hover:bg-ct-cloud"
-          )}
-        >
-          <Rocket className={cn("size-3.5 shrink-0", pathname.startsWith("/fde") && "text-ct-saffron")} />
-          <span className="flex-1">Make Your Own Agents</span>
-        </Link>
+function buildSharedSections(
+  t: ReturnType<typeof useTranslations>,
+  overdueCount: number, docCount: number, noticeCount: number, accountType: string,
+  unreadChatCount: number, unreadAiCount: number, connectedConnectorsCount: number,
+  pmsEnabled: boolean, firmEnabled: boolean
+): SharedNavSection[] {
+  const topPinned: SharedNavSection = {
+    items: [
+      toSharedItem("/home", t("top.home"), Sparkles, unreadAiCount > 0 ? { count: unreadAiCount, color: "bg-ct-saffron text-white" } : undefined),
+      toSharedItem("/dashboard", t("top.dashboard"), LayoutDashboard),
+      toSharedItem("/chat", t("top.chat"), MessageSquare, unreadChatCount > 0 ? { count: unreadChatCount, color: "bg-ct-saffron text-white" } : undefined),
+      toSharedItem("/connectors", t("top.connectors"), Link2, connectedConnectorsCount > 0 ? { count: connectedConnectorsCount, color: "bg-ct-saffron text-white" } : undefined),
+      toSharedItem("/fde", t("top.agents"), Rocket),
+    ],
+  };
+
+  const moduleSections = getNavSections(t, overdueCount, docCount, noticeCount, accountType, pmsEnabled, firmEnabled).map(
+    (section): SharedNavSection => ({
+      label: section.title,
+      items: section.items.map((item) => toSharedItem(item.href, item.label, item.icon, item.badge)),
+    })
+  );
+
+  return [topPinned, ...moduleSections];
+}
+
+function AppSidebarFooter({ orgName }: { orgName: string }) {
+  const t = useTranslations("Nav");
+  return (
+    <div className="px-5 py-3 border-t border-ct-border flex items-center justify-between gap-2 shrink-0">
+      <div className="min-w-0">
+        <p className="text-xs text-ct-muted truncate">{orgName || " "}</p>
+        <p className="text-[10px] text-ct-muted/60">{t("poweredBy")}</p>
       </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
-        {sections.map((section) => (
-          <div key={section.title} className="mb-3">
-            <p className="px-3 mb-1 text-[9px] font-bold tracking-widest text-ct-muted uppercase">
-              {section.title}
-            </p>
-            {section.items.map((item) => {
-              const isActive = pathname.startsWith(item.href.split("?")[0]);
-
-              return (
-                <Link
-                  key={item.href + item.label}
-                  href={item.href}
-                  className={cn(
-                    "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors mb-0.5 relative",
-                    isActive
-                      ? "bg-ct-accent text-ct-saffron font-semibold border-l-[3px] border-ct-saffron"
-                      : "text-ct-slate hover:bg-ct-cloud"
-                  )}
-                >
-                  <item.icon className={cn("size-3.5 shrink-0", isActive && "text-ct-saffron")} />
-                  <span className="flex-1">{item.label}</span>
-                  {item.badge && (
-                    <Badge
-                      className={cn(
-                        "h-5 min-w-[20px] px-1.5 text-[10px] font-bold rounded-full border-0 flex items-center justify-center",
-                        item.badge.color
-                      )}
-                    >
-                      {item.badge.count}
-                    </Badge>
-                  )}
-                </Link>
-              );
-            })}
-          </div>
-        ))}
-      </nav>
-
-      {/* Bottom org info -- the signed-in organisation's real name (was a
-          hardcoded "Acme Financial Services" placeholder every tenant saw). */}
-      <div className="px-5 py-4 border-t border-ct-border">
-        <p className="text-xs text-ct-muted truncate">{orgName || " "}</p>
-        <p className="text-[10px] text-ct-muted/60">Powered by VERIDIAN AI</p>
-      </div>
+      <LanguageSwitcher />
     </div>
   );
 }
 
-export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string }) {
+function SidebarInner({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
+  const t = useTranslations("Nav");
+  const sections = buildSharedSections(t, overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled);
+
+  const logo = (
+    <Link href="/" title="VERIDIAN AI" className="grid size-7 shrink-0 place-items-center overflow-hidden rounded-sm">
+      <Image
+        src={orgLogoUrl || "/logo-mark.svg"}
+        alt={orgLogoUrl ? `${orgName || "Organisation"} logo` : "VERIDIAN AI"}
+        width={28}
+        height={28}
+        className="size-7 rounded-sm object-contain"
+        unoptimized
+      />
+    </Link>
+  );
+
+  return (
+    <div className="flex flex-col h-full min-h-0">
+      <div className="flex-1 min-h-0 flex">
+        <SharedAppSidebar
+          sections={sections}
+          logo={logo}
+          productName={orgLogoUrl && orgName ? orgName : (brandName || "VERIDIAN AI")}
+          collapsed={false}
+        />
+      </div>
+      <AppSidebarFooter orgName={orgName} />
+    </div>
+  );
+}
+
+export function AppSidebar({ overdueCount = 0, docCount = 0, noticeCount = 0, accountType = "company", unreadChatCount = 0, unreadAiCount = 0, connectedConnectorsCount = 0, pmsEnabled = false, firmEnabled = false, orgName = "", orgLogoUrl = null, brandName = "" }: { overdueCount?: number; docCount?: number; noticeCount?: number; accountType?: string; unreadChatCount?: number; unreadAiCount?: number; connectedConnectorsCount?: number; pmsEnabled?: boolean; firmEnabled?: boolean; orgName?: string; orgLogoUrl?: string | null; brandName?: string }) {
+  const props = { overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName, orgLogoUrl, brandName };
   return (
     <>
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex flex-col w-[220px] min-w-[220px] bg-ct-cream border-r border-ct-border h-full">
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
-      </aside>
+      {/* Desktop sidebar -- wrapping the shared component (rather than
+          giving it its own `hidden lg:flex` internally, which it doesn't
+          expose) lets it stay a plain, non-responsive component reusable by
+          any consumer, while this repo's own responsive behavior stays
+          here. */}
+      <div className="hidden lg:flex lg:h-full">
+        <SidebarInner {...props} />
+      </div>
 
       {/* Mobile sidebar (Sheet) */}
       <div className="lg:hidden">
-        <MobileSheetTrigger overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <MobileSheetTrigger {...props} />
       </div>
     </>
   );
 }
 
-function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, unreadChatCount, unreadAiCount, connectedConnectorsCount, pmsEnabled, firmEnabled, orgName }: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string }) {
+function MobileSheetTrigger(props: { overdueCount: number; docCount: number; noticeCount: number; accountType: string; unreadChatCount: number; unreadAiCount: number; connectedConnectorsCount: number; pmsEnabled: boolean; firmEnabled: boolean; orgName: string; orgLogoUrl?: string | null; brandName?: string }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -620,7 +681,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <Button
           variant="ghost"
           size="icon"
-          className="lg:hidden text-white hover:bg-white/10"
+          className="text-ct-slate hover:bg-ct-cloud hover:text-ct-navy"
         >
           <LayoutDashboard className="size-5" />
         </Button>
@@ -629,7 +690,9 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <SheetHeader className="sr-only">
           <SheetTitle>Navigation</SheetTitle>
         </SheetHeader>
-        <SidebarContent overdueCount={overdueCount} docCount={docCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} />
+        <div className="h-full flex">
+          <SidebarInner {...props} />
+        </div>
       </SheetContent>
     </Sheet>
   );

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { listEInvoiceLogs, generateEInvoicePayload, ServiceError } from "@/lib/services/erp-einvoice-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { response, orgId } = await requireAuth()
@@ -22,6 +23,9 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: generates e-invoice payload, no GL posting
+  const roleErr = requirePermissionForUser(dbUser, "erp.sales_invoices.e_invoice")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

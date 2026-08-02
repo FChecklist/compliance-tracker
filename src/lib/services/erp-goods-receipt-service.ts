@@ -20,6 +20,17 @@ import { requireErpEnabled } from "./erp-enablement-service"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
+// Priority 17 Wave 1 (PROJEXA Procurement workflow exposure): widened to the
+// same dbUser-or-apiKey actor union already precedented by erp-invoicing-
+// service.ts's createSalesInvoice -- PROJEXA's callVeridian() proxy always
+// calls server-to-server with a shared Bearer API key, never a session
+// cookie. submitPurchaseReceipt calls recordStockReceipt() internally,
+// which now accepts this same union (erp-inventory-service.ts, this wave).
+export type ActorCtx = { orgId: string; userId: string } & (
+  | { dbUser: typeof users.$inferSelect; apiKey?: never }
+  | { dbUser?: never; apiKey: { id: string; name: string } }
+)
+
 type ReceiptItemInput = { purchaseOrderItemId?: string; itemId?: string; quantity?: number; warehouseId: string; rate?: number }
 
 // ============================================================
@@ -50,7 +61,7 @@ export async function getPurchaseReceipt(ctx: { orgId: string }, receiptId: stri
 }
 
 export async function createPurchaseReceipt(
-  ctx: ErpContext,
+  ctx: ActorCtx,
   input: { supplierId: string; purchaseOrderId?: string; postingDate: string; items: ReceiptItemInput[] }
 ) {
   await requireErpEnabled(ctx.orgId)
@@ -82,7 +93,7 @@ export async function createPurchaseReceipt(
       }))
     )
 
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_receipt.created", entityType: "erp_purchase_receipt", entityId: receipt.id })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_receipt.created", entityType: "erp_purchase_receipt", entityId: receipt.id })
     return receipt
   })
 }
@@ -94,7 +105,7 @@ export async function createPurchaseReceipt(
  * partially_received/completed -- both previously dead columns with no
  * writer at all.
  */
-export async function submitPurchaseReceipt(ctx: ErpContext, receiptId: string) {
+export async function submitPurchaseReceipt(ctx: ActorCtx, receiptId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const receipt = await db.query.erpPurchaseReceipts.findFirst({
@@ -135,7 +146,7 @@ export async function submitPurchaseReceipt(ctx: ErpContext, receiptId: string) 
     }
 
     const [updated] = await db.update(erpPurchaseReceipts).set({ status: "submitted" }).where(eq(erpPurchaseReceipts.id, receiptId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_purchase_receipt.submitted", entityType: "erp_purchase_receipt", entityId: receiptId })
+    await logActivity({ tx: db, orgId: ctx.orgId, ...(ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }), action: "erp_purchase_receipt.submitted", entityType: "erp_purchase_receipt", entityId: receiptId })
     return updated
   })
 }

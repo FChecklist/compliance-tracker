@@ -325,6 +325,15 @@ export default function ReportsPage() {
     a.download = `compliance-report-${format(new Date(), "yyyy-MM-dd")}.csv`;
     a.click();
     URL.revokeObjectURL(url);
+
+    // Fire-and-forget: feeds the bulk-export Tier-1 monitor
+    // (src/app/api/compliance/export-event/route.ts). Never blocks the
+    // download on this.
+    fetch("/api/compliance/export-event", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ count: items.length }),
+    }).catch(() => {});
   };
 
   // Excel Export (xlsx)
@@ -537,7 +546,7 @@ export default function ReportsPage() {
                         fontSize: "12px",
                         boxShadow: "0 1px 3px rgba(0,0,0,0.07)",
                       }}
-                      formatter={(value: number, name: string) => [
+                      formatter={(value, name) => [
                         `${value} items`,
                         name,
                       ]}

@@ -7,7 +7,7 @@
 import type { ParseResult } from "@/lib/ingest/types"
 import { autoMapColumns, applyMapping, parseAmount, parseDateToIso, type ColumnMapping, type MappingConfidence } from "@/lib/gst/column-mapper"
 import type { CanonicalInvoiceDraft, StagedRow } from "@/lib/gst/canonical-types"
-import { stateCodeFromGstin } from "@/lib/engines/gst-engine"
+import { stateCodeFromGstin } from "@/lib/engines/in/gst-engine"
 
 // Exported separately so a corrected mapping (after user review) can be
 // re-applied to already-staged raw rows without re-parsing the source file.

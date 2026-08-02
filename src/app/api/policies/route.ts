@@ -1,18 +1,16 @@
-import { policies } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
-import { asc } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
-import { logActivity } from "@/lib/audit"
+import { listPolicies, createPolicy, ServiceError } from "@/lib/services/risk-register-service"
 
+// Priority 15: logic extracted verbatim into risk-register-service.ts so
+// PROJEXA's /api/v1/projexa/policies alias can call the exact same
+// implementation instead of duplicating it.
 export async function GET() {
   const { response, orgId } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ policies: [] })
-  const rows = await withTenantContext({ orgId }, (db) => db.query.policies.findMany({ orderBy: asc(policies.title) }))
-  return NextResponse.json({
-    policies: rows.map((p) => ({ id: p.id, title: p.title, category: p.category, version: p.version, status: p.status, attestationRate: p.attestationRate, history: p.history })),
-  })
+  const policies = await listPolicies({ orgId })
+  return NextResponse.json({ policies })
 }
 
 export async function POST(request: NextRequest) {
@@ -22,17 +20,13 @@ export async function POST(request: NextRequest) {
   if (roleErr) return roleErr
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
-  const body = await request.json()
-  if (!body.title?.trim()) return NextResponse.json({ error: "title is required" }, { status: 400 })
-
-  const result = await withTenantContext({ orgId, userId: dbUser.id }, async (db) => {
-    const [policy] = await db.insert(policies).values({
-      title: body.title.trim(), category: body.category || "governance",
-      history: [{ version: "v1.0", date: new Date().toLocaleDateString("en-IN"), editedBy: dbUser.name, note: "Initial draft" }],
-      orgId, createdById: dbUser.id,
-    }).returning()
-    await logActivity({ tx: db, action: "create", entityType: "Policy", entityId: policy.id, details: `New policy drafted: ${policy.title}`, orgId, dbUser, request })
-    return policy
-  })
-  return NextResponse.json({ id: result.id }, { status: 201 })
+  try {
+    const body = await request.json()
+    const policy = await createPolicy({ orgId, userId: dbUser.id, dbUser }, body)
+    return NextResponse.json({ id: policy.id }, { status: 201 })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Policy create error:", error)
+    return NextResponse.json({ error: "Failed to create policy" }, { status: 500 })
+  }
 }

@@ -1,5 +1,7 @@
 # VERIDIAN Task Governance Constitution
 
+> **AUTHORITY NOTE (2026-07-14):** `ai-os/CONSTITUTION.yaml` is now the single, machine-readable constitution for VERIDIAN AI OS and is authoritative over this document on any conflict. This document remains as detailed narrative evidence and reasoning -- read it for full context and worked examples, not to determine current status.
+
 **Version 1.0 -- 2026-07-11. AI Governance & Continuous Improvement Framework (AGCIF): task lifecycle, multi-agent orchestration, and mandatory tightening guardrails.**
 
 Adopted from a document supplied by the repository owner (`Consutitution.docx`, "VERIDIAN AI OS -- AI Governance & Continuous Improvement Framework") describing a Universal Task Lifecycle, a 4-tier AI role hierarchy, and 30 Mandatory Guardrail Protocols. Same discipline as its two sibling constitutional documents: where a section is marked **[ENFORCED]**, a real, running mechanism verifies it, cited by file:line. Where marked **[PARTIALLY ENFORCED]**, part of the mechanism is real and part is not, named explicitly. Where marked **[POLICY ONLY]**, it is a governance rule not yet backed by code. Where marked **[NOT APPLICABLE YET]**, nothing exists yet for the rule to bind to.

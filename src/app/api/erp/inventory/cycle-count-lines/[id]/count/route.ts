@@ -1,11 +1,15 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { recordCycleCount, ServiceError } from "@/lib/services/erp-inventory-planning-service"
+import { requirePermissionForUser } from "@/lib/services/permission-service"
 
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
   if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+  // member: records physical count, does not post to GL
+  const roleErr = requirePermissionForUser(dbUser, "erp.inventory.cycle_count")
+  if (roleErr) return roleErr
 
   try {
     const { id } = await params

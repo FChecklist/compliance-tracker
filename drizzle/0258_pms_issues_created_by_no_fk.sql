@@ -1,0 +1,65 @@
+-- Priority 19 (Dubai 50-user E2E test + fix pass): fixes the reproducible
+-- Schedule "New Task" create 500 found during PROJEXA's real-user E2E test
+-- pass (control/priority19_dubai_e2e_testing_plan.md,
+-- "REGRESSION-REOPENED -- Schedule 'New Task' create" entry). Reproduced on
+-- BOTH a brand-new org's brand-new project AND Priority 16 Part 2's own
+-- verification project (Meridian Skyline Group's Villa 21) -- a genuine
+-- regression affecting every PROJEXA org, not new-org-specific.
+--
+-- Root cause: compliance.pms_issues.created_by_id carries a hard
+-- FOREIGN KEY REFERENCES compliance.users(id) (added in
+-- drizzle/0021_wave25_pms_enablement_and_core_issues.sql), but
+-- src/app/api/v1/projexa/schedule/route.ts's POST handler legitimately
+-- passes the caller's API-key id (ctx.dbUser?.id ?? ctx.apiKey!.id) as the
+-- actor into createIssue() -> pms-issue-service.ts's createdById: ctx.userId
+-- whenever PROJEXA calls this route server-to-server with no real
+-- per-user session -- which is every call PROJEXA currently makes
+-- (PROJEXA-IDENTITY-BRIDGE-01: the org-wide API key bridge carries no
+-- per-user identity). That API-key id (confirmed live: "projexa_demo_key",
+-- compliance.api_keys.id for "PROJEXA Frontend Service Key") is never a row
+-- in compliance.users (confirmed via direct query: zero matching rows), so
+-- every API-key-driven task create hit this FK constraint on INSERT, which
+-- createIssue()'s generic catch (not a ServiceError) turned into an opaque
+-- 500 "Failed to create task" at the v1/projexa/schedule route, which
+-- callVeridian() on the PROJEXA side then faithfully re-surfaced as a real
+-- VeridianApiError with status 500 (not a generic 502) -- explaining the
+-- "raw 500, not the route's own coded 502 fallback" signature the E2E
+-- session flagged. Confirmed live via SQL: all 17 pre-existing pms_issues
+-- rows have created_by_id NULL (5) or 'demo_user_projects_hod' (12, a real
+-- compliance.users row from a compliance-tracker-side session) -- zero rows
+-- were ever created through the PROJEXA API-key path, consistent with this
+-- FK having silently blocked every such attempt since the column was added.
+--
+-- Not a Priority 17 concurrent-branch regression (hypothesis (b) in the E2E
+-- plan) -- this FK has existed unchanged since Wave 25 (drizzle/0021),
+-- predating Priority 16 Part 2's create-task feature (PR #336) entirely.
+--
+-- Fix: drop the FK. This matches the existing, established precedent
+-- elsewhere in this exact codebase for the identical "actor may be a real
+-- user OR a bare API-key id" situation:
+--   - erp_sales_invoices.created_by_id: text, nullable, NO foreign key
+--   - construction_punch_list_items.created_by_id: text, NO foreign key
+--   - job_openings.posted_by_id: FK dropped for this exact reason,
+--     drizzle/0202_job_openings_posted_by_no_fk.sql (Priority 16 Part 2)
+-- pms_issues.created_by_id is the same outlier pattern; this migration
+-- brings it in line with the codebase's own established convention. Not a
+-- security/guardrail change -- created_by_id is not in
+-- scripts/check-guardrail-presence.mjs's manifest, and compliance.pms_issues'
+-- RLS (app_runtime_org_scoped) already scopes every row by org_id
+-- regardless of this FK.
+--
+-- created_by_id stays nullable/text-typed (no schema.ts change needed -- it
+-- was never declared with .references() there in the first place; the FK
+-- existed only as a raw constraint from the 0021 migration, same pattern as
+-- job_openings.posted_by_id).
+--
+-- Scoped narrowly to created_by_id only (the column actually hit by this
+-- bug's repro -- PROJEXA's "New Task" dialog doesn't set assigneeIds, so
+-- assigned_by_id/assignee_id's identical FK-vs-API-key-actor exposure on the
+-- Kanban board's PATCH path is a separate, not-yet-reproduced latent risk of
+-- the same PROJEXA-IDENTITY-BRIDGE-01 class -- flagged for a future session,
+-- not fixed here, matching this codebase's own precedent of scoping FK-drop
+-- fixes to the specific column a real repro hit rather than a blanket sweep.
+
+ALTER TABLE compliance.pms_issues
+  DROP CONSTRAINT IF EXISTS pms_issues_created_by_id_fkey;

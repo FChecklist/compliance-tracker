@@ -19,7 +19,8 @@ import { useEffect, useRef, useState, useCallback } from "react";
 import Link from "next/link";
 import { Send, Loader2, Paperclip, Sparkles, ArrowRight, MessageSquare } from "lucide-react";
 import { MessageContent } from "@/components/chat/MessageContent";
-import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle, ssrSafeLocalStorage } from "@/components/ui/resizable";
+import { useDefaultLayout } from "react-resizable-panels";
 import { useAutoGrowTextarea } from "@/lib/use-autogrow-textarea";
 import { cn } from "@/lib/utils";
 import { useMe } from "@/lib/queries/use-me";
@@ -101,6 +102,12 @@ export default function HomePage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useAutoGrowTextarea(content, 180);
+
+  // react-resizable-panels v4 dropped Group's `autoSaveId` prop in favor of
+  // this hook (see resizable.tsx's own header comment for the v3->v4
+  // migration) -- called unconditionally here, above the veriChatV2Enabled
+  // early return below, since it's a hook.
+  const { defaultLayout: home2PanelsLayout, onLayoutChange: onHome2PanelsLayoutChange } = useDefaultLayout({ id: "home2-panels", storage: ssrSafeLocalStorage });
 
   useEffect(() => {
     fetch("/api/conversations").then((r) => r.json()).then((d) => {
@@ -283,8 +290,9 @@ export default function HomePage() {
 
   return (
     <ResizablePanelGroup
-      direction="horizontal"
-      autoSaveId="home2-panels"
+      orientation="horizontal"
+      defaultLayout={home2PanelsLayout}
+      onLayoutChange={onHome2PanelsLayoutChange}
       className="h-[calc(100vh-190px)] min-h-[540px] rounded-2xl border border-ct-border overflow-hidden bg-white"
     >
       {/* ── Assistant (centre) ─────────────────────────────────────────── */}

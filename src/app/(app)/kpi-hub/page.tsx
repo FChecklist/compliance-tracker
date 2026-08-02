@@ -3,11 +3,15 @@
 export const dynamic = "force-dynamic";
 
 // Wave 98 (Comparison CSV 3 gap analysis: BI005/BI010 "Enterprise KPI Hub").
-// A real cross-module executive scorecard computed live from existing
+// A real cross-module executive scorecard computed live from real
 // compliance/risk/ERP/ticket/AI-ops data -- no new schema, no fabricated
 // metrics. AI-ops section reuses Wave 95's orchestra-analytics-service.
+// Wave 7 (PROJEXA reconcile): added the Construction KPIs card, a read-only
+// rollup of construction-kpi-service.ts's definitions/entries -- that
+// service's own approval workflow (PROJEXA's /kpis page) is unaffected.
 import { useEffect, useState } from "react";
-import { LayoutDashboard, ShieldCheck, AlertTriangle, IndianRupee, Ticket, Activity } from "lucide-react";
+import { LayoutDashboard, ShieldCheck, AlertTriangle, Banknote, Ticket, Activity, HardHat } from "lucide-react";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import { Card, CardContent } from "@/components/ui/card";
 
 type KpiSummary = {
@@ -15,12 +19,11 @@ type KpiSummary = {
   risk: { totalOpen: number; highSeverityOpen: number };
   revenue: { totalInvoicedYtd: number; totalOutstandingAr: number; overdueAr: number };
   tickets: { total: number; open: number; slaComplianceRate: number };
+  construction: { totalDefinitions: number; totalEntries: number; pendingApproval: number; approved: number; onTargetRate: number };
   aiOps: { totalExecutions: number; totalCostUsd: number; failureRate: number; denialRate: number };
 };
 
-function fmtCurrency(n: number) {
-  return `₹${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
-}
+
 
 function KpiCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
   return (
@@ -43,6 +46,11 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 export default function KpiHubPage() {
+  const currencies = useCurrencies();
+  // Priority 17 re-sweep fix: was a module-level fmtCurrency() hardcoding
+  // "₹" -- now a closure over `currencies` so both existing call sites
+  // below resolve the org's real base currency instead.
+  const fmtCurrency = (n: number) => `${currencyLabel(undefined, currencies)}${n.toLocaleString("en-IN", { maximumFractionDigits: 0 })}`;
   const [data, setData] = useState<KpiSummary | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,7 +65,7 @@ export default function KpiHubPage() {
     <div className="space-y-4">
       <div>
         <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2"><LayoutDashboard className="w-6 h-6" />Enterprise KPI Hub</h1>
-        <p className="text-sm text-ct-muted mt-1">A live cross-module scorecard — compliance, risk, revenue, tickets, and AI operations, computed from real data.</p>
+        <p className="text-sm text-ct-muted mt-1">A live cross-module scorecard — compliance, risk, revenue, tickets, construction, and AI operations, computed from real data.</p>
       </div>
 
       {loading || !data ? (
@@ -75,7 +83,7 @@ export default function KpiHubPage() {
             <Stat label="High Severity" value={data.risk.highSeverityOpen.toLocaleString()} />
           </KpiCard>
 
-          <KpiCard icon={<IndianRupee className="w-4 h-4" />} title="Revenue">
+          <KpiCard icon={<Banknote className="w-4 h-4" />} title="Revenue">
             <Stat label="Invoiced (YTD)" value={fmtCurrency(data.revenue.totalInvoicedYtd)} />
             <Stat label="Outstanding AR" value={fmtCurrency(data.revenue.totalOutstandingAr)} />
             <Stat label="Overdue AR" value={fmtCurrency(data.revenue.overdueAr)} />
@@ -85,6 +93,12 @@ export default function KpiHubPage() {
             <Stat label="Total" value={data.tickets.total.toLocaleString()} />
             <Stat label="Open" value={data.tickets.open.toLocaleString()} />
             <Stat label="SLA Compliance" value={`${(data.tickets.slaComplianceRate * 100).toFixed(1)}%`} />
+          </KpiCard>
+
+          <KpiCard icon={<HardHat className="w-4 h-4" />} title="Construction KPIs">
+            <Stat label="Definitions" value={data.construction.totalDefinitions.toLocaleString()} />
+            <Stat label="Entries Pending Approval" value={data.construction.pendingApproval.toLocaleString()} />
+            <Stat label="On-Target Rate (Approved)" value={`${(data.construction.onTargetRate * 100).toFixed(1)}%`} />
           </KpiCard>
 
           <KpiCard icon={<Activity className="w-4 h-4" />} title="AI Operations (30d)">
