@@ -56,13 +56,55 @@
       correction and an actual merge -- not closed by this correction alone.
 
 # PROGRESS -- task-20260731-130837-commit-procurement-erp-gap-analysis-docu
+# PROGRESS -- task-20260802-040131-parallel-job--collate-existing-module-en
+
+Parallel job (Owner, Chat ID 2082026-02): collate existing module/engine
+wiring+UTM registries (MASTER_INDEX.yaml, system-tree, wiring_registry,
+UTM tagging, module_gap_audit_lib.py, knowledge_engine, server-wide search)
+into one verified reference, cross-referenced against master directive
+UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
 
 ## Completed
-- [x] Checked ai-os/boss/ACTIVE-CLAIMS.yaml -- no conflicting claim for this doc file
-- [x] Created branch docs/procurement-erp-gap-analysis-2026-07-31 off origin/main
-- [x] Wrote ai-os/PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md verbatim per spec
-- [x] Committed + pushed
-- [x] Opened PR #672: https://github.com/FChecklist/compliance-tracker/pull/672
+- [x] Read governance chain + ACTIVE-CLAIMS.yaml; registered this session's
+      claim (commit bde27e44, pushed).
+- [x] Located master directive (task-20260802-034634-master-directive--
+      prioritized-completion) and read its full priority list (10 items,
+      prompt.txt).
+- [x] Located the traceability job (UMR-20260802-035156-85d2 /
+      task-20260802-035159-parallel-job--cross-reference-every-rele),
+      confirmed it is a DIFFERENT scope (UMR/PR/task ID traceability, not
+      module/engine wiring collation) -- read its in-progress
+      MASTER_INITIATIVE_CROSS_REFERENCE_2026-08-02.md directly (uncommitted
+      in its own workspace) to avoid duplicating it; linked to it instead
+      of competing with it.
+- [x] Surveyed host-level infra directly (not from memory): real DB path
+      is ai-os/memory/superboss-register.sqlite (the top-level
+      ai-os/superboss-register.sqlite and .sqlite3 copies are 0-byte
+      stale decoys -- confirmed via DB_PATH in scripts/superboss-register.py).
+      Live counts: wiring_registry 7918 rows, knowledge_engine 364,
+      system_index 135, capability_registry 11. MASTER_INDEX.yaml has 104
+      registries (counted directly), not 31 as this task's own SPEC
+      premise stated. UTM columns confirmed real on knowledge_engine/
+      capability_registry (SQLite side only -- zero UTM hits anywhere in
+      compliance-tracker's own Postgres schema/app code, correcting the
+      SPEC's "both SQLite and Postgres" premise). module_gap_audit_lib.py
+      confirmed to use compliance.module_registry (real, migration-seeded
+      Postgres table) as the real module-boundary source of truth.
+      system-tree confirmed to be 3 separate directories (tree1=audit-tree,
+      tree3=system-tree, tree4=tree4-unified per MASTER_INDEX.yaml's own
+      tree_lineage block), not literally "tree1-4 under system-tree/".
+- [x] Cross-referenced against master directive priorities #2-#8 (table in
+      the collated doc's Section 2).
+- [x] Spot-verified 7 highest-stakes claims against real current source
+      (doc Section 3): 5 held up, 2 did not (the Policy Engine
+      "shared-citation bridge" -- re-confirmed false, matching this
+      session's own earlier Kernel/TWO_ENGINE finding -- and this task's
+      own SPEC premises about registry count and UTM scope, both stale/
+      inaccurate as written).
+- [x] Wrote collated reference:
+      ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md -- explicitly
+      linked to UMR-20260802-034545-3388, cites the traceability job's
+      file as the complementary (not competing) index.
 
 ## Remaining
 - [ ] Confirm CI passes (do not merge, do not post audit verdict) -- monitoring in progress
@@ -349,3 +391,4 @@
 4. ai-os/OWNER_DIRECTIVES/PROTOCOL_OWNER_AI.yaml is cited as live by MASTER_INDEX.yaml (2 different
    citations, one claiming .yaml, one .md) but does not exist on disk -- needs either (re)writing or a
    MASTER_INDEX.yaml correction.
+- [ ] Commit + push the collated doc. Final report to Owner/session.
