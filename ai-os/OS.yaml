@@ -87,6 +87,8 @@ index:
       covers: "Priority 22 workstream 1: real OpenRouter API comparison (latency/cost/quality/failure-behavior) between inclusionai/ling-2.6-1t and deepseek/deepseek-v4-pro on 3 governance_backend_engineer/chief_audit_officer/chief_operating_officer-shaped backend prompts (corrects the dispatch brief's inaccurate claim about which roster.ts roles run which model -- neither senior_backend_engineer/devops_engineer/architecture_compliance_reviewer nor a QA Engineer/AI Response Validator role are actually on DeepSeek; deepseek/deepseek-r1-0528 does not exist in roster.ts at all). Confirms Ling-2.6-1T is single-provider (Novita only, vs. deepseek-v4-pro's 16) -- a structurally worse version of the 2026-07-10 GLM-5.2/DeepInfra incident, with zero fallback available. Recommendation: do NOT adopt for the 3 real deepseek-v4-pro roles -- 2 of 3 test prompts surfaced real correctness gaps despite Ling being ~5x faster/cheaper. No roster.ts/model-tier-eligibility.ts change made -- read this before proposing Ling-2.6-1T for any roster role."
     - path: ai-os/priority22_officecli_feasibility.md
       covers: "Priority 22 workstream 2: real feasibility check of iOfficeAI/OfficeCLI as a replacement for this repo's mammoth (docx-read)/pptxgenjs (pptx-export) usage. Corrects several prior sessions' copy-forwarded claim that this dependency pair is broken on origin/main -- a fresh isolated bun install/tsc/next build all passed cleanly this session. GO for the mammoth call site (server-side, low risk); conditional-GO for pptxgenjs (its real call site is client-side/in-browser, so replacing it means a real architecture change, not a drop-in swap). No code implemented this pass -- feasibility only, read this before starting any real OfficeCLI integration work."
+    - path: ai-os/tasks/sap_mapping
+      covers: "New directory (2026-07-28), first entry under ai-os/tasks/ -- per-workstream deliverable output distinct from the ai-os/tasks/task-<id>/ per-session worker directories (which live outside this git repo, under the host's ai-os task-runner tree, not here). Contains PHASE_0_BASELINE.yaml: the SAP-informed VERIDIAN Phase 0 baseline inventory -- 213 business-domain DB tables + 508 API routes categorized across 8 SAP-mapped domains (CRM/Sales/Purchase/Inventory/Accounting-GST/HR/PM/Helpdesk/Construction-BoQ), plus PROJEXA's module-chain exposure state. Read before starting any later SAP-mapping phase (gap analysis, field-level mapping, etc.) so that phase builds on this baseline instead of re-deriving it."
 
   what_should_exist_vs_what_does:
     - path: ai-os/audit-tree/
@@ -109,6 +111,8 @@ index:
       covers: "VERIDIAN Review Framework gap-closure (2026-07-18): pointer + methodology doc for the consolidated Maintainability score (guardrail-violation rate + continuous-improvement backlog + dependency health, all real signals already persisted elsewhere) -- live number via GET /api/ai/team/maintainability-dashboard (veridian_admin-only), computed by src/lib/services/maintainability-dashboard-service.ts. This doc is not itself a data snapshot -- query the API for the current score."
     - path: ai-os/registry/stale-doc-manifest.yaml
       covers: "GAP-UNIFIED-SOT-REMAINDER (b) quarantine manifest -- every root-level stale doc moved to docs/archive/ plus every file already under the tree4-unified/audit-tree archive dirs, each must carry the exact ARCHIVED/STALE banner, enforced by scripts/check-doc-quarantine-banner.mjs on every PR."
+    - path: ai-os/registry/terminology-guardrail-exemptions.yaml
+      covers: "Phase 3 CI enforcement wiring (task-20260724-133911): CI-enforced exemption manifest for scripts/check-terminology-guardrail.mjs's terminology guardrail, same reviewable-diff-ratchet pattern as asset-registry-coverage.yaml above. Backfilled into this index 2026-07-26 -- pre-existing drift found while fixing PR #563's CI (unrelated to that PR's own diff)."
     - path: ai-os/LIFECYCLE.yaml
       covers: "Which of the 11 lifecycle stages (UNDERSTAND..IMPROVE) the project is currently in. Currently MONITOR (ongoing operation, not a one-time build)."
     - path: scripts/check-doc-cross-references.mjs
@@ -129,6 +133,16 @@ index:
       covers: "Point-in-time design + smoke-test doc (2026-07-20) for SUPERBOSS v2 task V2-7 / CSV rows #37/#39 (D8 persistent staging env + per-env var scoping). Records live-infra ground truth verified against the Vercel REST API on 2026-07-20 (account plan=Hobby; Hobby caps custom environments at 0, API returns 400 'Cannot create more than 0 custom environments'; 3 system envs; 19 env vars already per-target scoped), CORRECTS the v2 plan's D8 line that a named staging custom env is 'already supported, no extra spend' (that requires Pro/$20-mo, a paid change V2-7 forbids), and specifies the tier-honest Hobby-compatible design: a long-lived `staging` git branch (Vercel auto-deploys each push as a preview) + staging-only env vars scoped via the free env-var API `gitBranch` field (target=[\"preview\"], gitBranch=\"staging\"). Includes the staging-preview smoke-test expectation (5 checks) and open items for the Owner. The decision evidence backing the CSV re-score for rows #37/#39; not a living spec."
     - path: ai-os/REVIEW_FRAMEWORK_V2-3_VERIFY_FIXED_ASSETS_CHANGE_ORDERS_2026-07-20.md
       covers: "Verification evidence note (2026-07-20) for task V2-3-VERIFY-WAVEB-SHIPPED from the v2 plan above. Confirms the already-shipped Fixed Assets surface (src/lib/services/erp-fixed-assets-service.ts: full CRUD + shared Approval Workflow Engine for disposal + depreciation-schedule business-rule validation with mid-period proration/true-up/salvage floor + draft->in_use->disposed/scrapped state machine) closes CSV rows #43 (CRUD & Approval Workflow, W4 Critical) and #44 (Business Rule & Validation, W5 Critical), and the already-shipped Change Orders e-signature auto-transition (construction-change-order-service.ts draft->pending_approval->approved/rejected via submitChangeOrderForApproval + esignature-service.ts submitSignature/declineSignature allSigned/decline transitions; one-click approve/reject bypass branches removed) closes row #59 (CRUD & Approval Workflow / e-sig auto-transition, W4 Medium). All three re-scored No-Gap. Additive behavior-preserving helper extraction (computeSignatureRequestStatusAfterSign / changeOrderTransitionAfter) + esignature-service.test.ts (17 tests) shipped alongside; no schema/auth/RLS changes (Tier1)."
+    - path: ai-os/V2-12_SERVERLESS_RESOURCE_LIMITS.md
+      covers: "Point-in-time doc + audit (2026-07-26) for SUPERBOSS v2 task V2-12-SERVERLESS-LIMITS / CSV row #13 (Vertical Scalability), redispatched after an original ~2026-07-20 attempt was blocked pre-flight by a spend-governance gate. Documents the live Vercel Hobby-plan limits this repo actually runs under (300s fixed max duration -- no override possible on this plan tier, 4.5 MB request/response body cap on every plan, 2 GB memory; confirmed zero `maxDuration`/`functions` overrides anywhere in this codebase today) and audits payroll-run, report-generation, and bulk-op routes against them, widened to every awaited-DB-call-in-a-loop pattern found. Five HIGH-severity N+1 routes found (`processPayrollRun`, `bulkMarkAttendance`, `compliance/import` CSV importer -- the one with no file-size cap at all, `computeCostOverrunReport`'s ~500-project fan-out, `gst-reconciliation` batch-confirm), plus a real discovered bonus finding (four upload routes advertise a 10 MB file-size cap when Vercel's actual platform ceiling is 4.5 MB on every plan). Recommends a shared cheap batching fix for all five as the first escalation, with `computeCostOverrunReport` flagged as the one genuine queue/background-job candidate if that fix alone proves insufficient. Docs-only Tier1; the recommended follow-ups are filed, not built, in this doc."
+    - path: ai-os/MIGRATION_DRIFT_AUDIT_2026-07-26.yaml
+      covers: "Point-in-time audit + reconciliation (2026-07-26), same genre as the RCA docs above. Root-causes why drizzle.__drizzle_migrations had 0 rows despite hundreds of live tables: drizzle/meta/_journal.json was frozen at its original single migration-0000 entry since first commit, so drizzle-kit's readMigrationFiles() never considered migrations 0001-0263 to exist. Cross-referenced all 261 real migration files against live schema on pcrjmlpuqsbocqfwoxod (249 already present, 12 genuinely missing and applied live, 1 false positive explained as intentional later drop). Repaired drizzle/meta/_journal.json (dense 0-260 idx) and populated drizzle.__drizzle_migrations with 261 correct rows. Also documents migration 0245's mid-history relocation of dynamic_chains (and 21 other tables) from compliance to a new platform schema, which required retargeting 2 still-pending migration files (0140, 0199) and fixing an unqualified ai_provider enum reference (0253) so a fresh bootstrap replay matches what was actually applied live -- see those files' own history. Known open gap flagged, not fixed here: drizzle.config.ts's schemaFilter is still ['compliance'] only, stale for the 22 relocated platform-schema tables (application-schema decision, out of this audit's scope)."
+
+    - path: ai-os/PREVIEW_DEPLOYMENT_SPOTCHECK_2026-07-26.md
+      covers: "Point-in-time spot-check note (2026-07-26) for SUPERBOSS v2 task V2-14-PREVIEW-SPOTCHECK, verifying real PR #571 guardrail-registration coverage as the current open PR (redispatch of a 2026-07-20 task that never started)."
+
+    - path: ai-os/VERIDIAN_V2_DEFENSE_IN_DEPTH_TOOL_EVALUATION_2026-07-26.yaml
+      covers: "Point-in-time tool evaluation (2026-07-26) for VERIDIAN_Architecture_v2.0 phase_4, Defense-in-Depth Security/Guardrails tool mapping and custom-work assessment."
 
   brain_pointer:
     - path: ai-os/CONSTITUTION.yaml
@@ -148,6 +162,139 @@ index:
     - path: /api/ai/team/governance-health
       covers: "Real, queryable governance health endpoint (veridian_admin-gated): Reasoning Quality / Dependency Health / Compliance scores from real reviewer outcomes, plus (as of 2026-07-13) stuckActivities -- AI Team dispatches that have sat in a non-terminal lifecycle stage past a stated threshold with nobody having closed them out."
 
+  # Backfilled 2026-07-26 while fixing PR #563's CI: scripts/check-metadata-
+  # index-coverage.mjs was failing on 56 top-level ai-os/ files/dirs that
+  # accumulated on `main` over time without ever being added here (a
+  # pre-existing gap, unrelated to PR #563's own diff -- reproduced
+  # independently against bare origin/main HEAD before writing this).
+  # Descriptions below are drawn from each file's own header/docstring, not
+  # invented.
+  reference_docs_and_catalogs:
+    - path: ai-os/2045-GAP-CLOSURE-10-DOLLAR-PLAN.md
+      covers: "$10 execution-budget dispatch plan for the row-level CSV gap-closure backlog, ready to fire once OpenRouter credits are available -- a spec, not yet dispatched as of writing."
+    - path: ai-os/AI_CACHE_AND_TRIAGE_ARCHITECTURE.md
+      covers: "AI-agent-facing (not human-narrative) reference (v1, 2026-07-20): caching + request-triage architecture for lowest-token-cost dispatch, covering both the end-user product path and software gap-closure dispatch."
+    - path: ai-os/AI_ENGINEERING_POLICY.yaml
+      covers: "Owner directive 2026-07-21: machine-readable, mandatory AI engineering policy applying across the whole integrated system (FChecklist, VERIDIAN AI OS, compliance-tracker, PROJEXA, server, GitHub, Vercel, Supabase)."
+    - path: ai-os/AI_ROSTER_CATALOG.json
+      covers: "Auto-generated (extract-ai-roster-catalog.mjs, dynamic import of the real AI_TEAM_ROSTER export) catalog of all 195 AI Team roles by team -- ground truth from src/lib/ai-team/roster.ts, not hand-written."
+    - path: ai-os/COST-CONTROL.md
+      covers: "As-built implementation record (2026-07-20) of the zero-waste AI-credit control mechanisms -- every mechanism documented was tested against the live server before being called done."
+    - path: ai-os/DATABASE_CATALOG.json
+      covers: "Auto-generated (extract-db-schema-catalog.mjs, drizzle-orm getTableConfig introspection) catalog of every table/enum in schema.ts -- ground truth from live code, not AI-written descriptions."
+    - path: ai-os/FUNCTION_CATALOG.json
+      covers: "Auto-generated (extract-function-catalog.mjs, TypeScript compiler AST) catalog of every top-level function/arrow-const/class-method across src/**/*.{ts,tsx} -- ground truth from live code."
+    - path: ai-os/BROWSER_LITE_LLM_TECH_DECISION_2026-07-27.md
+      covers: "phase_5_browser_execution_tiers required technology decision (engine-browser-lite-llm): adopt WebLLM for real browser text-generation LLM inference; keep LiteRT.js (litert-spike) unchanged in its existing vision-classifier role."
+    - path: ai-os/VERIDIAN_V2_DSPY_TECH_DECISION_2026-07-27.md
+      covers: "phase_8_dspy_learning_distribution_engines required technology decision (engine-dspy-integration): DSPy evaluation verdict + engine-ai-learning wiring onto capability-learning-service.ts."
+    - path: ai-os/BROWSER_EXECUTION_TIERS_INCREMENT_2_STATUS_2026-07-27.md
+      covers: "phase_5_browser_execution_tiers increment 2 status: WebLLM install, MCP/function/worker/transformers engine wiring, stack deepening."
+    - path: ai-os/GAP_ANALYSIS_2026-07-20_HOLD.md
+      covers: "Analysis-only doc on the 185 open Review-Framework CSV rows. Owner directive 2026-07-20 explicitly paused dispatch on these (mechanically enforced, see doc's own Enforcement section) -- not a live work queue."
+    - path: ai-os/PROCUREMENT_ERP_GAP_ANALYSIS_2026-07-31.md
+      covers: "Analysis-only doc cross-referencing the 10 procurement-erp-reverse-engineering reference phase docs against this repo's live 95 erp_*-prefixed tables. Prioritized real-gap list (Gate Pass, Divisions tier, HSN/SAC-to-GST wiring, UOM master, requisition cost-center/OPEX-CAPEX, multi-state supplier GST, GRN-optional invoices, Debit Notes) pending Owner review before dispatch -- not a live work queue."
+    - path: ai-os/MASTER_INDEX.yaml
+      covers: "AI/software-audience protocol: query this file before creating any new script/table/register across compliance-tracker/projexa/veda-advisors/claude-control, to avoid building a parallel mechanism that already exists."
+    - path: ai-os/PROMPT_METADATA_SCHEMA_2026-07-25.schema.json
+      covers: "JSON Schema for compliance.prompt_versions.metadata, realizing VERIDIAN_Architecture_v2.0.docx section 2.6 ('Prompt Metadata Schema, 200+ Fields') at minimum-viable field depth."
+    - path: ai-os/RULES_ARTICLES_198.json
+      covers: "198 rules/articles extracted from Owner-supplied RULES.xlsx (2026-07-21) -- a distinct canonical source, not yet reconciled with ai-os/CONSTITUTION.yaml (its own field says so explicitly)."
+    - path: ai-os/STANDING_DIRECTIVE.yaml
+      covers: "Machine-readable standing task directive (Owner directive 2026-07-21, chat), referenced by filename per task."
+    - path: ai-os/SUPERBOSS_REGISTER.md
+      covers: "Reference doc for the Superboss Register -- four linked, full-text-searchable SQLite/FTS5 tables at /opt/veridian/ai-os/memory/superboss-register.sqlite, deployed 2026-07-20 so no session starts from zero."
+    - path: ai-os/SYSTEM_DIAGRAM.md
+      covers: "Auto-generated system diagram (23 components, 21 edges), rendered by ai-os/scripts/generate-system-diagram.py from that script's own SUBSYSTEMS/EDGES data -- do not hand-edit this file directly."
+
+  # Same backfill as reference_docs_and_catalogs above -- real operational
+  # automation (cron/systemd entrypoints, dispatchers, extractors, guards),
+  # not narrative governance docs, but still top-level items under ai-os/
+  # that check-metadata-index-coverage.mjs's scan requires be accounted for.
+  operational_scripts:
+    - path: ai-os/scripts/anthropic_openrouter_proxy.py
+      covers: "Local proxy translating Anthropic Messages API requests (Claude Code CLI via ANTHROPIC_BASE_URL) into OpenRouter chat-completions calls and back, so Claude Code's real tool-use flow can run against GLM/OpenRouter models."
+    - path: ai-os/scripts/anthropic_openrouter_proxy_v2.py
+      covers: "v2 of the proxy above (2026-07-20, Owner 'zero credit wastage' directive): adds two hard, code-enforced controls at the single chokepoint every GLM-5.2 call passes through."
+    - path: ai-os/scripts/audit198/
+      covers: "Implementation directory for the RULES_ARTICLES_198.json audit engine (category-checkers.mjs, constitution-index.mjs, evidence-engine.mjs, rules-taxonomy.mjs, results/)."
+    - path: ai-os/scripts/batch-import-conversation-log.py
+      covers: "Batch-imports queued conversation-log events (Claude Code hook payloads, uploaded as one NDJSON file) into the Superboss Register via direct sqlite3 inserts."
+    - path: ai-os/scripts/cost-reconciliation.py
+      covers: "Weekly/on-demand reconciliation report verifying the cost-control system is actually behaving as intended, not just trusted silently. Zero API cost -- reads only local logs/state."
+    - path: ai-os/scripts/cost-usage-60min.py
+      covers: "VERIDIAN-DEV hourly cost/usage check -- cross-checks OpenRouter's real /api/v1/credits balance against compliance.token_usage_ledger. Zero AI cost, deterministic."
+    - path: ai-os/scripts/credit-accountant.py
+      covers: "Owner directive 2026-07-20: hard $1-increment approval gate on metered AI credit spend (OpenRouter/GLM-5.2), the real metered pool implicated in an earlier RCA."
+    - path: ai-os/scripts/dispatch-docworker-task.sh
+      covers: "Atomic docworker dispatch (2026-07-20), closing a confirmed recurring gap where veridian-task.py create would auto-start the wrong GLM-routed worker unit before a manual disable could catch it."
+    - path: ai-os/scripts/doc-worker-entrypoint.sh
+      covers: "Entrypoint for a systemd-managed VERIDIAN DOC worker -- same checkpoint/resume/commit-push pattern as worker-entrypoint.sh below, deliberately different for browser-based external-system documentation tasks."
+    - path: ai-os/scripts/extract-ai-roster-catalog.mjs
+      covers: "Generator for AI_ROSTER_CATALOG.json above -- mechanical dynamic import of the real roster.ts module, not text-parsing or AI-written."
+    - path: ai-os/scripts/extract-db-schema-catalog.mjs
+      covers: "Generator for DATABASE_CATALOG.json above -- mechanical drizzle-orm getTableConfig introspection, reusable across repos via an argv schema-path."
+    - path: ai-os/scripts/extract-function-catalog.mjs
+      covers: "Generator for FUNCTION_CATALOG.json above -- mechanical TypeScript-compiler-AST extraction (parse-only, no type-checker) of every function/arrow-const/class-method under src/**/*.{ts,tsx}."
+    - path: ai-os/scripts/gap-status.py
+      covers: "Quick X/Y status check for /opt/veridian/ai-os/gap_queue.yaml, plus anything needing an Owner decision."
+    - path: ai-os/scripts/generate-system-diagram.py
+      covers: "Generator for SYSTEM_DIAGRAM.md above -- Owner directive 2026-07-20 ('make a diagram or tree of the whole system'); diagram data lives in this script's own SUBSYSTEMS/EDGES, rendered to Mermaid."
+    - path: ai-os/scripts/generate_quick_reference.py
+      covers: "Owner directive 2026-07-20 ('make MASTER_INDEX.yaml logical for you or any AI'): mechanically generates a compact, scannable quick-reference list (id + path + status + auto-extracted one-line summary)."
+    - path: ai-os/scripts/generate_task_checklist.py
+      covers: "Owner directive 2026-07-20: software-generates the self-use task checklist prompt (files/process/instructions per task) instead of a hand-maintained one."
+    - path: ai-os/scripts/health-check-15min.py
+      covers: "VERIDIAN-DEV 15-minute health check (L0 tier, zero AI cost): systemd unit status + in_progress task checkpoint staleness."
+    - path: ai-os/scripts/import-memory-history.py
+      covers: "One-time bulk import of local MEMORY.md history into the server-side Superboss Register's work_items, per Owner directive 'document all sessions ... so it becomes the real memory.'"
+    - path: ai-os/scripts/master-decompose.py
+      covers: "Master role, on-demand (not a standing daemon) task-decomposition trigger for the Master/Supervisor pilot."
+    - path: ai-os/scripts/module-queue-dispatcher.py
+      covers: "Master/Supervisor pilot dispatcher reading module-scoped queue files (ai-os/queues/<module>.yaml) and dispatching them the same way queue-dispatcher.py dispatches the general gap queue."
+    - path: ai-os/scripts/preflight-guard.py
+      covers: "Pre-flight guard run before the main claude -p invocation in worker-entrypoint.sh (Owner zero-waste directive, 2026-07-20) -- catches instant-environment-failure and other zero-value-spend classes before they cost anything."
+    - path: ai-os/scripts/quality-gate.sh
+      covers: "Runs whatever quality gates are actually detectable in a workspace (lint/build/test) before a worker's changes reach pending_review; gracefully skips gates that don't apply."
+    - path: ai-os/scripts/queue-dispatcher.py
+      covers: "Autonomous cron-run dispatcher for /opt/veridian/ai-os/gap_queue.yaml -- syncs dispatched-item status and pulls new items under the concurrency cap."
+    - path: ai-os/scripts/recover-failed-workers.py
+      covers: "RCA recovery script (2026-07-20): converts veridian-worker@ systemd units stuck in permanent 'failed' state (pre-dating the preflight-guard.py fix) into a clean 'blocked' state."
+    - path: ai-os/scripts/repair_controller.py
+      covers: "Rebuilds ai-os/CONTROLLER.yaml from the authoritative per-task task.yaml files -- safe because corruption was in the shared aggregate index, not the individual task records."
+    - path: ai-os/scripts/risk-tier.py
+      covers: "Deterministic (non-AI) risk-tier classifier for a task's diff against its base branch (tier1 = autonomous-mergeable, tier2 = holds for human sign-off) -- deliberately simple and auditable."
+    - path: ai-os/scripts/run-logged.sh
+      covers: "Universal execution wrapper for the Superboss Register (Owner directive 2026-07-20: ensure tasks/actions are properly logged with id and timestamp) -- middleware/aspect-pattern instrumentation."
+    - path: ai-os/scripts/scope-check.py
+      covers: "Enforces the Master/Supervisor pilot's no-collision rule: every file a worker's diff touches must belong to its declared module (file-ownership.yaml) or an explicit files_allowed override. Deterministic, path-glob based."
+    - path: ai-os/scripts/software-request-analyzer.py
+      covers: "The mandatory triage gate specified in ai-os/AI_CACHE_AND_TRIAGE_ARCHITECTURE.md section 1 -- rule-based, $0-cost, deterministic; run before dispatching anything to an AI."
+    - path: ai-os/scripts/superboss-register.py
+      covers: "Superboss Register implementation -- three searchable trees, server-side, SQLite+FTS5, deployed 2026-07-20 so no session starts from zero. Scope deliberately distinct from the AI-work cost-control system."
+    - path: ai-os/scripts/supervisor-entrypoint.sh
+      covers: "VERIDIAN-DEV server-side Superboss entrypoint: reviews a task's branch for real (not a self-report), classifies risk tier deterministically, and merges/holds/blocks accordingly."
+    - path: ai-os/scripts/supervisor-sweep.sh
+      covers: "Safety net catching any task stuck in pending_review with no review.json (its immediate supervisor trigger was missed -- crash/systemd hiccup)."
+    - path: ai-os/scripts/sync-controller-back.py
+      covers: "Automates SYNC rule #14 from SUPERBOSS_DISPATCH_PROMPT.md: records a terminal-state task's summary into the master CONTROLLER.yaml (claude-control repo) and pushes it, idempotent via task.yaml's master_synced_at marker."
+    - path: ai-os/scripts/sync-repos.sh
+      covers: "Pulls latest commits for all mirrored repos. Fast-forward only, never overwrites local changes."
+    - path: ai-os/scripts/sync-vercel-env.sh
+      covers: "Refreshes .env.local for the 3 linked Vercel projects with current production env vars."
+    - path: ai-os/scripts/sync-verdian-ai-data.sh
+      covers: "Full refresh of the verdian-ai Supabase local mirror (schema + data) -- destructive to the local mirror only (drops/recreates public+compliance schemas each run), does not touch the remote database."
+    - path: ai-os/scripts/system-sync.py
+      covers: "Single unified sync/audit mechanism for 'one server, one system' (Owner directive 2026-07-20, tasks 2-6 of the 6-part systems-design mandate) -- CONSTITUTION.yaml staleness detection plus files/registry integration checks."
+    - path: ai-os/scripts/task-template.py
+      covers: "Renders the Master/Supervisor pilot's standardized task dict (TASK ID/MODULE/OBJECTIVE/FILES ALLOWED/FILES FORBIDDEN/DEPENDENCIES/INPUT/OUTPUT/STEPS/CONSTRAINTS/VALIDATION/DONE CRITERIA) into the prompt text handed to veridian-task.py create."
+    - path: ai-os/scripts/tight_task_validation.py
+      covers: "Faithful Python port of src/lib/task-tightening.ts's validateTightTask() for the shell-layer dispatch scripts (worker-entrypoint.sh, doc-worker-entrypoint.sh), which have no access to the TS/DB-backed original."
+    - path: ai-os/scripts/veridian-task.py
+      covers: "VERIDIAN-DEV AI-OS task/worker manager -- server-side, self-contained state management for async AI workers that survive client disconnects, server reboots, and resume from checkpoints."
+    - path: ai-os/scripts/worker-entrypoint.sh
+      covers: "Entrypoint for a systemd-managed VERIDIAN AI worker -- runs Claude Code headlessly against an isolated git worktree, checkpoints periodically, resumes on restart, pushes the branch on success (never merges/deploys)."
+
   exempted:
     # Real product/spec/reference docs that are NOT governance-scoped --
     # listed here so check-metadata-index-coverage.mjs's scan doesn't flag
@@ -157,5 +304,11 @@ index:
       reason: "Product technical-spec documents (ComplianceTrack_TechSpec_*.docx etc), not AI-OS governance. Corrected 2026-07-14 (DEBT-06, ai-os/CONSTITUTION.yaml): this exemption does NOT extend to docs/master/ specifically -- scripts/check-doc-cross-references.mjs already treats docs/master/INDEX.md as 1 of its 6 real governance entry points, so it was never actually exempt in practice; this note now says so explicitly instead of silently contradicting that script's own behavior."
     - path: ai-os/OS.yaml
       reason: "This file is the index itself -- it does not need to index itself."
+    - path: ai-os/audits/owner_engine_reaudit_2026-07-27.md
+      reason: "Point-in-time independent re-audit findings report (2026-07-27), not an ongoing governance doc -- same class as other dated audit reports, real evidence/verdicts, not a spec to keep indexed long-term."
+    - path: ai-os/audits/projexa_erp_e2e_reaudit_2026-07-27.md
+      reason: "Point-in-time independent re-audit findings report (2026-07-27), not an ongoing governance doc -- same class as owner_engine_reaudit above."
+    - path: ai-os/audits/reporting_module_reaudit_2026-07-27.md
+      reason: "Point-in-time independent re-audit findings report (2026-07-27), same class as the other two audit reports above."
     - path: ai-os/v2-7-workflow-change.patch
       reason: "A git-format patch file (2026-07-20, V2-7) carrying the .github/workflows/sync-vercel-env.yml per-env scoping edit that this session's GitHub token cannot push directly (token lacks the `workflow` scope; GitHub rejects workflow-file pushes from such tokens). The design + rationale it implements live in the indexed ai-os/STAGING_ENV_2026-07-20.md; the patch is a delivery artifact for an Owner-push handoff, not a governance document -- indexed here only so check-metadata-index-coverage.mjs's scan does not flag it as an oversight. Remove once the Owner applies it and the synced .yml lands on main."
