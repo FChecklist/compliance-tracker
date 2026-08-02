@@ -563,3 +563,40 @@ rather than defining a competing one.
 **Canonical artifact**: this same file, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` — amended in
 place, not rewritten, not duplicated. Status inherited from both parent UMRs
 (`UMR-20260802-054239-4251`, `UMR-20260802-104058-25ba`).
+
+---
+
+## Amendment (2026-08-02): PM decision — OCID-015/017/018/019 CLOSED, PR #711 no action, next-step scopes opened
+
+PM answer to this session's queued question, independently checked rather than left for the
+session to resolve alone. Real evidence: **PR #725 genuinely merged**, `mergedAt
+2026-08-02T17:02:41Z`, merge commit `d3d88751c1eacae062dfd45dfa2d8010b1381582`, verified via a
+fresh git clone showing the real 387-line canonical matrix file (this file, pre-this-amendment)
+including all four amendment sections above in full, real, substantive detail (Master Execution
+Framework design, standing gatekeeper rule, unified project memory model, recovery matrix).
+
+**Closed on that evidence:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-20260802-015 | `UMR-20260802-164801-2ab9` | Master Execution Framework — design only | **CLOSED** |
+| OCID-20260802-017 | `UMR-20260802-165034-5747` | Standing gatekeeper rule | **CLOSED** |
+| OCID-20260802-018 | `UMR-20260802-165434-cd91` | Unified project memory model | **CLOSED** |
+| OCID-20260802-019 | `UMR-20260802-165541-c27d` | Recovery matrix | **CLOSED** |
+
+**PR #711 (UI/UX click-through scope): no action.** Real current state — open, mergeable, no fresh
+`AUDIT:` comment posted, only Vercel rate-limit notices on the check run. Left as-is; that scope
+already stands on real evidence gathered earlier and does not need re-verification right now.
+
+**Next-step scopes opened, this same session, per the PM's explicit instruction** (real capacity
+permitting, given the swap-pressure constraint already flagged elsewhere in this session's own
+work): (a) **OCID-20260802-020** (`UMR-20260802-165606-4413`) — begin the bounded, properly-scoped
+extension already proposed: test projexa-ai.com's own authenticated screens on its separate
+Supabase project, real browser testing, real screenshots, real reproduction paths for any gap
+found. (b) **OCID-20260802-016 continuation** (`UMR-20260802-164659-9a31`) — the still-open
+server-wide artifact traceability scan, beyond the first tranche PR #723/#726 already covered.
+Both scopes registered in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting, per the standing
+gatekeeper rule above. Findings for both appended as their own amendments below once real work
+completes this session.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.

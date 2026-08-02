@@ -439,3 +439,16 @@ UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
       Check/Asset Registry Coverage Check/Unit Tests) are green against the new head SHA, then merge PR
       #729 (merge itself is out of this session's hands per Rule 6 -- PR/CI gate, no direct push to main;
       this session does not have merge/admin rights to bypass that gate even if it wanted to).
+
+# PROGRESS -- task-20260802-172449-pm-answer---next-steps--pr-725-and-711-s
+
+## Completed
+- [x] Verified PM's PR #725 merge claim against real git log (merge commit `d3d88751`, PR #726 also present as a follow-on merge)
+- [x] Recorded PM decision in `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`: OCID-015/017/018/019 CLOSED, PR #711 no action
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` for OCID-020 (projexa-ai.com authenticated-screen testing) and OCID-016 tranche 2 (traceability register continuation) — no collision found
+- [x] Confirmed real capacity exists for OCID-020: `/opt/veridian/repos/projexa` has an installed Playwright e2e suite (22 specs) already targeting live `https://projexa-ai.com` with real seeded auth users
+
+## Remaining
+- [ ] OCID-020: run the existing projexa e2e suite against live projexa-ai.com, capture real pass/fail + screenshots for gaps, document findings as a matrix amendment
+- [ ] OCID-016 tranche 2: traceability scan of this repo's `ai-os/boss/`, `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/` subdirectories, document as a matrix amendment
+- [ ] Commit + push each unit as it completes
