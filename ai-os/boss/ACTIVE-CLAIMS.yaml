@@ -42,6 +42,40 @@
 active:
   - session_label: "claude-code (task-20260802-210700-pm-decision--fix-the-real-high-severity) -- PM decision: fix the real high-severity GET /api/departments 500 (UMR-20260802-165606-4413, OCID-020 Finding A) before resuming the broader certification sweep"
     claimed_at: "2026-08-02T21:07Z (this session)"
+  - session_label: "claude-code (task-20260802-220756-pm-decision--close-pr-741-as-superseded) -- PM decision: close PR #741 as superseded by already-merged PR #740 (both fix the identical GET /api/departments relation-ambiguity 500, UMR-20260802-165606-4413)"
+    claimed_at: "2026-08-02T22:07Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own prompt): PR #741 (created
+      2026-08-02T21:15:22Z) and PR #740 (created earlier, 2026-08-02T21:10:25Z,
+      merged as real merge commit 821ddec46cc97d958776b5009b55faee28b6b410)
+      both fix the identical `departments`/`users` drizzle relation-ambiguity
+      500 in `src/lib/db/schema.ts` -- a genuine parallel duplicate, PR #741
+      created before its worker session saw PR #740 already merged, not
+      caught by the gatekeeper check at creation time.
+      Verified independently, not taken on faith: diffed PR #741's
+      `src/lib/db/schema.ts` hunk against `git diff c0df6f02^ c0df6f02 --
+      src/lib/db/schema.ts` (the real PR #740 fix commit) -- both add the
+      identical `relationName: 'departmentMembers'` to the same two relation
+      fields, same lines. PR #740's merge is confirmed real and current
+      (`git log` shows `821ddec2` as a real merge commit on `main`, `c0df6f02`
+      as its real fix commit).
+      PR #741 also touches `ai-os/MASTER-TRACKER.yaml`, adding a NEW gap entry
+      `GAP-ERP-CRM-403-NO-UX-EXPLANATION` (real "Finding B": fresh self-signup
+      orgs get silent 403s across CRM/ERP APIs with no user-facing "module not
+      enabled" explanation) that does NOT exist on `main` and was NOT added by
+      PR #740 -- confirmed via `grep` against the current file. This is real,
+      additional content beyond the duplicate schema fix; being preserved
+      separately (ported to `main` directly by this session) rather than
+      silently discarded when PR #741 closes.
+      Action: close PR #741 with a real closing comment citing both PR
+      numbers and the merge commit; do not attempt to resolve its conflict or
+      merge it. Full detail: this repo's own `PROGRESS.md`.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`, and (to
+      preserve PR #741's genuinely new Finding B content) a small addition to
+      `ai-os/MASTER-TRACKER.yaml`. No src/, schema, or CI changes. GitHub-side
+      action only closes PR #741 -- does not merge or push its branch.
+
     claim: |
       SPEC (PM decision, this task's own prompt.txt): the OCID-020 redo
       session's Finding A -- a real, high-severity, reproducible `500` on
