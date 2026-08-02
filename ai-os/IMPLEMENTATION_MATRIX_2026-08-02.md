@@ -735,3 +735,89 @@ real behavior observed same certification pass:
   plausibly other ERP/CRM surfaces sharing the same gate — not independently re-audited here).
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-02): Server-wide artifact traceability register — tranche 3 (`UMR-20260802-164659-9a31`, OCID-20260802-016)
+
+Continuation of tranches 1-2 above. Scoped this pass to the "honest remaining scope" tranche 2
+named: `/opt/veridian/scripts/*/` subdirectories, claude-control's `ai-os/*/` subdirectories, and
+live-server `/opt/veridian/ai-os/*/` subdirectories (split across 3 parallel discovery passes,
+`pending_remediation/` covered separately given its real size).
+
+**Real coverage this tranche: 493 files** (142 + 176 + 175), all covered fully, not sampled —
+exceeding the ~414 originally scoped after two independent shallow-count gaps were found and
+closed rather than left unscanned (`scripts/prompt_gateway/engine/` and 4 of claude-control's
+subdirectories both had real, git-tracked content one level deeper than a `-maxdepth 1` count
+found).
+
+**Real environment finding, worth recording for future tranches**: this sandbox's wrapped
+`find`/`bfs`/`grep` shell functions can silently truncate large directory listings and inject a
+literal `... more files` string into output even when redirected to disk. Two independent
+discovery agents hit this independently and both cross-verified with `python3 os.listdir()` /
+`command find` / `git ls-files` to get real counts. `pending_remediation/`'s real count is 176,
+not the 51 an initial truncated listing suggested.
+
+### Zone breakdown
+
+| Zone | Files | UMR ref in content | Traceable via commit history | No mapping (pre-dates system) | Orphans | Duplicates |
+|---|---|---|---|---|---|---|
+| `/opt/veridian/scripts/*/` subdirs | 37 | 1 (`systemd/veridian-worker@.service` → `UMR-20260801-190119-ff34`) | 0 | 36 | 0 | 0 (1 backup-pattern connection to an already-known tranche-1 duplicate pair, not new) |
+| claude-control `ai-os/*/` subdirs | 105 | 0 | 0 | 105 | 0 | 0 |
+| live-server `ai-os/pending_remediation/` | 176 | 1 (`audit-fail-compliance-tracker-709.md` → `UMR-20260802-051325-9e5a`) | 0 | 175 | 0 | 4 pairs / 8 files (self-consistent same-PR duplicates from 2 dispatcher trigger paths, same 2026-07-26 run) |
+| live-server `ai-os/*/` remaining subdirs | 175 | 13 (see detail below) | 0 | 162 | 0 | 0 |
+| **Total** | **493** | **15** | **0** | **478** | **0** | **4 pairs / 8 files** |
+
+Real UMR-content-citation detail beyond the summary counts: `memory/superboss-register.sqlite` and
+5 of its own backup snapshots carry 73-993 UMR strings each — this is the live `umr_tasks` decision
+log itself (already documented as the canonical decision log in the unified-memory-model
+amendment above), not per-file citations, counted once as "has UMR content" not per-string.
+`OWNER_DIRECTIVES/PROTOCOL_OWNER_AI.yaml` (+ 1 backup), `logs/ATTENTION.md`, `logs/dispatch-tick-cron.log`,
+`generated/generate_quick_reference-latest.yaml`, `session_metadata/FROM_LAPTOP_WORK_IN_PROGRESS_METADATA.json`
+round out the 13.
+
+**Zero genuine orphans found across all 493 files.** Every directory that looked orphan-shaped by
+name resolved to a real, self-evident, live-wired, or explicitly-indexed artifact on inspection
+(live runtime state read/written by `resource_governor.py`, real generator-script outputs, real
+named patches, real documented OOM-incident backups, a real self-documented staged-migration
+folder, directory-level `MASTER_INDEX.yaml`/`OS.yaml` indexing consistent with tranches 1-2's own
+established convention).
+
+**4 genuine duplicate pairs found, all in `pending_remediation/`**, all self-consistent (same
+dispatcher run, same real target PR, two different trigger paths producing near-identical
+content) — 3 of the 4 pairs' target PRs are already merged (stale), 1 pair's target PR
+(`compliance-tracker#574`) is still open.
+
+### Real operational finding, not a UMR-mapping issue but worth surfacing
+
+Live-re-verified all 144 unique repo+PR targets referenced by `pending_remediation/`'s 176 files
+against real current GitHub state (`gh pr view --json state`): **98 OPEN, 34 MERGED, 12 CLOSED**.
+**62 of 176 files (35%) reference a PR that has already merged or closed** — the remediation these
+auto-drafted prompts call for is moot, but the queue was never cleaned up after the fact. The
+producing pipeline (`status-remediation-tick.py`, real live systemd timer, confirmed active) has
+no apparent cleanup/expiry step for its own output once the underlying condition resolves. Not
+fixed here (out of this directive's discovery-only scope) — a real, concrete, bounded follow-up
+candidate.
+
+**Minor documentation-lag note**: `MASTER_INDEX.yaml`'s `status_monitor_and_remediation` registry
+entry still cites only the old, no-longer-wired `veridian_remediation_dispatcher.py`, not its live
+successor `status-remediation-tick.py`. `session_metadata/WORK_ANALYSIS.md` self-documents its own
+path as nested under `memory/`, but its real location is top-level `session_metadata/` — same
+class of path-citation drift already on record for `PROTOCOL_OWNER_AI.yaml` (item 10).
+
+### Real running total, this register, all 3 tranches
+
+**381 (tranche 1) + 51 (tranche 2) + 493 (tranche 3) = 925 real files classified.**
+
+### Honest remaining scope (still not covered by any tranche)
+
+`/opt/veridian/ai-os/tasks/` (899 real task directories) remains explicitly out of scope by
+design — each task's own `task.yaml` is already the canonical per-task state per the unified
+memory model amendment, not a candidate for this register. No other named zone from tranches 1-2's
+"honest remaining scope" lists remains outstanding as of this tranche — claude-control and
+live-server's subdirectories are now both fully covered. Not yet attempted by any tranche: product
+source-code trees (`src/`, `drizzle/`, etc.) in any repo — this register has scoped itself to
+governance/metadata artifacts throughout, consistent with the directive's own framing ("scripts,
+ai-os, and any repo not yet covered"), not literal every file on the server.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
