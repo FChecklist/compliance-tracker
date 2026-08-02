@@ -4082,6 +4082,35 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (task-20260802-032508-close-phase-2--task--44--final-2-gates, invocation 2) -- Phase 2 (Task #44) final 2 gates: PR #630 + #632 audit + merge"
+    claimed_at: "2026-08-02T (this session)"
+    claim: |
+      Continuing from invocation 1 (this same task): PR #630
+      (task-20260729-120933-stage9-content-search-view, Stage 9
+      compliance.content_search view) and PR #632
+      (task-20260729-152041-stage11-end-user-receptionist-notice-status,
+      Stage 11 get_notice_status) were both rebased onto fresh origin/main
+      last invocation (migration renumbered 0302->0311 for #630; additive
+      terminology-guardrail-exemptions.yaml merge conflict resolved for
+      #632). All CI checks pass on both except audit-check, which is
+      failing only because no fresh AUDIT verdict comment exists against
+      the new post-rebase head SHAs (52f567d0 / 53a25e7a) -- PR #630's old
+      AUDIT: FAIL comment predates the rebase and concerns an already-
+      superseded migration collision. Per Rule 7c/10 (no self-
+      certification -- this session did the rebase, so it cannot also post
+      the audit verdict), dispatching independent audit sub-agents with no
+      prior context on this task to review both diffs fresh and post the
+      structured 8-field AUDIT comment. Once audit-check passes on both,
+      intent is to merge both PRs, which closes Phase 2 (Task #44) -- the
+      gate for TWO_ENGINE_TASK Phase 3/Kernel consolidation (Task #45).
+    scope_note: |
+      File scope: PR #630 and #632 branches only
+      (task-20260729-120933-stage9-content-search-view,
+      task-20260729-152041-stage11-end-user-receptionist-notice-status) --
+      audit + merge, no new feature changes. Plus this file (claim
+      registration) and PROGRESS.md/COMPLETED.yaml on this task's own
+      branch (worker/task-20260802-032508-close-phase-2--task--44-final-2-gates).
 recently_completed:
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
