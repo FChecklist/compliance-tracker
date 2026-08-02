@@ -465,3 +465,101 @@ extend it.
 
 Canonical artifact updated: this file (`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`), same
 amendment convention as PR #723/#725 — not rewritten, not duplicated.
+## Amendment (2026-08-02): Unified project memory model — DB-layer refinement + real open gap (`OCID-20260802-018`)
+
+Per Owner directive OCID-20260802-018, amending both parent UMRs `UMR-20260802-054239-4251` and
+`UMR-20260802-104058-25ba`, inheriting their status. **No new implementation or audit created for
+this directive itself** — this refines the prior `Unified project memory model` amendment above
+(`UMR-20260802-165434-cd91`, merged PR #725) with a deeper real-DB discovery pass that pass did not
+run, and names one real, still-open gap. No new database, table, repository, or file was created;
+nothing was rebuilt or duplicated — per the standing gatekeeper rule (`UMR-20260802-165034-5747`,
+this same file) this extends the existing model in place.
+
+**Gatekeeper check run before this pass (per the standing rule above):** grepped this file and
+`ai-os/boss/ACTIVE-CLAIMS.yaml` for this exact directive/OCID — no prior implementation found for
+*this* directive. The closely-related `UMR-20260802-165434-cd91` amendment above already exists and
+was extended, not rebuilt, consistent with the rule.
+
+### Real gap in the prior pass, found by direct inspection
+
+The prior amendment's 7-file table treated `ai-os/memory/superboss-register.sqlite` as effectively
+one row (`umr_tasks`, the decision log). Direct inspection of the same live DB
+(`/opt/veridian/ai-os/memory/superboss-register.sqlite`, the real path per `superboss-register.py:63`'s
+`DB_PATH`/`SUPERBOSS_REGISTER_DB`) found it contains several other real, live, actively-written
+tables directly relevant to the directive's own named concerns ("a single dependency graph," "a
+single findings record," "a single evidence trail") that the prior pass never queried:
+
+| Real table (same DB) | Row count (2026-08-02, this session) | Real role | Answers which directive concern |
+|---|---|---|---|
+| `audit_findings` | 16,672 | Real, structured audit-finding ledger (domain/standard/clause/artifact/severity/status/producer/repo/run_id) fed by `audit_runs` (164 rows) and rolled up in `audit_master_reports` (2 rows) | **The single findings record** — more concrete/queryable than any markdown doc |
+| `wiring_registry` | 7,987 | Code-level entity-relationship graph (engine/gateway/table/function/route/file/script/cron_job/ai_role), mechanically generated from 8 live sources per `MASTER_INDEX.yaml`'s own `search_layers_relationship.wiring_registry` field (line 60-63 of that file) — "never hand-authored" | **The single dependency graph** |
+| `knowledge_engine` | 376 | Searchable, hash-verified (`content_hash`, `verification_status`) machine index of real artifacts (e.g. `MASTER_INDEX.yaml` registry entries), actively written same-day (last row `2026-08-02T08:37:07Z`) | **The single evidence trail** (machine drift-detection layer under the human-narrative docs) |
+| `system_index` | 135 | Fast existence-check layer ("does X already exist before I build it") | Supports "single project state" — the check-before-build gate `MASTER_INDEX.yaml`'s own top-level `protocol` field requires |
+| `task_claims` | 43 | Atomic `UNIQUE(task_key)` lease table, real fix for a documented 2026-07-31 duplicate-dispatch incident (`superboss-register.py:1976-2040`, direct source read) | **Verified NOT a scattered duplicate** of `ai-os/boss/ACTIVE-CLAIMS.yaml` — different layer: mechanical race-condition lock at task-creation time (hard DB constraint) vs. cooperative, human-narrative, cross-session semantic registry. Confirmed complementary by reading both mechanisms' real source/protocol, not assumed. |
+| `conversation_memory` / `plans` / `learning_reflections` | 1 / 1 / 5 | Schema exists and is real, but every row is stale 2026-07-24 demo/test fixture data (`session_id: 'conv-phase6-test-1'`, `org_id: 'org-demo'`, `actor_ref: 'user-42'`) | **Real, honest gap, not silently glossed over**: this part of the schema is architecture-exists-but-unused — not yet a live "project memory" for real work sessions, consistent with the pattern already named in `[[country-config-architecture-state]]`-class findings elsewhere in this codebase's own history. Not fixed here — out of this directive's scope (discovery/consolidation of what's real, not new build-out). |
+
+**All 4 of the first-listed tables (`audit_findings`, `wiring_registry`, `knowledge_engine`,
+`system_index`) are already explicitly documented as complementary, non-competing layers in
+`ai-os/MASTER_INDEX.yaml`'s own `search_layers_relationship` block (lines 46-80 of that file, dated
+2026-07-30)** — this amendment's real contribution is cross-referencing that existing, authoritative
+self-documentation into the *project-memory* model (this file), which had not cited it, rather than
+discovering something genuinely new. Confirms the directive's own framing: consolidate what already
+exists into the canonical place, don't reinvent.
+
+### Real, currently-open gap found: `MASTER_INDEX.yaml` live-vs-repo drift
+
+`MASTER_INDEX.yaml`'s own header (`known_open_gap_this_note_does_not_fix`, dated 2026-07-30) already
+disclosed this as an open, deliberately-deferred gap ("full reconciliation explicitly out of this
+pass's scope... neither is a strict subset of the other"). Re-verified live, today, with the real
+existing tool built for exactly this (`system-sync.py`, no new tooling written):
+
+```
+$ python3 /opt/veridian/scripts/system-sync.py --dry-run --check mirror
+[mirror_drift_check] 3 finding(s), 0 auto-fixed (staged, not committed)
+  - DRIFTED (live != mirror content): dispatch-tick.py
+  - DRIFTED (live != mirror content): test_pm_triage.py
+  - DRIFTED: MASTER_INDEX.yaml (live != repo mirror)
+```
+
+Real registry counts, this session (`/opt/veridian/ai-os/MASTER_INDEX.yaml` = live/canonical vs. this
+repo's `ai-os/MASTER_INDEX.yaml` = repo mirror): **live 123 registries, repo 59, only 54 overlap** —
+the gap has *grown*, not shrunk, since the 2026-07-30 note (97 vs 50 at that time). Real repo-only
+entries missing from the live copy include this session's own recent work
+(`implementation_matrix_2026_08_02`, `veridian_kernel_1_0`) — i.e. the live "canonical" index is
+currently missing record of real, already-merged product/governance work. Most live-only entries are
+legitimately live-server-scoped infrastructure registrations (scripts under `/opt/veridian/scripts/`
+not mirrored into this repo by design), consistent with the existing note's own caveat.
+
+**Deliberately not fixed in this pass** — this repeats, not overrides, the same judgment call the
+2026-07-30 pass already made for the identical reason (neither file is a strict subset; a blind merge
+risks real data loss on both sides). Naming it here, with fresh evidence, is this directive's own
+explicit instruction ("if evidence needed to decide is missing: stop and report, never assume" —
+`UMR-20260802-165034-5747`'s gatekeeper rule) — a full, careful field-by-field reconciliation of
+`MASTER_INDEX.yaml` (live vs. repo) is real, scoped, close-ended follow-up work, not yet dispatched.
+
+### Refined answer to the directive's own questions
+
+- **Single project state**: `ai-os/MASTER_INDEX.yaml` (governance/artifact index) + `system_index`
+  table (existence-check layer) — real, but **currently drifted** between live and repo copies (gap
+  above), the one concrete way "project state" is *not* fully single today.
+- **Single decision log**: `umr_tasks` table (985 real rows) — confirmed, unchanged from prior pass.
+- **Single traceability path**: this matrix's own PR-to-UMR mapping section above + `task.yaml`
+  checkpoints + `umr_tasks` — confirmed, unchanged.
+- **Single dependency graph**: `wiring_registry` table (7,987 rows) — **newly named this pass**; the
+  prior amendment did not identify this table at all.
+- **Single findings record**: `audit_findings` table (16,672 rows) — **newly named this pass**; the
+  prior amendment cited only markdown-level findings (this matrix's own items), not the real
+  structured ledger underneath.
+- **Single evidence trail**: `knowledge_engine` table (376 rows, content-hash + verification-status
+  per artifact) — **newly named this pass**, sharpens the prior amendment's file-level-only view.
+
+**Read/write flow, updated**: identical to the prior amendment's 7-step flow, with steps 2 and 5
+widened — step 2 ("query `umr_tasks`") now explicitly includes querying `wiring_registry` for
+call-graph questions and `audit_findings`/`knowledge_engine` for evidence/verification questions,
+per `MASTER_INDEX.yaml`'s own documented `read_order_for_a_new_reader` (its lines 77-80) — this
+amendment aligns the project-memory model with that file's pre-existing, authoritative read order
+rather than defining a competing one.
+
+**Canonical artifact**: this same file, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` — amended in
+place, not rewritten, not duplicated. Status inherited from both parent UMRs
+(`UMR-20260802-054239-4251`, `UMR-20260802-104058-25ba`).
