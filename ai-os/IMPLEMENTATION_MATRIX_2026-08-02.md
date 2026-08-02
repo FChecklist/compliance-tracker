@@ -821,3 +821,39 @@ governance/metadata artifacts throughout, consistent with the directive's own fr
 ai-os, and any repo not yet covered"), not literal every file on the server.
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-02): Recovery matrix — real, additional gap found (`UMR-20260802-165541-c27d`, OCID-20260802-019)
+
+Continuation of the recovery matrix amendment above. No new implementation or audit for this
+directive itself — recording one real, additional, honest gap found while working the OCID-020
+certification, distinct from the recovery matrix's already-disclosed supervisor-restart gap.
+
+### Real gap found: `task.yaml`'s `status` field can go stale after a clean SIGTERM
+
+Real, directly observed: `task-20260802-210700-pm-decision--fix-the-real-high-severity` was
+cleanly `SIGTERM`'d by the resource governor (freeing a concurrency slot for other queued
+dispatches — a correct, working safeguard, not itself a bug). Its real, valuable in-flight finding
+(the multi-tenant isolation confirmation) was independently rescued, rebased, and merged as PR
+#747. **However, the task's own `task.yaml` `status` field still reads `in_progress`** —
+independently re-verified: `systemctl --user is-active` for its worker unit returns `inactive`
+(confirmed no live process), yet the on-disk status field was never updated to reflect the clean
+stop. A subsequent real `dispatch-tick` resume attempt for this same task was correctly rejected
+by the credit accountant as a real duplicate (`UMR-20260802-234312-976e`, `rejected_duplicate`) —
+the safeguard caught it, but only because a human/session happened to check; nothing in the
+pipeline itself updates `status` on a clean stop.
+
+**Distinct from the already-disclosed gap** (supervisor-process `Restart=no`, no auto-restart on
+supervisor failure): this is a *status-field staleness* gap on the *worker* side — the process
+stops cleanly, but the durable state record doesn't reflect that stop. A future session or
+automated sweep reading `task.yaml` directly (not `systemctl`) would see `in_progress` and could
+reasonably conclude the task is still live when it is not.
+
+**Not fixed here** — out of this directive's discovery/disclosure scope. A real, bounded fix
+candidate for future work: `resource_governor.py`'s stop/SIGTERM path (or `dispatch-tick.py`'s own
+sweep) should write a terminal or `stopped`-class status to `task.yaml` whenever it cleanly stops a
+worker, mirroring what `veridian-task.py checkpoint --status` already does for every other real
+status transition.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
