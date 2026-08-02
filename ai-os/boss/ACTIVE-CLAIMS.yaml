@@ -40,6 +40,19 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-110427-scope-extension-to-existing-audit-umr-20) -- scope-extend UMR-20260802-104058-25ba (the 12-deliverable audit) with 2 more verification targets, feeding it without restarting/stopping/replacing it"
+    claimed_at: "2026-08-02T11:15Z (this session)"
+    claim: |
+      PM decision, tier 0, direct Owner instruction (OCID-20260802-002). Parallel job
+      feeding UMR-20260802-104058-25ba (owned by task-20260802-110424-owner-requested--
+      full-evidence-based-imp) without touching that task's own workspace/branch --
+      same pattern bde27e44/e2c589df used to feed UMR-20260802-034545-3388. Verifies 2
+      additional targets with real evidence: UMR-20260802-040056-5319 (module/engine/
+      wiring/UTM collation -- real commits e2c589df/bde27e44 confirmed to exist, but
+      confirmed NOT merged: PR #692 open, mergeable_state dirty, not an ancestor of
+      main) and UMR-20260802-054239-4251 (Kernel registration, PR #697 -- confirmed
+      open, mergeable_state dirty, report's own closing line confirms not closed).
+      Full findings: ai-os/UMR-20260802-104058-25ba_SCOPE_EXTENSION_2026-08-02.md.
   - session_label: "claude-code (task-20260728-032915-fix-pr-610-rls-gap-on-crm-sales-targets) -- Fix RLS gap on PR #610's compliance.crm_sales_targets table, pushed to the same PR #610 branch"
     claimed_at: "2026-07-28T (this session)"
     claim: |
