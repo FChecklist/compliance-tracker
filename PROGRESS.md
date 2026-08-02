@@ -52,13 +52,27 @@ individually-verified real-completion or real-duplicate evidence (not a blanket 
   findings where applicable. None of these are fixable by re-dispatching this exact task -- the crontab
   gate was never their real remaining blocker.
 
+## Batch 3: DONE -- 14-task rca-task-* cluster dispositioned:
+- 11 CLOSED (status=superseded) as pure duplicate RCA-storm retries (own commit log = generic auto-sync
+  noise only, no distinguishing RCA output): 182658, 183201, 185101, 185217, 185220, 185224, 185419,
+  185423, 185426, 195236, 195240.
+- 3 kept status=blocked, flagged AMBIGUOUS (NOT closed): 175954, 182702, 185117 -- each has a real,
+  distinguishing watchdog-bugfix commit (7047e08, a23f983, d072e2b respectively) confirmed via
+  `git merge-base --is-ancestor` to be genuinely orphaned (not in claude-control origin/master, no PR
+  exists). Real valuable unlanded work, not safe to close as duplicate/moot -- needs a real follow-up to
+  cherry-pick + PR, or confirm independently already fixed. Checked headroom before this batch (swap
+  3.8/4.0Gi, load 12.24/8cores -- elevated) but all Batch 3 ops were lightweight checkpoint/git-log reads,
+  no new worker processes.
+
+Running total: 25 (Batch 1) + 11 (Batch 3 closed) = 36 CLOSED, 3 flagged-ambiguous-blocked, 0 retried yet,
+0 deleted.
+
 ## Remaining
-- [ ] Batch 3: the 14-task rca-task-* diagnostic-retry cluster (RCA sub-analyses of already-known-fixed
-  crontab-blocked tasks -- this audit + parent audit already supersede their purpose; verify a few have
-  real merged fixes on master before closing).
-- [ ] Batch 4: the 29 never-worked tasks (RETRY vs CLOSE, title-by-title -- some are time-sensitive
-  one-off 2026-08-01 alerts likely stale, some may be still-live directives). NOTE: 2 of these (rca-task-
-  20260726-083946/171129 2nd-gen retries) overlap Batch 3's rca cluster, will fold in there.
+- [ ] Batch 4: the 27 remaining never-worked tasks (the other 2 of the original 29 were rca-task-
+  20260726-083946/171129 2nd-gen retries already folded into Batch 3 above as duplicates -- 195236/195240).
+  RETRY vs CLOSE, title-by-title -- some are time-sensitive one-off 2026-08-01 alerts likely stale, some
+  may be still-live directives. Re-check headroom before any real RETRY dispatch (swap was 95%+ full at
+  last check).
 - [ ] Batch 5+: remaining ~49 worked tasks: 15x build-extend-calculation-track-engines, 11x
   build-extend-workflow-track-engines, 3x resolve-fresh-conflict-on-pr--610, 10x CRM/PM Task #46/#47
   singletons, 3x rebase-pr-* large rescue tasks, ~7 other singletons (independent-audit-of-pr-652,
