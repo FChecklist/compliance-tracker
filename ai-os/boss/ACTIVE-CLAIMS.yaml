@@ -4119,6 +4119,66 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260802-101715-pm-decision--prioritize-the-56-approved) -- Verified the 'approved-but-merge-failed' subset of the 56/57 fresh-audit-fail list across compliance-tracker/projexa/claude-control [DONE, no code PR needed]"
+    claimed_at: "2026-08-02T (this session, closed same session)"
+    claim: |
+      PM decision (SPEC, tier 0): do NOT triage the full 425-task ancient
+      backlog today (separate, lower-urgency cleanup, logged as a distinct
+      future item, NOT started). DO verify the real current state of the
+      "tier1, Superboss-approved, but the merge itself FAILED" subset of
+      task.yaml blocked-status notes -- real work that was already reviewed
+      and approved but never actually landed. Read-only discovery: scanned
+      all 848 task.yaml files under ai-os/tasks/*/task.yaml (not just the
+      10-sample sub-list PM_TRIAGE_ALERTS.md prints) for the exact
+      "Superboss-approved, but the merge itself FAILED" note signature --
+      found 35 total (any status), 29 still status=blocked. Verified all 29
+      one at a time via `gh pr view`/`gh pr list --head`, never assumed:
+      22 of 29 task rows (18 unique PRs: compliance-tracker #607/611/606/
+      616/614/617/586/608/602/598/588, projexa #62/59/60/54, claude-control
+      #42/45/46) were already MERGED -- the blocked-status note was stale,
+      no action needed. 2 rows (compliance-tracker PR #457 "Rescue PR #429",
+      PR #472 "schema.ts reflect live platform-schema") were CLOSED (not
+      merged) but correctly so -- each closed with an explicit "closing as
+      redundant, the real work already merged via <other PR>" comment,
+      verified true via git history -- no lost work. 2 rows had no PR URL
+      captured in the note at all: task-20260724-183102 and
+      task-20260724-143319 were genuine no-ops (worker found zero commits
+      ahead of master, routed to blocked only so the supervisor got final
+      say -- nothing was ever approved-and-lost); task-20260719-021227
+      (GP-20 loop prevention) was real work that merged separately as PR
+      #465. That leaves exactly 2 rows needing a live decision:
+      projexa PR #47 (real duplicate of already-merged PR #46, same head
+      branch -- confirmed via rebase: rebasing PR #47's branch onto
+      origin/main produced a diff of ONLY a missing PROGRESS.md log entry,
+      zero functional code, proving PR #46 already contains everything;
+      a concurrent live process closed PR #47 as a verified duplicate
+      mid-session, independently reaching the same conclusion) and
+      compliance-tracker PR #494 (SUPERBOSS_V2_PLAN docs-only) -- this one
+      is NOT a simple rebase case: it carries a LATER "AUDIT: FAIL" verdict
+      (2026-07-21, after the earlier 2026-07-20 AUDIT: PASS the task.yaml
+      note was based on) whose own text recommends "closing this PR as
+      superseded/duplicate -- no code or docs fix needed"; flagging for
+      Owner/PM decision rather than merging or closing it myself, since
+      that verdict is itself a review outcome, not a merge-mechanics
+      problem, and out of this task's "don't redo the review" scope.
+      Net result: zero PRs needed a rebase-and-merge action from this
+      session -- the backlog had already substantially self-healed via
+      concurrent PM/supervisor activity by the time of real verification;
+      one item (PR #494) remains genuinely open and is flagged, not forced
+      through.
+    scope_note: >-
+      Read-only verification across compliance-tracker/projexa/claude-control
+      via `gh pr view`/`gh pr list`; one local git rebase performed on
+      task-20260719-070242's existing workspace to test PR #47's real
+      mergeability (never pushed -- workspace reset to origin afterward
+      since the branch's real content was already merged via PR #46 and a
+      concurrent process closed #47 independently while this was in
+      progress). No functional code changed in any repo. Did not touch the
+      425-task ancient-backlog list (explicitly out of scope per the PM
+      decision) or attempt to re-review/fix any of the genuine "Superboss
+      rejected" entries in the wider 57-item fresh_audit_fail_tasks list
+      (also explicitly out of scope -- those need a real fix-and-re-audit
+      cycle, not a merge retry).
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
     claim: |
