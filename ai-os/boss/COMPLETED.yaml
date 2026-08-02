@@ -2898,3 +2898,80 @@ entries:
         IDX-20260721-185951-dd1d). Rollback/upgrade procedures and a
         maintenance guide for adding future filters are in
         ai-os/boss/completed-work/snip-integration/07-09*.md.
+  - id: WAVE-201
+    title: "projexa-ai.com domain binding: document an undisclosed reversal (2026-07-27) and a since-confirmed re-cutover to veridian-compliance-ai (2026-08-02), closing a governance-trail gap WAVE-199 left open"
+    doer:
+      agent: "unattributed -- the live infrastructure state documented below was NOT performed by this session (or any session with a discoverable record). This entry documents a pre-existing fait accompli, discovered and independently verified via the real Vercel API, not a change this session made."
+      date: "2026-08-02"
+      pr: "none -- no repo code/infra change; documentation-only, landed via this task's own worker branch (task-20260802-152728-closure-checklist--nudge-d-e-audits--clo)"
+      summary: >
+        WAVE-199 (2026-07-21) cut projexa-ai.com / www.projexa-ai.com over
+        from the standalone `projexa` Vercel project
+        (prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM) to `veridian-compliance-ai`
+        (prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII), with its own auditor block left
+        "pending" and a note asking a future session to "confirm
+        projexa-ai.com and www.projexa-ai.com still resolve to
+        compliance-tracker after any subsequent Vercel changes." That check
+        was never done until now, and in the interim the domain moved at
+        least twice more with zero record in this file or
+        ai-os/boss/ACTIVE-CLAIMS.yaml:
+
+        1. **2026-07-27T18:13:59Z** (per the domain object's own
+        createdAt/updatedAt on the standalone project at the time, cross-
+        referenced against a live Vercel API check run 2026-08-02T12:46Z by
+        a prior session, task-20260802-123916): the domain moved BACK to
+        the standalone `projexa` project. No PR, no ACTIVE-CLAIMS.yaml
+        entry, no COMPLETED.yaml entry documents who did this or why --
+        confirmed by grep across both files, zero hits for a second
+        cutover/reversal around that date. That prior session flagged this
+        exact gap and explicitly warned future sessions not to unilaterally
+        re-run the Wave 10 cutover without a fresh, explicit PM/Owner
+        decision, since two contradictory "authorized" states existed on
+        record with no way to tell which was current.
+
+        2. **2026-08-02T13:53:14Z** (per this session's own live check,
+        `GET /v9/projects/{id}/domains/{domain}` against the real Vercel
+        API with a real bearer token -- not header inference): both
+        projexa-ai.com and www.projexa-ai.com are bound to
+        veridian-compliance-ai again (`GET .../prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII/domains/projexa-ai.com`
+        -> 200, `domains/www.projexa-ai.com` -> 200; the same two calls
+        against prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM (`projexa`) -> 404 for
+        both), timestamped by the domain object's own updatedAt field
+        (1785678794248ms epoch). This session did NOT perform that move --
+        it was already in this state on first check. No PR, task dir, or
+        ACTIVE-CLAIMS.yaml entry attributes who did it either; same
+        undocumented-mutation pattern as event 1, just in the opposite
+        direction. A closure-checklist spec handed to this session inferred
+        the re-cutover indirectly (matching `X-Vercel-Id` edge region
+        between the two hostnames) -- that signal is corroborative at best
+        (edge region reflects routing, not project binding) and was
+        explicitly NOT trusted as the basis for this entry; the Vercel
+        domains API check above is the actual evidence.
+
+        Net effect: as of this entry, projexa-ai.com/www resolve through
+        veridian-compliance-ai, matching WAVE-199's original intent, but
+        the path there included one undocumented reversal and one
+        undocumented restoration, neither with a named actor or an Owner
+        sign-off on record. The standalone `projexa` Vercel project and
+        FChecklist/projexa GitHub repo remain intact and unarchived (not
+        re-checked this session; WAVE-199 confirmed this on 2026-07-21).
+        This entry does not re-verify WAVE-199's Part 1 (the 6 PROJEXA
+        orgs' vk_ credential rows) or the anonymous-landing-page branding
+        gap it disclosed -- out of scope here, still open per WAVE-199's
+        own auditor note.
+    auditor:
+      agent: "unaudited -- flagging for the next supervising session per this repo's own doer/auditor convention, same gap WAVE-199's own auditor block left open and this entry is itself closing only the resolution-check half of"
+      date: "2026-08-02"
+      verdict: "pending"
+      summary: >
+        Not yet independently audited. Recommended checks for whoever picks
+        this up: (1) re-run the same two live Vercel domains-API calls to
+        confirm the binding hasn't flipped a third time since this entry
+        was written; (2) if it is stable, get an explicit Owner/PM decision
+        on record for which project should own this domain going forward,
+        so a future flip (in either direction) has a documented authorizer
+        instead of repeating this same undocumented-mutation pattern a
+        third time; (3) re-verify WAVE-199's still-open items (6 orgs'
+        vk_ credentials still resolving end-to-end; anonymous landing-page
+        branding gap) now that the domain is confirmed back on
+        compliance-tracker's project.
