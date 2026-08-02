@@ -4118,6 +4118,34 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (task-20260802-133449-pm-ack--keep-working--standing-cadence-a) -- Standing-cadence PM ack: independent Rule 10 audit + unblock of PRs #715/#716/#717"
+    claimed_at: "2026-08-02T (this session)"
+    claim: |
+      This task's own prompt is a PM acknowledgement/steer message, not a
+      code-scoped task -- registering this claim retroactively (should have
+      been first, corrected going forward) before continuing. Real work this
+      session: independently audited (not self-certified -- did not author
+      any of the 3 PRs below) and posted structured Rule 10 AUDIT: PASS
+      comments on PR #715 (UMR-20260802-104058-25ba scope extension, items
+      13-14), PR #716 (14-item implementation matrix durable-file recovery),
+      and PR #717 (KERNEL_AMENDMENT plan-only). Spot-verified load-bearing
+      claims independently against live server/API state before passing each
+      (not trusted from PR prose) -- see each PR's own audit comment for the
+      specific checks run. Fixed forward on PR #715: resolved its
+      CONFLICTING/DIRTY mergeability (shared PROGRESS.md append-only-log
+      drift, same pattern as PR #697) by merging origin/main, and fixed a
+      real Metadata Index Coverage Check failure (new governance file
+      ai-os/UMR-20260802-104058-25ba_SCOPE_EXTENSION_2026-08-02.md was never
+      indexed in ai-os/OS.yaml) by adding the missing index entry --
+      verified locally via `bun run scripts/check-metadata-index-coverage.mjs`
+      before pushing. Did not touch the projexa-ai.com domain-ownership
+      question (task-20260802-123916's open item) -- per direct PM
+      instruction this is going to the Owner directly, not to be resolved by
+      any session unilaterally. File scope this session: PR comments only
+      (GitHub API) + PR #715's branch (PROGRESS.md merge resolution,
+      ai-os/OS.yaml index entry) + this ACTIVE-CLAIMS.yaml entry + this
+      task's own PROGRESS.md. No src/, drizzle/, or schema files touched.
 recently_completed:
   - session_label: "claude-code (task-20260802-055214-register-veridian-kernel-1-0---kernel-co) -- Reconciled dispatched VERIDIAN_KERNEL=1.0 text against real AI-OS governance [DONE, PR pending]"
     claimed_at: "2026-08-02T (this session, closed same session)"
