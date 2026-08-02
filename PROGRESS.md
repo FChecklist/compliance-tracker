@@ -301,12 +301,30 @@ correction spec directing this task to fix PR #748's false claim).
       `launchPersistentChrome`, real Chrome binary + libs) and prior worktree
       (`/opt/veridian/repos/projexa-ocid020-wt`, up to date with origin/main)
 
+- [x] Wrote single Node/Playwright mega-script (`/tmp/ocid020-continue/mega2.mjs`) covering:
+      real 2-org signup (real-domain gmail.com-format addresses, Admin-API email-confirm
+      bypass), simultaneous logged-in contexts, multi-tenant isolation probe (Org A creates a
+      department via API, Org B attempts direct fetch by ID + list), onboarding/403 repro
+      (`/crm`, `/erp/procurement`, `/erp/journal-entries`), cache/search behavior (headers,
+      Ctrl+K command palette, `/search`, mutation-then-reflect), and full nav-href sweep with
+      per-page HTTP status / console errors / failed network calls, screenshot-on-anomaly only.
+      Chrome launch pattern (`chromium.launch()` + separate `newContext()` per org, not the
+      shared persistent profile) verified working first.
+- [x] First run hit a real, disclosed rate limit: Supabase `over_email_send_rate_limit` (429)
+      on Org B's signup fired seconds after Org A's -- not a bug in the app under test, a
+      Supabase-project-level email-send throttle. Resumed with `mega2.mjs` (backoff retry,
+      reuses Org A's already-created account rather than re-signing-up).
+- [ ] Nav-surface sweep + all four test categories running in background
+      (`/tmp/ocid020-continue/run2.log`, task id `baeze8qag`) -- awaiting completion.
+
 ## Remaining
-- [ ] Write/run automated nav-surface sweep script against projexa-ai.com (real login, walk
-      all 118 nav hrefs, capture HTTP status / console errors / failed API calls per page)
-- [ ] Multi-tenant / brand isolation test across >=2 distinct real orgs
-- [ ] Full first-time self-signup onboarding flow, firsthand repro of GAP-ERP-CRM-403-NO-UX-EXPLANATION
-- [ ] Cache and search behavior testing
-- [ ] Log genuine findings; ship real fixes for high-severity ones
-- [ ] Mint separate UMR for any out-of-scope finding
-- [ ] Report real fraction of nav surface exercised
+- [ ] Read sweep results, categorize findings by severity
+- [ ] Ship real fix (new branch off fresh origin/main, root-caused, regression test, PR) for
+      any genuinely NEW high-severity finding (Finding A already fixed/merged, Finding B
+      already tracked+deferred correctly -- do not re-litigate either)
+- [ ] Mint separate UMR for any out-of-scope finding (PR #737 pattern)
+- [ ] Write `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+- [ ] Register doc in `ai-os/OS.yaml` index if that's the established pattern
+- [ ] Report real fraction of nav surface exercised (cumulative with prior ~15/118 pass)
+- [ ] Finalize ACTIVE-CLAIMS.yaml entry for this session
+- [ ] Commit + push
