@@ -78,6 +78,7 @@ active:
       src/ or drizzle/ changes, no new database/table/file.
   - session_label: "claude-code (task-20260802-172449-pm-answer---next-steps--pr-725-and-711-s) -- Record PM decision closing OCID-015/017/018/019 (PR #725 merged); OCID-016 tranche 2 (server-wide artifact traceability, compliance-tracker subdirectories beyond PR #723's top-level tranche). STOOD DOWN from OCID-020 mid-session — see status_update below, real collision found with task-20260802-172443, which already owns this scope"
     claimed_at: "2026-08-02T17:25Z (this session)"
+    moved_to_recently_completed_by: "task-20260802-190815-checkpoint-refresh--pr-731-traceability, 2026-08-02T19:xxZ -- see recently_completed: entry below for outcome; moving this stale active: entry per this file's own protocol step 3 (work merged, so the claim belongs in recently_completed, not active)."
     claim: |
       PM directive (queued-question answer, this task's own prompt.txt):
       closes OCID-20260802-015/017/018/019 (UMR-20260802-164801-2ab9,
@@ -4250,6 +4251,52 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260802-190815-checkpoint-refresh--pr-731-traceability) -- Checkpoint-refresh audit of PR #731 (task-20260802-172449's OCID-016 tranche 2 traceability + PM-decision doc PR): confirmed already merged with real independent audit trail, no new sweep/comment needed"
+    claimed_at: "2026-08-02T19:08Z (this session, closed same session)"
+    claim: |
+      SPEC as dispatched claimed PR #731 was still open (mergeable, no audit
+      comment posted, no supervisor running) and asked this session to
+      trigger a fresh supervisor sweep and post a real AUDIT PASS/FAIL
+      comment against its current head SHA, citing UMR-20260802-164659-9a31
+      (OCID-20260802-016 tranche 2) and parents UMR-20260802-054239-4251 /
+      UMR-20260802-104058-25ba. Verified live via `gh pr view 731` before
+      acting instead of trusting the spec: this premise was already stale
+      at task-creation time. Real state (`gh pr view 731 --json state,
+      mergedAt,mergeCommit`, `gh api .../issues/731/comments`): PR #731
+      merged 2026-08-02T18:46:41Z (merge commit `7a592b9239f43c6c5254338`,
+      head `923497eb5f11f935c3d41ee192af8b9190e5c8e2`) -- 21 minutes before
+      this task was even created (19:08:17Z) -- with two genuine,
+      independent `AUDIT: PASS` comments already posted pre-merge (comment
+      ids 5159784722, 5159807358, both explicitly re-verifying the diff's
+      load-bearing factual claims against real `gh`/`git log` evidence
+      rather than trusting the self-report -- satisfies AGENTS.md Rule 7c's
+      mandatory-auditor requirement; the second comment even caught and
+      flagged a real minor inaccuracy in the PR's own PR #711 status
+      description). All required CI checks on the merge commit are green;
+      only the `Vercel` status is `failure`, and that is the known,
+      pre-existing free-tier deployment-rate-limit issue (visible in the PR's
+      own comment history), not a real build/test failure.
+
+      Action taken: did NOT trigger a redundant supervisor-sweep run or post
+      a third, duplicate AUDIT comment on an already-merged, closed PR --
+      doing so would not have been a real independent review (there is no
+      live "current head" left to sweep against; the branch is merged into
+      main) and would have misrepresented a no-op as fresh work. Instead:
+      (1) real-verified the above via gh/git, (2) fixed a genuine, unrelated
+      bookkeeping gap this check surfaced -- the originating task's own
+      `active:` entry above (task-20260802-172449) had never been moved/
+      annotated after its PR merged, contrary to this file's own protocol
+      step 3 -- annotated it and added this closing entry (additive, per
+      this file's own established convention for large existing blocks),
+      (3) documented this finding in PROGRESS.md. No code, schema, or
+      CI/workflow files touched.
+
+      This matches this repo's known live-concurrent-state-drift pattern
+      (PM specs generated even seconds earlier can go stale under a live,
+      concurrently-running autonomous supervisor/merge pipeline) -- see
+      AGENTS.md Contact section's 2026-07-31 full-autonomy directive, which
+      is exactly the mechanism that merged #731 without waiting for this
+      task.
   - session_label: "claude-code (task-20260802-055214-register-veridian-kernel-1-0---kernel-co) -- Reconciled dispatched VERIDIAN_KERNEL=1.0 text against real AI-OS governance [DONE, PR pending]"
     claimed_at: "2026-08-02T (this session, closed same session)"
     claim: |
