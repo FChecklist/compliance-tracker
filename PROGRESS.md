@@ -59,9 +59,15 @@ contributor under the existing 800-task audit UMR-20260801-153900-9100.
       fix is already effectively active in production ahead of PR #11
       merging; discarding it would revert live behavior back to the bug.
 
+- [x] Opened compliance-tracker PR #696
+      (https://github.com/FChecklist/compliance-tracker/pull/696) carrying
+      the `ai-os/` governance bookkeeping (ACTIVE-CLAIMS registration +
+      this file) -- the actual code fix PR is
+      https://github.com/FChecklist/veridian-scripts/pull/11 (separate
+      repo, already open/mergeable, not duplicated).
+
 ## Remaining
-- [ ] None -- fix confirmed correct and already live server-side; PR #11
-      (https://github.com/FChecklist/veridian-scripts/pull/11) already open
-      and mergeable, no further action needed from this task. Did not merge
-      it myself -- out of this task's stated scope ("open a PR ... as
-      usual"), and it's not this session's PR to claim credit for merging.
+- [ ] None -- fix confirmed correct and already live server-side via PR #11;
+      compliance-tracker-side bookkeeping PR #696 open. Did not merge
+      either PR myself -- out of this task's stated scope, and #11 isn't
+      this session's PR to claim credit for merging.
