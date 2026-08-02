@@ -4118,6 +4118,44 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: >-
+      claude-code (task-20260802-055208-batch-disposition-of-113-crontab-preflig) --
+      retriage 113 tasks stuck on the now-resolved crontab_unauthorized_change
+      pre-flight gate
+    claimed_at: "2026-08-02T (this session)"
+    claim: >-
+      Sub-task of parent audit UMR-20260801-153900-9100 (dispatched as
+      UMR-20260802-051325-9e5a). Dispositioning the exact 113-task-id list at
+      /opt/veridian/ai-os/TASK_AUDIT_800_CRONTAB_RETRIAGE_LIST_2026-08-02.txt
+      (76 blocked + 26 superseded + 11 failed, all sharing a last-checkpoint
+      note of 'PRE-FLIGHT REJECTED (crontab_unauthorized_change)'). Re-confirmed
+      root cause resolved: `diff ai-os/CRONTAB_APPROVED_SNAPSHOT.txt
+      <(crontab -l)` clean. Working in small checked batches per explicit Owner
+      instruction (never a one-shot bulk retry/close), disposition RETRY
+      (real work needed, gate was the only blocker) vs CLOSE (real work
+      already merged/superseded elsewhere -- checked each task's own
+      checkpoint history + branch ancestry vs origin/main + gh pr status, not
+      assumed from the crontab label alone) vs investigate-further for
+      ambiguous cases, via `veridian-task.py checkpoint` only (never raw YAML
+      edits). Cross-referenced against the already-closed 166-balance sibling
+      batch (UMR-20260801-170930-2080)'s SUPERBOSS_V2_PLAN PR-status findings
+      where task titles/branches overlap the same V2-ID objectives (different
+      task-id retry generation, same underlying PR) -- reusing its verified PR
+      states rather than re-deriving them, re-confirming freshness via a
+      quick `gh pr view` before relying on them.
+    scope_note: >-
+      File scope: task.yaml/checkpoint state under /opt/veridian/ai-os/tasks/
+      for the 113 listed task ids only (via veridian-task.py, not raw edits --
+      not part of this git repo, no PR needed for those). Any genuine RETRY
+      redispatch goes through dispatch-owner-task.sh for its own UMR ID. Only
+      compliance-tracker-repo changes: this ACTIVE-CLAIMS.yaml entry + this
+      task's own PROGRESS.md. Checked this file for collisions before
+      starting: no other active entry names this task id or this exact
+      113-id list; distinct from UMR-20260801-170930-2080 (166-balance-gate
+      batch, different root cause/list) and UMR-20260801-134506-f519 (~76-PR
+      backlog, different scope).
+
 recently_completed:
   - session_label: "claude-code (task-20260728-160934-cross-reference-sap-reports-vs-existing) -- Cross-referenced all 80 sap_reports rows vs VCEL/report_definitions/wiring_registry [DONE, no PR -- sqlite is non-git]"
     claimed_at: "2026-07-28T (this session, closed same session)"
