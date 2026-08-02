@@ -118,6 +118,48 @@ Went through the reconciliation report's own citations claim-by-claim against li
 
 ---
 
+## Amendment (2026-08-02): PR-to-UMR mapping + real-vs-governance classification, 6 real merges tonight
+
+Per Owner directive `UMR-20260802-163301-8416` (OCID-20260802-013), amending this same canonical
+artifact, inheriting the parent's status — no new implementation, no new audit, no new file.
+Parent: `UMR-20260802-104058-25ba`. `resource_governor.py --query-umr` does not index by PR URL
+(it searches original dispatch intent text); each mapping below was traced through this session's
+own real dispatch chain and independently cross-checked against `umr_tasks`'s real
+`task_identity`/`status` fields directly (not trusted from narration).
+
+**Hard rule applied**: `umr_tasks.status` reads `running` for nearly every real row below —
+already-established this session as an unreliable label (see multiple corrections earlier
+tonight) and **not used as evidence of anything** here. Only real commit hashes, real merge
+timestamps, and real file paths count.
+
+| PR | Real merge commit / mergedAt | Mapped UMR(s) | Real `task_identity` | Real vs Governance |
+|---|---|---|---|---|
+| #716 (compliance-tracker) | `9c56349c` / 2026-08-02T14:19:42Z | `UMR-20260802-104058-25ba` (+scope ext. `105532-775a`) | `owner-task-20260802-104056-3017000` | **Governance-only.** New markdown report (`IMPLEMENTATION_MATRIX_2026-08-02.md`) + 2 registry entries (`MASTER_INDEX.yaml`/`OS.yaml`). Zero application code. |
+| #717 (compliance-tracker) | `2a390fa2` / 2026-08-02T14:00:13Z | `UMR-20260802-113654-271b` (dispatched via `121158-d557`) | `owner-task-20260802-113652-3211579` (121158-d557's own row: `owner-task-20260802-121157-3322231`, real `status: rejected_duplicate`) | **Governance-only.** A markdown amendment-log entry (KERNEL_AMENDMENT text + an unbuilt implementation plan). Explicitly "instruction and plan only" by its own text — zero code changed. |
+| #14 (veridian-scripts) | `09c58799` / 2026-08-02T15:07:14Z | `UMR-20260802-074346-a9b9` (+ `090702-c813`) | `owner-task-20260802-074345-2429352` | **Real product implementation.** `dispatch-tick.py`: real Python functions (`find_stuck_tasks`, `write_stuck_tasks_heartbeat`, `pm_triage_tick`, a real cooldown gate fixing an independent-audit-found bug), 46 real passing test assertions (`test_pm_triage.py`), deployed to the live operational script `/opt/veridian/scripts/dispatch-tick.py` and already observed running in production (`"cooldown active (12.0min of 60.0min)"`, real tick output). |
+| #122 (claude-control) | `90f09d74` / 2026-08-02T15:56:18Z | `UMR-20260802-080051-6e48` (+ `083104-5987`, `154546-ceb6`) | `owner-task-20260802-080050-2492112` (real `status: completed`) | **Governance-only.** 9 registry entries appended to `ai-os/MASTER_INDEX.yaml`. Zero application code. |
+| #692 (compliance-tracker) | `9edb6ed4` / 2026-08-02T15:34:16Z | `UMR-20260802-040056-5319` | `owner-task-20260802-040054-1672871` (real `status: completed`) | **Governance-only.** New reference doc (`EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md`) + a real `ACTIVE-CLAIMS.yaml` structural-corruption fix (governance-integrity repair, not product code) + `PROGRESS.md`. Zero application code. |
+| #720 (compliance-tracker) | `993beb69` / 2026-08-02T15:40:22Z | `UMR-20260802-123246-f2e7` (+ `124023-371b`, `134939-145d`) | `owner-task-20260802-123245-3387895` | **Governance-only PR, documenting a real separate infrastructure action.** The PR itself is a `COMPLETED.yaml` log entry — no code. But it documents a genuinely real, independently-verified live change: `projexa-ai.com`/`www.projexa-ai.com` reassigned from the `projexa` Vercel project to `veridian-compliance-ai` via the real Vercel API (`DELETE`/`POST`, both real HTTP 200), re-verified live (`GET /v9/projects/.../domains` → 200, real `curl` + page-body check: title `VERIDIAN COGNITIVE AI OS`, "PROJEXA" absent). That real action is infrastructure, not a PR diff — the PR is its paper trail, not its implementation. |
+
+**Summary, stated plainly per the Owner's explicit instruction not to blur this**: of the 6 real
+merges tonight, **1 (PR #14) is real product/infrastructure-code implementation**; the other 5
+(#716, #717, #122, #692, #720) are governance/documentation artifacts — reports, registry entries,
+an amendment log, a governance-file integrity fix, and a completion-log entry. #720 additionally
+documents a real, separately-verified live infrastructure change (the domain cutover), but that
+change's own reality rests on the Vercel API verification evidence cited above, not on the PR's
+own diff.
+
+**Dependency / evidence / traceability status, all 6**: none had an unmet real dependency at merge
+time — each was independently re-verified `mergeable: MERGEABLE` with a real posted `AUDIT: PASS`
+comment (not a CI badge, not a narrated claim) matching its real final head commit before merging,
+per the same-session closure-checklist protocol (`UMR-20260802-124713-c38d`). Each traces to a real
+`owner-task-*` dispatch row in `umr_tasks`, confirmed by direct query above, not asserted.
+
+**Canonical artifact**: `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (this file) — amended in place,
+not rewritten, not duplicated. Status inherited from parent `UMR-20260802-104058-25ba`.
+
+---
+
 ## Two most urgent findings, independent of percentage complete
 
 1. ~~**Item 12 (Go Live)**: two live Vercel projects bound to the same production domain simultaneously.~~ **RETRACTED 2026-08-02** (UMR-20260802-123246-f2e7): re-verified live against the real Vercel API + DNS + `curl` — no domain collision exists currently. The underlying 2026-07-26 census this was based on was real at the time but had already been resolved by 2026-08-02; the matrix cited it without a fresh live check. See item 12's own entry for full detail.
