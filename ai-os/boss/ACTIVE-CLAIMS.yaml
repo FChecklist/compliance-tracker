@@ -76,6 +76,49 @@ active:
       File scope: this repo's `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
       (amendment, in place) + this ACTIVE-CLAIMS entry + PROGRESS.md. No
       src/ or drizzle/ changes, no new database/table/file.
+  - session_label: "claude-code (task-20260802-172449-pm-answer---next-steps--pr-725-and-711-s) -- Record PM decision closing OCID-015/017/018/019 (PR #725 merged); OCID-016 tranche 2 (server-wide artifact traceability, compliance-tracker subdirectories beyond PR #723's top-level tranche). STOOD DOWN from OCID-020 mid-session — see status_update below, real collision found with task-20260802-172443, which already owns this scope"
+    claimed_at: "2026-08-02T17:25Z (this session)"
+    claim: |
+      PM directive (queued-question answer, this task's own prompt.txt):
+      closes OCID-20260802-015/017/018/019 (UMR-20260802-164801-2ab9,
+      165034-5747, 165434-cd91, 165541-c27d) on the real evidence of PR #725
+      merged (mergedAt 2026-08-02T17:02:41Z, merge commit d3d88751). PR #711
+      (UI/UX click-through) left as-is, no action -- open, mergeable, no
+      fresh AUDIT comment, only Vercel rate-limit notices, real evidence
+      already stands from earlier per the PM.
+
+      Two bounded next-step scopes, per the PM's explicit instruction:
+      (a) OCID-20260802-020 (`UMR-20260802-165606-4413`): test
+      projexa-ai.com's own authenticated screens on its separate Supabase
+      project -- real browser testing. Repo `/opt/veridian/repos/projexa`
+      already has a full, installed Playwright e2e suite (22 spec files,
+      `playwright.config.ts` targets the real live `https://projexa-ai.com`
+      by default, `e2e/auth.setup.ts` logs in 4 real seeded users via the
+      real login form) -- this scope is running/extending that existing
+      suite for real evidence, not building new test infra from scratch.
+      (b) OCID-20260802-016 continuation (`UMR-20260802-164659-9a31`):
+      tranche 2 of the server-wide artifact traceability register, covering
+      named subdirectories the first tranche (PR #723/#726) explicitly
+      flagged as out-of-scope-for-this-tranche (this repo's own
+      `ai-os/boss/`, `sentinel/`, `registry/`, `audit-tree/`,
+      `system-tree/`, `tree4-unified/`, `engines/` -- scoped to
+      compliance-tracker only in this pass, not claude-control/live-server,
+      given real session capacity).
+
+      Collision check performed before starting (per this file's own
+      protocol): grepped `ai-os/boss/ACTIVE-CLAIMS.yaml` and
+      `ai-os/boss/COMPLETED.yaml` for `165606-4413`, `164659-9a31`,
+      `OCID-20260802-016`, `OCID-20260802-020` -- no matching active claim
+      or completed entry found. Newest existing claim in this file predates
+      this task's own creation (`2026-08-02T04:01Z`, already merged per
+      PR #692 in git log) -- no live collision.
+
+      File scope: this repo's `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (amendment, PM-decision record + traceability tranche 2),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. Real
+      browser-test evidence (screenshots, pass/fail transcript) captured
+      via the existing `/opt/veridian/repos/projexa` e2e suite -- no new
+      code/schema changes to either repo.
   - session_label: "claude-code (task-20260802-040131-parallel-job--collate-existing-module-en) -- Collate existing module/engine wiring+UTM map, spot-verify it, cross-reference against master directive priority list [DOCS/COLLATION ONLY, no code]"
     claimed_at: "2026-08-02T04:01Z (this session)"
     claim: |

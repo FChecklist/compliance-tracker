@@ -563,3 +563,98 @@ rather than defining a competing one.
 **Canonical artifact**: this same file, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` — amended in
 place, not rewritten, not duplicated. Status inherited from both parent UMRs
 (`UMR-20260802-054239-4251`, `UMR-20260802-104058-25ba`).
+
+---
+
+## Amendment (2026-08-02): PM decision — OCID-015/017/018/019 CLOSED, PR #711 no action, next-step scopes opened
+
+PM answer to this session's queued question, independently checked rather than left for the
+session to resolve alone. Real evidence: **PR #725 genuinely merged**, `mergedAt
+2026-08-02T17:02:41Z`, merge commit `d3d88751c1eacae062dfd45dfa2d8010b1381582`, verified via a
+fresh git clone showing the real 387-line canonical matrix file (this file, pre-this-amendment)
+including all four amendment sections above in full, real, substantive detail (Master Execution
+Framework design, standing gatekeeper rule, unified project memory model, recovery matrix).
+
+**Closed on that evidence:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-20260802-015 | `UMR-20260802-164801-2ab9` | Master Execution Framework — design only | **CLOSED** |
+| OCID-20260802-017 | `UMR-20260802-165034-5747` | Standing gatekeeper rule | **CLOSED** |
+| OCID-20260802-018 | `UMR-20260802-165434-cd91` | Unified project memory model | **CLOSED** |
+| OCID-20260802-019 | `UMR-20260802-165541-c27d` | Recovery matrix | **CLOSED** |
+
+**PR #711 (UI/UX click-through scope): no action.** Real current state — open, mergeable, no fresh
+`AUDIT:` comment posted, only Vercel rate-limit notices on the check run. Left as-is; that scope
+already stands on real evidence gathered earlier and does not need re-verification right now.
+
+**Next-step scopes opened, this same session, per the PM's explicit instruction** (real capacity
+permitting, given the swap-pressure constraint already flagged elsewhere in this session's own
+work): (a) **OCID-20260802-020** (`UMR-20260802-165606-4413`) — begin the bounded, properly-scoped
+extension already proposed: test projexa-ai.com's own authenticated screens on its separate
+Supabase project, real browser testing, real screenshots, real reproduction paths for any gap
+found. (b) **OCID-20260802-016 continuation** (`UMR-20260802-164659-9a31`) — the still-open
+server-wide artifact traceability scan, beyond the first tranche PR #723/#726 already covered.
+Both scopes registered in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting, per the standing
+gatekeeper rule above. Findings for both appended as their own amendments below once real work
+completes this session.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-02): Server-wide artifact traceability register — tranche 2 (`UMR-20260802-164659-9a31`, OCID-20260802-016)
+
+Continuation of the first tranche above. Scoped this pass to this repo (compliance-tracker)
+only, given real session capacity — the "honest remaining scope" list from tranche 1 named
+`ai-os/boss/`, `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`,
+`engines/` as still-outstanding compliance-tracker subdirectories; claude-control and
+live-server's outstanding subdirectories remain unstarted (named, not silently skipped).
+
+**Real coverage this tranche: 51 files across the 7 named subdirectories** (`find <dir> -type f`,
+each dir enumerated individually after a Bash-tool output-truncation artifact was caught mid-scan
+on the combined multi-dir listing — worked around by scanning one directory at a time).
+
+### Findings
+
+**Zero new orphans, zero new genuine duplicates.** Every top-level file in `boss/`, `sentinel/`,
+`registry/`, `engines/` is directly referenced by path in `OS.yaml`/`MASTER_INDEX.yaml` (7/7/5/1
+refs respectively, spot-checked via grep). `audit-tree/`, `system-tree/`, `tree4-unified/`'s
+numbered per-file trees (e.g. `audit-tree/01-consutitution.yaml` through `10-merged-tree.yaml`)
+show 0 individual-filename hits in `OS.yaml` at first grep — but `OS.yaml`'s own
+`what_should_exist_vs_what_does` section indexes these **at directory level by explicit,
+documented convention** ("Tree 1 -- what the 9 source requirement documents say...", "Tree 3 --
+what's actually built...", "Tree 1 + Tree 3 merge...") — confirmed not orphaned, just indexed one
+level up rather than per-file. `audit-tree/source-documents/` (docx source material) and
+`boss/completed-work/` (snip-integration + wave9/10 reports) are both real, referenced
+(`MASTER_INDEX.yaml` cites `boss/completed-work/snip-integration/04-verification-report.md`
+directly as a `verification_mechanism`).
+
+**Already-correctly-archived, not re-flagged:** `audit-tree/archive/GAPS.yaml` already carries the
+exact quarantine banner and is listed in `registry/stale-doc-manifest.yaml`'s `already_archived`
+section — confirmed still true, not re-flagged as a fresh finding.
+
+**One topical-overlap check performed, not a duplicate:** `tree4-unified/archive-30-gap-backlog.yaml`
+(192 lines, Tree4's own gap backlog derived from the Tree1-vs-Tree3 comparison) and
+`audit-tree/archive/GAPS.yaml` (364 lines, Tree1's own master gap list) both track "open gaps" —
+read both headers: these are two different, sequential stages of the same documented multi-tree
+methodology (Tree 1 requirements → Tree 3 system-as-built → Tree 4 comparison/backlog), not
+independent duplicate effort. Not flagged as a genuine duplicate pair.
+
+**UMR-mapping coverage not separately re-tallied this tranche** — tranche 1's own structural
+finding (94% of pre-`UMR-YYYYMMDD-HHMMSS-hex`-convention files have no mapping by design, not by
+gap) applies identically here; every file in this tranche's scope predates 2026-08-01.
+
+### Honest remaining scope (still not covered)
+
+claude-control's `dependency-cruiser/`, `eslint/`, `guardrail-findings/`, `openapi/`, `pgaudit/`,
+`promptfoo/`, `reports/`, `schemas/`, `testing_engine_evidence/`, `wiring_engine_evidence/`,
+`workflow-transitions/`; live-server's `audit198/` (51 files), `logs/` (55), `memory/` (32),
+`pending_remediation/` (166), `OWNER_DIRECTIVES/` (9), `reference/` (14), `scripts/` (22),
+`catalogs/`, `generated/`, `patches/`, `planning/`, `queues/`, `session_metadata/` — all named in
+tranche 1, none started yet. This tranche deliberately scoped to compliance-tracker only, given
+real session capacity — the host-level `/opt/veridian/ai-os/` and `/opt/veridian/repos/claude-control`
+trees are both reachable from this workspace and were not a hard blocker, just out of scope for
+this pass.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
