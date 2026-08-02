@@ -1582,7 +1582,21 @@ registries:
     UMR/task status label used as evidence, no completion inferred from governance/paperwork alone.
     Recovered into this durable file per UMR-20260802-111942-8d94 after the original compilation
     existed only as conversational text. Point-in-time; will go stale as real work lands -- re-verify
-    rather than trust on a future pass.'
+    rather than trust on a future pass.
+
+    CORRECTION (2026-08-02T12:35 UTC, UMR-20260802-123246-f2e7, per PM decision UMR-20260802-124023-371b,
+    filed under this same UMR-20260802-104058-25ba -- no new file, no new UMR): item 12''s original
+    "2 Vercel projects both bound to the same domain" claim was true and genuinely confirmed as of
+    the 2026-07-26T10:33:37Z census this matrix cited, but was never re-verified before being repeated
+    here -- a real staleness gap, not a fabrication. Re-verified live via `GET /v9/projects/{id}/domains`
+    against all 3 real Vercel team-scoped projects, plus DNS + curl: no collision exists now --
+    projexa-ai.com/www.projexa-ai.com belong exclusively to the projexa project; veridian-compliance-ai
+    has moved to its own veridian-aios.com domain. Retraction already applied in place in
+    ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (summary table row 12, item 12 detail section, and the
+    "two most urgent findings" section) -- this note documents the same correction in this file''s own
+    census entry. Same correction applied at the source census in the separate veridian-ai-os repo,
+    commit baa5232. This is exactly the kind of drift this entry''s own "will go stale, re-verify"
+    disclaimer warned about.'
   status: live
   query_command: cat ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
 tree_lineage:
