@@ -24,5 +24,5 @@ audit, no new canonical artifact -- amend ai-os/IMPLEMENTATION_MATRIX_2026-08-02
 - [x] Confirmed pre-existing YAML parse issue in ai-os/boss/ACTIVE-CLAIMS.yaml predates this session's edit (same error present on git-stashed/original HEAD version, just at a different line offset) -- not introduced by this task, out of scope to fix here
 
 ## Remaining
-- [ ] Commit + push amendment
-- [ ] Open PR, let CI run, confirm merge per Rule 6/10
+- [x] Commit + push amendment
+- [x] Open PR (#724: https://github.com/FChecklist/compliance-tracker/pull/724) -- awaiting CI + independent Rule 10 audit comment; do not self-merge
