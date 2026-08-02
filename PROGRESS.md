@@ -77,19 +77,34 @@ deliverable, substance already carried forward by ordinary ongoing dispatch (073
 
 Running total: 36 (through Batch 3) + 12 = 48 CLOSED, 3 flagged-ambiguous-blocked, 0 retried, 0 deleted.
 
-## Remaining
-- [ ] Batch 4b: 13 remaining never-worked tasks (2026-08-01 15:18 through 2026-08-02 03:01) -- includes a
-  live-looking revert/re-fix saga around dynamic concurrency capping (172049 scale-up, 172431 urgent-
-  replace-hardcoded-cap, 190141 revert-pr--9, 190802 revert-dynamic-cap-to-fixed-plus-veto, 030047
-  merge-pr--9-fixed-co) that may still be operationally relevant given today's own observed high load/swap
-  pressure -- needs real investigation, not a blanket close. Plus 2 build-extend-*-track-engines
-  never-worked instances (040657, 040705) deferred into the large build-extend cluster batch below.
-- [ ] Batch 5+: remaining ~49 worked tasks: 15x build-extend-calculation-track-engines (+1 never-worked =
-  16), 11x build-extend-workflow-track-engines (+1 never-worked = 12), 3x resolve-fresh-conflict-on-pr--
-  610, 10x CRM/PM Task #46/#47 singletons, 3x rebase-pr-* large rescue tasks, ~7 other singletons
-  (independent-audit-of-pr-652, re-rebase-pr-653/630, fresh-audit-of-pr-655, deterministic-per-task-type-
-  verification, register-active-claims-entry-for-procure, commit-procurement-erp-gap-analysis-docu,
-  integrate-knowledge-engine, build-a-commission-calculator, build-a-quasar-flux-telemetry-ingestion).
+## Batch 4b: DONE -- 13 remaining never-worked tasks dispositioned. Traced a live revert/re-fix saga around
+dynamic concurrency capping to its real conclusion: gh pr view confirms veridian-scripts PR #9 ('fix:
+CONCURRENCY_CAP=5 fixed + real-time resource-headroom veto, was: dynamic cap') is state=MERGED
+2026-08-02T03:27 -- this resolves 172049/172431/190141/190802/210337/030047 (6 tasks, all CLOSED with that
+evidence). Also closed: 151835/163429 (2 more stale sentinel nudges), 163811 (retriage-9 correction already
+reflected in current 3-not_needed census), 164529 (confirmed 0 ANTHROPIC_API_KEY refs left in
+/opt/veridian/shared/.env), 182453+182528 (real closeout deliverable already produced as PR #686, held for
+Owner review). 1 kept blocked+flagged (030125-real-completion-audit-ui-ux-veri-chat): genuine RETRY
+candidate, no evidence found it was done elsewhere, but headroom still tight (swap 95%, load 11/8cores) so
+deferring actual dispatch rather than adding a new worker under memory pressure.
+
+Running total: 59 CLOSED, 4 flagged-blocked (3 orphaned-RCA-fixes + 1 genuine-retry-deferred), 0 retried,
+0 deleted. 50 remaining (verified via grep of the '113-crontab-retriage (UMR-...)' marker across all 113
+task.yaml checkpoint histories).
+
+## Remaining (50 tasks)
+- [ ] Batch 5: 10x CRM/PM Task #46/#47 singletons (task-20260731-043731/043735/043738/043817/043820/
+  044012/044019/044022/044026/044029) -- real substantial multi-checkpoint work each, need per-branch PR
+  status check.
+- [ ] Batch 6: rebase/audit cluster (7): rebase-pr-652/604/643/618 (4, large rescue tasks 55-115
+  checkpoints each), independent-audit-of-pr-652, re-rebase-pr-653/630, fresh-audit-of-pr-655,
+  deterministic-per-task-type-verification.
+- [ ] Batch 7: build-extend-calculation-track-engines (14 remaining) + build-extend-workflow-track-engines
+  (10 remaining) + resolve-fresh-conflict-on-pr--610 (3) -- large retry-storm cluster, dedupe against
+  known-merged PR #617 first.
+- [ ] Batch 8: remaining singletons (integrate-knowledge-engine, build-a-commission-calculator, build-a-
+  quasar-flux-telemetry-ingestion, register-active-claims-entry-for-procure, commit-procurement-erp-gap-
+  analysis-docu).
 - [ ] Final tally + report per spec section 5 (retried-completed/still-blocked, closed/end-dated,
   deleted-as-duplicate, ambiguous).
 - [ ] Batch 5+: remaining ~49 worked tasks: 15x build-extend-calculation-track-engines, 11x
