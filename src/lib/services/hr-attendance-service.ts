@@ -26,11 +26,12 @@
 // correction. All fixed in this wave; see each function's own comment for
 // the specific rule and reasoning.
 import {
-  users, employeeProfiles, hrAttendanceRecords, hrHolidays, hrAttendanceStatusEnum,
+  users, employeeProfiles, hrAttendanceRecords, hrHolidays, hrAttendanceStatusEnum, hrShiftRosterAssignments,
 } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, gte, lte, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { resolveShiftForDate } from "./hr-shift-service"
 export { ServiceError }
 
 export type HrAttendanceContext = { orgId: string; userId: string }
@@ -253,17 +254,33 @@ async function getOrgUserIds(orgId: string, departmentId?: string): Promise<stri
 }
 
 /** Self-service check-in. Idempotent per day: re-checking in the same day updates the existing row rather than erroring. */
+// Phase 0 HR gap-closure (2026-07-27): resolves the roster assignment (if
+// any) covering `date` for `userId`, so an attendance row can snapshot
+// which shift the employee was actually expected to work -- see
+// hr-shift-service.ts's resolveShiftForDate for the pure matching logic
+// this wraps with the real DB read. Returns null (never throws) when no
+// roster assignment covers this date -- the common case until an org
+// starts using shift rostering at all.
+async function resolveShiftTypeId(db: TenantDb, orgId: string, userId: string, date: string): Promise<string | null> {
+  const assignments = await db.query.hrShiftRosterAssignments.findMany({
+    where: and(eq(hrShiftRosterAssignments.orgId, orgId), eq(hrShiftRosterAssignments.userId, userId)),
+    orderBy: (t, { desc }) => [desc(t.createdAt)],
+  })
+  return resolveShiftForDate(assignments, date)
+}
+
 export async function checkIn(ctx: HrAttendanceContext, date?: string) {
   const day = date || new Date().toISOString().slice(0, 10)
   if (date) assertNotFutureDate(date) // only validate an explicitly-supplied date; the default (today) is always valid
   const now = new Date()
   const row = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const shiftTypeId = await resolveShiftTypeId(db, ctx.orgId, ctx.userId, day)
     const [r] = await db.insert(hrAttendanceRecords).values({
       orgId: ctx.orgId, userId: ctx.userId, date: day, status: "present",
-      checkInAt: now, markedById: ctx.userId, source: "self",
+      checkInAt: now, markedById: ctx.userId, source: "self", shiftTypeId,
     }).onConflictDoUpdate({
       target: [hrAttendanceRecords.orgId, hrAttendanceRecords.userId, hrAttendanceRecords.date],
-      set: { checkInAt: now, status: "present", markedById: ctx.userId, source: "self", updatedAt: now },
+      set: { checkInAt: now, status: "present", markedById: ctx.userId, source: "self", shiftTypeId, updatedAt: now },
     }).returning()
     return r
   })
@@ -360,6 +377,7 @@ export async function markAttendance(ctx: HrAttendanceContext, targetUserId: str
     const existing = await db.query.hrAttendanceRecords.findFirst({
       where: and(eq(hrAttendanceRecords.orgId, ctx.orgId), eq(hrAttendanceRecords.userId, targetUserId), eq(hrAttendanceRecords.date, input.date)),
     })
+    const shiftTypeId = existing?.shiftTypeId ?? (await resolveShiftTypeId(db, ctx.orgId, targetUserId, input.date))
 
     const values = {
       orgId: ctx.orgId, userId: targetUserId, date: input.date, status: input.status,
@@ -369,6 +387,7 @@ export async function markAttendance(ctx: HrAttendanceContext, targetUserId: str
       markedById: ctx.userId,
       source: targetUserId === ctx.userId ? "self" : "manager",
       notes: input.notes !== undefined ? (input.notes || null) : (existing?.notes ?? null),
+      shiftTypeId,
     } as const
     const [row] = await db.insert(hrAttendanceRecords).values(values).onConflictDoUpdate({
       target: [hrAttendanceRecords.orgId, hrAttendanceRecords.userId, hrAttendanceRecords.date],

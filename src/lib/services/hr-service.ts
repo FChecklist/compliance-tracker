@@ -2,8 +2,17 @@
 // orangehrm evaluated and rejected as software. Closes the confirmed gap:
 // `users` had auth fields + departmentId/reportingToId but no actual
 // employee master data, and leavePolicyEntries is policy text, not a
-// request/balance ledger. Payroll deliberately out of scope -- VERIDIAN
-// tracks payroll *compliance*, never runs payroll itself.
+// request/balance ledger.
+//
+// Correction (Phase 0 HR gap-closure, 2026-07-27): this file previously
+// claimed "Payroll deliberately out of scope -- VERIDIAN tracks payroll
+// *compliance*, never runs payroll itself." That was already wrong by the
+// time it was written and stayed uncorrected -- erp-payroll-service.ts
+// (Wave 56 onward) is a real, live payroll engine: processPayrollRun()
+// computes gross earnings from salary structures, applies admin-editable
+// PF/ESI/Professional Tax statutory rules, and generates real payslips.
+// Removed here so the next reader doesn't take the stale claim at face
+// value the way this task's own KNOWN_CONTEXT had to flag it explicitly.
 import { users, employeeProfiles, leaveRequests, leaveBalances, employmentStatusEnum } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"

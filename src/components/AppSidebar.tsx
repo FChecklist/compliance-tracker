@@ -71,6 +71,10 @@ import {
   GraduationCap,
   Copy,
   Activity,
+  LayoutPanelLeft,
+  Palette,
+  Sofa,
+  Gauge,
   NotebookPen,
   FileCheck2,
   ListChecks,
@@ -171,17 +175,31 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
     ...(pmsEnabled
       ? [{ title: t("sections.projects.title"), items: [{ label: t("sections.projects.items.veriProjectsAi"), href: "/pms", icon: Rocket }] }]
       : []),
-    // Wave 6 batch 1 (compliance-tracker/PROJEXA merge): construction
-    // execution modules -- backend (construction-*-service.ts) was already
-    // fully built across earlier PROJEXA-foundation waves and served only
-    // PROJEXA's own frontend until this wave; these are the first (app)
-    // pages for any of it. Shown unconditionally, same posture as the
-    // 'erp'/GRC sections below (no constructionEnabled-shaped flag exists
-    // anywhere in this codebase -- confirmed by search before adding this
-    // section -- so gating behind a still-unbuilt toggle would just hide
-    // real, working pages behind a switch nobody can flip). Labour here is
-    // site-labour manpower (construction-labour-service.ts), a distinct
-    // concept from company-employee HR attendance under People & HR below.
+    // Wave 6 (compliance-tracker/PROJEXA merge): construction modules --
+    // backend (construction-*-service.ts / interior-*-service.ts) was
+    // already fully built across earlier PROJEXA-foundation waves and
+    // served only PROJEXA's own frontend before this; these are the first
+    // (app) pages for any of it. Shown unconditionally, same posture as
+    // the 'erp'/GRC sections below (no constructionEnabled-shaped flag
+    // exists anywhere in this codebase). Labour here is site-labour
+    // manpower (construction-labour-service.ts), a distinct concept from
+    // company-employee HR attendance under People & HR below.
+    //
+    // MERGE CONFLICT RESOLUTION (batch 1 / PR #514 vs batch 2 / PR #524):
+    // both waves independently added their own "Construction" nav section
+    // at this same spot, since neither branch was cut after the other's
+    // merge into main yet (disclosed by both PRs' own bodies as a
+    // foreseeable, non-design conflict). Resolved by combining into ONE
+    // "Construction" section with all 13 items from both waves -- batch
+    // 1's execution modules (site-diary/RFIs/submittals/punch-list/scope/
+    // labour/expenses) followed by batch 2's design+progress modules
+    // (floor-plans/mood-boards/FF&E/change-orders/work-progress/
+    // dashboard) -- rather than one wave's entries overwriting the
+    // other's. i18n keys are left under their original two namespaces
+    // (sections.construction.items.* and sections.constructionDesign.
+    // items.*) since both are merged into messages/en.json and
+    // messages/hi.json unchanged; only the nav section object itself is
+    // unified.
     {
       title: t("sections.construction.title"),
       items: [
@@ -192,6 +210,12 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
         { label: t("sections.construction.items.scope"), href: "/scope", icon: Ruler },
         { label: t("sections.construction.items.labour"), href: "/labour", icon: HardHat },
         { label: t("sections.construction.items.expenses"), href: "/expenses", icon: CircleDollarSign },
+        { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
+        { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
+        { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },
+        { label: t("sections.constructionDesign.items.changeOrders"), href: "/change-orders", icon: FileSignature },
+        { label: t("sections.constructionDesign.items.workProgress"), href: "/work-progress", icon: Activity },
+        { label: t("sections.constructionDesign.items.dashboard"), href: "/construction-dashboard", icon: Gauge },
       ],
     },
     // THE FIRM AI OS practice-management layer (Wave 108 build, wired to
