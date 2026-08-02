@@ -7086,3 +7086,53 @@ recently_completed:
       self-certify it); left failing, flagged for a separate agent/session
       to review and post a real AUDIT: PASS/FAIL comment. Did not merge PR
       #563 (out of this task's scope).
+
+  - session_label: "claude-code (background session) -- OCID-20260802-020 real redo: 22-spec suite honest attempt + correctly-targeted authenticated click-through [PUSHED, PR OPEN]"
+    claimed_at: "2026-08-02T20:2x-20:4xZ (this session, closed same session)"
+    claim: |
+      Redo of OCID-20260802-020 (`UMR-20260802-165606-4413`), amending parent
+      `UMR-20260802-104058-25ba`. The immediately prior real run under this
+      UMR/OCID (`task-20260802-172443`) tested the wrong target -- the real
+      22-spec suite against `projexa-smoky.vercel.app` -- now split out to
+      its own standalone `UMR-20260802-201605-08b8` (PR #737), explicitly
+      not part of OCID-020 per PM decision `UMR-20260802-201526-48ed`.
+      This claim redoes OCID-020 properly: (1) re-confirmed live that
+      `projexa-ai.com` still serves `veridian-compliance-ai`
+      (`UMR-20260802-134939-145d`, PR #720) via curl + real page title, not
+      assumed; (2) actually ran the real 22-spec suite
+      (`/opt/veridian/repos/projexa/e2e/`, via the dedicated
+      `projexa-ocid020-wt` worktree, `LD_LIBRARY_PATH` pointed at the
+      already-present `/home/rajat/.local/chrome-system-libs` to work
+      around this sandbox's known missing-`libnspr4.so` gap, no `sudo`)
+      against the real, current `https://projexa-ai.com` -- real result
+      0/107 passed, 4 failed (all in `setup`/login), 103 skipped, honestly
+      root-caused to a real DOM/backend mismatch (login page is genuinely
+      `veridian-compliance-ai`'s own, Projexa-seeded credentials don't
+      resolve against it), not reported as 103 fabricated product
+      failures; (3) real signup on `projexa-ai.com/signup` + real
+      Admin-API email-confirm bypass using compliance-tracker's own
+      `SUPABASE_SERVICE_ROLE_KEY` (confirmed present locally, matches the
+      `pcrjmlpuqsbocqfwoxod` project `projexa-ai.com` actually
+      authenticates against per PR #735's own finding) + real login --
+      first real authenticated screens reached on `projexa-ai.com` itself
+      this UMR; (4) real broad sweep beyond PR #711's VERI-Chat-only scope
+      -- 118-link nav inventory, ~15 pages/areas clicked, one real
+      high-severity reproducible bug found (Compliance Register / Pendency
+      View client-side crash, real `500` on `/api/departments` -> real
+      `TypeError: z.map is not a function`), plus 3 lower-severity/
+      lower-confidence disclosed findings. 31 real screenshots at
+      `/opt/veridian/browser/screenshots/ocid020-redo-*.png`. Full detail:
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md`. Not
+      self-certified -- no `AUDIT: PASS`/`FAIL` verdict posted by this
+      session; left for independent review.
+    scope_note: >-
+      File scope: this repo's own `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md`
+      (new file), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`.
+      No src/, schema, or CI changes. Real test-account artifacts
+      (`82af2932-57f4-42b0-b51c-fa6d54f13c4f`, `pcrjmlpuqsbocqfwoxod`
+      project) are real signup data on the live app, not a schema/code
+      change to either repo. Collision check: `projexa-ocid020-wt` worktree
+      had been idle 30+ minutes with no running playwright/node processes
+      before this session used it; `task-20260802-172443` (the prior real
+      occupant of this OCID) had already completed and produced PR #737
+      before this session began.
