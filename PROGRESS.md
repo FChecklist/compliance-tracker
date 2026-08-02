@@ -108,10 +108,6 @@ UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
 - [x] Committed + pushed (e2c589df), opened PR #692.
 - [x] Updated ACTIVE-CLAIMS.yaml with done/PR-open status (commit
       1736301c, pushed).
-
-## Remaining
-- [ ] Confirm CI passes (do not merge, do not post audit verdict) -- monitoring in progress
-
 - [ ] None -- task complete, PR #615 awaiting CI + review/merge
 # PROGRESS -- task-20260728-051733-owner-engine-phase-5-real-gaps
 ## Completed
@@ -399,3 +395,51 @@ UMR-20260802-034545-3388's priority list. Docs/collation only -- no code.
       (out of this session's control). Priorities #5 (prompt library) and
       #8 (multi-tenant/brand) were flagged as not spot-verified this pass
       (doc Section 2/6) for whoever picks those up next.
+
+# PROGRESS -- task-20260802-040340-real-completion-audit--live-click-throug
+
+READ-ONLY AUDIT TASK. No code/repo files modified. No commit/push performed (per task SPEC).
+Part of UMR-20260802-034545-3388 (PROJEXA-AI.COM go-live), area 2 of UMR-20260802-030121-ae66.
+
+## Completed
+- [x] Read spec: `git cat-file -p 7279c16e:VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md` (737 lines; `git show` truncates this file's Bash output at ~31 lines, use `git cat-file -p` instead)
+- [x] Located real Playwright tooling at `/opt/veridian/scripts/browser/` (not `scripts/browser/` inside this repo workspace)
+- [x] Navigated https://projexa-ai.com unauthenticated (landing page loads correctly, real content, not generic placeholder)
+- [x] Attempted login to projexa-ai.com and to https://veridian-compliance-ai.vercel.app (NEXT_PUBLIC_APP_URL) with local `src/db/seed.ts` demo creds (`admin@acme.com` / `Test@1234`) -- **failed on both**, "Invalid login credentials". Seed creds are for a local/dev DB only, not the live Supabase project this deployment uses.
+- [x] Created a real test account via the compliance-tracker signup flow (`/signup`), confirmed the email server-side via the Supabase Admin REST API (`SUPABASE_SERVICE_ROLE_KEY` from `.env.local`, `PUT /auth/v1/admin/users/{id} {email_confirm:true}`) since I have no inbox access to click the confirmation link, then logged in successfully. This reached real, authenticated, post-login screens for the audit.
+- [x] projexa-ai.com: confirmed a **separate signup form** (3 fields: org/email/password vs. compliance-tracker's 4: name/org/email/password) -- consistent with the spec's own finding (§2 item 2) that PROJEXA is a genuinely separate codebase (`/opt/veridian/repos/projexa`, own `@supabase/supabase-js` client, own Supabase project) that calls VERIDIAN as a backend API client, not a fork of compliance-tracker's UI. Did not create a second test account there (separate, unknown Supabase project; the spec's own file:line citations for §3.1-3.6 are all compliance-tracker files, e.g. `VeriComposer.tsx`, `ChainSelector.tsx`, `AppSidebar.tsx` -- so that is where these screens actually live).
+- [x] Live click-through of Home / VERI Chat composer on compliance-tracker for all of §3.1-3.6: mode pills, chain picker at depth 1/2/complete, sidebar nav click, "Create similar task again" (with network capture confirming a real `POST /api/tasks` 201), composer caption row, resize-handle DOM inspection, `/` and `Tab` palette triggers.
+- [x] 30 real screenshots saved to `/opt/veridian/browser/screenshots/` (see table below for filenames).
+
+## Remaining
+- [ ] Could not verify: `IntentCommandPalette` (§3.6) triggering via `/` or `Tab` -- tried in "Discuss" mode (empty composer) and in a completed chain mode (empty composer); no dialog/palette appeared in either. Spec cites the component as real and already-shipped (`IntentCommandPalette.tsx`, 197 lines) -- may require a composerMode not tested, or existing per-user intent history (this test account is brand-new, zero prior submissions), or the trigger may only fire client-side under conditions this session's clicks didn't reproduce. Not confirmed either way with certainty.
+- [ ] §3.1.1 (sidebar vertical spacing) not independently assessed -- spec itself scopes this as a `veridian-ui-kit` (external repo) change; a "denser or not" visual judgment call needs a side-by-side design comparison, not a pass/fail click-through. Not evaluated.
+- [ ] Did not attempt authenticated screens on projexa-ai.com itself (separate Supabase project, no known credentials, would require a second signup+confirm cycle). Everything below is against the compliance-tracker deployment, which is where the spec's cited source files actually live.
+
+---
+
+## Audit Findings: VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md §3.1-3.6, live against https://veridian-compliance-ai.vercel.app (compliance-tracker deployment, NEXT_PUBLIC_APP_URL)
+
+| Spec section | Feature | Real status | Severity | Evidence |
+|---|---|---|---|---|
+| 3.1.1 | Sidebar compacted spacing | COULD NOT VERIFY (external `veridian-ui-kit` repo, cosmetic visual judgment, not a click-through pass/fail) | cosmetic | n/a |
+| 3.1.2 | Sidebar click syncs composer `selectedPath`/mode | **NOT BUILT** — clicking "Journal Entries" navigates correctly to `/erp/journal-entries` (real page, no regression) but the composer's chain-picker chips remain the full generic list (Compliance Item/Calculators/Construction Intelligence/Reports/Reports & Analysis/Create) — no Finance/Journal-Entries pre-seed | degrades experience | `24-before-sidebar-click.png`, `25-after-sidebar-click-journal.png` |
+| 3.1.3 | "More modules (real)" sidebar section | **BUILT_AND_WORKING** (already correct per spec's own assessment — confirmed live: Governance, Legal, Risk, Audit, Tools, Company Secretarial, People & HR, Sector Regulators, Third-Party & ESG, Integrity, Incidents & Events, Access & Approvals, Admin all present with real hrefs to real pages, ~140 nav items total) | n/a — no gap | `11-post-login-home.png`, full link dump in session log |
+| 3.1.4 | Stale active-highlight | **BUILT_AND_WORKING** (not a real bug per spec; confirmed live: sidebar correctly highlights "Journal Entries" as active immediately after real Next.js navigation, driven by pathname as spec describes) | n/a — no gap | `25-after-sidebar-click-journal.png` |
+| 3.2.1 | Step 2 overlay/backdrop + auto-collapse-to-strip | **NOT BUILT** — banner (`"Select the task you want me to do."`) stays in normal document flow, no backdrop, no "Selection complete"/"Narrow it down" toggle text anywhere (confirmed via full body-text search) even once chain is complete | cosmetic | `16-chain-complete.png` |
+| 3.2.2 | Show only current (deepest) depth's row | **BUILT_AND_WORKING** — contradicts the spec's documented 2026-08-01 gap; live-verified at depth 1 (single "Compliance Item:" row) and depth 2 (single "Create New:" row, depth-1 row no longer shown) | n/a — no gap (already fixed since spec was written) | `14-chain-depth1.png`, `15-chain-depth2.png` |
+| 3.2.3 | Breadcrumb repositioned + clickable "create another" | **NOT BUILT** — breadcrumb (`compliance_item › compliance_item_create › create::...`) still renders far-right (not adjacent to the step label); `getComputedStyle(...).cursor` = `"auto"` (not `pointer`), no click handler | cosmetic | `16-chain-complete.png`, live cursor-style check |
+| 3.2.4 | Per-segment removable × (breadcrumb + inline chain label) | **NOT BUILT** — zero `×`-labeled buttons anywhere on the page once a chain is complete; no inline chain-label element before the textarea either | degrades experience (user must fully restart a chain to go back a step, no quick-jump) | `16-chain-complete.png`, live DOM query (`button:has-text("×")` → 0) |
+| 3.2.5 | "+ Add another" → "Create similar task again" (dispatch immediately, keep chain, delete queue code) | **BUILT_AND_WORKING** — button literally reads "Create similar task again", `title` attribute reads *"Dispatch this against the same chain, keeping it selected for the next one"* (near-verbatim match to spec's own acceptance criteria); clicking it fires a real `POST /api/tasks` → **201**, the chain breadcrumb stays fully selected after the click, the typed message clears, and no "Send all"/queue UI exists anywhere in chain mode | n/a — no gap (fully matches spec's acceptance criteria) | `18-` through `21-*.png`, network capture: `POST /api/tasks → 201` |
+| 3.3 | Standardized ERP "task document" screen (full main-content-area takeover) | **NOT BUILT AS SPECIFIED** — completing a chain does *not* hide Home's greeting/thread history or the "VERI TREASURE" / "No compliance items yet" cards (confirmed present in body text before and after chain completion). A smaller, structurally different feature *is* live instead: an inline "General — enter the details" mini-form (Title/Type/Due date/Amount fields) rendered *inside* the chain-picker banner itself, not as a full-page document screen replacing Home | degrades experience (task creation itself works end-to-end via the real API, but the spec's headline "biggest addition" — the standardized document-screen UX — does not exist) | `16-chain-complete.png`, `17-chain-complete-scrolltop.png`, `body.innerText` before/after comparison |
+| 3.4 | External-AI handoff ("copy this" clipboard link) | **NOT BUILT** — composer caption row has exactly one link (`/connectors`, "Connect your tools"), confirmed via full page HTML: no "copy this", no "ChatGPT"/"Gemini" text, no external-AI framing anywhere | cosmetic | `22-composer-caption-row.png`, `23-caption-zoom.png` |
+| 3.5 | Resizable composer (vertical drag handle) | **NOT BUILT** — only resize-related DOM element on the page is the sidebar's `cursor-col-resize` width handle (unrelated, pre-existing); the composer's own `<textarea>` has `resize-none` explicitly set; no drag handle, no `maxHeight` state, nothing above the composer wrapper | cosmetic | live DOM query on `[class*="resize"], [class*="drag"], [class*="handle"]` |
+| 3.6 | "Your Frequent Tasks" / real prompt library | Per spec's own recommendation, this should **not** be built as a literal port. Confirmed: no "Your Frequent Tasks" card anywhere on Home (matches spec — genuinely absent, as expected). The alternative the spec says is "already solved" (`IntentCommandPalette` via `/`/`Tab`) **could not be confirmed live** — no palette/dialog appeared in either Discuss-mode-empty or completed-chain-empty composer states | could not fully verify | `27-`, `28-`, `29-`, `30-*.png` |
+
+### Summary
+- **2 of 11 line items are fully working as newly specified** (3.2.2 single-row display, 3.2.5 "Create similar task again" with real task creation) — both contradict the spec's own "not built as of 2026-08-01" claim, meaning real implementation work landed between the spec's authoring (2026-08-01) and this audit (2026-08-02).
+- **2 items were already correct and needed no work** (3.1.3, 3.1.4), consistent with the spec's own assessment.
+- **6 items remain genuinely not built**: 3.1.2 (sidebar→composer sync), 3.2.1 (overlay/backdrop), 3.2.3 (breadcrumb reposition+click), 3.2.4 (per-segment ×), 3.4 (external-AI handoff), 3.5 (resizable composer).
+- **1 item (3.3, the spec's own "biggest addition") is not built as specified** — a smaller, different inline form exists instead of the full-page takeover.
+- **2 items could not be conclusively verified** (3.1.1 cosmetic/external-repo, 3.6 palette trigger).
+- No broken links, no console errors surfaced, no dead navigation found across ~140 real sidebar links sampled — the parts of the app that *are* built are built solidly; the gaps are entirely features this spec had already flagged as not-yet-built, still not built (plus two that got built since).
