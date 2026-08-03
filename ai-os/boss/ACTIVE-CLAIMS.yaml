@@ -4858,8 +4858,8 @@ active:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
-  - session_label: "claude-code (task-20260803-085546-register-ocid-041-universal-external-exe) -- OCID-041 VERIDIAN Universal External Execution Foundation, real discovery/requirement-mapping artifact, documentation only"
-    claimed_at: "2026-08-03T09:05Z (this session)"
+  - session_label: "claude-code (task-20260803-085546-register-ocid-041-universal-external-exe) -- OCID-041 VERIDIAN Universal External Execution Foundation, real discovery/requirement-mapping artifact, documentation only [PUSHED, PR #799 OPEN]"
+    claimed_at: "2026-08-03T09:05Z (this session, PR opened same session)"
     claim: |
       SPEC (Owner directive, tier 1, parented to `UMR-20260802-173631-ca85`
       [OCID-021, ERP Functional Completeness Master Program], citing OCID-022
