@@ -7,9 +7,12 @@
 - [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml, committed+pushed
 - [x] Discovery pass: DATABASE_CATALOG.json (444 tables), FUNCTION_CATALOG.json (5,019 functions), ENGINES.yaml (247 VCEL engines), AI_ROSTER_CATALOG.json, system_index/knowledge_engine/wiring_registry (superboss-register.sqlite), prompt registry (promptVersions + prompt-os-service.ts), system-tree/tree4-unified/audit-tree, asset-registry-coverage.yaml, file-ownership.yaml, ARTIFACTS.yaml (unpopulated gap)
 
+- [x] Wrote canonical artifact: ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md (36 sections per mission list)
+- [x] Amended ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (existing UMR chain, in-place Amendment)
+- [x] Registered in ai-os/MASTER_INDEX.yaml and ai-os/OS.yaml
+- [x] Verified all cited file paths/artifacts exist on disk (spot-checked ~15 real paths)
+- [x] Moved ACTIVE-CLAIMS entry to recently_completed
+- [x] Final commit + push
+
 ## Remaining
-- [ ] Write canonical artifact: ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md
-- [ ] Amend ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (existing UMR chain)
-- [ ] Register in ai-os/MASTER_INDEX.yaml and ai-os/OS.yaml
-- [ ] Move ACTIVE-CLAIMS entry to recently_completed
-- [ ] Final commit + push, open PR
+- [ ] Open PR
