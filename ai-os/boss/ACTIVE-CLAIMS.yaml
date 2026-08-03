@@ -40,6 +40,27 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-201852-pm-decision-to-proceed-with-ocid-052-rem) -- OCID-052 Item 4 (UI-distinguishability) real execution + OCID-052 completion summary [IN PROGRESS]"
+    claimed_at: "2026-08-03T20:18Z (this session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115620-29c6` OCID-052):
+      OCID-051 confirmed merged (PR #844). OCID-052 Items 2-3 (deterministic-only and AI-escalation
+      routing test cases) already executed with real evidence earlier this session (see
+      `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION` / `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`
+      in `ai-os/MASTER-TRACKER.yaml`). This task executes the remaining Item 4: independently read the
+      real VERI Chat message-rendering code and confirm, or honestly find absent, a real visible way an
+      end user can tell a deterministic reply apart from an AI-escalated one -- then write the honest
+      OCID-052 completion summary, closing the full Group F (OCID-047 through OCID-052) Business
+      Certification batch under OCID-020.
+
+      Zero-duplication check performed first: read this file in full before starting; no other active
+      or recently-completed entry claims OCID-052 Item 4/5 execution specifically -- only the planning
+      entries and the Item 2-3 execution entry exist.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (amended in place), `ai-os/MASTER-TRACKER.yaml` (new GAP entry), `ai-os/OS.yaml` (index entry
+      update), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No `src/`, schema, or CI changes -- code
+      read and real test-execution confirmation only, no product code modified.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |
