@@ -12,6 +12,8 @@
 - [x] Updated ai-os/OS.yaml (index entry)
 - [x] Updated ai-os/MASTER_INDEX.yaml (registry entry) -- validated YAML parses (OS.yaml/MASTER_INDEX.yaml both OK; pre-existing unrelated YAML parse issue in ACTIVE-CLAIMS.yaml confirmed present on origin/main before this task touched it, not introduced here, out of scope)
 
+- [x] Committed, pushed, opened PR #780: https://github.com/FChecklist/compliance-tracker/pull/780
+- [x] Reported doc location + updated UMR + OCID-033 readiness confirmation to Owner
+
 ## Remaining
-- [ ] Commit, push, open PR
-- [ ] Report doc location + updated UMR + OCID-033 readiness confirmation
+- [ ] None -- watch PR #780's CI, merge once green (no code changes, low risk)
