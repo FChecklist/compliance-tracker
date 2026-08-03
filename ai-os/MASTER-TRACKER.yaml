@@ -1666,8 +1666,17 @@ open_items:
         session, not real browser navigation) by driving the real Supabase Auth REST API + this app's own
         authenticated API routes directly, with a hand-constructed `@supabase/ssr` session cookie -- a
         real, valid workaround for API-level testing, but it does NOT substitute for real UI/DOM-level
-        testing (screenshots, click-through, visual rendering checks like OCID-052's own Item 4, or the
-        multi-page nav sweeps several other OCIDs' task breakdowns call for).
+        testing. The same API-only workaround was reused successfully for OCID-047's real role/rights
+        test execution (55/55 checks, see that OCID's own amendment section) since authorization checks
+        are also API-level. **Confirmed (2026-08-03, PM decision `UMR-20260803-145921-c0c4`) this gap
+        specifically and honestly blocks**: OCID-050's Data State Certification (the real 115-item
+        nav-surface sweep across Empty/Sample/Large states needs real page navigation/rendering, not
+        just API calls), OCID-051's Cross-Surface Certification (both the desktop nav-discovery diff pass
+        and the Mobile PWA device-emulation/install/Web-Share-Target tests are inherently
+        browser/DOM-level), and OCID-052's own Items 4 (UI-distinguishability -- requires rendering both
+        a deterministic and an AI-escalated reply in the same real thread and visually/DOM-inspecting
+        them) and 5 (dialogue-script path, same class of UI verification) -- none of these four can get
+        real signal from API-only calls the way OCID-047's authorization testing could.
       size: "XS once someone with sudo access runs the fix -- likely `sudo apt-get install -y
         libnspr4 libnss3 libnssutil3 libsmime3 libatk1.0-0 libatk-bridge2.0-0 libcups2 libasound2
         libgbm1 libxext6 libcairo2 libpango-1.0-0 libxcomposite1 libxdamage1 libxfixes3 libxrandr2
@@ -1682,6 +1691,45 @@ open_items:
         it silently isn't right now.
       status: open
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
+
+    - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
+      name: "stage_0 is a real DB role (userRoleEnum) but is missing from the UserRole type and ROLE_RANK map, so a stage_0 user fails every requireRole()/requirePermissionForUser() gate in the app -- including the lowest-bar (viewer/member) ones"
+      old_ids: []
+      detail: |
+        Real, live finding, `UMR-20260802-165606-4413` (OCID-020), confirmed during OCID-047's real
+        API-level role/rights test execution (`UMR-20260803-145921-c0c4`) -- 11 real, isolated test
+        users (one per real DB role) each called 5 real API routes spanning the rank spectrum. All
+        55/55 real outcomes matched `ROLE_RANK`'s prediction for 10 of the 11 roles. The 11th,
+        `stage_0`, failed all 5 -- including `erp.fixed_assets.create` (minimum real rank: `member`,
+        rank 2), the single lowest-bar action tested.
+
+        Root cause, confirmed directly in code, not assumed: `src/lib/supabase/auth-guard.ts:28-38`.
+        `userRoleEnum` (schema.ts) has 11 real values including `stage_0`, but the `UserRole` TypeScript
+        type (`:28-29`) and the `ROLE_RANK` map (`:31-38`) both list only 10 -- `stage_0` is absent from
+        both. `hasRole()`'s rank lookup (`ROLE_RANK[dbUser.role as UserRole] ?? 0`) therefore silently
+        falls back to rank 0 for any `stage_0` user, below every real minimum rank (the floor is
+        `viewer`/`client_viewer`/`external_auditor` at rank 1) -- functionally locking that role out of
+        every `requireRole`/`requirePermissionForUser`-gated action in the entire app.
+
+        This is the exact same bug class the file's own code comment (`auth-guard.ts:22-27`) documents
+        as already found and fixed once before, for the other 6 newer roles (`veridian_admin`,
+        `branch_manager`, `senior_professional`, `team_member`, `client_viewer`, `external_auditor`) --
+        that fix simply did not extend to cover `stage_0`, which was added to the DB enum without a
+        corresponding `UserRole`/`ROLE_RANK` update.
+      size: "XS -- add 'stage_0' to the UserRole type union and give it an explicit ROLE_RANK entry"
+      recommendation: |
+        Add `'stage_0'` to `UserRole` (`auth-guard.ts:28-29`) and a real, deliberate rank for it in
+        `ROLE_RANK` (`:31-38`) -- the correct rank value is a real product decision (stage_0 appears to
+        be a partial-onboarding placeholder state per its own naming and the OCID-047 doc's separate
+        stage0-token provisioning path; whether it should rank below `viewer` at 1, or at a genuinely
+        new rank 0 explicitly, or somewhere else, is not this finding's to prescribe). Not fixed in this
+        pass -- this task's scope was real test execution against the existing model, per PM decision
+        `UMR-20260803-145921-c0c4`, not a code change. Add a regression test asserting every real
+        `userRoleEnum` value has both a `UserRole` type member and a `ROLE_RANK` entry, so this specific
+        class of drift (DB enum gains a value, the TS-side maps don't) cannot silently recur a third
+        time.
+      status: open
+      first_raised: "This session, 2026-08-03, real live test during OCID-047 execution (UMR-20260803-145921-c0c4, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
       name: "OCID-049 Subscription Plan Entitlement Certification -- planning artifact registered, entitlement enforcement not yet built"

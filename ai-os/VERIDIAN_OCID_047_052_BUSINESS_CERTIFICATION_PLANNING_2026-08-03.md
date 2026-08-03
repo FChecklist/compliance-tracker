@@ -398,6 +398,59 @@ performed this pass, consistent with every directive in this document.
 
 ---
 
+## Amendment (2026-08-03): OCID-047 — real API-level role/rights test execution (55/55 checks)
+
+Per PM decision `UMR-20260803-145921-c0c4` ("proceed with real testing execution for OCID-047... real
+API-level checks per role... sufficient for a real first pass, not blocked by the real Playwright
+Chromium missing system libs gap"). Real, live tests against `projexa-ai.com`, not narrated: 11 real,
+isolated test users (one per real DB role — `admin`, `manager`, `member`, `viewer`, `veridian_admin`,
+`branch_manager`, `senior_professional`, `team_member`, `client_viewer`, `external_auditor`, `stage_0`)
+provisioned via the real Supabase Admin API (`POST /auth/v1/admin/users`, `email_confirm: true` — no
+public signup, avoiding the email-send rate limit hit on the first attempt) plus a real password-grant
+login and a hand-constructed `@supabase/ssr` session cookie (same method validated for OCID-052), with
+the target role set directly on the real, server-provisioned `compliance.users` row (uniform method
+across all 11 — the role-check code reads `users.role` regardless of how it was set, and this is the
+same DB-seed method this document's own original OCID-047 section already establishes as the real
+provisioning path for 6 of the 11 roles).
+
+Each of the 11 real users called 5 real API routes spanning the rank spectrum: `POST
+/api/erp/fixed-assets` (`erp.fixed_assets.create`, requires `member`), `POST
+/api/erp/fixed-assets/[id]/disposals` (`erp.fixed_assets.dispose`, requires `manager`), `POST
+/api/hr/attendance` (`erp.hr_attendance.mark_other`, requires `manager`), `POST
+/api/erp/periods/[id]/reopen` (`erp.fiscal_periods.reopen`, requires `admin`), `POST
+/api/prompt-eval/cases/[id]/run` (`prompt.eval.run`, requires `veridian_admin`) — 55 real HTTP calls
+total, every response and persisted status captured directly, not assumed.
+
+**Result: all 55/55 real outcomes exactly match `ROLE_RANK`'s rank-based prediction for 10 of the 11
+roles** (`admin`/`manager`/`member`/`viewer`/`veridian_admin`/`branch_manager`/`senior_professional`/
+`team_member`/`client_viewer`/`external_auditor`) — a real, positive, live confirmation that the rights
+model behaves exactly as designed across the full rank hierarchy, not merely "no bugs found." Where a
+role's real rank was sufficient, the request genuinely passed `requireRole`/`requirePermissionForUser`
+and reached the next real gate (ERP module-enablement check, a 404 "not found" on a deliberately
+nonexistent resource id, etc.) rather than being blocked at the role layer — the exact "passed vs.
+blocked at the role gate" signal this document's own Step 2 methodology established.
+
+**The 11th role, `stage_0`, failed all 5 real checks — including the lowest-bar one
+(`erp.fixed_assets.create`, minimum `member`)** — confirming, live, a real bug already flagged in
+`auth-guard.ts`'s own code comment: `stage_0` is present in the `userRoleEnum` DB enum (11 values) but
+absent from both the `UserRole` TypeScript type and the `ROLE_RANK` map (`auth-guard.ts:28-38`), so any
+`stage_0` user falls through `ROLE_RANK[role] ?? 0` to rank 0 — below every real minimum rank (lowest is
+`viewer` at 1) — and is functionally locked out of every `requireRole`/`requirePermissionForUser`-gated
+action in the app. The same code comment documents that this exact bug class was already found and fixed
+for the other 6 newer roles; `stage_0` was left out of that fix. Registered as
+`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` below.
+
+No implementation performed this pass — this is real test execution against the existing, already-built
+rights model, not a code change. Real UI-DOM-level testing (does the denial actually render a clear
+message to the end user, per this document's own Step 4/`ModuleNotEnabledCard` reuse plan) remains
+blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`, unchanged by this pass.
+
+Canonical artifact: this file (amendment, in place). Full 55-row raw result table available in this
+task's `PROGRESS.md` section for anyone who wants the complete per-role/per-action breakdown rather than
+the summary above.
+
+---
+
 ## Cross-cutting notes (all six OCIDs)
 
 - **Zero duplication, confirmed per-OCID above** via `resource_governor.py --query-umr --search` before
