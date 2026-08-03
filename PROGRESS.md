@@ -676,3 +676,13 @@ prior cycle") since the spec is the only source for what it denotes.
 ## Remaining
 - [ ] PR #765 (OCID-022) and PR #768 (OCID-023) still carry their own self-minted fabricated "artifact UMR" citations -- explicitly out of scope for this session's directive, left open per `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`
 - [ ] `GAP-REVIEWER-FALSE-DUPLICATE-AFTER-MAIN-MERGE`'s actual fix (a REVIEW_PROMPT wording addition in claude-control's supervisor-entrypoint.sh) not yet implemented -- registered as a gap, not fixed, since claude-control changes are out of this repo's scope
+# PROGRESS -- feature/ocid-020-resume-pr755-verified-host-load-deferred
+
+## Completed
+- [x] Independently re-verified PR #755's real merge state (`gh pr view`, `git merge-base --is-ancestor`) -- confirmed genuinely MERGED, mergedAt 2026-08-03T01:21:42Z, contradicting task-20260802-231454's stale checkpoint note. No re-merge attempted.
+- [x] Checked real, current host load before resuming the browser sweep (`uptime`: load avg 10.23 on 8 cores; `free -h`: 3.7Gi/4Gi swap in use) -- consistent with the resource-contention class that caused both prior nav-sweep failures
+- [x] Decision: defer the heavy multi-navigation Playwright sweep until load drops, per the prior continuation doc's own explicit recommendation; wrote `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_RESUME_2026-08-03.md` documenting both the PR #755 correction and the load-based deferral
+- [x] Registered doc in `ai-os/OS.yaml`
+
+## Remaining
+- [ ] Resume the real nav-surface sweep (~101/118 still unswept) once host load allows, using the per-batch browser health-check/restart harness
