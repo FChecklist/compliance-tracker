@@ -646,3 +646,16 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None -- task complete pending PR merge (out of this task's control per Rule 6 PR/CI gate)
+# PROGRESS -- interactive session, gap-registry update (2026-08-03)
+
+## Completed
+- [x] Retriggered and independently verified real supervisor reviews for PR #776, #774, #779 (multiple rounds each)
+- [x] Merged PR #779 (real merge commit 7a6ad5ab6b30f9c4a26f1f38bc303d57b16a414e, independently confirmed ancestor of origin/main via `git merge-base --is-ancestor`)
+- [x] Resolved real, legitimate merge conflicts (PROGRESS.md/OS.yaml/IMPLEMENTATION_MATRIX/ACTIVE-CLAIMS append-point collisions) on PR #774 and PR #776's branches against origin/main, union-resolving both sides' distinct additions
+- [x] Root-caused a reproducible Superboss-reviewer false-positive ("complete duplicate of work already merged into main") that fired on both PR #776 and PR #774 immediately after a real `git merge origin/main` was performed on their branches; independently confirmed both times (via `git diff --stat origin/main...HEAD` and `git cat-file -e origin/main:<path>`) that the flagged content was genuinely new and not on origin/main -- registered as `GAP-REVIEWER-FALSE-DUPLICATE-AFTER-MAIN-MERGE`
+- [x] Updated `GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE` status from stale `open` to `resolved` (the real fix, claude-control PR #124, was already merged and deployed live earlier this session but the tracker entry was never updated)
+- [x] Registered `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`, documenting the fixed PR #779 instance and the two explicitly out-of-scope, still-open instances (PR #765/#768)
+
+## Remaining
+- [ ] PR #765 (OCID-022) and PR #768 (OCID-023) still carry their own self-minted fabricated "artifact UMR" citations -- explicitly out of scope for this session's directive, left open per `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`
+- [ ] `GAP-REVIEWER-FALSE-DUPLICATE-AFTER-MAIN-MERGE`'s actual fix (a REVIEW_PROMPT wording addition in claude-control's supervisor-entrypoint.sh) not yet implemented -- registered as a gap, not fixed, since claude-control changes are out of this repo's scope
