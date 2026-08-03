@@ -1197,6 +1197,68 @@ everywhere for the wrong reason: total absence, not a deliberately-low real rank
       this pass covered only the RIGHTS/action-permission axis.
 - [ ] Real testing execution for OCID-048/049/050/051 has not started yet.
 
+---
+
+# PROGRESS -- task-20260803-151937-pm-decision--proceed-with-ocid-048-real
+
+Cites: `UMR-20260803-115452-a35d`, child of `UMR-20260802-165606-4413` (OCID-020). PM decision: proceed
+with real testing execution for OCID-048 (Multi Organization / Multi Tenant / Multi Brand Isolation
+Certification), API-level, reusing the OCID-047/OCID-052 session-cookie + direct-API-call pattern.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` + `git fetch origin main` -- confirmed zero collision: no
+      other session has claimed OCID-048 real-execution work (only the prior planning/task-breakdown
+      entry exists, already merged).
+- [x] Read the existing task breakdown
+      (`ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`)
+      and the OCID-047 (`7338db31`)/OCID-052 (`da5a5e94`) real-execution commits to reuse their exact
+      proven method: Supabase Admin API user provisioning (`email_confirm: true`) -> real
+      password-grant login -> hand-constructed `@supabase/ssr` v0.12.3 session cookie
+      (`sb-<project-ref>-auth-token`, `base64-` + base64url JSON) -> real authenticated API calls.
+- [x] Provisioned two real, fresh, isolated organizations ("OCID048 Isolation Test Org A" / "Org B")
+      against `projexa-ai.com` via the real `autoProvisionUser()` auto-provisioning path (triggered by
+      each org's first authenticated `GET /api/conversations` call).
+- [x] Ran a real, live cross-tenant isolation probe (`/tmp/ocid048-isolation-test.mjs`, ephemeral, not
+      committed) against 6 real tenant-scoped API routes/checks: `GET/POST /api/departments`,
+      `GET /api/departments/[id]` (direct cross-org fetch-by-id), `GET /api/tasks`,
+      `GET/POST /api/clients`, `GET /api/products`, `GET /api/users`. **Result: 7/7 real checks PASS**
+      -- Org B never saw any of Org A's real data across any of the 6 routes; the direct cross-org
+      fetch-by-id returned a real `404`, never `200` with Org A's data. Full raw JSON:
+      `/tmp/ocid048-results.json`.
+- [x] Real brand-as-configuration check (API half): `PATCH /api/settings/branding` on Org A's session
+      (custom primary/accent color + email sender name) returned real `200` and persisted to Org A
+      only; Org B's own `GET` of the same endpoint returned its own unmodified defaults, zero leakage.
+- [x] **Discovered the real, live browser-DOM part of OCID-048's brand check was NOT actually blocked**
+      despite `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` -- re-checked rather than assuming the
+      existing "blocked" finding still held, and found a real, already-durable no-sudo fix from an
+      earlier session (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`, never applied by the
+      OCID-047/052 sessions) makes headless Chromium launch cleanly (`ldd` reports zero missing libs).
+      Ran a real Playwright test: launched headless Chromium, injected Org A's real session cookie,
+      navigated `https://projexa-ai.com/settings` -> `Organisation` -> `Branding` tab (real clicks, real
+      client-side nav), and confirmed via screenshot + `input.inputValue()` that the live-rendered
+      Brand Colors/Email Sender Name fields show exactly the values set via the API moments earlier.
+      Screenshot: `/tmp/ocid048-branding-ui.png` (ephemeral, not committed).
+- [x] Amended `ai-os/MASTER-TRACKER.yaml`'s `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` entry with
+      this correction -- narrowed (not closed): confirmed working for headless
+      cookie-injected-navigation/DOM-read/screenshot; full interactive-flow/device-emulation coverage
+      for OCID-050/051/052's own, more demanding browser needs remains unconfirmed and should be
+      re-verified independently by those OCIDs' own execution passes, not assumed either way.
+- [x] Amended the OCID-048 task breakdown doc in place (new §8, renumbering old §8 Registration to §9)
+      with the full real-execution results, per-probe table, and an honest "explicitly still open"
+      section (T2's full 49/51-route checklist not produced; T4's versioned Playwright spec not
+      wired; full interactive UI flows/device emulation not attempted).
+
+## Remaining
+- [ ] T2's full tenant-scoped route/table checklist (49/51 service files, 64+ RLS tables) -- this pass
+      covered 6 real routes as a first evidence-backed slice, not the exhaustive list.
+- [ ] T4: wire this probe pattern into a real, committed, versioned Playwright spec
+      (`e2e/*-tenant-isolation.spec.ts`) instead of the current ephemeral `/tmp` script.
+- [ ] Full interactive UI flow testing (real signup/login form typing, multi-page nav-diff sweep,
+      mobile device emulation) for OCID-050/051/052 -- explicitly NOT covered by this pass's browser
+      finding; only cookie-injected headless navigation/DOM-read/screenshot was confirmed working.
+- [ ] T6: full evidence-package certification writeup once the above are closed (this pass produced
+      real, substantial evidence toward it, not the final certification artifact itself).
+
 # PROGRESS -- task-20260803-150821-pm-decision--proceed-with-ocid-047-real
 
 Cites: `UMR-20260803-115333-dab8` (`UMR-20260802-165606-4413`, OCID-020) -- "proceed with real testing
@@ -1367,3 +1429,154 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
       052 items 2-3 already done elsewhere; 050/051/052-items-4-5 blocked on Playwright per the
       now-amended gap. This task's own OCID-047 RESPONSIBILITY-axis real test-execution work (all 4
       named mechanisms) is fully done and pushed -- the only open item is getting PR #830 merged.
+
+# PROGRESS -- task-20260803-094100-pm-priority-reorder--complete-ocid-020-f
+
+## Completed
+- [x] Re-verified PR #794 status independently: `state: MERGED`, `mergedAt: 2026-08-03T08:59:13Z`, already the tip of `main` (`b47b9caf`). Spec's premise that it needed to be "moved to pending review" was stale before this session started -- no action needed there.
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` for Finding 1 fix work.
+- [x] Root-caused Finding 1 (`GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`): `src/app/(app)/erp/reports/page.tsx`'s Trial Balance tab footer guard (`tb && tb.accounts.length > 0`) reads `.length` on `tb.accounts`, which is `undefined` when `tb` is a truthy 403 error body (`{ error: "..." }`) -- exact match for the evidenced `TypeError: Cannot read properties of undefined (reading 'length')`.
+- [x] Checked the Cash Flow tab's `cf?.operating.xxx` chains: confirmed NOT a bug (optional chaining short-circuits the whole remaining chain, not just the first hop) -- no fix needed there.
+- [x] Applied the fix: extracted `hasTrialBalanceFooterRows()` as a generic type-predicate guard (preserves `tb`'s non-null narrowing for the sibling `tb.isBalanced`/`tb.totalDebit`/`tb.totalCredit` reads -- a plain boolean helper silently broke that narrowing, caught by a full `tsc --noEmit` run before pushing) to `src/lib/erp-reports-guards.ts`.
+- [x] Added `src/lib/erp-reports-guards.test.ts` -- independently confirmed it reproduces the exact `TypeError` against the pre-fix logic, and passes against the fix.
+- [x] Ran full verification: `bun test` (4/4 new, 2479/2479 full suite pass), `bunx tsc --noEmit` (clean, full repo, after installing deps via `bun install`), `bunx eslint` (clean on changed files).
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`'s `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` entry with fix detail, status `fix_implemented_pending_merge`.
+- [x] Caught and fixed a real mistake from earlier in this session: a `git show | wc -l` pipe silently truncated its output (masking `PROGRESS.md`'s real 769-line size as 31), causing an earlier commit to replace history with a stub instead of appending. Restored via `git cat-file -p` + a follow-up commit before opening the PR.
+- [x] Committed, pushed, opened PR #803: https://github.com/FChecklist/compliance-tracker/pull/803
+- [x] Registered claim + logged fix detail in `ai-os/boss/ACTIVE-CLAIMS.yaml`
+
+## Remaining
+- [ ] PR #803 CI: Lint/Type Check/Unit Tests/Build/security+doc gates all pass. `audit-check` fails as expected -- it requires an independent structured `AUDIT: PASS`/`AUDIT: FAIL` comment (AGENTS.md Rule 10), and this session is the implementer of the fix, so per Rule 7(c) ("whichever agent did not implement a task is the mandatory auditor -- no self-certification") this session deliberately did not post one itself. Needs a genuinely separate session/agent to audit and post the verdict before merge.
+- [ ] Re-test the 3 timed-out pages (`/orchestra`, `/prompt-eval`, `/sales-hq`, `GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) in isolation once host load is genuinely low -- checked at hand-off: `13.62, 9.25, 8.58`, worse than the `10.23` that triggered the prior deferral in this same chain. Not attempted this session; left for whoever resumes once load actually drops, per the standing circuit-breaker rule against a 3rd invalidated attempt under the same failure class.
+
+---
+
+# PROGRESS -- docs/close-finding1-real-live-retest-confirmed
+
+Cites: `UMR-20260803-162547-b968` (UMR-20260802-165606-4413, OCID-020).
+
+## Completed
+- [x] Rebased PR #803 onto current `main` (squash-cherry-pick, not raw multi-commit replay --
+      avoids re-playing a known-broken intermediate `PROGRESS.md`-truncation commit already
+      fixed once within PR #803's own history). Confirmed via direct diff that PR #803's real
+      commit only ever touched the Trial Balance footer-guard line, never the Cash Flow
+      lines PR #795 independently fixed -- no regression risk.
+- [x] Full local verification after rebase: `bun test` (2479/2479 pass), `bunx tsc --noEmit`
+      (clean), `bunx eslint` (clean).
+- [x] Union-reconciled `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` (extracted PR #803's own
+      real delta via `git cat-file -p` against the exact blob hash -- `git show` was
+      independently reproduced as unreliable for this exact purpose again this session,
+      consistent with PR #803's own prior finding of the same class of bug).
+- [x] Pushed, retriggered review, real `AUDIT: PASS`, merged: PR #803 real merge commit
+      `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`, independently confirmed ancestor of
+      `origin/main`.
+- [x] **Independently retested Finding 1 live against `projexa-ai.com`, real evidence, not
+      narrated**: fresh module-not-enabled test org, confirmed the real backing API still
+      403s, loaded `/erp/reports` in a real headless browser (session cookie injected, using
+      the real Playwright fix from OCID-048's execution) -- page renders correctly, no
+      "Application error" crash. Real screenshot:
+      `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png`.
+- [x] Updated `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` in `MASTER-TRACKER.yaml` to `status:
+      resolved` only after this real live retest succeeded, not before.
+
+## Remaining
+- [ ] Per PM's explicit sequencing (`UMR-20260803-162547-b968`): PR #828, then #829, then #830
+      still need the same rebase treatment (real OCID-047-049 evidence, blocked on the same
+      shared-file conflict pattern) -- next.
+- [ ] OCID-050 real testing execution remains pending until after PR #828/829/830 land.
+
+---
+
+# PROGRESS -- task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825
+
+SPEC: PM decision -- do NOT start OCID-049 real testing execution yet. Gate: wait for PR #825
+(real OCID-048 cross-org isolation results) to genuinely merge, independently confirm that merge,
+then proceed with OCID-049 real testing execution only after that AND only if real swap pressure
+has eased. Relates to `UMR-20260802-165606-4413` OCID-020 and `UMR-20260803-115513-c990` OCID-049.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first, per repo protocol -- no existing claim for this
+      exact hold-decision task or for OCID-049 real execution; no collision.
+- [x] Independently checked PR #825 real state via `gh pr view`/`gh api` (not trusted from the
+      SPEC's premise) -- **material correction to the SPEC's premise, found this session**: PR #825
+      is **CLOSED, not merged** (`state: CLOSED`, `mergedAt: null`). It was closed at
+      2026-08-03T15:44:25Z by FChecklist in favor of PR #826, after a second-pass audit
+      (`AUDIT: FAIL`, 2026-08-03T15:39:46Z) found PR #825 collided on the same 3 files
+      (`PROGRESS.md`, `ai-os/MASTER-TRACKER.yaml`, the OCID-048 planning doc) with concurrently-open
+      PR #826, and that the two PRs asserted **contradictory findings** (PR #825 claimed
+      T4/T5 stayed blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`; PR #826 claimed a real,
+      independently-re-verified no-sudo Chromium workaround already resolves that gap). The closing
+      comment confirms PR #826 is the more complete, now-verified-accurate successor and that PR
+      #825's unique API-level coverage (`fraud-cases`, `legal-matters`) may be worth re-adding as a
+      follow-up once #826 merges -- it was not thrown away for being wrong, only superseded.
+- [x] Checked the real successor, PR #826
+      (`worker/task-20260803-151937-pm-decision--proceed-with-ocid-048-real`, "real OCID-048
+      cross-tenant isolation execution -- 7/7 checks, real DOM confirmation"): **OPEN,
+      `mergeable: CONFLICTING`, `audit-check: fail`** (no `AUDIT: PASS`/`AUDIT: FAIL` comment posted
+      yet on #826 itself -- the mandatory-audit-check gate fails by default absent one; only comment
+      present is an unrelated Vercel deploy-rate-limit notice). Confirmed via
+      `git merge-base --is-ancestor` that neither PR #825's commits (`5af6fcd5`) nor PR #826's
+      (`e45a2ffc`) are ancestors of `origin/main` -- the real OCID-048 cross-org/cross-tenant
+      isolation work has **not landed on `main` under any PR yet**.
+- [x] Checked real swap pressure (`free -h`): **Swap 2.5Gi / 4.0Gi used (62.5%)** -- elevated but
+      improved from the 3.9/4.0Gi (97.5%) figure cited in the SPEC as being close to the
+      2026-07-26 OOM-incident pressure class. Mem 3.2Gi/15Gi used, 12Gi available. `ps aux` shows
+      only 2 other background `claude -p` sessions currently running alongside this one (down from
+      the "5th concurrent process" framing in the SPEC) plus this session's own supervisor process.
+- [x] **Decision: continue to hold OCID-049 real testing execution.** The SPEC's literal gate
+      ("PR 825 merges") can now never be satisfied as written -- #825 is permanently closed, not
+      merging. The gate's real intent -- the real OCID-048 cross-org/cross-tenant isolation result
+      genuinely lands on `main` -- is not yet satisfied either: its current carrier, PR #826, is
+      open, has a real merge conflict against `main`, and has not yet received an audit verdict.
+      Swap pressure has eased somewhat (62.5% vs. 97.5%) but the primary blocker is PR #826's
+      unmerged/conflicting/unaudited state, not swap. Do not start OCID-049 real execution this
+      session.
+- [x] Registered this finding in `ai-os/boss/ACTIVE-CLAIMS.yaml` under `active:` (this is a real,
+      substantive correction to a prior PM decision's stated gate, not a no-op check) so a future
+      session re-reading the original SPEC's "wait for PR 825" language doesn't wait on a PR that
+      will never merge.
+
+## Remaining
+- [ ] Re-check PR #826 (or whatever PR next carries the real OCID-048 cross-org/cross-tenant
+      isolation result) periodically: resolve its merge conflict against `main`, get a real
+      `AUDIT: PASS` verdict, and get it merged.
+- [ ] Once that merge is confirmed independently (same method used here: `gh pr view --json
+      state,mergedAt` + `git merge-base --is-ancestor <head-sha> origin/main`, not just a green
+      `gh pr checks`), and real swap pressure is confirmed eased (`free -h`), only then hand off to
+      a fresh OCID-049 real-testing-execution task.
+- [ ] Consider re-adding PR #825's unique `fraud-cases`/`legal-matters` API-level isolation coverage
+      as a small follow-up once #826 merges, per that PR's own closing comment -- not this task's
+      scope, noting it here so it isn't lost.
+
+---
+# PROGRESS -- task-20260803-161032-pm-decision--resolve-pr-826-merge-confli
+
+## Completed
+- [x] Read AGENTS.md / CONSTITUTION.yaml governance context, verified PR #826 state via `gh pr view`
+      (mergeable: CONFLICTING, mergeStateStatus: DIRTY, head `worker/task-20260803-151937-...`, base `main`)
+- [x] Confirmed no colliding active claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`; registered this session's own claim
+- [x] Identified conflict source: both PR #826's commit and `main`'s newer tip (`b669c15e`) independently
+      append to `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml` -- pure content-addition conflicts, no
+      logic/schema conflicts
+- [x] Checked out PR #826's branch fresh to resolve the conflict -- found it had ALREADY been resolved: a
+      merge commit `6116cd5d` ("Merge remote-tracking branch 'origin/main' into HEAD", authored
+      2026-08-03T16:11:49Z, ~1 minute after this session's own claim-registration push) already merges
+      `main`'s tip `b669c15e` into the PR's `e45a2ffc`, cleanly incorporating BOTH sides' real additions
+      (verified via `git diff --stat` against both parents -- 201 lines from the PR side, 228 lines from
+      main's side, zero content dropped from either; no leftover `<<<<<<<`/`=======`/`>>>>>>>` markers in
+      `PROGRESS.md` or `ai-os/boss/ACTIVE-CLAIMS.yaml`). Live concurrent-session drift (per
+      `[[veridian-live-concurrent-state-drift]]`) -- did NOT redo this work.
+- [x] Independently verified via `git merge-base --is-ancestor origin/main HEAD` (with `origin/main`
+      freshly fetched) -- confirmed clean: `origin/main` IS an ancestor of PR #826's branch HEAD.
+- [x] Confirmed via `gh pr view 826`: `mergeable` is now `MERGEABLE` (was `CONFLICTING`). The conflict
+      itself is genuinely resolved.
+- [x] Moved this session's ACTIVE-CLAIMS entry to `recently_completed`
+
+## Remaining
+- [ ] None for this task's own scope (merge-conflict resolution only). Note for the record, NOT this
+      task's to fix: `gh pr checks 826` shows `mergeStateStatus: BLOCKED`, not clean -- but the block is
+      from an unrelated, pre-existing gate, not the conflict: the mandatory `audit-check` job
+      (`scripts/validate-audit-verdict.ts`, Rule 10) fails with "No structured audit verdict found" (needs
+      an `AUDIT: PASS`/`AUDIT: FAIL` PR comment), and `Build`/`Vercel` were still `pending` at last check.
+      Out of this SPEC's scope (which was the conflict only) -- flagging honestly rather than silently
+      declaring the PR fully mergeable.

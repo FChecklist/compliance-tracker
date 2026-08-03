@@ -1043,8 +1043,65 @@ open_items:
         frontend reads `.length` on the failed-403 response. Add a real
         regression test (fresh org, module not enabled, load `/erp/reports`,
         assert no client-side exception) so this can't silently regress.
-      status: open
+      status: resolved
+      fix_detail: |
+        Root cause confirmed at the component level (this task's PM decision,
+        UMR-20260803-094100): `src/app/(app)/erp/reports/page.tsx`'s Trial
+        Balance tab footer guard read `tb && tb.accounts.length > 0`. `tb` is
+        set directly from `trial-balance`'s parsed JSON body; for a 403 it is
+        the error body `{ error: "..." }` -- truthy, but with no `accounts`
+        field, so `tb.accounts.length` threw exactly the evidenced
+        `TypeError: Cannot read properties of undefined (reading 'length')`.
+        This is the default-active tab (`Tabs defaultValue="tb"`), so the
+        crash fires on first render, matching the sweep's fully-blank-page
+        screenshot. The Cash Flow tab's superficially-similar
+        `cf?.operating.xxx` chains were checked and are NOT a bug: `?.`
+        short-circuits the whole remaining chain, not just the first hop, so
+        `.operating` is only read once `cf` is confirmed non-null.
+
+        Fix: extracted `hasTrialBalanceFooterRows()` to
+        `src/lib/erp-reports-guards.ts` (guards `report.accounts` existence,
+        not just `report`, before reading `.length`), used in place of the
+        inline guard in `page.tsx`. Added
+        `src/lib/erp-reports-guards.test.ts` (bun:test, matching this repo's
+        pure-logic-extraction test convention since there's no
+        component-render harness here) -- verified the new test reproduces
+        the identical `TypeError` when run against the pre-fix logic, and
+        passes against the fix. `bun test` (4/4 pass), `bunx tsc --noEmit`
+        clean, `bunx eslint` clean on both changed files.
+
+        Merged as PR #803 (real merge commit `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`,
+        independently confirmed ancestor of `origin/main` via `git merge-base --is-ancestor`,
+        per PM decision `UMR-20260803-162547-b968`). PR #803's own branch had diverged before
+        PR #795's separate, independently-merged Cash Flow tab `?.` fix landed -- rebased
+        (squash-cherry-pick, not a raw multi-commit replay, to avoid re-playing a known-broken
+        intermediate `PROGRESS.md`-truncation commit already fixed within PR #803's own
+        history) onto current `main`; confirmed the real Trial Balance guard change
+        (`hasTrialBalanceFooterRows()`) does not touch or regress the already-merged Cash Flow
+        fix (verified via diff: PR #803's own commit only ever touched the Trial Balance
+        footer-guard line, never the Cash Flow lines). Full local verification re-run after
+        the rebase, not assumed still valid: `bun test` (2479/2479 pass), `bunx tsc --noEmit`
+        (clean), `bunx eslint` (clean).
+
+        **Independently re-tested live against `projexa-ai.com` after the merge, real evidence,
+        not narrated**: provisioned a fresh, isolated, module-not-enabled test org (Supabase
+        Admin API), confirmed the real backing API still genuinely 403s
+        (`GET /api/erp/reports/trial-balance` -> `403`, the same real trigger condition as the
+        original finding), then loaded `/erp/reports` in a real headless browser with the
+        session cookie injected (using the real, verified no-sudo Playwright fix from OCID-048's
+        execution, `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`) -- the page renders
+        its real "Financial Reports" UI shell (Trial Balance/P&L/Balance Sheet tabs, nav
+        sidebar, onboarding checklist), with **no** "Application error: a client-side exception
+        has occurred" blank-page crash. Real screenshot captured:
+        `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png` (host-local, not
+        committed -- same convention as the original finding's own screenshot reference).
+      first_raised_by_fix: "UMR-20260803-094100, merged as PR #803"
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
+      resolved: "2026-08-03: PR #803 merged (`e6e5a156b331ca817f33c3ad561ab755a6b7cd77`),
+        independently confirmed ancestor of `origin/main`. Independently re-tested live
+        post-merge with a real browser and a real screenshot (not narrated) confirming the
+        page no longer crashes on the original 403 trigger path. Per PM decision
+        `UMR-20260803-162547-b968`."
 
     - id: GAP-403-VS-500-CLM-HR-PERFORMANCE
       name: "5 more endpoints returned 500 instead of 403/real-data for a fresh org -- RESOLVED, two distinct real root causes found and fixed"
@@ -1689,7 +1746,25 @@ open_items:
         any future Playwright-based E2E work on this server again -- do not assume a prior successful run
         earlier in this same long session guarantees the environment is still intact; this finding shows
         it silently isn't right now.
-      status: open
+
+        **Correction (2026-08-03, OCID-048 real execution, `UMR-20260803-115452-a35d`): a real, working,
+        no-sudo workaround already exists and was re-confirmed live this pass** -- `apt-get download
+        <pkg>` (fetches the `.deb` only, no root needed) + `dpkg-deb -x <deb> <dir>` (extracts files
+        without touching system package state) for each missing lib, into a durable directory
+        (`/home/rajat/.local/chrome-system-libs/`, ~26 packages incl. transitive deps), then
+        `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs` before launching Chromium. Re-verified
+        directly this pass: `ldd chromium-1228/chrome-linux64/chrome` reports zero "not found" entries
+        with that `LD_LIBRARY_PATH` set, and a real `chromium.launch({headless:true})` +
+        `page.goto('https://projexa-ai.com/settings')` + cookie-injected authenticated navigation +
+        screenshot all succeeded live (see OCID-048's own results doc). **This narrows, but does not
+        fully close, the "blocks OCID-050/051/052" claim below**: this pass only confirmed
+        cookie-injected headless navigation + DOM read + screenshot works, not a full interactive
+        sign-up/login-form flow, multi-page nav-diff sweep, or mobile device emulation -- those OCIDs'
+        own execution passes should re-verify with this same `LD_LIBRARY_PATH` set before re-asserting
+        this gap blocks them, rather than assuming the original "blocked" finding still holds unchanged.
+      status: open (narrowed -- a real no-sudo workaround is confirmed working for headless
+        cookie-injected navigation/DOM-read/screenshot; full interactive-flow/device-emulation coverage
+        unconfirmed)
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
