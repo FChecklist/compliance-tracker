@@ -194,6 +194,14 @@ real findings registered honestly.
 
 **UMR:** `UMR-20260803-115558-170e`
 
+**Superseded/deepened by a dedicated document** (task `task-20260803-120639`, same UMR, not a
+duplicate registration): `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`.
+That document corrects this section's Part 2 finding — a live re-check found `src/app/manifest.ts`
+(merged PR #435) provides a real, installable manifest with a working Web Share Target, so "no PWA
+infrastructure exists at all" no longer holds; only a service worker (offline/background-sync) is
+genuinely absent. Read the dedicated document for the real task breakdown; this section is kept
+for the batch's own historical record, not as the current source of truth for OCID-051.
+
 ### Real, existing state discovered
 
 - **Part 1 (desktop browser)**: the 115-page nav surface is real, current, and complete as of PR #794
