@@ -32,6 +32,10 @@
       would be duplicate, stale-premise work per past-session guidance
       (`veridian-task-prompt-false-premise-pattern` memory).
 
+- [x] Opened PR #760 (docs-only: PROGRESS.md + ACTIVE-CLAIMS.yaml verification note),
+      per Rule 6 PR/CI gate. https://github.com/FChecklist/compliance-tracker/pull/760
+
 ## Remaining
-- [ ] None. This task's real work was already done by a sibling session; nothing left
-      to action. Standing down.
+- [ ] Wait for PR #760 CI to go green, then merge (or let the autonomous supervisor
+      merge it, per established pattern for other worker branches). No other work
+      remains -- this task's real substance was already done by a sibling session.
