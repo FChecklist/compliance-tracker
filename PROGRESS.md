@@ -1196,3 +1196,58 @@ everywhere for the wrong reason: total absence, not a deliberately-low real rank
       visibility, classification-clearance ceiling -- PR #814's amendment) was not tested this pass;
       this pass covered only the RIGHTS/action-permission axis.
 - [ ] Real testing execution for OCID-048/049/050/051 has not started yet.
+
+# PROGRESS -- test/ocid048-cross-org-isolation-real-execution
+
+Cites: `UMR-20260803-151912-8be6` (UMR-20260802-165606-4413, OCID-020) -- "proceed with real
+testing execution for OCID-048... focus on the parts that are genuinely API level testable...
+real evidence required... honestly flag [browser-dependent parts] as blocked... rather than
+skipping it silently or faking a result."
+
+## Completed
+- [x] Read the merged OCID-048 planning doc's own already-defined T1-T6 breakdown and probe
+      pattern (list-scoping + direct-fetch-by-id) rather than inventing a new methodology.
+- [x] Via a dedicated Explore-agent pass, found 4 real route-pair candidates, rejected 1
+      (`challans`, needs a pre-existing compliance item) and confirmed 3 clean, standalone,
+      non-ERP-gated candidates with both list/create and fetch-by-id routes: `departments`,
+      `fraud-cases`, `legal-matters`.
+- [x] Provisioned 2 fresh real orgs (Admin API method, same as OCID-047/052 -- avoids the public
+      signup email rate limit hit once already this session).
+- [x] Each org created one real row per resource (6 real rows total); ran 12 real bidirectional
+      cross-org probes (list-scoping + fetch-by-id, both directions, 3 resources).
+- [x] **Result: 12/12 probes showed zero cross-org leakage** -- real, positive, bidirectional
+      confirmation. Full raw JSON below.
+- [x] Amended `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`
+      in place with these real results.
+- [x] Honestly flagged T4 (Playwright spec) and T5's UI-rendering half as blocked on
+      `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` -- confirmed no API route exists to substitute
+      for T5's brand-column readback, so did not fake or DB-write around it. Registered
+      `GAP-OCID-048-ISOLATION-TESTED-API-LEVEL-BROWSER-PARTS-OPEN` in `MASTER-TRACKER.yaml`.
+
+## Real raw result log (12 probes)
+
+```json
+[
+  {"resource":"departments","check":"list-scoping","viewer":"orgB","owner":"orgA","status":200,"ownerRowLeaked":false,"viewerListSize":2},
+  {"resource":"departments","check":"fetch-by-id","viewer":"orgB","owner":"orgA","status":404,"dataLeaked":false},
+  {"resource":"departments","check":"list-scoping","viewer":"orgA","owner":"orgB","status":200,"ownerRowLeaked":false,"viewerListSize":2},
+  {"resource":"departments","check":"fetch-by-id","viewer":"orgA","owner":"orgB","status":404,"dataLeaked":false},
+  {"resource":"fraud-cases","check":"list-scoping","viewer":"orgB","owner":"orgA","status":200,"ownerRowLeaked":false,"viewerListSize":1},
+  {"resource":"fraud-cases","check":"fetch-by-id","viewer":"orgB","owner":"orgA","status":404,"dataLeaked":false},
+  {"resource":"fraud-cases","check":"list-scoping","viewer":"orgA","owner":"orgB","status":200,"ownerRowLeaked":false,"viewerListSize":1},
+  {"resource":"fraud-cases","check":"fetch-by-id","viewer":"orgA","owner":"orgB","status":404,"dataLeaked":false},
+  {"resource":"legal-matters","check":"list-scoping","viewer":"orgB","owner":"orgA","status":200,"ownerRowLeaked":false,"viewerListSize":1},
+  {"resource":"legal-matters","check":"fetch-by-id","viewer":"orgB","owner":"orgA","status":404,"dataLeaked":false},
+  {"resource":"legal-matters","check":"list-scoping","viewer":"orgA","owner":"orgB","status":200,"ownerRowLeaked":false,"viewerListSize":1},
+  {"resource":"legal-matters","check":"fetch-by-id","viewer":"orgA","owner":"orgB","status":404,"dataLeaked":false}
+]
+```
+
+## Remaining
+- [ ] T4 (versioned Playwright spec) and T5's UI-rendering half are genuinely blocked on
+      `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
+- [ ] T2's scope this pass (3 resources) is a representative sample, not the full
+      49-service-file/64-table checklist -- explicitly not attempted in one pass, consistent with
+      this session's established "real first pass" precedent.
+- [ ] T6 (certification writeup) remains gated on T4/T5.
+- [ ] Real testing execution for OCID-049/050/051 has not started yet.

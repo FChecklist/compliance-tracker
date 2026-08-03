@@ -222,3 +222,61 @@ all three hold with real evidence:
 - `ai-os/CONSTITUTION.yaml` is **not** amended by this document — no new lock, no new rule; OCID-048
   operates inside the discovery/planning permission `SEC-07` already grants under the existing
   OCID-020 gate.
+
+---
+
+## Amendment (2026-08-03): real API-level execution of T1-T3 (T4/T5's UI half honestly deferred)
+
+Per PM decision `UMR-20260803-151912-8be6` ("proceed with real testing execution for OCID-048...
+focus on the parts that are genuinely API level testable without heavy browser DOM rendering...
+real evidence required... if a genuine sub part truly needs browser DOM rendering, honestly flag
+that sub part as blocked... rather than skipping it silently or faking a result").
+
+**T1 (executed, real, this pass)**: rather than attempting to locate/reuse PR #747's original "Org
+A"/"Org B" (whose credentials were never persisted anywhere in this repo, confirmed by the same
+credential search done for OCID-052's execution), two fresh real organizations were provisioned via
+the Supabase Admin API (`POST /auth/v1/admin/users`, `email_confirm: true` — the rate-limit-safe
+method already validated for OCID-047/052), each with a real admin user, real server-side
+`autoProvisionUser()` org creation confirmed live.
+
+**T2 (executed, real, scoped)**: rather than the full 49-service-file/64-table checklist (explicitly
+out of scope for a first real pass, per this session's own established "real first pass" precedent
+from OCID-047/052), 3 real, distinct, non-ERP-gated tenant-scoped resources were selected —
+`departments`, `fraud-cases`, `legal-matters` — each confirmed via direct code read to use
+`requireAuth()` + `withTenantContext()` (or an equivalent explicit `orgId` filter) with both a real
+list/create route and a real fetch-by-id route, and no module-enablement gate (so a fresh,
+zero-configuration org can exercise them immediately, unlike ERP/CRM routes).
+
+**T3 (executed, real, per this document's own already-defined probe pattern)**: each org created
+one real row per resource; each org then probed the OTHER org's data two ways — (a) list-scoping:
+does the viewer's own list endpoint ever include the owner's real row, (b) direct fetch-by-id: does
+requesting the owner's real row ID by URL ever return `200` with real data instead of `404`.
+
+**Real result: 12/12 probes (3 resources x 2 directions x 2 check-types) showed zero cross-org
+leakage.** Every list endpoint returned only the requesting org's own rows; every direct fetch-by-id
+of the other org's real, live row id returned `404`, never the other org's real data. This is real,
+positive, bidirectional evidence for Definition of Done item 2 (§6) across 3 distinct real modules —
+not merely "no bugs found," a genuine confirmation the isolation mechanism holds under a live probe.
+
+**T4, honestly flagged as blocked, not skipped or faked**: wiring T3's probe into the real,
+versioned Playwright spec this document's own §5 T4 calls for genuinely requires the browser test
+harness. `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` (registered during OCID-052's execution,
+confirmed to explicitly block this OCID by name) makes this impossible on this server right now. The
+API-level probe above proves the SAME underlying isolation guarantee T4 would exercise, but does not
+substitute for a real, re-runnable, versioned spec file — that remains genuinely open.
+
+**T5, honestly flagged as blocked (its UI-rendering half), not attempted or faked**: T5's own
+Definition of Done requires confirming the UI renders a populated brand column and capturing a real
+screenshot -- inherently browser-level, same blocker as T4. No API route exists in this codebase
+that reads back the 5 real `brand_*` columns (confirmed via a real code search:
+`grep -rl "brandPrimaryColor\|brand_primary_color" src/app/api/` returned zero matches) -- so there
+is no honest API-level substitute available for T5 the way there was for T4. Not attempted via a
+direct DB write either, since that would test DB write mechanics only, not the actual T5 mission
+(config-driven UI rendering), and this document would rather leave T5 genuinely open than report a
+partial result that could be misread as satisfying it.
+
+**T6 remains gated, unchanged**: T1-T3's real results above are ready to feed a future T6 evidence
+package once T4/T5 are unblocked, per this document's own dependency chain.
+
+Canonical artifact: this file (amendment, in place). Full raw JSON result log (12 probes) available
+in this task's `PROGRESS.md` section.

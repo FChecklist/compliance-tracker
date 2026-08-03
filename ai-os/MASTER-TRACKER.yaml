@@ -1731,6 +1731,50 @@ open_items:
       status: open
       first_raised: "This session, 2026-08-03, real live test during OCID-047 execution (UMR-20260803-145921-c0c4, UMR-20260802-165606-4413 OCID-020)"
 
+    - id: GAP-OCID-048-ISOLATION-TESTED-API-LEVEL-BROWSER-PARTS-OPEN
+      name: "OCID-048 Multi-Org/Tenant/Brand Isolation Certification -- real API-level cross-org isolation confirmed (12/12 probes, zero leaks), browser-level T4/T5 sub-parts honestly remain open"
+      old_ids: []
+      detail: |
+        Real, live test execution, `UMR-20260802-165606-4413` (OCID-020), per PM decision
+        `UMR-20260803-151912-8be6` ("proceed with real testing execution for OCID-048... focus on
+        the parts that are genuinely API level testable... real evidence required... honestly flag
+        [browser-dependent sub-parts] as blocked... rather than skipping it silently or faking a
+        result"). Executes T1-T3 of the merged OCID-048 planning doc's own task breakdown
+        (`ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`).
+
+        Two fresh, real organizations provisioned via the Supabase Admin API (same rate-limit-safe
+        method validated for OCID-047/052); 3 real, distinct, non-ERP-gated tenant-scoped resources
+        selected (`departments`, `fraud-cases`, `legal-matters`, each confirmed via code read to use
+        `requireAuth()` + `withTenantContext()`/explicit `orgId` filter, no module-enablement gate).
+        Each org created one real row per resource; each org then probed the other's data
+        bidirectionally: list-scoping (does the viewer's list ever include the owner's row) and
+        direct fetch-by-id (does requesting the owner's real row id ever return `200` with real
+        data instead of `404`).
+
+        **Result: 12/12 real probes (3 resources x 2 directions x 2 check-types) showed zero
+        cross-org leakage** -- every list endpoint returned only the requesting org's own rows,
+        every direct fetch-by-id of the other org's real row id returned `404`. Real, positive,
+        bidirectional confirmation of the planning doc's own Definition of Done item 2 across 3
+        distinct modules.
+
+        T4 (wiring the probe into a real, versioned Playwright spec) and T5's UI-rendering half
+        (confirming brand-config columns actually render, with a real screenshot) both genuinely
+        require the browser test harness -- blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`
+        (confirmed to explicitly name this OCID). No API route exists to read back the brand_*
+        columns either (`grep -rl "brandPrimaryColor\|brand_primary_color" src/app/api/` -- zero
+        matches), so there was no honest API-level substitute for T5 the way there was for T4.
+        Neither was faked or silently skipped; both are recorded as genuinely open.
+      size: "N/A -- this entry tracks real test-execution status, not a code defect to fix. Full
+        certification (T6) remains gated on T4/T5, themselves gated on
+        GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS"
+      recommendation: |
+        Once `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` is resolved, complete T4 (wire this real
+        probe pattern into a versioned `e2e/` spec, extending T2's 3-resource sample toward the full
+        49-service-file/64-table checklist over time) and T5 (populate brand columns on a real org,
+        confirm live UI rendering with a screenshot), then T6 (the actual certification writeup).
+      status: open
+      first_raised: "This session, 2026-08-03, real live test during OCID-048 execution (UMR-20260803-151912-8be6, UMR-20260802-165606-4413 OCID-020)"
+
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
       name: "OCID-049 Subscription Plan Entitlement Certification -- planning artifact registered, entitlement enforcement not yet built"
       detail: |
