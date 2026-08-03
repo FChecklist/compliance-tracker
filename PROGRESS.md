@@ -1984,3 +1984,41 @@ same rate-limited invite path; do not attempt a direct DB write workaround).
       diagnostic per the earlier amendment's own recommendation).
 - [ ] Group F Business Certification (OCID-047 through OCID-052) is now genuinely closed. Next real
       priority is whatever the PM confirms.
+
+---
+
+# PROGRESS -- fix/gap-stage0-role-missing-from-role-rank
+
+Cites: `UMR-20260802-173631-ca85` (OCID-021, real implementation, authorized by PM decision
+`UMR-20260803-212402-1922` after OCID-020 was declared complete), fixing `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`
+(first found during OCID-047's real role/rights test execution).
+
+## Completed
+- [x] Added `'stage_0'` to `UserRole` (`src/lib/supabase/auth-guard.ts`) and a real, deliberate
+      `ROLE_RANK` entry (`1`, same tier as `viewer`/`client_viewer`/`external_auditor`) -- the exact
+      rank `schema.ts`'s own `userRoleEnum` comment already specified for this value, just never wired
+      into `ROLE_RANK` until now.
+- [x] Widening `UserRole` surfaced a real, second, independent instance of the same bug class via
+      `bunx tsc --noEmit`: `src/lib/classification.ts`'s own separate `Record<UserRole, Classification>`
+      map (`ROLE_CLEARANCE`) was also missing `stage_0`. Fixed with `"public"` -- the same floor
+      clearance already given to `viewer`, since `stage_0` is an even more restricted, non-full-org-member
+      role.
+- [x] Added a real regression test (`auth-guard.test.ts`, 2 new tests) asserting every real
+      `userRoleEnum` value has an explicit, positive `ROLE_RANK` entry, and that `ROLE_RANK` has no
+      stray keys beyond the real enum values -- so this exact class of drift (DB enum gains a value,
+      the TS-side maps don't) cannot silently recur a third time, per the original gap's own
+      recommendation.
+- [x] Verified the new test is a real regression test, not a tautology: temporarily reverted just the
+      source fix (kept the test), confirmed it fails with the exact expected message
+      (`userRoleEnum value "stage_0" has no ROLE_RANK entry...`), then restored the fix and confirmed
+      it passes again.
+- [x] Full verification re-run after the classification.ts fix, not assumed still valid: `bunx tsc
+      --noEmit` clean, `bunx eslint` clean on all 3 changed files, `bun test` 2481/2481 pass (2 more
+      than the prior baseline of 2479, matching the 2 new tests added).
+
+## Remaining
+- [ ] This closes `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` only -- the other 5 gaps from the PM's
+      OCID-021 Wave 1 scope (ERP/Sales/Construction/PMS self-service enablement,
+      product_branches live-vs-direct-read discrepancy, assistants_per_user enforcement, plan-tier-to-
+      branch mapping absence, VERI Chat visible-signal gap) remain open, each its own real branch/fix/
+      retest/PR per the PM's own explicit sequencing.

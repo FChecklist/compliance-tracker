@@ -1982,8 +1982,20 @@ open_items:
         `userRoleEnum` value has both a `UserRole` type member and a `ROLE_RANK` entry, so this specific
         class of drift (DB enum gains a value, the TS-side maps don't) cannot silently recur a third
         time.
-      status: open
+      status: resolved
       first_raised: "This session, 2026-08-03, real live test during OCID-047 execution (UMR-20260803-145921-c0c4, UMR-20260802-165606-4413 OCID-020)"
+      resolved: |
+        2026-08-03, OCID-021 Wave 1 (real implementation, `UMR-20260802-173631-ca85`, authorized by PM
+        decision `UMR-20260803-212402-1922` after OCID-020 was declared complete). Added `'stage_0'` to
+        `UserRole` and `ROLE_RANK: 1` (`auth-guard.ts`) -- the exact rank `schema.ts`'s own `userRoleEnum`
+        comment already specified. Widening `UserRole` surfaced a second, independent instance of the
+        same bug class via `bunx tsc --noEmit`: `classification.ts`'s own separate `ROLE_CLEARANCE` map
+        was also missing `stage_0` -- fixed with `"public"` (same floor as `viewer`). Added the
+        recommended regression test (2 new tests in `auth-guard.test.ts`) asserting every real
+        `userRoleEnum` value has an explicit `ROLE_RANK` entry; independently verified the test is a
+        real regression test (reverted just the source fix, confirmed the test fails with the exact
+        expected message, restored the fix, confirmed it passes). Full verification: `bunx tsc --noEmit`
+        clean, `bunx eslint` clean, `bun test` 2481/2481 pass.
 
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
       name: "OCID-049 Subscription Plan Entitlement Certification -- real testing complete for all 4 tiers (via a real, rate-limit-safe org-join-code path); entitlement enforcement (assistants_per_user cap) confirmed live as unbuilt across the full tier spread, implementation still not started"
