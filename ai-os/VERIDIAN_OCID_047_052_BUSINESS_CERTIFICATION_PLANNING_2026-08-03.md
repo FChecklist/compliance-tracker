@@ -525,6 +525,48 @@ Canonical artifact: this file (amendment, in place). Full raw JSON result log av
 
 ---
 
+## Amendment (2026-08-03): OCID-047 — real API-level test of `risk-register-service.ts`'s `BROAD_SCOPE_ROLES` gate (4/4 checks)
+
+Closes the one honest gap the amendment directly above left open: `risk-register-service.ts`'s
+`BROAD_SCOPE_ROLES` allowlist (`listRisks()`, `risk-register-service.ts:36,72`) is an explicit array
+(`admin`, `veridian_admin`, `branch_manager`, `senior_professional`, `manager`), not rank-derived like
+`home-service.ts`/`client-access-service.ts` — so unlike those two, it is a real, independent axis worth
+testing live rather than assuming clean by code inspection alone.
+
+Real, live test against `projexa-ai.com`, reusing this same session's own session-cookie technique (no
+new provisioning method). 1 real admin user provisioned a real org; 2 real departments (Dept A, Dept B)
+inserted directly into `compliance.departments` (no product UI for department creation); 4 more real
+test users provisioned into the same org, one per (role, department) pair exercising both sides of the
+gate: `member_A`/`member_B` (narrow-scope `member`, one per dept), `team_member_B` (narrow-scope,
+confirms it isn't only `member` that's scoped), `manager_A` (broad-scope role, in Dept A). Each of the 4
+users created exactly one real risk via `POST /api/risks` (owner = self, `ownerDept` = own department,
+verbatim `createRisk()` behavior) — 4 real risks total, one per (dept, owner) combination. All 4 users
+then made one real `GET /api/risks` call each, reading the real `risks`/`hiddenByScope` fields — 4 real
+per-viewer checks (which of the 4 risks are visible + hidden count).
+
+**Result: 4/4 real outcomes exactly matched `BROAD_SCOPE_ROLES`'s prediction**:
+- `member_A` (narrow scope, Dept A): saw its own risk + `manager_A`'s (both Dept A) = 2 visible,
+  `hiddenByScope: 2` (the 2 Dept B risks correctly hidden).
+- `member_B` (narrow scope, Dept B): saw its own risk + `team_member_B`'s (both Dept B) = 2 visible,
+  `hiddenByScope: 2` (the 2 Dept A risks correctly hidden) — confirms the gate scopes by department, not
+  merely by "is this literally my own risk."
+- `team_member_B` (narrow scope, different role than `member` but same narrow bucket): identical
+  Dept B-only visibility to `member_B` — confirms the gate is role-list-driven, not `member`-specific.
+- `manager_A` (broad-scope role): saw all 4 risks regardless of department, `hiddenByScope: 0` —
+  confirms `BROAD_SCOPE_ROLES` membership overrides department scoping entirely, live.
+
+No implementation performed this pass — real test execution against the existing, already-built
+`BROAD_SCOPE_ROLES` gate, not a code change. This closes the last of the 4 real mechanisms the original
+responsibility-model amendment (PR #814) named as needing live verification (`home-service.ts` and
+`client-access-service.ts` were already reviewed and correctly found to be rank-derived with no
+independent divergence to test; `classification.ts`'s `ROLE_CLEARANCE` was tested in the amendment
+directly above; this amendment is the fourth and last).
+
+Canonical artifact: this file (amendment, in place). Full raw JSON result log preserved at (host-local,
+not repo-tracked) `/tmp/ocid047-resp-test/output-risks.log`.
+
+---
+
 ## Cross-cutting notes (all six OCIDs)
 
 - **Zero duplication, confirmed per-OCID above** via `resource_governor.py --query-umr --search` before
