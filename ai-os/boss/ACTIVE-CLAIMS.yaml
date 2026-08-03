@@ -82,6 +82,40 @@ active:
       in place -- not rewritten, not duplicated), `ai-os/OS.yaml` (covers-line update), this
       ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, or CI changes -- planning only, per this
       OCID's own explicit prohibition on testing/implementation this cycle.
+  - session_label: "claude-code (interactive, task-20260803-120639, UMR-20260803-115558-170e reused) -- OCID-051 Cross-Surface Certification, dedicated planning deepening, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:06Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM directive, instruction INS-20260803-115557-0ec8, auto-logged in the
+      superboss register): register OCID-051 (Cross-Surface Certification: desktop browser
+      completeness + Mobile PWA) as a real child of OCID-020 (UMR-20260802-165606-4413), with its
+      own dedicated, deterministic task breakdown -- planning only, no testing, no implementation,
+      no certification this cycle. Reuse only the existing browser test harness and existing Mobile
+      PWA infrastructure; no new framework, no new architecture.
+
+      Zero-duplication check performed before starting, per directive: `resource_governor.py
+      --query-umr --search` for "UMR-20260803-115558-170e", "OCID-051", and "Cross-Surface" each
+      returned `count: 0` -- no sub-task already dispatched for this OCID in the umr_tasks
+      registry. The one real prior artifact is the OCID-047-052 batch doc's own one-paragraph
+      OCID-051 section (same UMR) -- deepened here, not duplicated.
+
+      Real correction found and recorded, not assumed either way (this is the substantive output
+      of this pass): the batch doc's own OCID-051 section had flagged its "no PWA infrastructure
+      exists at all" finding as needing live re-confirmation. Re-checked directly against this
+      branch: `src/app/manifest.ts` (merged PR #435, real, on main, not an unmerged branch) provides
+      a real, installable manifest with a working Web Share Target
+      (`/api/veri-chat/share-target` -> `importSharedContent()` -> redirect into a real
+      conversation). Zero service worker exists anywhere in `src` (confirmed via git grep --
+      matches only in documentation, never in code or package.json). Net: the prior "no PWA at
+      all" finding was out of date; real, narrow PWA infrastructure (install + share-target) exists
+      and must be tested, while offline/service-worker behavior is genuinely absent and must be
+      recorded as such, not silently assumed unchanged from the earlier check.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`
+      (new file, the dedicated canonical artifact for this OCID), a cross-link correction added to
+      `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md`'s own OCID-051
+      section, `ai-os/OS.yaml` (new index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No
+      src/, schema, or CI changes -- planning only, no testing or implementation performed against
+      either of OCID-051's two real definitions of done.
   - session_label: "claude-code (interactive, UMR-20260803-115333-dab8 through -115620-29c6) -- OCID-047 through OCID-052, Business Certification phase planning, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T11:53Z (this session, closed same session)"
     claim: |
