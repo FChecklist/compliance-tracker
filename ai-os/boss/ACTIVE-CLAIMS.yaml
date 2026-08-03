@@ -40,6 +40,71 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
+    claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing UMR-20260802-165606-4413 and
+      UMR-20260802-223152-0b6a): independently verified task-20260802-231454's
+      own task.yaml (not narrated) -- real sequence: quality gate `build` step
+      timed out (exit 124) on a docs-only diff, auto-fix attempt 1/2 was
+      proposed, credit-accountant.py deterministically rejected it citing a
+      `system_index` match. Independently re-ran the exact
+      `superboss-register.py check-duplicate "quality gate auto-fix retry:
+      build"` lookup the accountant used: `quality-gate.sh` itself is the #2
+      match of 88 -- its own documented timeout-as-failed-gate-by-design
+      behavior (RCA task-20260727-043407) IS the existing mechanism the
+      accountant meant. Independently confirmed (git diff --stat
+      origin/main...HEAD) the branch's real diff is 2 files, docs-only --
+      structurally cannot have caused a `next build` regression. PR #755's
+      real GitHub CI (Lint/Type Check/Unit Tests/audit-check all pass,
+      Vercel fail is an unrelated rate-limit) further corroborates this.
+      **Decision: ratified, no code fix needed or appropriate.**
+      Also found and corrected a process error: task-231454's final
+      checkpoint cited "PM decision UMR-20260803-001544-08ea" as already
+      applied -- that UMR's `unit_name` (checked directly in
+      `superboss-register.sqlite`'s `umr_tasks` table) is *this* task, i.e.
+      it was the dispatched *request* for this decision, not a completed
+      one. The underlying technical conclusion held up on independent
+      review; the citation did not.
+      Read task-231454's already-completed-but-never-read background sweep
+      output (`/tmp/ocid020-continue/run2.log`, `run3.log`,
+      `*-v2.json`/`.jsonl`) and reported real findings without spending
+      further AI-metered credits: multi-tenant isolation PASS (valid test),
+      GAP-ERP-CRM-403-NO-UX-EXPLANATION reconfirmed, a new
+      GAP-EMAIL-INTELLIGENCE-500-VS-403 finding registered in
+      MASTER-TRACKER.yaml, and a 113/115-item nav-sweep segment correctly
+      identified as invalidated by a Chrome-process crash mid-run
+      ("Target page, context or browser has been closed", 1ms apart across
+      all 113) -- host-resource-contention class of issue, same as the
+      build-gate timeout, not a product defect, not reported as 113
+      fabricated failures. Two consecutive real attempts under this UMR
+      chain have now hit this same host-contention failure class; per this
+      task's own protocol (stop after 2 consecutive failures of the same
+      approach), did not attempt a 3rd identical mega-script run. Full
+      detail: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`.
+      **Update (PR #757 resubmission after AUDIT: FAIL):** auditor correctly
+      flagged the GAP-EMAIL-INTELLIGENCE-500-VS-403 finding was raised
+      ~53 minutes before the live migration-0264 fix (PR #756) fixed a 500 on
+      this exact same endpoint/query (missing `promoted_ticket_id` column).
+      Performed the requested live re-verification directly against the live
+      DB: `promoted_ticket_id` now exists, and the exact column-set
+      `listEmailIntelligenceItems()` selects for a fresh org now succeeds
+      (0 rows, no error) where it previously threw `42703`. Confirmed this
+      was the same bug and is already resolved -- updated the gap entry in
+      `ai-os/MASTER-TRACKER.yaml` accordingly instead of leaving it as an
+      unverified open item.
+    scope_note: >-
+      File scope: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+      (new file), `ai-os/MASTER-TRACKER.yaml` (new gap entry, later updated with
+      live-reverification result), `ai-os/OS.yaml` (index registration), this
+      ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes. Did not
+      edit task-20260802-231454's own task.yaml (owned by that task's
+      worker/systemd lifecycle, not this session's to touch) -- correction
+      recorded here instead. Did not re-run any browser automation for the nav
+      sweep (would risk a 3rd identical failure) -- did run one real, direct,
+      read-only live DB query (via the repo's own `postgres` client + `.env.local`
+      `DATABASE_URL`) to re-verify the email-intelligence gap per the auditor's
+      explicit request.
   - session_label: "claude-code (task-20260803-000241-pm-answer-on-task-210700-real-terminal-s) -- PM answer: task-210700 real terminal-state decision + fold multi-tenant finding forward [DONE, docs-only]"
     claimed_at: "2026-08-03T00:15Z (this session, closed same session)"
     claim: |

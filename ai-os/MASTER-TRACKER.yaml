@@ -851,6 +851,68 @@ open_items:
       status: open
       first_raised: "OCID-020 certification sweep, 2026-08-03 (UMR-20260802-165606-4413, UMR-20260803-012711-18b4)"
 
+    - id: GAP-EMAIL-INTELLIGENCE-500-VS-403
+      name: "GET /api/email-intelligence returns 500 instead of 403 for a module-not-enabled org (severity: low-medium) -- RESOLVED, see resolution note"
+      old_ids: []
+      detail: |
+        Real finding, OCID-020 continuation sweep (`UMR-20260802-223152-0b6a`,
+        task-20260802-231454's background mega-script run, read and reported
+        by the PM-decision task that unblocked it -- see
+        `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+        Part 3). Reproduced live: a fresh self-signup org (real signup,
+        real Admin-API email-confirm bypass, real login) loading `/crm` or
+        an ERP page triggers a page-initiated `GET /api/email-intelligence`
+        call that returns `500`, while every sibling gated endpoint on the
+        same page (`/api/crm/leads`, `/api/erp/procurement/*`, etc.)
+        correctly returns `403` for the same not-enabled org. The page
+        itself still renders and functions -- this is a background/widget
+        call, not a page-blocking crash, so severity is lower than the
+        departments-500 fix (Finding A) that got an immediate ship.
+        Root cause not yet investigated -- `listEmailIntelligenceItems()`
+        (`src/lib/services/email-intelligence-service.ts`) returns `{items:
+        []}` when `!orgId` but otherwise queries the DB directly; the 500
+        is plausibly a real query/tenant-context error for a brand-new org
+        rather than a missing entitlement gate (unlike CRM/ERP, this route
+        has no `requireErpEnabled()`-style check at all).
+      resolution_note: |
+        **RESOLVED, live-reverified 2026-08-03.** PR #757's own audit
+        (`AUDIT: FAIL`) correctly flagged this finding was captured
+        2026-08-02 23:25-23:31, ~53 minutes *before* the live migration-0264
+        fix (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` in
+        `ai-os/boss/COMPLETED.yaml`, applied 2026-08-03T00:24Z) re-applied
+        `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`'s DDL directly
+        against prod -- adding the missing `promoted_ticket_id` column (and
+        5 other tables) on `compliance.email_intelligence_items`, the exact
+        table this route queries. Performed the requested live
+        re-verification directly against the live DB (not narrated):
+        connected via the repo's own `postgres` client + `.env.local`
+        `DATABASE_URL`, confirmed `promoted_ticket_id` now exists on
+        `compliance.email_intelligence_items`, and ran the exact
+        column-set `listEmailIntelligenceItems()` selects
+        (`db.query.emailIntelligenceItems.findMany`, all 14 schema
+        columns) for a nonexistent/fresh `org_id` -- query succeeded (0
+        rows, no error), where it previously would have thrown a `42703`
+        undefined-column error. Root cause is now known: this was the
+        *same* bug as MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX (a missing
+        column from a migration recorded-but-never-applied on prod), not a
+        genuinely distinct email-intelligence-specific issue. No separate
+        fix needed. The route's lack of a `requireErpEnabled()`-style
+        module gate (403-vs-500 semantics) is still real and unaddressed --
+        if email intelligence is ever meant to be an entitled/gated module,
+        that gate would still need adding -- but it is no longer the cause
+        of a live 500 and is downgraded to a genuine low-priority polish
+        item, not an active bug.
+      size: deferred_small
+      recommendation: |
+        No longer urgent as a bug (the live 500 is fixed). If email
+        intelligence is later decided to be an entitled/gated module,
+        add the same "module not enabled" -> 403 gate the CRM/ERP routes
+        already use, for consistent semantics -- pure polish, not a
+        correctness issue.
+      status: resolved
+      first_raised: "OCID-020 continuation sweep, 2026-08-02/03 (UMR-20260802-223152-0b6a)"
+      resolved: "2026-08-03 (live-reverified via direct DB query; same root cause as MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX, UMR-20260803-012711-18b4)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
