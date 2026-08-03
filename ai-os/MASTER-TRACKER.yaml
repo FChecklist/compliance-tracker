@@ -1767,6 +1767,40 @@ open_items:
         unconfirmed)
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
 
+    - id: GAP-OCID050-NO-LARGE-DATA-VOLUME-ORG
+      name: "No real large-data-volume organization exists for OCID-050 State C (Large Data) testing -- confirmed absent, not assumed; blocks the third of three real data-state passes"
+      old_ids: []
+      detail: |
+        Real, confirmed-absent finding, `UMR-20260802-165606-4413` (OCID-020) / `UMR-20260803-115534-af31`
+        (OCID-050, Data State Certification). OCID-050's own definition of done requires a real pass of
+        the 115-item nav-surface list under each of three real data states: Empty, Sample Data, and Large
+        Data volume. States A (Empty, a fresh/self-signup org) and B (Sample, the existing `demo_org` /
+        `demo_co_1` "Sharma & Associates LLP" hero-user org, real ERP transactional usage since the
+        2026-07-06 seed) both already exist and have real test coverage (PR #794's original 115-page
+        sweep for State A; PR #834's 15-page x 2-state sample, 30/30 checks, plus this same UMR's own
+        extension to the remaining 100/115 pages -- see this OCID's planning-doc amendment). State C does
+        not: this codebase's own task breakdown
+        (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`, Part 2
+        State C) already named this as an open prerequisite (`TASK-050-1`) on 2026-08-03, and PR #834's
+        real execution pass re-confirmed it directly (grepped `MASTER-TRACKER.yaml` and
+        `ACTIVE-CLAIMS.yaml` for any existing large-volume/stress/load-test org tied to this product --
+        none found) but never registered it here as its own gap. Registering it now per this dispatch's
+        explicit PM instruction: real gaps found during real testing execution get registered as their
+        own `MASTER-TRACKER.yaml` item, not silently implemented under a testing-only dispatch.
+      size: "M -- creating the org itself is small (reuses `src/db/seed.ts` / the existing `demo_org`
+        seed conventions), but a real target-scale decision per key entity (compliance tasks, ERP
+        journal entries/invoices, CRM leads/opportunities, documents/audit-log rows -- large enough to
+        force real pagination past page 1 and realistic query-latency behavior) is an explicit,
+        written Owner/PM decision this dispatch is not authorized to make unilaterally."
+      recommendation: |
+        Owner/PM issues a separate, explicit decision naming the target row-count scale per key entity,
+        then a dedicated implementation task (subject to the OCID-021 lock, same as any other real
+        implementation arising from OCID-020's Business Certification phase) creates the org via
+        `src/db/seed.ts` conventions. Only once that org is real and confirmed live should State C's
+        115-item pass (`TASK-050-5` in the task breakdown doc) actually run.
+      status: open
+      first_raised: "This session, 2026-08-03, real live testing execution for OCID-050 (task-20260803-180059-pm-confirmation-to-proceed-with-ocid-050, UMR-20260803-115534-af31 / UMR-20260802-165606-4413 OCID-020) -- confirming, and formally registering, a prerequisite the OCID-050 planning doc and PR #834's execution had already both independently found but not yet logged here"
+
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
       name: "stage_0 is a real DB role (userRoleEnum) but is missing from the UserRole type and ROLE_RANK map, so a stage_0 user fails every requireRole()/requirePermissionForUser() gate in the app -- including the lowest-bar (viewer/member) ones"
       old_ids: []
