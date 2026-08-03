@@ -5223,6 +5223,37 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-184844-pm-confirmation-to-rebase-and-merge-pr-8) -- PR #832 rebase-and-merge confirmation, docs-only [DONE, MERGED]"
+    claimed_at: "2026-08-03T18:48Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision citing UMR-20260802-165606-4413/OCID-020): PR #833 independently confirmed
+      genuinely merged (commit 7af7b04e on origin/main). PR #832 now behind because main moved when
+      PR #833 landed first; SPEC characterized PR #832's own mergeable state as `MERGEABLE` /
+      `mergeStateStatus: BEHIND` (just needs a rebase, not a real conflict) and asked to rebase onto
+      current main and merge once the mandatory audit check and other required checks pass -- the
+      same docs-only rebase-and-merge pattern already used this cycle for PR #803/828/829/830.
+
+      Real finding: by the time this session checked, PR #832's actual state had drifted from the
+      SPEC's description -- `gh api .../pulls/832` showed `mergeable: true`, `mergeable_state: blocked`
+      (GraphQL: `mergeStateStatus: BLOCKED`), not `BEHIND`. Root-caused via `git merge-base
+      --is-ancestor origin/main origin/<pr832-branch>`: TRUE -- main's tip was already an ancestor of
+      PR #832's branch (an earlier "Merge branch 'main' into ..." commit, `9b52854a`, had already
+      brought it up to date). No rebase was actually needed anymore; `BLOCKED` was just several
+      required checks (Lint, Type Check, Build, Unit Tests) still `pending`, not a real conflict or
+      staleness. Confirmed required contexts for `main` via branch-protection API: Lint, Type Check,
+      Build, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit Tests --
+      `audit-check` already `PASS`; the concurrent Vercel `fail` (build-rate-limit) is not a required
+      context and does not block merge.
+
+      Polled `gh pr checks 832 --required` every ~20s until all required checks passed (~5 polls).
+      Ran `gh pr merge 832 --merge` -- it reported "already merged" (a concurrent session/process
+      merged it a moment before this call). Independently verified, not just trusted: `gh pr view 832
+      --json state,mergedAt,mergeCommit` shows `state: MERGED`, `mergedAt: 2026-08-03T18:52:16Z`,
+      commit `00c9f424`; `git log origin/main` confirms `00c9f424` is main's real tip.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS.yaml entry and this task's own `PROGRESS.md` only. No src/,
+      schema, or planning-doc changes -- verification, polling, and merge-confirmation only; the
+      actual merge commit itself was produced by GitHub/a concurrent session, not authored here.
   - session_label: "claude-code (task-20260803-161032-pm-decision--resolve-pr-826-merge-confli) -- PR #826 merge-conflict resolution, docs-only [DONE]"
     claimed_at: "2026-08-03T16:10Z (this session, closed same session)"
     claim: |
@@ -8281,3 +8312,46 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+  - session_label: "claude-code (task-20260803-171457-resolve-pr-803-conflict--merge--and-inde) -- PR #803 conflict resolution, docs-only reconciliation [DONE, premise found stale]"
+    claimed_at: "2026-08-03T17:15Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, citing UMR-20260802-165606-4413/OCID-020 and the PR #794 nav sweep chain):
+      independent verification "just confirmed" PR #803 (OCID-020 Finding 1, GAP-ERP-REPORTS-CLIENT-
+      CRASH-ON-403) is still `OPEN` with `mergeable: CONFLICTING`, directing this session to rebase and
+      merge it, independently retest Finding 1 live against `projexa-ai.com` with a real screenshot, then
+      cascade the same rebase/merge treatment to PR #828, #829, #830, then proceed to OCID-050 real
+      testing execution.
+
+      Independently re-verified the premise before acting rather than trusting it, per standing practice
+      on this repo (server runs live concurrent worker/supervisor loops; PM-decision state can go stale
+      within seconds -- see prior sessions' same finding on PR #826/828/829/830). Found the premise
+      **stale, not current**: `gh pr view 803 --json state,mergedAt,mergeCommit` shows `MERGED` at
+      `2026-08-03T16:36:19Z`, merge commit `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`, independently
+      confirmed a real ancestor of `origin/main` via `git merge-base --is-ancestor`. A separate PR #831
+      (`docs/close-finding1-real-live-retest-confirmed`, merged 2026-08-03T16:43:27Z, citing a newer PM
+      decision `UMR-20260803-162547-b968`) had already done the rebase-merge AND the independent live
+      retest this spec asked for. Re-verified PR #831's own claim rather than trusting its commit message:
+      the screenshot it cites, `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png`, is a
+      real 102KB PNG (viewed directly) showing `/erp/reports` rendering its normal Financial Reports UI,
+      not the original "Application error" crash. `ai-os/MASTER-TRACKER.yaml` confirms
+      `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` at `status: resolved`. Also confirmed PR #828, #829, #830 are
+      all already `MERGED` (16:51:36Z / 16:57:59Z / 17:07:43Z, all after PR #831, all real ancestors of
+      current `origin/main` HEAD `a3706d3e`) -- no conflicting PRs remain open anywhere in this chain.
+
+      Also found and fixed a new instance of the recurring PROGRESS.md wholesale-replace regression
+      (same class as PR #828/829's own fixes): this task's workspace `PROGRESS.md` had been scaffolded as
+      a 2-line stub silently replacing 1580 lines of real prior history. Restored from `HEAD` before
+      appending this task's own section.
+
+      Did NOT proceed to OCID-050 real testing execution despite the spec's sequencing instruction: a
+      separate session (`task-20260803-120314-register-ocid-050-data-state-certificati`) already owns a
+      registered planning-only breakdown for it
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`) with a
+      real, unmet prerequisite flagged (no confirmed "Large Data volume" org yet). Executing it for real
+      is a multi-hour undertaking well beyond this task's own conflict-resolution scope; reaching into it
+      here would duplicate that session's ownership, exactly what this registry exists to prevent
+      (AGENTS.md Rule 11).
+    scope_note: >-
+      File scope: `PROGRESS.md` (restored from wholesale-replace regression + this task's own section),
+      this ACTIVE-CLAIMS entry. No src/, schema, migration, or CI changes -- the real code fix already
+      landed via PR #803 before this session started; nothing left to merge or fix in this cycle.
