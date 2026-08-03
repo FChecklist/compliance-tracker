@@ -40,6 +40,64 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only"
+    claimed_at: "2026-08-03T05:5xZ (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, tier 1): mission is to create exactly one
+      document, "VERIDIAN Universal Software Execution Engine v1.0", parented to
+      `UMR-20260803-041459-7c97` ("the real OCID-030 directive just registered"),
+      citing the full OCID-022..029 chain, the ERP Functional Completeness Master
+      Program, OCID-020, the traceability audit, the gatekeeper rule, and the
+      unified project memory. Documentation only, consistent with SEC-07
+      (`ai-os/CONSTITUTION.yaml`) -- discovery/documentation stays permitted while
+      implementation stays locked behind OCID-020.
+
+      **Real numbering collision found and flagged, not silently resolved** (this
+      task's own directory is labeled `ocid-031`, but its SPEC's literal mission
+      text and citation chain match the ORIGINAL OCID-030 slot in
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s section-1
+      table): independently confirmed via `gh pr list` that PR #772
+      ("VERIDIAN Universal Decision Engine v1.0") already exists on an
+      OPEN/unmerged branch, and that PR's own document header self-identifies as
+      OCID-029 (`UMR-20260803-041351-0278`) -- NOT OCID-030 -- reasoning from its
+      own citation chain over its directory's `ocid-030` label. A later, also
+      OPEN/unmerged PR #776 attempts to reverse that self-correction, asserting
+      PR #772 IS the real OCID-030 (citing `UMR-20260803-041459-7c97`, the exact
+      same UMR this task's own SPEC cites as "the real OCID-030 directive" for
+      *this* Software Execution Engine mission). Neither PR #772 nor PR #776 is
+      merged as of this claim -- this is a real, live, unresolved dispute between
+      two parallel sessions over which document owns the OCID-030 label, not
+      something this task can unilaterally settle. Proceeding on this task's own
+      explicit, directly-issued SPEC text (mission = Software Execution Engine,
+      not Decision Engine) rather than guessing a number; the document itself
+      self-identifies primarily by UMR chain and flags this collision openly, per
+      the same honesty standard already established for the "OCID-021" and
+      OCID-036/037 mislabeling corrections in this same chain.
+
+      Cross-referenced (not duplicated) adjacent open PRs found during discovery:
+      PR #772 (Decision Engine -- what to decide), PR #775 (Deterministic
+      Execution and AI Escalation Runtime -- input runtime/mode-pills/when AI is
+      invoked), PR #773 (Universal Organization Runtime -- org/role model), PR
+      #774 (Unified Synchronization Runtime -- state sync). This document's own
+      scope is the execution LIFECYCLE mechanics once work is already decided:
+      task/function/workflow/report/analysis/background/scheduled execution,
+      queueing/priority/dependency/parallel/sequential ordering,
+      validation/confirmation/logging/traceability/audit,
+      retry/recovery/rollback/timeout, monitoring/performance,
+      reuse/standardization/certification, multi-tenant/multi-brand/role-based
+      execution, zero-duplication, and governance -- grounded in real, existing
+      infrastructure (task-execution-engine.ts, engines/engine-invocation.ts,
+      report-engine-service.ts, worker-entrypoint.sh/dispatch_core.py/systemd
+      timers, guardrail-engine.ts, audit.ts, withTenantContext,
+      model-tier-eligibility.ts), independently verified via a dedicated
+      discovery pass, not designed here.
+    scope_note: >-
+      File scope: one new canonical artifact (the Software Execution Engine
+      doc), `ai-os/OS.yaml` (index entry), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (amendment to the existing UMR chain, not a new one), this
+      ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes --
+      documentation only, per this OCID's own explicit prohibition on
+      implementation.
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
