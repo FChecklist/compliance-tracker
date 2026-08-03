@@ -1408,6 +1408,8 @@ Cites: `UMR-20260803-162547-b968` (UMR-20260802-165606-4413, OCID-020).
 
 ---
 
+# PROGRESS -- task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825
+
 SPEC: PM decision -- do NOT start OCID-049 real testing execution yet. Gate: wait for PR #825
 (real OCID-048 cross-org isolation results) to genuinely merge, independently confirm that merge,
 then proceed with OCID-049 real testing execution only after that AND only if real swap pressure
