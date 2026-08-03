@@ -966,11 +966,20 @@ as needing a guard) — all fixed, with regression tests. Round 2 found a critic
 the prompt's own SCOPE would actually execute — a prompt could cite a safe, unrelated,
 already-reviewed file to satisfy all 10 conditions while its real SCOPE instructed different,
 unreviewed DDL. Fixed via a new binding check (`_prompt_scope_matches_cited_sql()`, condition 11).
-50 tests pass as of the latest push (`claude-control` PR #123, commit `7faf848`), including a
-fixture-repo-based Category B suite. **Do not cite this as settled, working evidence until a real
-`AUDIT: PASS` is posted and the PR is merged** — this file will be updated with the real merge commit
-once that happens; until then `ai-os/CONSTITUTION.yaml`'s `SEC-06` correctly reads
-`PARTIALLY_ENFORCED`, not `ENFORCED`.
+Round 3 found: (a) a second, separate live-vs-repo drift — the task_key duplicate-dispatch feature
+(itself a reconciliation of a real, already-working live-only hotfix) called
+`superboss-register.py` subcommands (`claim-task-key`/`check-task-key`) that existed live but had
+not been reconciled into the repo's copy of that file too, confirmed both ways via direct live
+invocation; fixed by reconciling `superboss-register.py` as well, and adding 5 new tests (zero
+coverage previously was why this went uncaught); (b) `RISKY_DDL_OPENER_RE` silently treated several
+destructive DDL forms (`TRUNCATE`, `DROP SCHEMA`/`SEQUENCE`/`DATABASE`/`CONSTRAINT`, role/user DDL)
+as safe-by-omission — expanded to match `DDL_KEYWORD_PATTERNS`' full breadth, with `GRANT`/`REVOKE`
+explicitly (not silently) carved out as inherently idempotent, real Postgres semantics.
+67 tests pass as of the latest push (`claude-control` PR #123, commit `95e9294`), including a
+fixture-repo-based Category B suite and a dedicated `superboss-register.py` task-key suite. **Do not
+cite this as settled, working evidence until a real `AUDIT: PASS` is posted and the PR is merged** —
+this file will be updated with the real merge commit once that happens; until then
+`ai-os/CONSTITUTION.yaml`'s `SEC-06` correctly reads `PARTIALLY_ENFORCED`, not `ENFORCED`.
 
 **Retroactive test against a real, non-hypothetical past incident** (not simulated): reclassified
 `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` under this rule and ran it through
