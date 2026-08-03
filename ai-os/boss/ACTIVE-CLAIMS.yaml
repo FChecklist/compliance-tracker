@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-080659-correct-real-ocid-number-mislabeling-in) -- OCID-027/028/030 PR-title + internal-citation mislabel correction [DONE, docs-only]"
+    claimed_at: "2026-08-03T08:06Z (this session, closed same session)"
+    claim: |
+      Real PM decision (citing UMR-20260803-041211-b7b7 OCID-027, UMR-20260803-041257-e9c3
+      OCID-028, UMR-20260803-041459-7c97 OCID-030): correct PR-title mislabeling on PRs
+      #771/#772/#774 and any matching internal OCID self-citation inside each PR's own diff.
+      Independently re-verified before acting: the PR-title half was already fixed by a prior
+      session at 2026-08-03T05:22:14-15Z (before this task's 08:06:59Z start) -- not redone.
+      Internal-citation check found PR #771 and #774 clean, but PR #772's own document header,
+      its closing "UMR chain" section, and ai-os/OS.yaml's covers entry for that document still
+      self-cited OCID-029, missed by two prior in-PR fix commits (ae2ee1f8, 2f6d2457). PR #772
+      merged (7f8613c3, 08:13:24Z) before this session's fix could land on its branch (real race,
+      ~90s), so this fix ships as a new follow-up PR off main instead
+      (fix/ocid-030-internal-citation-followup), correcting the same 3 spots to OCID-030. No
+      other content touched. Full detail in PROGRESS.md's own section for this task.
+    scope_note: >-
+      File scope: ai-os/VERIDIAN_UNIVERSAL_DECISION_ENGINE_2026-08-03.md (2 spots),
+      ai-os/OS.yaml (1 covers field), PROGRESS.md, this ACTIVE-CLAIMS.yaml entry. No src/,
+      schema, or CI changes.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
