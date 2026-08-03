@@ -1006,3 +1006,42 @@ Explicitly out of scope this cycle (per SPEC): no test execution, no Tenant B or
 ## Remaining
 - [ ] Nothing further this cycle -- planning only, per this task's explicit scope. Real testing
       (TASK-050-0 through -6) is future work, not started here.
+
+# PROGRESS -- fix/active-claims-yaml-parse-error
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), PM decision `UMR-20260803-140106-6307`.
+
+## Completed
+- [x] Found (during Group F PR #812-#817 merge-conflict fresh-clone verification) that
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` fails `yaml.safe_load` on `origin/main` itself with a
+      real `ParserError` -- confirmed pre-existing, not introduced by this cycle's PRs.
+- [x] Root-caused directly: a single malformed 0-indent `active:` list entry (2026-07-19
+      section) breaking the block-sequence parse -- an exact-content duplicate of the very
+      next, correctly-indented entry, apparently left behind by an earlier botched
+      in-place-edit attempt.
+- [x] Registered `GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR` in `ai-os/MASTER-TRACKER.yaml`, per PM
+      decision `UMR-20260803-140106-6307`.
+- [x] Fixed: deleted the malformed 0-indent duplicate entry, keeping the well-formed
+      duplicate immediately following it (no real content lost).
+- [x] Independently re-verified by actually running `yaml.safe_load` against the fixed
+      file (not narration): parses cleanly, 125 active + 78 recently_completed entries
+      (203 total, matching pre-fix 204 minus the one deleted duplicate).
+- [x] Separately investigated the second PM finding (unattributed auto-conflict-resolution
+      commits `0b324f1a`/`2f398fc1`/`cf3ded0b`): confirmed via that worker's own workspace
+      git history (`/opt/veridian/ai-os/tasks/task-20260803-132928-pm-decision--trigger-review-now-for-fini/workspace`)
+      that these were produced by a real, second, independently-dispatched Claude Code
+      worker instance executing the identical PM directive (`UMR-20260803-130954-00be`,
+      "trigger review now for PRs 812-816") concurrently with this interactive session --
+      not a GitHub auto-merge setting, not a bot account, not stale review automation. A
+      genuine duplicate-dispatch collision, of exactly the kind `ACTIVE-CLAIMS.yaml` exists
+      to prevent -- plausibly not caught by either side's own zero-duplication check because
+      that same file was unparseable at the time. No content was lost from the collision;
+      this session's standing fresh-clone verification discipline caught the one real
+      corruption it produced (PR #815, already fixed earlier this session) regardless of
+      which side caused it.
+
+## Remaining
+- [ ] None for this task's own scope. CI's "Guardrail Presence Check"/asset-registry/etc.
+      guardrail scripts don't currently strict-parse this file at merge time -- the
+      MASTER-TRACKER entry recommends adding one; not implemented here (governance-process
+      change, not this task's mechanical-fix scope).

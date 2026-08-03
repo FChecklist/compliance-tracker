@@ -1465,6 +1465,59 @@ open_items:
       status: open
       first_raised: "Independent Agent-tool review of PR #795, 2026-08-03 (UMR-20260803-085428-9332)"
 
+    - id: GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR
+      name: "ai-os/boss/ACTIVE-CLAIMS.yaml -- real pre-existing YAML syntax error on main, yaml.safe_load fails with a ParserError -- RESOLVED"
+      old_ids: []
+      detail: |
+        Real, independently found finding, `UMR-20260802-165606-4413` (OCID-020),
+        surfaced during Group F merge-conflict resolution work for PRs #812-#817
+        (the OCID-047 through OCID-052 Business Certification planning batch,
+        2026-08-03). While independently verifying each PR's merged content via a
+        fresh `git clone` (per this session's own established discipline after
+        catching a real wholesale-replace corruption on PR #815), `yaml.safe_load`
+        on `ai-os/boss/ACTIVE-CLAIMS.yaml` failed with `ParserError: while parsing
+        a block mapping ... expected <block end>, but found '-'`, on `origin/main`
+        directly, not on any PR branch -- confirmed pre-existing, not introduced by
+        this cycle's work (also independently confirmed by the OCID-048 task's own
+        PROGRESS.md note: "a pre-existing, unrelated YAML break at ACTIVE-CLAIMS.yaml
+        line ~7444 predates this task and was confirmed present at HEAD before any
+        edit here").
+
+        Root cause, found by direct inspection (not narration): a single stray
+        malformed list-sequence entry under the `active:` key, at the section
+        headed `# -- claim registered 2026-07-19 ~17:30 UTC --`. Every other entry
+        in the file's 200+ `active`/`recently_completed` sequence uses a 2-space
+        item indent (`  - session_label:`); this one entry alone used 0-space
+        indent (`- session_label:`), which YAML parses as terminating the
+        enclosing block sequence rather than continuing it, breaking the parse for
+        the remainder of the file. Comparing the malformed entry's content against
+        the file, it turned out to be an exact-content duplicate of the very next,
+        correctly-indented entry immediately following it (same session_label,
+        claimed_at, claim, and scope_note text for
+        `task-20260719-171130-reevaluate-2045-row-veridian-framework-r`) --
+        apparently an artifact of an earlier, botched in-place edit that appended a
+        corrected copy below rather than fixing the original in place.
+      size: "XS -- single malformed duplicate entry, mechanical fix"
+      recommendation: |
+        Deleted the malformed, duplicate 0-indent entry, keeping the
+        correctly-indented duplicate immediately following it (no loss of real
+        content -- the surviving entry is a byte-for-byte content match of the
+        deleted one, just properly indented). Recommend a lightweight CI/pre-merge
+        `yaml.safe_load` check on `ai-os/boss/ACTIVE-CLAIMS.yaml` (and other
+        governance YAML files edited by every session) to catch this class of
+        silent corruption before it lands on `main`, since this file is real
+        governance infrastructure every session's zero-duplication check depends
+        on, and nothing currently parses it strictly at merge time.
+      status: resolved
+      first_raised: "This session, 2026-08-03, during Group F (PRs #812-#817) merge-conflict verification (UMR-20260802-165606-4413)"
+      resolved: "2026-08-03: fixed directly by deleting the malformed 0-indent
+        duplicate `active:` entry (was lines ~7736-7776 pre-fix) in
+        `ai-os/boss/ACTIVE-CLAIMS.yaml`. Independently re-verified by actually
+        running `python3 -c \"import yaml; yaml.safe_load(open('ai-os/boss/ACTIVE-CLAIMS.yaml'))\"`
+        against the fixed file -- parses cleanly, 125 active + 78 recently_completed
+        entries (203 total, matching the pre-fix count of 204 minus the one deleted
+        duplicate). Per PM decision `UMR-20260803-140106-6307`."
+
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
       name: "OCID-049 Subscription Plan Entitlement Certification -- planning artifact registered, entitlement enforcement not yet built"
       detail: |
