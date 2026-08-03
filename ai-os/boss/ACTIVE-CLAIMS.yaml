@@ -5222,6 +5222,45 @@ active:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
+  - session_label: "claude-code (task-20260803-210039-pm-decision-to-pursue-a-rate-limit-safe) -- OCID-049 remaining 3/4 tiers, rate-limit-safe real testing execution [IN PROGRESS]"
+    claimed_at: "2026-08-03T21:00Z (this session)"
+    claim: |
+      SPEC (PM decision, citing `UMR-20260802-165606-4413` OCID-020 and `UMR-20260803-115513-c990`
+      OCID-049): independent verification confirmed PR #848 genuinely merged (`30db31eb`, real ancestor
+      of `origin/main`), honestly reporting only 1 of 4 subscription tiers (Basic) has real evidence, 3
+      remain blocked on the real Supabase `inviteUserByEmail` email-rate-limit hit on the invite-based
+      `POST /api/users` path (see `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`'s
+      2026-08-03 amendment). Decision: pursue a rate-limit-safe path to finish the remaining 3 tiers
+      rather than leave OCID-049 partial -- do NOT retry the same invite path, do NOT do a direct DB
+      write workaround; instead reuse the real self-service signup flow already proven working for
+      OCID-050 State C (the large-data org), spacing/delaying real calls as needed to respect the rate
+      limit honestly rather than working around it.
+
+      Zero-collision check before starting: `gh pr list --state open` shows no other open PR doing this
+      specific rate-limit-safe execution (PR #849, closed same review, was a *different*, narrower spec
+      that only re-confirmed PR #848's already-merged partial state -- it did not attempt new testing).
+      No conflicting `active:` entry above targets OCID-049 execution right now (the only other OCID-049
+      entries are the 2026-08-03T16:09Z hold decision, since superseded, and the just-completed
+      `recently_completed` entry for PR #848 below).
+
+      Real mechanism identified by reading the actual code before acting (not guessed): `autoProvisionUser()`
+      (`src/lib/supabase/auth-guard.ts`) is the same real code path a browser signup hits, and it branches
+      on `user_metadata.orgJoinCode` to join an EXISTING org via `redeemJoinCodeAndProvisionUser()`
+      (`src/lib/org-join-code-service.ts`) instead of creating a new one. Reusable, non-expiring join codes
+      minted by an org admin (`POST /api/join-codes`) let many real users join the SAME org. Creating each
+      Auth identity via the Supabase Admin API's `createUser` (`email_confirm: true`) sends **zero email**
+      (unlike `inviteUserByEmail`, which sends one every call and is what hit the rate limit) -- this is the
+      same Admin-API-createUser pattern this session's own OCID-050 State C org creation already used
+      successfully. Plan: grow one real org from its founding self-signup user up through real user-count
+      checkpoints at 11 (Standard band), 26 (Professional band), and 51 (Enterprise band) per
+      `getOrgAiPackage()`'s real band logic (`mother-router.ts:506`, `user_pack_size` 10/25/50/100), using
+      only this join-code + Admin-API-createUser mechanism, with real spacing between calls.
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md` (new dated
+      amendment), `PROGRESS.md`, this ACTIVE-CLAIMS.yaml entry, `ai-os/MASTER-TRACKER.yaml` (only if a
+      real new gap is found). No src/ or schema changes expected -- real live testing against the
+      existing deployed app/Supabase project only, through the app's own real signup/join-code mechanism,
+      never a direct SQL write to `compliance.users`/`organisations`.
 recently_completed:
   - session_label: "claude-code (docs/ocid049-real-testing-and-group-f-retraction-fix) -- OCID-049 real testing execution (1/4 tiers, real infra blocker on rest) + retracted PR #846/#847's premature 'closes Group F' claim [DONE]"
     claimed_at: "2026-08-03T20:40Z (this session, closed same session)"

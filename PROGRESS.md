@@ -1939,3 +1939,40 @@ test cases, document honestly, only then describe Group F as closed).
       actually root-cause, not another external read attempt.
 - [ ] Group F is not described as closed by this PR -- OCID-049's own real, partial completion status is
       the accurate description. Next real priority is whatever the PM confirms.
+
+---
+
+# PROGRESS -- task-20260803-210039-pm-decision-to-pursue-a-rate-limit-safe
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-115513-c990` (OCID-049). PM decision: pursue
+a rate-limit-safe path to finish the remaining 3/4 subscription tiers (Standard/Professional/Enterprise)
+rather than leave OCID-049 partial -- do not retry the rate-limited invite path, do not do a direct DB
+write workaround; reuse the real self-service signup flow already proven working for OCID-050 State C.
+
+## Completed
+- [x] Zero-collision check: `gh pr list --state open`, no other PR doing this specific execution; #849
+      was a different, narrower spec that only re-confirmed PR #848's already-merged partial state.
+      Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting real work.
+- [x] Restored `PROGRESS.md` from the wholesale-replace-stub regression (same recurring class this
+      session has hit before) via `git cat-file -p HEAD:PROGRESS.md` (not `git show`, which silently
+      truncated the file via the known large-output-truncation bug).
+- [x] Read the real code (not guessed) to find the rate-limit-safe mechanism: `autoProvisionUser()`
+      (`src/lib/supabase/auth-guard.ts`) branches on `user_metadata.orgJoinCode` to join an EXISTING org
+      via `redeemJoinCodeAndProvisionUser()` (`src/lib/org-join-code-service.ts`); join codes are
+      reusable/non-expiring when minted by an admin (`POST /api/join-codes`); creating each Auth identity
+      via the Supabase Admin API's `createUser` (`email_confirm: true`) sends zero email, unlike
+      `inviteUserByEmail` (which hit the rate limit) -- the same Admin-API pattern this session's own
+      OCID-050 State C org creation already used.
+
+## Remaining
+- [ ] Dry-run the mechanism end-to-end on a small scale (founder signup + 1 join-code redemption) before
+      scaling up, to avoid burning the 2-failure circuit breaker on an unverified technique.
+- [ ] Grow one real org's live user count through the Standard (11), Professional (26), and Enterprise
+      (51) band checkpoints, with real spacing between calls.
+- [ ] At each checkpoint, gather real evidence: confirmed real user count, and one real successful
+      AI-routed (VERI Chat) request as functional-health confirmation (matching Basic tier's own evidence
+      shape) -- tier-classification detail itself stays unobservable per the standing
+      `ai_routing_audit_log` finding, not re-attempted.
+- [ ] Write the honest completion amendment to the OCID-049 doc, only describing all 4 tiers as done if
+      all 4 genuinely got real evidence.
+- [ ] Commit + push after each meaningful unit, not just at the end. Open a PR once real testing is done.
