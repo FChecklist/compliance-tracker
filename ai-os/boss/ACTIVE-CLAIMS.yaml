@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-050452-ocid-026-veridian-deterministic-executio) -- OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 (UMR-20260803-041047-03ee, documentation only)"
+    claimed_at: "2026-08-03T05:05Z (this session)"
+    claim: |
+      SPEC (real Owner directive, tier 1, this task's own prompt.txt):
+      documentation-only mission to create exactly one new canonical
+      artifact, `ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md`,
+      defining how VERIDIAN software decides, when AI is invoked, and when
+      AI shall never be invoked -- grounded in mandatory discovery of the
+      real, already-existing AI runtime, prompt engine, mode pills, option
+      chain, VERI Chat, VERI Assistant, function/report/analysis libraries,
+      and rule/decision engine. No implementation; no browser/PWA/database/
+      security design (those belong to other OCIDs). Per the real,
+      independently-verified status snapshot
+      (`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`, section
+      1), no task/branch/PR existed for OCID-026 as of 2026-08-03 --
+      confirmed fresh again at claim time via this file and `gh pr list`.
+      Note: that same snapshot's own OCID-026 title guess ("Global
+      Knowledge Discovery and Reuse Runtime") does not match this task's
+      real directive title ("Deterministic Execution and AI Escalation
+      Runtime") -- proceeding on this task's own literal SPEC text as the
+      authoritative directive, flagging the discrepancy in the artifact
+      itself rather than silently picking one.
+    scope_note: >-
+      File scope: one new file,
+      `ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md`,
+      plus `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment, existing
+      UMR chain), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`.
+      No src/, schema, CI, or implementation changes of any kind.
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
