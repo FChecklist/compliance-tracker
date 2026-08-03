@@ -778,3 +778,10 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None -- this finding is fully closed
+# PROGRESS -- register GAP-AUDIT-CHECK-ISSUE-COMMENT-STALE-CHECKRUN
+
+## Completed
+- [x] Registered a real CI-wiring gap found by an independent Agent-tool reviewer while verifying PR #795: mandatory-audit-check.yml's issue_comment re-run attaches its check-run result to main's HEAD SHA instead of the PR's own head SHA, leaving a stale pre-comment FAILURE on the PR even after a real AUDIT: PASS is posted
+
+## Remaining
+- [ ] Real fix (Checks API explicit SHA attachment, or trigger-mechanism change) not yet implemented -- registered as a gap, not fixed, since it's a claude-control/CI-infra concern outside this session's immediate priority (PR #795 merge)
