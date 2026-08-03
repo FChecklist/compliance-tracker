@@ -1491,6 +1491,38 @@ continuity, native PWA install, and reports/analysis flows.
 `GAP-MOBILE-VIEWPORT-BLANK-CONTENT` (`UMR-20260803-072955-3132`), plus the PWA documentation
 correction (`UMR-20260803-073010-fcaf`) filed against OCID-034's doc and this file's own OCID-034
 amendment above.
+## Amendment (2026-08-03): VERIDIAN Universal Knowledge and Service Catalog v1.0 (`UMR-20260803-042230-180c`, OCID-20260803-037)
+
+Real Owner directive, tier 1, documentation only. Real dispatch UMR per the corrected row in
+`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §1 and confirmed by
+`ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md` (OCID-036, real
+content OCID-035, PR #782) §36's own handoff note, which names this exact UMR for OCID-037. Parented to
+`UMR-20260803-042144-e83f` (real OCID-036 directive). Also cites `UMR-20260803-040844-4a33` through
+`UMR-20260803-042034-0c1f` (OCID-022 through OCID-035, in order), `UMR-20260802-173631-ca85` (ERP
+Functional Completeness Master Program, this file's own parent), `UMR-20260802-165606-4413` (OCID-020),
+`UMR-20260802-164659-9a31` (server artifact traceability audit), `UMR-20260802-165034-5747` (standing
+gatekeeper rule), `UMR-20260802-165434-cd91` (unified project memory model). Extends the existing master
+program; no new program, no new file beyond the one canonical artifact named below.
+
+**Real, honest zero-duplication check performed** (per the binding PM decision `UMR-20260803-045159-ec55`,
+applicable to every worker picking up OCID-026 through 037): `find`/`gh pr list` confirmed no
+"Universal Knowledge and Service Catalog" document, mechanism, or registry exists anywhere in this repo
+under any name. The two directly adjacent, real, substantive sibling documents —
+`ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md` (OCID-027, PR #771, open,
+620 lines) and `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`
+(OCID-036, PR #782, open, 502 lines) — were read in full (via `git cat-file -p` on the real blob SHA, after
+a first `git show` attempt was silently truncated to 31 lines by the Bash tool's own known large-output
+truncation behavior) before writing a word of this document's own content, and this document's own §0/§33
+name exactly which of its 37 sections cross-reference those two siblings versus which are genuinely new.
+
+**Real discovery performed, not re-derived from memory**: `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`
+(OCID-024, PR #767) §14-15 and `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` (OCID-025,
+PR #766) §12-13 were read for real, file:line-grounded Mode Pill (`VeriComposer.tsx:534-555`,
+`capability-tree-service.ts::buildCapabilityTree()`) and Option Chain (`ChainSelector.tsx`, `dynamic_chains`
+table, `schema.ts:1804`) evidence, cross-checked against `ai-os/CONSTITUTION.yaml`'s `DMP-01` through
+`DMP-06` rules. Confirmed, a fourth independent time in this chain (after OCID-034 §22, OCID-024 §15,
+OCID-025 §13), that the directive term "option chain" has zero literal matches in `src/` and real, correctly
+maps to the existing Chain Selector / `dynamic_chains` mechanism — not a new concept this document invents.
 
 **Status, real and current:**
 
@@ -1740,3 +1772,8 @@ duplicate — confirmed via `git log --all --name-only` finding `UNIVERSAL_TASK_
 the one genuine piece of prior art, which the new document builds on rather than replaces), this
 file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim
 entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
+| OCID-037 | `UMR-20260803-042230-180c` | VERIDIAN Universal Knowledge and Service Catalog v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as every prior entry in this chain** |
+
+Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_KNOWLEDGE_AND_SERVICE_CATALOG_2026-08-03.md` (new).
+Canonical artifact updated: this file, `ai-os/OS.yaml` (index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml`
+(claim entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
