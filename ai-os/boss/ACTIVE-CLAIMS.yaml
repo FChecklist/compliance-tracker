@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-180059-pm-confirmation-to-proceed-with-ocid-050) -- OCID-050 real testing execution, extending beyond the already-merged 15-page sample [IN PROGRESS]"
+    claimed_at: "2026-08-03T18:03Z (this session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260802-165606-4413` OCID-020 parent, `UMR-20260803-162547-b968` prior
+      sequencing decision, `UMR-20260803-115534-af31` OCID-050 itself): independent verification
+      confirmed all prior-sequencing conditions satisfied (PR #803, #828, #829, #830 genuinely merged,
+      independently re-confirmed via `git merge-base --is-ancestor` against each cited commit; the
+      Finding-1-retest screenshot at `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png`
+      independently confirmed present, 102134 bytes, timestamped 2026-08-03 16:37). Proceed with real
+      OCID-050 (Data State Certification) testing execution now: empty/sample/large data states, reusing
+      existing infrastructure, no new architecture.
+
+      Real duplicate-dispatch collision found via this session's own mandatory read-first step (this
+      file's own protocol): `origin/main` already has commit `bdcd5c3d` (PR #834,
+      `test/ocid050-empty-sample-real-execution`), citing a DIFFERENT PM decision UMR
+      (`UMR-20260803-173939-4e9e`, same parent OCID-050 UMR) that already ran a real 15-page
+      representative sample x 2 states (Empty: fresh org, Sample: real `demo_co_1` hero-user login) =
+      30/30 real browser page-checks, zero crashes, zero page errors, real screenshot evidence. This
+      genuinely satisfies part of this SPEC already -- not redone.
+
+      Did NOT redo that 15-page sample. Real, substantive, non-duplicate scope taken instead: (1)
+      extending real browser-level testing to the remaining 100 of the 115-item nav-surface list (only
+      15/115 covered by PR #834) against the same two data states, reusing the exact same harness
+      pattern (`mega4-batched.mjs`'s per-batch-fresh-browser-instance convention, same no-sudo Chromium
+      fix, same `demo_co_1` hero credentials for State B); (2) registering the still-unregistered real
+      gap that PR #834's own PR body explicitly flagged but did not register: no large-data-volume org
+      exists for State C, so State C real testing execution remains genuinely blocked, registered here as
+      its own `GAP-OCID050-NO-LARGE-DATA-VOLUME-ORG` per this SPEC's explicit instruction (register, do
+      not implement/create the org under this dispatch -- that needs its own separate PM decision, per
+      the OCID-021 lock this SPEC itself cites).
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      (amendment, in place), `ai-os/MASTER-TRACKER.yaml` (new gap registration only), this ACTIVE-CLAIMS
+      entry. No src/, schema, or CI changes -- real test execution only, no implementation performed
+      against any gap found (State C large-data org creation stays out of scope per SPEC).
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |
