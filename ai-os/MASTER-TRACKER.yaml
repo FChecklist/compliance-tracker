@@ -995,8 +995,143 @@ open_items:
         branch-tip-relative instead of workspace-HEAD-relative), and add a
         regression test that pushes a second commit to an already-adopted
         branch and confirms a subsequent review sees it.
-      status: open
+      status: resolved
       first_raised: "Resolving claude-control PR #123, 2026-08-03 (UMR-20260803-025317-0c64)"
+      resolved: "2026-08-03: fixed directly in claude-control's scripts/supervisor-entrypoint.sh
+        via a new WORKSPACE-RESYNC-BLOCK (marked '# --- WORKSPACE-RESYNC-BLOCK-START/-END ---'),
+        inserted right after 'git fetch origin' and before any tier/diff computation -- fetches
+        and hard-resets ('git checkout -f origin/$BRANCH') the workspace to the branch's real
+        current tip, logging real before/after SHAs to supervisor.log. Real, non-mocked
+        regression test added (tests/supervisor_workspace_resync_test.sh +
+        tests/test_supervisor_workspace_resync.py): builds a real local bare 'remote' + real
+        clone 'workspace' (branch name 'test-trunk', avoiding 'main'/'master' since this
+        session's own interactive write-gate intercepts those regardless of actual remote),
+        reproduces the exact staleness condition, confirms the fix resyncs correctly (3
+        scenarios: stale->resynced, already-current->no-op, before/after SHAs logged). Merged as
+        claude-control PR #124 (real merge commit 9117c381bbda84e3a1f06f8c3540c1234c4f0d68),
+        deployed live via cp to /opt/veridian/scripts/supervisor-entrypoint.sh. Confirmed working
+        live this same session: multiple subsequent adopted-task retriggers (PR #776/#774/#779,
+        2026-08-03) correctly picked up newly-pushed commits on each retrigger with no repeat of
+        the identical-diff-stat symptom."
+
+    - id: GAP-REVIEWER-FALSE-DUPLICATE-AFTER-MAIN-MERGE
+      name: "Superboss review (scripts/supervisor-entrypoint.sh's Claude-driven reviewer) has a
+        reproducible false-positive pattern: it sometimes rejects a genuinely new, non-duplicate
+        diff as 'a complete duplicate of work already merged into main' when the reviewed
+        branch's own git history contains a recent 'Merge remote-tracking branch origin/main
+        into HEAD' commit (severity: medium -- wastes real review cycles and requires a manual
+        retrigger to get a correct verdict, but does not itself cause an incorrect merge, since
+        the failure mode is always a false REJECT, never a false approve)"
+      old_ids: []
+      detail: |
+        Real, directly observed, two independent confirmed instances in the same session
+        (2026-08-03), both on branches that had just had 'git merge origin/main --no-edit' run
+        on them to resolve a real, legitimate PROGRESS.md/ai-os-index merge conflict (the
+        append-only-doc collision pattern that recurs whenever two sibling OCID-series PRs touch
+        the same shared files), then were retriggered for review:
+
+        Instance 1 (claude-control-adjacent, compliance-tracker PR #776, round 2 of its review):
+        verdict was 'reject', summary claimed the diff 'is a complete duplicate of work already
+        merged to this branch: commits 2fd55bd1 and de8f4add are already at HEAD' -- true but
+        irrelevant (those are the PR's OWN commits, trivially always 'already at HEAD' of their
+        own branch; the reviewer conflated 'reachable from HEAD' with 'reachable from
+        origin/main'). Independently re-verified: 'git diff --stat origin/main -- <file>' at
+        review time showed 27 insertions/6 deletions, a real, non-empty, non-duplicate change.
+        Retriggering a fresh review (no code change, same diff) produced a correct 'approve' on
+        the next attempt.
+
+        Instance 2 (compliance-tracker PR #774, round 3 of its review, immediately after a real
+        'git merge origin/main --no-edit' was performed to resolve a genuine PROGRESS.md/OS.yaml
+        conflict caused by PR #781 merging first): verdict was 'reject', summary claimed 'This
+        diff is a complete duplicate of work already merged into main: PR #774 ... already
+        created ai-os/VERIDIAN_UNIFIED_SYNCHRONIZATION_RUNTIME_2026-08-03.md ... confirmed
+        present ... in the current workspace's main branch'. Independently re-verified
+        immediately after: 'git diff --stat origin/main...HEAD' (the exact three-dot diff
+        supervisor-entrypoint.sh's own REVIEW_PROMPT computes and embeds) showed 626 real
+        insertions across 4 files, and 'git cat-file -e origin/main:<the doc path>' returned
+        'fatal: ... exists on disk, but not in origin/main' -- i.e. the file provably does NOT
+        exist on origin/main, directly contradicting the reviewer's own claim. This PR's
+        real reviewer this round had `--dangerously-skip-permissions` tool access (per
+        supervisor-entrypoint.sh's REVIEW_PROMPT construction) and likely ran its own ad hoc
+        `git log`/`git show` commands inside the workspace to 'independently verify' -- but
+        after a merge-from-main, the workspace's own `git log` trivially contains every
+        origin/main commit as an ancestor of HEAD, so any check phrased as 'is commit X
+        reachable from HEAD' (rather than specifically 'is commit X reachable from
+        origin/main, excluding this branch's own new commits') will always incorrectly report
+        'already merged' for a freshly-merged-from-main branch, regardless of whether the
+        branch's OWN new content is genuinely new.
+
+        Both instances self-resolved on a plain retrigger (archive review.json, restart the same
+        systemd unit, no code change) -- confirming the diff embedded in REVIEW_PROMPT itself
+        (git diff origin/$DEFAULT_BRANCH...HEAD, computed via supervisor-entrypoint.sh's own
+        deterministic git command) was correct both times; only the reviewer's own
+        supplementary, unprompted tool use produced the wrong conclusion, and that reasoning
+        error was not consistent across independent attempts (retry got the right answer both
+        times).
+      size: "S -- likely fixable by adding one explicit sentence to REVIEW_PROMPT in
+        scripts/supervisor-entrypoint.sh: 'If this branch's history includes a merge of
+        origin/$DEFAULT_BRANCH into HEAD, do not use plain `git log`/`git show` reachability
+        from HEAD to judge what is already on main -- the diff already provided above
+        (origin/$DEFAULT_BRANCH...HEAD) is the authoritative, correct scope; trust it over any
+        ad hoc git history check you perform yourself.'"
+      recommendation: |
+        Fix in claude-control (scripts/supervisor-entrypoint.sh's REVIEW_PROMPT construction),
+        not compliance-tracker. Add a regression fixture: a branch with a real
+        'git merge origin/main --no-edit' commit in its history plus one genuinely new file not
+        present on origin/main, run through the real review prompt (or a recorded transcript
+        replay if a live-model regression test isn't practical), asserting the verdict does not
+        cite 'already merged'/'duplicate' for content confirmed absent from origin/main via
+        'git cat-file -e origin/<default>:<path>'. Until fixed: any adopted-task retrigger whose
+        workspace was merged-from-main immediately before that retrigger should be treated as a
+        higher-than-usual candidate for a false-reject and worth one free retry before treating
+        a reject as a real finding requiring a code/content fix.
+      status: open
+      first_raised: "compliance-tracker PR #776/#774 re-review rounds, 2026-08-03"
+
+    - id: GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION
+      name: "Multiple OCID-series dispatch workers self-minted a fabricated 'artifact UMR' to
+        cite as their own document's identity, believing they were following an established
+        precedent, when no such UMR was ever really registered anywhere (severity: medium --
+        governance-integrity defect, not a code-correctness one; each fabricated UMR is
+        independently, mechanically detectable)"
+      old_ids: []
+      detail: |
+        Real, confirmed instance: PR #779's own worker self-minted
+        'UMR-20260803-055709-368e' as a separate 'artifact UMR' for its canonical document,
+        believing it followed precedent from PR #765/#768. Verified fabricated via a 3-step
+        method (reusable for any future similar check): (1)
+        'python3 /opt/veridian/scripts/resource_governor.py --query-umr --search "<UMR>"'
+        returned '{"count": 0, "matches": []}'; (2) a direct raw sqlite query (not the
+        `sqlite3` CLI, not installed on this box -- use Python's `sqlite3` module) against
+        `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks` table (real column
+        name `umr_id`, not `umr`) found zero exact/fuzzy matches among 1045 real rows; (3) a
+        full-text search across every real table with a text-like column in the same sqlite DB
+        found exactly one hit -- `instructions.raw_text`, which was this same conversation's own
+        instruction-log entry recording the PM message that asked the question, not an
+        independent prior registration. Fixed for PR #779 (real PM decision
+        UMR-20260803-063016-8bfc): the fabricated UMR was removed from the document header and
+        the amendment section heading, replaced with the real dispatch UMR
+        (UMR-20260803-042003-5e92), with an honest note documenting the correction rather than
+        silently editing it away. Real merge commit: 7a6ad5ab6b30f9c4a26f1f38bc303d57b16a414e
+        (confirmed ancestor of origin/main).
+
+        Explicitly NOT fixed, and out of scope for the PM directive (UMR-20260803-063016-8bfc)
+        that authorized the PR #779 fix: two further instances, same pattern, same verification
+        method applicable -- PR #765 (OCID-022)'s self-minted 'UMR-20260803-041653-9de5', and
+        PR #768 (OCID-023)'s self-minted 'UMR-20260803-042019-844f'. Both remain live in their
+        respective documents as of this entry.
+      size: S (per-instance; mechanical once found -- same fix pattern as PR #779's)
+      recommendation: |
+        Apply the same fix pattern used for PR #779 to PR #765 and PR #768: verify each cited
+        UMR via the 3-step method above, replace any confirmed-fabricated citation with the real
+        dispatch UMR, add an honest correction note (not a silent edit). Longer-term: the root
+        cause is dispatch workers inventing a second 'artifact UMR' per document instead of
+        citing only their own real, already-assigned dispatch UMR -- worth a one-line addition
+        to whatever standing dispatch-prompt template governs this OCID series, stating
+        explicitly that no new UMR should ever be self-minted, only the real dispatch UMR cited
+        verbatim.
+      status: open
+      first_raised: "PR #779 real AUDIT: FAIL investigation, 2026-08-03 (UMR-20260803-063016-8bfc)"
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
