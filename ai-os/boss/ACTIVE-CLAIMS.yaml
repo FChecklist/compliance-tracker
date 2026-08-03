@@ -5051,6 +5051,24 @@ active:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
+  - session_label: "claude-code (task-20260803-142213-pm-decision--register-and-fix-active-cla) -- PM decision on two Group F findings: ACTIVE-CLAIMS.yaml parse error (already resolved via PR #818) + investigating unattributed merge-conflict-resolution commits"
+    claimed_at: "2026-08-03T14:22Z"
+    claim: |
+      SPEC (this task's own prompt, citing UMR-20260802-165606-4413/OCID-020): two findings.
+      (1) The pre-existing ACTIVE-CLAIMS.yaml YAML ParserError -- verified on starting this task
+      that PR #818 (commit f0d70014, merged as 3c382876) already fixed this and registered
+      GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR in MASTER-TRACKER.yaml as resolved, with independent
+      yaml.safe_load re-verification recorded. Re-confirmed independently in this session too
+      (parses cleanly, no action needed -- this was done by an earlier invocation of this exact
+      task before a context reset, not duplicate work).
+      (2) Investigating unattributed automated merge-conflict-resolution commits (0b324f1a,
+      2f398fc1, cf3ded0b) to identify the real process producing them, per PM instruction to not
+      trust them by default given they match the mechanism class that produced the real
+      wholesale-replace corruption on PR #815. No implementation/gap-closure work planned beyond
+      this investigation and continued hand-verification of merges.
+    scope_note: >-
+      File scope: ai-os/boss/ACTIVE-CLAIMS.yaml (this entry only, no further edits expected),
+      ai-os/MASTER-TRACKER.yaml (read-only verification), PROGRESS.md. No src/ changes.
 recently_completed:
   - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
     claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
