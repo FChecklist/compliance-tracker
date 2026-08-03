@@ -1852,10 +1852,79 @@ open_items:
         sign-up/login-form flow, multi-page nav-diff sweep, or mobile device emulation -- those OCIDs'
         own execution passes should re-verify with this same `LD_LIBRARY_PATH` set before re-asserting
         this gap blocks them, rather than assuming the original "blocked" finding still holds unchanged.
-      status: open (narrowed -- a real no-sudo workaround is confirmed working for headless
-        cookie-injected navigation/DOM-read/screenshot; full interactive-flow/device-emulation coverage
-        unconfirmed)
+      status: "open (narrowed further -- OCID-050's full 115-page x 3-state sweep, OCID-051's full
+        desktop + mobile-device-emulation sweep (Pixel 7 preset) and Web Share Target flow, and
+        OCID-052's own Item 4 UI-distinguishability check have now all run successfully live with this
+        same LD_LIBRARY_PATH workaround -- mobile device-emulation is now confirmed working too, not
+        just headless cookie-injected navigation. No sudo change was ever needed or attempted for any
+        of these. What remains genuinely unconfirmed: a full interactive sign-up/login-form flow
+        (every real test this session used the Admin-API-signup + hand-built-cookie pattern instead of
+        driving the actual login form's UI).)"
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
+
+    - id: GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL
+      name: "End users have no visible way whatsoever to tell a deterministic-routed VERI Chat reply apart from a genuine AI-escalated one on the real, live, primary rendering surface (/home) -- stronger than merely 'unintentional,' the one component with confidence-badge logic is structurally unreachable for the AI thread"
+      old_ids: []
+      detail: |
+        Real, live finding, `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-115620-29c6` (OCID-052),
+        executing OCID-052's own Item 4 (`ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`),
+        per PM decision `UMR-20260803-201840-af59`.
+
+        The planning doc's own discovery (§"Real, honest gap found") had already read
+        `src/components/chat/ThreadView.tsx` and found a confidence badge
+        ("High/Medium/Low confidence") rendered only when `message.confidenceLabel` is set -- present
+        for genuine LLM replies, `null` for deterministic/scripted/refused ones -- and flagged this as a
+        real but *unintentional* distinguishing signal, pending live confirmation.
+
+        Live execution found the real signal is **weaker than that prediction, not stronger**: a fresh
+        test org's real AI thread was sent both a deterministic-trigger message ("what's the status" --
+        real reply "No tasks yet", persisted `confidence_label: null`, zero LLM call) and a genuine
+        AI-escalating message ("Can you create a task for renewing our fire safety certificate next
+        month?" -- real reply "Sure thing, Boss. Just need two quick details...", persisted
+        `confidence_label: "high"`, real LLM call confirmed via ~6s round-trip). Both were then rendered
+        live on `/home` (real screenshot,
+        `/opt/veridian/browser/screenshots/ocid052-item4-home-thread.png`) -- VERI Chat's real primary
+        surface per `HomeThreadSlot.tsx`'s own header comment ("on Home, VERI Chat isn't a side panel,
+        it's the center of the page").
+
+        Root cause, confirmed by direct code read: `/home` renders the AI thread via `HomeThreadSlot.tsx`
+        -> `ThreadView` from the **external** `@fchecklist/veridian-ui-kit/panel` package -- a
+        *different* component from the one the planning doc analyzed. `HomeThreadSlot.tsx`'s own
+        `RawMessage`-to-`ThreadMessage` mapping (line 31) extracts only `id`/`senderId`/`content`/
+        `createdAt` -- `confidenceLabel` is never read from the API response and never passed through.
+        The confidence-badge-capable component (`src/components/chat/ThreadView.tsx`) is real and does
+        exist, but a full-codebase check of its own two live import sites
+        (`grep -rn 'from "@/components/chat/ThreadView"'`) found it wired only to
+        `src/app/(app)/tickets/[id]/...` (an unrelated support-ticket thread) and
+        `src/app/(app)/chat/page.tsx` -- and that page's own conversation list explicitly filters
+        `!c.isAiThread` (line 67), so the AI thread can **never** render through it. The badge logic is
+        real, live code, but genuinely unreachable for the one thread type this OCID cares about.
+
+        Live, visual confirmation (real screenshot): both the deterministic reply and the AI-escalated
+        reply render as plain white message bubbles with the same orange "V" assistant avatar, same
+        typography, zero badge, zero label, zero visual distinction of any kind. Page-body text search
+        for "confidence" on the live-rendered `/home` page: zero matches, despite the AI-escalated
+        message's real, persisted `confidence_label: "high"`.
+      size: "S -- HomeThreadSlot.tsx's RawMessage type + mapping needs confidenceLabel added and passed
+        through to whatever real distinguishing UI is designed; the underlying badge-rendering logic in
+        the other ThreadView component could potentially be ported/reused, but a real product decision
+        on what the end-user-facing label/indicator should actually say is needed first (this finding
+        is discovery, not a prescribed fix)."
+      recommendation: |
+        This is a genuine, real UX gap, not a testing artifact: today, an end user watching VERI Chat's
+        real primary conversation surface has no way to know whether a reply came from a fast,
+        deterministic, zero-LLM-cost lookup or a genuine AI generation -- a real transparency/trust gap
+        for a product whose own architecture deliberately built a deterministic-first routing layer
+        (`GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`'s and this OCID's own Items 2-3 confirmed
+        that routing genuinely works correctly end to end) -- the routing exists but is invisible.
+        Recommend: (a) add `confidenceLabel` (or a purpose-built `sourceType: 'deterministic' | 'ai' |
+        'scripted'` field, cleaner than overloading the confidence heuristic per
+        `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`) to `HomeThreadSlot.tsx`'s message mapping
+        and render a real, explicit, intentional indicator (not reuse the confidence badge, which this
+        session separately found unreliable for refusal detection); (b) decide whether the same
+        indicator should also appear in any other real AI-thread rendering surface found later.
+      status: open
+      first_raised: "This session, 2026-08-03, real live test during OCID-052 Item 4 execution (UMR-20260803-201840-af59, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
       name: "stage_0 is a real DB role (userRoleEnum) but is missing from the UserRole type and ROLE_RANK map, so a stage_0 user fails every requireRole()/requirePermissionForUser() gate in the app -- including the lowest-bar (viewer/member) ones"

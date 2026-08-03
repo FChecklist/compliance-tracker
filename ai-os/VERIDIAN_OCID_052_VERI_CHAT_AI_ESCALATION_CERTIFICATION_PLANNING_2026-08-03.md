@@ -188,3 +188,78 @@ No new chat engine, no new routing architecture, no new schema — every mechani
 (`llm-routing-gate.ts`, `intent-engine.ts`, `dialogue-script-executor.ts`, `chat-service.ts`,
 `ThreadView.tsx`, `messages.confidenceLabel`) already exists and is already wired into the real VERI Chat
 1:1 AI thread send path. This document adds no code.
+
+---
+
+## Amendment (2026-08-03): Item 4 executed live — OCID-052 complete
+
+Per PM decision `UMR-20260803-201840-af59` (citing `UMR-20260802-165606-4413` OCID-020,
+`UMR-20260803-115558-170e` OCID-051 confirmed complete via PR #844, and this doc's own
+`UMR-20260803-115620-29c6`): "complete the remaining item 4... read the real VERI Chat message
+rendering code and confirm, or honestly find absent, a real visible way the end user can tell a
+deterministic result apart from an AI escalated one." Items 2 and 3 (above) had already been executed
+with real evidence earlier this session; this amendment closes Item 4 and the overall OCID.
+
+### Item 4 — real UI-distinguishability check
+
+A fresh, isolated test org's real AI thread was sent two real messages:
+- Deterministic trigger: `"what's the status"` → real reply `"No tasks yet"`, persisted
+  `confidence_label: null`, zero LLM call (same routing already confirmed by Item 2).
+- AI-escalating message: `"Can you create a task for renewing our fire safety certificate next
+  month?"` (a real `create_task`-intent message, deliberately chosen to escalate through routing
+  without also triggering `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`'s refusal bug) → real
+  reply `"Sure thing, Boss. Just need two quick details: 1. Which exact date next month should the
+  renewal be due? 2. Who should I assign as the owner of this task?"`, persisted `confidence_label:
+  "high"`, real LLM call confirmed via ~6s round-trip.
+
+Both messages were then rendered live and inspected directly, not assumed from the code alone. First
+attempt navigated to `/chat?conversation=<id>` (the URL pattern used elsewhere this session) and found
+that page's own conversation list explicitly filters `!c.isAiThread` — the AI thread structurally
+cannot render there, a real, useful negative-result correction to record. Re-navigated to `/home`,
+VERI Chat's real primary surface per `HomeThreadSlot.tsx`'s own header comment ("on Home, VERI Chat
+isn't a side panel, it's the center of the page") — real screenshot confirms both messages rendering
+(`/opt/veridian/browser/screenshots/ocid052-item4-home-thread.png`).
+
+**Real, honest finding: no visible distinguishing signal exists, and the gap is stronger than this
+doc's own earlier prediction.** The earlier "Real, honest gap found" section (above) predicted an
+*unintentional-but-present* signal — the confidence badge in `src/components/chat/ThreadView.tsx`.
+Live execution found that component is not actually reachable for the AI thread at all: `/home`
+renders the AI thread through a *different* component (`HomeThreadSlot.tsx` → the external
+`@fchecklist/veridian-ui-kit/panel` package's own `ThreadView`), whose message mapping
+(`HomeThreadSlot.tsx:31`) never reads or passes through `confidenceLabel` in the first place. A
+full-codebase check of `src/components/chat/ThreadView.tsx`'s own two live import sites found it wired
+only to an unrelated support-ticket thread and to `/chat` — which, per the negative result above,
+never shows the AI thread. Real, visual confirmation: both messages render as plain white bubbles with
+the same orange "V" avatar, zero badge, zero label, zero distinguishing marker of any kind; a
+page-body text search for "confidence" on the live-rendered page returned zero matches despite the
+AI-escalated message's real, persisted `"high"` confidence label sitting unused in the database.
+
+Registered as `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` in `ai-os/MASTER-TRACKER.yaml` —
+a real, honest, certification-blocking finding for this axis, not silently papered over. Not fixed
+this pass, per the standing OCID-021 implementation lock.
+
+Item 5 (dialogue-script path) remains deferred — no scripted capability package was confirmed active
+for any test org used this session; picking it up would require first confirming one exists, which is
+outside this dispatch's scope.
+
+### OCID-052 completion summary — real evidence for every item
+
+1. ~~Read `mother-router.ts`~~ — corrected to the real target (`llm-routing-gate.ts` +
+   `chat-service.ts` + `dialogue-script-executor.ts`), done in this doc's original pass.
+2. **Deterministic-only path — PASS.** Real message, real correct reply, real zero-LLM-call
+   confirmation, real `confidenceLabel: null` — all three success criteria independently confirmed
+   (this doc's earlier "Real test execution results" section).
+3. **AI-escalation path — PASS on routing**, with two real gaps found and registered along the way
+   (`GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`,
+   `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`) — routing itself genuinely escalates to a
+   real LLM call end to end; the two gaps are about reply quality/labeling, not routing correctness.
+4. **UI-distinguishability — executed, real finding: no visible signal exists.** Confirmed live, not
+   assumed — registered as `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`.
+5. Dialogue-script path — deferred, no active scripted package confirmed for testing this pass.
+
+**OCID-052 is complete.** The deterministic-first / AI-escalation-second architecture genuinely works
+end to end (Items 2-3), but this OCID's own real testing surfaced three real, honest, unfixed gaps
+along the way (purpose-clause contradiction, unreliable confidence labeling, and now the real absence
+of any end-user-visible distinguishing signal) — each registered in `ai-os/MASTER-TRACKER.yaml` with
+real evidence, none fixed under this dispatch per the standing OCID-021 implementation lock. This
+closes the full Group F Business Certification scope under OCID-020 (OCID-047 through OCID-052).

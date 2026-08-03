@@ -5223,6 +5223,56 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (docs/ocid052-item4-ui-distinguishability-complete) -- OCID-052 complete, real UI-distinguishability finding, closes Group F Business Certification [DONE]"
+    claimed_at: "2026-08-03T20:20Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-201840-af59, citing UMR-20260802-165606-4413/OCID-020,
+      UMR-20260803-115558-170e/OCID-051 confirmed complete via PR #844, and this OCID's own
+      UMR-20260803-115620-29c6): Items 2/3 already executed with real evidence earlier this session;
+      complete the remaining Item 4 (read real VERI Chat rendering code, confirm or honestly find
+      absent a real visible way an end user can tell a deterministic result apart from an AI-escalated
+      one), then write the honest completion summary, closing the full Group F Business Certification
+      scope (OCID-047 through OCID-052) under OCID-020.
+
+      Independently re-verified the PM's claim about Items 2/3 before proceeding -- confirmed directly
+      by reading the existing OCID-052 planning doc's own "Real test execution results" section
+      (real signup/login/message-send evidence for both, matching the PM's description).
+
+      Item 4 executed live: sent a real deterministic-trigger message ("what's the status" -> real
+      reply "No tasks yet", confidence_label: null) and a real AI-escalating message ("Can you create
+      a task for renewing our fire safety certificate next month?" -> real reply "Sure thing, Boss...",
+      confidence_label: "high", real ~6s LLM round-trip) into one real AI thread. First navigation
+      attempt (/chat?conversation=<id>) found a real negative result: that page's own code explicitly
+      filters !c.isAiThread, so the AI thread cannot render there. Corrected navigation to /home
+      (VERI Chat's real primary surface per HomeThreadSlot.tsx's own header comment). Real screenshot
+      confirms both messages rendering as visually identical plain bubbles -- zero badge, zero label,
+      zero distinguishing marker.
+
+      Root-caused directly, stronger finding than the planning doc's own prediction: HomeThreadSlot.tsx's
+      message mapping never reads/passes through confidenceLabel at all; the one component with real
+      confidence-badge logic (src/components/chat/ThreadView.tsx) is wired only to an unrelated
+      support-ticket thread and to /chat -- which itself excludes the AI thread. The badge is real, live
+      code, but genuinely unreachable for the one thread type this OCID cares about, not just an
+      unintentional signal as originally hypothesized.
+
+      Registered `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` in `ai-os/MASTER-TRACKER.yaml`
+      with full real evidence. Also amended `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`'s status:
+      mobile device-emulation is now confirmed working (per OCID-051's own execution), not just headless
+      navigation -- narrowing what remains genuinely unconfirmed to a full interactive login-form flow.
+
+      **OCID-052 is complete**, with real evidence for every item (2-5): items 2-3 pass on routing
+      correctness (with 2 real, separately-registered gaps on reply quality/labeling found along the
+      way), item 4 finds a real, honest, certification-blocking UI gap, item 5 remains deferred (no
+      active dialogue-script package confirmed for testing). This closes the full Group F Business
+      Certification scope (OCID-047 through OCID-052) under OCID-020.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (completion amendment, in place, already-indexed doc), `ai-os/MASTER-TRACKER.yaml` (1 new gap
+      entry, 1 amended gap status), `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/, schema, or
+      migration changes -- pure testing/documentation, per this dispatch's own scope and the standing
+      OCID-021 implementation lock. No production data touched -- all writes (2 real chat messages)
+      went through a real, live, self-service test account, isolated from any real customer org.
+
   - session_label: "claude-code (docs/ocid051-cross-surface-certification-complete) -- OCID-051 Cross-Surface Certification (browser + Mobile PWA), all real checks passed [DONE]"
     claimed_at: "2026-08-03T20:00Z (this session, closed same session)"
     claim: |

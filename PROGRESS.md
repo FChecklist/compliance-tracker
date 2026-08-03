@@ -1840,3 +1840,48 @@ with OCID-051 real testing execution now).
 ## Remaining
 - [ ] Zero new gaps found this pass -- OCID-051 is complete. Next real priority is whatever the PM
       confirms after independently verifying this PR's merge.
+
+---
+
+# PROGRESS -- docs/ocid052-item4-ui-distinguishability-complete
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-115620-29c6` (OCID-052),
+`UMR-20260803-201840-af59` (PM decision: complete OCID-052 Item 4, write the honest completion
+summary, closing the full Group F Business Certification scope).
+
+## Completed
+- [x] Independently re-verified the PM's claim that Items 2/3 were already executed with real
+      evidence before starting Item 4 -- confirmed directly by reading the existing OCID-052 planning
+      doc's own "Real test execution results" section (real signup/login/message-send evidence for
+      both items, matching the PM's description exactly).
+- [x] Item 4: sent a real deterministic-trigger message and a real AI-escalating message into one
+      real AI thread (fresh test org). Confirmed via the persisted DB rows: deterministic reply
+      `confidence_label: null`, AI-escalated reply `confidence_label: "high"` (real LLM call, ~6s
+      round-trip).
+- [x] First navigation attempt (`/chat?conversation=<id>`) found a real negative result: that page's
+      own code explicitly filters `!c.isAiThread`, so the AI thread cannot render there --
+      corrected navigation to `/home` (VERI Chat's real primary surface per `HomeThreadSlot.tsx`'s own
+      header comment).
+- [x] Real screenshot of both messages rendered live on `/home`
+      (`/opt/veridian/browser/screenshots/ocid052-item4-home-thread.png`) -- confirmed both render as
+      visually identical plain bubbles, zero badge, zero label.
+- [x] Root-caused directly: `HomeThreadSlot.tsx`'s message mapping never reads/passes through
+      `confidenceLabel`; the one component with confidence-badge logic
+      (`src/components/chat/ThreadView.tsx`) is wired only to an unrelated ticket thread and to
+      `/chat`, which itself excludes the AI thread -- genuinely unreachable, not just unintentional.
+- [x] Registered `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` in `ai-os/MASTER-TRACKER.yaml`
+      with full real evidence; amended `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`'s status to
+      reflect today's further confirmation (mobile device-emulation now also confirmed working, not
+      just headless navigation).
+- [x] Wrote the closing amendment + OCID-052 completion summary in the planning doc itself, citing
+      real evidence for every item (2 through 5), matching the same honesty standard as OCID-050/051.
+
+## Remaining
+- [ ] Three real, honest gaps remain open and unfixed, per the standing OCID-021 implementation lock:
+      `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`,
+      `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`,
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`.
+- [ ] Item 5 (dialogue-script path) remains deferred -- no active scripted capability package was
+      confirmed for any test org used this session.
+- [ ] This closes the full Group F Business Certification scope (OCID-047 through OCID-052) under
+      OCID-020. Next real priority is whatever the PM confirms after independently verifying this PR.
