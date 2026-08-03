@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [IN PROGRESS]"
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
       SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
