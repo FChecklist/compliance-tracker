@@ -830,3 +830,61 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] No testing or implementation performed against any of the 6 real definitions of done -- explicitly out of scope this cycle, per every directive's own instruction
+# PROGRESS -- task-20260803-120302-register-ocid-047-roles-rights-responsib
+
+Cites: `UMR-20260803-115333-dab8` (this task's own real dispatch UMR, confirmed directly
+against `superboss-register.sqlite`'s `umr_tasks` table), parented to `UMR-20260802-165606-4413`
+(OCID-020).
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `AGENTS.md`, `CLAUDE.md` before starting.
+- [x] Independently discovered the real, existing role/rights/responsibility model directly from
+      code (not narrated): `userRoleEnum` (11 values, `schema.ts:12`), `ROLE_RANK`/`hasRole`/
+      `requireRole`/`requireRoleOrScope` (`auth-guard.ts:28-55`), `ERP_ACTION_ROLES` (55) +
+      `PROMPT_ACTION_ROLES` (9) = 64 centrally-registered actions (`permission-service.ts`), 51
+      real `requireRole(` call sites (`grep -rl` across `src/app/api`), the real per-batch browser
+      test harness (`/tmp/ocid020-continue/mega4-batched.mjs`).
+- [x] **Real duplicate-dispatch collision found before writing anything new**: `git fetch`/
+      `git merge origin/main` (mandatory first step per `ACTIVE-CLAIMS.yaml`'s own protocol) found
+      PR #811 already merged, containing `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md`
+      with an OCID-047 section citing this exact task's own real UMR (`UMR-20260803-115333-dab8`) --
+      a real race between two invocations of the identical directive, not a different task. Did not
+      recreate a duplicate document; discarded this workspace's own stale pre-merge `PROGRESS.md`
+      stub (`git checkout -- PROGRESS.md`, safe -- it held no real work, just the fresh per-task
+      template) and merged cleanly.
+- [x] Independently re-verified the merged OCID-047 section's own numbers directly against live
+      code: 64 centrally-registered actions and 51 inline `requireRole(` sites both confirmed exact.
+      No correction needed to the rights-model half of that section.
+- [x] Found and closed a real, substantive gap in the merged section instead of duplicating it: it
+      covers RIGHTS (action permissions) but never names the separate, real, already-built
+      RESPONSIBILITY/data-scope layer this OCID's own SPEC explicitly asks for -- `home-service.ts`
+      dashboard-scope-by-rank, `client-access-service.ts`'s `FULL_CLIENT_ACCESS_ROLE` client-list
+      gate, `risk-register-service.ts`'s `BROAD_SCOPE_ROLES` risk-visibility gate, and
+      `classification.ts`'s `ROLE_CLEARANCE` ceiling (a genuinely separate axis from `ROLE_RANK`,
+      with 3 real same-rank/different-clearance divergences: `external_auditor` vs `member`,
+      `senior_professional` vs `manager`, `team_member` vs `member`).
+- [x] Found and named a second real gap: both real, live user-creation mechanisms
+      (`invite-link-service.ts`'s `INVITE_ROLES`, `POST /api/users`'s `VALID_ROLES`) only assign the
+      original 4 roles (admin/manager/member/viewer). 6 of the 11 real DB roles (`veridian_admin`,
+      `branch_manager`, `senior_professional`, `team_member`, `client_viewer`, `external_auditor`)
+      have no real product-level onboarding path found this pass -- DB-seed only.
+- [x] Flagged a minor, real precision drift (not a correction to the merged section, which already
+      states this accurately): `stage0-service.ts`'s own code comment claims `stage_0` "rank[s] 1 in
+      `ROLE_RANK`" -- independently re-checked, `stage_0` is not a `ROLE_RANK` key at all and falls
+      to rank 0 via the `?? 0` fallback, one rank below `viewer`.
+- [x] Amended `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` in place
+      with the full real responsibility-layer writeup, an 11-row per-role
+      rights+responsibility+provisioning-path table, a revised per-role test-path step 1, and a
+      Definition-of-Done addendum -- no new/duplicate canonical artifact created.
+- [x] Updated `ai-os/OS.yaml`'s existing covers-line for that file to reflect the amendment.
+- [x] Registered this session's own `ai-os/boss/ACTIVE-CLAIMS.yaml` entry documenting the collision
+      and the real gap-closure work performed.
+
+- [x] Committed + pushed (`6f3b99e8`), opened PR #814: https://github.com/FChecklist/compliance-tracker/pull/814
+
+## Remaining
+- [ ] Get CI green (docs-only diff; Vercel preview-rate-limit failure expected/unrelated per this
+      repo's established pattern) and an independent `AUDIT: PASS`/`FAIL` comment per Rule 7(c)/10,
+      then merge. Not this task's to force.
+- [ ] No testing, fixing, or certification performed or expected this cycle -- real per-role testing
+      against the amended table is future dispatched work, not this task's to perform.
