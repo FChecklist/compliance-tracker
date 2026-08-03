@@ -742,3 +742,43 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None -- ready for re-review, real content already independently confirmed sound by the prior audit round
+
+# PROGRESS -- task-20260803-080659-correct-real-ocid-number-mislabeling-in
+
+Real PM decision (citing `UMR-20260803-041211-b7b7` OCID-027, `UMR-20260803-041257-e9c3` OCID-028,
+`UMR-20260803-041459-7c97` OCID-030): correct the PR-title mislabeling on PRs #771/#772/#774 and any
+matching internal OCID self-citation inside each PR's own diff.
+
+## Completed
+- [x] Independently re-verified all three PRs' *current* titles directly via `gh api .../events`
+      (`renamed` events) before touching anything -- found the PR-title half of this SPEC's ask was
+      **already done**, by a prior session, at `2026-08-03T05:22:14-15Z` (well before this task's own
+      `08:06:59Z` start): #771 -> `OCID-20260803-027`, #772 -> `OCID-20260803-030`, #774 ->
+      `OCID-20260803-028`. Not redone -- would have been a no-op edit against the SPEC's own stale
+      snapshot of the mislabeled state (same class as the documented live-concurrent-state-drift risk).
+- [x] Checked each PR's own real diff for internal OCID self-citations matching the same mislabel class:
+  - [x] PR #771 (`VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`,
+        `MASTER_INDEX.yaml`, `IMPLEMENTATION_MATRIX_2026-08-02.md`): no self-mislabel found -- doc has no
+        bare self-citation header, and every existing "OCID-026"/"OCID-027" mention is either legitimate
+        parent-chain citation or an already-correct, already-resolved numbering-note narrative.
+  - [x] PR #774 (`VERIDIAN_UNIFIED_SYNCHRONIZATION_RUNTIME_2026-08-03.md`): no self-mislabel found --
+        same pattern, all "OCID-027"/"OCID-028" mentions are correct parent citations or an
+        already-resolved numbering note.
+  - [x] PR #772 (`VERIDIAN_UNIVERSAL_DECISION_ENGINE_2026-08-03.md` + `OS.yaml`): found a **real,
+        unfixed internal mislabel** the two prior in-PR fix commits (`ae2ee1f8`, `2f6d2457`) missed --
+        the doc's own `**UMR:**` header line and its "Canonical artifact and UMR chain" closing section
+        both still self-cited `(OCID-029, ...)`, and `ai-os/OS.yaml`'s canonical-artifact index entry for
+        that same doc still had `covers: "OCID-029 (...)"`, untouched since the PR's original commit.
+- [x] While preparing the fix, PR #772 was **merged by a concurrent autonomous process
+      (`7f8613c3`, `2026-08-03T08:13:24Z`) before my fix commit could land** on its branch (my push at
+      ~08:14:56Z arrived ~90s too late and is now an orphaned branch-tip, disconnected from the merged
+      PR). Genuine race, not a mistake to redo differently -- consistent with this repo's documented
+      autonomous-merge posture. Since `main` is protected (Rule 6, PR/CI gate, no direct push), opened a
+      **new** follow-up branch off current `main` (`fix/ocid-030-internal-citation-followup`) carrying the
+      same 3 corrections (doc header, doc closing section, `OS.yaml` covers field), all still OCID-029 ->
+      OCID-030, no other content touched.
+- [x] Verified no other new-document or OS.yaml/MASTER_INDEX.yaml self-citation issues exist for any of
+      the three PRs beyond the three found above.
+
+## Remaining
+- [ ] Open the follow-up PR for `fix/ocid-030-internal-citation-followup`, let CI run, confirm merge.
