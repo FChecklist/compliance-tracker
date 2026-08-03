@@ -40,8 +40,8 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-071115-ocid-038-veridian-unified-platform-integ) -- OCID-038 real platform discovery + honest E2E integration certification, discovery/gap-analysis only [IN PROGRESS]"
-    claimed_at: "2026-08-03T07:15Z (this session)"
+  - session_label: "claude-code (task-20260803-071115-ocid-038-veridian-unified-platform-integ) -- OCID-038 real platform discovery + honest E2E integration certification, discovery/gap-analysis only [PUSHED, PR #786 OPEN]"
+    claimed_at: "2026-08-03T07:15Z (this session, PR opened same session)"
     claim: |
       SPEC (this task's own prompt.txt, tier 1, parent UMR-20260803-042230-180c real OCID-037,
       citing the full UMR-20260803-040844-4a33..UMR-20260803-042230-180c / OCID-022..037 chain,

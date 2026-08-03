@@ -677,7 +677,9 @@ prior cycle") since the spec is the only source for what it denotes.
 - [x] Registered canonical artifact in ai-os/OS.yaml index
 - [x] No implementation performed -- SEC-07 lock (pending OCID-020) fully respected
 
+- [x] Committed, pushed, opened PR #786 (https://github.com/FChecklist/compliance-tracker/pull/786)
+
 ## Remaining
-- [ ] Commit, push, open PR
+- [ ] PR #786 merge (blocked on CI + no dedicated human reviewer per AGENTS.md Rule 6 -- will merge once green)
 - [ ] Move ACTIVE-CLAIMS.yaml entry from active: to recently_completed: once merged
-- [ ] Handoff ready for OCID-039 (per this document's own Section 8)
+- [ ] Handoff ready for OCID-039 (per this document's own Section 8) -- real, live upstream gate: OCID-020 (UMR-20260802-165606-4413) still open
