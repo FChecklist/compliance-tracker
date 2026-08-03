@@ -1899,3 +1899,7 @@ complete via PR #843), `UMR-20260803-115558-170e` (OCID-051, this task's own sub
       complete.
 - [ ] Nothing further to test under OCID-051 -- zero new gaps were found by PR #844's real
       execution.
+- [ ] This task's own PR (#845, docs-only: resolves the merge conflict against PR #844 and records
+      this session's independent-verification/audit work) still needs an independent auditor per
+      Rule 7c -- this session authored it and cannot self-certify its own `AUDIT: PASS`/`FAIL`
+      comment. Left for a future session/the PM to audit and merge.
