@@ -1618,3 +1618,44 @@ OCID-050).
       (a real large-data-volume org does not yet exist) -- not this task's to create.
 - [ ] TASK-050-0 (commit the nav fixture as a durable repo file, currently host-local `/tmp` only)
       remains open.
+
+---
+
+# PROGRESS -- docs/umr-utr-euid-discovery-vs-live-system
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-20260803-175139-dedf`.
+
+## Completed
+- [x] Read `/opt/veridian/scripts/resource_governor.py` and `superboss-register.py` directly (not
+      narrated). Confirmed the real live database (`superboss-register.sqlite`, 776MB, active WAL)
+      and the real, current schemas of `instructions`/`work_items`/`actions`/`system_index`/
+      `umr_tasks`, cited file:line.
+- [x] **Found and flagged a real naming collision**: `utm_source`/`utm_medium`/`utm_campaign`/
+      `utm_content`/`utm_term` are already real, live columns across those tables -- a deliberate,
+      Owner-specified internal provenance-tagging convention (documented in the script's own header),
+      not marketing data, but genuinely a different concept from the newly-proposed task-registry
+      model, colliding on the same 3-letter abbreviation.
+- [x] Searched thoroughly for a "registry terminology audit" connected to PR #610 -- found none;
+      PR #610 is real but unrelated (a Sales Pipeline Dashboard nav-link change). Reported honestly
+      that no such audit exists, rather than guessing or fabricating one.
+- [x] Did NOT rename/restructure any existing `utm_*` column; did NOT create any new table/schema
+      for the proposed concept -- discovery only, per explicit instruction.
+- [x] Per the Owner's own follow-up resolution (`UMR-20260803-175139-dedf`): the new concept is
+      renamed UTR ("Universal Task Registry"), not UTM. Independently re-verified (not trusted from
+      the PM message) that "UTR" is genuinely unused anywhere in `resource_governor.py`,
+      `superboss-register.py`, or this repo's `ai-os/` tree before writing it into the canonical
+      artifact.
+- [x] Investigated whether UTR or EUID already exist under different names -- confirmed both are
+      real, honest gaps, not hidden duplicates: no structured 6-context task schema exists today
+      (only a freeform `metadata_json` blob on `work_items`/`actions`); no unified brand+org+user
+      identity object exists, and EUID's "synced across... PWA" requirement is specifically blocked
+      by OCID-051's already-confirmed zero-service-worker finding.
+- [x] Wrote `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md`, registered in
+      `ai-os/OS.yaml` following the existing pattern.
+
+## Remaining
+- [ ] No implementation authorized or performed -- real UTR/EUID design + build remain future,
+      separate PM decisions, explicitly out of this document's scope.
+- [ ] The open question about whether every `[UMR-...]`-tagged PM dispatch message this session
+      corresponds 1:1 to a real `umr_tasks` row was not independently confirmed -- flagged honestly
+      as unverified, not blocking, per the Owner's own "UMR stays unchanged" resolution.
