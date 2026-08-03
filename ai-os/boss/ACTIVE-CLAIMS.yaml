@@ -40,6 +40,26 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
+    claimed_at: "2026-08-03T08:56Z (this session)"
+    claim: |
+      SPEC (real PM decision, tier1, parented to OCID-043 `UMR-20260803-084429-7a70`, itself
+      registered this same cycle per PR #793 / commit 8cdbe5ea, discovery-only): the
+      registration amendment in `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (2026-08-03) already
+      assigned OCID-044 its real UMR (`UMR-20260803-084547-22fd`) and mission statement, but its
+      own closing note is explicit that "zero canonical artifact produced" for any of
+      OCID-041..044 -- this task performs that still-undone substantive discovery: a real
+      inventory of the existing review engine, audit engine, PR lifecycle, commit lifecycle,
+      merge lifecycle, lock framework, and knowledge registry a future result-verification-and-
+      reintegration runtime would reuse, and a canonical artifact documenting the mapping plus
+      honest gaps. Discovery/documentation only, per SEC-07 -- no review/audit runtime change,
+      no `CONSTITUTION.yaml` change, no result-verification code path wired, OCID-044 not marked
+      complete. Explicitly defers to OCID-041/042/043's own discovery once dispatched (none of
+      the three had a dedicated canonical artifact as of this claim).
+    scope_note: >-
+      File scope: new file `ai-os/VERIDIAN_UNIVERSAL_RESULT_VERIFICATION_AND_REINTEGRATION_RUNTIME_2026-08-03.md`,
+      `ai-os/OS.yaml` (index registration), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, or CI changes.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
