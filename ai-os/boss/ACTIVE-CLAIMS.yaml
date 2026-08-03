@@ -175,16 +175,40 @@ active:
       `origin/main`, not by trusting the PR body) and merged
       2026-08-02T22:30:58Z.
 
-      Remaining real work: resume the broader OCID-020 certification sweep
-      per the original PM spec (multi-tenant, multi-brand,
-      first-time-onboarding, cache/search, remaining nav surface) --  not
-      yet started this session.
+      UPDATE 3 (this session, resumed invocation 3/20): resumed the broader
+      certification sweep. Multi-tenant isolation live-confirmed
+      (see prior update in this file / PROGRESS.md). Multi-brand
+      (white-label branding) live-tested -- real, org-scoped, tenant-isolated,
+      no bug (the one known gap here, anonymous-landing-page brand
+      resolution, is already tracked from Wave 10 -- not rediscovered).
+      First-time-onboarding check surfaced a SECOND real, independent,
+      high-severity production 500 (distinct root cause from Finding A):
+      `GET /api/email-intelligence` 500'd for every user due to real
+      migrations-ledger/live-schema drift -- `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`
+      recorded as applied in `drizzle.__drizzle_migrations` (journal idx 261)
+      but its DDL had never actually run on the live DB (`42703 column
+      "promoted_ticket_id" does not exist`, plus 6 missing tables). Root-caused
+      directly against the real live DB, fixed by applying that already-merged,
+      fully idempotent migration SQL live, verified via `information_schema`
+      + an independent retest of the exact crashing flow (fresh signup -> real
+      200), and independently re-verified end-to-end by a separate,
+      non-self-certifying auditor subagent (own scripts, own fresh test
+      account, own bounded drift spot-check across 9 other migrations --
+      found no second instance of this specific "recorded-applied-but-never-ran"
+      pattern). Full doer+auditor writeup: `ai-os/boss/COMPLETED.yaml` id
+      `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`. Details/evidence:
+      `PROGRESS.md`.
+
+      Remaining real work: cache and search, remaining nav surface, and (if
+      cleanly reproduced with slower/non-rapid-fire requests) the
+      inconclusive auth-flakiness observation flagged earlier in this file
+      -- not yet started.
     scope_note: >-
-      No file changes of its own beyond this ACTIVE-CLAIMS entry and
-      `PROGRESS.md` -- the actual fix landed via PR #740/#742 from a
-      parallel session. This session's remaining scope is resuming the
-      broader certification sweep (read-only against the deployed app, plus
-      incremental findings docs).
+      This session has now made real live changes beyond docs: one live DB
+      migration apply (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`, no PR --
+      a DB-only action, same class as WAVE-10-REDO) fixing a real second
+      production 500. The original Finding A fix still landed via PR
+      #740/#742 from a parallel session, not this one.
   - session_label: "claude-code (task-20260802-190820-resume-real-ocid-020-certification--usin) -- Resume real OCID-020 end-user certification of PROJEXA-AI.COM (UMR-20260802-165606-4413), per Owner directive UMR-20260802-181025-0d4b (stand-down/resume decision for the prior stuck worker)"
     claimed_at: "2026-08-02T19:30Z (this session)"
     claim: |

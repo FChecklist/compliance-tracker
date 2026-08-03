@@ -2943,3 +2943,92 @@ entries:
 
         ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md item 12 (Go Live) corrected to reflect this in a
         separate real commit, cited under UMR-20260802-104058-25ba.
+  - id: MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX
+    title: "Live migrations-ledger/schema drift: drizzle/0264_helpdesk_tiered_sla_team_routing.sql recorded as applied but never actually ran on the live DB -- real production 500 on GET /api/email-intelligence, now fixed and independently reverified"
+    doer:
+      agent: "claude-code (task-20260802-210700-pm-decision--fix-the-real-high-severity, live infra action against Supabase Postgres, no PR -- same class of action as WAVE-10-REDO above, documented here per that entry's own precedent)"
+      date: "2026-08-03"
+      pr: "None -- live DB migration apply, not a code change. drizzle/0264_helpdesk_tiered_sla_team_routing.sql itself was already committed/merged in an earlier wave (Helpdesk gap-closure Phase 0, 2026-07-27); this entry documents applying its already-reviewed SQL to the live DB where it had silently never taken effect."
+      summary: >
+        Cites `UMR-20260802-165606-4413` (this task's own PM-decision thread) --
+        found while continuing the broader real certification sweep the PM
+        decision asked to resume after the departments-500 fix (first-time-
+        onboarding check on a fresh self-signup org).
+
+        REAL FINDING: navigating a brand-new fresh-signup org to `/compliance`
+        threw a real live `console.error: Failed to load resource: the server
+        responded with a status of 500` on `GET /api/email-intelligence`
+        (real body: `{"error":"Failed to fetch email intelligence items"}`).
+        Root-caused directly (not narrated) by reproducing the exact Drizzle
+        query `db.query.emailIntelligenceItems.findMany({where, orderBy})`
+        (verbatim from `listEmailIntelligenceItems()`,
+        `src/lib/services/email-intelligence-service.ts:65-69`) against the
+        real live DB (`DATABASE_URL` from `compliance-tracker/.env.local`):
+        real Postgres error `42703 column "promoted_ticket_id" does not
+        exist`. Confirmed via `information_schema.columns` that
+        `compliance.email_intelligence_items` on the LIVE database is
+        missing that column, plus ALL of
+        `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`'s other DDL
+        (`ticket_teams`, `business_hours_schedules`, `sla_policies`,
+        `escalation_rules`, `ticket_escalation_events`,
+        `public_ticket_submission_attempts` tables;
+        `tickets.team_id`/`sla_policy_id`/`requester_email`;
+        `knowledge_base_pages.is_published`) -- despite
+        `drizzle.__drizzle_migrations` recording this exact migration (journal
+        idx 261, tag `0264_helpdesk_tiered_sla_team_routing`) as already
+        applied. This is real, currently-live-in-production schema drift
+        between the migrations ledger and the actual database, not a normal
+        "migration backlog not yet pushed" situation -- the ledger actively
+        claims something happened that demonstrably didn't. Real product
+        impact beyond the one route reproduced here: Helpdesk's tiered
+        SLA/team routing (`ticket-service.ts`'s
+        `resolveSlaPolicy`/`computeSlaDeadline`/`checkTicketEscalations`),
+        email-to-ticket promotion
+        (`createTicketFromEmailIntelligenceItem`), and the public
+        self-service portal / KB-publish flow were all live-broken by the
+        same missing DDL.
+
+        REAL FIX: applied `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`
+        directly against the live DB via `DATABASE_URL` (the file is fully
+        additive/idempotent throughout -- `ADD COLUMN IF NOT EXISTS`,
+        `CREATE TABLE IF NOT EXISTS`, `CREATE INDEX IF NOT EXISTS`, and
+        `DO $$ ... EXCEPTION WHEN duplicate_object THEN NULL; END $$` around
+        every `CREATE POLICY`, so nothing destructive and safe to run
+        again). Did not touch the `drizzle.__drizzle_migrations` ledger row
+        (already present, so applying the DDL makes the live DB finally
+        match what the ledger already claimed).
+
+        VERIFIED LIVE, NOT NARRATED: re-ran `information_schema.columns`/
+        `information_schema.tables` post-apply -- all 3 columns and all 6
+        tables now present. Independently retested the EXACT SAME real flow
+        that crashed: fresh self-signup org (real Supabase Admin API
+        signup, `email_confirm: true`, real login on `https://projexa-ai.com`)
+        -> `GET /api/email-intelligence` -> real `200 {"items":[]}`, not the
+        old 500.
+      auditor:
+        agent: "general-purpose subagent (independent, spawned specifically not to self-certify a production DB mutation), same session"
+        date: "2026-08-03"
+        verdict: pass
+        summary: >
+          Independently re-derived every claim from scratch, not by trusting
+          the doer's script output: read `0264_helpdesk_tiered_sla_team_routing.sql`
+          directly to know the expected DDL; wrote its own throwaway query
+          script against `DATABASE_URL` and confirmed all 3 columns + all 6
+          tables + RLS policies now exist live; independently created a
+          brand-new Supabase test user via the Admin API, logged into
+          `https://projexa-ai.com` for real via Playwright/Chromium, and
+          confirmed `GET /api/email-intelligence` returns a real live `200
+          {"items":[]}`, cross-checking against the route's source to confirm
+          the query still executes (not short-circuited by a no-org
+          fast path). Also ran a bounded (not exhaustive) spot-check across
+          9 other migrations spread through the journal (0038-0311) for the
+          same "ledger says applied, DDL never ran" failure mode -- found
+          none; the only other gap in that sample (`0300_stage12_dispatch_outcomes.sql`
+          / `platform.dispatch_outcomes`, live-absent) was a different,
+          non-anomalous class (never recorded as applied at all, i.e.
+          ordinary not-yet-deployed backlog, not silent-ledger-drift) and is
+          not filed as a new gap here. One hygiene note, not a functional
+          issue: the auditor's own throwaway test user's Admin-API delete
+          call returned a transient 500, so an extra `audit-test-*@example.com`
+          account may remain in the live DB -- harmless real test data, flagged
+          for cleanup, not a product bug.
