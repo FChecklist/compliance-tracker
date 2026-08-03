@@ -1040,3 +1040,47 @@ Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (`SEC-06`, stat
 merge commit cited), `ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced,
 not falsely closed; new `GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE`), `ai-os/boss/COMPLETED.yaml`
 (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) — not rewritten, not duplicated.
+
+## Amendment (2026-08-03): OCID-20260803-025 — VERIDIAN Mobile PWA and VERI Chat Runtime v1.0
+
+Real, Owner-directed, tier 1 directive, documentation only — no implementation. Parented to
+`UMR-20260803-041000-70ae` (cited by the task's own spec as "OCID-024, just registered"),
+citing `UMR-20260803-040929-9713` (OCID-023), `UMR-20260803-040844-4a33` (OCID-022),
+`UMR-20260802-173631-ca85` (ERP Functional Completeness Master Program), `UMR-20260802-165606-4413`
+(OCID-020), `UMR-20260802-164659-9a31` (traceability audit), `UMR-20260802-165034-5747`
+(gatekeeper rule), `UMR-20260802-165434-cd91` (unified project memory), `UMR-20260802-165541-c27d`
+(recovery framework).
+
+**Canonical artifact**: `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` — a
+36-section inventory of the real, already-existing mobile PWA (`src/app/manifest.ts`, real
+installable share-target PWA), VERI Chat (`VeriComposer.tsx`, `chat-service.ts`, the full
+`api/veri-chat/*` surface), VERI the assistant (invite-only participation, never proactive),
+mode pills / Chain Selector (`capability-tree-service.ts`, `dynamic_chains` table), the
+software-first AI escalation gate (`llm-routing-gate.ts` → `ai-reply-gate.ts`), the
+deterministic task model (`tasks.resolvedWorkerAgentId`/`dynamicChainId`), and — the section
+requiring the most honest disclosure — offline/cache/sync/push/session-recovery, where real
+findings diverge sharply by area: a real IndexedDB composer-history cache
+(`browser-intent-cache.ts`) and a real conflict-resolution primitive (`sync-engine.ts`'s
+`coalesceQueuedChanges()`) exist but are largely unwired to any live Service Worker or push
+mechanism, which **does not exist at all** in this repo (zero `Notification`/`pushManager`/VAPID
+hits). One genuinely working offline-capture flow (photo + work-progress queueing) exists, but
+in the sibling `projexa` repo, not here — and its own code discloses that queued photos aren't
+uploaded on sync today due to a real, disclosed cross-repo gap (no photo column/endpoint on
+`constructionWorkProgressEntries`). Cross-references `ai-os/REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md`'s
+own already-open findings (CSV #106/#1792/#1793/#1794 — responsive scaling, offline resilience,
+touch-target sizing, mobile perf) rather than re-deriving or contradicting them.
+
+**Disclosed concurrency note**: sibling sessions for OCID-022/023/024 were genuinely concurrent,
+still `in_progress` at the time this document was written — see this document's own "Disclosed
+concurrency note" section and `ai-os/boss/ACTIVE-CLAIMS.yaml` for the full record. This entry's
+content has no hard read-dependency on those siblings' text.
+
+**Status:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-20260803-025 | `UMR-20260803-041000-70ae` (parent) | VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 | **Documentation complete** — canonical artifact created; no implementation performed or proposed, per this task's own prohibition. Real, disclosed gaps (background sync, push notifications, session recovery, general offline data layer, mobile touch/perf hardening) left open for a future implementation OCID. |
+
+Canonical artifact updated: `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` (new
+file), this file (this amendment), `ai-os/MASTER_INDEX.yaml` / `ai-os/OS.yaml` (registration) —
+not rewritten, not duplicated.
