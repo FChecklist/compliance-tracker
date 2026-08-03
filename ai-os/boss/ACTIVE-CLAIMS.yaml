@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-103115-pm-decision--authorize-real-fix-of-gap-4, UMR-20260802-165606-4413) -- GAP-403-VS-500-CLM-HR-PERFORMANCE real fix"
+    claimed_at: "2026-08-03T10:31Z (this session)"
+    claim: |
+      PM decision (SPEC) authorizes proceeding to fix GAP-403-VS-500-CLM-HR-PERFORMANCE:
+      GET /api/clm/templates, GET /api/clm/clauses, GET /api/hr/attendance (3 query-param
+      variants), GET /api/performance-reviews/reviews all return 500 instead of 403 for a
+      module-not-enabled org. First step: determine whether this shares
+      MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX's root cause (migration recorded but never
+      applied on prod) or is a distinct missing-requireErpEnabled-style-gate issue, then
+      apply the genuinely correct fix, then live-retest all 5 endpoints against the real
+      site, then update MASTER-TRACKER.yaml honestly.
+    scope_note: >-
+      Expected file scope: src/app/api/clm/templates/**, src/app/api/clm/clauses/**,
+      src/app/api/hr/attendance/**, src/app/api/performance-reviews/reviews/**, possibly a
+      live migration reapply (no schema-file changes) if root cause is migration drift,
+      ai-os/MASTER-TRACKER.yaml, PROGRESS.md. Not touching OCID-021 ERP functional-
+      completeness lock scope (Group C-E) -- this is a real defect fix under OCID-020's own
+      live certification mandate. Checked: no other active: entry currently claims this gap
+      id or these exact routes as of this session's start.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
