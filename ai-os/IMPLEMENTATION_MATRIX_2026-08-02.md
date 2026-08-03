@@ -214,7 +214,7 @@ bounded list, not an open-ended exploration.
 | **A. Reports completion** | Close the 43 remaining SAP-equivalent reports | 29 EXTEND_EXISTING + 14 BUILD_NEW, named rows in `sap_mapping.sqlite` | `sap_mapping.sqlite` + item 3 of this matrix | Yes | `104058-25ba` |
 | **B. Prompt Library completion** | Reach the 10,000-prompt target | 9,999 real prompts remain, ~42 manual Owner-driven ChatGPT-paste cycles | `chatgpt-prompt-library/CSV/` + item 4 | **No** — real external human bottleneck (Owner-dependent manual step), not AI-executable end to end | `104058-25ba` |
 | **C. E2E CI-gate wiring** | Make the 22 real Playwright specs run on every PR | Add one CI job to `projexa/.github/workflows/ci.yml` | `projexa/.github/workflows/ci.yml` + item 11 | Yes | `104058-25ba` |
-| **D. Multi-tenant RLS table-by-table verification** | Prove RLS coverage beyond the current app-layer test | Build a real DB-level cross-org leak test against existing tenant-scoped tables | `src/lib/services/tenant-isolation.test.ts` + item 8 | Yes, if scoped to *existing* tables only | `104058-25ba` |
+| **D. Multi-tenant RLS table-by-table verification** | Prove RLS coverage beyond the current app-layer test | Build a real DB-level cross-org leak test against existing tenant-scoped tables | `src/lib/services/tenant-isolation.test.ts` + item 8; real task breakdown now registered as `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md` (2026-08-03 amendment below) | Yes, if scoped to *existing* tables only | `104058-25ba` |
 | **E. Multi-brand real build-out** | Make stored brand fields actually render + real domain routing | Hostname-to-brand resolution for anon pages, DNS/TLS custom-domain routing — real scope not yet fully defined | `org-branding-service.ts` + item 9 | **No** — needs its own scoping pass before it can be called close-ended | `104058-25ba` |
 | **F. Web Browser engine live-wiring** | Connect built+tested NPU/WebLLM/Transformers engines into the real chat send path | Wire `tier-orchestrator.ts` into `VeriComposer.tsx`'s send handler | `src/lib/browser-execution/*` + item 5 | Yes | `104058-25ba` |
 | **G. VERI Chat task-level AI-reply** | Give `/api/tasks/[id]/chat` the same real LLM generation `/api/conversations/[id]/messages` already has | One route, one real gap, named | `src/app/api/tasks/[id]/chat/route.ts` + item 6 | Yes | `104058-25ba` |
@@ -1304,3 +1304,26 @@ queued under this OCID's name at write time).
 Canonical artifact: this file (this amendment) only — no new document created this cycle, since the
 substantive OCID-041 through OCID-046 discovery artifacts remain genuinely undone, not yet duplicated or
 speculatively authored ahead of their own real dependency chain.
+
+---
+
+## Amendment (2026-08-03): OCID-048 registered — Multi Organization/Tenant/Brand Isolation
+## Certification task breakdown, planning only, direct child of OCID-020
+
+Real directive, `UMR-20260803-120905-029c` (this task's own, `task-20260803-120306-register-ocid-
+048-multi-organization-mul`), parented **directly to `UMR-20260802-165606-4413` (OCID-020)** — not
+to the OCID-041–046 external-execution chain above. OCID-020 has a newly-opened "Business
+Certification" phase (first named by this task's own dispatch prompt); OCID-048 is its first
+registered child.
+
+Unlike OCID-041–046 (future-runtime design work, still entirely at registration-only), OCID-048
+produces a real substantive artifact this same cycle: a 6-task deterministic breakdown (T1–T6) for
+certifying the organization/tenant/brand isolation VERIDIAN **already has built and live** —
+explicitly reusing this file's own Stream D (row above) and the Org A/Org B `/api/departments`-only
+probe already flagged "still open" in `PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`,
+rather than re-deriving or duplicating either. Planning only — no test executed, no org created, no
+certification issued this cycle, consistent with `SEC-07`'s discovery/planning permission.
+
+Canonical artifact: `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_
+BREAKDOWN_2026-08-03.md` (new file), this amendment, `ai-os/OS.yaml` (registration),
+`ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`.
