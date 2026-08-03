@@ -1062,3 +1062,32 @@ OCID-023's own dispatched worker). The real gate every directive in this chain a
 OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): OCID-026, VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 (`UMR-20260803-041047-03ee`)
+
+Documentation-only artifact, consistent with `SEC-07`'s implementation lock (`ai-os/CONSTITUTION.yaml:652-656`),
+which permits discovery and matrix-building to continue while implementation/gap-closure/production
+work stays gated on the real OCID-020 unlock. Answers three questions -- how VERIDIAN software decides,
+when AI is invoked, when AI shall never be invoked -- grounded entirely in real, already-built mechanisms
+found by three parallel discovery passes against the live `compliance-tracker` repo: the Mother Router
+(`src/lib/ai-router/mother-router.ts`) and `model-tier-eligibility.ts` tier gate, `guardrail-engine.ts`'s
+deterministic rule engine, `report-engine-service.ts`'s four execution types (a real, already-built
+precedent for the exact software-vs-AI-decides pattern this document needed), VERI Chat/mode pills/Chain
+Selector (the real name for what this OCID's directive called "option chain" -- no such term exists in
+the codebase), and the `credit-accountant.py`/`system_index` search-before-build enforcement chain. No
+new architecture, prompt system, rule engine, or library was created -- every section cites and extends
+real, existing code. Six honest gaps surfaced during discovery (unwired composer attachment button,
+not-yet-built `TaskDocumentScreen.tsx`, no live voice-dictation control, uncommitted function-catalog
+artifact, no top-line AI-escalation performance-target SLA, aspirational-not-built cross-brand shared
+library) are recorded in the new document's own "Known Honest Gaps" section rather than glossed over.
+
+Also flagged, same honesty standard as OCID-040's OCID-021/036 corrections: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
+own guess for OCID-026's title ("VERIDIAN Global Knowledge Discovery and Reuse Runtime") does not match
+this task's real, directly-issued directive title ("VERIDIAN Deterministic Execution and AI Escalation
+Runtime") -- proceeded on the real directive text as authoritative, noted rather than silently resolved.
+
+Canonical artifact created: `ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md`
+(new). Amends this file and `ai-os/OS.yaml` (index-coverage entry) -- not rewritten, not duplicated. Ready
+for handoff to OCID-027.

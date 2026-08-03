@@ -14,11 +14,14 @@ OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
       (2) VERI Chat/mode pills/option chain/voice/attachment/input normalization
       (3) function/report/analysis libraries, global reuse index, credit-accountant precedent
 
+- [x] Synthesized discovery findings from all 3 agents
+- [x] Drafted ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md (36 sections
+      per mandate, all grounded in real file:line citations, 6 honest gaps disclosed)
+- [x] Amended ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md with UMR chain entry
+- [x] Added ai-os/OS.yaml index-coverage entry, verified locally via check-metadata-index-coverage.mjs
+      (passed: 120 governance items accounted for)
+- [x] Committed + pushed
+
 ## Remaining
-- [ ] Synthesize discovery findings
-- [ ] Draft VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md
-- [ ] Amend ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md with UMR chain entry
-- [ ] Commit + push draft
-- [ ] Move ACTIVE-CLAIMS.yaml entry from active to recently_completed (or update on close)
 - [ ] Open PR
 - [ ] Report canonical artifact location + updated UMR + OCID-027 handoff confirmation
