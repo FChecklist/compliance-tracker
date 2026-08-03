@@ -1468,3 +1468,36 @@ has eased. Relates to `UMR-20260802-165606-4413` OCID-020 and `UMR-20260803-1155
 - [ ] Consider re-adding PR #825's unique `fraud-cases`/`legal-matters` API-level isolation coverage
       as a small follow-up once #826 merges, per that PR's own closing comment -- not this task's
       scope, noting it here so it isn't lost.
+
+---
+# PROGRESS -- task-20260803-161032-pm-decision--resolve-pr-826-merge-confli
+
+## Completed
+- [x] Read AGENTS.md / CONSTITUTION.yaml governance context, verified PR #826 state via `gh pr view`
+      (mergeable: CONFLICTING, mergeStateStatus: DIRTY, head `worker/task-20260803-151937-...`, base `main`)
+- [x] Confirmed no colliding active claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`; registered this session's own claim
+- [x] Identified conflict source: both PR #826's commit and `main`'s newer tip (`b669c15e`) independently
+      append to `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml` -- pure content-addition conflicts, no
+      logic/schema conflicts
+- [x] Checked out PR #826's branch fresh to resolve the conflict -- found it had ALREADY been resolved: a
+      merge commit `6116cd5d` ("Merge remote-tracking branch 'origin/main' into HEAD", authored
+      2026-08-03T16:11:49Z, ~1 minute after this session's own claim-registration push) already merges
+      `main`'s tip `b669c15e` into the PR's `e45a2ffc`, cleanly incorporating BOTH sides' real additions
+      (verified via `git diff --stat` against both parents -- 201 lines from the PR side, 228 lines from
+      main's side, zero content dropped from either; no leftover `<<<<<<<`/`=======`/`>>>>>>>` markers in
+      `PROGRESS.md` or `ai-os/boss/ACTIVE-CLAIMS.yaml`). Live concurrent-session drift (per
+      `[[veridian-live-concurrent-state-drift]]`) -- did NOT redo this work.
+- [x] Independently verified via `git merge-base --is-ancestor origin/main HEAD` (with `origin/main`
+      freshly fetched) -- confirmed clean: `origin/main` IS an ancestor of PR #826's branch HEAD.
+- [x] Confirmed via `gh pr view 826`: `mergeable` is now `MERGEABLE` (was `CONFLICTING`). The conflict
+      itself is genuinely resolved.
+- [x] Moved this session's ACTIVE-CLAIMS entry to `recently_completed`
+
+## Remaining
+- [ ] None for this task's own scope (merge-conflict resolution only). Note for the record, NOT this
+      task's to fix: `gh pr checks 826` shows `mergeStateStatus: BLOCKED`, not clean -- but the block is
+      from an unrelated, pre-existing gate, not the conflict: the mandatory `audit-check` job
+      (`scripts/validate-audit-verdict.ts`, Rule 10) fails with "No structured audit verdict found" (needs
+      an `AUDIT: PASS`/`AUDIT: FAIL` PR comment), and `Build`/`Vercel` were still `pending` at last check.
+      Out of this SPEC's scope (which was the conflict only) -- flagging honestly rather than silently
+      declaring the PR fully mergeable.
