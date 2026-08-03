@@ -5015,6 +5015,47 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-120310-register-ocid-049-subscription-plan-enti) -- OCID-049 Subscription Plan Entitlement Certification, planning only, child of OCID-020 Business Certification [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing UMR-20260802-165606-4413, OCID-020): register OCID-049 as
+      a real child of OCID-020's newly-opened Business Certification phase (first registration of that
+      phase name anywhere in this repo -- confirmed via grep). Planning only, per SEC-07 -- no
+      implementation, no testing, no certification performed.
+
+      Zero-duplication check performed first, per this task's own instruction ("check resource_governor
+      before creating any sub-task"): `resource_governor.py --query-umr --search` for "OCID-049",
+      "entitlement", and this task's own identity ("register-ocid-049") each returned 0 matches; a direct
+      sqlite query against `superboss-register.sqlite`'s `umr_tasks` table for any row in this task's own
+      creation minute also returned 0 rows -- this task's own dispatch has no resource_governor-tracked
+      UMR (an honest, stated limitation, not fabricated). `grep -rn "OCID-049"` / `"Business
+      Certification"` across `ai-os/` also returned 0 prior matches.
+
+      Real discovery performed (not assumed): identified the real, existing `compliance.subscription_plans`
+      model this OCID is scoped to (4 seeded tiers -- Basic/Standard/Professional/Enterprise --
+      `drizzle/0231_ai_router_mother_router.sql`) and explicitly disambiguated it from 3 real but distinct
+      adjacent mechanisms already in this codebase (`organisations.plan` trial flag, `licensedSeats`
+      manual seat cap, product-branch module enablement -- the last of which is where this same session's
+      `ModuleNotEnabledCard`/`ServiceError` 403 explanation pattern, GAP-ERP-CRM-403-NO-UX-EXPLANATION PR
+      #809, actually lives). Honestly mapped what's really wired today (`features.aiPackage` ->
+      `mother-router.ts`'s `getOrgAiPackage()` -> `ai_routing_policies.preferredModelByPackage`, real but
+      dormant -- zero seeded policy rows exercise it) vs. schema-only (`assistants_per_user`, confirmed via
+      `git grep` to have zero consumers anywhere in `src/`). Produced a 5-task deterministic breakdown
+      (A-E) and a per-tier test path reusing the existing explanation pattern, as this OCID's own mission
+      required -- no new plan model, no new billing architecture, no code/schema/DB changes.
+
+      Canonical artifact: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`.
+      Registered in `ai-os/OS.yaml` (index entry) and `ai-os/MASTER-TRACKER.yaml`
+      (`real_gaps_not_yet_built.GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT`, `status: open`, pending
+      Owner unlock of implementation for this OCID).
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md` (new file),
+      `ai-os/OS.yaml` (amended), `ai-os/MASTER-TRACKER.yaml` (amended), this ACTIVE-CLAIMS.yaml entry,
+      `PROGRESS.md`. No `src/`, schema, migration, or CI changes -- documentation/planning only, per
+      SEC-07 and this task's own explicit "do not test, do not fix" instruction. Could not run
+      `scripts/check-metadata-index-coverage.mjs` locally (this workspace has no installed
+      `node_modules`/`bun` binary) -- registered the new file in `OS.yaml` by hand, matching the existing
+      entry format exactly; CI's own run of that check is the real verification.
   - session_label: "claude-code (task-20260803-050456-ocid-027-veridian-global-knowledge-disco) -- VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0, documentation only [DONE]"
     claimed_at: "2026-08-03T05:05Z (this session, closed same session)"
     claim: |
