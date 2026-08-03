@@ -5223,6 +5223,48 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-201239-pm-confirmation-to-proceed-with-ocid-051) -- OCID-051 real execution: found already-done in PR #844, independently verified, posted required audit verdict [DONE, docs-only, no PR of its own]"
+    claimed_at: "2026-08-03T20:12Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision citing UMR-20260802-165606-4413 OCID-020, UMR-20260803-115534-af31 OCID-050,
+      UMR-20260803-115558-170e OCID-051): OCID-050 confirmed genuinely complete via PR #843, proceed
+      with OCID-051 real testing execution now (cross-surface certification, browser completeness +
+      Mobile PWA), reuse existing infrastructure, honest findings, register (don't sudo-workaround)
+      the Chromium missing-libs blocker if it affects anything.
+
+      Independently re-verified the SPEC's premise first, per standing rule: `git log origin/main`
+      confirms `8b7d03c8` (PR #843) is genuinely the tip of `origin/main` -- OCID-050 is real and
+      complete.
+
+      Real duplicate-dispatch collision found via `gh pr list` (this file's own protocol, checked
+      before starting real work): PR #844 (`docs/ocid051-cross-surface-certification-complete`),
+      opened 2026-08-03T20:11:45Z, already executed this exact SPEC in full -- all of Part 1 (desktop
+      nav-surface re-check) and Part 2a-2d (PWA install/Web Share Target/offline-absence/mobile
+      sweep), zero new gaps found, docs-only (3 files: PROGRESS.md, the OCID-051 planning doc,
+      ACTIVE-CLAIMS.yaml). Did not redo this work.
+
+      Real, non-duplicate contribution instead: independently verified PR #844's own claims rather
+      than trusting its narration -- read `src/app/manifest.ts` and
+      `src/app/api/veri-chat/share-target/route.ts` directly (both match exactly), and independently
+      curled the live site (not reused from the PR's own evidence): `GET
+      https://projexa-ai.com/manifest.webmanifest` returned 200 with a body byte-matching
+      `manifest.ts`'s output, `GET https://projexa-ai.com/logo-mark.svg` returned 200
+      `image/svg+xml`. Confirmed `gh pr diff 844` touches only the 3 claimed files, zero
+      src/schema/CI changes. Found PR #844 had no audit verdict comment yet and
+      `mandatory-audit-check.yml` was failing for exactly that reason (all other real checks
+      passing). Per AGENTS.md Rule 7c/10, this session -- independent of PR #844's authorship --
+      posted the required structured 8-field `AUDIT: PASS` verdict comment on PR #844, the real,
+      concrete unblock toward merge.
+
+      Separately confirmed the SPEC's own note (2 duplicate workers on a retracted CRLF thread, 2
+      harmless partial-duplicate test orgs from earlier background-job timeouts) needs no new action
+      this session, per the SPEC's own explicit instruction to leave them alone unless they produce
+      something real -- no such artifact found, none reconciled.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS.yaml entry (this task's own workspace) plus one
+      PR comment on PR #844 (a different branch, not this session's own). No src/, schema, or CI
+      changes. No new PR opened by this session -- the real work product is the audit verdict
+      already posted to #844, not a separate branch.
   - session_label: "claude-code (docs/ocid050-full-115x3-sweep-and-large-data-org) -- OCID-050 full 115-page x 3-state sweep + real large-data org, 345/345 [DONE]"
     claimed_at: "2026-08-03T19:00Z (this session, closed same session)"
     claim: |
