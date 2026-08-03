@@ -1062,3 +1062,49 @@ OCID-023's own dispatched worker). The real gate every directive in this chain a
 OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): VERIDIAN Universal Task Lifecycle Runtime v1.0 (`UMR-20260803-041743-d271`, real OCID-20260803-032)
+
+Real Owner directive, tier 1, documentation only, parented to `UMR-20260803-041700-a741` (real OCID-031,
+Universal Software Execution Engine) and citing the full OCID-022..030 chain plus the ERP Functional
+Completeness Master Program (`UMR-20260802-173631-ca85`) and OCID-020 (`UMR-20260802-165606-4413`).
+Grounds the complete task lifecycle — definition, creation, identifier, classification, priority,
+context, owner, assignee, delegation, transfer, splitting, merging, dependencies, the status model,
+approvals, escalation, AI escalation, software execution, monitoring, heartbeat, timeout, recovery,
+resumption, completion, verification, audit, traceability, reuse, analytics, the dashboard,
+notification, synchronization, history, certification, and the zero-lost-task target — entirely in
+what already exists (`activity_log`, `TASK-01..05`, `GP-01..30`, `AUDIT-01..04`, `escalation-ladder.ts`,
+`monitor-protocol.ts`, `approval-workflow-service.ts`, `exception-taxonomy.ts`,
+`qa-precompletion-gate.ts`, `veri-todo-service.ts`). No code, schema, or UI change.
+
+**Real numbering correction found and applied**: the live `umr_tasks` registry
+(`superboss-register.sqlite`, queried directly, not narrated) confirms this task's own dispatch unit is
+`task-...-ocid-032-veridian-universal-task-lifecyc.service` and its cited parent
+(`UMR-20260803-041700-a741`) is `task-...-ocid-031-veridian-universal-software-exe.service` — i.e. this
+document is real OCID-032, not OCID-031 as `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
+table had it (that table already carried one self-corrected numbering error, the 036/037 row, per
+`UMR-20260803-045159-ec55`; this is a second, independent one). The same live-query method
+independently confirmed real OCID-20260803-033 = "Universal End User Work Orchestration Runtime" and
+real OCID-20260803-030 = "Universal Decision Engine" (matching PR #772's own title).
+
+**Overlap check performed** (per the standing PM decision, `UMR-20260803-045159-ec55`): OCID-023
+(Universal End User Work Model, PR #768) has not merged, and its own committed document is truncated
+mid-sentence at line 31 — has not yet reached task-status/delegation/escalation content. This document
+therefore proceeds as its own artifact rather than folding into an unmerged, incomplete sibling.
+
+**Real, honest gaps named, not glossed over**: no task transfer/reassignment function exists anywhere
+in `src/lib`; no task splitting or merging exists for the `tasks` table; no generic per-task heartbeat
+or resumption mechanism exists at the application layer (the real analogs found live one layer up, at
+the AI-OS orchestration layer — `umr_tasks.last_heartbeat`, systemd-unit re-invocation); notifications
+are inserted ad hoc across 12+ call sites with no shared service; `src/app/(app)/tasks/page.tsx` renders
+compliance items, not tasks, despite its route name; "zero lost task" is real in the sense that no
+activity type is invisible (Phase 1 of `UNIVERSAL_TASK_WRAPPER_DESIGN.md` shipped) but not yet real in
+the sense of "every task visible through one query" (Phase 2/3 remain open, per `TASK-04`'s own gap
+field). Also corrects `RES-02`'s own description of VERI To Do as "a query-time UNION view" — direct
+read of `veri-todo-service.ts` found it is three separate Drizzle queries merged in application code,
+not a SQL `UNION`/DB view.
+
+Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md`. Amends the
+existing UMR chain (this file, `ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml`) — does not start a new one.

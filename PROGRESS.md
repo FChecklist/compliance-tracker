@@ -7,10 +7,11 @@
 - [x] Discovery agent: task engine internals (schema.ts real tables/enums, task-service.ts, task-execution-engine.ts, escalation-ladder.ts, approval-workflow-service.ts, monitor-protocol.ts + 6 real monitors, exception-taxonomy.ts, qa-precompletion-gate.ts, handover-protocol.ts, veri-todo-service.ts, ChainSelector.tsx, audit_logs)
 - [x] Registered ACTIVE-CLAIMS.yaml entry
 
+- [x] Wrote ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md (36 sections, all grounded, gaps named honestly)
+- [x] Updated ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (amendment section)
+- [x] Updated ai-os/OS.yaml (index entry)
+- [x] Updated ai-os/MASTER_INDEX.yaml (registry entry) -- validated YAML parses (OS.yaml/MASTER_INDEX.yaml both OK; pre-existing unrelated YAML parse issue in ACTIVE-CLAIMS.yaml confirmed present on origin/main before this task touched it, not introduced here, out of scope)
+
 ## Remaining
-- [ ] Write ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md
-- [ ] Update ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (amendment section)
-- [ ] Update ai-os/OS.yaml (index entry)
-- [ ] Update ai-os/MASTER_INDEX.yaml (registry entry)
 - [ ] Commit, push, open PR
 - [ ] Report doc location + updated UMR + OCID-033 readiness confirmation

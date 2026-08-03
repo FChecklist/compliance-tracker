@@ -1599,6 +1599,26 @@ registries:
     disclaimer warned about.'
   status: live
   query_command: cat ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
+- id: veridian_universal_task_lifecycle_runtime_v1
+  type: point_in_time_audit_doc
+  path: ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md
+  scope: 'OCID-20260803-032 (UMR-20260803-041743-d271), parented to UMR-20260803-041700-a741
+    (real OCID-031, Universal Software Execution Engine) and to UMR-20260802-173631-ca85
+    (ERP Functional Completeness Master Program). Grounds the complete task lifecycle --
+    definition, creation, identifier, classification, priority, context, owner, assignee,
+    delegation, transfer, splitting, merging, dependencies, the status model, approvals,
+    escalation, AI escalation, software execution, monitoring, heartbeat, timeout, recovery,
+    resumption, completion, verification, audit, traceability, reuse, analytics, the
+    dashboard, notification, synchronization, history, certification, and the zero-lost-task
+    target -- entirely in what already exists (activity_log, TASK-01..05, GP-01..30,
+    AUDIT-01..04, escalation-ladder.ts, monitor-protocol.ts, approval-workflow-service.ts).
+    Corrects a real numbering error in the OCID-040 status snapshot (this task is real
+    OCID-032, not OCID-031). Names real, honest gaps where no mechanism exists (task
+    transfer, splitting, merging, generic heartbeat/resumption, unified notification
+    service). Query this before building any new task-lifecycle mechanism, to see what
+    real code already covers the same ground.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/
