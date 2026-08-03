@@ -1518,6 +1518,62 @@ open_items:
         entries (203 total, matching the pre-fix count of 204 minus the one deleted
         duplicate). Per PM decision `UMR-20260803-140106-6307`."
 
+    - id: GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE
+      name: "This server's git-push credential (gh CLI OAuth token, account FChecklist) cannot push changes to any .github/workflows/*.yml file -- missing the 'workflow' OAuth scope, blocking the Governance YAML Parse Check guardrail (and any future CI workflow edit) from being wired in"
+      old_ids: []
+      detail: |
+        Real, honest follow-up finding, `UMR-20260803-142309-da1f` (itself under
+        `UMR-20260802-165606-4413`, OCID-020). PM decision `UMR-20260803-142309-da1f`
+        authorized adding a new CI guardrail (`scripts/check-governance-yaml-parse.mjs`,
+        reusing the existing `check-guardrail-presence.mjs`/`check-doc-quarantine-banner.mjs`
+        pattern) to prevent the class of silent YAML corruption fixed in PR #818
+        (`GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR`) from recurring. The script itself was
+        written and independently verified for real, twice, locally: a deliberately
+        reintroduced copy of the exact malformed 0-indent duplicate entry fixed in
+        PR #818 makes the script exit 1 with a clear error; the real, correct file
+        makes it exit 0.
+
+        Wiring it into `.github/workflows/ci.yml` (adding a new `governance-yaml-parse`
+        job, same shape as the existing `doc-quarantine-banner` job) is real, drafted,
+        and locally validated -- but pushing it hit a real, hard wall: `git push`
+        was rejected by GitHub with `refusing to allow an OAuth App to create or
+        update workflow ".github/workflows/ci.yml" without \`workflow\` scope`.
+        Confirmed via `gh auth status`: this server's only git-push credential (gh
+        CLI OAuth token, account `FChecklist`) has scopes `gist, read:org, repo` --
+        no `workflow` scope. Checked for an alternate, more-privileged credential
+        used by the headless worker/supervisor dispatch pipeline (grepped
+        `worker-entrypoint.sh` and `/opt/veridian/scripts/` for a separate PAT/token)
+        and found none -- this appears to be the one shared git-push path for both
+        interactive and dispatched work on this server, meaning this blocks not just
+        this task but any future task needing to touch `.github/workflows/*`.
+
+        Attempted a safe, additive, non-destructive resolution (`gh auth refresh -h
+        github.com -s workflow`) -- this only adds a scope to the existing token, does
+        not remove or weaken anything -- but it requires a live human completing a
+        real device-code OAuth flow in a browser (a code was issued, then the waiting
+        process was killed rather than leave a credential-escalation flow sitting
+        open unattended on a shared account). No dispatch can complete this step.
+        Per PM decision `UMR-20260803-142956-d931`: do not attempt this credential
+        escalation; the PM is separately asking the Owner whether they want to
+        complete it. Real work product preserved, not discarded:
+        `scripts/check-governance-yaml-parse.mjs` (this PR) is real, tested, and
+        ready to wire in the moment a workflow-scoped credential is available -- only
+        the one-line `.github/workflows/ci.yml` job addition remains blocked.
+      size: "XS once unblocked -- the workflow-file diff itself is ~10 lines,
+        already drafted; the only real work remaining is the credential grant,
+        which is not this session's to perform"
+      recommendation: |
+        Once a workflow-scoped credential is available (Owner completes `gh auth
+        refresh -h github.com -s workflow`, or a differently-scoped PAT is
+        configured for this server's git remote), add the `governance-yaml-parse`
+        job to `.github/workflows/ci.yml` (pattern: copy the existing
+        `doc-quarantine-banner` job block, point it at
+        `scripts/check-governance-yaml-parse.mjs`) and re-run the same real
+        break/restore verification already proven locally, this time against a
+        real GitHub Actions run, before merging.
+      status: open
+      first_raised: "This session, 2026-08-03, while executing PM decision UMR-20260803-142309-da1f (UMR-20260802-165606-4413, OCID-020)"
+
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
       name: "OCID-049 Subscription Plan Entitlement Certification -- planning artifact registered, entitlement enforcement not yet built"
       detail: |
