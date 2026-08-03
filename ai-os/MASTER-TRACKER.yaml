@@ -760,7 +760,7 @@ open_items:
       priority: P2 (low, mechanical when wanted)
 
     - id: GAP-ERP-CRM-403-NO-UX-EXPLANATION
-      name: "Fresh self-signup org gets silent 403s across CRM/ERP APIs, no user-facing 'module not enabled' explanation -- FIX MERGED, live re-verification pending Vercel deploy (status kept open)"
+      name: "Fresh self-signup org gets silent 403s across CRM/ERP APIs, no user-facing 'module not enabled' explanation -- RESOLVED, independently re-verified live with real screenshots"
       old_ids: []
       detail: |
         Real finding, `UMR-20260802-165606-4413` (OCID-020 redo session, PR
@@ -853,20 +853,33 @@ open_items:
         `ModuleNotEnabledCard`) now exists as a real, reusable pattern for
         whoever picks those up next.
 
-        Live re-verification pending the same Vercel deploy blocker
-        already tracked under `GAP-403-VS-500-CLM-HR-PERFORMANCE` (rate
-        limit, external, non-blocking for merge) -- real re-test with a
-        fresh self-signup org and a real screenshot to follow once that
-        deploy lands. Kept `status: open` (not resolved), consistent with
-        the standing rule against claiming a fix works before independently
-        confirming it does -- same discipline applied to
-        `GAP-403-VS-500-CLM-HR-PERFORMANCE`'s own still-pending 2 endpoints.
-      status: open
+        **Live re-verification completed 2026-08-03, once the Vercel deploy
+        landed** (same deploy as `GAP-403-VS-500-CLM-HR-PERFORMANCE`,
+        confirmed via `gh api .../commits/<sha>/status` showing `Vercel:
+        success` for merge commit `536bdd6f65a0b1a2acded3b77a539c78c1010f81`).
+        Real, direct verification against the live site with the same fresh
+        `OCID-020 Continue Org A` test org: (1) confirmed `/api/me`'s raw
+        JSON response for this org shows `erpEnabled: false, salesEnabled:
+        false` (fetched directly, not narrated); (2) navigated to
+        `/erp/procurement`, `/erp/journal-entries`, `/crm`, `/crm/leads`,
+        `/crm/accounts` and read the real DOM `document.body.innerText` on
+        each -- all 5 contain the real explanation text ("... is not
+        enabled" / "Ask an organisation admin to enable it from Settings
+        ..."). Real screenshot captured with the explanation card scrolled
+        into view (the app's own content area scrolls independently of
+        `document.body`, so a naive `fullPage` screenshot missed it on the
+        first attempt -- caught and corrected, not silently accepted):
+        `/opt/veridian/browser/screenshots/ocid020-continue/ux-fix-real-erp-not-enabled-card.png`
+        shows the real rendered card (rocket icon, "ERP is not enabled",
+        the real explanation text, and a working "Go to Settings" button)
+        in place of the previously-silent empty procurement page.
+      status: resolved
       first_raised: "OCID-020 redo, 2026-08-02 (UMR-20260802-165606-4413)"
-      status_note: "2026-08-03 (UMR-20260803-111057-20a8) -- real fix merged
-        (backend already had a real 403 message; this was purely a frontend
-        surfacing gap, fixed by reusing PMS's own existing enablement-card
-        pattern), live re-verification pending Vercel deploy"
+      resolved: "2026-08-03 (UMR-20260803-111057-20a8) -- fix merged and
+        independently re-verified live against the real deployed site
+        (real DOM text checks + a real screenshot); backend already had a
+        real 403 message, this was purely a frontend surfacing gap, fixed
+        by reusing PMS's own existing enablement-card pattern"
 
     - id: GAP-MIGRATION-APPLY-NOT-AUTOMATED
       name: "Deploy pipeline never automatically applies pending Drizzle migrations to production; CI only checks migration NUMBER collisions, never whether a migration's DDL actually ran (severity: medium-high, real incident already occurred)"
@@ -1075,10 +1088,10 @@ open_items:
         `/erp/contracts`/`/erp/clm-library` regardless of the root cause, since
         an unhandled response-parse failure is a real defect on its own.
       resolution_note: |
-        **PARTIALLY RESOLVED 2026-08-03 (`UMR-20260803-103053-9402`), two
-        genuinely distinct real root causes, diagnosed and fixed separately,
-        per the recommendation above -- 3 of 5 endpoints independently
-        re-verified live, 2 of 5 fixed but pending deploy/re-verification:**
+        **RESOLVED 2026-08-03 (`UMR-20260803-103053-9402`), two genuinely
+        distinct real root causes, diagnosed and fixed separately, per the
+        recommendation above -- all 5 endpoints independently re-verified
+        live:**
 
         **Root cause 1 — real migration drift (HR attendance x3, performance
         reviews), same class as `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`.**
@@ -1132,16 +1145,24 @@ open_items:
         `GET` returning a real `{"error": "..."}` JSON body at the correct
         `403` status instead of an empty `500` body, the frontend's
         `res.json()` call succeeds normally; no separate fix needed.
-      status: open
+
+        **Live re-verification completed 2026-08-03, once the Vercel deploy
+        for PR #806/#809's merge commits landed** (confirmed via `gh api
+        .../commits/<sha>/status` showing `Vercel: success`). Independently
+        re-tested all 5 endpoints against the real live site with the same
+        fresh test org: `/api/hr/attendance` (both variants) and
+        `/api/hr/attendance/summary` all real `200` with real data;
+        `/api/clm/templates` and `/api/clm/clauses` both now real `403`
+        with the real, human-readable message ("This capability is not
+        part of the Module your organization purchased...") instead of a
+        raw `500` -- confirmed by fetching each endpoint directly and
+        reading the real response body, not narrated. **All 5 of 5
+        endpoints now confirmed fixed and live.**
+      status: resolved
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
-      status_note: "2026-08-03 (UMR-20260803-103053-9402) -- 3 of 5 endpoints (HR
-        attendance x2, performance-reviews) genuinely resolved and independently
-        re-verified live (real 200, real data). The remaining 2 (CLM
-        templates/clauses) have a real, ready code fix (PR open, not yet
-        merged/deployed at the time of this note) -- kept status: open, not
-        resolved, until those 2 are independently re-verified live post-deploy,
-        consistent with the standing rule against claiming a fix works before
-        confirming it does."
+      resolved: "2026-08-03 (UMR-20260803-103053-9402) -- all 5 endpoints
+        independently re-verified live against the real deployed site
+        (real HTTP responses fetched directly, not narrated)"
 
     - id: GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ
       name: "/orchestra, /prompt-eval, /sales-hq each timed out during the real nav-surface sweep -- RESOLVED, confirmed a test-methodology artifact, not a real product defect"

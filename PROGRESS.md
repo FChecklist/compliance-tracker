@@ -810,3 +810,13 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] Live re-verification (real screenshot, fresh self-signup org) pending the same Vercel deploy blocker as GAP-403-VS-500-CLM-HR-PERFORMANCE
+# PROGRESS -- live re-verification: GAP-403-VS-500-CLM-HR-PERFORMANCE + GAP-ERP-CRM-403-NO-UX-EXPLANATION
+
+## Completed
+- [x] Monitored the Vercel deploy for PR #806/#809's merge commits until it succeeded (was previously rate-limited)
+- [x] Independently re-tested all 5 GAP-403-VS-500-CLM-HR-PERFORMANCE endpoints live: HR attendance (both variants) + summary all real 200 with real data; CLM templates/clauses both now real 403 with the real human-readable message -- marked fully resolved
+- [x] Independently re-tested GAP-ERP-CRM-403-NO-UX-EXPLANATION live: confirmed /api/me's raw response shows erpEnabled/salesEnabled false for the test org, confirmed real DOM text on 5 pages contains the real explanation, captured a real screenshot with the card scrolled into view (caught and fixed a first-attempt screenshot that missed it due to the app's own independently-scrolling content area) -- marked fully resolved
+- [x] Both gaps updated in MASTER-TRACKER.yaml with status: resolved and full real evidence
+
+## Remaining
+- [ ] None -- both gaps fully closed with live, independently-verified evidence
