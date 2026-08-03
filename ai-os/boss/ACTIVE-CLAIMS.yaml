@@ -40,6 +40,46 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
+    claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing real UMR `UMR-20260803-084718-ce79`, OCID-046, parented
+      to OCID-045 `UMR-20260803-084637-ada4` -- itself registered this same cycle, discovery-only,
+      requested certification explicitly DECLINED per `IMPLEMENTATION_MATRIX_2026-08-02.md`): OCID-046
+      was already registered (UMR chain, parent, decline rationale) in that same 2026-08-03 amendment
+      (commit `8cdbe5ea`), which explicitly named the substantive discovery artifact as still
+      outstanding -- no canonical artifact, no worker dispatched. This task closes that gap, consistent
+      with the pattern already used by sibling OCID-041 (commit `1d7442b7`), OCID-042 (`5ede2bcc`),
+      OCID-043 (`dd6ca71d`), and OCID-044 (`bff1b906`), none of which this task duplicates.
+
+      Real, evidence-based discovery pass (file:line citations, independently verified): no `brands`
+      table exists in `src/lib/db/schema.ts`; `organisations`' 5 white-label columns
+      (`drizzle/0221_wave_b_white_label_branding.sql`) are real but NULL on every live org; no domain-
+      routing `middleware.ts` exists anywhere in `src/`; a literal repo-wide search confirms neither
+      `projexa-ai.com` nor `thefirm-ai.com` has any live brand-config row today. Tenant isolation
+      (`withTenantContext()`/RLS, 50 call sites, 51 RLS-enabled migrations) and the org hierarchy
+      (`organisations`->`branches`->`clients`->`clientEntities`) are real and production-live. Role/
+      rights is an enum + `auth-guard.ts` rank map + `permission-service.ts` action-lookup table, not
+      normalized tables. Function/report/prompt libraries (`report-engine-service.ts`,
+      `capability-registry-service.ts`'s real similarity/dedup functions) exist and are cross-referenced
+      against OCID-027's own VCEL/Prompt-OS discovery rather than re-derived.
+
+      Named the one real cross-cutting gap: every individual reuse primitive already exists in
+      production, but there is no first-class `brands` entity to route domains against, adopt
+      white-label config against, or extend cross-brand duplicate-detection to -- that missing
+      foundational concept, not a missing pipeline, is what blocks the rest of OCID-046's mission.
+
+      Canonical artifact:
+      `ai-os/VERIDIAN_UNIVERSAL_MULTI_BRAND_MULTI_TENANT_PLATFORM_RUNTIME_2026-08-03.md` (new, discovery
+      only). Registered in `ai-os/OS.yaml`. `CONSTITUTION.yaml`, tenant runtime, and brand runtime NOT
+      updated with functional changes. OCID-046 NOT marked complete, per this task's own SPEC and the
+      standing OCID-020 -> OCID-038 -> OCID-039 -> OCID-040 unlock sequence -- a fresh, explicit Owner
+      override in chat would be required to authorize real implementation ahead of that sequence.
+    scope_note: >-
+      File scope: one new canonical artifact (the Multi-Brand Multi-Tenant Platform Runtime discovery
+      doc), `ai-os/OS.yaml` (index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema,
+      CONSTITUTION.yaml, or CI changes -- documentation only, per SEC-07's real OCID-020 implementation
+      lock.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
