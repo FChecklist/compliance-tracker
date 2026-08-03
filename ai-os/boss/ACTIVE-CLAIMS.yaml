@@ -4659,6 +4659,30 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (task-20260803-041006-ocid-024-veridian-laptop-web-browser-run) -- OCID-024: VERIDIAN Laptop Web Browser Runtime v1.0 (documentation only)"
+    claimed_at: "2026-08-03T04:10Z (this session)"
+    claim: |
+      SPEC (Owner directive, tier 1, parented to `UMR-20260803-040929-9713`
+      OCID-023, citing `UMR-20260803-040844-4a33` OCID-022,
+      `UMR-20260802-173631-ca85` ERP Functional Completeness Master Program,
+      `UMR-20260802-165606-4413` OCID-020, `UMR-20260802-164659-9a31` server
+      artifact traceability audit, `UMR-20260802-165034-5747` gatekeeper
+      rule, `UMR-20260802-165434-cd91` unified project memory, and
+      `UMR-20260802-165541-c27d` recovery framework): create exactly one new
+      document, `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_v1.0.md`,
+      documentation only -- no code, DB, UI, or UX change. Consistent with
+      the OCID-021 implementation lock, which still permits discovery/matrix
+      work. Discovery grounds the doc in what already exists (VERI Chat
+      composer/chain-picker/mode pills, existing screens/modules, prompt
+      compiler, capability registry, browser execution tiers) -- no new
+      browser, UI, PWA, sync protocol, or AI engine designed.
+    scope_note: >-
+      File scope: this repo's new `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_v1.0.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/,
+      schema, or CI changes. Read-only discovery over src/components/veri-chat,
+      src/lib/prompt-compiler, src/lib/services, ai-os/BROWSER_EXECUTION_TIERS*,
+      ai-os/audit-tree/04-veri-chat.yaml.
 recently_completed:
   - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
     claimed_at: "2026-08-03T01:16Z (this session)"
