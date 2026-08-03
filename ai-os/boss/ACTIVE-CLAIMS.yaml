@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-071335-ocid-040-veridian-end-user-platform-cons) -- OCID-040 final-certification-and-freeze directive, discovery/verification/documentation only, implementation explicitly locked [IN PROGRESS]"
+  - session_label: "claude-code (task-20260803-071335-ocid-040-veridian-end-user-platform-cons) -- OCID-040 final-certification-and-freeze directive, discovery/verification/documentation only, implementation explicitly locked [PUSHED, PR #787 OPEN]"
     claimed_at: "2026-08-03T07:13Z (this session)"
     claim: |
       SPEC (this task's own prompt.txt, tier 1, real Owner directive): parented to

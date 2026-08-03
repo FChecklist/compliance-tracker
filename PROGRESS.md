@@ -27,5 +27,8 @@
 - [x] Updated ai-os/OS.yaml index entry to point at the section 6 amendment
 - [x] Explicit non-certification section included (6e) -- no freeze, no completion claim, per SEC-07 lock
 
+- [x] Committed + pushed, opened PR #787 (https://github.com/FChecklist/compliance-tracker/pull/787)
+
 ## Remaining
-- [ ] Commit + push this unit, open PR
+- [ ] PR #787 merge (blocked on CI + no dedicated human reviewer per AGENTS.md Rule 6 -- will merge once green)
+- [ ] Move ACTIVE-CLAIMS.yaml entry from active: to recently_completed: once merged
