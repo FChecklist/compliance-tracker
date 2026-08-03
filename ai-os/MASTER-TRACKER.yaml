@@ -1237,6 +1237,61 @@ open_items:
       status: open
       first_raised: "PR #779 real AUDIT: FAIL investigation, 2026-08-03 (UMR-20260803-063016-8bfc)"
 
+    - id: GAP-AUDIT-CHECK-ISSUE-COMMENT-STALE-CHECKRUN
+      name: "mandatory-audit-check.yml's issue_comment re-run attaches its check-run result to main's HEAD SHA instead of the PR's own head SHA, leaving the PR's real head stuck on a stale pre-comment FAILURE even after a real AUDIT: PASS comment is posted (severity: medium -- delays/blocks autonomous tier1 merge, does not itself cause an incorrect merge)"
+      old_ids: []
+      detail: |
+        Real, independently found and diagnosed finding, discovered while an
+        independent Agent-tool reviewer verified PR #795 (real UMR
+        `UMR-20260803-085428-9332`'s fix). `.github/workflows/
+        mandatory-audit-check.yml`'s `issue_comment` trigger (added per its
+        own header comment, "found during FI-AA-006's real audit, PR #648",
+        specifically to re-evaluate the check once a real AUDIT comment
+        lands) runs `actions/checkout@v7` with no `ref:` override. For an
+        `issue_comment` event, GitHub's implicit `github.sha` (the commit a
+        triggered workflow run's check-run status attaches to) defaults to
+        the repository's default branch HEAD, not the PR's head commit --
+        this is true regardless of what `actions/checkout` itself checks
+        out, since the check-run attachment is determined by the triggering
+        event's SHA context, not the checkout step's ref. Directly observed
+        on PR #795: the `issue_comment`-triggered re-run correctly evaluated
+        the newly-posted `AUDIT: PASS` comment via `validate-audit-verdict.ts`
+        (confirmed via the run's own logs), but the resulting successful
+        check-run attached to `main`'s HEAD SHA (`b47b9caf...` at the time),
+        not PR #795's actual head commit (`8c4cbd03...`) -- so the PR's own
+        head SHA still shows the original, stale, pre-comment `FAILURE`
+        status for `audit-check`, which `supervisor-entrypoint.sh`'s
+        `gh pr merge` (and GitHub's branch protection required-status-check
+        gate) reads directly, blocking the real tier1 autonomous-merge path
+        even though a real, valid `AUDIT: PASS` genuinely exists on the PR.
+      size: S-M -- the fix is not simply pinning `actions/checkout`'s `ref:`
+        (that changes what gets checked out and tested, not which commit the
+        check-run attaches to). The real fix needs either (a) the job
+        explicitly creating/updating a Checks API check-run keyed to the
+        PR's real head SHA (`gh api repos/:owner/:repo/check-runs` or
+        `actions/github-script` with `context.payload.issue.pull_request`'s
+        real head, fetched via a `gh pr view <n> --json headRefOid` call
+        inside the job) instead of relying on the workflow run's own
+        implicit event-SHA attachment, or (b) switching the re-run trigger
+        to `pull_request_review_comment`/a mechanism whose implicit SHA is
+        already the PR head (worth checking whether that trades away the
+        original `issue_comment` rationale from PR #648's fix).
+      recommendation: |
+        Fix `.github/workflows/mandatory-audit-check.yml`'s `issue_comment`
+        job to explicitly attach its result to the PR's real head SHA via
+        the Checks API, not the implicit workflow-run association. Add a
+        real regression test/dogfood check: post a real AUDIT comment on a
+        real PR with a known-stale prior FAILURE and confirm the PR's own
+        head SHA's status updates, not just that the job logs the right
+        verdict. Workaround already confirmed to work in the interim: a
+        manually-triggered `veridian-worker@*`/`veridian-supervisor@*`
+        systemd-unit-based review re-run (the normal autonomous path) causes
+        `supervisor-entrypoint.sh` to explicitly re-run
+        `mandatory-audit-check.yml` itself (not via `issue_comment`), which
+        does not have this bug.
+      status: open
+      first_raised: "Independent Agent-tool review of PR #795, 2026-08-03 (UMR-20260803-085428-9332)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
