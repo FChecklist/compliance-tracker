@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-125054-register-ocid-052-veri-chat-ai-escalatio) -- OCID-052 dedicated deepening, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:51Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, citing UMR-20260802-165606-4413/OCID-020): register OCID-052
+      (VERI Chat AI Escalation and Deterministic Software Execution Certification) as a real child of
+      OCID-020, planning only, reusing the existing VERI Chat surface + gateway.py/OWNER_ENGINE layered
+      router + existing worker/dispatch infra, no new chat engine or routing architecture.
+
+      Zero-duplication check performed first, per directive: `resource_governor.py --query-umr --search`
+      for "OCID-052" and the real child UMR both returned `count: 0`. Found the real prior artifact via
+      `ai-os/OS.yaml`/`git log` instead (the dispatch-DB query only covers queued task_specs, not doc
+      content): the merged OCID-047-052 batch doc (PR #811, this exact UMR chain) already has an OCID-052
+      section, itself already correctly ruling out gateway.py/OWNER_ENGINE as the real target -- so this
+      task's own SPEC repeats a "gateway.py under OWNER_ENGINE" premise that a prior session already
+      investigated and corrected inside that same merged section, not a fresh finding.
+
+      Real, substantive correction found and NOT silently repeated: the merged section's own placeholder
+      named `mother-router.ts` as the real target but had not yet read it (its own task breakdown item 1
+      said so explicitly). Read it directly this session -- it is a real AI model/provider registry across
+      3 scopes, not a deterministic-vs-AI decision gate. Found the real mechanism instead via direct file
+      reads: `chat-service.ts`'s `generateAiReply()` -> `tryDeterministicRoute()` (`llm-routing-gate.ts`,
+      2 of 5 `intent-engine.ts` intents have zero-LLM handlers) -> `runDialogueScriptTurn()`
+      (`dialogue-script-executor.ts`) -> only then `resolveModelConfig()`/`callLLM()`. Also found and
+      registered a real, honest gap: `ThreadView.tsx` renders every AI-thread reply identically regardless
+      of deterministic/scripted/AI origin; the only real distinguishing signal is the incidental
+      presence/absence of the `confidenceLabel` confidence badge (designed as an AI-confidence heuristic,
+      not a deterministic-vs-AI indicator) -- no explicit end-user-facing label exists today, named as this
+      OCID's own real certification-blocking finding rather than assumed solved.
+
+      Deepened the existing artifact in place (new dedicated file, same convention as OCID-051's own
+      dedicated deepening doc) rather than re-registering a duplicate UMR or overwriting the merged batch
+      doc's own OCID-047/048/049/050/051 sections, which this task's scope does not touch.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (new file), `ai-os/OS.yaml` (index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema,
+      or CI changes -- planning only, no testing or implementation performed against OCID-052's own
+      definition of done.
   - session_label: "claude-code (task-20260803-120302-register-ocid-047-roles-rights-responsib, UMR-20260803-115333-dab8) -- OCID-047 responsibility-model amendment, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
     claim: |
