@@ -602,15 +602,20 @@ API, module, or workflow. It defines discovery and reuse only, per its own missi
 **Real state as of this document**: OCID-020 (`UMR-20260802-165606-4413`) remains open and
 unverified-complete; the `SEC-07` implementation lock therefore still applies to anything downstream of
 OCID-038/039/040. This document's own content — a discovery/reuse operating model — has no
-implementation dependency on that lock and is safe to hand off now. A worker picking up OCID-028
-("VERIDIAN Universal Organization Runtime v1.0" per the real status table) should: (1) apply this
-document's §17 search priority model before writing any new organization-runtime content; (2) check
-`ai-os/boss/ACTIVE-CLAIMS.yaml` fresh, per Rule 11, before starting; (3) re-verify, not assume, whether
-any sibling OCID in its own cluster (§1a of `VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
-already flags overlap risk across OCID-029/030/032/034/035/037) has since merged content that
-overlaps with OCID-028's own scope.
+implementation dependency on that lock.
 
-**Ready to hand off to OCID-028.**
+**Real correction (independent-review finding, this same PR):** an earlier draft of this section named
+OCID-028 as "VERIDIAN Universal Organization Runtime v1.0," contradicting this document's own §0
+("`VERIDIAN Unified Synchronization Runtime` is the real, separate OCID-028"). OCID-028's real content
+is `VERIDIAN Unified Synchronization Runtime v1.0` (`compliance-tracker` PR #774, citing
+`UMR-20260803-041257-e9c3`) — and, per the real, current
+`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` on `origin/main`, that PR is already
+**MERGED**, so there is nothing left to hand off here. "Universal Organization Runtime" is the status
+snapshot's own honestly-flagged, not-independently-confirmed inference for OCID-029, not a settled fact
+for any row — whoever picks up real OCID-029 should verify it directly against the real dispatch chain
+rather than trust this document or the snapshot's inference.
+
+**OCID-028 already real, complete, and merged as of this document's own correction.**
 
 ---
 
