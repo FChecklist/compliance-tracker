@@ -8,8 +8,14 @@
 - [x] Confirmed live host state matches: load average 6-10, swap ~75-90% used at time of investigation -- real contention, reproducing the documented root cause, not a stale/hypothetical concern
 - [x] This is the real gap the credit accountant's "existing mechanism" pointed at: **no code gap** -- the existing `quality-gate.sh` timeout/flock/heap-cap mechanism already covers transient build-timeout gate failures; the correct action is to re-run the gate for real (not spend AI credits authoring a fix for something that isn't broken) and let it either pass on a less-contended attempt or genuinely fail with a real error to act on
 
+- [x] Re-confirmed via task.yaml/quality-gate-0.json directly: lint passed (0 errors, 3 pre-existing warnings), build gate exit_code=124 (timeout, `flock`-serialized `next build` killed by quality-gate.sh's own outer `timeout`), no test gate present in output -- this matches the checkpoint's root cause exactly, no new information changes the diagnosis
+- [x] Checked workspace state: `worker/task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl` branch, clean working tree, 5 commits ahead of the point origin/main was at (a6348ab5 HEAD -- 1/4 OCID-038 gaps closed: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK)
+- [x] Checked live host state before re-running: load average 5-8 (was 6-10 at original failure time), swap 2.6/4Gi used -- still contended but improved; other concurrent worker sessions confirmed active via `ps aux` (this is a shared multi-tenant box per [[veridian-live-concurrent-state-drift]] memory)
+- [x] Kicked off a real, manual re-run of `quality-gate.sh` against that exact workspace with generous overrides (`GATE_STEP_TIMEOUT_SECONDS=1800`, `BUILD_LOCK_WAIT_SECONDS=1500`) to give the build gate a fair chance under contention -- running in background, output at `/tmp/ocid038-regate/manual-run.log`, JSON result at `/tmp/ocid038-regate/quality-gate-manual.json`
+
 ## Remaining
-- [ ] Re-run the real `quality-gate.sh` against `task-20260803-214948`'s actual workspace/branch (`worker/task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl`) and get a real pass/fail
-- [ ] If it passes: push (already pushed), open a real PR, cite `GAP-OCID038-...` gaps closed (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` per that task's commits), get CI green, merge per Rule 6/10
-- [ ] If it genuinely fails again with a real (non-timeout) error: that's a real code gap, handle via normal fix path
-- [ ] Update task.yaml / checkpoint status away from `blocked` once resolved
+- [ ] Wait for the manual quality-gate re-run to finish; read `/tmp/ocid038-regate/quality-gate-manual.json` for the real verdict
+- [ ] If it passes: task-20260803-214948's branch already has real commits (GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK) not yet in a PR -- open a real PR from `worker/task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl` against main, cite the gap closed, get CI green, merge per Rule 6/10; then update that task's task.yaml status away from `blocked`
+- [ ] If it genuinely fails again with a real (non-timeout, non-124) error: that's a real code gap, investigate and fix
+- [ ] If it fails with the same 124 timeout again: this confirms the gate failure is purely host-contention-driven and not actionable by AI-authored code changes -- the correct resolution is to document that finding on task-20260803-214948 (not spend further credits "fixing" non-existent code gaps) and either retry later when host load is lower, or have a human/owner-level decision on whether to raise the timeout defaults further
+- [ ] Update this task's (task-20260803-225133) own status/checkpoint once task-20260803-214948 is unblocked one way or the other
