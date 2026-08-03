@@ -1,165 +1,25 @@
-# PROGRESS -- task-20260802-210700-pm-decision--fix-the-real-high-severity
-
-Cites: `UMR-20260802-165606-4413` (OCID-020) throughout. `UMR-20260802-173631-ca85`
-stays locked until this fix AND the rest of the real certification sweep are
-independently verified complete.
+# PROGRESS -- task-20260803-085557-register-ocid-044-universal-result-verif
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` + found the real prior finding this PM
-      decision is about: OCID-020 redo session (PR #737) — Finding A, real
-      `500` on `GET /api/departments` crashing the Compliance Register
-      (`/compliance`) and Pendency View (`/compliance?status=overdue`) with a
-      client-side `TypeError: z.map is not a function`.
-- [x] Root-caused directly (not narrated): reproduced locally by building the
-      exact same Drizzle relational query (`db.query.departments.findMany({with:
-      {head, complianceItems, users}})`, verbatim from
-      `src/app/api/departments/route.ts`) against the real `src/lib/db/schema.ts`
-      via `drizzle-orm`. Real error reproduced: `There are multiple relations
-      between "users" and "departments". Please specify relation name.`
-- [x] Shipped a fix (`relationName: 'departmentMembers'`), opened PR #741,
-      logged Finding B in `ai-os/MASTER-TRACKER.yaml`.
-- [x] **On resume (invocation 2/20)**: discovered a genuinely parallel session
-      independently root-caused and fixed the identical bug (same root cause,
-      same fix shape) with additional defensive frontend handling and real
-      regression tests, via PR #740 — which merged first (`c0df6f02` on
-      `main`, independently re-verified via `git diff-tree -p c0df6f02 --
-      src/lib/db/schema.ts`, not just trusted). This session's own duplicate
-      PR #741 was correctly closed as superseded by that other session. Finding
-      B (`GAP-ERP-CRM-403-NO-UX-EXPLANATION`) is likewise already merged into
-      `ai-os/MASTER-TRACKER.yaml` via PR #742.
-- [x] Rebased this session's branch onto `main` (`git rebase origin/main`,
-      skipping the now-redundant duplicate schema-fix commit, resolving
-      conflicts in `ai-os/boss/ACTIVE-CLAIMS.yaml` and this file to reflect
-      current reality rather than keeping two stale/duplicate claim entries).
-- [x] Confirmed on `main`: `src/lib/db/schema.ts` has
-      `departmentsRelations.users: many(users, { relationName:
-      'departmentMembers' })` and `usersRelations.department: one(departments,
-      {..., relationName: 'departmentMembers' })`; `ai-os/MASTER-TRACKER.yaml`
-      has `GAP-ERP-CRM-403-NO-UX-EXPLANATION` (single entry, no duplication).
-- [x] Opened PR #743 (reconciled `ACTIVE-CLAIMS.yaml`/`PROGRESS.md`), got an
-      independent audit (Rule 7c — a fresh, non-implementing agent verified
-      the PR's claims directly against `origin/main` via `git cat-file -p`/
-      `git merge-base --is-ancestor`, not by trusting the PR body) which
-      posted the required structured `AUDIT: PASS` comment, hit and worked
-      around the known issue-comment/head-SHA CI bug (empty commit to force
-      a real `synchronize` event), then merged once all 7 required checks
-      (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset
-      Registry Coverage Check, Unit Tests) were green — merged
-      `2026-08-02T22:30:58Z`.
-- [x] **Independently retested the EXACT SAME real flow that crashed, live,
-      against the real deployed app, with a real fresh account (not
-      guessed/assumed):** real signup via the Supabase Admin API (public
-      `/signup` was rate-limited, 429 — used the admin `/auth/v1/admin/users`
-      endpoint instead, with the same `full_name`/`organisation`
-      `user_metadata` shape `src/app/signup/page.tsx` sends, so
-      `autoProvisionUser()` still runs the normal way on first authenticated
-      request — did not touch or mutate the other concurrent session's own
-      test account found mid-flight), confirmed-email, real login on
-      `https://projexa-ai.com` (title "VERIDIAN COGNITIVE AI OS" confirms
-      this domain does serve compliance-tracker, per prior session's finding)
-      → real navigation to `/home`, then real `GET /compliance` and
-      `GET /compliance?status=overdue`. Real captured network response:
-      `200 GET https://projexa-ai.com/api/departments` →
-      `{"departments":[]}` (empty array is correct — fresh org, zero
-      departments created yet; this is a real success shape, not the old
-      500/error-object shape). Both pages rendered the real Compliance
-      Register UI with zero "Application error" client crash (confirmed via
-      `page.locator('body').innerText()` not containing that string, plus
-      full-page screenshots — Compliance Register header, "0 compliance
-      items tracked", VERI Chat composer all rendered normally). **Fix
-      confirmed live, for real, not assumed because CI passed.**
-
-- [x] **First real incremental finding for the broader sweep: multi-tenant
-      isolation, positively confirmed.** Note: the prior OCID-020 redo
-      session's own claim
-      (`task-20260802-190820`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) targeted a
-      *different* app/repo (`https://projexa-smoky.vercel.app`, the
-      standalone PROJEXA codebase) for the broader sweep, and its branch is
-      already merged+deleted (PR #737) — no live collision picking this up
-      against compliance-tracker's own `projexa-ai.com` deployment instead.
-      Created two real, separate fresh orgs via Supabase Admin API (public
-      `/signup` still rate-limited), logged in as each, created a
-      department scoped to Org B via `POST /api/departments` (real
-      `Org-B-Only-Department` created, `orgId: "dane6ps2f1k1fmg1tgndvl85"`),
-      then `GET /api/departments` for that same Org B session returned
-      exactly 2 departments (its own auto-provisioned "General" +
-      the just-created one) — **not** anything from Org A, confirming real
-      tenant-scoped `withTenantContext`/RLS isolation holds for this route.
-      A separate clean single-account run (`provcheck-*`) also confirmed
-      normal provisioning: real `admin` role, real auto-created "General"
-      department, `GET /api/users` and `GET /api/departments` both scoped
-      correctly.
-      **Honest limitation, not swept under the rug**: two earlier attempts
-      in this same investigation (both org A and org B in one run; org A
-      alone in a second run) got `401`/`403` instead of the expected
-      success — root-caused as *most likely* a test-harness artifact (rapid
-      back-to-back Supabase password-grant logins from the same
-      browser/IP within the same script run, not a real per-request race in
-      `autoProvisionUser()` itself — a slower, isolated single-account retry
-      each time succeeded cleanly). **Not confirmed as a real product bug**
-      — logging this honestly as inconclusive/needs-a-slower-retest rather
-      than either asserting it's a real bug or silently discarding the
-      observation. If a future pass reproduces the same failure with
-      requests spaced apart (no rapid-fire), that would be real evidence of
-      an actual `autoProvisionUser()` race and should be filed as a tracked
-      gap at that point — not before.
-
-- [x] **Multi-brand (white-label) sweep item, real live test, positive
-      result — no bug found.** Read `src/lib/services/org-branding-service.ts`
-      + `src/app/api/settings/branding/route.ts` first: per-org branding
-      (colors/`customDomain`/`emailSenderName`/logo) is real, org-scoped,
-      admin-gated, and explicitly documented as NOT hostname-routed yet
-      (that's a known, already-disclosed gap from Wave 10/WAVE-10-REDO —
-      `ai-os/boss/COMPLETED.yaml:2779-2790` — the anonymous landing page at
-      `projexa-ai.com` serves default VERIDIAN branding, not
-      per-org/PROJEXA branding, and that's real and already tracked, not
-      re-discovered here). Live-tested what WAS untested: created two real
-      fresh orgs via Supabase Admin API, `PATCH /api/settings/branding` on
-      Org A with real custom colors/domain/sender-name, confirmed via
-      `GET /api/me` that Org A's branding changed and Org B's stayed
-      exactly at platform default (real tenant isolation holds for
-      branding, not just for departments as previously confirmed) — real
-      evidence in `/tmp/brand-test.mjs` output, not narrated.
-
-- [x] **First-time-onboarding sweep item: found and FIXED a second real,
-      independent, high-severity production 500** (distinct root cause
-      from the departments bug, same severity class — a real crash on a
-      real flow for every user, not narrated). While live-testing a fresh
-      self-signup org's first `/compliance` page load,
-      `GET /api/email-intelligence` threw a real `500` (`console.error`
-      captured live, then the exact response body captured directly:
-      `{"error":"Failed to fetch email intelligence items"}`). Root-caused
-      directly (not narrated): reproduced the exact failing Drizzle query
-      against the real live DB and got `42703 column "promoted_ticket_id"
-      does not exist` — confirmed the live database is missing ALL of
-      `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`'s DDL (6 tables +
-      3 added columns) despite `drizzle.__drizzle_migrations` recording that
-      exact migration as already applied (journal idx 261). This is real
-      ledger/live-schema drift, not a normal "not yet pushed" backlog item.
-      Shipped a real fix: applied that already-reviewed, already-merged,
-      fully idempotent (`IF NOT EXISTS`/`duplicate_object`-safe throughout)
-      migration SQL directly against the live DB. Verified live, not
-      assumed: `information_schema` re-checked post-apply (all
-      tables/columns now present), then independently retested the EXACT
-      SAME real flow that crashed (fresh signup → login → the same API
-      call) → real `200 {"items":[]}`. Given this was a production DB
-      mutation (higher blast radius than a normal PR), spawned a genuinely
-      independent auditor subagent (not self-certified) that re-derived
-      every claim from scratch with its own scripts/queries/fresh test
-      account and confirmed pass, plus did a bounded spot-check across 9
-      other migrations for the same drift pattern (found none — the one
-      other gap it found, `0300_stage12_dispatch_outcomes.sql`, is
-      ordinary not-yet-deployed backlog, a different and unremarkable
-      class, not filed as a new gap). Full doer+auditor entry:
-      `ai-os/boss/COMPLETED.yaml`, id `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`.
+- [x] Registered ACTIVE-CLAIMS.yaml entry for this task (pushed ahead of the real-work commit, per Rule 11)
+- [x] Verified OCID-044's registration/UMR/parent chain already exists (PR #793, `IMPLEMENTATION_MATRIX_2026-08-02.md` amendment) but its own text explicitly flags the substantive discovery artifact as outstanding
+- [x] Real inventory of review engine, audit engine, PR lifecycle, commit lifecycle, merge lifecycle, lock framework, knowledge registry (file:line evidence)
+- [x] Mapped OCID-044's two-part mission against that inventory; named the real cross-cutting gap (no external-AI entry point into the review/audit pipeline; no unified post-audit cross-library reintegration step)
+- [x] Wrote canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_RESULT_VERIFICATION_AND_REINTEGRATION_RUNTIME_2026-08-03.md`
+- [x] Registered the artifact in `ai-os/OS.yaml`'s document index
 
 ## Remaining
-- [ ] Continue the broader real certification sweep per the PM spec —
-      cache and search, remaining nav surface, and (if reproduced
-      cleanly/slowly) the auth-race question flagged above — reporting
-      real incremental findings every cycle, not one final claim.
-      Multi-tenant, multi-brand, and first-time-onboarding are now each
-      independently spot-checked live with real evidence (see above).
+- [ ] Commit and push real-work changes
+- [ ] Open PR, confirm CI green, hand off for merge (per Rule 6 -- no direct push to main)
+- [ ] Move ACTIVE-CLAIMS.yaml entry to `recently_completed` once PR merges
+
+## Explicitly out of scope this cycle (per SEC-07 / directive)
+- Real review/audit runtime changes
+- Real result-verification or reintegration code path
+- `CONSTITUTION.yaml` changes
+- Marking OCID-044 complete
+
+---
 
 # PROGRESS -- task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next
 
