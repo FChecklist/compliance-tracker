@@ -524,3 +524,57 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None for this task. Follow-on watching of PR #754/#755/#756 belongs to the next PM-confirmation cycle when their state changes.
+
+# PROGRESS -- task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit
+
+## Completed
+- [x] Read governance docs (ACTIVE-CLAIMS, CONSTITUTION, MASTER-TRACKER), confirmed no collision
+- [x] Independently checked task-20260802-231454's own task.yaml (not narrated): quality gate
+      `build` step timed out (exit 124) on auto-fix attempt, credit-accountant.py rejected
+      attempt 1/2 citing a `system_index` match
+- [x] Identified the exact existing mechanism: re-ran the accountant's own
+      `check-duplicate "quality gate auto-fix retry: build"` lookup live -- `quality-gate.sh`
+      itself (its documented timeout-as-failed-gate-by-design behavior, RCA
+      task-20260727-043407) is the #2 match of 88
+- [x] Independently confirmed the branch's real diff is docs-only (`git diff --stat
+      origin/main...HEAD`: 2 files, PROGRESS.md + ACTIVE-CLAIMS.yaml) -- structurally cannot
+      have caused the build regression
+- [x] Cross-checked PR #755's real GitHub CI: Lint/Type Check/Unit Tests/audit-check all pass;
+      only Vercel fails, and that's an unrelated rate-limit, not this diff
+- [x] Decision: ratified -- no code fix needed, do not spend more credits on this
+- [x] Found and corrected a process error: task-231454's checkpoint cited "PM decision
+      UMR-20260803-001544-08ea" as already applied; verified via `superboss-register.sqlite`
+      `umr_tasks` table that UMR belongs to *this* task (the dispatched request for this
+      decision, not a completed one)
+- [x] Read task-231454's already-completed-but-never-read background sweep output
+      (`/tmp/ocid020-continue/`) and extracted real findings without further AI spend:
+      multi-tenant isolation PASS, GAP-ERP-CRM-403 reconfirmed, new
+      GAP-EMAIL-INTELLIGENCE-500-VS-403 finding, nav sweep correctly identified as
+      113/115-invalidated by a Chrome-process crash (host contention), not a product defect
+- [x] Registered new gap in `ai-os/MASTER-TRACKER.yaml`
+- [x] Wrote `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`, registered in
+      `ai-os/OS.yaml`
+- [x] Registered ACTIVE-CLAIMS.yaml entry for this session
+- [x] Decision: two consecutive real attempts under this UMR chain hit the same
+      host-contention failure class -- per protocol, did not attempt a 3rd identical
+      mega-script run
+- [x] AUDIT: FAIL on first submission (PR #757) -- auditor correctly flagged that
+      GAP-EMAIL-INTELLIGENCE-500-VS-403 was raised 2026-08-02 23:25-23:31, ~53 minutes
+      *before* the live migration-0264 fix (PR #756, applied 2026-08-03T00:24Z) that fixed a
+      500 on this exact same endpoint/query (missing `promoted_ticket_id` column), and asked
+      for live re-verification before merging the gap as open/unverified.
+- [x] Performed the real live re-verification requested: connected directly to the live
+      compliance-tracker database (dotenv-loaded `DATABASE_URL`), confirmed
+      `compliance.email_intelligence_items.promoted_ticket_id` now exists, and ran the exact
+      column-set `listEmailIntelligenceItems()` selects for a fresh org -- query succeeded (0
+      rows, no error), where it previously threw a `42703` undefined-column error. Confirmed:
+      this gap was the same bug as MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX and is already
+      resolved by that fix, not a genuinely distinct open issue.
+- [x] Updated `GAP-EMAIL-INTELLIGENCE-500-VS-403` in `ai-os/MASTER-TRACKER.yaml` to reflect
+      the live-verified resolution instead of leaving it open/unverified.
+- [x] Commit + push (PR #757, rebuilt on current main)
+
+## Remaining
+- [ ] Follow-up (separate task, not this one): complete the remaining ~100/118 nav-surface
+      sweep with a hardened harness (per-batch browser health-check/restart) once host load
+      allows
