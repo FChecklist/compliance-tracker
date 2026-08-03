@@ -5223,6 +5223,41 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (fix/gap-stage0-role-missing-from-role-rank) -- OCID-021 Wave 1 Item 1: real fix for GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK, plus a 2nd independent instance found via tsc [DONE]"
+    claimed_at: "2026-08-03T21:25Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-212402-1922: OCID-020 declared complete, real proof-artifact audit
+      confirmed for all findings; OCID-021 real implementation authorized, scoped to the honestly
+      registered gap backlog from Group F testing, one gap per dispatch, citing the gap id closed).
+      First item: `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`.
+
+      Real fix: added `'stage_0'` to `UserRole` and `ROLE_RANK: 1` (`src/lib/supabase/auth-guard.ts`) --
+      the exact rank `schema.ts`'s own `userRoleEnum` comment already specified for this value
+      ("Ranks 1 in ROLE_RANK... same tier as viewer/client_viewer/external_auditor"), never wired in
+      until now.
+
+      Real, additional finding: widening the `UserRole` type surfaced a second, independent instance of
+      this exact bug class via `bunx tsc --noEmit` -- `src/lib/classification.ts`'s own separate
+      `Record<UserRole, Classification>` map (`ROLE_CLEARANCE`) was also missing `stage_0`. Fixed with
+      `"public"`, the same floor clearance already given to `viewer` (stage_0 is an even more
+      restricted, non-full-org-member role).
+
+      Added the gap's own recommended regression test: 2 new tests in `auth-guard.test.ts` asserting
+      every real `userRoleEnum` value has an explicit, positive `ROLE_RANK` entry (and no stray extra
+      keys), so this drift class cannot silently recur a third time. Independently verified this is a
+      real regression test, not a tautology: temporarily reverted just the source fix (kept the test),
+      confirmed it fails with the exact expected message, restored the fix, confirmed it passes again.
+
+      Full verification re-run after the classification.ts fix, not assumed still valid from the
+      auth-guard.ts fix alone: `bunx tsc --noEmit` clean, `bunx eslint` clean on all 3 changed files,
+      `bun test` 2481/2481 pass (2 more than the prior 2479 baseline, matching the 2 new tests).
+    scope_note: >-
+      File scope: `src/lib/supabase/auth-guard.ts`, `src/lib/supabase/auth-guard.test.ts`,
+      `src/lib/classification.ts`, `ai-os/MASTER-TRACKER.yaml` (1 gap marked resolved, no new gap IDs),
+      `PROGRESS.md`, this ACTIVE-CLAIMS entry. Real, minimal, targeted code change -- no new
+      architecture, exactly the scope the PM's dispatch specified. No other role-keyed maps found
+      needing the same fix (confirmed via a clean `tsc --noEmit` after both fixes).
+
   - session_label: "claude-code (docs/ocid049-all-4-tiers-complete-group-f-closed) -- OCID-049 real testing complete, all 4 tiers, real rate-limit-safe path found -- Group F Business Certification genuinely closed [DONE]"
     claimed_at: "2026-08-03T21:10Z (this session, closed same session)"
     claim: |
