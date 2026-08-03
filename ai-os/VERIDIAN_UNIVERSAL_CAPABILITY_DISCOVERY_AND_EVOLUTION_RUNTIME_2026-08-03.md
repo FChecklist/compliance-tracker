@@ -8,23 +8,24 @@
 (the gatekeeper rule), and `UMR-20260802-165434-cd91` (the unified project memory model). Documentation
 only — no code, no schema, no new architecture.
 
-**Real numbering note, checked directly rather than assumed:** this document's own dispatched task
-(`task-20260803-062914-ocid-036-veridian-universal-capability-d`) is folder-labeled **OCID-036**, but its
-own `prompt.txt` self-describes as "parented to... the real OCID-035 directive just registered" and its
-mission text ("VERIDIAN Universal Capability Discovery and Evolution Runtime") is the exact title
-`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §1 attributes to row **OCID-20260803-035** —
-not OCID-036. Independently confirmed (`gh pr list`, `git branch -r`) that the sibling branch already
-using the `ocid-035` folder label, `worker/task-20260803-055122-ocid-035-veridian-continuous-platform-ev`
-(PR #777), instead carries different, real OCID-034 content ("Continuous Platform Evolution Runtime")
-and flags the identical mismatch in its own header rather than silently resolving it. This is the same
-root cause already twice diagnosed in this exact cluster — the status snapshot's dispatch-order-to-number
-mapping drifting from each task's own real `task.yaml`/`prompt.txt`/branch self-identification (see that
-snapshot's own §1a for the OCID-036/037 correction, and PR #776 for the OCID-026/027/028/029/030
-correction). Per the precedent PR #776 and PR #777 both established — trust each task's own real
-self-identification over the snapshot table when the two disagree — this document treats its own content
-as **OCID-035** and flags the snapshot row for a future correction pass rather than silently renumbering
-itself or refusing to proceed. Nothing in this document's actual content depends on which integer it
-carries.
+**Real numbering note — resolved (real fix for `GAP-OCID038-OCID035-DUPLICATE-PRS`,
+`ai-os/MASTER-TRACKER.yaml`; originally flagged, not silently resolved, then genuinely fixed by
+task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl once OCID-038's own discovery pass caught
+the resulting collision):** this document's own dispatched task
+(`task-20260803-062914-ocid-036-veridian-universal-capability-d`) is folder-labeled **OCID-036**. Its
+`prompt.txt` self-describing as "parented to... the real OCID-035 directive just registered" originally
+led this document to claim OCID-035 for itself instead, directly colliding with the sibling branch
+`worker/task-20260803-055122-ocid-035-veridian-continuous-platform-ev` (PR #777, "Continuous Platform
+Evolution Runtime"), which had already made the identical, symmetric self-identification argument for
+the same number. That collision is now resolved with independent evidence neither PR had at the time it
+was written: PR #779 (merged) confirms OCID-034 is genuinely "Universal Context and Predictive Runtime"
+— which makes PR #777's own claim (its content is OCID-035, parented to OCID-034) independently correct,
+not merely self-asserted. Per the "trust the task's own real folder/branch label over the
+dispatch-order-inferred number" precedent PR #776 (`UMR-20260803-052107-71fa`) established for the
+OCID-026/027/028/029/030 cluster, this document is **OCID-036** — its own folder/branch label, following
+PR #777's confirmed OCID-035 sequentially. No content was discarded or rewritten to resolve this: the two
+documents cover genuinely distinct ground (continuous-evolution process vs. capability-discovery model),
+so this was purely a numbering-label collision, not a real duplicate.
 
 ---
 
@@ -497,6 +498,6 @@ work while gating all real implementation behind OCID-020's independent verifica
 
 **UMR chain updated (not a new one):** `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`, via the amendment
 appended immediately below this document's own commit — see that file's own "Amendment (2026-08-03):
-OCID-036 (real content OCID-035)" section.
+OCID-036 'Universal Capability Discovery and Evolution Runtime'" section.
 
 **Ready for hand-off to OCID-037:** yes, per §36 above.
