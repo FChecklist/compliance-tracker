@@ -1,0 +1,37 @@
+{
+  "stamp": 1785791497144,
+  "orgId": "yjy0okc6d29ixr529y0gqlfe",
+  "orgName": "OCID-049 Tier Scale Test Org 1785791497144",
+  "founderEmail": "ocid049-founder-1785791497144@veridian-test.example",
+  "password": "OCID049-test-pass-1785791497144",
+  "joinCode": "2MAJ-J3NW-6ZA5",
+  "currentCount": 26,
+  "log": [
+    {
+      "label": "standard-tier-11-users",
+      "at": "2026-08-03T21:13:06.929Z",
+      "realUserCount": 11,
+      "targetTracked": 11,
+      "functionalHealthOk": true,
+      "sampleActions": [
+        "escalation",
+        "escalation",
+        "task",
+        "alert"
+      ]
+    },
+    {
+      "label": "professional-tier-26-users",
+      "at": "2026-08-03T21:15:00.393Z",
+      "realUserCount": 26,
+      "targetTracked": 26,
+      "functionalHealthOk": true,
+      "sampleActions": [
+        "notify_manager",
+        "escalate_leadership",
+        "draft_reply",
+        "flag_notices"
+      ]
+    }
+  ]
+}

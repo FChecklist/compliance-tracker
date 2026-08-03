@@ -1964,15 +1964,22 @@ write workaround; reuse the real self-service signup flow already proven working
       `inviteUserByEmail` (which hit the rate limit) -- the same Admin-API pattern this session's own
       OCID-050 State C org creation already used.
 
+- [x] Dry-run confirmed the mechanism end-to-end on a small scale (real founder self-signup + 1 real
+      join-code redemption against `https://projexa-ai.com`, first try, no email sent, no rate limit
+      hit): founder org `yjy0okc6d29ixr529y0gqlfe` real-created, joinee landed in the same real org via
+      `GET /api/me`.
+- [x] Grew that same real org to 11 real users (Standard band, 11-25) via 10 more real join-code
+      redemptions, 500ms real spacing, zero failures. Checkpoint: real `GET /api/users` count = 11,
+      real `POST /api/ai/orchestrate` (`end_user_org` scope) returned a real, on-topic, non-empty
+      `actions[]` -- functional-health confirmed, matching Basic tier's own evidence shape.
+- [x] Grew the same org to 26 real users (Professional band, 26-50) via 15 more real join-code
+      redemptions, 400ms real spacing, zero failures. Checkpoint: real `GET /api/users` count = 26,
+      real orchestrate functional-health check passed again.
+
 ## Remaining
-- [ ] Dry-run the mechanism end-to-end on a small scale (founder signup + 1 join-code redemption) before
-      scaling up, to avoid burning the 2-failure circuit breaker on an unverified technique.
-- [ ] Grow one real org's live user count through the Standard (11), Professional (26), and Enterprise
-      (51) band checkpoints, with real spacing between calls.
-- [ ] At each checkpoint, gather real evidence: confirmed real user count, and one real successful
-      AI-routed (VERI Chat) request as functional-health confirmation (matching Basic tier's own evidence
-      shape) -- tier-classification detail itself stays unobservable per the standing
-      `ai_routing_audit_log` finding, not re-attempted.
+- [ ] Grow the same org to 51 real users (Enterprise band, 51-100) and run the same checkpoint.
 - [ ] Write the honest completion amendment to the OCID-049 doc, only describing all 4 tiers as done if
-      all 4 genuinely got real evidence.
+      all 4 genuinely got real evidence. Tier-classification detail itself stays unobservable per the
+      standing `ai_routing_audit_log` finding, not re-attempted -- functional health is the real evidence
+      gathered here, same honest limitation already named for the Basic tier.
 - [ ] Commit + push after each meaningful unit, not just at the end. Open a PR once real testing is done.
