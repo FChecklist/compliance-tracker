@@ -4659,6 +4659,36 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-027 content per UMR-20260803-041211-b7b7, task folder itself labeled ocid-028)"
+    claimed_at: "2026-08-03T05:05Z (this session)"
+    claim: |
+      SPEC (this task's own prompt, parented to UMR-20260803-041211-b7b7,
+      citing UMR-20260803-041122-b22d/041047-03ee/041000-70ae/040929-9713/
+      040844-4a33 [OCID-026 through 022], UMR-20260802-173631-ca85 [ERP
+      Functional Completeness Master Program], UMR-20260802-165606-4413
+      [OCID-020], and the SEC-07 implementation lock which permits
+      discovery/documentation to continue): create exactly one document,
+      "VERIDIAN Unified Synchronization Runtime v1.0" -- documentation only,
+      no implementation, no new sync architecture. Real, pre-existing sync/
+      cache/task/chat/browser/PWA/server systems must be discovered first
+      and the document grounded in what's actually built, not greenfield.
+      Note on numbering: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
+      (read before starting) tables this exact content -- "Unified
+      Synchronization Runtime" -- under OCID-20260803-027, not 028 (028
+      there is "Universal Organization Runtime"). This task's own folder/
+      branch name says "ocid-028" but its SPEC text and parenting UMR match
+      the snapshot's OCID-027 row. Proceeding on SPEC content (unambiguous:
+      Unified Synchronization Runtime) and flagging the label mismatch in
+      the document itself and here, same class of correction as the
+      snapshot's own OCID-036 mislabel fix -- not silently picking one
+      number without recording the conflict.
+    scope_note: >-
+      File scope: one new doc under `ai-os/` (VERIDIAN Unified
+      Synchronization Runtime v1.0), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      or `ai-os/OS.yaml` (index registration, if warranted), this
+      ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, migration,
+      or CI changes -- documentation only per SPEC's explicit prohibition.
 recently_completed:
   - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
     claimed_at: "2026-08-03T01:16Z (this session)"
