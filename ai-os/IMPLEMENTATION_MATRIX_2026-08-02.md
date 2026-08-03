@@ -1062,3 +1062,39 @@ OCID-023's own dispatched worker). The real gate every directive in this chain a
 OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): VERIDIAN Universal Software Execution Engine v1.0 (`UMR-20260803-041459-7c97`)
+
+Documentation-only artifact defining how already-decided work actually executes and is tracked in the
+real, live system — task/function/workflow/report/analysis/background/scheduled/event-driven execution,
+the execution queue, priority, dependency/parallel/sequential ordering, validation/confirmation/logging/
+traceability/audit, retry/recovery/rollback/timeout, monitoring/performance, reuse/standardization,
+multi-tenant/multi-brand/role-based execution, zero-duplication, and governance. Grounded entirely in a
+dedicated discovery pass over real code (`task-execution-engine.ts`, `engine-invocation.ts`,
+`construction-billing-workflow-service.ts`, `grc-workflow-engine.ts`, `report-engine-service.ts`,
+`analytics-engine.ts`, `worker-entrypoint.sh`/`dispatch_core.py`/the 18-timer systemd set,
+`webhook-deliver.ts`, `audit-event-triggers.ts`, `audit.ts`, `withTenantContext`,
+`compliance-engine-registry.ts`, `model-tier-eligibility.ts`) — no new architecture, no code, no DB
+objects, per SEC-07's real OCID-020 implementation lock.
+
+**Real numbering collision found and flagged, not silently resolved**: this task's own directory was
+labeled `ocid-031`, but its SPEC's literal mission text and citation chain
+(`UMR-20260803-041459-7c97`, "the real OCID-030 directive") match the original OCID-030 slot in
+`VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`. Two other real, open, unmerged PRs (#772
+"Universal Decision Engine," self-identifying as OCID-029; #776, a disputed correction asserting PR
+#772 is OCID-030 citing this same UMR) are in live, unresolved dispute over the same "OCID-030" label
+as of this writing. This document proceeds on its own explicit SPEC text and self-identifies primarily
+by UMR rather than asserting a contested ordinal — full detail in the document's own §0.
+
+**Real, honest gaps surfaced, not glossed over**: no generic cross-cutting retry wrapper (retry is
+implemented per-mechanism); forward-only schema migrations, no rollback tooling beyond one
+policy-scoped `rollbackPolicy()`; execution monitoring is manual spot-check, not continuous, at the
+application layer; no cross-cutting execution-performance dashboard; and several real, currently
+coexisting duplicate execution paths (Mother Router bypassed by 35 direct callers; three parallel
+AI-team dispatch surfaces; old bespoke report functions coexisting with the new report engine; legacy
+non-RLS DB access coexisting with `withTenantContext`).
+
+Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_SOFTWARE_EXECUTION_ENGINE_2026-08-03.md` (new).
+Canonical artifact updated: this file, `ai-os/OS.yaml` (index entry) — not rewritten, not duplicated.

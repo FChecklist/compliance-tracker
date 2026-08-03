@@ -602,10 +602,17 @@ prior cycle") since the spec is the only source for what it denotes.
       certification, multi-tenant/multi-brand/role-based execution) is distinct from all four; will
       cross-reference rather than duplicate their content
 - [x] Registered ACTIVE-CLAIMS entry, committed + pushed
+- [x] Fixed own process error: first commit on this branch replaced PROGRESS.md wholesale instead of
+      appending after prior-task history; restored the 580 lines of prior history and re-appended this
+      task's section, committed + pushed
+- [x] Wrote ai-os/VERIDIAN_UNIVERSAL_SOFTWARE_EXECUTION_ENGINE_2026-08-03.md, all 35 mandated sections
+      (execution principles through execution certification + readiness for OCID-032), each grounded in
+      real file:line evidence from the discovery pass; §0 documents the OCID-030 numbering collision and
+      cross-references (not duplicates) PRs #772/#773/#774/#775
+- [x] Registered canonical artifact in ai-os/OS.yaml document index
+- [x] Amended ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md with a new dated amendment section (existing UMR
+      chain, not a new one)
 
 ## Remaining
-- [ ] Write ai-os/VERIDIAN_UNIVERSAL_SOFTWARE_EXECUTION_ENGINE_2026-08-03.md covering all mandated sections
-- [ ] Register canonical artifact in ai-os/OS.yaml
-- [ ] Amend ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (existing UMR chain, not a new one)
 - [ ] Commit + push, open PR
 - [ ] Confirm readiness for OCID-032 handoff, report canonical artifact location + updated UMR
