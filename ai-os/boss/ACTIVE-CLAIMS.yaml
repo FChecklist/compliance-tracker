@@ -80,6 +80,15 @@ active:
       src/, schema, or CI changes.
   - session_label: "claude-code (task-20260802-231454-ocid-020-continue-certification-sweep-ac) -- Continue OCID-020 real E2E certification sweep of projexa-ai.com (UMR-20260802-165606-4413), targeting the nav surface + scenarios the prior redo pass (PR #739) explicitly did not reach"
     claimed_at: "2026-08-02T23:14Z (this session)"
+    status_update: "REAL, CURRENT STATE (not the state at claim time): this task's
+      own worker stopped at 2026-08-03T00:02:38Z with task.yaml status blocked
+      (a credit-accountant auto-fix rejection, no live process) -- independently
+      confirmed via PR #753 (commit ee17b0ff, merged on main). Not actively
+      running. Real findings gathered before the stop (multi-tenant
+      reconfirmation, cache/search) are reported in this session's own
+      PROGRESS.md and the OCID-020 certification doc. Real block requires a
+      human decision on further AI spend before the nav-surface sweep can
+      resume (see task.yaml's own note)."
     claim: |
       SPEC (PM decision, this task's own prompt.txt): Finding A (departments
       500 crash) and the 85/20/2 suite run already closed out the coverage

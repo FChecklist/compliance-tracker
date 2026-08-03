@@ -314,8 +314,15 @@ correction spec directing this task to fix PR #748's false claim).
       on Org B's signup fired seconds after Org A's -- not a bug in the app under test, a
       Supabase-project-level email-send throttle. Resumed with `mega2.mjs` (backoff retry,
       reuses Org A's already-created account rather than re-signing-up).
-- [ ] Nav-surface sweep + all four test categories running in background
-      (`/tmp/ocid020-continue/run2.log`, task id `baeze8qag`) -- awaiting completion.
+- [x] **CORRECTION (per real audit finding on PR #755, independently confirmed
+      against origin/main commit `ee17b0ff`/PR #753):** the claim above, "running
+      in background... awaiting completion," was stale/false by the time this
+      diff was submitted. The mega-script's process actually stopped at
+      `2026-08-03T00:02:38Z` with real `status: blocked` (a credit-accountant
+      auto-fix rejection, no live process) -- not still running. See PR #753's
+      own independent confirmation for the real evidence
+      (`ps aux` showed no `mega2.mjs`/playwright process). Not re-asserting a
+      live-running state here.
 
 ## Remaining
 - [ ] Read sweep results, categorize findings by severity
