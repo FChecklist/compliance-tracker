@@ -40,8 +40,8 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only"
-    claimed_at: "2026-08-03T05:5xZ (this session)"
+  - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only [PUSHED, PR #781 OPEN]"
+    claimed_at: "2026-08-03T05:5xZ (this session, PR opened same session)"
     claim: |
       SPEC (this task's own prompt.txt, tier 1): mission is to create exactly one
       document, "VERIDIAN Universal Software Execution Engine v1.0", parented to

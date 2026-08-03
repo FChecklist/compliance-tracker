@@ -613,6 +613,11 @@ prior cycle") since the spec is the only source for what it denotes.
 - [x] Amended ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md with a new dated amendment section (existing UMR
       chain, not a new one)
 
+- [x] Committed + pushed (b3422927, ed99d39c), opened PR #781: https://github.com/FChecklist/compliance-tracker/pull/781
+- [x] Confirmed readiness for OCID-032 handoff in the document's own §35 -- OCID-032 should
+      cross-reference (not re-derive) this document's §11-15 (queueing/priority/dependency/parallel/
+      sequential execution)
+
 ## Remaining
-- [ ] Commit + push, open PR
-- [ ] Confirm readiness for OCID-032 handoff, report canonical artifact location + updated UMR
+- [ ] None -- documentation-only task complete pending PR #781 review/merge (docs-only PRs need no
+      human approval per AGENTS.md Rule 6; CI will run standard checks)
