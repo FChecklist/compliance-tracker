@@ -7831,3 +7831,63 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+
+# ── claim closed 2026-08-03 (task-20260803-094457) ──────────────────────
+  - session_label: "claude-code (task-20260803-094457-pm-confirms-wait-for-slot-then-prioritiz) -- PM confirmation: OCID-041-045 discovery workers healthy + PR 795 independently reviewed, merge deferred to concurrent session [doc only, no code change]"
+    claimed_at: "2026-08-03T09:4xZ (this session, closed same session)"
+    claim: |
+      Confirmed live (not narrated) that all five OCID-041 through OCID-045
+      discovery worker tasks (`task-20260803-085546`/`-085550`/`-085553`/
+      `-085557`/`-085920`) are genuinely active and not stalled: each has a
+      real, fresh `last_checkpoint_at` (09:35Z-09:43Z at this session's
+      09:45:47Z check) and a real completed-work trail (discovery artifacts
+      written, `ai-os/OS.yaml` registered, PRs opened -- e.g. OCID-041 ->
+      PR #799). All five independently hit the same expected end-of-cycle
+      shape: a "quality gate failed" self-check, one auto-fix attempt, then
+      the deterministic credit-accountant correctly REJECTED further
+      metered auto-fix spend ("existing software/mechanism already covers
+      this... use it instead of spending AI credits") and each worker
+      cleanly stopped at `status: blocked` -- the same designed
+      stop-and-wait-for-review shape as task-20260802-231454, not a hang.
+      remaining_steps on all five are empty/near-empty -- each is correctly
+      bounded to discovery-only scope and has, in substance, already
+      finished. Confirms the interactive session's own decision not to
+      kill any of them.
+
+      Independently reviewed PR #795 (`fix/erp-reports-client-crash-on-403`):
+      real diff read directly, guards `tb.accounts` before `.length` and
+      adds optional chaining on `cf?.operating/investing/financing` (5
+      sites) so a 403 response can no longer throw
+      `TypeError: Cannot read properties of undefined`. Cross-checked
+      against `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_NAV_SWEEP_COMPLETE_2026-08-03.md`
+      Finding 1 (`GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`) -- the fix's shape
+      matches the documented root cause directly, a real targeted fix, not
+      a guess. CI fully green, `mergeable: MERGEABLE`
+      (`mergeStateStatus: BEHIND` is a trailing-main note, not a blocker).
+
+      Did NOT merge PR #795: found three other sessions already
+      independently converged on this exact review/merge decision within
+      the same ~5-minute window -- `task-20260803-094100` ("PM priority
+      reorder... merge PR 794 and fix Finding 1 before resuming OCID-041
+      through 046", in_progress), `task-20260803-094502` ("PM decision,
+      review PR 795 directly in interactive session now rather than
+      waiting for a worker slot", in_progress, started 5s after this
+      task), and `task-20260803-094105` (adopted the same branch for a
+      formal audit, `pending_review`). Merging from this task too would
+      duplicate in-flight work another session is already tasked with --
+      the collision this registry exists to prevent. Left the actual merge
+      action to those sessions.
+
+      Also confirmed the correct next-priority step once PR #795 lands is
+      already documented, not invented: the nav-sweep doc's own Finding 3
+      (`GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) already names the
+      three timeout pages (orchestra, prompt-eval, sales-hq) and already
+      recommends re-testing them in isolation under low host load before
+      treating the timeout as confirmed. Not executed here (out of this
+      task's confirmation-only scope).
+    scope_note: >-
+      File scope: this repo's own `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. No src/, schema, or CI changes. Read-only
+      investigation of five other tasks' own `task.yaml` files (outside
+      this repo, under `/opt/veridian/ai-os/tasks/`) and PR #795 via `gh` --
+      no writes to any other task's workspace/branch, no merge attempted.
