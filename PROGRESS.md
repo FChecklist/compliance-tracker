@@ -1412,14 +1412,23 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
       needs repo-admin-level investigation (GitHub webhook delivery log, not available to this session's
       tools) -- flagged here rather than silently left unexplained.
 
+## Resolved on resume (invocation 3/20)
+- [x] **PR #830's CI-trigger anomaly self-resolved** -- confirmed via `gh pr checks 830`: all 19 checks
+      (Lint, Type Check, Build, Unit Tests, E2E Tests, audit-check, Guardrail Presence Check, and every
+      other required check) now show `pass`, exactly as the prior invocation's own note predicted
+      ("the platform's own webhook-delivery retry... may resolve this without further action"). No
+      further retrigger action was needed or taken from this session.
+- [x] **PR #830 genuinely MERGED**, confirmed via `gh pr view 830` (`state: MERGED`, `mergedAt:
+      2026-08-03T17:07:43Z`, merge commit `a3706d3e`) -- merged autonomously via the tier1 Superboss
+      auto-merge path (AGENTS.md Rule 12) before this invocation began. Independently re-verified via
+      `git merge-base --is-ancestor HEAD origin/main` (true) rather than trusted from the PR view alone.
+      Local branch fast-forwarded onto `origin/main` (`df533d06..a3706d3e`) -- no rebase/conflict needed.
+- [x] This closes out this task's own real work: OCID-047 RESPONSIBILITY/data-scope axis, all 4 named
+      mechanisms (`home-service.ts`, `client-access-service.ts`, `risk-register-service.ts`,
+      `classification.ts`) real-tested, results merged, and the PR that carried them is now live on
+      `main`. Nothing further for this task's own scope.
+
 ## Remaining
-- [ ] **PR #830 needs CI to actually run before it can merge** (real blocker, not this task's real work
-      -- see the CI-trigger anomaly note above). Re-check `gh api repos/FChecklist/compliance-tracker/
-      commits/43da7833/check-suites` on the next invocation; if a real `github-actions` entry has
-      appeared, checks should complete normally (docs-only diff, prior identical-shape PRs #822-828 all
-      passed) and the PR can merge. If still absent after a genuinely fresh check, this is repo-admin/
-      GitHub-support territory, not fixable by this session's tools -- report honestly, do not keep
-      retrying the same 2 already-failed mechanisms.
 - [ ] OCID-047's own Step 4 (real denial-UX confirmation) remains UI-level and blocked on
       `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
 - [ ] `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` (registered by the RIGHTS-axis amendment) is still open,
