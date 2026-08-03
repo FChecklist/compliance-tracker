@@ -417,3 +417,60 @@ correction spec directing this task to fix PR #748's false claim).
   genuinely still blocked then) — recorded here as a real update, not a
   rewrite of that history.
 - [x] Update ai-os/boss/ACTIVE-CLAIMS.yaml with this task's claim close-out (PR #755 done, PR #756 correctly left blocked at the time; see update above for its real current state).
+
+---
+
+# PROGRESS -- task-20260803-020701-pm-real-decision-on-pr-756-retroactive-p
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting (per protocol).
+- [x] Independently verified, from scratch, that this task's entire spec (retroactive
+      authorization for PR #756's live migration 0264 fix, citing
+      `UMR-20260802-165606-4413` + `UMR-20260802-134939-145d`, plus registering the
+      distinct systemic deploy-pipeline gap) was **already fully completed** by a
+      sibling task (`task-20260803-010937-pm-decision-proceed-with-pr-755-and-756`),
+      ~30-50 minutes before this task started:
+  - PR #756: confirmed `state: MERGED`, `mergeCommit: 9b28f68f722dac8992ffba293d7d002135177726`,
+    `mergedAt: 2026-08-03T01:34:19Z` via live `gh pr view 756`.
+  - Retroactive authorization: `UMR-20260803-012711-18b4` recorded in
+    `ai-os/boss/COMPLETED.yaml` id `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`
+    (`retroactive_authorization` block), citing `UMR-20260802-134939-145d` exactly as
+    this spec requires, with `real_facts_weighed` matching this spec's reasoning
+    verbatim (DDL already reviewed/merged, confirmed idempotent, fixed a real live
+    outage, independently re-verified by a non-self-certifying auditor subagent
+    including a 9-migration bounded spot-check, none found).
+  - Systemic gap: `GAP-MIGRATION-APPLY-NOT-AUTOMATED` already registered in
+    `ai-os/MASTER-TRACKER.yaml` (line ~808), distinct from the incident entry, root-caused
+    to `vercel.json` never running `db:migrate`/`drizzle-kit push` against prod and
+    `scripts/check-migration-collision.mjs` only checking numbering collisions, not
+    whether DDL was actually executed live. `root_cause_followup` in COMPLETED.yaml
+    cross-links it explicitly, so the auditor's concern is not waved away.
+  - Commit `4eaaa5e1` (`docs: retroactive authorization for live migration fix +
+    register systemic gap`) on current `main` contains exactly this work.
+- [x] Recorded a correction note in `ai-os/boss/ACTIVE-CLAIMS.yaml` so a reader isn't
+      left thinking this task's spec is still open, per the file's own protocol (step 4).
+- [x] No code/infra/doc changes were made beyond this progress note and the
+      ACTIVE-CLAIMS.yaml correction -- redoing the already-completed decision/registration
+      would be duplicate, stale-premise work per past-session guidance
+      (`veridian-task-prompt-false-premise-pattern` memory).
+- [x] Opened PR #760 (docs-only: PROGRESS.md + ACTIVE-CLAIMS.yaml verification note),
+      per Rule 6 PR/CI gate.
+- [x] Dispatched an independent, non-self-certifying auditor subagent for PR #760 (per
+      Rule 7c -- doer cannot self-certify). Real `AUDIT: FAIL` posted: all substantive
+      claims verified TRUE (PR #756 merged, authorization on record, gap registered),
+      but the auditor caught a real defect -- this task's first PROGRESS.md write
+      **replaced** the full 419-line accumulated history with just this task's own
+      41-line section, silently deleting every prior task's progress log instead of
+      appending, breaking this repo's established append-only convention (the
+      immediately-prior merge, `0e9ec836`, was `+32/-0`). Classified medium severity
+      (doc-integrity, recoverable via git history, no production risk).
+- [x] Fixed: restored the full prior `PROGRESS.md` content (419 lines, verified via
+      `git cat-file -p 5a09c0bf:PROGRESS.md` per the known Bash-large-output-truncation
+      workaround) and appended this task's own section below it, rather than replacing.
+      Re-requesting audit on the corrected PR.
+
+## Remaining
+- [ ] Wait for the re-audit verdict on PR #760 and for CI to go green, then merge (or
+      let the autonomous supervisor merge it). No other substantive work remains --
+      this task's real decision-making substance was already done by a sibling session;
+      this task's own contribution is the verification record plus this doc-integrity fix.

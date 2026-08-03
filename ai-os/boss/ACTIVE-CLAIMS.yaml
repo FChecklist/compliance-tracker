@@ -40,6 +40,27 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-020701-pm-real-decision-on-pr-756-retroactive-p) -- verify-only, no new work"
+    claimed_at: "2026-08-03T02:07Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt): make the real PM retroactive-authorization
+      decision for PR #756's live migration-0264 fix, citing `UMR-20260802-165606-4413`
+      and the WAVE-10-REDO precedent `UMR-20260802-134939-145d`, and register the
+      distinct systemic deploy-pipeline gap if not already registered.
+    status_update: "REAL, CURRENT STATE at claim time: this entire spec was already
+      completed by the sibling task immediately above
+      (`task-20260803-010937-pm-decision-proceed-with-pr-755-and-756`), independently
+      re-verified from scratch this session (not assumed from the prompt): PR #756 is
+      genuinely `MERGED` (`gh pr view 756`, merge commit
+      `9b28f68f722dac8992ffba293d7d002135177726`, `mergedAt 2026-08-03T01:34:19Z`);
+      the retroactive authorization (`UMR-20260803-012711-18b4`, citing
+      `UMR-20260802-134939-145d`) is on record in `ai-os/boss/COMPLETED.yaml`
+      (id `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`); the systemic gap
+      (`GAP-MIGRATION-APPLY-NOT-AUTOMATED`) is on record in
+      `ai-os/MASTER-TRACKER.yaml`, distinct from the incident and cross-linked. No new
+      decision or registration was needed or made -- this session only verified and
+      documented that fact (see this task's own `PROGRESS.md`) rather than redoing
+      already-completed work against a stale task premise."
   - session_label: "claude-code (task-20260803-010937-pm-decision-proceed-with-pr-755-and-756) -- rebase+verify+merge PR #755 and PR #756, same pattern as PR #751-754"
     claimed_at: "2026-08-03T01:09Z (this session)"
     claim: |
