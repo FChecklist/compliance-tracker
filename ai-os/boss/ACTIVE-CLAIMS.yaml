@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-010937-pm-decision-proceed-with-pr-755-and-756) -- rebase+verify+merge PR #755 and PR #756, same pattern as PR #751-754"
+    claimed_at: "2026-08-03T01:09Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260802-165606-4413` and
+      `UMR-20260803-005625-efdd`): independently re-verified on the server --
+      PR #751 (mergedAt 2026-08-03T00:59:50Z) and PR #753 (mergedAt
+      2026-08-03T01:04:40Z) are both genuinely MERGED. task-20260802-210700's
+      real `task.yaml` shows `status: blocked` at `2026-08-03T00:58:45Z`
+      (~7 min before this check), last commit a routine CI nudge
+      (`313f2ffb`), not in-flight content work -- the branch is not
+      currently live, so the prior hold-off reason no longer applies.
+
+      Real state at claim time: PR #755
+      (`worker/task-20260802-231454-ocid-020-continue-certification-sweep-ac`)
+      is `mergeable=MERGEABLE`/`mergeStateStatus=BLOCKED` (required checks
+      not all green yet). PR #756
+      (`worker/task-20260802-210700-pm-decision--fix-the-real-high-severity`)
+      is `mergeable=CONFLICTING`/`mergeStateStatus=DIRTY`, with no
+      Lint/Type Check/Build/Unit Tests/Guardrail checks registered on its
+      head at all (only Vercel preview checks exist).
+
+      Plan: rebase each branch onto current `origin/main` in isolated
+      scratch worktrees (this task's own workspace worktree stays on its
+      own task branch throughout -- not switched), resolve any real
+      conflicts, push, wait for CI, verify mergeable/green independently,
+      then merge each PR one at a time, confirming each before starting the
+      next. File scope: PR #755's and PR #756's own branches only (not this
+      task's own branch/PROGRESS.md beyond routine progress logging), plus
+      this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry.
+    scope_note: >-
+      Branch scope: `worker/task-20260802-231454-ocid-020-continue-certification-sweep-ac`
+      (PR #755) and `worker/task-20260802-210700-pm-decision--fix-the-real-high-severity`
+      (PR #756), worked in isolated scratch worktrees, not this task's own
+      workspace checkout. No collision with the still-open task-210700 entry
+      below: that task's own process is confirmed `blocked`/dead, not
+      actively writing to its branch.
   - session_label: "claude-code (task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next) -- monitor task-210700 for real completion, then rebase+push PR #744 onto then-current main"
     claimed_at: "2026-08-02T23:17Z (this session)"
     claim: |
