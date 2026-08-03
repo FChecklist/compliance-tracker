@@ -82,7 +82,7 @@ export default function ErpContractsPage() {
     setContracts((await contractRes.json()).contracts ?? []);
     setPlans((await planRes.json()).plans ?? []);
     setSubscriptions((await subRes.json()).subscriptions ?? []);
-    setTemplates((await templateRes.json()).templates ?? []);
+    setTemplates(templateRes.ok ? (await templateRes.json()).templates ?? [] : []);
     setLoading(false);
   }, []);
 

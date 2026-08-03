@@ -50,8 +50,8 @@ export default function ClmLibraryPage() {
 
   const load = useCallback(async () => {
     const [clauseRes, templateRes] = await Promise.all([fetch("/api/clm/clauses"), fetch("/api/clm/templates")]);
-    setClauses((await clauseRes.json()).clauses ?? []);
-    setTemplates((await templateRes.json()).templates ?? []);
+    setClauses(clauseRes.ok ? (await clauseRes.json()).clauses ?? [] : []);
+    setTemplates(templateRes.ok ? (await templateRes.json()).templates ?? [] : []);
     setLoading(false);
   }, []);
 
