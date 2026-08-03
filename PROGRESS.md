@@ -291,3 +291,47 @@ correction spec directing this task to fix PR #748's false claim).
 
 ## Remaining
 - [ ] None -- this task's scope was to confirm and answer, not to unblock task-20260802-231454 (that belongs to its own owning task/session, same pattern as task-20260802-231514's credit-accountant block).
+
+# PROGRESS -- task-20260802-231454-ocid-020-continue-certification-sweep-ac
+
+## Completed
+- [x] Read governance docs (ACTIVE-CLAIMS, CONSTITUTION, MASTER-TRACKER), confirmed no collision
+- [x] Registered ACTIVE-CLAIMS.yaml entry for this session's scope
+- [x] Located real browser infra (`/opt/veridian/scripts/browser/persistent-profile.js`,
+      `launchPersistentChrome`, real Chrome binary + libs) and prior worktree
+      (`/opt/veridian/repos/projexa-ocid020-wt`, up to date with origin/main)
+
+- [x] Wrote single Node/Playwright mega-script (`/tmp/ocid020-continue/mega2.mjs`) covering:
+      real 2-org signup (real-domain gmail.com-format addresses, Admin-API email-confirm
+      bypass), simultaneous logged-in contexts, multi-tenant isolation probe (Org A creates a
+      department via API, Org B attempts direct fetch by ID + list), onboarding/403 repro
+      (`/crm`, `/erp/procurement`, `/erp/journal-entries`), cache/search behavior (headers,
+      Ctrl+K command palette, `/search`, mutation-then-reflect), and full nav-href sweep with
+      per-page HTTP status / console errors / failed network calls, screenshot-on-anomaly only.
+      Chrome launch pattern (`chromium.launch()` + separate `newContext()` per org, not the
+      shared persistent profile) verified working first.
+- [x] First run hit a real, disclosed rate limit: Supabase `over_email_send_rate_limit` (429)
+      on Org B's signup fired seconds after Org A's -- not a bug in the app under test, a
+      Supabase-project-level email-send throttle. Resumed with `mega2.mjs` (backoff retry,
+      reuses Org A's already-created account rather than re-signing-up).
+- [x] **CORRECTION (per real audit finding on PR #755, independently confirmed
+      against origin/main commit `ee17b0ff`/PR #753):** the claim above, "running
+      in background... awaiting completion," was stale/false by the time this
+      diff was submitted. The mega-script's process actually stopped at
+      `2026-08-03T00:02:38Z` with real `status: blocked` (a credit-accountant
+      auto-fix rejection, no live process) -- not still running. See PR #753's
+      own independent confirmation for the real evidence
+      (`ps aux` showed no `mega2.mjs`/playwright process). Not re-asserting a
+      live-running state here.
+
+## Remaining
+- [ ] Read sweep results, categorize findings by severity
+- [ ] Ship real fix (new branch off fresh origin/main, root-caused, regression test, PR) for
+      any genuinely NEW high-severity finding (Finding A already fixed/merged, Finding B
+      already tracked+deferred correctly -- do not re-litigate either)
+- [ ] Mint separate UMR for any out-of-scope finding (PR #737 pattern)
+- [ ] Write `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+- [ ] Register doc in `ai-os/OS.yaml` index if that's the established pattern
+- [ ] Report real fraction of nav surface exercised (cumulative with prior ~15/118 pass)
+- [ ] Finalize ACTIVE-CLAIMS.yaml entry for this session
+- [ ] Commit + push
