@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-094502-pm-decision--review-pr-795-directly-in-i) -- PM decision: review + merge PR #795 (erp/reports client crash fix, GAP-ERP-REPORTS-CLIENT-CRASH-ON-403 / OCID-020 Finding 1) directly in the interactive session, no headless worker/supervisor slot"
+    claimed_at: "2026-08-03T09:45Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own prompt.txt, citing UMR-20260802-165606-4413 /
+      OCID-020): do not wait for a headless worker or supervisor concurrency slot to free
+      before reviewing PR #795 (`fix/erp-reports-client-crash-on-403`) -- the 5 active
+      OCID-041..045 discovery workers are genuinely active and correctly not being killed,
+      but a full PR review does not require a new headless supervisor process. Read the
+      real diff and real CI status directly in this interactive session, confirm the fix
+      genuinely addresses OCID-020 Finding 1 (the high-severity `/erp/reports` blank-page
+      crash from `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_NAV_SWEEP_COMPLETE_2026-08-03.md`,
+      registered as `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` in `ai-os/MASTER-TRACKER.yaml`),
+      and if sound, merge through the existing PR pipeline.
+
+      Independently verified: `gh pr diff 795` shows a single-file change to
+      `src/app/(app)/erp/reports/page.tsx` -- guards `tb.accounts.length` with
+      `tb.accounts && tb.accounts.length` (matching the existing `tb?.accounts ?? []`
+      pattern one line above) and adds `?.` after `cf?.operating`, `cf?.investing`,
+      `cf?.financing` (same undefined-property-read crash class, one level deeper) --
+      this matches Finding 1's stack trace (`TypeError: Cannot read properties of
+      undefined (reading 'length')`) exactly: `tb.accounts` is undefined when the backing
+      API 403s for a module-not-enabled org, same as every other report field here reads
+      through an optional object that can come back absent on 403. All 7 real required
+      branch-protection contexts (`Lint`, `Type Check`, `Build`, `audit-check`,
+      `Guardrail Presence Check`, `Asset Registry Coverage Check`, `Unit Tests`) pass per
+      `gh pr checks 795`; `Vercel` failed on a build-rate-limit (not a required context,
+      confirmed via `gh api repos/.../branches/main/protection`), not a code issue.
+      `mergeStateStatus: BEHIND` (3 commits behind main) but `mergeable: MERGEABLE`;
+      `git merge-tree` against current `origin/main` confirms a clean, conflict-free
+      auto-merge. Proceeding to merge.
+    scope_note: >-
+      File scope: PR #795 review/merge only (no code edits -- the fix was already
+      complete and CI-green), this repo's `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) and
+      `PROGRESS.md`. No collision: grepped this file for "795" and
+      "erp-reports-client-crash" before starting, zero matches.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
