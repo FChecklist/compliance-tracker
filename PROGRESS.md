@@ -1659,3 +1659,27 @@ Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-2
 - [ ] The open question about whether every `[UMR-...]`-tagged PM dispatch message this session
       corresponds 1:1 to a real `umr_tasks` row was not independently confirmed -- flagged honestly
       as unverified, not blocking, per the Owner's own "UMR stays unchanged" resolution.
+
+---
+
+# PROGRESS -- docs/amend-umr-utr-discovery-third-umr-usage-found
+
+## Completed
+- [x] A duplicate-dispatch worker's own PR (#836) independently found a genuine, real, additional
+      fact this task's own merged artifact (PR #835) hadn't captured: `ai-os/registry/asset-registry-
+      coverage.yaml` + `scripts/check-asset-registry-coverage.mjs` already explicitly call themselves
+      "the mechanical half of... the Universal Metadata Registry" (Priority 4,
+      `09-priority4-umr-universal-tracker.yaml`) -- a third, real, pre-existing "UMR" usage, distinct
+      from `umr_tasks` and the `[UMR-...]` dispatch-message convention.
+- [x] Independently re-verified this claim directly (`grep` against both real files) before crediting
+      it -- not trusted from PR #836's own text alone.
+- [x] Closed PR #836 with an honest, credit-giving comment (its core content predates the Owner's
+      UTM->UTR correction and conflicts on file paths with the already-merged #835, but its real find
+      is preserved here, not silently dropped).
+- [x] Amended `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md` in place with this
+      third usage -- does not change the Owner's own "UMR stays unchanged" resolution, just names
+      what "as it already exists today" now includes.
+
+## Remaining
+- [ ] None for this amendment's own scope -- discovery/credit-preservation only, no schema/code/DB
+      change.

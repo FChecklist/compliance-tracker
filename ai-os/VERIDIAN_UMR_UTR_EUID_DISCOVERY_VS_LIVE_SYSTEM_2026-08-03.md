@@ -81,6 +81,31 @@ this pass — flagged honestly as unverified rather than assumed either way. Per
 resolution (§0), this does not block anything below: UMR stays as it is, unchanged, regardless of
 this open question.
 
+## Amendment (2026-08-03): a third, real, pre-existing "UMR" usage found
+
+Per an independent, concurrent discovery pass (real credit: a duplicate-dispatch worker's own PR
+`#836`, closed in favor of this document per the naming correction in §0, but whose own real
+finding is preserved here rather than silently dropped — independently re-verified directly against
+the real files below before being added, not trusted from that PR's text alone).
+
+`ai-os/registry/asset-registry-coverage.yaml` and `scripts/check-asset-registry-coverage.mjs`
+already exist as a real, live, CI-enforced system requiring every table declared in
+`src/lib/db/schema.ts` to appear in exactly one of that file's `registered`/`exempted` lists.
+`check-asset-registry-coverage.mjs`'s own header comment (`:2-6`) names it directly: *"the
+mechanical half of the Owner's 'software ensures... non-negotiable' requirement for the **Universal
+Metadata Registry**"* — the identical three words the Owner's newly-proposed architecture (§1) uses
+for UMR, tracing back to `09-priority4-umr-universal-tracker.yaml` (Priority 4). This is a real,
+**third** distinct usage of "UMR" in this codebase, alongside the `umr_tasks` table (§2) and the
+`[UMR-...]`-tagged PM dispatch-message convention (§2's own open question) — for a narrower,
+specific purpose (DB-table asset-registration coverage tracking), not the broader
+"reusable-knowledge registry" the Owner's new proposal describes.
+
+This does not change §0's resolution — the Owner's own explicit decision (`UMR-20260803-175139-dedf`)
+that "UMR stays UMR exactly as it already exists today, unchanged" already covers this: it just means
+"as it already exists today" is now known to include this asset-registry-coverage system too, not
+only `umr_tasks`. If a future PM decision ever authorizes real UMR/UTR implementation work, this
+third usage should be accounted for in that design, not rediscovered from scratch.
+
 ## 3. The real naming collision (found, not assumed) — resolved
 
 `utm_source`/`utm_medium`/`utm_campaign`/`utm_content`/`utm_term` are documented in
