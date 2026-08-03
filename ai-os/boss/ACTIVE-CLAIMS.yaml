@@ -8281,3 +8281,46 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+  - session_label: "claude-code (task-20260803-171457-resolve-pr-803-conflict--merge--and-inde) -- PR #803 conflict resolution, docs-only reconciliation [DONE, premise found stale]"
+    claimed_at: "2026-08-03T17:15Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, citing UMR-20260802-165606-4413/OCID-020 and the PR #794 nav sweep chain):
+      independent verification "just confirmed" PR #803 (OCID-020 Finding 1, GAP-ERP-REPORTS-CLIENT-
+      CRASH-ON-403) is still `OPEN` with `mergeable: CONFLICTING`, directing this session to rebase and
+      merge it, independently retest Finding 1 live against `projexa-ai.com` with a real screenshot, then
+      cascade the same rebase/merge treatment to PR #828, #829, #830, then proceed to OCID-050 real
+      testing execution.
+
+      Independently re-verified the premise before acting rather than trusting it, per standing practice
+      on this repo (server runs live concurrent worker/supervisor loops; PM-decision state can go stale
+      within seconds -- see prior sessions' same finding on PR #826/828/829/830). Found the premise
+      **stale, not current**: `gh pr view 803 --json state,mergedAt,mergeCommit` shows `MERGED` at
+      `2026-08-03T16:36:19Z`, merge commit `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`, independently
+      confirmed a real ancestor of `origin/main` via `git merge-base --is-ancestor`. A separate PR #831
+      (`docs/close-finding1-real-live-retest-confirmed`, merged 2026-08-03T16:43:27Z, citing a newer PM
+      decision `UMR-20260803-162547-b968`) had already done the rebase-merge AND the independent live
+      retest this spec asked for. Re-verified PR #831's own claim rather than trusting its commit message:
+      the screenshot it cites, `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png`, is a
+      real 102KB PNG (viewed directly) showing `/erp/reports` rendering its normal Financial Reports UI,
+      not the original "Application error" crash. `ai-os/MASTER-TRACKER.yaml` confirms
+      `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` at `status: resolved`. Also confirmed PR #828, #829, #830 are
+      all already `MERGED` (16:51:36Z / 16:57:59Z / 17:07:43Z, all after PR #831, all real ancestors of
+      current `origin/main` HEAD `a3706d3e`) -- no conflicting PRs remain open anywhere in this chain.
+
+      Also found and fixed a new instance of the recurring PROGRESS.md wholesale-replace regression
+      (same class as PR #828/829's own fixes): this task's workspace `PROGRESS.md` had been scaffolded as
+      a 2-line stub silently replacing 1580 lines of real prior history. Restored from `HEAD` before
+      appending this task's own section.
+
+      Did NOT proceed to OCID-050 real testing execution despite the spec's sequencing instruction: a
+      separate session (`task-20260803-120314-register-ocid-050-data-state-certificati`) already owns a
+      registered planning-only breakdown for it
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`) with a
+      real, unmet prerequisite flagged (no confirmed "Large Data volume" org yet). Executing it for real
+      is a multi-hour undertaking well beyond this task's own conflict-resolution scope; reaching into it
+      here would duplicate that session's ownership, exactly what this registry exists to prevent
+      (AGENTS.md Rule 11).
+    scope_note: >-
+      File scope: `PROGRESS.md` (restored from wholesale-replace regression + this task's own section),
+      this ACTIVE-CLAIMS entry. No src/, schema, migration, or CI changes -- the real code fix already
+      landed via PR #803 before this session started; nothing left to merge or fix in this cycle.
