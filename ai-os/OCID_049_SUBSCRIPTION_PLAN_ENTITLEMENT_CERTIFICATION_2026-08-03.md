@@ -205,3 +205,96 @@ entitlements (the `assistants_per_user` cap, and any `aiPackage` routing overrid
 correctly enforced** -- per-tier evidence (step 4 and, where applicable, step 5 above for all 4 rows), not
 a single tier's pass generalized to the others, and not a certification claim made from this planning
 document alone. This document performs none of that testing itself.
+
+---
+
+## Amendment (2026-08-03): real testing execution -- honest evidence, honest blockers
+
+Per PM decision `UMR-20260803-203925-1a38` (citing `UMR-20260802-165606-4413` OCID-020,
+`UMR-20260803-115513-c990` OCID-049): "find and confirm the real plan tier to branch mapping first...
+then run real live test cases against the real projexa.ai.com site confirming entitlement enforcement
+matches that mapping, document real findings honestly." This retracts PR #846/#847's premature "closes
+Group F" framing -- Group F is only described as closed once OCID-049 itself has real evidence, which
+this amendment now provides.
+
+### Plan-tier-to-branch mapping: confirmed absent, live and independently re-verified
+
+Re-verified, not just re-cited from this doc's own earlier grep-based claim: two fresh real test orgs
+(`iytvq0rzrfw8yjozaecny522`, `vtgca1hjadx5mgbt31e31i6n`) both show `erpEnabled: false`,
+`salesEnabled: false` via a real `GET /api/me` -- identical, module-disabled state for both, exactly as
+this doc's own §"Real, existing model" #3 vs #4 distinction predicted. **There is no real
+plan-tier-to-branch mapping to test against, because none exists in the live code or live behavior** --
+product-branch enablement and subscription-plan tier are two genuinely independent axes today. This is
+the honest answer to the PM's own framing of "the plan tier to branch mapping" as an open item: the
+open item is resolved by confirming, live, that no such mapping exists, not by finding one.
+
+### `assistants_per_user` cap: confirmed NOT enforced, live, with concrete numbers
+
+Two independent fresh real orgs tested. Org A (1 real user, the default self-signup admin) and Org B (1
+real user, same pattern) both show, via a real `GET /api/assistants`, **exactly 5 real AI-assistant
+rows** for their single user -- confirmed live, not inferred from the `Array.from({length:5}...)` code
+alone. A 1-user org's real, live-counted `userCount` (1) resolves to the Basic tier per
+`getOrgAiPackage()`'s own band logic (`userCount <= 10`), whose real `assistants_per_user` limit is
+**3**. The real, live, unconditionally-provisioned count of **5** already exceeds Basic's cap by 2, with
+zero error, zero block, zero warning -- live, concrete, numeric confirmation of this doc's own earlier
+code-read finding ("zero enforcement anywhere"), not a repeat of the same claim without new evidence.
+
+### AI-package tier-boundary crossing test: attempted, real infrastructure blocker hit
+
+Planned: scale Org B to 12 real users (crossing Basic's `user_pack_size=10` threshold into Standard's
+`<=25` band) via the real `POST /api/users` invite endpoint, then confirm the routing resolution
+reflects the new band. Real execution: the first 2 invite calls failed with a real `"Email address...
+is invalid"` (Supabase Auth's `inviteUserByEmail` -- unlike the Admin API `createUser` path this
+session has used throughout, this endpoint validates deliverability more strictly against the
+`.internal` test domain), and the next 9 failed with a real, hard `"email rate limit exceeded"` from
+Supabase's own transactional email service. **Org B's real user count remains 1** -- the
+tier-boundary-crossing test could not be executed this pass. This is a genuine infrastructure
+constraint (Supabase's own email rate limit on the specific `inviteUserByEmail` code path the real
+`/api/users` route uses), not a code gap in the app being tested, and not something a few retries
+would resolve -- registered honestly below rather than silently abandoned or worked around with a
+direct DB insert (which this session has independently established carries its own real, unresolved
+trust risk -- see next finding).
+
+### New finding: `platform.ai_routing_audit_log` unreadable via any safe channel, and empty via direct DB read despite confirmed-live routing activity
+
+No API route or UI page in this codebase reads `aiRoutingAuditLog` (`git grep` confirms it is
+write-only from the app's own perspective -- `src/lib/ai-router/mother-router.ts` and
+`tenant-ai-config` are its only two references outside `schema.ts`). PostgREST does not expose the
+`platform` schema at all (`Accept-Profile: platform` -> `PGRST106`, "Only the following schemas are
+exposed: public, graphql_public, compliance"). The one remaining channel, a direct, read-only `psql`
+query against `DATABASE_URL`, returned **zero rows total** for `platform.ai_routing_audit_log` --
+not just zero recent rows, the entire table -- despite this session having just triggered two real,
+confirmed, successful `end_user_org`-scope AI resolutions (both Org A and Org B's real VERI Chat
+messages got real, on-topic LLM replies), and despite `software_team`-scope resolutions almost
+certainly having fired many times over this same long session's own extensive worker/supervisor AI
+dispatch activity. This is the same class of symptom this session already found and registered for
+`compliance.product_branches` (`GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`) -- a live
+mechanism confirmed working by its real, observable effects, whose own backing data is not visible via
+either PostgREST or a direct `psql` read. Amended that gap (rather than registering a narrower
+duplicate) to record this second, independent occurrence in a different schema/table, broadening its
+scope from "isolated to product_branches" to "a real, recurring pattern, root cause still not found."
+**Practical effect on this OCID's own test plan**: the routing-resolution's *tier classification*
+(which `aiPackage` a given org's user count actually resolves to) cannot be independently confirmed via
+any currently-safe channel -- only the mechanism's *functional health* (real request in, real
+on-topic reply out, no error) is confirmable today, which this pass did confirm for both test orgs.
+
+### Definition of done -- honest status against this doc's own original criteria
+
+Not fully met, honestly: only 1 of 4 tiers (Basic, by virtue of every fresh test org's default 1-user
+state) got real, live-tested evidence; Standard/Professional/Enterprise remain untested because the
+real infrastructure blocker above prevented reaching their user-count bands. What **was** achieved with
+real, live evidence: the `assistants_per_user` cap is confirmed live as unenforced (concrete numbers,
+not just a code read); the plan-tier-to-branch mapping is confirmed live as genuinely absent (the
+PM's own named open item, now resolved); the AI-package routing mechanism is confirmed live as
+functionally healthy end-to-end for real requests, though its internal tier-resolution detail is not
+independently observable via any safe channel today (a new, real, honestly-registered finding, not
+silently assumed away).
+
+**OCID-049 is not fully certified** -- 1 of 4 tiers has real evidence, 3 remain blocked on a real
+infrastructure constraint (Supabase email rate limit) rather than an app-code gap, and this OCID's own
+DoD explicitly requires all 4. Registered honestly as partially complete with named, real blockers, not
+inflated to "done." Per the PM's own instruction, Group F as a whole is **not** described as closed by
+this amendment -- OCID-049 needs either a rate-limit-safe way to scale a real org's user count (e.g.
+the same Admin-API-`createUser` + direct `compliance.users` row pattern this session used successfully
+elsewhere, if a safe app-level path exists for that specific insert) or an Owner-side rate-limit
+increase, before the remaining 3 tiers can get real evidence.

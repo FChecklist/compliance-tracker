@@ -1104,7 +1104,7 @@ open_items:
         `UMR-20260803-162547-b968`."
 
     - id: GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY
-      name: "Live app resolves 'erp'/'sales'/other product_branches by branch_key successfully, but direct reads (psql via .env.local's DATABASE_URL, and PostgREST via SUPABASE_SERVICE_ROLE_KEY, both against the same confirmed-live project pcrjmlpuqsbocqfwoxod) show only 1 row ('grc') in compliance.product_branches -- root cause not yet found"
+      name: "Real, recurring pattern (2 independent occurrences, 2 different schemas/tables): direct DB reads (psql, PostgREST) disagree with confirmed-live app behavior -- root cause still not found"
       old_ids: []
       detail: |
         Found during OCID-050's State C (large-data org) preparation, 2026-08-03.
@@ -1151,6 +1151,26 @@ open_items:
         another external read -- the two external reads already available (direct
         psql, PostgREST+service-role) both agree with each other and disagree with
         live behavior, so a third external read is unlikely to add signal.
+
+        **Amendment (2026-08-03, OCID-049 real testing, `UMR-20260803-203925-1a38`): a second,
+        independent occurrence found, different schema/table.** While testing OCID-049's
+        AI-package routing mechanism, two real, confirmed-successful `end_user_org`-scope AI
+        resolutions were triggered live (real VERI Chat messages, real on-topic LLM replies
+        returned). Per `src/lib/ai-router/mother-router.ts`'s own code, every such resolution
+        writes a row to `platform.ai_routing_audit_log` via `logRoutingDecision()`. PostgREST does
+        not expose the `platform` schema at all (`Accept-Profile: platform` -> `PGRST106`, "Only
+        the following schemas are exposed: public, graphql_public, compliance"); no API route or
+        UI page in the codebase reads this table either (confirmed via `git grep` -- write-only
+        from the app's own perspective). The remaining channel, a direct read-only `psql` query
+        against `DATABASE_URL`, returned **zero rows total** for the entire table -- not just zero
+        recent rows -- despite this session's own confirmed-real `end_user_org` triggers and near-
+        certain `software_team`-scope activity from this same long session's own extensive
+        worker/supervisor AI dispatch history. Same symptom class as the `product_branches`
+        finding above (a live mechanism confirmed working by its own observable effects, whose
+        backing data is invisible via every currently-available external read channel), now
+        confirmed in a second, structurally unrelated schema (`platform` vs `compliance`) and
+        table. This rules out "product_branches specifically has some narrow sync issue" as an
+        explanation -- whatever the real root cause is, it is not isolated to one table.
       status: open
       first_raised: "OCID-050 State C preparation, 2026-08-03 (UMR-20260803-185714-89c6)"
 
@@ -1966,7 +1986,7 @@ open_items:
       first_raised: "This session, 2026-08-03, real live test during OCID-047 execution (UMR-20260803-145921-c0c4, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
-      name: "OCID-049 Subscription Plan Entitlement Certification -- planning artifact registered, entitlement enforcement not yet built"
+      name: "OCID-049 Subscription Plan Entitlement Certification -- real testing partially executed (1 of 4 tiers, real infra blocker on the other 3); entitlement enforcement (assistants_per_user cap) confirmed live as unbuilt, not just planned"
       detail: |
         OCID-020 (UMR-20260802-165606-4413), Business Certification phase (new, first registered by this
         entry). Real, existing compliance.subscription_plans model (4 seeded tiers: Basic/Standard/
@@ -1988,8 +2008,21 @@ open_items:
       recommendation: "Planning only this cycle, per this OCID's own dispatch text and SEC-07. Do not
         implement/test/certify until the Owner explicitly opens implementation for this OCID (same
         discipline SEC-07 already applies to the OCID-038/039/040 chain) -- this entry exists so the real
-        task breakdown is findable and not re-derived from scratch by whichever session picks it up next."
-      status: open
+        task breakdown is findable and not re-derived from scratch by whichever session picks it up next.
+
+        **Amendment (2026-08-03, real testing execution, UMR-20260803-203925-1a38):** per PM decision,
+        real testing (not implementation) proceeded. Confirmed live, with real orgs: the
+        plan-tier-to-branch mapping the PM asked to be found is confirmed genuinely absent (2 real
+        orgs both show module-enablement flags false, independent of tier); assistants_per_user is
+        confirmed live as unenforced with concrete numbers (a real 1-user org already has 5 real
+        AI-assistant rows against Basic tier's real 3-assistant cap). A tier-boundary-crossing test
+        (scaling a real org past 10 users to observe Standard-tier resolution) was attempted and
+        blocked by a real Supabase email-rate-limit on the `POST /api/users` invite path -- an
+        infrastructure constraint, not an app-code gap. Full write-up:
+        ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md's own amendment.
+        Still not implemented (Tasks A-E remain undone, per the standing OCID-021 lock) and not fully
+        certified (1 of 4 tiers has real evidence)."
+      status: "open (partially tested -- see amendment; Tasks A-E remain unimplemented per the OCID-021 lock)"
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
   ratified_do_not_build:

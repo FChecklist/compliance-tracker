@@ -1883,5 +1883,59 @@ summary, closing the full Group F Business Certification scope).
       `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`.
 - [ ] Item 5 (dialogue-script path) remains deferred -- no active scripted capability package was
       confirmed for any test org used this session.
-- [ ] This closes the full Group F Business Certification scope (OCID-047 through OCID-052) under
-      OCID-020. Next real priority is whatever the PM confirms after independently verifying this PR.
+- [ ] CORRECTION (2026-08-03, `UMR-20260803-203925-1a38`): the line above claiming this closes Group F
+      was premature and is retracted -- OCID-049 had never had real testing execution at the time this
+      was written. See the new `docs/ocid049-real-testing-and-group-f-retraction-fix` section below for
+      OCID-049's own real testing execution and honest completion status.
+
+---
+
+# PROGRESS -- docs/ocid049-real-testing-and-group-f-retraction-fix
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-115513-c990` (OCID-049),
+`UMR-20260803-203925-1a38` (PM decision: PR #846/#847's "closes Group F" framing retracted -- OCID-049
+never had real testing execution; find and confirm the real plan-tier-to-branch mapping, run real live
+test cases, document honestly, only then describe Group F as closed).
+
+## Completed
+- [x] Independently verified the PM's own correction before acting: confirmed PR #847 was a genuine
+      duplicate of my own already-merged #846 (same finding, different gap name) -- closed it with a
+      credit-preserving comment.
+- [x] Read OCID-049's existing planning doc in full: confirmed its own honest open item exactly as the
+      PM described (`assistants_per_user` zero enforcement, no plan-tier-to-branch mapping found, no
+      admin UI to assign tiers).
+- [x] Plan-tier-to-branch mapping: confirmed live, via 2 fresh real test orgs, that no such mapping
+      exists -- both show `erpEnabled`/`salesEnabled: false` via real `GET /api/me`, independent of any
+      tier concept. This resolves the PM's own named open item (the answer is "confirmed absent," not
+      "found").
+- [x] `assistants_per_user` cap: confirmed live as unenforced with concrete numbers -- a real 1-user org
+      (which resolves to Basic tier, real cap 3) already has 5 real `GET /api/assistants` rows, zero
+      error, zero block.
+- [x] Attempted a real tier-boundary-crossing test (scale a real org past 10 users via `POST
+      /api/users`) -- hit a real, hard Supabase email-rate-limit blocker on the `inviteUserByEmail` code
+      path this endpoint uses. Registered honestly as a real infrastructure constraint, not retried
+      uselessly, not worked around with a direct DB insert.
+- [x] Found and registered a new, real finding: `platform.ai_routing_audit_log` (which every real
+      `end_user_org`/`software_team` AI resolution writes to) is unreadable via any safe channel --
+      PostgREST doesn't expose the `platform` schema, no API route reads it, and a direct `psql` read
+      returned zero rows total despite this session's own confirmed-real routing activity. Amended
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` (broadened, not duplicated) to record this
+      second, independent occurrence in a different schema/table.
+- [x] Corrected the retracted "closes Group F" claim in both the already-merged OCID-052 doc and
+      PROGRESS.md's own earlier section, citing the PM's correction directly rather than silently
+      editing history.
+- [x] Wrote OCID-049's own honest completion amendment: 1 of 4 tiers has real evidence (Basic, by
+      virtue of every fresh org's default 1-user state), 3 remain blocked on the real rate-limit
+      constraint -- not inflated to "done."
+
+## Remaining
+- [ ] OCID-049 itself remains not fully certified -- Standard/Professional/Enterprise tiers need either
+      a rate-limit-safe way to scale a real org's user count, or an Owner-side Supabase rate-limit
+      increase, before real evidence can be gathered for them.
+- [ ] Tasks A-E (real implementation: enforce the cap, surface limits on /api/me, frontend gate, seed a
+      routing policy, admin UI) remain unimplemented, per the standing OCID-021 lock.
+- [ ] `platform.ai_routing_audit_log`'s unreadability (new finding) has no assigned owner yet -- needs a
+      live Vercel-side diagnostic (matching the existing product_branches gap's own recommendation) to
+      actually root-cause, not another external read attempt.
+- [ ] Group F is not described as closed by this PR -- OCID-049's own real, partial completion status is
+      the accurate description. Next real priority is whatever the PM confirms.
