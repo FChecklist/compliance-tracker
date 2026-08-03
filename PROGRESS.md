@@ -1196,3 +1196,95 @@ everywhere for the wrong reason: total absence, not a deliberately-low real rank
       visibility, classification-clearance ceiling -- PR #814's amendment) was not tested this pass;
       this pass covered only the RIGHTS/action-permission axis.
 - [ ] Real testing execution for OCID-048/049/050/051 has not started yet.
+
+# PROGRESS -- task-20260803-150821-pm-decision--proceed-with-ocid-047-real
+
+Cites: `UMR-20260803-115333-dab8` (`UMR-20260802-165606-4413`, OCID-020) -- "proceed with real testing
+execution for OCID-047 Roles Rights and Responsibilities Certification now... real API-level checks per
+role... sufficient for a real first pass... not blocked by the real Playwright Chromium missing system
+libs gap. Separately, confirm GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS is registered honestly..."
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first, per protocol, before starting any work.
+- [x] **Real duplicate-dispatch collision found and handled, not silently worked around**: this
+      session's own mandatory `git fetch origin main` (before picking any task) found `origin/main`
+      already at `066cad5f` (PR #823, `test/ocid047-role-matrix-real-execution`) -- a genuinely
+      parallel session under a *different* PM decision UMR (`UMR-20260803-145921-c0c4`, same parent
+      OCID-020) had, minutes earlier, already executed real, live API-level RIGHTS/rank-axis testing
+      for OCID-047 (55 real HTTP calls, 11 roles x 5 routes, 55/55 matched `ROLE_RANK` prediction for
+      10/11 roles, found+registered `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`) AND had already amended
+      `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` to name OCID-050/051/052 items 4-5 -- both halves
+      of this task's own SPEC. Independently re-verified via `git cat-file -p` diff against the real
+      blobs (not trusted from the commit message alone) before concluding this. Merged `origin/main`
+      into this branch; did not redo that work.
+- [x] Registered an `ACTIVE-CLAIMS.yaml` entry for this session's own real, non-duplicate scope (PR
+      #824, merged), noting the collision and the pivot to the genuinely remaining gap that merged
+      PR's own "Remaining" list named: the RESPONSIBILITY/data-scope axis (separate from the RIGHTS/
+      rank axis just tested), and specifically its 3 named same-rank/different-clearance divergences
+      (`external_auditor` vs `member`, `senior_professional` vs `manager`, `team_member` vs `member`)
+      that had never been executed against live code.
+- [x] Independently derived the real `@supabase/ssr` session-cookie format directly from
+      `node_modules/@supabase/ssr/dist/module/cookies.js`/`utils/chunker.js` (cookie name = `sb-<project
+      ref>-auth-token`, from `@supabase/supabase-js`'s own default `storageKey` derivation; value =
+      `"base64-" + base64url(JSON.stringify(session))`, single chunk since encoded length is well under
+      the 3180-char `MAX_CHUNK_SIZE` threshold for a normal JWT session) -- not reused from a leftover
+      script (the prior session's own hand-cookie script was not preserved on disk to reuse verbatim),
+      confirmed working end-to-end against live `projexa-ai.com`.
+- [x] Investigated the 4 real mechanisms the earlier responsibility-model amendment (PR #814) named:
+      `home-service.ts` (rank-derived dashboard scope, no independent divergence -- not tested
+      separately), `client-access-service.ts`'s `FULL_CLIENT_ACCESS_ROLE` (rank-derived via `hasRole()`,
+      no independent divergence -- not tested separately), `risk-register-service.ts`'s
+      `BROAD_SCOPE_ROLES` (an explicit allowlist, genuinely untested this pass -- honest gap, not
+      silently assumed clean), and `classification.ts`'s `ROLE_CLEARANCE` (a real, independent axis from
+      `ROLE_RANK` with the 3 named divergences -- this pass's real target).
+- [x] Built and ran a real, live test script against `projexa-ai.com`: 1 real admin user (real
+      signup-equivalent via Supabase Admin API + real password-grant login, `autoProvisionUser`
+      triggered live via `GET /api/conversations`) provisioned a real org; created 3 real board meetings
+      via real `POST /api/board` (default `classification = 'board_only'`); 2 of the 3 re-classified to
+      `confidential`/`department` via a real, live-verified DB `UPDATE` (board's own POST route has no
+      classification input field); 5 more real test users (`member`, `team_member`,
+      `senior_professional`, `manager`, `external_auditor`) provisioned into the same real org (role +
+      orgId re-pointed via a real DB `UPDATE`, same technique the RIGHTS-axis amendment used for its
+      6 DB-seeded roles).
+- [x] Ran 6 real `GET /api/board` calls (one per role), reading the real `restricted`/`minutes` field per
+      meeting -- 18 real per-role/per-meeting checks (6 roles x 3 meetings).
+- [x] **Result: 18/18 real outcomes exactly matched `canAccess()`'s `ROLE_CLEARANCE`-ceiling
+      prediction** -- confirmed live all 3 named same-rank/different-clearance divergences are real and
+      correctly enforced (not merely theoretical). Amended
+      `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` in place with these
+      results (4th real amendment to that section), rather than a new/duplicate document.
+- [x] Recorded a real side-observation on `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`: `ROLE_CLEARANCE`'s
+      own fallback (`?? "public"`) is a correct, fail-closed default for a `stage_0` user (unlike
+      `ROLE_RANK`'s `?? 0`, which is below its own real floor) -- not independently HTTP-tested this
+      pass (no `stage_0` user in this specific run), stated as a code-level observation only, and not
+      registered as a new gap since the behavior here is correct by design.
+
+## Real result summary (18/18 checks; PASS = `cleared: true`, DENY = `restricted: true` i.e. minutes withheld)
+
+| Role (rank, `ROLE_CLEARANCE` ceiling)         | Meeting A `board_only` | Meeting B `confidential` | Meeting C `department` |
+|------------------------------------------------|:---:|:---:|:---:|
+| admin (5, `board_only`)                        | PASS | PASS | PASS |
+| manager (3, `department`)                      | DENY | DENY | PASS |
+| member (2, `company_wide`)                     | DENY | DENY | DENY |
+| team_member (2, `department`)                  | DENY | DENY | PASS |
+| senior_professional (3, `confidential`)        | DENY | PASS | PASS |
+| external_auditor (1, `confidential`)           | DENY | PASS | PASS |
+
+Real, live-confirmed divergences: `external_auditor` (rank 1) clears `confidential`, `member` (rank 2)
+does not; `senior_professional` clears `confidential`, `manager` (same rank 3) does not; `team_member`
+clears `department`, `member` (same rank 2) does not. All 3 match the earlier planning amendment's
+predictions exactly.
+
+Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not repo-tracked)
+`/tmp/ocid047-resp-test/output.log`.
+
+## Remaining
+- [ ] `risk-register-service.ts`'s `BROAD_SCOPE_ROLES` (department/ownership scoping on
+      `/api/risks`) remains genuinely untested against live code -- real, honest scope limit for this
+      pass, not silently assumed clean.
+- [ ] OCID-047's own Step 4 (real denial-UX confirmation) remains UI-level and blocked on
+      `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
+- [ ] `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` (registered by the RIGHTS-axis amendment) is still open,
+      unfixed -- not this test-execution task's to prescribe a fix for.
+- [ ] Real testing execution for OCID-048/049/050/051/052 items 4-5 has not started yet (052 items 2-3
+      already done; 050/051/052-items-4-5 blocked on Playwright per the now-amended gap).
