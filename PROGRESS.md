@@ -742,3 +742,56 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None -- ready for re-review, real content already independently confirmed sound by the prior audit round
+
+# PROGRESS -- task-20260803-080705-urgent-correct-wrong-and-unverifiable-um
+
+Cites: `UMR-20260803-041700-a741` (OCID-031) and `UMR-20260803-042003-5e92` (OCID-034), per real
+PM decision `UMR-20260803-063016-8bfc`.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first; found existing entries for both OCID-031 (PR #781)
+      and OCID-034 (PR #779) already documenting this same citation-correction work.
+- [x] Independently queried `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s raw `umr_tasks`
+      table directly (not just the resource-governor query tool) for all four UMRs in the PM spec:
+      `UMR-20260803-041700-a741` (real, OCID-031), `UMR-20260803-042003-5e92` (real, OCID-034),
+      `UMR-20260803-041459-7c97` (real, but is OCID-030's own UMR, not OCID-031's), and
+      `UMR-20260803-055709-368e` (**zero rows** — no `umr_id` match anywhere in `umr_tasks`).
+- [x] Ran a full-table sweep of every non-FTS table in the sqlite DB for the literal string
+      `UMR-20260803-055709-368e`: the only 3 hits (`instructions`, `actions`, and `umr_tasks` row
+      `UMR-20260803-063016-8bfc`'s own `inputs_json`/`metadata_json`) are all this task's own dispatch
+      payload quoting the PM spec text verbatim — not an independent prior registration.
+      **Finding, as requested: fabrication, not a genuine duplicate registration.** No duplicate
+      record exists anywhere to close/supersede.
+- [x] Checked PR #781 and PR #779 on GitHub directly: **both fixes described in this PM decision were
+      already applied by an earlier process before this task's own worker session started.**
+      - PR #781 title renamed 2026-08-03T06:31:32Z: `UMR-20260803-041459-7c97` → `UMR-20260803-041700-a741`
+        (confirmed via `gh api .../issues/781/events`, event type `renamed`).
+      - PR #779 title renamed 2026-08-03T06:31:33Z: `UMR-20260803-055709-368e` → `UMR-20260803-042003-5e92`.
+      - Both PRs are `MERGED`. Real merge/fix commits on `origin/main`, all authored 2026-08-03 between
+        06:36–06:47Z (over an hour before this task's own worker started at 08:07:06Z):
+        `a9a0fb56` (fix PR #781 doc citation), `50769c4c` (fix PR #779 fabricated citation),
+        `23d2123d` (fix PR #779 amendment heading), merged via `08faf747` (#781) and `7a6ad5ab` (#779).
+      - Confirmed `a9a0fb56` is a real ancestor of current `origin/main` HEAD (`git merge-base
+        --is-ancestor`), independent of local branch state.
+      - `ai-os/VERIDIAN_UNIVERSAL_SOFTWARE_EXECUTION_ENGINE_2026-08-03.md` and
+        `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md` both cite the correct
+        UMR in their headers, each with an honest in-document correction note (not a silent edit).
+      - `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` cites the correct UMRs for both OCID-031 and OCID-034.
+      - `ai-os/MASTER-TRACKER.yaml` already has `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION` under the
+        OCID-019 recovery-matrix section, documenting the PR #779 fabrication finding with the real
+        3-step verification method, real merge commit `7a6ad5ab`, and an honest note that the same
+        pattern remains unfixed (out of scope for this PM decision) in PR #765 (OCID-022,
+        `UMR-20260803-041653-9de5`) and PR #768 (OCID-023, `UMR-20260803-042019-844f`).
+      - Only remaining loose end found: PR #781's GitHub *description* (not its title, and not any
+        tracked file) still quotes the original wrong UMR once in a historical/narrative bullet
+        ("Real Owner directive, tier 1 (`UMR-20260803-041459-7c97`, ...)") describing what the task's
+        *original* SPEC said before correction — read in context (bullet 5 of the same description
+        states the correction explicitly), this is an accurate historical statement, not a live wrong
+        citation, so left as-is.
+- [x] No src/, schema, or CI changes required — this was a verification task; the underlying
+      corrections were real, already correct, and already merged.
+
+## Remaining
+- [ ] None for this PM decision. `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`'s two out-of-scope
+      instances (PR #765/#768) remain a real, separately-tracked open gap in `MASTER-TRACKER.yaml` —
+      not part of this task's scope (PR #781/#779 only).

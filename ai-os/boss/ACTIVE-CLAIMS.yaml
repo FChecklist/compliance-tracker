@@ -40,6 +40,46 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-080705-urgent-correct-wrong-and-unverifiable-um) -- PM decision: verify/correct wrong+unverifiable UMR citations in PR #781 and PR #779 [DONE, verification-only, no residual fix needed]"
+    claimed_at: "2026-08-03T08:07Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision `UMR-20260803-063016-8bfc`): independently verify two citation
+      problems and correct them. (1) PR #781 (OCID-031, `worker/task-20260803-055106-ocid-031-...`)
+      title cited `UMR-20260803-041459-7c97` (real, but is OCID-030's own UMR) instead of its real
+      own `UMR-20260803-041700-a741`. (2) PR #779 (OCID-034, `worker/task-20260803-055118-ocid-034-...`)
+      title cited `UMR-20260803-055709-368e`, which a resource-governor query returns zero matches
+      for -- determine honestly (via the raw sqlite table, not just the query tool) whether it is a
+      real record anywhere, and either fix as fabrication+flag in the OCID-019 recovery matrix, or
+      consolidate as a genuine duplicate onto the real `UMR-20260803-042003-5e92`.
+
+      Independently queried `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s raw `umr_tasks`
+      table directly (per the spec's own instruction, not just `resource_governor.py --query-umr`)
+      for all four UMRs: `UMR-20260803-041700-a741` and `UMR-20260803-042003-5e92` are real rows for
+      OCID-031/034 respectively; `UMR-20260803-041459-7c97` is real but is OCID-030's own row;
+      `UMR-20260803-055709-368e` has zero rows anywhere in `umr_tasks`, and a full-table sweep of
+      every other table found it only inside this task's own dispatch payload (`instructions`,
+      `actions`, and UMR-20260803-063016-8bfc's own `inputs_json`) -- not an independent prior
+      registration. **Finding: fabrication, not a genuine duplicate.**
+
+      **Real finding: both corrections were already made by an earlier process before this task's own
+      worker session started** (this session's `task.yaml` shows lifetime invocation 1, no prior
+      commits from this task itself -- the earlier fix ran under the same PM-decision UMR via a
+      different, earlier-dispatched route). Verified independently via `gh api .../issues/{781,779}/events`
+      (both titles renamed 2026-08-03T06:31:32-33Z) and `git merge-base --is-ancestor` against
+      `origin/main` HEAD: real commits `a9a0fb56` (PR #781 doc fix), `50769c4c` + `23d2123d` (PR #779
+      fabrication removal), merged via `08faf747`/`7a6ad5ab`, all 2026-08-03T06:36-06:47Z. Both
+      canonical documents now cite the correct UMR with an honest in-document correction note;
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` is correct; `ai-os/MASTER-TRACKER.yaml` already
+      carries `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION` under the OCID-019 recovery matrix,
+      documenting this exact fabrication with the real 3-step verification method and noting the
+      same unfixed pattern in PR #765/#768 (out of scope for this decision). No re-edit performed --
+      would have been a redundant/risky no-op on already-correct, already-merged content. Full detail
+      and evidence trail in `PROGRESS.md`'s entry for this task.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry, `PROGRESS.md` (verification findings appended). No other
+      file changes -- both PRs already merged with the correct citations before this session started;
+      re-editing would have been redundant. Merged `origin/main` into this branch first to resolve a
+      real PROGRESS.md append-point conflict (union-preserved both sides, per established convention).
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
