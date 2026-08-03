@@ -40,6 +40,44 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next) -- monitor task-210700 for real completion, then rebase+push PR #744 onto then-current main"
+    claimed_at: "2026-08-02T23:17Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260802-165606-4413` and
+      the standing rebase directive `UMR-20260802-223426-f1d5`): PR #744
+      (`worker/task-20260802-220756-pm-decision--close-pr-741-as-superseded`)
+      is still `DIRTY`/CONFLICTING at head `2a85f63b`, independently
+      reconfirmed this session via `gh pr view 744` -- unchanged since the
+      prior strip, because PR #745 and PR #746 both merged after that
+      rebase and touched the same shared `PROGRESS.md`/
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` files this PR also touches.
+      **CORRECTION (per PM decision UMR-20260802-235349-9387, independently
+      verified directly on the server): the claim that
+      `task-20260802-210700-pm-decision--fix-the-real-high-severity` was
+      "genuinely running" (based on `task.yaml` `status: in_progress` and a
+      `worker.log` tail) was FALSE.** Real `systemctl --user status` shows
+      `Active: inactive (dead)`, journal shows a clean `SIGTERM` at
+      `23:14:21Z`, five minutes before this claim was made. Recorded as a
+      real supporting example for the OCID-019 status-field-staleness gap
+      (`UMR-20260802-165541-c27d`, PR #750). task-210700's real value
+      (multi-tenant isolation finding) is already merged via PR #747.
+      Baseline confirmed on
+      current `main` (`71f3538b`, already includes PR #745+#746): grep for
+      `GAP-ERP-CRM-403-NO-UX-EXPLANATION` in `ai-os/MASTER-TRACKER.yaml`
+      shows exactly 1 match. Not touching PR #744's branch or any other
+      shared branch until task-210700 reaches real completion (safety wait,
+      per this task's own directive) -- once it does, will rebase PR #744
+      onto the then-current `main`, resolve `PROGRESS.md`/
+      `ACTIVE-CLAIMS.yaml` conflicts the same way the first rebase did,
+      re-confirm the single-match grep, push, and report real
+      MERGEABLE/CONFLICTING status (not merge -- that step is explicitly
+      gated on CI green + no forced conflict resolution).
+    scope_note: >-
+      File scope this session: `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. PR #744's own branch
+      (`worker/task-20260802-220756-pm-decision--close-pr-741-as-superseded`)
+      is in scope only after task-210700 completes -- not touched yet. No
+      src/, schema, or CI changes.
   - session_label: "claude-code (task-20260802-210700-pm-decision--fix-the-real-high-severity) -- PM decision: fix the real high-severity GET /api/departments 500 (UMR-20260802-165606-4413, OCID-020 Finding A) before resuming the broader certification sweep"
     claimed_at: "2026-08-02T21:07Z (this session)"
     claim: |
