@@ -998,6 +998,105 @@ open_items:
       status: open
       first_raised: "Resolving claude-control PR #123, 2026-08-03 (UMR-20260803-025317-0c64)"
 
+    - id: GAP-VERI-TODO-STUCK-LOADING-NOT-READY
+      name: "VERI To Do task list can show \"Loading...\" for 6+ real seconds, and VERI Chat composer submission produced one real \"VERI AI isn't ready yet\" toast error (severity: unconfirmed, medium-priority to investigate -- real but not yet reproduced enough times to characterize)"
+      old_ids: []
+      detail: |
+        Real finding, OCID-038/039/040 real end-user testing pass
+        (`UMR-20260803-072925-cacf`, `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`
+        §3.6-3.7). Real Playwright session against `https://projexa-ai.com`
+        (real signup + real Admin-API email-confirm bypass + real login):
+        `/veri-todo`'s task-list section rendered "Loading..." at an
+        immediate check and again 6 seconds later in the same authenticated
+        session (real screenshots). A separate real composer submission
+        ("Create a task: Review Q3 compliance checklist") produced a real
+        toast: "VERI AI isn't ready yet -- try again in a moment." A
+        planned third, 15-second re-check does NOT corroborate or refute
+        this -- that check's own real screenshot shows the login page, not
+        `/veri-todo` (the session backing it had already been blocked by a
+        real Supabase signup rate-limit before the check ran), so it is
+        void evidence, not a real "resolved after 15s" data point. Root
+        cause not investigated (out of scope for this discovery-only pass
+        under `SEC-07`'s implementation lock).
+      size: "Unknown -- needs a real, valid, longer-wait authenticated
+        re-test (and ideally a look at the real network requests /veri-todo
+        and the composer's submit endpoint make) before this can be sized.
+        Could be real backend latency, a real error state, or a real but
+        rare transient condition."
+      recommendation: |
+        When picked up (post OCID-020 unlock, under OCID-038's real
+        implementation phase): re-run a real authenticated session against
+        `/veri-todo` with a genuinely valid long wait (confirm via
+        `page.url()` that the session is still authenticated throughout,
+        unlike this finding's own void 15s check), capture the real network
+        request/response for whatever endpoint backs the task list and the
+        composer submit action, and root-cause from there.
+      status: open
+      first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072925-cacf)"
+
+    - id: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE
+      name: "Real installable PWA manifest exists, but no service worker -- going offline renders a fully blank page with no offline fallback UI (severity: medium -- real, directly observed, real recovery on reconnect confirmed clean)"
+      old_ids: []
+      detail: |
+        Real finding, OCID-038/039/040 real end-user testing pass
+        (`UMR-20260803-072940-6a88`,
+        `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`
+        §3.3, §3.9). Real, live-confirmed: `https://projexa-ai.com/manifest.webmanifest`
+        (from the real `src/app/manifest.ts` Next.js metadata route) returns
+        HTTP 200 with a real `share_target` wired to
+        `/api/veri-chat/share-target`, and a real `<link rel="manifest">` tag
+        is present in the live page `<head>` -- the app really is
+        installable. Separately, real test: `browserContext.setOffline(true)`
+        + reload renders a fully blank white page (real screenshot) -- no
+        offline fallback shell, no cached content, no "you're offline"
+        messaging, confirming no service worker backs the real manifest.
+        Real recovery confirmed clean: restoring network + reload returns to
+        `/home`, authenticated session intact, no forced re-login.
+      size: "M -- adding a real service worker (even a minimal app-shell
+        cache, e.g. via `next-pwa`/`serwist`/a hand-written `sw.js` +
+        registration) is a genuinely new subsystem, not a one-line fix.
+        Real scope decision needed on how much offline capability is
+        actually wanted (full offline-first vs. a graceful \"you're
+        offline\" shell) before sizing further."
+      recommendation: |
+        When picked up (post OCID-020 unlock): decide the real target
+        offline experience first (this repo's own PLATFORM_STRATEGY.md PWA
+        section, if any, should be checked/updated), then add a real service
+        worker + registration, then re-run this same real offline test to
+        confirm a graceful fallback instead of a blank page.
+      status: open
+      first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072940-6a88)"
+
+    - id: GAP-MOBILE-VIEWPORT-BLANK-CONTENT
+      name: "At a real 390x844 mobile viewport, the main content area rendered blank in an already-authenticated session (severity: unconfirmed -- single real observation, sidebar itself responded correctly)"
+      old_ids: []
+      detail: |
+        Real finding, OCID-038/039/040 real end-user testing pass
+        (`UMR-20260803-072955-3132`,
+        `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`
+        §3.10). Real test: an already-authenticated desktop session had its
+        viewport resized to 390x844 (a phone-sized viewport -- not an actual
+        native PWA install/device test) and reloaded `/home`. Real
+        screenshot: the sidebar correctly collapsed to a hamburger/grid icon
+        (real responsive behavior), but the main content card rendered
+        entirely blank, where the same route had rendered real content at
+        desktop width seconds earlier in the same session. Not chased
+        further this session (would require opening the hamburger menu and
+        probing deeper -- out of this pass's real remaining budget); single
+        real observation, not cross-checked against a second real mobile
+        session.
+      size: "Unknown -- needs a second independent real mobile-viewport
+        session (and ideally a real device/native-install test, still not
+        done anywhere in this OCID chain as of this entry) before sizing."
+      recommendation: |
+        When picked up (post OCID-020 unlock): re-run a real mobile-viewport
+        session, open the hamburger menu, and check whether the blank
+        content area is a real rendering bug, a real slow-load state (same
+        family as GAP-VERI-TODO-STUCK-LOADING-NOT-READY, not yet cross-
+        checked against it), or specific to this single observation.
+      status: open
+      first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072955-3132)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
