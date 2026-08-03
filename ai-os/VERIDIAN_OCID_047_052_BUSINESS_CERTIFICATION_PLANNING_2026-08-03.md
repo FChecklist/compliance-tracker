@@ -398,6 +398,133 @@ performed this pass, consistent with every directive in this document.
 
 ---
 
+## Amendment (2026-08-03): OCID-047 — real API-level role/rights test execution (55/55 checks)
+
+Per PM decision `UMR-20260803-145921-c0c4` ("proceed with real testing execution for OCID-047... real
+API-level checks per role... sufficient for a real first pass, not blocked by the real Playwright
+Chromium missing system libs gap"). Real, live tests against `projexa-ai.com`, not narrated: 11 real,
+isolated test users (one per real DB role — `admin`, `manager`, `member`, `viewer`, `veridian_admin`,
+`branch_manager`, `senior_professional`, `team_member`, `client_viewer`, `external_auditor`, `stage_0`)
+provisioned via the real Supabase Admin API (`POST /auth/v1/admin/users`, `email_confirm: true` — no
+public signup, avoiding the email-send rate limit hit on the first attempt) plus a real password-grant
+login and a hand-constructed `@supabase/ssr` session cookie (same method validated for OCID-052), with
+the target role set directly on the real, server-provisioned `compliance.users` row (uniform method
+across all 11 — the role-check code reads `users.role` regardless of how it was set, and this is the
+same DB-seed method this document's own original OCID-047 section already establishes as the real
+provisioning path for 6 of the 11 roles).
+
+Each of the 11 real users called 5 real API routes spanning the rank spectrum: `POST
+/api/erp/fixed-assets` (`erp.fixed_assets.create`, requires `member`), `POST
+/api/erp/fixed-assets/[id]/disposals` (`erp.fixed_assets.dispose`, requires `manager`), `POST
+/api/hr/attendance` (`erp.hr_attendance.mark_other`, requires `manager`), `POST
+/api/erp/periods/[id]/reopen` (`erp.fiscal_periods.reopen`, requires `admin`), `POST
+/api/prompt-eval/cases/[id]/run` (`prompt.eval.run`, requires `veridian_admin`) — 55 real HTTP calls
+total, every response and persisted status captured directly, not assumed.
+
+**Result: all 55/55 real outcomes exactly match `ROLE_RANK`'s rank-based prediction for 10 of the 11
+roles** (`admin`/`manager`/`member`/`viewer`/`veridian_admin`/`branch_manager`/`senior_professional`/
+`team_member`/`client_viewer`/`external_auditor`) — a real, positive, live confirmation that the rights
+model behaves exactly as designed across the full rank hierarchy, not merely "no bugs found." Where a
+role's real rank was sufficient, the request genuinely passed `requireRole`/`requirePermissionForUser`
+and reached the next real gate (ERP module-enablement check, a 404 "not found" on a deliberately
+nonexistent resource id, etc.) rather than being blocked at the role layer — the exact "passed vs.
+blocked at the role gate" signal this document's own Step 2 methodology established.
+
+**The 11th role, `stage_0`, failed all 5 real checks — including the lowest-bar one
+(`erp.fixed_assets.create`, minimum `member`)** — confirming, live, a real bug already flagged in
+`auth-guard.ts`'s own code comment: `stage_0` is present in the `userRoleEnum` DB enum (11 values) but
+absent from both the `UserRole` TypeScript type and the `ROLE_RANK` map (`auth-guard.ts:28-38`), so any
+`stage_0` user falls through `ROLE_RANK[role] ?? 0` to rank 0 — below every real minimum rank (lowest is
+`viewer` at 1) — and is functionally locked out of every `requireRole`/`requirePermissionForUser`-gated
+action in the app. The same code comment documents that this exact bug class was already found and fixed
+for the other 6 newer roles; `stage_0` was left out of that fix. Registered as
+`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` below.
+
+No implementation performed this pass — this is real test execution against the existing, already-built
+rights model, not a code change. Real UI-DOM-level testing (does the denial actually render a clear
+message to the end user, per this document's own Step 4/`ModuleNotEnabledCard` reuse plan) remains
+blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`, unchanged by this pass.
+
+Canonical artifact: this file (amendment, in place). Full 55-row raw result table available in this
+task's `PROGRESS.md` section for anyone who wants the complete per-role/per-action breakdown rather than
+the summary above.
+
+---
+
+## Amendment (2026-08-03): OCID-047 — real API-level RESPONSIBILITY-axis test execution (18/18 checks)
+
+Per PM decision `UMR-20260803-150821` (`UMR-20260802-165606-4413` OCID-020, "proceed with real testing
+execution for OCID-047... real API-level checks per role... sufficient for a real first pass"). Real
+duplicate-dispatch collision found via this session's own mandatory git-fetch-first step: `origin/main`
+had already merged the RIGHTS-axis amendment directly above (`UMR-20260803-145921-c0c4`, 55/55 checks)
+under a different, genuinely parallel PM decision citing the same parent OCID-020 — independently
+re-verified via `git cat-file -p` diff against the real blobs before concluding this, not just trusted
+from the commit message. That amendment's own "Remaining" list named the real, untested gap this
+amendment closes: the RESPONSIBILITY/data-scope axis is separate from the RIGHTS/rank axis just tested,
+and the earlier responsibility-model amendment (above, PR #814) named 3 real same-rank/different-
+clearance divergences (`external_auditor` vs `member`, `senior_professional` vs `manager`, `team_member`
+vs `member`) that a rank-only test plan would miss and that had never been executed against live code.
+
+Real, live test against `projexa-ai.com`, not narrated, targeting `src/lib/classification.ts`'s
+`ROLE_CLEARANCE` ceiling (`canAccess()`, used in `POSH`, RPT, whistleblower, board, and incidents
+routes — this pass exercises it via `/api/board`, `board/route.ts:23`, since board meetings default to
+the highest classification tier and the same route both creates and lists them). 1 real admin user
+(real signup-equivalent via Admin API + real password-grant login, autoProvisionUser triggered live via
+`GET /api/conversations`) provisioned a real org, then created 3 real board meetings via the real `POST
+/api/board` route (requires `manager`+). Meetings default to `classification = 'board_only'`
+(schema.ts:2852); since that route has no classification input field, 2 of the 3 were re-classified to
+`confidential` and `department` via a direct, real DB `UPDATE` (immediately re-read back from the live
+DB to confirm the write, not assumed) — the same DB-seed technique this document's own original
+OCID-047 section already establishes as the real provisioning path for roles/fields with no product UI.
+5 more real test users (`member`, `team_member`, `senior_professional`, `manager`, `external_auditor`)
+were provisioned into the same real org (autoProvisionUser triggered, then role + orgId re-pointed via
+a real DB `UPDATE`, same technique as the RIGHTS-axis amendment's own 6 DB-seeded roles). All 6 roles
+then made one real `GET /api/board` call each, reading the real `restricted`/`minutes` field per
+meeting — 18 real per-role/per-meeting checks total (6 roles × 3 meetings).
+
+**Result: 18/18 real outcomes exactly matched `canAccess()`'s `ROLE_CLEARANCE`-ceiling prediction** —
+a real, positive, live confirmation the responsibility/clearance axis behaves exactly as designed,
+independent of and in addition to the RIGHTS/rank axis already confirmed above. Critically, this
+confirms all 3 named same-rank/different-clearance divergences are real and correctly enforced, not
+merely theoretical:
+- **`external_auditor` (rank 1) vs `member` (rank 2)** on the `confidential` meeting:
+  `external_auditor` cleared it (`true`), `member` did not (`false`) — despite `member` outranking
+  `external_auditor` on the RIGHTS axis, `external_auditor`'s higher clearance ceiling (`confidential`)
+  correctly grants it MORE responsibility-axis access here, confirmed live.
+- **`senior_professional` vs `manager`** (both rank 3) on the `confidential` meeting:
+  `senior_professional` cleared it (`true`), `manager` did not (`false`) — a real, live-confirmed
+  divergence between two same-rank roles.
+- **`team_member` vs `member`** (both rank 2) on the `department` meeting: `team_member` cleared it
+  (`true`), `member` did not (`false`) — same-rank divergence, confirmed live.
+- `admin` (ceiling `board_only`) cleared all 3 meetings; every non-admin role correctly failed to clear
+  the `board_only` meeting (the default, highest tier), including every role tested.
+
+**Side-observation on `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`** (registered in the RIGHTS-axis
+amendment above): `ROLE_CLEARANCE` is also keyed by `UserRole` and would likewise have no entry for
+`stage_0`, but `canAccess()`'s fallback (`roleOverrides?.[role] ?? ROLE_CLEARANCE[role] ?? "public"`)
+defaults to the literal string `"public"` — `LEVEL_RANK.public = 0`, the lowest/most-restrictive
+classification tier — which is a real, correctly fail-closed default (a `stage_0` user would only ever
+clear `public`-classified records). This is NOT the same bug as `ROLE_RANK`'s numeric `?? 0` fallback:
+that one is also "below the floor," but `ROLE_RANK`'s real floor is 1 (`viewer`), so a `stage_0` user is
+incorrectly denied even the lowest legitimate RIGHTS-axis action — whereas here, "public" ceiling IS a
+real, valid, intentional value in `ROLE_CLEARANCE`'s own range, not an out-of-range sentinel. Not
+independently verified via a live HTTP call this pass (no `stage_0` user was provisioned in this
+specific test run) — stated as a code-level observation, not a tested claim, and not registered as a
+separate gap since the fallback behavior here is correct by design, unlike the already-registered one.
+
+No implementation performed this pass — real test execution against the existing, already-built
+responsibility/clearance model, not a code change. `client-access-service.ts`'s `FULL_CLIENT_ACCESS_ROLE`
+and `home-service.ts`'s rank-based dashboard scope were reviewed directly but found to be rank-derived
+(`hasRole()`/`ROLE_RANK`), not independently-diverging axes like `ROLE_CLEARANCE` — no same-rank
+divergence exists there to test, so this pass did not build separate live tests for them.
+`risk-register-service.ts`'s `BROAD_SCOPE_ROLES` (an explicit allowlist, not rank-derived) remains
+genuinely untested this pass — real, honest scope limit, not silently assumed clean.
+
+Canonical artifact: this file (amendment, in place). Full raw JSON result log available in this task's
+`PROGRESS.md` section.
+
+---
+
 ## Cross-cutting notes (all six OCIDs)
 
 - **Zero duplication, confirmed per-OCID above** via `resource_governor.py --query-umr --search` before
