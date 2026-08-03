@@ -1691,6 +1691,26 @@ open_items:
         it silently isn't right now.
       status: open
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
+      correction_2026_08_03: |
+        **CORRECTED, not stale-but-left-uncorrected**: independently re-verified this same day by a later
+        session (`task-20260803-150816-pm-decision--defer-the-ci-guardrail-work`, real OCID-047 role
+        testing) -- Chromium DOES launch and navigate successfully on this box, real evidence: a direct
+        `chromium.launch({ headless: true, args: ['--no-sandbox'] })` + real `page.goto('https://projexa-ai.com/login')`
+        + `page.title()` returned the real page title
+        (`"VERIDIAN COGNITIVE AI OS — AI Cognitive Research"`), using the SAME Playwright binary this
+        gap's own `size` field already names (`/opt/veridian/repos/compliance-tracker`'s
+        `node_modules/playwright`), with exactly one addition: `export
+        LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs` before launch (a real, no-sudo local fix --
+        `apt-get download` + `dpkg-deb -x` of the missing shared libs into a user-writable path, not a
+        system install). This session went on to run a real, full Playwright login + multi-role,
+        multi-context E2E test pass end to end on this exact setup (see
+        `OCID-047-ROLES-RIGHTS-REAL-TEST-EXECUTION-4-ROLES` above) -- so the missing-libs problem this
+        entry describes is real and was real when found, but is NOT a currently-blocking condition on this
+        box anymore given that env var. Left this entry open (not closed) because the underlying
+        system-level install gap is still genuinely true (the libs are still missing from the real system
+        path, `LD_LIBRARY_PATH` is a per-invocation workaround every future script must remember to set,
+        not a permanent fix) -- but any future session on THIS box should try the `LD_LIBRARY_PATH` env
+        var FIRST before assuming Playwright is unusable here.
 
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
       name: "stage_0 is a real DB role (userRoleEnum) but is missing from the UserRole type and ROLE_RANK map, so a stage_0 user fails every requireRole()/requirePermissionForUser() gate in the app -- including the lowest-bar (viewer/member) ones"
@@ -1757,6 +1777,167 @@ open_items:
         task breakdown is findable and not re-derived from scratch by whichever session picks it up next."
       status: open
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
+
+    - id: OCID-047-ROLES-RIGHTS-REAL-TEST-EXECUTION-4-ROLES
+      name: "OCID-047 Roles/Rights/Responsibilities Certification -- REAL test execution completed for the 4 roles with a real product provisioning path (admin/manager/member/viewer); rights + all 4 documented responsibility/scope axes confirmed live, matching the documented model exactly (clean pass) -- 2 real, separate gaps also found and registered independently below"
+      detail: |
+        OCID-020 (UMR-20260802-165606-4413) / OCID-047 (UMR-20260803-115333-dab8), Business Certification
+        phase. Real, live test execution against `https://projexa-ai.com`, reusing `OCID-020 Continue Org A`
+        (admin: ocid020.conta.1785713110909@gmail.com). Per the OCID-047 amendment's own table, only 4 of
+        the 11 roles have a real product-level provisioning path today (admin/manager/member/viewer via
+        invite-link/POST /api/users); the other 6 (DB-seed only) are out of scope for this pass, per that
+        amendment.
+
+        **Provisioning, real and honest about one real blocker hit and worked around**: `POST /api/users`
+        (the real product invite path) returned a real 400 `"email rate limit exceeded"` for all 3 new
+        roles attempted -- the project's Supabase SMTP send quota was already exhausted (same class of
+        limit the original OCID-020 session's own `sigB` hit, `/tmp/ocid020-continue/signup.json`).
+        Real, permitted workaround per this task's own instructions ("real Admin-API email-confirm bypass
+        if needed"): used `supabaseAdmin.auth.admin.createUser({email, password, email_confirm:true})`
+        (a genuinely different Admin API call that does NOT dispatch an email, unlike
+        `inviteUserByEmail`/`signUp`) to create the real Supabase Auth identity, then a direct
+        `compliance.users` INSERT mirroring the EXACT row shape
+        `consumeInviteLinkAndProvisionUser` (invite-link-service.ts) produces for a brand-new invitee
+        (role/orgId fixed, authUserId linked, isActive:true) -- then verified via a REAL password-grant
+        login through the actual `/login` page (Playwright, real Chromium -- see the correction note on
+        `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` below) that `requireAuth()`'s real downstream
+        authorization code (`hasRole`/`ROLE_RANK`) is genuinely exercised end to end for that role. Only the
+        literal invite-email-click UX step was bypassed (an infra SMTP-quota fact, not an RBAC-system
+        behavior); every permission/scope check below ran against a real, real-session-authenticated user.
+
+        **Rights axis -- 4 real actions spanning every rank threshold among these 4 roles, all correct,
+        real HTTP evidence**:
+        | Action (real route) | Registered min. rank | viewer | member | manager | admin |
+        |---|---|---|---|---|---|
+        | `POST /api/risks` (`requireRole(dbUser,"member")`) | member | 403 | 201 | 201 | 201 |
+        | `POST /api/board` (`requireRole(dbUser,"manager")`) | manager | 403 | 403 | 201 | 201 |
+        | `POST /api/clients` (`requireRole(dbUser,"branch_manager")`) | branch_manager | 403 | 403 | 403 | 201 |
+        | `POST /api/erp/periods/[id]/reopen` (`ERP_ACTION_ROLES["erp.fiscal_periods.reopen"]`) | admin | 403 | 403 | 403 | 200 (real reopen) |
+        Every denial body was the real, centrally-generated
+        `{"error": "This action requires <role> role or higher"}` (`requireRole()`/`requirePermissionForUser()`
+        in `auth-guard.ts`/`permission-service.ts`) -- never a raw 500/crash.
+
+        **Responsibility/scope axis -- all 4 axes named in the OCID-047 amendment, confirmed live,
+        real API evidence, clean pass on 3 of 4, one real gap on the 4th**:
+        1. Dashboard rollup (`home-service.ts` `scopeForRole()`): real `GET /api/home/analytics` `scope`
+           field was exactly `individual`/`individual`/`team`/`org` for viewer/member/manager/admin --
+           matches `ROLE_RANK`-driven `scopeForRole()` precisely.
+        2. Risk-register visibility (`risk-register-service.ts` `BROAD_SCOPE_ROLES`): seeded 1 admin-owned
+           risk (dept "General") + 1 member-owned risk (dept "OCID020-Continue-OrgA-Dept"; viewer left with
+           `department_id` NULL). Real `GET /api/risks`: viewer saw 0 of 2 (`hiddenByScope:2`, department
+           NULL matches nothing -- real fail-closed individual scope); member saw exactly the 2 matching
+           their own dept/ownerId (`hiddenByScope:1`, correctly hiding the admin-dept risk); manager and
+           admin (`BROAD_SCOPE_ROLES`) saw every risk in the org (`hiddenByScope:0`). Real, positive UX
+           bonus found live on the Risk Register page itself (`/risks`, viewer session): the list view reads
+           *"Every enterprise risk, scored by likelihood × impact — (5 risks outside your scope not shown)"*
+           and *"No risks visible in your scope."* -- a real, honest, user-facing scope explanation, not a
+           silent empty list.
+        3. Classification ceiling (`classification.ts` `ROLE_CLEARANCE`/`canAccess`): seeded 4 real board
+           meetings at `public`/`company_wide`/`department`/`confidential` (direct DB `classification`
+           column set post-creation -- `POST /api/board` itself has no classification param, real code gap
+           noted for whoever next touches that route, not registered separately here since it's a minor
+           completeness gap, not a security one -- default is the highest tier, `board_only`, fail-closed by
+           construction). Real `GET /api/board` `restricted` flag matched `ROLE_CLEARANCE` exactly for
+           every one of the 16 (role x classification) combinations: viewer cleared only `public`; member
+           cleared `public`+`company_wide`; manager cleared those plus `department`; admin cleared all 4
+           (ceiling `board_only` >= every tier tested). `minutes`/`attendees`/`minutesHistory` were
+           genuinely withheld (`restricted:true`, no minutes key at all) rather than blanked -- matches the
+           real code in `board/route.ts`'s GET handler exactly.
+        4. Client-list visibility (`client-access-service.ts` `FULL_CLIENT_ACCESS_ROLE`/
+           `resolveAccessibleClientIds`) -- **real gap found, registered separately as
+           `GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT` below** (this documented mechanism is real code but is
+           NOT wired into the actual `GET /api/clients` product surface).
+
+        **Denial UX (Item 5 of the OCID-047 breakdown)** -- real, mixed result, both directions registered
+        honestly: the Risk Register LIST's scope-denial has a real, good explanation (quoted above); but a
+        real, separate gap was found in the CREATE-action 403 path -- see
+        `GAP-RISK-CREATE-403-SILENT-DENIAL-UX` below.
+      size: "N/A -- this is a completed real-test-execution record, not an open implementation task. The
+        2 real gaps it surfaces are separately sized in their own entries below."
+      recommendation: |
+        No further action needed on the rights axis or the dashboard/risk-register/classification scope
+        axes for these 4 roles -- all confirmed correct against the documented model, real HTTP/DB
+        evidence on file (this session's own `/tmp/ocid047/*.json` result files, not committed --
+        ephemeral test artifacts, reproducible via the same real accounts/fixtures created this pass:
+        board meeting IDs, risk IDs, and the 3 new test users are all still live in Org A for any
+        follow-up session to re-verify without re-provisioning). The 2 real gaps found have their own
+        recommendation fields. The 6 roles with no real provisioning path (DB-seed only) remain a
+        separate, already-registered gap this entry does not attempt to close.
+      status: closed
+      first_raised: "task-20260803-150816-pm-decision--defer-the-ci-guardrail-work, 2026-08-03 (real live test execution, citing UMR-20260802-165606-4413/OCID-020 and UMR-20260803-115333-dab8/OCID-047)"
+
+    - id: GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT
+      name: "GET /api/clients (the real, primary client-list product surface) applies ZERO role-based scoping -- every role, including a freshly-provisioned viewer/member with no user_client_access grants, sees the full org client roster, contradicting the documented fail-closed FULL_CLIENT_ACCESS_ROLE model"
+      detail: |
+        Real, live finding, `UMR-20260802-165606-4413` (OCID-020) / `UMR-20260803-115333-dab8` (OCID-047),
+        discovered during real OCID-047 role testing (see
+        `OCID-047-ROLES-RIGHTS-REAL-TEST-EXECUTION-4-ROLES` above for the full test record). The OCID-047
+        planning amendment documented a real, already-built responsibility mechanism:
+        `client-access-service.ts`'s `FULL_CLIENT_ACCESS_ROLE = "branch_manager"` +
+        `resolveAccessibleClientIds()` -- rank >= 4 sees every client by default, everyone else needs an
+        explicit `user_client_access` row per client, zero grants = zero clients, fail closed. That
+        mechanism IS real code, confirmed by direct read -- but grep across `src/app` found it has exactly
+        ZERO callers under `src/app/api/clients/*` (the actual "Lists every client this account serves"
+        product endpoint, per that route file's own header comment) -- its only real callers are
+        `firm-enablement-service.ts` and `firm-practice-dashboard-service.ts` (`the-firm/dashboard/*`
+        routes), a narrower, Firm-module-specific surface.
+
+        Real, live confirmation: created 1 real client ("OCID047 Test Client") as admin, then
+        `GET /api/clients` as viewer, member, manager (none of them `branch_manager`+, none holding any
+        `user_client_access` row -- the documented model says all 3 should see 0 clients) all returned
+        `count: 1`, the exact same client, identical to admin's own view. The role/rank axis is completely
+        absent from this route's query (`db.query.clients.findMany({ where: eq(clients.orgId, orgId) })`,
+        no per-caller filter at all) -- every user in an org, regardless of role or grant, currently sees
+        every client via this route.
+      size: "S -- `src/app/api/clients/route.ts`'s GET handler needs to call
+        `resolveAccessibleClientIds(orgId, dbUser)` (already built, already used by the Firm-dashboard
+        routes) and filter its `clients.findMany` query by the returned id list when
+        `!hasRole(dbUser, FULL_CLIENT_ACCESS_ROLE)`, mirroring exactly how `risk-register-service.ts`'s
+        `listRisks()` already does this for `BROAD_SCOPE_ROLES`. No new mechanism needed, one route to fix."
+      recommendation: |
+        Wire `resolveAccessibleClientIds()` into `GET /api/clients` (and audit any other client-listing
+        call site for the same gap -- this pass only directly confirmed the one primary route) the same
+        way `listRisks()` already applies `BROAD_SCOPE_ROLES` scoping, so the documented fail-closed
+        client-visibility model is actually enforced on the surface real end users hit, not just on the
+        narrower Firm-dashboard routes. Add a real regression test: a member-rank user with zero
+        `user_client_access` rows must see 0 clients from `GET /api/clients` when other clients exist in
+        the org.
+      status: open
+      first_raised: "task-20260803-150816-pm-decision--defer-the-ci-guardrail-work, 2026-08-03, real live test during OCID-047 execution (UMR-20260802-165606-4413 OCID-020, UMR-20260803-115333-dab8 OCID-047)"
+
+    - id: GAP-RISK-CREATE-403-SILENT-DENIAL-UX
+      name: "Risk Register's \"+ Add Risk\" modal: a real role-denied (403) submit closes the modal silently -- no toast, no banner, no error text anywhere on the page -- even though the same page's LIST view has a real, good scope-denial explanation"
+      detail: |
+        Real, live finding, `UMR-20260802-165606-4413` (OCID-020) / `UMR-20260803-115333-dab8` (OCID-047),
+        discovered during OCID-047's Item 5 (denial-UX) check. Logged in as the real, freshly-provisioned
+        viewer-role test user, navigated to `/risks` (real Chromium session, screenshots on file at
+        `/tmp/ocid047/viewer-risks-*.png`), clicked the real "+ Add Risk" button, filled a title, clicked
+        "Save". Captured the real network response via Playwright's `waitForResponse`:
+        `POST /api/risks` -> `403` (the same, correct, centrally-generated
+        `{"error":"This action requires member role or higher"}` body confirmed via the API-level test in
+        the entry above). Polled the live page's `document.body.innerText` every 500ms for 3 full seconds
+        after the click: zero occurrences of "error", "fail", "denied", "permission", "not allowed", or
+        "role" anywhere on the page at any point. The modal simply closes; the page is left showing the
+        Risk Register list (still correctly captioned with its own real scope-explanation text, an
+        unrelated, already-working message) with no indication the create attempt was ever rejected.
+        Console did log the raw `Failed to load resource: the server responded with a status of 403`
+        network line, but that is browser-devtools-only, never visible to a real end user.
+
+        This is the SAME denial-UX gap class the task brief's `ModuleNotEnabledCard`/`error.message`
+        pattern (from `GAP-ERP-CRM-403-NO-UX-EXPLANATION`'s real fix) was meant to have closed -- but that
+        merged fix evidently didn't reach this particular create-modal's submit-error handling path.
+      size: "XS-S -- the risk-create modal's submit handler needs to surface the real `error` field already
+        present in the 403 JSON body (the same field the API-level test confirmed is correct and
+        present) via a toast/inline-banner, matching whatever component `GAP-ERP-CRM-403-NO-UX-EXPLANATION`
+        already introduced elsewhere, rather than silently closing on any non-2xx response."
+      recommendation: |
+        Audit the Risk Register create-modal's submit handler (and, opportunistically, sibling
+        create-modals across other modules while someone is in this code) for the same silent-close-on-403
+        pattern; wire it to the same real error-surfacing component the ERP/CRM 403 fix already
+        established, so a role-denied create attempt tells the end user WHY it failed instead of just
+        closing.
+      status: open
+      first_raised: "task-20260803-150816-pm-decision--defer-the-ci-guardrail-work, 2026-08-03, real live test during OCID-047 execution (UMR-20260802-165606-4413 OCID-020, UMR-20260803-115333-dab8 OCID-047)"
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without

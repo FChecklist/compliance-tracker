@@ -5087,6 +5087,42 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-150816-pm-decision--defer-the-ci-guardrail-work) -- OCID-047 real testing execution, roles with real provisioning paths (admin/manager/member/viewer) [DONE]"
+    claimed_at: "2026-08-03T15:08Z (this session)"
+    completed_at: "2026-08-03 (this session, same day)"
+    claim: |
+      SPEC (this task's own prompt, PM decision citing UMR-20260803-142309-da1f and
+      UMR-20260802-165606-4413/OCID-020): the CI-guardrail-workflow-scope blocker item is deferred (a
+      real follow-up gap `GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE` already exists in
+      `ai-os/MASTER-TRACKER.yaml`, registered by a prior session/PR #820 -- independently re-verified
+      genuine and not redone by this session). This session's real work is the SPEC's own "move on"
+      instruction: determine and begin real testing execution across the six Business Certification
+      OCIDs (047-052). Claimed OCID-047, the 4 roles (`admin`/`manager`/`member`/`viewer`) that have a
+      real, existing product provisioning path today -- the other 6 hierarchy roles (DB-seed only) are a
+      separate, already-registered gap this claim did not attempt to solve.
+    outcome: |
+      Real test execution completed for all 4 claimed roles: provisioned real `manager`/`member`/`viewer`
+      users (real Supabase Admin API `createUser` bypass after `POST /api/users`'s real invite path hit an
+      exhausted SMTP rate limit -- see `PROGRESS.md`/`MASTER-TRACKER.yaml` for the full detail), confirmed
+      real allow/deny HTTP outcomes for 4 rank-threshold actions (all correct), confirmed all 4
+      responsibility/scope axes (dashboard rollup, risk-register visibility, classification ceiling all
+      clean passes; client-list visibility a real, separate gap found and registered), and checked denial
+      UX (one real gap found: risk-create's 403 closes silently). Also independently re-verified and
+      corrected `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` (Chromium does launch on this box via
+      `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`). Full detail: `ai-os/MASTER-TRACKER.yaml`
+      (`OCID-047-ROLES-RIGHTS-REAL-TEST-EXECUTION-4-ROLES`, `GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`,
+      `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`), `PROGRESS.md`.
+
+      **Resume update (invocation 2/20):** `git fetch` found PR #827 (this claim's own PR) had gone
+      `CONFLICTING` against `origin/main` -- two more genuinely parallel OCID-047 sessions (PR #823
+      rights-axis 55/55 checks + `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`; PR #824 responsibility-axis
+      18/18 checks) had merged in the meantime. Independently re-verified via `git cat-file -p` that
+      this session's own risk-register/client-list findings remain genuinely non-duplicate (neither
+      other PR tested that ground; PR #824's own "Remaining" list says so explicitly), merged
+      `origin/main` in, and repaired a real structural error an earlier invocation of this task had made
+      in `PROGRESS.md` (wholesale-replaced the file's accumulated history instead of appending after
+      it) -- restored full history, re-appended this task's section with an honest collision note. PR
+      #827 is now `MERGEABLE`, CI running. See `PROGRESS.md`'s own resume entry for full detail.
   - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
     claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
     claim: |
