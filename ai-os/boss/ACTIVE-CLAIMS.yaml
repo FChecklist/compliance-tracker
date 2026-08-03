@@ -4659,6 +4659,42 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (task-20260803-050508-ocid-030-veridian-universal-decision-eng) -- OCID-029/030 VERIDIAN Universal Decision Engine v1.0, documentation only"
+    claimed_at: "2026-08-03T (this session)"
+    claim: |
+      SPEC (real Owner directive, tier 1, parented to `UMR-20260803-041351-0278`
+      -- the real OCID-029 directive -- and citing the OCID-022 through 028
+      chain, the ERP Functional Completeness Master Program
+      `UMR-20260802-173631-ca85`, OCID-020 `UMR-20260802-165606-4413`, the
+      server artifact traceability audit `UMR-20260802-164659-9a31`, the
+      gatekeeper rule `UMR-20260802-165034-5747`, and the unified project
+      memory `UMR-20260802-165434-cd91`): documentation only, one canonical
+      artifact, "VERIDIAN Universal Decision Engine v1.0" -- how VERIDIAN
+      decides what to do next (software-first, deterministic vs predictive,
+      search-before-build, decision traceability/audit/reuse). Explicitly
+      consistent with the real OCID-020 implementation lock (SEC-07 in
+      `ai-os/CONSTITUTION.yaml`) which permits discovery/documentation to
+      continue -- no implementation, no code, no DB objects.
+      Note on task naming: this task's own directory is labeled "ocid-030"
+      but the spec's own citation (`UMR-20260803-041351-0278`, "OCID-029")
+      and mission text ("Universal Decision Engine") match the
+      OCID-20260803-029 row in `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
+      table, not that snapshot's OCID-030 row ("Universal Software Execution
+      Engine"). Proceeding on the spec's real mission text (Decision Engine),
+      not the directory-name label, and flagging this numbering drift here
+      per the same honesty standard the OCID-036 mislabel correction upheld
+      -- this is a documentation/citation nit, not a scope change.
+      Discovery in progress: searching the full server for the existing
+      decision engine, rule engine, function/report/analysis/prompt
+      libraries, task engine, VERI Chat, mode pills, and option chain before
+      writing anything, per the spec's own mandatory-discovery requirement.
+    scope_note: >-
+      File scope (expected): one new canonical artifact
+      `ai-os/VERIDIAN_UNIVERSAL_DECISION_ENGINE_2026-08-03.md` (or similarly
+      dated name), `ai-os/OS.yaml` and/or `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, migration, or CI changes -- documentation only per the spec's
+      explicit prohibition.
 recently_completed:
   - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
     claimed_at: "2026-08-03T01:16Z (this session)"
