@@ -8281,3 +8281,66 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+
+# ── claim registered 2026-08-03 (task-20260803-180110-pm-decision-resolving-the-umr-and-utm-na) ──
+  - session_label: "claude-code (task-20260803-180110-pm-decision-resolving-the-umr-and-utm-na) -- PM decision: ratify Owner's UTM->UTR rename, audit in-progress discovery task (UMR-20260803-174634-5a2f / UMR-20260803-175139-dedf, PR #835) [doc only, no code/schema/DB change]"
+    claimed_at: "2026-08-03T18:0xZ"
+    claim: |
+      Per this task's own SPEC (PM decision citing `UMR-20260802-165606-4413`
+      OCID-020 and `UMR-20260803-174634-5a2f`, the in-progress discovery task
+      comparing the Owner's proposed Universal Knowledge and Execution
+      Architecture against the live system): the Owner directly resolved the
+      UMR/UTM naming collision this session's own prompt describes by renaming
+      the new task-level concept from "Universal Task Metadata"/UTM to
+      "Universal Task Registry"/UTR, leaving UMR and the existing
+      `utm_source`/`utm_medium`/`utm_campaign`/`utm_content`/`utm_term`
+      columns untouched.
+
+      Located the actual "in progress discovery task" this SPEC refers to:
+      it is not a task this session can start fresh -- it already exists,
+      complete, as `task-20260803-180428-adopted-umr-utr-euid-discovery-vs-live-system`
+      (status `pending_review`, adopted, not a fresh dispatch), open as real
+      PR #835 (`docs/umr-utr-euid-discovery-vs-live-system`,
+      `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md`).
+      Read that document in full (158 lines, fetched directly from the PR's
+      real head SHA `60403a39e94d0fb3b0e7831a6ca6c657eae08749`, not narrated).
+
+      Independent audit finding (this session, not trusted from that
+      document's own claim): §0 of that document states `grep -rli '\bUTR\b'`
+      across `resource_governor.py`, `superboss-register.py`, and this
+      repo's `ai-os/` tree returned zero matches, calling UTR "a genuinely
+      clean, currently-unused name" -- but that check never covered this
+      repo's own `src/` tree (the one place §3 of that same document *did*
+      correctly check for the UTM collision, finding zero `utm_*` hits
+      there). Running the same check that document already knew to run:
+      `git grep -ni '\butr\b'` across this repo's `src/` finds **two real,
+      pre-existing hits**, both the Indian banking "Unique Transaction
+      Reference" convention, unrelated to the new task-registry concept:
+      `src/lib/db/schema.ts:541` (`cost_payments.referenceNumber` column
+      comment: "transaction ref / cheque number / UTR") and
+      `src/lib/services/erp-bank-reconciliation-service.ts:56` (bank
+      statement column-header matcher including `"utr"`). So the document's
+      "zero matches" / "genuinely clean, currently-unused" claim is
+      real but too narrowly scoped, and not accurate as stated for the
+      product repo as a whole. Assessed as a real but low-severity
+      collision (a free-text financial reference-number value in bank
+      reconciliation data, not a naming/ID-prefix convention like `utm_*`
+      was) -- does not block using UTR, but the claim needed correcting
+      rather than silently repeated.
+
+      Pushing a correction commit directly to PR #835's own branch
+      (continuing that same in-progress task per this task's SPEC, not
+      forking a competing artifact), narrowing §0's claim to what was
+      actually checked and naming the real `src/` hits honestly. Also
+      updating this task's own PROGRESS.md and posting an audit comment on
+      PR #835 (Rule 7c: the agent that did not write PR #835 is its
+      mandatory auditor).
+    scope_note: >-
+      File scope: PR #835's own branch
+      (`docs/umr-utr-euid-discovery-vs-live-system` --
+      `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md`,
+      that branch's own `PROGRESS.md`), plus this task's own
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) and `PROGRESS.md` on
+      `worker/task-20260803-180110-pm-decision-resolving-the-umr-and-utm-na`.
+      No `src/`, schema, or CI changes -- `src/` was only read (`git grep`),
+      never edited. No database change.
