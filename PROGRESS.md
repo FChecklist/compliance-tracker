@@ -509,3 +509,18 @@ prior cycle") since the spec is the only source for what it denotes.
       slow/spaced-out retest of the flagged (not confirmed) auth-race
       observation if anyone picks that up.
 
+# PROGRESS -- task-20260803-011611-pm-confirmation-continue-watching-pr-bac
+
+## Completed
+- [x] Independently re-verified all six held-PR statuses directly via `gh pr view` (not narrated from the spec):
+  - PR #751: MERGED 2026-08-03T00:59:50Z (already confirmed prior session)
+  - PR #753: MERGED 2026-08-03T01:04:40Z (already confirmed prior session)
+  - PR #752: MERGED 2026-08-03T01:13:15Z (new since last check -- matches SPEC citing UMR-20260802-165606-4413 / UMR-20260803-010728-2792)
+  - PR #754: OPEN, not merged -- correctly still in review, no forcing needed
+  - PR #755: OPEN, not merged -- correctly still in review, no forcing needed
+  - PR #756: OPEN, not merged -- correctly still in review, no forcing needed
+- [x] Confirmed real decision: continue exactly as planned, no change of course. Three of six held PRs are now genuinely merged; the other three remain open and correctly untouched.
+- [x] Registered claim + completion entry in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+
+## Remaining
+- [ ] None for this task. Follow-on watching of PR #754/#755/#756 belongs to the next PM-confirmation cycle when their state changes.

@@ -4595,6 +4595,23 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
+    claimed_at: "2026-08-03T01:16Z (this session)"
+    claim: |
+      SPEC (PM confirmation citing `UMR-20260802-165606-4413` and
+      `UMR-20260803-010728-2792`): independently re-checked directly on the
+      server via `gh pr view` for all six PRs -- confirmed accurate. PR
+      #752 is genuinely `MERGED` at `2026-08-03T01:13:15Z`, joining #751
+      (`MERGED` `2026-08-03T00:59:50Z`) and #753 (`MERGED`
+      `2026-08-03T01:04:40Z`) already confirmed merged. Three of the six
+      held PRs are now real closed/merged. #754, #755, #756 remain real
+      `OPEN`, correctly still in review, no forcing needed. Real decision:
+      continue exactly as planned -- keep watching and report each real
+      merge commit as it lands, no change of course needed. Read-only
+      confirmation only; no code/schema changes.
+    scope_note: >-
+      File scope: this repo's own `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. No src/, schema, or CI changes.
   - session_label: "claude-code (task-20260803-000354-pm-unblock-decision-for-task-231514-cred) -- PM decision: task-231514's credit-accountant rejection ACCEPTED as correct, not a gap [DONE, PR pending]"
     claimed_at: "2026-08-03T (this session, closed same session)"
     claim: |
