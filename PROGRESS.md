@@ -1659,3 +1659,50 @@ Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-2
 - [ ] The open question about whether every `[UMR-...]`-tagged PM dispatch message this session
       corresponds 1:1 to a real `umr_tasks` row was not independently confirmed -- flagged honestly
       as unverified, not blocking, per the Owner's own "UMR stays unchanged" resolution.
+
+---
+
+# PROGRESS -- docs/amend-umr-utr-discovery-third-umr-usage-found
+
+## Completed
+- [x] A duplicate-dispatch worker's own PR (#836) independently found a genuine, real, additional
+      fact this task's own merged artifact (PR #835) hadn't captured: `ai-os/registry/asset-registry-
+      coverage.yaml` + `scripts/check-asset-registry-coverage.mjs` already explicitly call themselves
+      "the mechanical half of... the Universal Metadata Registry" (Priority 4,
+      `09-priority4-umr-universal-tracker.yaml`) -- a third, real, pre-existing "UMR" usage, distinct
+      from `umr_tasks` and the `[UMR-...]` dispatch-message convention.
+- [x] Independently re-verified this claim directly (`grep` against both real files) before crediting
+      it -- not trusted from PR #836's own text alone.
+- [x] Closed PR #836 with an honest, credit-giving comment (its core content predates the Owner's
+      UTM->UTR correction and conflicts on file paths with the already-merged #835, but its real find
+      is preserved here, not silently dropped).
+- [x] Amended `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md` in place with this
+      third usage -- does not change the Owner's own "UMR stays unchanged" resolution, just names
+      what "as it already exists today" now includes.
+
+## Remaining
+- [ ] None for this amendment's own scope -- discovery/credit-preservation only, no schema/code/DB
+      change.
+
+---
+
+# PROGRESS -- task-20260803-180110-pm-decision-resolving-the-umr-and-utm-na (audit addendum)
+
+## Completed
+- [x] Independent audit (Rule 7c -- not the author of PR #835) of §0's "UTR is unused" claim: that
+      check only covered `resource_governor.py`, `superboss-register.py`, and `ai-os/` -- never
+      `src/`, which is exactly the scope §3 separately checked for the `utm_*` collision. Ran
+      `git grep -ni '\butr\b'` across `src/` directly: **two real, pre-existing hits**,
+      `src/lib/db/schema.ts:541` and `src/lib/services/erp-bank-reconciliation-service.ts:56`, both
+      the pre-existing Indian-banking "Unique Transaction Reference" convention -- unrelated to but
+      colliding with the new term on the literal three letters.
+- [x] Assessed as real but low-severity (a free-text financial reference-number value, not a
+      naming/ID-prefix convention the way `utm_*` was) -- does not reverse the Owner's UTR decision,
+      but §0's "zero matches"/"genuinely clean" phrasing needed narrowing to what was actually
+      checked, not left as a repo-wide claim.
+- [x] Added new `## 0a. Amendment` section to
+      `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md` naming this finding, same
+      evidence-based style as the existing amendments in this document.
+
+## Remaining
+- [ ] None for this addendum's own scope -- discovery/audit only, no schema/code/DB change.
