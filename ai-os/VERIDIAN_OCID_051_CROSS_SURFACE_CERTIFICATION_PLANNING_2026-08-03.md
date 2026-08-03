@@ -240,3 +240,88 @@ query during this planning pass itself.
   for this task for the human-readable equivalent).
 - Zero-duplication confirmed via `resource_governor.py --query-umr --search` (three searches, all
   `count: 0`) before this document was written, per the directive's own explicit instruction.
+
+---
+
+## Amendment (2026-08-03): real execution complete, both parts, all real evidence captured
+
+Per PM decision `UMR-20260803-195837-dde3` (citing `UMR-20260802-165606-4413` OCID-020,
+`UMR-20260803-115534-af31` OCID-050 confirmed genuinely complete via PR #843, and this doc's own
+`UMR-20260803-115558-170e`): "proceed with OCID-051 real testing execution now... reuse existing
+infrastructure and no new architecture... if the known Chromium missing system libs blocker affects
+PWA or browser level testing, register that honestly rather than working around it with a sudo
+change."
+
+**Infrastructure note**: the existing no-sudo Chromium fix (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`
++ explicit `executablePath`, established during OCID-048's execution) worked without issue for
+every real test in this pass, **including mobile device-emulation contexts**
+(`playwright.devices["Pixel 7"]`) -- not previously explicitly confirmed working under emulation.
+No sudo change was needed or attempted; nothing in this pass hit the blocker.
+
+### Part 1: desktop browser nav-surface gap check
+
+Real discovery re-run: fresh authenticated session, `document.querySelectorAll('a[href]')` from
+`/home` against the live site's current state. **Result: 115 distinct internal hrefs, byte-identical
+set-equality against the existing `nav-hrefs-v2.json` baseline (zero added, zero removed).** The
+115-page surface remains complete and clean as of this re-check -- a real, positive certification
+result, not a non-finding. No delta sweep was needed.
+
+### Part 2a: PWA install flow
+
+Real `GET /manifest.webmanifest` from a Pixel-7-emulated context returned `200`, matching this doc's
+own earlier correction exactly: `name`/`short_name` "VERIDIAN AI", `start_url: "/home"`,
+`display: "standalone"`, correct theme/background colors, one icon (`/logo-mark.svg`), and the real
+wired `share_target` contract. The icon URL independently resolved `200`
+(`image/svg+xml`). Real mobile-viewport screenshot of `/home` captured
+(`/opt/veridian/browser/screenshots/ocid051-part2a-mobile-home.png`) -- renders cleanly, no crash, no
+horizontal overflow, real pendency badges visible.
+
+### Part 2b: Web Share Target, real end-to-end flow
+
+Real `multipart/form-data POST` to `/api/veri-chat/share-target` (`title`/`text`/`url` fields, a
+unique marker string in `text`) as a real authenticated user. Got the real `303` redirect to
+`/chat?conversation=<id>`. Independently confirmed via a follow-up authenticated
+`GET /api/conversations/<id>/messages`: the real message content (`"Real Share Test\n\n<marker>\n\nhttps://example.com/ocid051-test"`)
+genuinely landed in the real conversation. Full real evidence, not just a status-code check, per the
+plan's own definition of done for this axis.
+
+### Part 2c: offline / service-worker absence, deterministic confirmation
+
+Real, live checks (not inferred from a code search alone): `navigator.serviceWorker.controller` is
+`null` and `navigator.serviceWorker.getRegistrations()` returns an empty array on both `/home` and
+`/dashboard`. Toggling the browser context offline (`context.setOffline(true)`) and reloading `/home`
+produced a real `net::ERR_INTERNET_DISCONNECTED` navigation failure -- the browser's own native
+offline behavior, not an app-shell fallback -- deterministic, direct proof that no service worker
+intercepts navigation requests. Registered as this cycle's real, honest Part 2c finding: **no
+offline/service-worker behavior exists to test**, confirmed live, not assumed.
+
+### Part 2d: mobile-viewport nav sweep
+
+Full 115-item nav list re-run through the same batched-harness pattern as Part 1, with a Pixel-7
+device-emulation context (viewport/user-agent/`isMobile`/`hasTouch`) instead of desktop, plus a new
+per-page horizontal-scroll check (`document.documentElement.scrollWidth > clientWidth`).
+**Result: 115/115 real page-checks passed** -- zero crashes, zero page errors, zero
+`Application error` matches, **zero pages with horizontal overflow** at the emulated viewport width.
+Real load-time distribution: min 452ms / max 3,841ms / avg 1,059ms (higher than desktop's ~750ms
+average, consistent with Playwright's mobile CPU/network emulation, not a real regression).
+
+### OCID-051 overall definition of done -- status
+
+Both parts complete with real evidence: the desktop-browser nav surface re-check found zero gap
+beyond PR #794's 115-page baseline (clean re-check recorded as the real result); the Mobile PWA
+install-contract and Web Share Target flows were independently tested end-to-end with real evidence
+(manifest/icon live-confirmed, shared content verified landing in a real conversation); the real
+absence of offline/service-worker behavior was deterministically confirmed, not assumed; the full nav
+surface was rendered and swept on a real mobile-viewport emulation with zero responsive-layout
+anomalies found.
+
+**OCID-051 is complete.** Zero new gaps registered this pass -- every real check passed against this
+doc's own pre-written acceptance criteria, and the one known infra caveat (Chromium missing system
+libs) did not block anything, confirmed working (including under mobile emulation, newly) rather than
+worked around.
+
+Raw per-page JSON results (mobile sweep, 115 entries with status/load-time/horizontal-scroll fields)
+preserved at (host-local, not repo-tracked, same convention as this session's other partial-pass
+logs): `/tmp/claude-1000/.../scratchpad/ocid051-mobile-sweep-results.json`. Part 2a/2b/2c raw results
+similarly preserved as `ocid051-part2a-result.json`, `ocid051-part2c-result.json`, and this document's
+own inline evidence for Part 2b.
