@@ -1986,7 +1986,7 @@ open_items:
       first_raised: "This session, 2026-08-03, real live test during OCID-047 execution (UMR-20260803-145921-c0c4, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
-      name: "OCID-049 Subscription Plan Entitlement Certification -- real testing partially executed (1 of 4 tiers, real infra blocker on the other 3); entitlement enforcement (assistants_per_user cap) confirmed live as unbuilt, not just planned"
+      name: "OCID-049 Subscription Plan Entitlement Certification -- real testing complete for all 4 tiers (via a real, rate-limit-safe org-join-code path); entitlement enforcement (assistants_per_user cap) confirmed live as unbuilt across the full tier spread, implementation still not started"
       detail: |
         OCID-020 (UMR-20260802-165606-4413), Business Certification phase (new, first registered by this
         entry). Real, existing compliance.subscription_plans model (4 seeded tiers: Basic/Standard/
@@ -2022,7 +2022,9 @@ open_items:
         ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md's own amendment.
         Still not implemented (Tasks A-E remain undone, per the standing OCID-021 lock) and not fully
         certified (1 of 4 tiers has real evidence)."
-      status: "open (partially tested -- see amendment; Tasks A-E remain unimplemented per the OCID-021 lock)"
+      status: "open (real testing complete for all 4 tiers, see 2nd amendment -- Tasks A-E
+        implementation remains unbuilt per the OCID-021 lock; this entry stays open until that
+        implementation ships, the testing certification itself is done)"
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
   ratified_do_not_build:
