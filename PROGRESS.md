@@ -11,6 +11,8 @@
 - [x] Amended IMPLEMENTATION_MATRIX_2026-08-02.md, OS.yaml, MASTER_INDEX.yaml index entries for the new doc
 - [x] Updated ACTIVE-CLAIMS.yaml entry to closed
 
+- [x] Commit + push (1f163163), open PR (#773)
+- [x] Report doc location + updated UMR chain
+
 ## Remaining
-- [ ] Commit + push, open PR
-- [ ] Report doc location + updated UMR chain
+- [ ] None -- task complete, PR #773 awaiting CI
