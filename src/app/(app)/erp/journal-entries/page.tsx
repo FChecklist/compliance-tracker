@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleAccessNotice } from "@/components/ModuleAccessNotice";
 
 type Account = { id: string; accountName: string; accountNumber: string | null; rootType: string; accountType: string | null };
 type JournalEntry = { id: string; entryNumber: number; postingDate: string; status: string; totalDebit: string; totalCredit: string; userRemark: string | null };
@@ -37,6 +38,7 @@ export default function ErpJournalEntriesPage() {
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   const [acctOpen, setAcctOpen] = useState(false);
   const [acctName, setAcctName] = useState("");
@@ -66,8 +68,17 @@ export default function ErpJournalEntriesPage() {
 
   const load = useCallback(() => {
     Promise.all([fetch("/api/erp/accounts"), fetch("/api/erp/journal-entries"), fetch("/api/erp/cost-centers"), fetch("/api/erp/companies")])
-      .then(([acctRes, jeRes, ccRes, compRes]) => Promise.all([acctRes.json(), jeRes.json(), ccRes.json(), compRes.json()]))
-      .then(([acctData, jeData, ccData, compData]) => {
+      .then(([acctRes, jeRes, ccRes, compRes]) => {
+        const gatingRes = [acctRes, jeRes, ccRes, compRes].find((r) => r.status === 403);
+        return Promise.all([acctRes.json(), jeRes.json(), ccRes.json(), compRes.json()]).then((data) => [gatingRes, ...data] as const);
+      })
+      .then(([gatingRes, acctData, jeData, ccData, compData]) => {
+        if (gatingRes) {
+          setBlockedReason(acctData.error ?? jeData.error ?? ccData.error ?? compData.error ?? "This module isn't enabled for your organisation.");
+          setLoading(false);
+          return;
+        }
+        setBlockedReason(null);
         setAccounts(acctData.accounts ?? []);
         setEntries(jeData.entries ?? []);
         setCostCenters(ccData.costCenters ?? []);
@@ -152,6 +163,18 @@ export default function ErpJournalEntriesPage() {
     toast.success(d.pendingApproval ? "Sent for approval" : "Posted to the general ledger");
     load();
   };
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Journal Entries</h1>
+          <p className="text-sm text-ct-muted mt-1">Chart of accounts &amp; double-entry postings — VERI ERP AI</p>
+        </div>
+        <ModuleAccessNotice message={blockedReason} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

@@ -40,6 +40,52 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-111329-pm-decision--use-idle-capacity-to-fix-ga) -- PM decision: fix GAP-ERP-CRM-403-NO-UX-EXPLANATION using idle capacity while GAP-403-VS-500-CLM-HR-PERFORMANCE's Vercel deploy rate-limit clears"
+    claimed_at: "2026-08-03T11:20Z (this session)"
+    claim: |
+      SPEC (PM decision, citing UMR-20260802-165606-4413 OCID-020, PR #737
+      Finding B): `GAP-ERP-CRM-403-NO-UX-EXPLANATION` (`ai-os/MASTER-TRACKER.yaml`)
+      -- a fresh self-signup org's `/crm` and `/erp/*` page shells render but
+      every backing API call silently 403s with zero user-facing explanation.
+
+      Real discovery performed first, per the spec's own explicit instruction:
+      the backend already returns a real, Owner-worded, human-readable 403
+      `error` message via `requireErpEnabled()`/`requireSalesEnabled()`
+      (`erp-enablement-service.ts`/`crm-enablement-service.ts`,
+      `ServiceError` -> `{error: message}` JSON, per Owner's exact wording
+      2026-07-13) -- this is a FRONTEND surfacing gap, not a missing backend
+      reason code. Every affected page's `load()` called `res.json()` and
+      used `data.items ?? []` unconditionally, discarding `res.status` and
+      the real `error` message, so a 403 silently rendered as an empty list
+      indistinguishable from "no leads yet."
+
+      Checked existing UI precedent before inventing anything new (per the
+      spec's explicit instruction): `pms/page.tsx` blocks the whole page with
+      a Card + icon + heading + message + "Go to Settings" CTA when
+      `pmsEnabled` is false -- but that CTA assumes a self-service enablement
+      toggle ERP/CRM genuinely do not have (`AppSidebar.tsx`'s own comment:
+      "the 'erp' branch has no enablement-toggle UI built yet"). Adapted, not
+      copied blindly: new shared `src/components/ModuleAccessNotice.tsx`
+      reuses the same Card/icon/heading visual shape but surfaces the real
+      backend message with no misleading Settings link, wired into all 7
+      affected pages' `load()` functions (`crm/leads`, `crm/accounts`,
+      `crm/campaigns`, `crm/contacts`, `crm/opportunities`,
+      `erp/procurement`, `erp/journal-entries`).
+
+      Independent live retest against a fresh self-signup org and
+      `ai-os/MASTER-TRACKER.yaml` update still pending as of this claim --
+      see this task's own `PROGRESS.md` for current status.
+    scope_note: >-
+      File scope: `src/components/ModuleAccessNotice.tsx` (new),
+      `src/app/(app)/crm/{leads,accounts,campaigns,contacts,opportunities}/page.tsx`,
+      `src/app/(app)/erp/{procurement,journal-entries}/page.tsx`,
+      `ai-os/MASTER-TRACKER.yaml` (gap status update, pending live retest),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No schema/API changes -- the
+      backend 403 response shape was already correct, confirmed by direct
+      inspection before touching anything. No collision found with any other
+      active claim (checked this file before starting): no other entry
+      claims implementing a fix for this specific gap, only prior discovery/
+      reconfirmation entries.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
