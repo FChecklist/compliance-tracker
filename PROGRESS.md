@@ -1405,3 +1405,64 @@ Cites: `UMR-20260803-162547-b968` (UMR-20260802-165606-4413, OCID-020).
       still need the same rebase treatment (real OCID-047-049 evidence, blocked on the same
       shared-file conflict pattern) -- next.
 - [ ] OCID-050 real testing execution remains pending until after PR #828/829/830 land.
+
+---
+
+SPEC: PM decision -- do NOT start OCID-049 real testing execution yet. Gate: wait for PR #825
+(real OCID-048 cross-org isolation results) to genuinely merge, independently confirm that merge,
+then proceed with OCID-049 real testing execution only after that AND only if real swap pressure
+has eased. Relates to `UMR-20260802-165606-4413` OCID-020 and `UMR-20260803-115513-c990` OCID-049.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first, per repo protocol -- no existing claim for this
+      exact hold-decision task or for OCID-049 real execution; no collision.
+- [x] Independently checked PR #825 real state via `gh pr view`/`gh api` (not trusted from the
+      SPEC's premise) -- **material correction to the SPEC's premise, found this session**: PR #825
+      is **CLOSED, not merged** (`state: CLOSED`, `mergedAt: null`). It was closed at
+      2026-08-03T15:44:25Z by FChecklist in favor of PR #826, after a second-pass audit
+      (`AUDIT: FAIL`, 2026-08-03T15:39:46Z) found PR #825 collided on the same 3 files
+      (`PROGRESS.md`, `ai-os/MASTER-TRACKER.yaml`, the OCID-048 planning doc) with concurrently-open
+      PR #826, and that the two PRs asserted **contradictory findings** (PR #825 claimed
+      T4/T5 stayed blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`; PR #826 claimed a real,
+      independently-re-verified no-sudo Chromium workaround already resolves that gap). The closing
+      comment confirms PR #826 is the more complete, now-verified-accurate successor and that PR
+      #825's unique API-level coverage (`fraud-cases`, `legal-matters`) may be worth re-adding as a
+      follow-up once #826 merges -- it was not thrown away for being wrong, only superseded.
+- [x] Checked the real successor, PR #826
+      (`worker/task-20260803-151937-pm-decision--proceed-with-ocid-048-real`, "real OCID-048
+      cross-tenant isolation execution -- 7/7 checks, real DOM confirmation"): **OPEN,
+      `mergeable: CONFLICTING`, `audit-check: fail`** (no `AUDIT: PASS`/`AUDIT: FAIL` comment posted
+      yet on #826 itself -- the mandatory-audit-check gate fails by default absent one; only comment
+      present is an unrelated Vercel deploy-rate-limit notice). Confirmed via
+      `git merge-base --is-ancestor` that neither PR #825's commits (`5af6fcd5`) nor PR #826's
+      (`e45a2ffc`) are ancestors of `origin/main` -- the real OCID-048 cross-org/cross-tenant
+      isolation work has **not landed on `main` under any PR yet**.
+- [x] Checked real swap pressure (`free -h`): **Swap 2.5Gi / 4.0Gi used (62.5%)** -- elevated but
+      improved from the 3.9/4.0Gi (97.5%) figure cited in the SPEC as being close to the
+      2026-07-26 OOM-incident pressure class. Mem 3.2Gi/15Gi used, 12Gi available. `ps aux` shows
+      only 2 other background `claude -p` sessions currently running alongside this one (down from
+      the "5th concurrent process" framing in the SPEC) plus this session's own supervisor process.
+- [x] **Decision: continue to hold OCID-049 real testing execution.** The SPEC's literal gate
+      ("PR 825 merges") can now never be satisfied as written -- #825 is permanently closed, not
+      merging. The gate's real intent -- the real OCID-048 cross-org/cross-tenant isolation result
+      genuinely lands on `main` -- is not yet satisfied either: its current carrier, PR #826, is
+      open, has a real merge conflict against `main`, and has not yet received an audit verdict.
+      Swap pressure has eased somewhat (62.5% vs. 97.5%) but the primary blocker is PR #826's
+      unmerged/conflicting/unaudited state, not swap. Do not start OCID-049 real execution this
+      session.
+- [x] Registered this finding in `ai-os/boss/ACTIVE-CLAIMS.yaml` under `active:` (this is a real,
+      substantive correction to a prior PM decision's stated gate, not a no-op check) so a future
+      session re-reading the original SPEC's "wait for PR 825" language doesn't wait on a PR that
+      will never merge.
+
+## Remaining
+- [ ] Re-check PR #826 (or whatever PR next carries the real OCID-048 cross-org/cross-tenant
+      isolation result) periodically: resolve its merge conflict against `main`, get a real
+      `AUDIT: PASS` verdict, and get it merged.
+- [ ] Once that merge is confirmed independently (same method used here: `gh pr view --json
+      state,mergedAt` + `git merge-base --is-ancestor <head-sha> origin/main`, not just a green
+      `gh pr checks`), and real swap pressure is confirmed eased (`free -h`), only then hand off to
+      a fresh OCID-049 real-testing-execution task.
+- [ ] Consider re-adding PR #825's unique `fraud-cases`/`legal-matters` API-level isolation coverage
+      as a small follow-up once #826 merges, per that PR's own closing comment -- not this task's
+      scope, noting it here so it isn't lost.
