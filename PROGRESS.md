@@ -50,23 +50,77 @@ across OCID-047 through OCID-052.
       any of their real definitions of done.
 - [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
       per AGENTS.md Rule 11, before starting real execution.
+- [x] **Independently re-verified Playwright/Chromium genuinely works on
+      this box** (correcting `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`,
+      not silently leaving it stale): real `chromium.launch({headless:true,
+      args:['--no-sandbox']})` + real `page.goto('https://projexa-ai.com/login')`
+      + `page.title()` succeeded once `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`
+      was exported first. Correction note appended to that gap entry in
+      `ai-os/MASTER-TRACKER.yaml` (left `status: open` since the underlying
+      system-level lib install is still genuinely missing -- the env var is
+      a real, working, per-invocation workaround, not a permanent fix).
+- [x] **Real testing execution completed for OCID-047, all 4 roles with a
+      real product provisioning path (admin/manager/member/viewer)**:
+      - **Provisioning**: hit a real blocker first -- `POST /api/users`
+        (the real invite path) returned 400 `"email rate limit exceeded"`
+        for all 3 new roles (Supabase SMTP quota already exhausted, same
+        class the original session's `sigB` hit). Worked around per this
+        task's own instructions ("real Admin-API email-confirm bypass"):
+        `supabaseAdmin.auth.admin.createUser({email,password,email_confirm:true})`
+        (a real Admin API call that does NOT send email, unlike
+        `inviteUserByEmail`) + a direct `compliance.users` INSERT mirroring
+        the exact real row shape `consumeInviteLinkAndProvisionUser`
+        produces, then verified via a REAL Playwright password-grant login
+        through `/login` that `requireAuth()`'s real downstream
+        authorization code is genuinely exercised for each role.
+      - **Rights axis**: 4 real actions spanning every rank threshold among
+        these 4 roles (`erp.risks.create`=member, `board.create`=manager,
+        `clients.create`=branch_manager, `erp.fiscal_periods.reopen`=admin)
+        -- every one of the 16 (role x action) real HTTP outcomes matched
+        the documented model exactly (403 with the correct centrally-
+        generated message, or a real 2xx success).
+      - **Responsibility/scope axis, all 4 named in the OCID-047 amendment**:
+        dashboard rollup (`individual`/`individual`/`team`/`org`, exact
+        match), risk-register visibility (`BROAD_SCOPE_ROLES`, exact match,
+        plus a real positive UX bonus -- the Risk Register list already
+        shows *"(N risks outside your scope not shown)"*), classification
+        ceiling (`ROLE_CLEARANCE`/`canAccess`, all 16 role x classification
+        combinations matched exactly, `restricted` flag + real key
+        withholding both correct) -- all 3 a clean pass. Client-list
+        visibility was **not** a clean pass -- real gap found and
+        registered (see below).
+      - **Denial UX (Item 5)**: mixed, both directions registered honestly
+        -- the Risk Register LIST's scope-denial message is real and good;
+        but the CREATE-modal's 403 (role-rights denial) closes silently
+        with zero visible error text over 3 real seconds of polling -- a
+        real, separate gap.
+      - Full real evidence (HTTP status codes, DB query results, request/
+        response bodies, screenshots) written to `/tmp/ocid047/*` this
+        session (ephemeral, not committed -- reproducible any time from the
+        real fixtures still live in Org A: 3 new users, 1 client, 5 risks,
+        8 board meetings, 1 fiscal year + periods).
+      - Registered in `ai-os/MASTER-TRACKER.yaml`: one closed clean-pass
+        summary entry (`OCID-047-ROLES-RIGHTS-REAL-TEST-EXECUTION-4-ROLES`)
+        plus 2 real open gaps
+        (`GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`,
+        `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`).
+- [x] Moved this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to
+      `recently_completed:`.
 
 ## Remaining
 
-- [ ] Begin real testing execution for OCID-047 (Roles/Rights/Responsibilities):
-      start with the 4 roles that have a real, existing product
-      provisioning path today (`admin`, `manager`, `member`, `viewer` --
-      per the OCID-047 amendment's own table, the other 6 hierarchy roles
-      have no real product-level provisioning path, DB-seed only, a
-      separate real gap already registered in that doc, not this task's
-      to solve). Real evidence standard: reuse the existing
-      `/tmp/ocid020-continue/mega4-batched.mjs`-pattern browser harness and
-      `OCID-020 Continue Org A`, real signup/login, confirm real
-      allow/deny outcomes against `ERP_ACTION_ROLES`/`PROMPT_ACTION_ROLES`
-      and the responsibility/scope axis (dashboard rollup, client-list
-      visibility, risk-register visibility, classification ceiling) named
-      in the 2026-08-03 amendment.
-- [ ] Register real, honest findings (or a clean pass) per role tested.
-- [ ] Update `ai-os/MASTER-TRACKER.yaml` / move this session's
-      `ACTIVE-CLAIMS.yaml` entry to `recently_completed` once done or handed
-      off.
+- [ ] OCID-047's other 6 roles (`veridian_admin`, `branch_manager`,
+      `senior_professional`, `team_member`, `client_viewer`,
+      `external_auditor`) have no real product-level provisioning path
+      today (DB-seed only) -- a separate, already-registered gap, not
+      attempted this pass, per the amendment's own scoping.
+- [ ] OCID-048 through OCID-052's remaining items (OCID-052 Items 2-3
+      already done in an earlier session/PR #822) still have zero or
+      partial real test execution -- next real OCID-020 increment for
+      whoever picks this up next.
+- [ ] The 2 real gaps found this pass
+      (`GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`,
+      `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`) are registered but not fixed
+      -- both are small (S / XS-S per their own `size` fields), real
+      follow-up implementation work, out of scope for this testing-only
+      pass.
