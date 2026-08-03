@@ -2039,6 +2039,85 @@ open_items:
         implementation ships, the testing certification itself is done)"
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
+    - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
+      name: "task-execution-engine.ts and mother-router.ts are not wired to each other"
+      detail: "Both real, independently well-built (task-execution-engine.ts has 36 real importing call sites incl. 20+ services and app/api/ai/orchestrate/route.ts; mother-router.ts is called from app/api/ai/team/dispatch/route.ts and app/api/ai/orchestrate/route.ts). app/api/ai/orchestrate/route.ts imports mother-router.ts's resolveMotherRouterModel() directly (real, active) but its only reference to task-execution-engine.ts is a code comment (line 254), not a call. grep for task-execution-engine/TaskExecutionEngine in mother-router.ts returns zero hits either direction."
+      size: S-M
+      recommendation: "Not this task's scope to fix (locked by SEC-07 pending OCID-020). Whoever closes this should decide whether orchestrate/route.ts should call into task-execution-engine.ts after routing, or whether the two are intentionally separate concerns (routing/model-selection vs. execution) that should stay decoupled -- a real architectural call, not a mechanical wiring fix."
+      status: open
+      first_raised: "OCID-038 discovery, 2026-08-03 (this document, ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md)"
+
+    - id: GAP-OCID038-NO-PWA
+      name: "No PWA anywhere in the repo, despite a code comment describing one -- STALE, overtaken by later same-day work"
+      detail: "find for manifest.json (excl. node_modules) and for service-worker/sw.js both return zero hits repo-wide. src/app/api/veri-chat/share-target/route.ts's own top comment references 'the PWA Web Share Target (see public/manifest.json's share_target...)' -- that manifest.json does not exist. Re-confirms OCID-034's prior finding (no PWA) with a second, more specific signal (an aspirational comment pointing at a file that was never created)."
+      size: M-L
+      recommendation: "Locked by SEC-07 pending OCID-020 -- do not build. When unlocked: either build the real manifest.json/service worker the comment implies, or remove/correct the misleading comment if a PWA is not actually planned."
+      status: resolved
+      first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+      resolved: |
+        2026-08-03, independently re-verified while merging this document (real state drift, exactly
+        as this document's own §8 warned could happen). `src/app/manifest.ts` (Next.js App Router's
+        real, auto-discovered dynamic manifest route -- a different real mechanism than a static
+        `public/manifest.json`, which is why the earlier `find -iname manifest.json` genuinely found
+        nothing) now exists and is real, live, working: confirmed by OCID-051's own real execution
+        (`ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`, merged PR #844)
+        -- a real `GET /manifest.webmanifest` returns the full contract (name/start_url/display/theme/
+        icon/`share_target`), independently live-tested. `share-target/route.ts`'s own real backing
+        endpoint was also independently confirmed live and working (real end-to-end flow, OCID-051's
+        own Part 2b). Not fixed by this document's own author -- overtaken by separate, later,
+        same-day real work. What remains genuinely absent (confirmed by the same OCID-051 pass): a
+        service worker -- no offline app-shell caching. That narrower absence is not separately
+        gap-tracked; OCID-051's own artifact records it as a deterministically-confirmed, honest
+        current-state fact, not a defect.
+
+    - id: GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED
+      name: "VERI Chat has zero references to the Mother Router / AI dispatch layer -- FALSE, methodology error (wrong file grepped)"
+      detail: "grep for MotherRouter/mother-router/ai-router//api/ai/team across veri-chat-service.ts and veri-chat-context.tsx returns zero hits in both. Re-confirms (independently re-run, same negative result) the existing spot-check in ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md Sec3 item 4 and the OCID-034 discovery. Registered as its own tracked gap here because it is directly load-bearing for OCID-038's 'does the full chain operate as one system' certification question, not previously tracked as its own MASTER-TRACKER item."
+      size: M
+      recommendation: "Locked by SEC-07 pending OCID-020."
+      status: resolved
+      first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+      resolved: |
+        2026-08-03, independently re-verified while merging this document: this finding is a real
+        methodology error, not a real product gap. `veri-chat-service.ts`'s own header comment states
+        it plainly -- "Extends chat-service.ts -- does not duplicate its conversation/message CRUD.
+        Covers the 3 genuinely new capabilities: context-linking... document attachments...
+        share-out/share-in." VERI Chat's real 1:1 AI-thread reply path
+        (`generateAiReply()`) lives in the SEPARATELY-NAMED `src/lib/services/chat-service.ts`, not
+        `veri-chat-service.ts` -- confirmed via direct grep: `chat-service.ts` imports
+        `resolveModelConfig` from `orchestra-model-resolver.ts` and calls it at 2 real, live call
+        sites (lines 668, 923). This exact wiring, and its real, live connection through to Mother
+        Router's dispatch logic, was independently confirmed working end-to-end by OCID-052's own real
+        test execution (merged PR #846: real deterministic-vs-AI-escalation test cases, real LLM
+        replies) and OCID-049's own real `end_user_org`-scope AI-package routing tests (merged PR
+        #850). The original discovery pass grepped the correct-sounding but wrong file for this
+        specific question -- a real, worth-recording lesson (two similarly-named files, one a genuine
+        extension of the other) rather than evidence of a real disconnect.
+
+    - id: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH
+      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience"
+      detail: "Live-tested 2026-08-03: curl -sI https://projexa-ai.com returns HTTP/2 200 via Vercel; page <title> reads 'VERIDIAN COGNITIVE AI OS -- AI Cognitive Research'; grep for 'projexa' (case-insensitive) in the served HTML returns zero matches, only 'veridian'/'VERIDIAN'. The real PROJEXA-branded frontend (separate `projexa` repo) is live separately at projexa-smoky.vercel.app. Re-confirms and updates prior project memory (veridian-projexa-domain-ownership-conflict) with fresh live evidence rather than letting it go stale."
+      size: M
+      recommendation: "Locked by SEC-07 pending OCID-020. When unlocked: either route projexa-ai.com to the real projexa deployment/build, or add PROJEXA brand-routing to compliance-tracker's own deployment for that domain -- an Owner-level product decision, not a mechanical fix."
+      status: open
+      first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+
+    - id: GAP-OCID038-OCID035-DUPLICATE-PRS
+      name: "PR #777 and PR #782 both currently claim real content for OCID-035, under different titles"
+      detail: "gh pr list (2026-08-03T07:2xZ): PR #777 'OCID-035 VERIDIAN Continuous Platform Evolution Runtime v1.0' and PR #782 'OCID-036 dispatch, real content OCID-035 VERIDIAN Universal Capability Discovery and Evolution Runtime...' -- both OPEN, both claim OCID-035, different subject titles. Not resolved by either PR as of this reading."
+      size: S
+      recommendation: "Whoever reviews/merges either PR next should read both in full and either reconcile them into one document (per this whole chain's own zero-duplication principle) or confirm they are genuinely distinct content that was mislabeled with the same OCID number, and correct the numbering -- same class of correction as the earlier OCID-026/027/028/029/030 fix (PR #776, UMR-20260803-052107-71fa)."
+      status: open
+      first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+
+    - id: GAP-OCID038-PROJEXA-OWN-SCHEMA
+      name: "projexa repo's own description claims 'built on VERIDIAN AI OS via API' but has its own 11-table local schema"
+      detail: "gh repo view FChecklist/projexa's description: 'Frontend for the AI-native construction ERP, built on VERIDIAN AI OS via API.' Per ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md Sec1.9, the projexa repo has its own 11-table schema (not a schemaless pure client). gh api search/code for a compliance-tracker/VERIDIAN API base URL inside the projexa repo returned 0 hits (GitHub code search, not exhaustive, but a real negative signal). May be intentional local caching/offline support, or may be real architectural drift from the repo's own stated design intent -- not resolved this pass."
+      size: M
+      recommendation: "Whoever picks up cross-repo integration work should read the projexa repo directly (not GitHub code search only) to determine whether it genuinely calls a shared VERIDIAN API anywhere, and reconcile the repo description with real behavior either way."
+      status: open
+      first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
