@@ -767,3 +767,14 @@ prior cycle") since the spec is the only source for what it denotes.
 - [ ] Fix the 3 new real gaps (separate tasks, own UMRs, per the established no-fold-in pattern)
 - [ ] Re-test GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ in isolation under confirmed-low load before treating as confirmed
 - [ ] Verify the 3 concurrently-dispatched duplicate-diagnosis worker tasks' real outcomes once they finish
+# PROGRESS -- retest orchestra/prompt-eval/sales-hq (UMR-20260803-101058-1d10)
+
+## Completed
+- [x] Real isolated retest, one page at a time, fresh browser instance per page: initial attempt (30s networkidle timeout, host load still elevated ~9.8) reproduced the identical timeout on all 3
+- [x] Follow-up targeted test switching waitUntil from networkidle to load: all 3 resolved instantly (~1s), real 200 status, correct URL, real content confirmed
+- [x] Conclusively determined this is a networkidle test-methodology artifact (a persistent connection, plausibly VERI Chat's live-update panel, never lets networkidle fire), not a real product defect
+- [x] Marked GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ resolved in MASTER-TRACKER.yaml with full resolution_note
+- [x] Updated the canonical nav-sweep doc with an honest UPDATE section, not a silent edit of the original finding
+
+## Remaining
+- [ ] None -- this finding is fully closed
