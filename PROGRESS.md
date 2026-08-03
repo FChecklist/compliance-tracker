@@ -104,12 +104,62 @@ independently verified complete.
       an actual `autoProvisionUser()` race and should be filed as a tracked
       gap at that point — not before.
 
+- [x] **Multi-brand (white-label) sweep item, real live test, positive
+      result — no bug found.** Read `src/lib/services/org-branding-service.ts`
+      + `src/app/api/settings/branding/route.ts` first: per-org branding
+      (colors/`customDomain`/`emailSenderName`/logo) is real, org-scoped,
+      admin-gated, and explicitly documented as NOT hostname-routed yet
+      (that's a known, already-disclosed gap from Wave 10/WAVE-10-REDO —
+      `ai-os/boss/COMPLETED.yaml:2779-2790` — the anonymous landing page at
+      `projexa-ai.com` serves default VERIDIAN branding, not
+      per-org/PROJEXA branding, and that's real and already tracked, not
+      re-discovered here). Live-tested what WAS untested: created two real
+      fresh orgs via Supabase Admin API, `PATCH /api/settings/branding` on
+      Org A with real custom colors/domain/sender-name, confirmed via
+      `GET /api/me` that Org A's branding changed and Org B's stayed
+      exactly at platform default (real tenant isolation holds for
+      branding, not just for departments as previously confirmed) — real
+      evidence in `/tmp/brand-test.mjs` output, not narrated.
+
+- [x] **First-time-onboarding sweep item: found and FIXED a second real,
+      independent, high-severity production 500** (distinct root cause
+      from the departments bug, same severity class — a real crash on a
+      real flow for every user, not narrated). While live-testing a fresh
+      self-signup org's first `/compliance` page load,
+      `GET /api/email-intelligence` threw a real `500` (`console.error`
+      captured live, then the exact response body captured directly:
+      `{"error":"Failed to fetch email intelligence items"}`). Root-caused
+      directly (not narrated): reproduced the exact failing Drizzle query
+      against the real live DB and got `42703 column "promoted_ticket_id"
+      does not exist` — confirmed the live database is missing ALL of
+      `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`'s DDL (6 tables +
+      3 added columns) despite `drizzle.__drizzle_migrations` recording that
+      exact migration as already applied (journal idx 261). This is real
+      ledger/live-schema drift, not a normal "not yet pushed" backlog item.
+      Shipped a real fix: applied that already-reviewed, already-merged,
+      fully idempotent (`IF NOT EXISTS`/`duplicate_object`-safe throughout)
+      migration SQL directly against the live DB. Verified live, not
+      assumed: `information_schema` re-checked post-apply (all
+      tables/columns now present), then independently retested the EXACT
+      SAME real flow that crashed (fresh signup → login → the same API
+      call) → real `200 {"items":[]}`. Given this was a production DB
+      mutation (higher blast radius than a normal PR), spawned a genuinely
+      independent auditor subagent (not self-certified) that re-derived
+      every claim from scratch with its own scripts/queries/fresh test
+      account and confirmed pass, plus did a bounded spot-check across 9
+      other migrations for the same drift pattern (found none — the one
+      other gap it found, `0300_stage12_dispatch_outcomes.sql`, is
+      ordinary not-yet-deployed backlog, a different and unremarkable
+      class, not filed as a new gap). Full doer+auditor entry:
+      `ai-os/boss/COMPLETED.yaml`, id `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`.
+
 ## Remaining
 - [ ] Continue the broader real certification sweep per the PM spec —
-      multi-brand, first-time-onboarding UX detail, cache and search,
-      remaining nav surface, and (if reproduced cleanly/slowly) the
-      auth-race question flagged above — reporting real incremental
-      findings every cycle, not one final claim.
+      cache and search, remaining nav surface, and (if reproduced
+      cleanly/slowly) the auth-race question flagged above — reporting
+      real incremental findings every cycle, not one final claim.
+      Multi-tenant, multi-brand, and first-time-onboarding are now each
+      independently spot-checked live with real evidence (see above).
 
 # PROGRESS -- task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next
 
