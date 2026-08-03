@@ -5112,6 +5112,17 @@ recently_completed:
       `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`). Full detail: `ai-os/MASTER-TRACKER.yaml`
       (`OCID-047-ROLES-RIGHTS-REAL-TEST-EXECUTION-4-ROLES`, `GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`,
       `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`), `PROGRESS.md`.
+
+      **Resume update (invocation 2/20):** `git fetch` found PR #827 (this claim's own PR) had gone
+      `CONFLICTING` against `origin/main` -- two more genuinely parallel OCID-047 sessions (PR #823
+      rights-axis 55/55 checks + `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`; PR #824 responsibility-axis
+      18/18 checks) had merged in the meantime. Independently re-verified via `git cat-file -p` that
+      this session's own risk-register/client-list findings remain genuinely non-duplicate (neither
+      other PR tested that ground; PR #824's own "Remaining" list says so explicitly), merged
+      `origin/main` in, and repaired a real structural error an earlier invocation of this task had made
+      in `PROGRESS.md` (wholesale-replaced the file's accumulated history instead of appending after
+      it) -- restored full history, re-appended this task's section with an honest collision note. PR
+      #827 is now `MERGEABLE`, CI running. See `PROGRESS.md`'s own resume entry for full detail.
   - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
     claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
     claim: |
