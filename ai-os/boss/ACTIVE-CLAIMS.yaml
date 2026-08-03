@@ -4396,6 +4396,29 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260803-000354-pm-unblock-decision-for-task-231514-cred) -- PM decision: task-231514's credit-accountant rejection ACCEPTED as correct, not a gap [DONE, PR pending]"
+    claimed_at: "2026-08-03T (this session, closed same session)"
+    claim: |
+      SPEC: PM decision citing UMR-20260802-165606-4413 and
+      UMR-20260802-233539-d8cd on task-20260802-231514, which terminated
+      `rejected_duplicate`. Independently re-verified directly against
+      task.yaml/git (not narrated): task-231514's own dispatch-tick resume
+      attempt for task-210700 was correctly rejected by the credit accountant
+      as a real duplicate (UMR-20260802-234312-976e) because task-210700's
+      real value (departments-500 fix, multi-tenant isolation finding) had
+      already merged to `main` via PR #747. Decision: rejection ACCEPTED as
+      correct -- a working safeguard, not a bug, not an Owner-level product
+      question; resuming would be wasteful duplicate work, so no fix/override
+      opened. task-231514's one genuinely new finding (task-210700's own
+      task.yaml status field staying stale at in_progress after a clean
+      SIGTERM) was already independently folded forward into the OCID-019
+      recovery matrix and merged via PR #750 (commit 162a9a71, confirmed an
+      ancestor of this branch's HEAD) -- re-verified that write-up directly,
+      found it complete and accurate, not duplicated. Recorded this decision
+      as its own durable amendment in
+      ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (UMR-20260802-233539-d8cd) so
+      it lives in the canonical governance artifact rather than only in
+      task-231514's own ephemeral task.yaml note field. No code changed.
   - session_label: "claude-code (task-20260802-055214-register-veridian-kernel-1-0---kernel-co) -- Reconciled dispatched VERIDIAN_KERNEL=1.0 text against real AI-OS governance [DONE, PR pending]"
     claimed_at: "2026-08-02T (this session, closed same session)"
     claim: |

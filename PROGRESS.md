@@ -177,6 +177,44 @@ Cites: `UMR-20260802-165606-4413` and the standing rebase directive
 - [ ] Push the rebased branch and report real MERGEABLE/CONFLICTING status.
       Do NOT merge until CI is green; do NOT force past a real conflict.
 
+# PROGRESS -- task-20260803-000354-pm-unblock-decision-for-task-231514-cred
+
+## Completed
+- [x] Independently verified (not narrated) task-231514's own task.yaml: real
+      terminal status `rejected_duplicate`, real closing note citing PM decision
+      `UMR-20260802-235225-fbb1` — its dispatch-tick resume attempt for
+      task-210700 was correctly rejected by the credit accountant as a real
+      duplicate (`UMR-20260802-234312-976e`) because task-210700's real value
+      (multi-tenant isolation finding, departments-500 fix) had already merged
+      via PR #747.
+- [x] Confirmed PR #747 genuinely merged on `main` (`f18275cc`, ancestor of
+      current HEAD `db6524e7`).
+- [x] Confirmed the one genuinely new finding task-231514 surfaced (task-210700's
+      own `task.yaml` `status` field staying stale at `in_progress` after a
+      clean SIGTERM, distinct from the already-disclosed OCID-019
+      supervisor-restart gap) was **already independently folded forward** into
+      the OCID-019 recovery matrix as its own real amendment — commit
+      `162a9a71`, merged via PR #750 (`db6524e7`, current branch HEAD),
+      citing `UMR-20260802-165541-c27d`. Read the full amendment text
+      (`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` lines 827-859) directly —
+      confirmed it accurately and completely describes the gap; no gap in the
+      write-up itself, no re-entry needed.
+- [x] Searched the full server tree (`/opt/veridian`, excluding
+      `.git`/`node_modules`) for `UMR-20260802-233539-d8cd`: no prior record
+      exists anywhere on disk. Treated as this decision's own governance ID
+      (per this task's spec), not a pre-existing artifact to locate.
+- [x] Recorded the PM decision as a durable governance artifact (not left only
+      in an ephemeral `task.yaml` note field): new amendment appended to
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`, citing `UMR-20260802-165606-4413`
+      (the OCID-020 finding chain that originally led to task-210700) and
+      `UMR-20260802-233539-d8cd` (this decision's own ID) per the incoming spec.
+      Decision: the credit accountant's `rejected_duplicate` verdict is
+      **accepted as correct** — a working safeguard, not a bug, not an
+      Owner-level product question. No further resume/fix work opened.
+
+## Remaining
+- [ ] Open PR, get CI green, merge per AGENTS.md Rule 6.
+
 # PROGRESS -- task-20260803-000431-pm-correction-pr-748-false-task-210700-s
 
 Cites: `UMR-20260802-165606-4413` and `UMR-20260802-230119-c1f1` (PM
