@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
+    claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision, UMR-20260803-073007-06a1): PM reported task-20260802-231454's
+      task.yaml recorded PR #755 as blocked/merge-failed and asked this session to
+      independently verify, then resume the OCID-020 nav-surface sweep against live
+      projexa-ai.com.
+
+      Independently re-verified before acting on the PM's own claim (per standing rule --
+      never self-certify, never act on an unverified claim including the PM's own):
+      `gh pr view 755` confirms real `state: MERGED`, `mergedAt: 2026-08-03T01:21:42Z`,
+      merge commit `db5d531b026f0d90665cd9508c367bae7cf0160f`, independently confirmed a real
+      ancestor of `origin/main` via `git merge-base --is-ancestor`. Task-20260802-231454's
+      stale checkpoint (01:05:42Z) simply predates the real merge (01:21:42Z) by 16 minutes --
+      a real race, not a real merge failure. No re-merge attempted. Did not edit
+      task-20260802-231454's own task.yaml directly (owned by its own worker/systemd
+      lifecycle, same established convention as the prior continuation entry) -- correction
+      recorded in a new doc instead.
+
+      Real, measured host-load check performed before resuming the heavy Playwright sweep,
+      per the prior continuation doc's own explicit recommendation ("checked for host load
+      first") after two consecutive real sweep failures under host contention: `uptime`
+      showed load average 10.23 on an 8-core box (~1.28/core), `free -h` showed 3.7Gi/4Gi
+      swap in use, only 259Mi free -- real, current resource pressure, caused by 5
+      concurrently-running legitimate dispatched workers (OCID-037/038/039/040 + this PM
+      decision's own sibling dispatch). Decision: defer the heavy multi-navigation sweep
+      rather than risk a 3rd invalidated run under the same failure class already documented
+      twice; wrote a concrete handoff (per-batch browser health-check/restart, ~10-15
+      navigations per instance) for whoever resumes it once load allows.
+    scope_note: >-
+      File scope: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_RESUME_2026-08-03.md` (new file),
+      `ai-os/OS.yaml` (index registration), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, or CI changes. Did not run any new browser automation this pass (deliberate,
+      load-based deferral, documented above).
   - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only [PUSHED, PR #781 OPEN]"
     claimed_at: "2026-08-03T05:5xZ (this session, PR opened same session)"
     claim: |

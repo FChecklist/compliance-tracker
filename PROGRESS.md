@@ -663,3 +663,13 @@ prior cycle") since the spec is the only source for what it denotes.
 ## Remaining
 - [ ] PR #774 merge (blocked on CI + no dedicated human reviewer per AGENTS.md Rule 6 -- will merge once green)
 - [ ] Move ACTIVE-CLAIMS.yaml entry from active: to recently_completed: once merged
+# PROGRESS -- feature/ocid-020-resume-pr755-verified-host-load-deferred
+
+## Completed
+- [x] Independently re-verified PR #755's real merge state (`gh pr view`, `git merge-base --is-ancestor`) -- confirmed genuinely MERGED, mergedAt 2026-08-03T01:21:42Z, contradicting task-20260802-231454's stale checkpoint note. No re-merge attempted.
+- [x] Checked real, current host load before resuming the browser sweep (`uptime`: load avg 10.23 on 8 cores; `free -h`: 3.7Gi/4Gi swap in use) -- consistent with the resource-contention class that caused both prior nav-sweep failures
+- [x] Decision: defer the heavy multi-navigation Playwright sweep until load drops, per the prior continuation doc's own explicit recommendation; wrote `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_RESUME_2026-08-03.md` documenting both the PR #755 correction and the load-based deferral
+- [x] Registered doc in `ai-os/OS.yaml`
+
+## Remaining
+- [ ] Resume the real nav-surface sweep (~101/118 still unswept) once host load allows, using the per-batch browser health-check/restart harness
