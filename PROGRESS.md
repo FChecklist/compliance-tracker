@@ -385,3 +385,35 @@ correction spec directing this task to fix PR #748's false claim).
 - [ ] Report real fraction of nav surface exercised (cumulative with prior ~15/118 pass)
 - [ ] Finalize ACTIVE-CLAIMS.yaml entry for this session
 - [ ] Commit + push
+# PROGRESS -- task-20260803-010937-pm-decision-proceed-with-pr-755-and-756
+
+## Completed
+- [x] Independently re-verified spec's claims on the server (not narrated):
+  - PR #751 MERGED at 2026-08-03T00:59:50Z, PR #753 MERGED at 2026-08-03T01:04:40Z (both confirmed via `gh pr view`).
+  - task-20260802-210700's real `task.yaml`: last checkpoint `status: blocked` at `2026-08-03T00:58:45Z`, last commit `313f2ffb chore: nudge CI (no check-runs registered on initial push/PR-open for 42e0496f)` -- a CI nudge, not in-flight content work. Confirms the branch is not currently live.
+  - PR #755 (`worker/task-20260802-231454-ocid-020-continue-certification-sweep-ac`): mergeable=MERGEABLE, mergeStateStatus=BLOCKED (required checks not all green -- Build was `pending` at last CI run; Vercel preview hit a build-rate-limit failure).
+  - PR #756 (`worker/task-20260802-210700-pm-decision--fix-the-real-high-severity`): mergeable=CONFLICTING, mergeStateStatus=DIRTY, and only Vercel checks are registered -- no Lint/Type Check/Build/Unit Tests/Guardrail runs exist on this branch's head, consistent with task.yaml's own "no check-runs registered" note.
+
+- [x] PR #755 rebased onto current `origin/main` in an isolated scratch worktree (`/tmp/pr-fixes/pr755`, temp branch `pr755-rebase-tmp`, this task's own workspace never switched off its own branch). Clean rebase, zero conflicts. Pushed; a genuinely concurrent process (task-20260802-231454's own audit-fix loop) pushed one more docs-only commit on top before CI finished -- not a collision with my work since it landed as a fast-forward on top of my rebase, not a rewrite. All required CI checks green (Lint/Type Check/Build/Unit Tests/E2E/Guardrails/audit-check; only the non-required Vercel preview failed on an unrelated build-rate-limit). Independently re-verified `mergeable=MERGEABLE` before merging. PR #755 genuinely MERGED at `2026-08-03T01:21:42Z` (merge commit `db5d531b`) -- confirmed the autonomous supervisor merged it itself once green (per AGENTS.md's 2026-07-31 full-autonomy rule), not by an action I took; independently re-verified via `gh pr view` rather than assumed.
+
+- [x] PR #756: rebased onto current `origin/main` in an isolated scratch worktree (`/tmp/pr-fixes/pr756`), clean rebase (zero conflicts -- the earlier CONFLICTING/DIRTY state had already self-resolved once PR #755 merged and moved `main` forward), pushed. All content-bearing CI checks (Lint/Type Check/Build/Unit Tests/E2E/Guardrails) went green on the new head.
+- [x] **STOPPED here -- did not merge PR #756. The spec's premise ("PR 756 documents a real production fix already independently auditor verified") is FALSE, independently checked directly on the server, not narrated.** `audit-check` (a *required* branch-protection status check per `gh api .../branches/main/protection`) is failing, and it is failing for real, current, substantive reasons -- not a stale/wrong-SHA artifact (the FAIL comment at `2026-08-03T01:12:35Z` predates my rebase; CI's `pull_request: synchronize` re-run against my new head (`9e4e221a`) independently re-evaluated it and failed again, since no corrective push or new audit comment exists). The real `AUDIT: FAIL` comment (posted by `FChecklist`, the designated auditor identity) finds: PR #756's real diff (`PROGRESS.md`/`ACTIVE-CLAIMS.yaml`/`ai-os/boss/COMPLETED.yaml`, all docs) *documents* a live production Supabase schema migration (`0264_helpdesk_tiered_sla_team_routing.sql`) that was already applied directly to the live DB with **no PR and no tier2 human sign-off**, contradicting `SUPERBOSS_DISPATCH_PROMPT.md`'s explicit rule that all Supabase schema changes are tier2 and must be held for human sign-off, never auto-merged. The doer's own WAVE-10-REDO precedent citation doesn't hold: that precedent had an explicit, directly-quoted Owner authorization (`UMR-20260802-134939-145d`) for a specific live-infra action; this one cites only a general PM decision to resume a cert sweep, not explicit authorization to mutate production schema. Root cause of the ledger/live-schema drift was also never investigated before the agent unilaterally reconciled it live.
+
+  Per AGENTS.md Rule 9 (no agent may route around a named guardrail -- and `audit-check`'s CI gate is exactly such a guardrail -- without the Owner's explicit written instruction quoted in the PR description), and per the Owner's 2026-07-31 full-autonomy rule itself (which only removes the *redundant human-confirmation step on top of an already-approved review*; "a rejected verdict... still blocks exactly as before"), this PR correctly stays blocked. Did not self-audit, did not attempt to reach or bypass the required-check list, did not force-merge. This is a genuine correction of a false premise in this task's own spec, not a stale-status false alarm -- flagging for the Owner/PM rather than silently completing 2/2 as instructed.
+
+## Remaining
+- [x] ~~Owner/PM decision needed on PR #756...~~ **UPDATE (2026-08-03, per
+  `UMR-20260803-012711-18b4`, independently verified directly on the server,
+  not narrated): the Owner/PM decision has since been made — real retroactive
+  authorization APPROVED, citing the WAVE-10-REDO precedent
+  (`UMR-20260802-134939-145d`) as the explicit authorization the auditor's
+  real `AUDIT: FAIL` asked for. PR #756 was corrected accordingly (explicit
+  authorization recorded in `ai-os/boss/COMPLETED.yaml`, root-cause tied to a
+  new registered systemic gap `GAP-MIGRATION-APPLY-NOT-AUTOMATED` in
+  `ai-os/MASTER-TRACKER.yaml`) and has since genuinely MERGED — real merge
+  commit `9b28f68f722dac8992ffba293d7d002135177726`, `mergedAt
+  2026-08-03T01:34:19Z` (confirmed via `gh pr view`).** This section's
+  original text above was accurate at the moment it was written (PR #756 was
+  genuinely still blocked then) — recorded here as a real update, not a
+  rewrite of that history.
+- [x] Update ai-os/boss/ACTIVE-CLAIMS.yaml with this task's claim close-out (PR #755 done, PR #756 correctly left blocked at the time; see update above for its real current state).
