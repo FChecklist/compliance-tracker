@@ -103,12 +103,16 @@ Do not wait for OCID-052. Independently confirm each merge via
       clean since the first fix already carried the right content forward).
       Pushed (`2f398fc1`), a real new synchronize event.
 
+- [x] **PR #816 merged** (`39539845`). Independently confirmed via
+      `git merge-base --is-ancestor` -> ancestor confirmed.
+- [x] As predicted, #815 re-broke a THIRD time when #816 landed (same
+      shared-governance-file cascade). Re-resolved a third time in
+      `/tmp/pr815-fix` (PROGRESS.md only; OS.yaml/ACTIVE-CLAIMS.yaml
+      auto-merged clean). Pushed (`cf3ded0b`) -- this is the last of the
+      five PRs, so once this round's CI is green there is no further
+      sibling left to re-break it.
+
 ## Remaining
-- [ ] Confirm #815's required checks go green against its real, current head
-      SHA (`2f398fc1`), then merge and confirm via
-      `git merge-base --is-ancestor`.
-- [ ] Merge #816 (checks green, mergeable) and confirm via
-      `git merge-base --is-ancestor`.
-- [ ] Re-verify #815 doesn't re-break again once #816 merges (same shared-file
-      cascade) before declaring done.
-- [ ] Final PROGRESS.md update + commit/push.
+- [ ] Confirm #815's required checks go green against its final head SHA
+      (`cf3ded0b`), merge, and confirm via `git merge-base --is-ancestor`.
+- [ ] Final PROGRESS.md update + commit/push + summary to user.
