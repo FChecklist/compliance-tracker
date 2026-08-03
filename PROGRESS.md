@@ -417,3 +417,95 @@ correction spec directing this task to fix PR #748's false claim).
   genuinely still blocked then) — recorded here as a real update, not a
   rewrite of that history.
 - [x] Update ai-os/boss/ACTIVE-CLAIMS.yaml with this task's claim close-out (PR #755 done, PR #756 correctly left blocked at the time; see update above for its real current state).
+
+# PROGRESS -- task-20260803-000241-pm-answer-on-task-210700-real-terminal-s
+
+Cites: `UMR-20260802-165606-4413` (OCID-20260802-020). `UMR-20260802-230641-88d2`
+could not be located as a standalone artifact anywhere in this repo (no commit,
+task prompt, or ACTIVE-CLAIMS entry cites it except this task's own prompt) --
+cited per the spec's own framing ("the task-210700 status confirmation from the
+prior cycle") since the spec is the only source for what it denotes.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting. Found this repo is
+      extremely busy right now: several genuinely parallel sibling sessions
+      (`task-20260803-000319`, `task-20260803-000354`, `task-20260803-000431`,
+      plus `task-20260802-231454`/`231510`/`235630` themselves) are all
+      actively working adjacent pieces of this same task-210700/OCID-020
+      thread. Confirmed no direct overlap with this task's distinct scope
+      (terminal-state decision + folding the multi-tenant finding forward).
+- [x] Independently re-verified the real unit
+      (`systemctl --user status` + `journalctl --user -u
+      veridian-worker@task-20260802-210700-....service`): confirms the
+      spec's cited numbers exactly -- clean `SIGTERM` on client request at
+      `23:14:21Z`, `11min 57.818s` CPU consumed, `2.0G` memory peak, all
+      child processes terminated, `Active: inactive (dead)` immediately
+      after. Real clean stop, not a crash, not an unexplained stall.
+- [x] **Live-state correction, checked just now, not narrated**: since the
+      spec was authored, the same unit has already auto-restarted at
+      `2026-08-03T00:02:44Z` (`invocation 3/20`, `restart_count: 2` per its
+      own `task.yaml`) and is genuinely `Active: active (running)` right
+      now -- Main PID 1496557, real growing CPU time, `status: in_progress`,
+      fresh checkpoint `00:07:47Z`. This does not contradict the spec's
+      "stop watching for auto-resume" decision -- it confirms it: no
+      manual/external resume trigger was ever needed, because the
+      platform's own checkpoint/resume mechanism fired entirely on its own.
+- [x] **Decision, per spec, reaffirmed with live evidence**: stop watching
+      for task-210700 to auto-resume as a distinct monitoring activity --
+      a clean SIGTERM on client request is a real terminal state for that
+      *invocation*, not a stall needing a manually-triggered resume, and
+      the platform's own automatic mechanism has already handled the
+      lifecycle transition on its own without intervention either way.
+- [x] Checked whether the real multi-tenant testing findings task-210700
+      had already gathered before its SIGTERM were preserved in its own
+      `task.yaml` checkpoints: **yes**. Confirmed in its
+      `completed_steps` and merged to `main` via PR #747 / commit
+      `f418ca6c`: two real, separate orgs created via Supabase Admin API;
+      Org B created a real department
+      (`Org-B-Only-Department`, `orgId: dane6ps2f1k1fmg1tgndvl85`) via
+      `POST /api/departments`, and Org B's own `GET /api/departments`
+      returned only its own 2 rows (auto-provisioned "General" + the new
+      one) -- none of Org A's data. Real, positive confirmation that
+      tenant-scoped `withTenantContext`/RLS isolation holds for this route.
+      Also preserved: an honest, inconclusive note on intermittent
+      `401`/`403` on rapid back-to-back test-harness logins -- most likely
+      a test-harness artifact (a slower, isolated retry succeeded cleanly
+      each time), not asserted as a confirmed product bug.
+- [x] Folded this finding forward into
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md` (the
+      durable OCID-020 findings doc, which had explicitly listed
+      multi-tenant isolation as untested/not-covered from the original
+      redo pass) -- struck through and marked that specific gap **CLOSED**
+      with the real evidence and citation, noted the still-open surface
+      (every other tenant-scoped route/table beyond `/api/departments`,
+      and the unconfirmed auth-race question worth a slow retest), and
+      pointed the OCID-020 nav-surface continuation task
+      (`task-20260802-231454`, currently `in_progress`, running its own
+      multi-tenant probe as part of a broader mega-script per its own
+      checkpoint) at the already-closed slice so it spends its
+      multi-tenant testing budget on the remaining untested ground instead
+      of re-testing `/api/departments` isolation from zero.
+- [x] Registered this session's own claim + resolution in
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, including an explicit list of what
+      was deliberately left out of scope (PR #744's rebase, PR #748's
+      false-claim correction, `task-20260802-231514`'s disposition) because
+      each already has its own active owning session.
+
+- [x] Opened PR #754 (`worker/task-20260803-000241-pm-answer-on-task-210700-real-terminal-s`)
+      for this docs-only change. CI running: most checks pass; `audit-check`
+      correctly `fail`s pending a required independent `AUDIT: PASS`/`FAIL`
+      comment per Rule 7(c)/10 (this session implemented the change, so
+      cannot self-certify it) -- left for a separate auditor session, not
+      forced. `Vercel` check failed on an unrelated build-rate-limit,
+      nothing to do with this diff. Not merging until CI is green and an
+      independent audit lands, per standing protocol.
+
+## Remaining
+- [ ] None for this task's own scope. Real follow-on work (not this task's
+      to do): the OCID-020 nav-surface continuation task
+      (`task-20260802-231454`) finishing its in-flight mega-script and
+      reporting its own incremental findings; the still-open
+      table-by-table RLS verification beyond `/api/departments`; a
+      slow/spaced-out retest of the flagged (not confirmed) auth-race
+      observation if anyone picks that up.
+

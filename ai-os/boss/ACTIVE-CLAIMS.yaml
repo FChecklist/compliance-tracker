@@ -40,6 +40,67 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-000241-pm-answer-on-task-210700-real-terminal-s) -- PM answer: task-210700 real terminal-state decision + fold multi-tenant finding forward [DONE, docs-only]"
+    claimed_at: "2026-08-03T00:15Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260802-165606-4413` and
+      `UMR-20260802-230641-88d2` -- the latter not found as a standalone
+      artifact anywhere in this repo; cited per the spec's own framing as
+      "the task-210700 status confirmation from the prior cycle" since the
+      spec itself is the only source for what it denotes).
+
+      Independently re-verified (`systemctl --user status` +
+      `journalctl --user -u`) the exact real unit
+      `veridian-worker@task-20260802-210700-....service`: confirms the
+      spec's cited numbers exactly -- clean `SIGTERM` on client request at
+      `23:14:21Z`, `11min 57.818s` CPU, `2.0G` memory peak, all children
+      terminated, `Active: inactive (dead)` immediately after. This is a
+      real clean stop, not a crash or stall.
+
+      **Live-state correction (checked just now, not narrated):** the spec's
+      "stop watching for auto-resume" premise is confirmed correct in
+      substance but the unit's *current* state has already moved past it --
+      the platform's own checkpoint/resume mechanism (not any external
+      watcher) auto-restarted this exact unit at `2026-08-03T00:02:44Z`
+      (`invocation 3/20`, `restart_count: 2` in its own `task.yaml`), and it
+      is genuinely `Active: active (running)` right now (Main PID 1496557,
+      real growing CPU time, `status: in_progress`, fresh checkpoint
+      `00:07:47Z`). This does not contradict the decision -- it confirms it:
+      no manual/external resume trigger was ever needed either way, since
+      the automatic mechanism fired on its own without any session having to
+      watch for it.
+
+      **Multi-tenant finding preservation, checked and folded forward:**
+      confirmed the real multi-tenant isolation finding task-210700 gathered
+      before its SIGTERM was preserved (in its own `task.yaml`
+      `completed_steps` and merged to `main` via PR #747 / commit
+      `f418ca6c` -- two real orgs, Org B's `GET /api/departments` returned
+      only its own 2 rows, positively confirming tenant-scoped
+      `withTenantContext`/RLS isolation on that route; plus an honest
+      inconclusive note on intermittent `401`/`403` on rapid-fire test-harness
+      logins, most likely a harness artifact not a confirmed product bug).
+      Folded this forward into
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md` (the
+      durable OCID-020 findings doc, which had explicitly listed multi-tenant
+      isolation as untested) -- marked that specific gap CLOSED with the
+      real evidence and citation, so the OCID-020 nav-surface continuation
+      task (`task-20260802-231454`, currently `in_progress`, running its own
+      multi-tenant probe as part of a broader mega-script per its own
+      checkpoint) can spend its multi-tenant budget on the still-untested
+      routes/tables instead of re-testing `/api/departments` isolation from
+      zero.
+
+      Out of scope, correctly left to their own already-active sessions: PR
+      #744's rebase (owned by `task-20260802-231510`/`235630`), PR #748's
+      false-claim correction (already self-corrected + merged as `a8b566b0`,
+      reconfirmed by PR #751), and `task-20260802-231514`'s own
+      `rejected_duplicate` disposition (owned by
+      `task-20260803-000354`).
+    scope_note: >-
+      File scope this session:
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md` (amended,
+      not new), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`.
+      No src/, schema, or CI changes.
   - session_label: "claude-code (task-20260803-010937-pm-decision-proceed-with-pr-755-and-756) -- rebase+verify+merge PR #755 and PR #756, same pattern as PR #751-754"
     claimed_at: "2026-08-03T01:09Z (this session)"
     claim: |
