@@ -15,6 +15,7 @@
 - [x] Registered canonical artifact in ai-os/OS.yaml document index
 - [x] Amended existing UMR chain (UMR-20260803-041351-0278 / OCID-029), no new chain started
 
+- [x] Committed + pushed (c53d3ac0), opened PR #772: https://github.com/FChecklist/compliance-tracker/pull/772
+
 ## Remaining
-- [ ] Commit + push, open PR
-- [ ] Report doc location + UMR + OCID-031 readiness to user, then stop
+- [ ] None -- documentation-only task complete pending PR review/merge (docs-only PRs need no human approval per AGENTS.md Rule 6; CI will run standard checks)
