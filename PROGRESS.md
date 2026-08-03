@@ -1683,3 +1683,26 @@ Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-2
 ## Remaining
 - [ ] None for this amendment's own scope -- discovery/credit-preservation only, no schema/code/DB
       change.
+
+---
+
+# PROGRESS -- task-20260803-180110-pm-decision-resolving-the-umr-and-utm-na (audit addendum)
+
+## Completed
+- [x] Independent audit (Rule 7c -- not the author of PR #835) of §0's "UTR is unused" claim: that
+      check only covered `resource_governor.py`, `superboss-register.py`, and `ai-os/` -- never
+      `src/`, which is exactly the scope §3 separately checked for the `utm_*` collision. Ran
+      `git grep -ni '\butr\b'` across `src/` directly: **two real, pre-existing hits**,
+      `src/lib/db/schema.ts:541` and `src/lib/services/erp-bank-reconciliation-service.ts:56`, both
+      the pre-existing Indian-banking "Unique Transaction Reference" convention -- unrelated to but
+      colliding with the new term on the literal three letters.
+- [x] Assessed as real but low-severity (a free-text financial reference-number value, not a
+      naming/ID-prefix convention the way `utm_*` was) -- does not reverse the Owner's UTR decision,
+      but §0's "zero matches"/"genuinely clean" phrasing needed narrowing to what was actually
+      checked, not left as a repo-wide claim.
+- [x] Added new `## 0a. Amendment` section to
+      `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md` naming this finding, same
+      evidence-based style as the existing amendments in this document.
+
+## Remaining
+- [ ] None for this addendum's own scope -- discovery/audit only, no schema/code/DB change.

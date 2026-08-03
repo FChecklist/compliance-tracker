@@ -26,6 +26,28 @@ across `/opt/veridian/scripts/resource_governor.py`, `/opt/veridian/scripts/supe
 and this repo's `ai-os/` tree returned zero matches — "UTR" is a genuinely clean, currently-unused
 name. Everywhere below that would otherwise say "UTM" for the new concept says **UTR** instead.
 
+## 0a. Amendment (2026-08-03): the "UTR is unused" check above did not cover `src/`
+
+Independent audit finding (a separate session's own re-check, not trusted from §0's claim above):
+§0's "zero matches" check ran `grep -rli '\bUTR\b'` across `resource_governor.py`,
+`superboss-register.py`, and this repo's `ai-os/` tree only — it never checked this repo's own
+`src/` tree, which is exactly the scope §3 (below) *did* separately check for the `utm_*` collision
+(finding zero hits there). Running that same `src/`-scoped check for "UTR": `git grep -ni '\butr\b'`
+across `src/` finds **two real, pre-existing hits**, both the Indian-banking "Unique Transaction
+Reference" convention, confirmed by direct read — `src/lib/db/schema.ts:541`
+(`cost_payments.referenceNumber` column comment: `// transaction ref / cheque number / UTR`) and
+`src/lib/services/erp-bank-reconciliation-service.ts:56` (bank-statement column-header matcher
+`["reference", "chq", "cheque", "ref no", "utr"]`).
+
+This does not reverse the Owner's decision (§0) to name the new concept UTR, or require it be
+renamed again: the collision is with a free-text financial reference-number value used in bank
+reconciliation data, not with a naming/ID-prefix convention the way `utm_*` collided (identical
+column-name components in the same governance-tagging shape). The two are unlikely to be confused
+in practice. But §0's "zero matches" / "genuinely clean, currently-unused" phrasing is not accurate
+for the product repo as a whole as literally written, and should be read as scoped to the governance
+layer (`ai-os/`, `resource_governor.py`, `superboss-register.py`) only, not as a repo-wide
+zero-collision guarantee.
+
 ## 1. What the Owner proposed (as relayed in the PM dispatch)
 
 1. **One Universal Metadata Registry** holding reusable knowledge as **UMR** records.
