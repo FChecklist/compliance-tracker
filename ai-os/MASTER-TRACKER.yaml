@@ -850,6 +850,27 @@ open_items:
         `check-migration-collision.mjs`'s narrower number-collision check.
       status: open
       first_raised: "OCID-020 certification sweep, 2026-08-03 (UMR-20260802-165606-4413, UMR-20260803-012711-18b4)"
+      related_but_distinct: |
+        Real cross-reference, added 2026-08-03 (`UMR-20260803-025317-0c64`,
+        amended `UMR-20260803-025414-8274`): a new Category B deterministic-
+        recovery Kernel policy gate now exists (`claude-control` repo,
+        `scripts/ddl_authorization_check.py::check_category_b_recovery()`,
+        also `ai-os/CONSTITUTION.yaml`'s new `SEC-06`) -- but it solves a
+        DIFFERENT problem than this gap. This gap is about automated DRIFT
+        DETECTION (does a migration's DDL actually match what the ledger
+        claims, checked proactively/on a schedule). The new gate is about
+        deterministic RECOVERY AUTHORIZATION (once drift is found, by
+        whatever means, is it safe to auto-authorize reapplying the
+        already-reviewed fix without a human/PM/AI judgment call). This gap
+        stays genuinely OPEN -- the new gate does not close it, and this
+        note exists specifically so the two are not mistaken for the same
+        fix. Real, honest test of the new gate against this gap's own
+        originating incident (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`,
+        `ai-os/boss/COMPLETED.yaml`): 9 of its 10 required conditions pass
+        against real evidence; condition 9 (rollback path documented)
+        genuinely fails, since no rollback plan was ever written for that
+        migration -- see that entry's `category_b_retroactive_test` field
+        for the full breakdown.
 
     - id: GAP-EMAIL-INTELLIGENCE-500-VS-403
       name: "GET /api/email-intelligence returns 500 instead of 403 for a module-not-enabled org (severity: low-medium) -- RESOLVED, see resolution note"

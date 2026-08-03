@@ -3057,3 +3057,35 @@ entries:
         this authorization -- it is tied to a real, distinct, systemic gap (not a
         fresh open mystery) registered separately: `GAP-MIGRATION-APPLY-NOT-AUTOMATED`
         in `ai-os/MASTER-TRACKER.yaml`, citing this same UMR chain."
+    category_b_retroactive_test:
+      status: "RECLASSIFIED, 9 of 10 conditions pass -- NOT a full retroactive pass"
+      real_umr: "UMR-20260803-025317-0c64 (Owner directive), amended UMR-20260803-025414-8274 --
+        this action is reclassified under the new Category B deterministic-recovery Kernel
+        policy (ai-os/CONSTITUTION.yaml SEC-06, claude-control repo's
+        scripts/ddl_authorization_check.py::check_category_b_recovery()), and checked against
+        its real 10 conditions using the real evidence the independent auditor already gathered
+        above (doer.summary, doer.auditor.summary), not fresh narration."
+      real_condition_results: >-
+        1_sql_exists: PASS (drizzle/0264_helpdesk_tiered_sla_team_routing.sql, real, on
+        origin/main). 2_previously_merged: PASS (commit 4438ca79, "Helpdesk gap-closure").
+        3_idempotent: PASS (real guard scan of the actual SQL text -- every ALTER
+        TABLE/CREATE TABLE/CREATE INDEX/CREATE POLICY statement is IF NOT EXISTS/IF
+        EXISTS/duplicate_object-guarded or inherently idempotent, e.g. ENABLE ROW LEVEL
+        SECURITY). 4_real_outage: PASS. 5_root_cause_verified: PASS (42703 missing column).
+        6_independent_audit_match: PASS (auditor's own independent re-derivation). 7_umr_traceability:
+        PASS (UMR-20260802-165606-4413). 8_before_after_evidence: PASS (information_schema
+        before/after + live retest). 9_rollback_documented: **FAIL** -- no rollback plan was
+        ever written for this migration anywhere in this entry or elsewhere in this repo's real
+        history; a real, genuine gap, not a technicality. 10_canonical_artifact_updated: PASS
+        (this entry itself).
+      honest_conclusion: >-
+        This is a real, deliberately non-hypothetical test against a real past incident, and it
+        is reported honestly rather than adjusted to pass: as originally executed, this action
+        would NOT have cleared the new Category B gate on its own, because no rollback path was
+        ever documented. The new deterministic Kernel policy is measurably STRICTER than the ad
+        hoc Owner/PM judgment call that actually authorized this action at the time (see
+        retroactive_authorization above) -- which is the correct, intended outcome of moving from
+        human judgment to a deterministic evidence bar, not a flaw in either the original decision
+        or the new gate. This does not retroactively unwind the original authorization (already
+        APPROVED above, action already complete and stable); it demonstrates the new gate working
+        as designed against real evidence.

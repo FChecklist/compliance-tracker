@@ -888,3 +888,141 @@ confirmed present on `main` at this branch's `HEAD`, `db6524e7`). Re-verified th
 and found it complete and accurate; not duplicated here.
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): Category A / Category B production-DB governance split (`UMR-20260803-025317-0c64`, amended `UMR-20260803-025414-8274`, OCID-20260803-021)
+
+Real, Owner-directed, tier 0 governance amendment — not a PM decision, not AI judgment. Amends
+`UMR-20260802-165541-c27d` (recovery matrix, above), and references `UMR-20260802-165034-5747`
+(standing gatekeeper rule), `UMR-20260802-165434-cd91` (unified project memory model), and
+`UMR-20260802-173631-ca85` (ERP Functional Completeness Master Program — see its own note below).
+Builds directly on the concrete implementation directive dispatched under this same UMR chain
+(`UMR-20260803-025317-0c64`), which named the exact files to extend.
+
+**Real problem this closes**: `task-20260802-210700` ran a live, unreviewed-at-dispatch-time
+production migration apply (see `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` in
+`ai-os/boss/COMPLETED.yaml`) with no PR and no prior tier2 sign-off. It was already-reviewed,
+already-merged, idempotent SQL fixing a real Sev1 outage — but there was no deterministic way to
+say so at dispatch time. The eventual authorization (`UMR-20260803-012711-18b4`) was a real,
+one-off Owner/PM judgment call, not a repeatable, non-human-gated policy. The Owner's explicit
+decision, verified directly (not assumed): **neither the non-technical Owner, nor the PM, nor AI
+judgment should be the standing approval mechanism for this class of action — the Kernel itself,
+evaluating deterministic evidence, should be.**
+
+**Real verification done before building anything new** (per the standing gatekeeper rule,
+`UMR-20260802-165034-5747`): confirmed the real current tier2 policy is `scripts/ddl_authorization_check.py`
++ `scripts/task-gateway.py`'s dispatch-time wiring in the `claude-control` repo (not a
+`CONSTITUTION.yaml` rule at the time — no prior `id:`-governed entry existed for it; `SEC-06` is the
+first, added in this same amendment). Confirmed the real WAVE-10-REDO precedent
+(`ai-os/boss/COMPLETED.yaml`, `id: WAVE-10-REDO`) is a directly-quoted, one-off Owner authorization
+for a specific live action, not a standing policy — the same class of ad hoc judgment call this
+amendment replaces for DB recovery specifically. Confirmed the real `GAP-MIGRATION-APPLY-NOT-AUTOMATED`
+open item in `ai-os/MASTER-TRACKER.yaml` is a *distinct* problem (automated drift *detection*) from
+what this amendment builds (deterministic recovery *authorization*) — see that gap's own updated
+note for the honest, non-overlapping distinction. Found and reconciled a real, separate, pre-existing
+drift while investigating: `claude-control`'s live-deployed `scripts/task-gateway.py` had a real
+duplicate-task-key hotfix (2026-07-31) never committed back to its own repo.
+
+**The real split** (also now `CONSTITUTION.yaml`'s `SEC-06`, the canonical machine-readable rule —
+this file documents the amendment narrative, `CONSTITUTION.yaml` is authoritative on the rule text
+itself per its own `amendment_rule`):
+
+| Category | Covers | Approval mechanism | Status |
+|---|---|---|---|
+| A — new schema change | New migration, new table, new column, new constraint, any schema redesign | Explicit human sign-off, unchanged (real `PRE-APPROVED-LIVE-DDL` citation) | Unchanged, held exactly as before |
+| B — deterministic recovery | Reapplying previously-approved/merged SQL, idempotent reapplication, correcting production drift, reconciling metadata | Kernel policy check, all 10 real conditions must verify true against real evidence — no human/PM/AI judgment call | **NEW**, implemented this amendment |
+
+The 10 Category B conditions (verbatim from the Owner's directive, each checked against real,
+verifiable evidence — never a narrated claim): the SQL already exists in the repository; the SQL
+was previously reviewed and merged, not new or unreviewed; the SQL is genuinely idempotent, safe to
+run again without harm; the production issue is a verified real outage or Sev1 incident, not
+routine maintenance; root cause has been independently verified, not assumed; an independent audit
+confirms the proposed live action matches the already-reviewed migration exactly; the execution is
+fully logged under the real governing UMR; real before-and-after evidence is captured, not
+narrated; a real rollback path is documented; a real canonical artifact is updated after execution
+completes.
+
+**Real implementation**: `check_category_b_recovery()` in `claude-control`'s
+`scripts/ddl_authorization_check.py`, wired into `scripts/task-gateway.py`'s existing dispatch-time
+gate as an alternative to the Category A citation path (not a replacement — either passing is
+sufficient). A `CATEGORY-B-DETERMINISTIC-RECOVERY:` evidence block in a dispatch prompt-file names
+real, checkable evidence for all 10 conditions; each is verified against real repo/task-record
+state (file existence, real git merge history, a real idempotency-guard scan of the actual SQL
+text, and scoped citation-existence checks — structurally the same rigor as the existing Category A
+KE-id/decision-file checks, same honest "real, findable record, not a semantic content audit"
+limitation). Any single failed condition blocks execution and reports plainly which one, and why.
+
+**Real status, not glossed over: `claude-control` PR #123 is open, under active independent review,
+NOT yet merged to `claude-control`'s `main` — the production dispatch pipeline does not run this
+gate today.** Two real, substantive `AUDIT: FAIL` rounds so far, each with genuine findings that were
+independently verified and fixed, not routed around: round 1 found a materially weaker bare-path
+evidence-citation bypass (citing e.g. `README.md` with no anchor would have satisfied 6 of the 10
+conditions with zero content check), a path-traversal gap (a `..`-containing evidence field could
+resolve outside the named sibling repo), and a false-negative in the idempotency heuristic on
+`ALTER TABLE ... ENABLE ROW LEVEL SECURITY` (inherently idempotent in Postgres, incorrectly flagged
+as needing a guard) — all fixed, with regression tests. Round 2 found a critical, severe gap:
+`check_category_b_recovery()` alone never verified the SQL cited in `evidence['sql_file']` was what
+the prompt's own SCOPE would actually execute — a prompt could cite a safe, unrelated,
+already-reviewed file to satisfy all 10 conditions while its real SCOPE instructed different,
+unreviewed DDL. Fixed via a new binding check (`_prompt_scope_matches_cited_sql()`, condition 11).
+Round 3 found: (a) a second, separate live-vs-repo drift — the task_key duplicate-dispatch feature
+(itself a reconciliation of a real, already-working live-only hotfix) called
+`superboss-register.py` subcommands (`claim-task-key`/`check-task-key`) that existed live but had
+not been reconciled into the repo's copy of that file too, confirmed both ways via direct live
+invocation; fixed by reconciling `superboss-register.py` as well, and adding 5 new tests (zero
+coverage previously was why this went uncaught); (b) `RISKY_DDL_OPENER_RE` silently treated several
+destructive DDL forms (`TRUNCATE`, `DROP SCHEMA`/`SEQUENCE`/`DATABASE`/`CONSTRAINT`, role/user DDL)
+as safe-by-omission — expanded to match `DDL_KEYWORD_PATTERNS`' full breadth, with `GRANT`/`REVOKE`
+explicitly (not silently) carved out as inherently idempotent, real Postgres semantics.
+67 tests pass as of the latest push (`claude-control` PR #123, commit `95e9294`), including a
+fixture-repo-based Category B suite and a dedicated `superboss-register.py` task-key suite. **Do not
+cite this as settled, working evidence until a real `AUDIT: PASS` is posted and the PR is merged** —
+this file will be updated with the real merge commit once that happens; until then
+`ai-os/CONSTITUTION.yaml`'s `SEC-06` correctly reads `PARTIALLY_ENFORCED`, not `ENFORCED`.
+
+**Retroactive test against a real, non-hypothetical past incident** (not simulated): reclassified
+`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` under this rule and ran it through
+`check_category_b_recovery()` using the real evidence the independent auditor already gathered
+(`ai-os/boss/COMPLETED.yaml`). Real result: **9 of 10 conditions pass. Condition 9 (rollback path
+documented) genuinely fails** — no rollback plan was ever documented for `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`.
+This is an honest, valuable finding, not glossed over: the new deterministic Kernel policy is
+measurably *stricter* than the ad hoc Owner/PM authorization that actually approved this action at
+the time. Full condition-by-condition breakdown recorded in `ai-os/boss/COMPLETED.yaml`'s
+`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` entry (`category_b_retroactive_test` field).
+
+**Consistency across the registries the Owner named**: the standing gatekeeper rule
+(`UMR-20260802-165034-5747`, this file's own earlier amendment) already required checking real
+existing mechanisms before building new ones — this amendment's "real verification done before
+building anything new" section above is that check, applied. The unified project memory model
+(`UMR-20260802-165434-cd91`) is unchanged in structure — no new file/table was created; this
+amendment's real evidence lives in the same canonical artifacts that model already documents
+(`ai-os/CONSTITUTION.yaml`, `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/COMPLETED.yaml`, this file).
+The recovery matrix (`UMR-20260802-165541-c27d`) covers worker/supervisor/task-lifecycle failure
+classes, a genuinely different layer from production-DB-write governance — this amendment does not
+add a 9th row there, since Category A/B is not a "recovery from infrastructure failure" mechanism in
+that table's sense; it is cited here as the nearest sibling registry per the Owner's explicit
+instruction to update it, with this honest note on why its own table is unchanged. The ERP
+Functional Completeness Master Program (`UMR-20260802-173631-ca85`) has no canonical artifact of its
+own yet (confirmed directly — it remains gated behind the OCID-20260802-020 PROJEXA certification
+sweep, per `ai-os/boss/ACTIVE-CLAIMS.yaml`) and is unaffected by this amendment; noted here, not
+fabricated a new section for, since this amendment is not part of that program's real scope.
+
+**Status, real and current — NOT closed yet:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-20260803-021 | `UMR-20260803-025317-0c64` / `UMR-20260803-025414-8274` | Category A / Category B production-DB governance split | **OPEN — implementation on `claude-control` PR #123, pending a real `AUDIT: PASS` and merge to `main`** |
+
+This governance-registration itself (this file, `SEC-06`, the `MASTER-TRACKER.yaml` cross-reference,
+the `COMPLETED.yaml` retroactive-test result) is real and can land now — it documents a real,
+in-progress implementation honestly, including its own real independent-review history, rather than
+overclaiming the underlying gate is already live. OCID-20260803-021 moves to **CLOSED** only once
+`claude-control` PR #123 receives a real `AUDIT: PASS` and merges — at that point this table and
+`SEC-06`'s `status` field should both be updated with the real merge commit hash, in a follow-up PR,
+not silently backdated here.
+
+Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (new `SEC-06`, status `PARTIALLY_ENFORCED`),
+`ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced, not falsely closed),
+`ai-os/boss/COMPLETED.yaml` (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) —
+not rewritten, not duplicated.
