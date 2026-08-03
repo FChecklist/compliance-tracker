@@ -4659,6 +4659,35 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (task-20260803-040532-pm-authorization-to-fix-supervisor-retri) -- PM decision: fix GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE in claude-control's scripts/supervisor-entrypoint.sh (workspace not resynced to branch tip before retrigger review)"
+    claimed_at: "2026-08-03T (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing UMR-20260803-025317-0c64,
+      where GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE was raised while
+      resolving claude-control PR #123, and UMR-20260802-165034-5747, the
+      standing gatekeeper rule to extend existing infrastructure rather
+      than duplicate it). Independently confirmed the gap entry
+      (`ai-os/MASTER-TRACKER.yaml`, id `GAP-SUPERVISOR-RETRIGGER-STALE-
+      WORKSPACE`) and read the real root cause: `veridian-task.py adopt`
+      can leave a task workspace on a detached HEAD frozen at adoption
+      time; `supervisor-entrypoint.sh`'s `git fetch origin` only refreshes
+      the remote-tracking ref, nothing re-checks-out the workspace's own
+      HEAD to the branch's current tip before computing the review diff.
+      Fixing in claude-control (NOT compliance-tracker) per the gap's own
+      recommendation -- this is server-ops/dispatch infrastructure.
+      File scope: `/opt/veridian/repos/claude-control` --
+      `scripts/supervisor-entrypoint.sh` (add an explicit workspace-resync
+      step, fetch+reset-hard to the task branch's real current tip, before
+      TIER/DIFF computation), a new `tests/supervisor_workspace_resync_
+      test.sh` regression test (real git fixture, same convention as
+      `tests/worker_noop_pending_review_test.sh`). This repo (compliance-
+      tracker): this ACTIVE-CLAIMS entry, `PROGRESS.md`. Opening as its own
+      PR against claude-control, not folded into an unrelated PR, per the
+      spec's explicit instruction.
+    scope_note: >-
+      File scope: claude-control's scripts/supervisor-entrypoint.sh and a
+      new tests/supervisor_workspace_resync_test.sh only. No compliance-
+      tracker src/, schema, or CI changes.
 recently_completed:
   - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
     claimed_at: "2026-08-03T01:16Z (this session)"
