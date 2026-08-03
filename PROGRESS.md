@@ -797,3 +797,16 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] CLM fix needs PR merge + deploy, then live re-verification of /api/clm/templates and /api/clm/clauses before marking the gap fully resolved
+# PROGRESS -- fix GAP-ERP-CRM-403-NO-UX-EXPLANATION (UMR-20260803-111057-20a8)
+
+## Completed
+- [x] Investigated whether requireErpEnabled()'s 403 already carries a real reason: confirmed yes -- a real, specific, human-readable message already exists and is already forwarded by every route; this was purely a frontend surfacing gap, not a backend issue
+- [x] Found the existing UI pattern (pms/page.tsx's enablement-card, checked via /api/me) rather than inventing a new one, per the standing instruction
+- [x] Added erpEnabled/salesEnabled to /api/me (backed by the same isErpEnabledForOrg()/isSalesEnabledForOrg() the API routes already use)
+- [x] Extracted the exact PMS card pattern into a shared ModuleNotEnabledCard component
+- [x] Wired it into all 6 CRM pages (hub + leads/accounts/campaigns/contacts/opportunities) and both explicitly-named ERP pages (procurement, journal-entries) -- existing data-fetch logic untouched, only the render path changes
+- [x] Updated MASTER-TRACKER.yaml honestly: kept status open (not resolved) pending live re-verification, consistent with GAP-403-VS-500-CLM-HR-PERFORMANCE's own discipline
+- [x] Honestly noted ~17 more ERP pages share the identical gap, deliberately out of this pass's scope, with the same reusable fix pattern now available for a fast follow-up
+
+## Remaining
+- [ ] Live re-verification (real screenshot, fresh self-signup org) pending the same Vercel deploy blocker as GAP-403-VS-500-CLM-HR-PERFORMANCE

@@ -15,6 +15,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { UserPlus, Target, Building2, Users, Megaphone, Sparkles, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Counts = { leads: number; opportunities: number; accounts: number; contacts: number; campaigns: number };
 
@@ -28,6 +29,11 @@ const MODULES = [
 
 export default function CrmPage() {
   const [counts, setCounts] = useState<Counts | null>(null);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
+  }, []);
 
   useEffect(() => {
     Promise.all([
@@ -46,6 +52,10 @@ export default function CrmPage() {
       });
     });
   }, []);
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">

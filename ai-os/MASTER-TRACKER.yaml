@@ -760,7 +760,7 @@ open_items:
       priority: P2 (low, mechanical when wanted)
 
     - id: GAP-ERP-CRM-403-NO-UX-EXPLANATION
-      name: "Fresh self-signup org gets silent 403s across CRM/ERP APIs, no user-facing 'module not enabled' explanation (severity: medium)"
+      name: "Fresh self-signup org gets silent 403s across CRM/ERP APIs, no user-facing 'module not enabled' explanation -- FIX MERGED, live re-verification pending Vercel deploy (status kept open)"
       old_ids: []
       detail: |
         Real finding, `UMR-20260802-165606-4413` (OCID-020 redo session, PR
@@ -802,8 +802,71 @@ open_items:
         `requireErpEnabled()`'s existing 403 response shape should be checked
         first to see if it already carries a machine-readable reason code the
         client can key off, before inventing a new one.
+      resolution_note: |
+        **FIX MERGED 2026-08-03 (`UMR-20260803-111057-20a8`).** First
+        investigated exactly the recommendation's own open question: does
+        `requireErpEnabled()`'s 403 already carry a real reason, or is the
+        backend silent? Read `erp-enablement-service.ts` directly --
+        `requireErpEnabled()` already throws `ServiceError("This capability
+        is not part of the Module your organization purchased. Please
+        contact your organization's administrator...", 403)`, a real,
+        specific, human-readable message (Owner's own exact wording per
+        that file's 2026-07-13 comment), and every route already forwards
+        it via `NextResponse.json({ error: error.message }, { status:
+        error.status })`. **The backend was never silent -- this was purely
+        a frontend surfacing gap**, confirming the fix belongs at the UI
+        layer as the original recommendation guessed.
+
+        Searched the existing codebase for the established UI pattern
+        before building anything new, per the standing instruction not to
+        invent one: `src/app/(app)/pms/page.tsx` already solves the
+        identical problem for the PMS module -- checks enablement up-front
+        via `/api/me`'s `pmsEnabled` field, and renders a `Card` (icon +
+        "X is not enabled" heading + explanation + "Go to Settings" button)
+        instead of the real page when disabled. This is the exact,
+        already-established pattern reused here, not a new one.
+
+        Real fix: added `erpEnabled`/`salesEnabled` to `/api/me` (backed by
+        the same `isErpEnabledForOrg()`/`isSalesEnabledForOrg()` functions
+        the API routes themselves already use, so the two can never
+        disagree); extracted PMS's exact card markup into a shared
+        `src/components/ModuleNotEnabledCard.tsx` (not a new pattern, the
+        same one factored for reuse); wired it into the 6 CRM pages
+        (`crm/page.tsx` hub + `leads`/`accounts`/`campaigns`/`contacts`/
+        `opportunities`) and the 2 explicitly-named ERP pages
+        (`erp/procurement`, `erp/journal-entries`) named in this gap's own
+        real reproduction evidence -- each page's existing data-fetch logic
+        is untouched (still fires, still harmlessly 403s in the background),
+        only the render path changes: a real explanation card instead of a
+        silently-empty table when the module isn't enabled.
+
+        Honest scope note: the gap's own detail names `erp/journal-entries`
+        as the page for `/api/erp/buying/suppliers`, `/api/erp/accounts`,
+        `/api/erp/cost-centers` -- confirmed those are the same page's own
+        account/cost-center dialogs, covered by this same fix. The broader
+        ERP surface has ~17 more pages sharing the identical
+        `requireErpEnabled()` gate and the identical missing-explanation
+        gap (e.g. `erp/inventory`, `erp/invoicing`, `erp/payroll`) --
+        deliberately out of this pass's scope (not named in this gap's own
+        reproduction evidence), but the exact same 3-line fix (one new
+        `useState`, one new `useEffect`, one early-return using the same
+        `ModuleNotEnabledCard`) now exists as a real, reusable pattern for
+        whoever picks those up next.
+
+        Live re-verification pending the same Vercel deploy blocker
+        already tracked under `GAP-403-VS-500-CLM-HR-PERFORMANCE` (rate
+        limit, external, non-blocking for merge) -- real re-test with a
+        fresh self-signup org and a real screenshot to follow once that
+        deploy lands. Kept `status: open` (not resolved), consistent with
+        the standing rule against claiming a fix works before independently
+        confirming it does -- same discipline applied to
+        `GAP-403-VS-500-CLM-HR-PERFORMANCE`'s own still-pending 2 endpoints.
       status: open
       first_raised: "OCID-020 redo, 2026-08-02 (UMR-20260802-165606-4413)"
+      status_note: "2026-08-03 (UMR-20260803-111057-20a8) -- real fix merged
+        (backend already had a real 403 message; this was purely a frontend
+        surfacing gap, fixed by reusing PMS's own existing enablement-card
+        pattern), live re-verification pending Vercel deploy"
 
     - id: GAP-MIGRATION-APPLY-NOT-AUTOMATED
       name: "Deploy pipeline never automatically applies pending Drizzle migrations to production; CI only checks migration NUMBER collisions, never whether a migration's DDL actually ran (severity: medium-high, real incident already occurred)"
