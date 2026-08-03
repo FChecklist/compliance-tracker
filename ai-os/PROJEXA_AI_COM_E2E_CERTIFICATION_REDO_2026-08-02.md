@@ -252,10 +252,24 @@ A above). Reported here transparently rather than left as an inconsistent record
   reproduction path and real error text.
 
 **Not covered, disclosed plainly, not hidden:**
-- **Multi-tenant isolation**: only one account/org was created this pass (by design — signup only
+- ~~**Multi-tenant isolation**: only one account/org was created this pass (by design — signup only
   produces one org per account here); cross-org data-isolation could not be tested with a single
-  account. This mirrors the parent matrix's own item 8 finding ("no table-by-table RLS
-  verification exists").
+  account.~~ **CLOSED (2026-08-02, task-20260802-210700, PR #747, commit `f418ca6c`):** two real,
+  separate orgs (Org A, Org B) created via Supabase Admin API; Org B created a real department
+  (`Org-B-Only-Department`, `orgId: dane6ps2f1k1fmg1tgndvl85`) via `POST /api/departments`, and
+  Org B's own `GET /api/departments` returned only its own 2 rows (auto-provisioned "General" + the
+  new one) — none of Org A's data. Real, positive confirmation that tenant-scoped
+  `withTenantContext`/RLS isolation holds for this one route. **Still open, not yet tested**: the
+  same probe against every other tenant-scoped route/table (this only covers
+  `/api/departments`), and this mirrors — but does not fully close — the parent matrix's own item 8
+  finding ("no table-by-table RLS verification exists"). **Also flagged, honestly inconclusive, not
+  a confirmed bug**: that same session saw intermittent `401`/`403` on rapid back-to-back
+  test-harness logins, most likely a test-harness artifact (a slower, isolated retry succeeded
+  cleanly each time) rather than a real `autoProvisionUser()` race — worth a slow/spaced-out retest
+  before filing as a tracked gap, not before. Any continuation of this OCID-020 sweep (e.g. the
+  nav-surface continuation task) should build on this closed slice rather than re-testing
+  `/api/departments` tenant isolation from zero, and can spend its multi-tenant budget on the
+  still-open surface above instead.
 - **A complete ERP workflow end-to-end**: attempted (Compliance Item creation), but the real entry
   point (`/compliance`) is down per Finding A — this is reported as the finding itself, not
   quietly skipped.
