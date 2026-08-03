@@ -1351,6 +1351,13 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
       tools) -- flagged here rather than silently left unexplained.
 
 ## Remaining
+- [ ] **PR #830 needs CI to actually run before it can merge** (real blocker, not this task's real work
+      -- see the CI-trigger anomaly note above). Re-check `gh api repos/FChecklist/compliance-tracker/
+      commits/43da7833/check-suites` on the next invocation; if a real `github-actions` entry has
+      appeared, checks should complete normally (docs-only diff, prior identical-shape PRs #822-828 all
+      passed) and the PR can merge. If still absent after a genuinely fresh check, this is repo-admin/
+      GitHub-support territory, not fixable by this session's tools -- report honestly, do not keep
+      retrying the same 2 already-failed mechanisms.
 - [ ] OCID-047's own Step 4 (real denial-UX confirmation) remains UI-level and blocked on
       `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
 - [ ] `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` (registered by the RIGHTS-axis amendment) is still open,
@@ -1358,5 +1365,5 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
 - [ ] Real testing execution for OCID-048/049/050/051/052 items 4-5 is out of this task's own scope
       (separate PM-decision tasks already in flight for OCID-048/049 per `gh pr list`, e.g. PR #826);
       052 items 2-3 already done elsewhere; 050/051/052-items-4-5 blocked on Playwright per the
-      now-amended gap. This task's own OCID-047 RESPONSIBILITY-axis scope (all 4 named mechanisms) is
-      now fully, really tested -- no further real gap remains under this task's specific claim.
+      now-amended gap. This task's own OCID-047 RESPONSIBILITY-axis real test-execution work (all 4
+      named mechanisms) is fully done and pushed -- the only open item is getting PR #830 merged.
