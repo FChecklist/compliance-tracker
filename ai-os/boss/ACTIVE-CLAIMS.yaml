@@ -5223,6 +5223,34 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-161032-pm-decision--resolve-pr-826-merge-confli) -- PR #826 merge-conflict resolution, docs-only [DONE]"
+    claimed_at: "2026-08-03T16:10Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, citing UMR-20260802-165606-4413/OCID-020 and UMR-20260803-115452-a35d/OCID-048):
+      PR #826 (real OCID-048 cross-org/tenant isolation execution, 7/7 checks) showed a genuine rebase
+      conflict against `main` (`mergeStateStatus: DIRTY` at task start). The responsible worker task
+      (task-20260803-151937) independently ended in real `blocked` status because the deterministic
+      credit accountant rejected a second paid auto-fix attempt (same precedent as PR #755). PM decision:
+      do not queue another paid auto-fix retry; resolve directly in the interactive session instead (same
+      approach as PR #795).
+
+      Real finding: by the time this session checked out PR #826's branch, the conflict had ALREADY been
+      resolved -- a merge commit (`6116cd5d`, authored ~1 minute after this session's own claim-
+      registration push) already merged `main`'s tip cleanly into the PR, correctly incorporating both
+      sides' real additions to `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` (verified via `git diff
+      --stat` against both parents -- zero content dropped from either side; no leftover conflict
+      markers). Live concurrent-session drift, not this session's own resolution work -- did not redo it,
+      confirmed it instead. Independently verified via `git merge-base --is-ancestor origin/main HEAD`
+      (clean) and `gh pr view` (`mergeable: MERGEABLE`, was `CONFLICTING`).
+
+      Honestly flagged, not silently declared fully done: `mergeStateStatus` is still `BLOCKED`, but for
+      an unrelated pre-existing reason outside this task's scope -- the mandatory `audit-check` (Rule 10)
+      has no structured verdict comment yet, and `Build`/`Vercel` were still pending at last check.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry and this task's own `PROGRESS.md` only. No src/ changes; the
+      actual conflict-resolution content in `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` on PR #826's own
+      branch was produced by a different concurrent session/process, not this one -- verified, not
+      authored, here.
   - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
     claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
     claim: |
