@@ -1097,3 +1097,65 @@ non-RLS DB access coexisting with `withTenantContext`).
 
 Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_SOFTWARE_EXECUTION_ENGINE_2026-08-03.md` (new).
 Canonical artifact updated: this file, `ai-os/OS.yaml` (index entry) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): VERIDIAN Universal Context and Predictive Runtime v1.0 (`UMR-20260803-042003-5e92`, OCID-034, real dispatch UMR per `UMR-20260803-063016-8bfc`)
+
+Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-041851-085a` (real OCID-033,
+"VERIDIAN Universal End User Work Orchestration Runtime" — a distinct, real, sibling dispatch, independently
+confirmed via a direct query against `umr_tasks` in `/opt/veridian/ai-os/memory/superboss-register.sqlite`,
+not narrated). Also cites `UMR-20260803-040844-4a33` through `UMR-20260803-041743-d271` (OCID-022 through
+OCID-032, in order), `UMR-20260802-173631-ca85` (ERP Functional Completeness Master Program, this file's
+own parent), `UMR-20260802-165606-4413` (OCID-020), `UMR-20260802-164659-9a31` (server artifact
+traceability audit), `UMR-20260802-165034-5747` (standing gatekeeper rule), `UMR-20260802-165434-cd91`
+(unified project memory model). Extends the existing master program; no new program, no new file beyond
+the one canonical artifact named below.
+
+**Real numbering correction, found and stated rather than silently worked around**: this task's own real
+dispatch row (`unit_name: veridian-worker@task-20260803-055118-ocid-034-...`, queried directly) is titled
+"OCID-034 VERIDIAN Universal Context and Predictive Runtime," and its cited parent (`UMR-20260803-041851-085a`)
+is real, distinct, and separately titled "OCID-033 VERIDIAN Universal End User Work Orchestration Runtime."
+This differs from the earlier `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s own table, which
+had labeled the Context and Predictive Runtime mission "OCID-033" and the Work Orchestration mission
+"OCID-032" — the same class of off-by-one numbering drift that document's own table already needed a
+correction for at rows 036/037 (`UMR-20260803-045159-ec55`), one slot further down the chain. This
+amendment uses the real, current, directly-queried dispatch numbering (OCID-034) and does not attempt to
+retroactively fix the snapshot table, which is out of this task's scope.
+
+**Real, honest zero-duplication check performed** (per the binding PM decision in the OCID-040 snapshot,
+`UMR-20260803-045159-ec55`, applicable to every worker picking up OCID-026 through 037): `gh pr list`
+against `FChecklist/compliance-tracker`, re-checked at writing time, confirmed OCID-022/023/024/025/026-030
+(PRs #765-768, #771-775) are all still open, unmerged. OCID-023's real, complete 739-line document (read
+directly from its branch) is a task-lifecycle model — real, adjacent, but a distinct subject from context
+reuse and prediction; no genuinely new "Context and Predictive Runtime" content exists in any other open or
+merged PR as of writing.
+
+**Real discovery performed, not re-derived from memory**: direct file:line citation of the real, existing
+context mechanisms already in the product (`withTenantContext()`, `src/lib/db/tenant-scoped.ts:65`;
+`VeriChatContext`, `veri-chat-service.ts:19`; `AssembledContext`/`RelevanceScorer`/`ContextWindow`,
+`prompt-compiler/context-assembly.ts:1-9`; `MotherRouterContext`, `mother-router.ts:594`; mode-pill
+capability-key derivation, `capability-learning-service.ts:27-31`; Dynamic Chains,
+`api/dynamic-chains/route.ts`, `dynamic-chain-directory-service.ts`; report registries,
+`report-engine-service.ts:208,1379,1735`), plus `ai-os/AI_CACHE_AND_TRIAGE_ARCHITECTURE.md`'s real L0/L5
+cache layers and `ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md`'s governance-layer registries
+(`wiring_registry`, `knowledge_engine`, `system_index`).
+
+**Real, honest gaps newly named from the context/prediction angle, none fixed by this document**: no
+single shared, request-scoped context carrier exists across auth/chat/session/browser/task/AI-prep layers
+(each subsystem independently re-derives its own context slice); no runtime function or analysis registry
+exists (only reports, `report-engine-service.ts`, are a real live catalog); no PWA exists at all
+(confirmed: zero `manifest.json`/service-worker matches); VERI Chat does not feed into Mother Router
+(confirmed: zero cross-references in `veri-chat-service.ts`); no next-best-action, predictive-navigation,
+or predictive-form-population mechanism exists, though the verified context (org/role/task) each would
+need already does.
+
+**Status, real and current:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-034 | `UMR-20260803-042003-5e92` (real dispatch UMR, per `UMR-20260803-063016-8bfc` -- an earlier self-minted "artifact UMR", `UMR-20260803-055709-368e`, was confirmed fabricated and removed) | VERIDIAN Universal Context and Predictive Runtime v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-022/023's own entries above** |
+
+Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md` (new), this
+file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim entry,
+to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
