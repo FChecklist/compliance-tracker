@@ -14,8 +14,14 @@
       `audit-check` already PASS. Vercel's "build-rate-limit" failure is NOT a required context --
       does not block merge.
 
+- [x] Polled PR #832 required checks -- Lint, Type Check, Build, Unit Tests, audit-check, Guardrail
+      Presence Check, Asset Registry Coverage Check all passed (`unstable`/`MERGEABLE` overall, the
+      one non-required Vercel check hit its build-rate-limit but that's not a required context).
+- [x] Called `gh pr merge 832 --merge` -- got "already merged" (a concurrent process/session merged
+      it first). Independently confirmed via `gh pr view 832 --json state,mergedAt,mergeCommit`:
+      `state=MERGED`, `mergedAt=2026-08-03T18:52:16Z`, commit `00c9f424`, now on `origin/main`
+      (`git log origin/main` shows `00c9f424 Merge pull request #832 ...` as tip).
+
 ## Remaining
-- [ ] Poll PR #832 required checks (Lint, Type Check, Build, Unit Tests were pending) until all pass
-- [ ] Merge PR #832 (rebase-merge or regular merge, matching PR #803/828/829/830 pattern) once green
-- [ ] Update ai-os/boss/ACTIVE-CLAIMS.yaml recently_completed + COMPLETED.yaml per protocol
+- [ ] Update ai-os/boss/ACTIVE-CLAIMS.yaml recently_completed per protocol
 - [ ] Final commit + push of PROGRESS.md
