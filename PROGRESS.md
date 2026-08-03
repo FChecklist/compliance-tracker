@@ -1592,6 +1592,50 @@ has eased. Relates to `UMR-20260802-165606-4413` OCID-020 and `UMR-20260803-1155
 
 ---
 
+# PROGRESS -- task-20260803-171457-resolve-pr-803-conflict--merge--and-index
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), PM decision citing PR #803 (OCID-020 Finding 1) as
+CONFLICTING and directing rebase/merge + real live retest, then cascade to PR #828/829/830, then
+OCID-050.
+
+## Completed
+- [x] Independently verified the spec's premise before acting, per standing practice on this class of
+      task (concurrent sessions on this repo mean PM-decision state can go stale within seconds). Found
+      it **stale, not current**: `gh pr view 803` shows `state: MERGED`, `mergedAt:
+      2026-08-03T16:36:19Z`, merge commit `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`, independently
+      confirmed a real ancestor of `origin/main` via `git merge-base --is-ancestor`. A separate,
+      already-merged PR #831 (`docs/close-finding1-real-live-retest-confirmed`, merged
+      2026-08-03T16:43:27Z) already did the rebase-and-merge work AND the independent live retest this
+      spec asks for, citing a newer PM decision `UMR-20260803-162547-b968`.
+- [x] Independently re-verified PR #831's own claims rather than trusting its commit message: real
+      screenshot exists at `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png` (102KB
+      PNG, viewed directly) -- shows `/erp/reports` rendering its normal Financial Reports UI (Trial
+      Balance/P&L/Balance Sheet), not the "Application error" client-side crash the original finding
+      documented. `ai-os/MASTER-TRACKER.yaml` line 1046 confirms `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`
+      is `status: resolved`.
+- [x] Confirmed PR #828, #829, #830 are likewise already `MERGED` (16:51:36Z, 16:57:59Z, 17:07:43Z
+      respectively -- all after PR #831), all real ancestors of current `origin/main` HEAD (`a3706d3e`).
+      No conflicting PRs remain open in this chain.
+- [x] Found and fixed a **new instance of the recurring PROGRESS.md wholesale-replace regression**
+      (same class already fixed twice before, PR #828/#829's `014aa969`/`7855c716`): this task's own
+      workspace `PROGRESS.md` had been scaffolded as a 2-line stub (`## Completed` / `## Remaining: Not
+      started`), silently replacing 1580 lines of real prior history instead of appending. Restored via
+      `git checkout HEAD -- PROGRESS.md` before appending this section.
+
+## Remaining
+- [ ] OCID-050 (Data State Certification) real testing execution is **not started** in this task. A
+      separate session (`task-20260803-120314-register-ocid-050-data-state-certificati`) already
+      registered a planning-only task breakdown for it
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`) and
+      flagged a real, unmet prerequisite: no "Large Data volume" org has been confirmed to exist yet
+      (TASK-050-1). Executing OCID-050 for real is a multi-hour undertaking (3 full passes of the
+      115-item nav list across Empty/Sample/Large data states) well beyond this task's own scope
+      (PR #803 conflict resolution), and duplicating or reaching into that other session's registered
+      breakdown would violate the ACTIVE-CLAIMS zero-duplication protocol (AGENTS.md Rule 11). Leaving
+      it for a dedicated follow-up task/session that starts from that breakdown artifact.
+
+---
+
 # PROGRESS -- test/ocid050-empty-sample-real-execution
 
 Cites: `UMR-20260803-173939-4e9e` (`UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115534-af31`
