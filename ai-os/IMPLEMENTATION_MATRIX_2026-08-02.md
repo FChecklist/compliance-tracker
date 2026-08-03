@@ -1206,3 +1206,101 @@ layers already are.
 Canonical artifact updated: `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`
 (new file), this file (this amendment), `ai-os/MASTER_INDEX.yaml` / `ai-os/OS.yaml` (registration) —
 not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): OCID-041 through OCID-046 registered — Universal External Execution chain, discovery-only, sequentially gated
+
+Real PM decisions, tier1, documentation/governance-registration only. Four back-to-back real
+dispatches, each explicitly scoped to discovery, each explicitly blocked from real implementation
+because its own cited parent result does not yet exist:
+
+- **OCID-041** — VERIDIAN Universal External Execution Foundation. Real UMR `UMR-20260803-084109-6875`,
+  parented to `UMR-20260802-173631-ca85` (OCID-021, the ERP Functional Completeness Master Program).
+  Mission: design how approved external AI providers (ChatGPT, Z.ai/GLM, DeepSeek, Gemini) can act as
+  interchangeable execution processors against a deterministic minimum execution package, with VERIDIAN
+  remaining sole system of record/authority across metadata, task, workflow, security, audit, review,
+  and governance, fully traceable through existing UMR/UTM/worker/review/PR/commit/merge/lock/audit
+  identifiers. No new provider-specific architecture, tables, workers, or business logic permitted this
+  cycle.
+- **OCID-042** — VERIDIAN Universal Context Packaging Runtime. Real UMR `UMR-20260803-084332-5b52`,
+  parented to OCID-041 (`UMR-20260803-084109-6875`). Mission: a deterministic minimum context-packaging
+  runtime so every external-provider request is built exclusively from a standard VERIDIAN context
+  package, not raw chat/document/task text — reusing existing components only, no new context/prompt
+  engine, no new database, no duplicate registries.
+- **OCID-043** — VERIDIAN Universal External Execution Runtime. Real UMR `UMR-20260803-084429-7a70`,
+  parented to OCID-042 (`UMR-20260803-084332-5b52`). Mission: the runtime that actually selects a
+  provider and dispatches a task through the deterministic execution contract — reusing existing
+  worker/dispatch/review/PR/merge/lock components only, no new worker/queue/provider engine, no
+  provider-specific business logic.
+- **OCID-044** — VERIDIAN Universal Result Verification and Reintegration Runtime. Real UMR
+  `UMR-20260803-084547-22fd`, parented to OCID-043 (`UMR-20260803-084429-7a70`). Mission: ensure no
+  external AI result enters VERIDIAN directly — every result passes existing review/audit before
+  becoming part of the platform, and every verified result updates existing UMR/UTM/knowledge/function/
+  report/analysis/prompt libraries rather than creating parallel ones — reusing existing review, audit,
+  PR, commit, merge, lock, and knowledge-registry components only.
+
+**Real, explicit sequential gate, stated by each directive's own text, not inferred here**: OCID-042
+depends on a result from OCID-041 that does not yet exist (OCID-041 was registered this same cycle and
+is itself discovery-only); OCID-043 depends on results from both OCID-041 and OCID-042; OCID-044 depends
+on results from OCID-041, OCID-042, and OCID-043 — none of which yet exist. All four sit downstream of,
+and remain subject to, the standing `SEC-07` "OCID-021 implementation lock" (`ai-os/CONSTITUTION.yaml`)
+— real implementation of worker runtime, dispatch runtime, review/audit runtime, context packaging, or
+`CONSTITUTION.yaml` itself stays locked until `UMR-20260802-165606-4413` (OCID-020) independently
+clears, followed by OCID-038 → OCID-039 → OCID-040 in that order. Each directive states this explicitly
+and states a fresh, explicit Owner override in chat would be required to implement ahead of that
+sequence.
+
+**Note for the Owner, per OCID-044's own directive**: OCID-041 through OCID-044 now form a real,
+four-stage chain, all held at discovery pending the same OCID-020-through-OCID-040 unlock sequence. The
+Owner may prefer a single consolidated unlock instruction for the whole external-execution chain once
+OCID-020 clears, rather than deciding each of the four stages separately — this is a real, honest
+suggestion surfaced from OCID-044's own dispatch text, not a decision made here.
+
+**OCID-045 — VERIDIAN Universal External Execution Constitution and Platform Certification, real UMR
+`UMR-20260803-084637-ada4` (parented to OCID-044, `UMR-20260803-084547-22fd`), certification explicitly
+DECLINED, not deferred quietly.** OCID-045's own dispatch text was a FINAL EXECUTION prompt type
+demanding the entire OCID-041 through OCID-045 chain be certified complete and declared VERIDIAN's
+permanent foundation. That certification is refused here, for real, checked reasons, not a narrated
+formality: OCID-041 through OCID-044 were each registered this exact same cycle, minutes before this
+entry, and every one of them is still at discovery only — zero canonical artifact produced, zero PR
+opened, zero code written, zero review completed for any of the four. OCID-020
+(`UMR-20260802-165606-4413`) has not independently cleared, and OCID-038/039/040 remain restricted to
+discovery-only under `SEC-07`. Issuing a completion certification now would be a direct false-completion
+claim and a direct breach of the standing lock, which requires a fresh, explicit Owner override in chat
+before OCID-021 or anything downstream of it (including OCID-041 through OCID-045) may proceed past
+discovery. `CONSTITUTION.yaml` is **not** updated to declare the foundation complete. No "zero
+omissions"/"zero duplication" claim is made, since the underlying work needed to honestly support such a
+claim has not happened yet. Real conditions that must be met before OCID-045 can be honestly certified,
+in order: OCID-020 clears (independently verified) → OCID-038 real implementation → OCID-039 real
+production certification → OCID-040 final certification/freeze → only then are OCID-041 through OCID-045
+eligible to move from discovery to real implementation and eventual real certification, and even then
+only with a fresh, explicit Owner override in chat per Hard Rule 7.
+
+**OCID-046 — VERIDIAN Universal Multi-Brand Multi-Tenant Platform Runtime, real UMR
+`UMR-20260803-084718-ce79` (parented to OCID-045, `UMR-20260803-084637-ada4`), completion explicitly
+DECLINED for the same real reason as OCID-041 through OCID-045.** Mission: every brand (including
+`projexa-ai.com` and `thefirm-ai.com`) as a configuration of one platform, every tenant logically
+isolated on shared infrastructure, no brand/tenant duplicating functions/reports/analysis/prompts/
+workflows without first discovering the existing platform — reusing existing brand/tenant/organization/
+role/rights/function-library components only. OCID-046 depends on a result from OCID-045 that does not
+exist (OCID-045 was registered this same cycle, is itself discovery-only, and its own requested
+certification was explicitly declined moments earlier in this same amendment). `CONSTITUTION.yaml`,
+tenant runtime, and brand runtime are **not** updated with real functional changes. OCID-046 is **not**
+marked complete — locked in the same OCID-020 → OCID-038 → OCID-039 → OCID-040 sequence as OCID-041
+through OCID-045, requiring the same fresh, explicit Owner override in chat before real implementation.
+
+**Real, honest scope note on this amendment itself**: this entry registers the real UMR chain, parent
+relationships, and lock status for OCID-041/042/043/044/045/046 in the governance record, per the same
+pattern used for OCID-022 through OCID-040's own registrations. It does **not** itself perform the
+substantive discovery/requirement-mapping work each directive calls for (a full inventory of existing
+VERIDIAN components each future runtime would reuse, with a canonical artifact per OCID) — that is
+dispatched-worker-scale authoring work, consistent with how OCID-022 through OCID-040's own 36-section
+canonical documents were each produced by a dedicated `veridian-worker@*` dispatch, not authored inline
+by the interactive session that registers/reviews them. No worker has yet been dispatched for OCID-041
+as of this amendment (confirmed via `systemctl --user list-units 'veridian-worker@*'` — none running or
+queued under this OCID's name at write time).
+
+Canonical artifact: this file (this amendment) only — no new document created this cycle, since the
+substantive OCID-041 through OCID-046 discovery artifacts remain genuinely undone, not yet duplicated or
+speculatively authored ahead of their own real dependency chain.

@@ -742,6 +742,16 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None -- ready for re-review, real content already independently confirmed sound by the prior audit round
+# PROGRESS -- register OCID-041 through OCID-046 (discovery-only, sequentially gated)
+
+## Completed
+- [x] Registered OCID-041 (Universal External Execution Foundation, UMR-20260803-084109-6875), OCID-042 (Universal Context Packaging Runtime, UMR-20260803-084332-5b52), OCID-043 (Universal External Execution Runtime, UMR-20260803-084429-7a70), OCID-044 (Universal Result Verification and Reintegration Runtime, UMR-20260803-084547-22fd), OCID-045 (Universal External Execution Constitution and Platform Certification, UMR-20260803-084637-ada4 -- certification explicitly DECLINED per its own directive), OCID-046 (Universal Multi-Brand Multi-Tenant Platform Runtime, UMR-20260803-084718-ce79 -- completion explicitly declined) as a real amendment in ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
+- [x] Documented the real, explicit sequential dependency chain and the standing SEC-07 lock applying to all six
+- [x] Confirmed via systemctl that no worker has yet been dispatched for OCID-041
+- [x] Caught and fixed my own citation typo (OCID-045's UMR) before pushing
+
+## Remaining
+- [ ] Substantive discovery/requirement-mapping authoring for OCID-041 through OCID-046 is dispatched-worker-scale work, not performed in this amendment -- left for proper dispatch, same as OCID-022-040's own pattern
 # PROGRESS -- OCID-020 real nav-surface sweep completion (UMR-20260803-081331-af0b)
 
 ## Completed
