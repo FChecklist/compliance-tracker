@@ -1278,13 +1278,54 @@ predictions exactly.
 Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not repo-tracked)
 `/tmp/ocid047-resp-test/output.log`.
 
+- [x] Resumed this same task (invocation 2/20). Re-verified `origin/main` sync first: `git diff
+      origin/main..HEAD --stat` was empty and `HEAD^{tree} == origin/main^{tree}` -- PR #824 had
+      actually squash-merged both this session's commits (`8b7b982f` register-claim +
+      `b554794a` real test-execution results), despite its own merge-commit message only naming the
+      first. Confirmed via tree-hash comparison, not assumed from the commit message.
+- [x] Updated this session's own `ACTIVE-CLAIMS.yaml` entry from `[DONE]` to `[IN PROGRESS]` before
+      starting new work (protocol requires the claim to reflect current real state), committed+pushed
+      that alone first, before the real test work below.
+- [x] Built and ran a second real, live test script (`/tmp/ocid047-resp-test/run-test-risks.mjs`,
+      adapted from the classification.ts one) against `projexa-ai.com`, targeting the one remaining
+      named-but-untested mechanism: `risk-register-service.ts`'s `BROAD_SCOPE_ROLES` gate on
+      `GET /api/risks`. 1 real admin user provisioned a real org; 2 real departments inserted directly
+      into `compliance.departments` (no product UI for department creation); 4 real test users
+      provisioned (`member_A`/`member_B` in different depts, `team_member_B` to confirm the gate isn't
+      `member`-specific, `manager_A` as a `BROAD_SCOPE_ROLES` member) via the same DB-seed
+      role/dept-repoint technique as prior passes. Each user created 1 real risk via real
+      `POST /api/risks` (own dept as owner). All 4 users then made 1 real `GET /api/risks` call each
+      (4 real per-viewer checks).
+- [x] **Result: 4/4 real outcomes exactly matched `BROAD_SCOPE_ROLES`'s prediction** --
+      `member_A`/`member_B` each saw only their own department's 2 risks (`hiddenByScope: 2`);
+      `team_member_B` (different role, same narrow bucket) matched `member_B`'s exact visibility,
+      confirming the gate is role-list-driven not `member`-specific; `manager_A` (broad-scope role) saw
+      all 4 risks regardless of department (`hiddenByScope: 0`). Amended
+      `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` in place with these
+      results (5th real amendment to the OCID-047 section), not a new/duplicate doc. Full raw JSON
+      result log preserved at (host-local, not repo-tracked)
+      `/tmp/ocid047-resp-test/output-risks.log`.
+- [x] This closes the last of the 4 real mechanisms the original responsibility-model amendment
+      (PR #814) named -- `home-service.ts` and `client-access-service.ts` were already found rank-derived
+      with no independent divergence to test; `classification.ts`'s `ROLE_CLEARANCE` (prior pass) and
+      `risk-register-service.ts`'s `BROAD_SCOPE_ROLES` (this pass) are both now real, live-confirmed.
+
+## Real result summary (risk-register-service.ts's BROAD_SCOPE_ROLES; 4/4 checks; PASS = risk visible in GET /api/risks response)
+
+| Viewer (role, dept)              | Own risk | Same-dept peer's risk | Other-dept risks (x2) | `hiddenByScope` |
+|-----------------------------------|:---:|:---:|:---:|:---:|
+| member_A (member, Dept A)         | PASS | PASS (manager_A) | DENY | 2 |
+| member_B (member, Dept B)         | PASS | PASS (team_member_B) | DENY | 2 |
+| team_member_B (team_member, Dept B) | PASS | PASS (member_B) | DENY | 2 |
+| manager_A (manager, broad-scope)  | PASS | PASS | PASS | 0 |
+
 ## Remaining
-- [ ] `risk-register-service.ts`'s `BROAD_SCOPE_ROLES` (department/ownership scoping on
-      `/api/risks`) remains genuinely untested against live code -- real, honest scope limit for this
-      pass, not silently assumed clean.
 - [ ] OCID-047's own Step 4 (real denial-UX confirmation) remains UI-level and blocked on
       `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
 - [ ] `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` (registered by the RIGHTS-axis amendment) is still open,
       unfixed -- not this test-execution task's to prescribe a fix for.
-- [ ] Real testing execution for OCID-048/049/050/051/052 items 4-5 has not started yet (052 items 2-3
-      already done; 050/051/052-items-4-5 blocked on Playwright per the now-amended gap).
+- [ ] Real testing execution for OCID-048/049/050/051/052 items 4-5 is out of this task's own scope
+      (separate PM-decision tasks already in flight for OCID-048/049 per `gh pr list`, e.g. PR #826);
+      052 items 2-3 already done elsewhere; 050/051/052-items-4-5 blocked on Playwright per the
+      now-amended gap. This task's own OCID-047 RESPONSIBILITY-axis scope (all 4 named mechanisms) is
+      now fully, really tested -- no further real gap remains under this task's specific claim.

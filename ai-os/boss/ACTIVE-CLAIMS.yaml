@@ -40,8 +40,8 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-150821-pm-decision--proceed-with-ocid-047-real) -- OCID-047 RESPONSIBILITY/data-scope axis, real API-level execution [IN PROGRESS: classification.ts done 18/18; now testing risk-register-service.ts's BROAD_SCOPE_ROLES gate]"
-    claimed_at: "2026-08-03T15:15Z (this session, resumed 2026-08-03T16:16Z same session)"
+  - session_label: "claude-code (task-20260803-150821-pm-decision--proceed-with-ocid-047-real) -- OCID-047 RESPONSIBILITY/data-scope axis, real API-level execution [DONE, all 4 named mechanisms tested: classification.ts 18/18, risk-register-service.ts 4/4]"
+    claimed_at: "2026-08-03T15:15Z (this session, closed 2026-08-03T16:20Z)"
     claim: |
       SPEC (PM decision, `UMR-20260803-115333-dab8`, `UMR-20260802-165606-4413` OCID-020): proceed with
       real testing execution for OCID-047 Roles/Rights/Responsibilities Certification, real API-level
