@@ -935,7 +935,7 @@ open_items:
       resolved: "2026-08-03 (live-reverified via direct DB query; same root cause as MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX, UMR-20260803-012711-18b4)"
 
     - id: GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE
-      name: "veridian-task.py adopt + the archive-review.json/restart retrigger pattern reviews a stale, frozen workspace snapshot instead of the branch's current remote tip (severity: medium -- wastes real review cycles, does not itself cause a bad merge since a stale review can only be more conservative, never less, but is a real correctness/efficiency gap)"
+      name: "veridian-task.py adopt + the archive-review.json/restart retrigger pattern reviews a stale, frozen workspace snapshot instead of the branch's current remote tip (severity: medium -- wastes real review cycles, does not itself cause a bad merge since a stale review can only be more conservative, never less, but is a real correctness/efficiency gap) -- FIX OPEN AS PR, see resolution_note"
       old_ids: []
       detail: |
         Real, directly observed and root-caused (not assumed) while resolving
@@ -995,8 +995,52 @@ open_items:
         branch-tip-relative instead of workspace-HEAD-relative), and add a
         regression test that pushes a second commit to an already-adopted
         branch and confirms a subsequent review sees it.
-      status: open
+      status: pr_open
       first_raised: "Resolving claude-control PR #123, 2026-08-03 (UMR-20260803-025317-0c64)"
+      resolution_note: |
+        PM decision, UMR-20260803-025317-0c64, fix authorized
+        2026-08-03 (UMR-20260803-040529-15c9) citing the standing
+        gatekeeper rule UMR-20260802-165034-5747 (extend the existing
+        review flow, don't build a parallel mechanism). Fixed in
+        claude-control's `scripts/supervisor-entrypoint.sh`: immediately
+        after the existing `git fetch origin`, a new
+        WORKSPACE-RESYNC-BLOCK fetches and hard-checks-out the workspace
+        to `origin/$BRANCH`'s real current tip before TIER/DIFF are
+        computed from it (both previously diffed off the workspace's
+        possibly-stale checked-out HEAD). Logs the before/after SHA to
+        supervisor.log. Regression test added:
+        `tests/supervisor_workspace_resync_test.sh` (real git fixtures --
+        a real bare "remote" + a real detached-HEAD clone shaped exactly
+        like `veridian-task.py adopt` produces, a real commit pushed
+        after the checkout -- extracts and evals the real
+        WORKSPACE-RESYNC-BLOCK out of the live script; 3/3 scenarios
+        pass), plus a thin pytest wrapper
+        (`tests/test_supervisor_workspace_resync.py`). Confirmed the new
+        test correctly FAILS against the unmodified script (block
+        markers don't exist pre-fix) -- proves it reproduces the real
+        gap, not a tautology. Re-ran the full existing
+        `supervisor_*_test.sh` suite against the fixed script:
+        `supervisor_pr_url_guard_test.sh` and
+        `supervisor_audit_rerun_test.sh` pass clean;
+        `supervisor_merge_detection_test.sh` and
+        `supervisor_sweep_discovery_test.sh` have pre-existing failures,
+        confirmed identical against the unmodified script (unrelated to
+        this change, out of scope here). Opened as its own PR, not
+        folded into an unrelated one, per the SPEC's explicit
+        instruction: claude-control PR #124
+        (https://github.com/FChecklist/claude-control/pull/124).
+        claude-control has no branch protection and no CI/audit-check
+        workflow configured (confirmed via `gh api
+        repos/.../branches/master/protection` -> 404, `gh workflow list`
+        -> only "Claude Code" @-mention workflow) -- there is no
+        automated gate to wait on, and this task's own spec asked only
+        to open the PR, not merge it. Left open rather than self-merged:
+        this diff changes the Superboss's own review pipeline (used to
+        review every future task, including itself), so it gets a real
+        second pair of eyes before merge rather than autonomous
+        self-certification. Status will move to `resolved` once #124
+        merges -- see ai-os/boss/ACTIVE-CLAIMS.yaml for this session's
+        claim entry.
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without

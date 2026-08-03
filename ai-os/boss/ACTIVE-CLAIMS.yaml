@@ -4659,8 +4659,31 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
-  - session_label: "claude-code (task-20260803-040532-pm-authorization-to-fix-supervisor-retri) -- PM decision: fix GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE in claude-control's scripts/supervisor-entrypoint.sh (workspace not resynced to branch tip before retrigger review)"
+  - session_label: "claude-code (task-20260803-040532-pm-authorization-to-fix-supervisor-retri) -- PM decision: fix GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE in claude-control's scripts/supervisor-entrypoint.sh (workspace not resynced to branch tip before retrigger review) [DONE -- PR open, awaiting review/merge]"
     claimed_at: "2026-08-03T (this session)"
+    status_update: |
+      Real fix implemented and pushed: claude-control PR #124
+      (https://github.com/FChecklist/claude-control/pull/124), branch
+      fix/supervisor-retrigger-workspace-resync. New
+      WORKSPACE-RESYNC-BLOCK in scripts/supervisor-entrypoint.sh fetches
+      + hard-checks-out the workspace to origin/$BRANCH's real tip
+      before TIER/DIFF are computed, immediately after the existing
+      `git fetch origin`. Regression test
+      tests/supervisor_workspace_resync_test.sh (real git fixtures, 3/3
+      pass) + tests/test_supervisor_workspace_resync.py pytest wrapper,
+      both confirmed to correctly fail against the unmodified script
+      (real repro, not a tautology). Full existing supervisor_*_test.sh
+      suite re-run against the fix: two pre-existing failures
+      (supervisor_merge_detection_test.sh,
+      supervisor_sweep_discovery_test.sh) confirmed identical against
+      the unmodified script, unrelated to this change. Left the PR OPEN
+      rather than self-merging -- claude-control has no branch
+      protection and no CI/audit-check workflow (confirmed via `gh api`
+      404 and `gh workflow list`), and this diff changes the
+      Superboss's own review pipeline, used to review every future
+      task including itself, so it gets a real second pair of eyes
+      first. ai-os/MASTER-TRACKER.yaml gap status updated to
+      `pr_open` with full resolution_note.
     claim: |
       SPEC (this task's own prompt.txt, citing UMR-20260803-025317-0c64,
       where GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE was raised while

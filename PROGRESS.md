@@ -7,11 +7,14 @@
 - [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
 - [x] Read `/opt/veridian/repos/claude-control/scripts/supervisor-entrypoint.sh` and `scripts/veridian-task.py`'s `cmd_adopt`
 
+- [x] Implemented workspace-resync fix in claude-control's `scripts/supervisor-entrypoint.sh` (WORKSPACE-RESYNC-BLOCK: fetch + hard-checkout to `origin/$BRANCH`'s real tip before TIER/DIFF computation)
+- [x] Added `tests/supervisor_workspace_resync_test.sh` (real git fixtures, 3/3 scenarios pass) + `tests/test_supervisor_workspace_resync.py` pytest wrapper
+- [x] Confirmed new test fails against the unmodified script (proves it reproduces the real gap) and that pre-existing `supervisor_merge_detection_test.sh`/`supervisor_sweep_discovery_test.sh` failures are unrelated/pre-existing
+- [x] Committed + pushed `fix/supervisor-retrigger-workspace-resync` branch in claude-control
+- [x] Opened claude-control PR #124: https://github.com/FChecklist/claude-control/pull/124
+- [x] Updated `ai-os/MASTER-TRACKER.yaml` gap status to `pr_open` with resolution_note
+- [x] Updated `ai-os/boss/ACTIVE-CLAIMS.yaml` entry with final state
+
 ## Remaining
-- [ ] Implement workspace-resync fix in claude-control's `scripts/supervisor-entrypoint.sh`
-- [ ] Add regression test `tests/supervisor_workspace_resync_test.sh` reproducing the stale-workspace condition
-- [ ] Run the new test + existing supervisor tests locally
-- [ ] Commit on a new branch in claude-control, push, open PR citing UMR-20260803-025317-0c64 and GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE
-- [ ] Post AUDIT verdict / follow PR gate protocol as needed
-- [ ] Update MASTER-TRACKER.yaml gap status to closed/PR-open once real
-- [ ] Move ACTIVE-CLAIMS entry to recently_completed on merge
+- [ ] Owner/independent review + merge of claude-control PR #124 (deliberately left open, not self-merged -- this diff changes the Superboss's own review pipeline; claude-control has no branch protection or CI/audit gate to wait on)
+- [ ] Once merged: flip MASTER-TRACKER.yaml gap status to `resolved`, move ACTIVE-CLAIMS entry to `recently_completed`
