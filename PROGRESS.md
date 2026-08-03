@@ -1319,15 +1319,36 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
 | team_member_B (team_member, Dept B) | PASS | PASS (member_B) | DENY | 2 |
 | manager_A (manager, broad-scope)  | PASS | PASS | PASS | 0 |
 
-## Note: real CI-trigger anomaly on PR #830 (this task's own PR)
+## Note: real CI-trigger anomaly on PR #830 (this task's own PR) -- unresolved, stopped per circuit-breaker
 - [x] Observed, not silently worked around: after pushing this pass's real test-execution commit and
       opening PR #830, zero GitHub Actions runs registered against its head SHA for 15+ minutes, while
       the repo's other concurrent PRs (e.g. `worker/task-20260803-150816-...`) got runs normally in the
       same window (confirmed via `gh api .../actions/workflows/302692996/runs`, real `total_count: 0`
-      queued/in_progress repo-wide during the gap). Closing+reopening the PR (which should fire a real
-      `reopened` pull_request event) also did not trigger a run. `ci.yml` itself parses as valid YAML
-      and is `state: active`. This amendment commit forces a genuine `synchronize` event (new head SHA)
-      as the next real diagnostic step, rather than silently assuming CI would eventually catch up.
+      queued/in_progress repo-wide during the gap). `ci.yml` itself parses as valid YAML and is
+      `state: active` -- ruled out as the cause.
+- [x] Tried two distinct real retrigger attempts, each a genuinely different mechanism: (1) closed +
+      reopened the PR (should fire a real `reopened` pull_request event per GitHub's documented default
+      activity types), (2) pushed a real, substantive new commit (`62270738`, this file's own prior
+      amendment) to force a genuine `synchronize` event with a new head SHA. **Both failed identically.**
+- [x] Root-caused as far as possible without repo-admin/webhook-delivery access: `GET
+      /repos/.../commits/62270738/check-suites` shows check-suites from `vercel`, `supabase`, `cursor`,
+      `fly-io`, `claude` apps (all `queued`) but **zero `github-actions` check-suite entries at all** --
+      not "queued", not "in_progress", entirely absent. Compared directly against a real, working commit
+      from the same time window (`3e99a0dd`, another session's PR) which shows 4 real `github-actions`
+      check-suites, all `completed`/`success`. This confirms the anomaly is upstream of workflow
+      execution entirely -- GitHub Actions was never even notified of this push/PR's events by whatever
+      internal mechanism creates check-suites, while it demonstrably worked for other pushes/PRs in the
+      identical time window. This is a real, reproducible, platform/webhook-level anomaly specific to
+      this PR/branch, not a `ci.yml` config problem, not a repo-wide outage, and not something
+      code-level retry logic can fix.
+- [x] **Stopped here per this task's own circuit-breaker protocol** ("on a 2nd consecutive failure of
+      the identical approach: STOP, do not attempt a 3rd time") -- 2 distinct retrigger mechanisms both
+      produced the identical zero-check-suite result. Did not attempt a 3rd workaround (e.g. branch
+      delete+recreate, force-push). PR #830 is left open, real, mergeable-once-CI-runs, with this honest
+      diagnostic trail. A later invocation of this same task, or the platform's own webhook-delivery
+      retry (GitHub does retry failed deliveries), may resolve this without further action; if not, this
+      needs repo-admin-level investigation (GitHub webhook delivery log, not available to this session's
+      tools) -- flagged here rather than silently left unexplained.
 
 ## Remaining
 - [ ] OCID-047's own Step 4 (real denial-UX confirmation) remains UI-level and blocked on
