@@ -1319,6 +1319,16 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
 | team_member_B (team_member, Dept B) | PASS | PASS (member_B) | DENY | 2 |
 | manager_A (manager, broad-scope)  | PASS | PASS | PASS | 0 |
 
+## Note: real CI-trigger anomaly on PR #830 (this task's own PR)
+- [x] Observed, not silently worked around: after pushing this pass's real test-execution commit and
+      opening PR #830, zero GitHub Actions runs registered against its head SHA for 15+ minutes, while
+      the repo's other concurrent PRs (e.g. `worker/task-20260803-150816-...`) got runs normally in the
+      same window (confirmed via `gh api .../actions/workflows/302692996/runs`, real `total_count: 0`
+      queued/in_progress repo-wide during the gap). Closing+reopening the PR (which should fire a real
+      `reopened` pull_request event) also did not trigger a run. `ci.yml` itself parses as valid YAML
+      and is `state: active`. This amendment commit forces a genuine `synchronize` event (new head SHA)
+      as the next real diagnostic step, rather than silently assuming CI would eventually catch up.
+
 ## Remaining
 - [ ] OCID-047's own Step 4 (real denial-UX confirmation) remains UI-level and blocked on
       `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
