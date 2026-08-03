@@ -13,22 +13,16 @@ production.** Consistent with the real OCID-020 implementation lock (`SEC-07`,
 `ai-os/CONSTITUTION.yaml`), which explicitly permits discovery and matrix-building work to continue
 while implementation stays locked.
 
-**Real numbering discrepancy, flagged rather than silently resolved:** this task's own directory and
-branch are labeled `ocid-027`, and its citation chain frames itself as parented to "the real OCID-026
-directive, just registered." But the mission text this task actually received, verbatim, is the
-OCID-026 title and full section list ("VERIDIAN Global Knowledge Discovery and Reuse Runtime") — not
-OCID-027's real title, "VERIDIAN Unified Synchronization Runtime," per the independently-verified
-status table in `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (§1, row
-`OCID-20260803-027` vs. row `OCID-20260803-027`). This is the same class of dispatch-labeling error
-already found and corrected once in this exact chain (`OCID-036`/`OCID-037`, resolved under
-`UMR-20260803-045159-ec55`). Before starting, this session re-confirmed (`gh pr list`,
-`ai-os/boss/ACTIVE-CLAIMS.yaml`) that **no open PR or active claim exists for either OCID-026 or
-OCID-027's content** — so producing the Knowledge Discovery and Reuse document that was actually,
-literally requested is not a duplicate of any in-flight work. This document is titled and scoped to
-match its own real mission text (Global Knowledge Discovery and Reuse Runtime); a future session
-picking up the real "VERIDIAN Unified Synchronization Runtime" mission (whichever OCID number that
-turns out to be once reconciled) should treat this document, not repeat it, as the discovery/reuse
-half of that adjacent topic.
+**Real numbering discrepancy, found here and resolved by a real PM decision:** this task's own
+directory and branch were labeled `ocid-027`, and that label was correct all along. At the time this
+document was originally drafted, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status
+table mislabeled this exact content ("VERIDIAN Global Knowledge Discovery and Reuse Runtime") as row
+`OCID-20260803-026`. Real PM decision `UMR-20260803-052107-71fa` (citing `UMR-20260803-041211-b7b7`)
+independently verified this document's real content is OCID-027, and the status snapshot's table has
+been corrected accordingly. This is the same class of dispatch-labeling error already found and
+corrected once in this exact chain (`OCID-036`/`OCID-037`, resolved under `UMR-20260803-045159-ec55`).
+This document is titled and scoped to match its own real mission text (Global Knowledge Discovery and
+Reuse Runtime); "VERIDIAN Unified Synchronization Runtime" is the real, separate OCID-028 (PR #774).
 
 ---
 
