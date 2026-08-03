@@ -14,5 +14,7 @@
 - [x] Moved ACTIVE-CLAIMS entry to recently_completed
 - [x] Final commit + push
 
+- [x] Opened PR #771
+
 ## Remaining
-- [ ] Open PR
+(none -- task complete)
