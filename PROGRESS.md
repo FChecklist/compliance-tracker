@@ -1759,3 +1759,50 @@ Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-2
 
 ## Remaining
 - [ ] None for this addendum's own scope -- discovery/audit only, no schema/code/DB change.
+
+---
+
+# PROGRESS -- task-20260803-185745-pm-decision-on-next-priority--finish-oci
+
+## Completed
+- [x] Independently re-verified the SPEC's citations rather than trusting them: `gh pr view 834/835/837
+      --json state,mergedAt` all confirm `MERGED` (PR #834: OCID-050 State A+B real execution, 30/30
+      checks, merged 2026-08-03T17:53:19Z; PR #835: UMR/UTR/EUID discovery, merged 18:07:46Z; PR #837:
+      amendment crediting a 3rd finding, merged 18:20:07Z).
+- [x] Read OCID-050's own Definition of Done (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`,
+      Part 4): requires a full 115-item nav-surface sweep under all 3 data states (345 checks total) plus
+      a real State C large-data org (not yet created) and registered findings. PR #834's real progress so
+      far is a 15-page representative sample x 2 states (30 checks) -- real, but short of the full
+      Definition of Done. OCID-050 is confirmed NOT yet complete.
+- [x] Confirmed OCID-051 (`ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`) is
+      still planning-only, no real execution started -- the "do not start OCID-051 yet" decision has a
+      real, uncrossed line to enforce.
+- [x] Confirmed PR #838 (docs: ratify UTM->UTR rename) is open, docs-only, blocked only by an unrelated
+      Vercel build-rate-limit CI check, not on OCID-020's critical path -- safe to defer. Confirmed 31 open
+      PRs total via `gh pr list --state open`, matching the SPEC's "roughly 30" backlog figure.
+- [x] Registered the decision in `ai-os/boss/ACTIVE-CLAIMS.yaml` (session entry, `active:` top): finish
+      OCID-050 fully (remaining full 115-page sweep across State A/B + State C large-data-org creation and
+      its own full sweep, findings registered honestly) before starting OCID-051 real execution. Deferred
+      (not dropped) the general open-PR backlog cleanup and PR #838 specifically, to resume once OCID-050
+      and OCID-051 real testing execution are both genuinely complete. Recorded the Owner's standing
+      authorization: once OCID-020 is independently verified complete with real evidence, proceed directly
+      to OCID-021 real implementation without waiting for further confirmation.
+- [x] Caught a real near-mistake this session, same bug class flagged in this repo's own memory/history
+      (a shell-output-truncation bug that has caused a prior session to accidentally clobber this exact
+      file): `git show HEAD:PROGRESS.md | wc -l` silently reported 31 lines (truncated), which would have
+      led to overwriting the real 1761-line cumulative history with just this task's own stub. Caught via
+      `git cat-file -p HEAD:PROGRESS.md | wc -l` (untruncated, correctly reported 1761) before staging;
+      appended this section to the real full history instead.
+- [x] Validated YAML (`python3 -c "import yaml; yaml.safe_load(...)"`) after the ACTIVE-CLAIMS.yaml edit.
+
+## Remaining
+- [ ] Not this session's scope (decision/sequencing only, per this task's own PM-decision framing): the
+      real OCID-050 completion work itself -- full 115-page sweep across State A/B, State C large-data-org
+      creation + its full sweep, findings registration, and the OCID-050 completion doc. Next real-execution
+      session should pick this up per `TASK-050-0` through `TASK-050-6` in the OCID-050 task-breakdown doc.
+- [ ] OCID-051 real execution: explicitly held until OCID-050 is genuinely complete with real evidence, per
+      this decision.
+- [ ] Open-PR backlog cleanup (~31 PRs, incl. PR #838): explicitly deferred, not dropped, until OCID-050 and
+      OCID-051 real testing execution are both genuinely complete.
+- [ ] OCID-021 real implementation: standing Owner authorization to proceed immediately, without further
+      confirmation, once OCID-020 is independently verified complete with real evidence -- not yet reached.

@@ -40,6 +40,52 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-185745-pm-decision-on-next-priority--finish-oci) -- PM decision: finish OCID-050 fully before starting OCID-051; defer PR #838 + open-PR backlog cleanup; standing authorization to proceed straight to OCID-021 once OCID-020 is independently verified complete [DONE, docs-only, closed same session]"
+    claimed_at: "2026-08-03T18:57Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115534-af31` OCID-050):
+      answers the direct "what to prioritize next" question asked in the interactive session. Independently
+      re-verified before acting, not trusted from the SPEC's framing alone: `gh pr view 834/835/837
+      --json state,mergedAt` all confirm `MERGED` (834: OCID-050 State A+B real execution, 30/30 checks,
+      merged 2026-08-03T17:53:19Z; 835: UMR/UTR/EUID discovery, merged 18:07:46Z; 837: amendment crediting a
+      3rd finding, merged 18:20:07Z).
+
+      Read OCID-050's own canonical task-breakdown doc
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`, Part 4
+      "Definition of Done") to confirm what "genuinely complete" means before ratifying the decision: full
+      115-item nav-surface sweep under **each** of the 3 real data states (345 checks total, not sampled),
+      State C requires a real large-data-volume org that does not yet exist (TASK-050-1, blocking), plus
+      registered findings and a completion doc. PR #834's own real work so far is an honestly-scoped
+      **15-page representative sample x 2 states (30 checks)** -- real progress, but explicitly short of
+      the 345-check full-sweep / 3-state Definition of Done. OCID-050 is NOT yet complete.
+
+      Decision (ratifying the interactive session's PM call, not originating it): finish OCID-050 fully --
+      the remaining full 115-page sweep across State A and State B (expanding past the 15-page sample) plus
+      State C large-data-org creation (TASK-050-1) and its own full 115-page sweep (TASK-050-5), with
+      findings registered honestly per Part 4 -- **before** starting any OCID-051 real execution. Confirmed
+      via `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md` that OCID-051 is
+      still planning-only, no real execution started yet, so this ordering decision has a real, uncrossed
+      line to enforce.
+
+      Also ratified: defer the general cleanup of the pre-existing open-PR backlog (`gh pr list --state
+      open` shows 31 open PRs currently, matching the SPEC's "roughly 30") and PR #838 specifically
+      (confirmed open, `mergedAt: null`, a docs-only UTM->UTR governance-record PR, currently blocked only
+      by an unrelated Vercel build-rate-limit check per `gh pr checks 838` -- not on OCID-020's critical
+      path). Noted honestly as deferred, not dropped -- return to it once OCID-050 AND OCID-051 real testing
+      execution are both genuinely complete.
+
+      Standing authorization carried forward from the Owner (per this task's SPEC): once OCID-020 is
+      independently verified complete with real evidence, proceed directly to OCID-021 real implementation
+      without waiting for a further confirmation -- recorded here so the session that closes OCID-020 knows
+      this is the immediate next step, not a new decision to re-litigate.
+
+      No code, schema, or test changes made this session -- decision/verification/sequencing only, per this
+      task's own "PM decision" framing (matches the precedent set by the OCID-049 hold-decision entry
+      above: docs-only when the task is to ratify a sequencing call, not to execute the underlying testing).
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS.yaml entry. No src/, schema, MASTER-TRACKER.yaml, or
+      OCID-050/051 planning-doc changes -- their existing Definition-of-Done / planning-only status already
+      correctly reflects this decision, so no update was needed there.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |
