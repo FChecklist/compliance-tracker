@@ -880,7 +880,11 @@ against `superboss-register.sqlite`'s `umr_tasks` table), parented to `UMR-20260
 - [x] Registered this session's own `ai-os/boss/ACTIVE-CLAIMS.yaml` entry documenting the collision
       and the real gap-closure work performed.
 
+- [x] Committed + pushed (`6f3b99e8`), opened PR #814: https://github.com/FChecklist/compliance-tracker/pull/814
+
 ## Remaining
-- [ ] None for this task's own scope (planning-only, per its own SPEC -- no testing, no fixing, no
-      certification performed or expected this cycle). Real per-role testing against the amended
-      table is future dispatched work, not this task's to perform.
+- [ ] Get CI green (docs-only diff; Vercel preview-rate-limit failure expected/unrelated per this
+      repo's established pattern) and an independent `AUDIT: PASS`/`FAIL` comment per Rule 7(c)/10,
+      then merge. Not this task's to force.
+- [ ] No testing, fixing, or certification performed or expected this cycle -- real per-role testing
+      against the amended table is future dispatched work, not this task's to perform.
