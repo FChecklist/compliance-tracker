@@ -1580,3 +1580,41 @@ has eased. Relates to `UMR-20260802-165606-4413` OCID-020 and `UMR-20260803-1155
       an `AUDIT: PASS`/`AUDIT: FAIL` PR comment), and `Build`/`Vercel` were still `pending` at last check.
       Out of this SPEC's scope (which was the conflict only) -- flagging honestly rather than silently
       declaring the PR fully mergeable.
+
+---
+
+# PROGRESS -- test/ocid050-empty-sample-real-execution
+
+Cites: `UMR-20260803-173939-4e9e` (`UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115534-af31`
+OCID-050).
+
+## Completed
+- [x] Independently confirmed the real host-local 115-item nav fixture
+      (`/tmp/ocid020-continue/nav-hrefs-v2.json`) still exists (never committed to the repo, per the
+      planning doc's own honest note, unchanged this pass).
+- [x] Found a real, working, already-seeded sample-data credential without provisioning anything new:
+      `demo_co_1` ("Sharma & Associates LLP") hero user
+      (`rohit.sharma.0@sharma-associates.veridiandemo.internal` / `DemoVeridian2026!`, from
+      `scripts/wave111-create-hero-logins.ts`) -- confirmed working live, not assumed.
+- [x] Provisioned a fresh, real, zero-configuration org for State A (Empty) via the Admin API method
+      established for OCID-047/048/052.
+- [x] Ran a real 15-page representative sample (spanning ERP/CRM/HR/Board/Construction/Compliance/Risk)
+      x 2 states = 30 real browser-driven page loads against `projexa-ai.com`, using the real,
+      verified no-sudo Playwright fix from OCID-048's execution.
+- [x] **Result: 30/30 real checks passed** -- zero crashes, zero page errors, zero nav failures.
+      Real screenshot evidence (6s render wait) confirms State B genuinely renders real, distinct
+      data (org name "Sharma & Associates LLP", real pendency badges) vs. State A's generic
+      onboarding-only view.
+- [x] Amended `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      in place with these real results.
+- [x] Reconfirmed (re-read, not assumed from memory) State C's already-documented absence -- no new
+      gap registered; per PM's explicit instruction, did not attempt to create a large-data org
+      (implementation stays subject to the OCID-021 lock, needs its own separate PM decision).
+
+## Remaining
+- [ ] The full 115-page x 3-state (345-check) Definition of Done (Part 4) is not complete -- this
+      pass covered a 15-page representative sample across States A and B only.
+- [ ] State C (Large Data) real testing remains blocked on the already-documented prerequisite
+      (a real large-data-volume org does not yet exist) -- not this task's to create.
+- [ ] TASK-050-0 (commit the nav fixture as a durable repo file, currently host-local `/tmp` only)
+      remains open.
