@@ -4660,7 +4660,7 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
-  - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-027 content per UMR-20260803-041211-b7b7, task folder itself labeled ocid-028)"
+  - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-028, real PM decision UMR-20260803-045159-ec55)"
     claimed_at: "2026-08-03T05:05Z (this session)"
     claim: |
       SPEC (this task's own prompt, parented to UMR-20260803-041211-b7b7,
@@ -4673,16 +4673,14 @@ active:
       no implementation, no new sync architecture. Real, pre-existing sync/
       cache/task/chat/browser/PWA/server systems must be discovered first
       and the document grounded in what's actually built, not greenfield.
-      Note on numbering: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
-      (read before starting) tables this exact content -- "Unified
-      Synchronization Runtime" -- under OCID-20260803-027, not 028 (028
-      there is "Universal Organization Runtime"). This task's own folder/
-      branch name says "ocid-028" but its SPEC text and parenting UMR match
-      the snapshot's OCID-027 row. Proceeding on SPEC content (unambiguous:
-      Unified Synchronization Runtime) and flagging the label mismatch in
-      the document itself and here, same class of correction as the
-      snapshot's own OCID-036 mislabel fix -- not silently picking one
-      number without recording the conflict.
+      Note on numbering, resolved by a real PM decision: this task's own
+      folder/branch name said "ocid-028," and that label was correct all
+      along. Real PM decision `UMR-20260803-045159-ec55` independently
+      verified this task's real content (Unified Synchronization Runtime)
+      is OCID-028, correcting an earlier draft of
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status
+      table that had mislabeled it as row OCID-20260803-027. Same
+      mislabeling class as the OCID-036/037 correction.
     scope_note: >-
       File scope: one new doc under `ai-os/` (VERIDIAN Unified
       Synchronization Runtime v1.0), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
