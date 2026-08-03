@@ -1103,6 +1103,96 @@ open_items:
         page no longer crashes on the original 403 trigger path. Per PM decision
         `UMR-20260803-162547-b968`."
 
+    - id: GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY
+      name: "Live app resolves 'erp'/'sales'/other product_branches by branch_key successfully, but direct reads (psql via .env.local's DATABASE_URL, and PostgREST via SUPABASE_SERVICE_ROLE_KEY, both against the same confirmed-live project pcrjmlpuqsbocqfwoxod) show only 1 row ('grc') in compliance.product_branches -- root cause not yet found"
+      old_ids: []
+      detail: |
+        Found during OCID-050's State C (large-data org) preparation, 2026-08-03.
+        `src/lib/services/product-branch-service.ts`'s `getBranchId()` throws
+        `ServiceError("Product branch '<key>' is not registered", 500)` if no row
+        with that `branch_key` exists. `isErpEnabledForOrg()` ->
+        `isBranchEnabledForOrg(orgId, 'erp')` -> `getBranchId(db, 'erp')` has no
+        surrounding try/catch anywhere in the call chain (`/api/me/route.ts` calls
+        it unguarded). Given this, if `product_branches` genuinely has no 'erp' row,
+        a live call MUST 500.
+
+        Independently confirmed, twice, via two different protocols against the
+        same project (`pcrjmlpuqsbocqfwoxod.supabase.co`, verified to be the real
+        live project because a real Auth login + hand-built session cookie against
+        it correctly authenticated as a real live user and returned correct real
+        org data from `/api/me`): `psql "$DATABASE_URL" -c "select * from
+        compliance.product_branches"` and a PostgREST call with
+        `SUPABASE_SERVICE_ROLE_KEY` (`Prefer: count=exact` -> `content-range:
+        0-0/1`) both show **exactly 1 row**, `branch_key='grc'`.
+
+        Yet a real, live, authenticated `GET /api/erp/journal-entries` against
+        `demo_co_1_sharma` (a real org, real user, real session) returns a clean
+        `403` with the exact polished message `requireErpEnabled()` throws
+        ("This capability is not part of the Module your organization purchased...")
+        -- which only happens if `getBranchId(db,'erp')` resolved successfully
+        (found a real 'erp' branch row) and then evaluated the org's own
+        enablement row as `false`. A genuinely-missing branch would 500, not 403.
+        This is a hard, direct, reproducible contradiction between two
+        independently-verified direct reads and one independently-verified live
+        behavior. Root cause not found this pass -- candidates considered but not
+        confirmed: a schema/search_path difference between what Drizzle's
+        relational query builder resolves at request time vs. what `psql`/PostgREST
+        resolve by default; a second, shadow `product_branches`-shaped table/view;
+        or an env-var difference between this session's `.env.local` and Vercel's
+        own configured environment that isn't visible from the Auth-endpoint check
+        alone. Not chased further this pass -- out of scope for OCID-050, and
+        risking a write against the wrong store outweighed the value of resolving
+        it here.
+      size: M
+      recommendation: |
+        Whoever picks this up: start by having a live Vercel serverless function
+        instance itself log `db.query.productBranches.findMany()`'s real result
+        (a temporary diagnostic route or a Sentry breadcrumb), rather than trying
+        another external read -- the two external reads already available (direct
+        psql, PostgREST+service-role) both agree with each other and disagree with
+        live behavior, so a third external read is unlikely to add signal.
+      status: open
+      first_raised: "OCID-050 State C preparation, 2026-08-03 (UMR-20260803-185714-89c6)"
+
+    - id: GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API
+      name: "No authenticated self-service API route lets a regular org admin enable ERP/Sales/Construction for their own org (PMS has one, POST /api/pms/enablement; ERP/Sales/Construction do not) -- enableErpForOrg()/enableSalesForOrg()/enableConstructionForOrg() are fully implemented service functions with zero real callers outside internal migration/seed scripts and the platform-provisioning endpoint (bearer-key-gated, for the 'projexa' platform application only)"
+      old_ids: []
+      detail: |
+        Found during OCID-050's State C (large-data org) preparation, 2026-08-03,
+        while trying to create a real, fresh, large-data-volume test org with ERP
+        genuinely enabled the same self-service way a real customer would. Confirmed
+        via `grep -rn "enableErpForOrg\|enableConstructionForOrg\|enableSalesForOrg"
+        src --include="*.ts" --include="*.tsx"`: each is defined once (its own
+        `*-enablement-service.ts`) and referenced by name in exactly one other
+        place -- `src/app/api/v1/platform/provision-org/route.ts`'s
+        `REQUIRED_BRANCHES_BY_APPLICATION` allowlist, itself gated behind a
+        `platform_applications` bearer token this session does not hold. No
+        `src/app/api/**/route.ts` exposes a POST handler calling any of the three
+        for a regular authenticated admin, unlike `enablePmsForOrg()` (real route:
+        `src/app/api/pms/enablement/route.ts`). Net effect: an org that was not
+        provisioned through the PROJEXA platform-provisioning path (i.e. every
+        organically self-signed-up org, including every fresh org this session's
+        own OCID-047/048/050 testing has created) has **no live, sanctioned way**
+        to ever get ERP/Sales/Construction enabled, other than an internal operator
+        running a migration or DB write directly. This is the same underlying gap
+        `GAP-ERP-CRM-403-NO-UX-EXPLANATION`'s fix (the "Go to Settings" button)
+        pointed a user at -- worth checking directly whether Settings' own "Go to
+        Settings" destination actually has a working enable action behind it, or
+        whether it is itself a dead end for these three branches specifically.
+      size: M
+      recommendation: |
+        Add a generic `POST /api/settings/product-branches/[branchKey]/enablement`
+        route (or three branch-specific ones, matching PMS's existing pattern) so
+        an admin-role user can self-enable ERP/Sales/Construction the same way PMS
+        already works -- `enableProductBranchForOrg()`'s own admin-role check
+        (`hasRole(ctx.dbUser, "admin")`) already exists and just needs a real route
+        calling it. Blocks OCID-050's State C (Large Data) pass from building real,
+        large-volume ERP/Sales/Construction data for a self-service-created org;
+        also blocks any future real live-testing of the "Go to Settings" UX fix's
+        actual destination for these three modules specifically.
+      status: open
+      first_raised: "OCID-050 State C preparation, 2026-08-03 (UMR-20260803-185714-89c6)"
+
     - id: GAP-403-VS-500-CLM-HR-PERFORMANCE
       name: "5 more endpoints returned 500 instead of 403/real-data for a fresh org -- RESOLVED, two distinct real root causes found and fixed"
       old_ids: []

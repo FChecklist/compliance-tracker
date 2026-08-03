@@ -1759,3 +1759,49 @@ Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-2
 
 ## Remaining
 - [ ] None for this addendum's own scope -- discovery/audit only, no schema/code/DB change.
+
+---
+
+# PROGRESS -- docs/ocid050-full-115x3-sweep-and-large-data-org
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-185714-89c6`/`UMR-20260803-192841-b433`
+(PM decision: finish OCID-050 fully -- full 115-page sweep + State C large-data org -- before starting
+OCID-051).
+
+## Completed
+- [x] TASK-050-0: committed the existing 115-item nav-href fixture (`ai-os/fixtures/ocid020-nav-surface-115.json`),
+      diff-matched against `/tmp/ocid020-continue/nav-hrefs-v2.json` before commit.
+- [x] TASK-050-1: real State C (Large Data) org built entirely through the live app's own self-service
+      API (Supabase Admin API signup, real `POST /api/departments` x5, real `POST /api/compliance` x1500,
+      0 failures, 339s wall-clock). Found and honestly registered a real, hard blocker along the way: no
+      self-service API route exists for a regular admin to enable ERP/Sales/Construction/PMS
+      (`GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`), and a real, unresolved
+      contradiction between direct DB reads and live app behavior on `product_branches` resolution
+      (`GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`) -- both registered in
+      `ai-os/MASTER-TRACKER.yaml`, neither worked around via unsafe direct DB writes.
+- [x] TASK-050-2: wrote explicit, checkable acceptance criteria (pagination correctness, empty-state
+      messaging, performance-under-load with an 8s first-pass budget) into the OCID-050 breakdown doc.
+- [x] TASK-050-3/4/5: full 115-page sweep run for real against all 3 states -- State A (fresh empty org),
+      State B (`demo_co_1_sharma`, real sample data), State C (the org from TASK-050-1, 1,500 real
+      compliance items). **345/345 real page-checks passed, zero crashes, zero page errors, zero
+      Application-error text matches, zero nav failures.** State C's real load-time distribution (min
+      489ms / max 1,388ms / avg 751ms) showed no volume-driven degradation and stayed well inside the
+      8s budget.
+- [x] TASK-050-6: cross-state comparison found no page behaving differently across states in a way that
+      produced a real finding. Wrote the closing amendment in the OCID-050 breakdown doc itself (its own
+      established naming-family convention), citing this UMR chain.
+- [x] Independently re-verified my own claims before writing them up, not narrated: `GET
+      /api/compliance?limit=5` on the State C org returned real `"total": 1500`; `GET /api/me` showed
+      real, honest `erpEnabled/salesEnabled/pmsEnabled/firmEnabled: false` for it (not silently claimed
+      enabled); raw per-page JSON sweep results kept for all 345 checks.
+
+## Remaining
+- [ ] The two gaps found during State C preparation (self-service enablement API missing;
+      product_branches live-vs-direct-read discrepancy) are real, open, unresolved -- registered, not
+      fixed, per the OCID-021 implementation lock and this dispatch's own scope (testing/discovery, not
+      fixes).
+- [ ] ERP/Sales/Construction/PMS module-specific large-volume data was not built for State C (blocked by
+      the enablement gap above) -- named explicitly in the completion amendment as a scope limitation,
+      not silently absorbed into a "fully done" claim.
+- [ ] Per PM decision, OCID-051 real testing execution is the next real priority once this lands, not
+      started under this dispatch.
