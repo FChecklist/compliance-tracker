@@ -113,6 +113,18 @@ Do not wait for OCID-052. Independently confirm each merge via
       sibling left to re-break it.
 
 ## Remaining
-- [ ] Confirm #815's required checks go green against its final head SHA
-      (`cf3ded0b`), merge, and confirm via `git merge-base --is-ancestor`.
-- [ ] Final PROGRESS.md update + commit/push + summary to user.
+- [ ] PR #815 (last of the 5): commit `cf3ded0b` pushed, mergeable=MERGEABLE,
+      required checks still finishing (Type Check/Lint/Unit Tests/Analyze
+      pending as of last check; Vercel fail is expected/non-required). Once
+      green: `gh pr merge 815 --merge --delete-branch=false`, then confirm
+      via `git merge-base --is-ancestor <merge-sha> origin/main`, matching
+      the discipline used for 812/813/814/816.
+
+## Session budget note
+Stopping here -- session USD budget nearly exhausted. 4 of 5 target PRs
+(812, 813, 814, 816) are merged and independently confirmed as ancestors of
+`origin/main`. PR #815 is fully unblocked (conflict-free, audit-passed,
+CI green except non-required Vercel) and just needs its last few required
+checks to finish, then the merge command above and the ancestor check. No
+further conflict-resolution work is expected since #815 is the last of the
+five siblings touching the shared governance files.
