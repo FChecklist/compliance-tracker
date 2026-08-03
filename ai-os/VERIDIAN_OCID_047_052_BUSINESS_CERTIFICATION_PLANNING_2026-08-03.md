@@ -273,6 +273,123 @@ end user.
 
 ---
 
+## Amendment (2026-08-03): OCID-047 — the real, existing RESPONSIBILITY (data-scope/clearance) model, closing a real gap in the section above
+
+Real collision found and handled honestly, not silently: a fresh interactive session
+(`task-20260803-120302-register-ocid-047-roles-rights-responsib`, real dispatch UMR
+`UMR-20260803-115333-dab8` — the exact same UMR the OCID-047 section above already cites) was
+independently given the identical OCID-047 directive. `git fetch`/`git merge origin/main` (this
+session's own first, mandatory step before claiming any work, per `ai-os/boss/ACTIVE-CLAIMS.yaml`'s own
+protocol) found the section above already merged (PR #811) minutes earlier — a real duplicate-dispatch
+race, the exact class `ACTIVE-CLAIMS.yaml` exists to catch. Per that file's own rule 4 ("do not silently
+work around a conflicting active claim"), this is stated plainly here rather than either re-doing the
+work from scratch or silently walking away.
+
+**Independent re-verification of the section above (not re-narrated, re-checked against live code):**
+`ERP_ACTION_ROLES` = 55 entries + `PROMPT_ACTION_ROLES` = 9 entries = **64, confirmed exact**
+(`grep -c '^\s*"erp\.' src/lib/services/permission-service.ts` / same for `"prompt.`). 51 real
+`requireRole(` call sites under `src/app/api`, confirmed exact
+(`grep -rl "requireRole(" src/app/api | wc -l`). Both numbers hold up — no correction needed to the
+rights-model half of the section above.
+
+**Real, substantive gap found in the section above**: this OCID's own governing SPEC asks for every real
+role mapped to its real **rights AND responsibilities**, using only VERIDIAN's existing model. The
+section above enumerates rights (the 64 centrally-registered actions + 51 inline sites) in real depth,
+but never names the separate, real, already-built RESPONSIBILITY layer — WHAT DATA a role is scoped to
+see/own, as distinct from WHAT ACTIONS it may perform. That layer is real and already live in five
+places, confirmed by direct read, not invented here:
+
+1. **Dashboard/analytics scope** — `home-service.ts:11-16` (`scopeForRole()`): rank ≥ 4 → org-wide
+   rollup; rank == 3 → team rollup; rank < 3 → individual-only. The Home page's Analytics tab is never
+   hidden or renamed per role — only its scope changes.
+2. **Client-list visibility** — `client-access-service.ts:20` (`FULL_CLIENT_ACCESS_ROLE = "branch_manager"`,
+   i.e. rank ≥ 4): those roles see every client in the org by default; everyone below needs an explicit
+   `user_client_access` row per client; zero grants = zero clients (fail closed).
+3. **Risk-register visibility** — `risk-register-service.ts:36` (`BROAD_SCOPE_ROLES` =
+   `admin`/`veridian_admin`/`branch_manager`/`senior_professional`/`manager`): those roles see every org
+   risk; everyone else sees only risks owned by their own department.
+4. **Data classification clearance ceiling** — `classification.ts:17-28` (`ROLE_CLEARANCE`): a genuinely
+   SEPARATE axis from `ROLE_RANK`, not derivable from rank alone. Real, deliberate divergences a
+   rank-only test plan would miss entirely: `external_auditor` (rank 1, the lowest action-rights tier)
+   gets `"confidential"` clearance — higher than `member`'s `"company_wide"` (rank 2) — because auditors
+   legitimately need to see audit-relevant records despite having almost no write rights.
+   `senior_professional` (rank 3, same rank as `manager`) also gets `"confidential"` while `manager` gets
+   only `"department"`. `team_member` (rank 2, same rank as `member`) gets `"department"` while `member`
+   gets `"company_wide"`. Rank alone would predict identical behavior for each same-rank pair; the real
+   code does not — each of these three same-rank/different-clearance pairs is its own real test case the
+   original 5-step breakdown does not surface.
+5. **3 more real rank-gates outside the 51 `requireRole()` sites already counted** — `crm-accounts-service.ts`,
+   `erp-payment-entries-service.ts`, `hr-attendance-access.ts` compare `ROLE_RANK` directly (service-layer
+   functions returning `{ok, reason}`, not `NextResponse`) rather than calling `requireRole()`/
+   `requireRoleOrScope()` by name — real, and not double-counted in the original 51, but real gates a
+   role-by-role test pass must still exercise.
+
+**Real, second gap found**: the original breakdown's step 1 ("provision a real test user at that exact
+role... real signup, real Admin-API email-confirm bypass") does not hold for 6 of the 11 roles. Directly
+checked both real, live provisioning mechanisms: `invite-link-service.ts`'s `INVITE_ROLES` and
+`POST /api/users`'s `VALID_ROLES` are **both** `["admin", "manager", "member", "viewer"]` only — the
+original 4. Self-signup always creates `admin`. `stage_0` has its own real, separate flow
+(`consumeStage0TokenAndProvisionUser`, Priority 18b). For the 6 Wave-1 hierarchy roles
+(`veridian_admin`, `branch_manager`, `senior_professional`, `team_member`, `client_viewer`,
+`external_auditor`), **no real product-level provisioning path was found this pass** — a real test user
+in one of these roles can only be created today via a direct DB write, not through real product UX. This
+is itself a real, honest finding worth registering, not just a testing inconvenience: a role that is
+fully rights-wired (`ROLE_RANK`, `ERP_ACTION_ROLES`, the responsibility layer above) but has no real
+onboarding path is a real product gap.
+
+**Real, minor precision note (not a correction to the section above, which already gets this right)**:
+`stage0-service.ts`'s own code comment (near line 14) claims `role: 'stage_0'` ranks "1 in `ROLE_RANK`" —
+independently re-checked directly against the live `ROLE_RANK` object (`auth-guard.ts:31-38`): `stage_0`
+is not a key in `ROLE_RANK` at all. It falls through `hasRole()`'s `?? 0` fallback to rank **0** — one
+rank *below* `viewer`/`client_viewer`/`external_auditor` (rank 1), not "ranking 1" as that stale comment
+states. Flagged here for whoever next touches `stage0-service.ts`; the OCID-047 section above already
+independently states the accurate version ("`stage_0` is deliberately unranked here").
+
+### Updated per-role table (rights ceiling + responsibility/scope + real provisioning path, planning only)
+
+| Role | Rank | Real provisioning path today | Rights ceiling (`ROLE_RANK`-gated actions) | Responsibility / data scope |
+|---|---|---|---|---|
+| `viewer` | 1 | Real — invite-link / `POST /api/users` | None of the 64 centrally-registered write actions (all require ≥ member) | Individual dashboard scope; zero clients unless granted; classification ceiling `public` |
+| `client_viewer` | 1 | **Gap — no real path found** (DB-seed only) | Same as `viewer` | Individual dashboard scope; zero risk-register visibility; explicit client grants only; classification ceiling `company_wide` (elevated vs. `viewer` despite equal rank — real test case) |
+| `external_auditor` | 1 | **Gap — no real path found** (DB-seed only) | Same as `viewer` | Individual dashboard scope; zero risk-register visibility; explicit client grants only; classification ceiling `confidential` (elevated further — real test case) |
+| `member` | 2 | Real — invite-link / `POST /api/users` | Rank-2 tier (routine create/draft actions, the majority of `ERP_ACTION_ROLES`' `member` entries) | Individual dashboard scope; explicit client grants only; classification ceiling `company_wide` |
+| `team_member` | 2 | **Gap — no real path found** (DB-seed only) | Same rank-2 ceiling as `member` | Individual dashboard scope; explicit client grants only; classification ceiling `department` (lower than `member` despite equal rank — real test case) |
+| `manager` | 3 | Real — invite-link / `POST /api/users` | Rank-3 tier (money-moving/hard-to-reverse actions: submit/approve/dispose/close, etc.) | Team dashboard rollup; full risk-register visibility (`BROAD_SCOPE_ROLES`); explicit client grants only (rank < 4); classification ceiling `department` |
+| `senior_professional` | 3 | **Gap — no real path found** (DB-seed only) | Same rank-3 ceiling as `manager` | Team dashboard rollup; full risk-register visibility; explicit client grants only; classification ceiling `confidential` (elevated vs. `manager` despite equal rank — real test case) |
+| `branch_manager` | 4 | **Gap — no real path found** (DB-seed only) | Same rank-3 ceiling as `manager`/`senior_professional` (no rank-4-specific `ERP_ACTION_ROLES` entry exists) | Org-wide dashboard rollup; full client list by default (`FULL_CLIENT_ACCESS_ROLE`); full risk-register visibility; classification ceiling `confidential` |
+| `admin` | 5 | Real — self-signup always creates `admin`; also invite-link / `POST /api/users` | Highest centrally-gated tier (e.g. `erp.fiscal_periods.reopen`, the one `admin`-only `ERP_ACTION_ROLES` entry) | Org-wide dashboard rollup; full client list; full risk-register visibility; classification ceiling `board_only` |
+| `veridian_admin` | 6 (highest) | **Gap — no real path found** (DB-seed only) | Everything `admin` can do, plus the only role that clears all 9 `PROMPT_ACTION_ROLES` entries (prompt-OS governance) | Org-wide dashboard rollup; full client list; full risk-register visibility; classification ceiling `board_only` |
+| `stage_0` | Not in `ROLE_RANK` (falls to 0 — below `viewer`) | Real, dedicated flow (`consumeStage0TokenAndProvisionUser`, self-serve zero-admin-approval VERI Chat signup) | Fails every `requireRole()`/`hasRole()` check, including the lowest bar | `orgId` null until upgraded (Option B design); real surface is VERI-Chat-only per `stage0-service.ts`'s own design note — needs direct, real confirmation of exactly which nav/API surface is reachable, not an assumption that it is simply "less than `viewer`" |
+
+### Revised per-role test-path step 1 (supersedes the original step 1 for the 6 gapped roles; steps 2-5 of the original breakdown are unchanged and still apply once a role's test user exists)
+
+Before provisioning, state — per role, honestly, not assumed — which real path applies: real self-signup
+(`admin` only), real invite-link/`POST /api/users` (`admin`/`manager`/`member`/`viewer`), the real
+`stage0` token flow (`stage_0`), or direct DB seed (`veridian_admin`/`branch_manager`/
+`senior_professional`/`team_member`/`client_viewer`/`external_auditor` — labeled honestly as "no real
+product path found this pass," not silently assumed solved by "reuse the existing pattern"). A future
+real-testing pass may find real per-role provisioning does exist and simply wasn't located here (this
+was a planning-only pass, not an implementation search) — the table above states what this pass actually
+found, not a final claim that the gap is permanent.
+
+### Definition-of-done addendum
+
+The original Definition of Done ("a user in that role sees only what their real rights allow, is blocked
+from what they should not access") is satisfied only if a real testing pass confirms BOTH axes: the
+rights/action-permission outcome (already well-specified above) AND the responsibility/data-scope
+boundary named in this amendment (dashboard rollup level, client-list visibility, risk-register
+visibility, classification-clearance ceiling). A role that passes every rights check but leaks scope —
+e.g. a `member` seeing another department's risks, or a `team_member` seeing `confidential`-classified
+records its real clearance ceiling should exclude — would NOT satisfy this OCID's real Definition of
+Done under a rights-only test plan. This amendment does not change the Definition of Done's own wording;
+it clarifies what "real rights" must be read to include, grounded in code that already exists.
+
+Canonical artifact: this file (amendment, in place — not a new document, and not a re-authoring of the
+original OCID-047 section, which independently re-verified accurate). No implementation, no testing
+performed this pass, consistent with every directive in this document.
+
+---
+
 ## Cross-cutting notes (all six OCIDs)
 
 - **Zero duplication, confirmed per-OCID above** via `resource_governor.py --query-umr --search` before
