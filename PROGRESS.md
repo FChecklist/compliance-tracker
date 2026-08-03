@@ -767,3 +767,22 @@ prior cycle") since the spec is the only source for what it denotes.
 - [ ] Fix the 3 new real gaps (separate tasks, own UMRs, per the established no-fold-in pattern)
 - [ ] Re-test GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ in isolation under confirmed-low load before treating as confirmed
 - [ ] Verify the 3 concurrently-dispatched duplicate-diagnosis worker tasks' real outcomes once they finish
+# PROGRESS -- task-20260803-085553-register-ocid-043-universal-external-exe
+
+Cites: `UMR-20260803-084429-7a70` (OCID-043), parented to OCID-042 (`UMR-20260803-084332-5b52`), parented to
+OCID-041 (`UMR-20260803-084109-6875`). Locked under SEC-07 (`ai-os/CONSTITUTION.yaml`) pending OCID-020 clearing
+then OCID-038 -> OCID-039 -> OCID-040 in order. Discovery only, per this task's own directive.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/CONSTITUTION.yaml` SEC-07, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s OCID-041..046 amendment -- confirmed no worker had yet produced a canonical discovery artifact for OCID-041/042/043 as of task start, and no conflicting active claim existed
+- [x] Registered ACTIVE-CLAIMS entry, committed + pushed (a38d9ebb) before starting substantive work
+- [x] Dispatched 3 parallel real-code inventory passes (background agents, file:line evidence, no memory-summarized claims): (1) worker runtime + dispatch engine + task contract, (2) sentinel + lock framework, (3) review/PR/merge pipeline
+- [x] Confirmed live via `systemctl --user list-units 'veridian-worker@*'` that OCID-041/042/044/045 sibling worker units were actively running concurrently with this task -- so this document cannot honestly defer to their (nonexistent-yet) findings; scoped this document to an independent infrastructure inventory instead
+- [x] Wrote `ai-os/VERIDIAN_OCID_043_UNIVERSAL_EXTERNAL_EXECUTION_RUNTIME_DISCOVERY_2026-08-03.md`: real, file:line-cited inventory of worker runtime, dispatch engine, task contract (2 un-merged schemas found), sentinel (confirmed aspirational per AGENTS.md Rule 2 as literally written), lock framework (cooperative vs. hard split), review/PR/merge pipeline; a synthesis section chaining them into the real end-to-end path OCID-043 would extend; and 7 honest, named gaps
+- [x] Registered canonical artifact in `ai-os/OS.yaml` document index (required by `scripts/check-metadata-index-coverage.mjs`, confirmed by reading that script's own top-level-file requirement)
+- [x] No worker runtime, dispatch runtime, or `CONSTITUTION.yaml` functional changes made; no provider-selection/execution-dispatch code written; OCID-043 explicitly not marked complete
+
+- [x] Moved ACTIVE-CLAIMS entry to `recently_completed`
+
+## Remaining
+- [ ] None -- documentation-only discovery task complete pending PR review/merge (docs-only PRs need no human approval per AGENTS.md Rule 6; CI will run standard checks)
