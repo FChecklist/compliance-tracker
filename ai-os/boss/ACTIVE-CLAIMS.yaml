@@ -40,6 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only)"
+    claimed_at: "2026-08-03T (this session, in progress)"
+    claim: |
+      SPEC citing UMR-20260803-041257-e9c3 (parent OCID-028 directive) and the
+      OCID-022 through 028 chain. Documentation-only deliverable: one new
+      canonical doc, `ai-os/VERIDIAN_UNIVERSAL_ORGANIZATION_RUNTIME_2026-08-03.md`,
+      covering the organization/multi-brand/multi-tenant/legal-entity/role/
+      rights/approval/delegation/visibility model as it already exists in this
+      repo -- reuse-and-standardize, zero new schema/code. Consistent with
+      SEC-07 (ai-os/CONSTITUTION.yaml): SEC-07 locks *implementation,* not
+      documentation, and this task performs no implementation. Per PM decision
+      `UMR-20260803-045159-ec55`, checked for cluster overlap before writing:
+      as of this claim, `gh pr list` shows no open PR and no merged content for
+      OCID-026/027/028/030/032/034/035/037 (the sibling "search-first,
+      reuse-first" cluster) -- only OCID-022/023/024/025 have real draft/open
+      content, none of which covers the organization/role/rights model this
+      OCID is scoped to. File scope: the new doc, `PROGRESS.md`, this entry.
+      No src/, schema, or CI changes.
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
