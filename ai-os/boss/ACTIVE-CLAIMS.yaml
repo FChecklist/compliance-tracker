@@ -4660,6 +4660,36 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260803-024902-checkpoint-refresh-finish-rebasing-pr-75) -- PM checkpoint refresh: finish rebasing PR #754/#757/#758 [DONE, no-op -- already merged]"
+    claimed_at: "2026-08-03T02:49Z (this session, closed same session)"
+    claim: |
+      SPEC (PM checkpoint refresh citing `UMR-20260802-165606-4413` and
+      `UMR-20260803-010728-2792`, the earlier decision that started watching
+      this same three-PR backlog): spec asserted PR #754 was confirmed
+      CONFLICTING and DIRTY "right now" via a direct check, and asked this
+      task to continue the rebase-and-verify pattern already used on PR
+      #751-#756, applied to #754, #757, #758 in turn. Independently
+      re-checked directly on the server (`gh pr view --json state,mergedAt`
+      for each, plus `git log`/`git show --stat` on the resulting merge
+      commits) rather than trusting the spec's narrated state. Real finding:
+      **all three PRs were already MERGED** before this task did any real
+      work -- #754 at `2026-08-03T02:23:12Z` (merge commit `539b86f8`), #758
+      at `2026-08-03T02:29:00Z` (`6ff7adad`), #757 at `2026-08-03T02:46:23Z`
+      (`9f50f25c`) -- all three docs-only diffs (PROGRESS.md,
+      ai-os/*.yaml/*.md), no conflicts, all already ancestors of this
+      workspace's `HEAD`. The spec's CONFLICTING/DIRTY premise was accurate
+      at some earlier point in the same watch window but had already been
+      resolved (merge commits authored by the repository owner directly) by
+      the time this task began independent verification -- live
+      concurrent-state-drift, not a fabricated premise. No rebase or
+      conflict-resolution work was actually available to perform. Also
+      checked `gh pr list --state open`: one PR remains open repo-wide,
+      #761 (DIRTY), out of this task's assigned scope (754/757/758 only) --
+      flagged, not touched. Read-only verification only; no code/schema
+      changes.
+    scope_note: >-
+      File scope: this repo's own `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. No src/, schema, or CI changes.
   - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
     claimed_at: "2026-08-03T01:16Z (this session)"
     claim: |
