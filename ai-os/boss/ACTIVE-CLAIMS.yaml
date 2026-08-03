@@ -125,6 +125,43 @@ active:
       schema, or CI changes -- planning only, no testing or implementation
       performed against any of the six real definitions of done, per every
       directive's own explicit instruction.
+  - session_label: "claude-code (task-20260803-120314-register-ocid-050-data-state-certificati) -- OCID-050 Data State Certification: planning-only task breakdown, child of OCID-020 [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:07Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, `UMR-20260802-165606-4413` OCID-020 as parent, Business
+      Certification phase): register OCID-050, "Data State Certification," covering Empty/Sample/Large
+      data states, as a real child of OCID-020. Explicitly planning only this cycle -- no testing, no
+      fixing, no new org creation. Mission was to reuse the existing real 115-item nav-surface list from
+      PR #794 (no new discovery pass) and produce a deterministic task breakdown for re-running it
+      against three real data states, checking pagination, empty-state messaging, and performance under
+      load.
+
+      Zero-duplication check performed first, per this task's own instruction to check
+      `resource_governor` before creating any sub-task: `python3 scripts/resource_governor.py
+      --query-umr --search "OCID-050"` returned zero matches; `ACTIVE-CLAIMS.yaml` read in full, zero
+      prior OCID-050 entries. No sub-task was created (planning-only artifact, nothing to dispatch yet).
+
+      Independently re-verified the reused inputs rather than trusting the spec's own claims: `gh pr
+      view 794` confirms real, merged (115/115 nav coverage); `/tmp/ocid020-continue/nav-hrefs-v2.json`
+      opened directly, confirmed a real 115-item array. Confirmed State A (Empty = "OCID-020 Continue
+      Org A") and State B (Sample Data = `demo_org`, real ERP transactional usage since the 2026-07-06
+      seed) both already exist and require no new creation. Independently checked State C (Large Data
+      volume org) and found, honestly, that **no such org has been confirmed to exist yet** -- flagged
+      as a real open prerequisite (TASK-050-1) in the new artifact rather than assumed or fabricated.
+
+      Deliverable: one new canonical artifact,
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`, with a
+      real deterministic breakdown (TASK-050-0 through -6: durable-fixture prerequisite, large-data-org
+      prerequisite, acceptance-criteria prerequisite, then 3 independent per-state passes reusing the
+      PR #794 batched-browser harness, then synthesis/registration) and an explicit Definition of Done
+      (a real completed pass of the 115-item list under all 3 states, findings registered the same
+      honest way as Finding 1/2/3 from the original sweep). No browser automation run, no org created,
+      no findings registered this cycle -- planning only, per this task's own explicit scope.
+    scope_note: >-
+      File scope: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      (new file, the one canonical artifact), `ai-os/OS.yaml` (new index entry), this ACTIVE-CLAIMS
+      entry, `PROGRESS.md`. No src/, schema, CI, or `.github/` changes. No implementation, no testing,
+      no new organization created -- consistent with this task's own explicit planning-only scope.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
