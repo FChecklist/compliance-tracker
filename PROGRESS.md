@@ -21,8 +21,24 @@ sequence, OCID-038 real implementation now proceeds, closing gaps its own discov
       (S-sized, mechanical reconciliation between PR #777 and PR #782, no Owner-level product call needed
       unlike the domain-routing/Mother-Router-wiring gaps).
 
+- [x] **Closed `GAP-OCID038-OCID035-DUPLICATE-PRS`.** Read PR #777 and PR #782 in full. Root-caused via
+      PR #779 (merged, independently confirms OCID-034 = "Universal Context and Predictive Runtime"):
+      this makes PR #777's own OCID-035 self-identification (parented to OCID-034) independently
+      correct. Applied the "trust the task's own real folder/branch label" precedent PR #776
+      (`UMR-20260803-052107-71fa`) already established for the OCID-026/027/028/029/030 cluster: PR
+      #782's folder/branch label is "ocid-036" -- corrected its numbering from a second-guessed
+      OCID-035 claim (colliding with PR #777) to OCID-036. Confirmed genuinely distinct content, not a
+      real duplicate -- nothing discarded. Pushed the fix directly onto PR #782's own branch
+      (`worker/task-20260803-062914-ocid-036-veridian-universal-capability-d`, commit `62c5ed46`;
+      corrected its doc header, `ai-os/OS.yaml`, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`,
+      `PROGRESS.md`, its own `ACTIVE-CLAIMS.yaml` entry), also resolving 4 real merge conflicts against
+      current `origin/main` in the same commit. Updated PR #782's title via `gh api` (PATCH, since `gh
+      pr edit` hit an unrelated Projects-classic-deprecation GraphQL error). Marked
+      `GAP-OCID038-OCID035-DUPLICATE-PRS` `resolved` in `ai-os/MASTER-TRACKER.yaml` (same commit). CI
+      running on PR #782's new head; merge pending independent audit + green CI per Rule 6/10 (not this
+      session's to self-certify).
+
 ## Remaining
-- [ ] Close `GAP-OCID038-OCID035-DUPLICATE-PRS`: read both PR #777 and PR #782 in full, reconcile.
 - [ ] Decide + close `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` (real architectural call, per its own
       recommendation).
 - [ ] `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`: recommendation explicitly flags this as an
