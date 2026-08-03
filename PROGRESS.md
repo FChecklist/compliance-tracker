@@ -236,3 +236,20 @@ correction spec directing this task to fix PR #748's false claim).
       verification, and can be merged on its own merits whenever convenient
       — it makes no further edit to `ai-os/boss/ACTIVE-CLAIMS.yaml` since
       this task holds no ongoing exclusive claim on any file.
+
+# PROGRESS -- task-20260803-000319-pm-confirmation-of-cert-sweep-continuati
+
+## Completed
+- [x] Read governance docs (ACTIVE-CLAIMS.yaml, AGENTS.md, CLAUDE.md), confirmed no collision.
+- [x] Verified `UMR-20260802-165606-4413` is real (= OCID-20260802-020, the governing certification UMR).
+- [x] Searched full `ai-os/` tree, every task `prompt.txt`, and `git log --all` for `UMR-20260802-223152-0b6a` -- zero matches; flagged unverifiable rather than confirmed.
+- [x] Read task-20260802-231454's own `task.yaml` directly: real status is `blocked` as of last checkpoint `2026-08-03T00:02:38Z` (~10 min stale, no checkpoint since -- worker stopped), NOT `in_progress`. Root cause: quality gate failed -> auto-fix attempted -> credit accountant rejected it, no further metered spend without human review.
+- [x] Confirmed via `ps aux` that no `mega2.mjs`/playwright process is currently running -- the mega-script sweep is not actually executing right now.
+- [x] Re-confirmed PR #747 merge commit `f18275ccaf9dc7a2be8719044e4bfb4ce56da1f9` is a real ancestor of `origin/main`.
+- [x] Re-confirmed task-20260802-231501 stood down clean (`rejected_duplicate`), PR #744 still `OPEN`/`MERGEABLE`, no duplicate PR opened against it.
+- [x] Checked the live `claude` tmux session referenced by this task's prompt: input line at check time read "continue watching for the merge" (Super Boss watching PR #748), not the cert-sweep question -- the interactive session had already moved on.
+- [x] Recorded the real, current answer as a new closed claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` rather than continuing a mega-script that is not running or reaching into task-231454's own workspace/branch.
+- [x] Verified the new YAML entry parses correctly in isolation (pre-existing unrelated parse error at line 42/6872 predates this session's edit).
+
+## Remaining
+- [ ] None -- this task's scope was to confirm and answer, not to unblock task-20260802-231454 (that belongs to its own owning task/session, same pattern as task-20260802-231514's credit-accountant block).

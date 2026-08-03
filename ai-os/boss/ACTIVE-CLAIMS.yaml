@@ -7231,3 +7231,69 @@ recently_completed:
       before this session used it; `task-20260802-172443` (the prior real
       occupant of this OCID) had already completed and produced PR #737
       before this session began.
+
+# ── claim closed 2026-08-03 (task-20260803-000319) ──────────────────────
+  - session_label: "claude-code (task-20260803-000319-pm-confirmation-of-cert-sweep-continuati) -- PM confirmation: real status of OCID-020 continuation sweep (task-20260802-231454) is BLOCKED, not in_progress [doc only, no code change]"
+    claimed_at: "2026-08-03T00:1xZ (this session, closed same session)"
+    claim: |
+      Independently verified on the server (not narrated), answering a
+      question citing `UMR-20260802-165606-4413` (confirmed real -- =
+      OCID-20260802-020, the governing certification UMR, cross-referenced
+      against this file's own earlier entries and task-20260802-231454's
+      own prompt.txt) and `UMR-20260802-223152-0b6a` (grepped this repo's
+      full `ai-os/` tree, every task `prompt.txt` under
+      `/opt/veridian/ai-os/tasks/`, and `git log --all` -- zero matches
+      anywhere; cannot independently verify this citation, flagging it as
+      unverifiable rather than confirming it).
+
+      The premise that task-20260802-231454's real status field reads
+      `in_progress` with a fresh 23:30:05Z checkpoint and an actively
+      running mega-script was true when originally checked, but is now
+      stale. Direct read of that task's own `task.yaml` at this session's
+      check time (2026-08-03T00:12Z) shows nine further checkpoints after
+      23:30:05Z, the last at `2026-08-03T00:02:38Z` (status: `blocked`,
+      ~10 min old with no checkpoint since -- the worker process has
+      stopped, not just slowed). Real sequence: the mega-script ran the
+      nav-surface sweep in background through the 23:30-23:55Z
+      checkpoints; at 00:02:35Z a "quality gate failed", the worker
+      attempted an auto-fix, and the credit accountant REJECTED auto-fix
+      attempt 1 at 00:02:38Z with verdict `{"approved": false, "reason":
+      "existing software/mechanism already covers this (system_index
+      match) -- use it instead of spending AI credits"}`, explicitly
+      stating no further metered spend without human review. Confirmed via
+      `ps aux` that no `mega2.mjs` / playwright process is running on this
+      server right now -- the sweep is not actually executing, contrary to
+      "continue the mega-script run."
+
+      Two other cited facts independently re-confirmed accurate: (1) PR
+      #747 merge commit `f18275ccaf9dc7a2be8719044e4bfb4ce56da1f9` is a
+      real ancestor of `origin/main` (`git merge-base --is-ancestor`
+      confirmed); (2) task-20260802-231501 (PR #744 rebase/strip) really
+      did stand down clean -- its own task.yaml status is
+      `rejected_duplicate`, noting the same directive was already done
+      directly on PR #744's real branch by a different interactive
+      session; PR #744 is still real, `OPEN`, `MERGEABLE`, no duplicate PR
+      was opened against it.
+
+      Did not attempt to resume or "continue" task-20260802-231454's
+      mega-script from this session: it is a separate task with its own
+      branch/worktree/worker service, now sitting `blocked` pending a
+      human/PM unblock decision (same shape as task-20260802-231514's
+      credit-accountant block, resolved via a dedicated follow-up
+      PM-decision task rather than a different session reaching into its
+      workspace) -- reaching into it directly would be exactly the kind of
+      collision/duplication this file exists to prevent. Also checked the
+      live tmux session (`claude`, window 0) this task's own prompt
+      referenced for the literal pending question: at check time its
+      input line read "continue watching for the merge" (Super Boss
+      watching PR #748's post-rebase CI/merge), not the cert-sweep
+      question -- the interactive session had already moved on by the
+      time this task ran. Recording the real, current answer here rather
+      than inventing progress on a script that is not running.
+    scope_note: >-
+      File scope: this repo's own `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. No src/, schema, or CI changes. Read-only
+      investigation of task-20260802-231454's own `task.yaml` (outside
+      this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
+      live `claude` tmux session -- no writes to that task's workspace or
+      branch, no keystrokes sent into the tmux session.
