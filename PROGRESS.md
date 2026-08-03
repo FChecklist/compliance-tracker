@@ -39,12 +39,23 @@ sequence, OCID-038 real implementation now proceeds, closing gaps its own discov
       session's to self-certify).
 
 ## Remaining
-- [ ] Decide + close `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` (real architectural call, per its own
-      recommendation).
-- [ ] `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`: recommendation explicitly flags this as an
-      Owner-level product decision (which live deployment `projexa-ai.com` routes to) -- likely to be
-      flagged back to PM/Owner rather than unilaterally decided.
-- [ ] `GAP-OCID038-PROJEXA-OWN-SCHEMA`: cross-repo investigation (projexa repo), scope TBD.
+- [ ] **Checkpoint (2026-08-03T22:2xZ):** 1 of 4 real gaps closed this cycle
+      (`GAP-OCID038-OCID035-DUPLICATE-PRS`). The remaining 3 all require either an explicit
+      architectural call or an Owner-level product decision, not a mechanical fix -- flagging rather
+      than unilaterally deciding each, consistent with how this session has handled comparable
+      judgment calls elsewhere:
+      - `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`: its own recommendation explicitly says whether
+        `task-execution-engine.ts` should call into `mother-router.ts` after routing, or whether the
+        two are intentionally decoupled concerns, "is a real architectural call, not a mechanical
+        wiring fix."
+      - `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`: its own recommendation names this "an Owner-level
+        product decision" (whether `projexa-ai.com` should route to the real `projexa` deployment or
+        get PROJEXA branding added to this repo's own build) -- also touches live DNS/deployment
+        routing, real blast radius beyond this repo.
+      - `GAP-OCID038-PROJEXA-OWN-SCHEMA`: cross-repo investigation into the separate `projexa` repo,
+        scope not yet defined.
+      Next PM decision should say whether to proceed making these calls unilaterally (per the
+      2026-07-31 full-autonomy directive) or hold for explicit Owner/PM input first.
 
 <!-- Prior task history preserved below (this repo's established PROGRESS.md convention: append, never truncate). -->
 
