@@ -1,6 +1,7 @@
 # VERIDIAN Universal Decision Engine v1.0
 
-**UMR:** `UMR-20260803-041351-0278` (OCID-029, "the real OCID-029 directive just registered"), parented under
+**UMR:** `UMR-20260803-041351-0278` (OCID-030, correcting an earlier self-citation as "the real OCID-029
+directive just registered" — see the numbering note below), parented under
 the same directive chain as `UMR-20260803-040844-4a33` (OCID-022) through `UMR-20260803-041257-e9c3`
 (OCID-028), the ERP Functional Completeness Master Program (`UMR-20260802-173631-ca85`), OCID-020
 (`UMR-20260802-165606-4413`), the server artifact traceability audit (`UMR-20260802-164659-9a31`), the
