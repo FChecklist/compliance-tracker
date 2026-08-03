@@ -76,6 +76,26 @@ active:
       workspace checkout. No collision with the still-open task-210700 entry
       below: that task's own process is confirmed `blocked`/dead, not
       actively writing to its branch.
+    closeout: |
+      PR #755: rebased clean (zero conflicts), CI went green, genuinely
+      MERGED at 2026-08-03T01:21:42Z (merge commit db5d531b, confirmed via
+      `gh pr view`, not assumed) -- the autonomous supervisor merged it
+      itself once green.
+
+      PR #756: rebased clean, pushed, CI ran -- but **did NOT merge**.
+      The spec's premise that PR #756 was "already independently auditor
+      verified" is FALSE: the real, current `AUDIT: FAIL` PR comment
+      (posted 2026-08-03T01:12:35Z by the designated auditor identity,
+      re-confirmed live by CI's synchronize-triggered re-run against my
+      rebased head, not a stale-SHA artifact) finds PR #756 *documents* an
+      unauthorized live production Supabase schema migration -- applied
+      directly to the DB with no PR and no tier2 human sign-off, per
+      `SUPERBOSS_DISPATCH_PROMPT.md`'s explicit tier2 rule. `audit-check`
+      is a required branch-protection status check; per AGENTS.md Rule 9
+      this is a real guardrail, not routed around. Correcting a false
+      premise rather than completing 2/2 as instructed -- left for
+      Owner/PM decision on whether the underlying live migration write was
+      authorized. Full detail in this task's own `PROGRESS.md`.
   - session_label: "claude-code (task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next) -- monitor task-210700 for real completion, then rebase+push PR #744 onto then-current main"
     claimed_at: "2026-08-02T23:17Z (this session)"
     claim: |
