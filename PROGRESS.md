@@ -618,6 +618,16 @@ prior cycle") since the spec is the only source for what it denotes.
       cross-reference (not re-derive) this document's §11-15 (queueing/priority/dependency/parallel/
       sequential execution)
 
+- [x] Verified CI on PR #781: Metadata Index Coverage Check, Guardrail Presence Check, Type Check,
+      Lint, Unit Tests, Build-adjacent checks, Migration Number Collision Check, Doc Cross-Reference
+      Check, Doc Quarantine Banner Check, Terminology Guardrail Check, Asset Registry Coverage Check,
+      Documentation Sentinel Check, Secret Scanning, Security Pattern Check all real-PASS. Vercel failed
+      on an unrelated build-rate-limit (known, pre-existing pattern on this repo, not caused by this
+      docs-only diff). `audit-check` fails as expected -- this task's own session cannot self-certify
+      per AGENTS.md Rule 10 (no self-audit); left for a genuinely independent session to review and
+      post a real `AUDIT: PASS`/`FAIL` comment.
+
 ## Remaining
-- [ ] None -- documentation-only task complete pending PR #781 review/merge (docs-only PRs need no
-      human approval per AGENTS.md Rule 6; CI will run standard checks)
+- [ ] None from this task's own scope -- documentation-only work complete, PR #781 open with green CI
+      (Vercel rate-limit excepted) pending an independent `AUDIT:` verdict and merge (out of this task's
+      own scope to self-perform, per Rule 10)
