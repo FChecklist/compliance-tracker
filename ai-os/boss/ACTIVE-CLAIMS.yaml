@@ -8344,3 +8344,14 @@ recently_completed:
       `worker/task-20260803-180110-pm-decision-resolving-the-umr-and-utm-na`.
       No `src/`, schema, or CI changes -- `src/` was only read (`git grep`),
       never edited. No database change.
+    resolution_note: >-
+      Real, as-executed outcome, updated after acting (claim text above was
+      written before this was known): PR #835 had already MERGED to `main`
+      by the time this session checked, and its branch was gone. A
+      concurrent sibling session had, in the same minute, already pushed
+      `docs/amend-umr-utr-discovery-third-umr-usage-found`. This session's
+      correction was pushed as a second commit on that same branch
+      (`d03b5b8f`), and a sibling session opened it as PR #837 before this
+      session could -- confirmed same head SHA, so no duplicate PR was
+      opened. The `AUDIT: PASS` comment (Rule 7c) was posted on PR #837,
+      not #835. Claim closed same session.

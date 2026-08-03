@@ -39,15 +39,26 @@ analysis only -- no schema/code/DB change.
       matches"/"genuinely clean" claim needed narrowing to what was actually
       checked, not silently repeated as-is.
 - [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      before editing PR #835's branch.
-- [x] Pushed a correction commit directly to PR #835's own branch
-      (`docs/umr-utr-euid-discovery-vs-live-system`), continuing that same
-      in-progress discovery task rather than forking a competing artifact,
-      narrowing §0's claim and naming the real `src/` hits honestly.
-- [x] Posted an `AUDIT:` review comment on PR #835 (Rule 7c: the agent that
-      did not write it is its mandatory auditor).
+      before editing anything else.
+- [x] Discovered PR #835 had already **merged** to `main`
+      (`c294c70c`) by the time this session checked -- its own branch was
+      gone (deleted post-merge). Also discovered a genuinely concurrent
+      sibling session had, in the same minute, already pushed a follow-up
+      amendment branch (`docs/amend-umr-utr-discovery-third-umr-usage-found`,
+      commit `88a1d038`, crediting a real 3rd UMR usage from a duplicate PR
+      #836) -- not yet opened as a PR at the time this session checked.
+- [x] Pushed this session's own correction as a second commit
+      (`d03b5b8f`) on top of that same amendment branch (continuing the
+      one in-progress amendment lineage for this document rather than
+      forking a competing branch/PR), narrowing §0's "UTR is unused" claim
+      and naming the real `src/` hits honestly in a new `## 0a. Amendment`
+      section.
+- [x] By the time this session went to open a PR for that push, a sibling
+      session had already opened it as PR #837 (same head SHA `d03b5b8f`,
+      confirmed) -- did not fork a duplicate PR; posted an `AUDIT: PASS`
+      review comment there instead (Rule 7c: the agent that did not write
+      the original artifact is its mandatory auditor).
 
 ## Remaining
-- [ ] None for this task's own scope. PR #835 itself still needs a human/PM
-      merge decision (unchanged by this correction) -- not this task's call
-      to make.
+- [ ] None for this task's own scope. PR #837 itself still needs a
+      human/PM merge decision -- not this task's call to make.
