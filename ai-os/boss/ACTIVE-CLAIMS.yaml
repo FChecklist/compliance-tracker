@@ -5223,6 +5223,62 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (docs/ocid051-cross-surface-certification-complete) -- OCID-051 Cross-Surface Certification (browser + Mobile PWA), all real checks passed [DONE]"
+    claimed_at: "2026-08-03T20:00Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-195837-dde3, citing UMR-20260802-165606-4413/OCID-020 and this
+      OCID's own UMR-20260803-115558-170e): OCID-050 confirmed genuinely complete via PR #843
+      (independently verified merge commit 8b7d03c8, ancestor of origin/main), proceed with OCID-051
+      real testing execution now -- cross-surface certification covering browser completeness and
+      mobile PWA, reusing existing infrastructure, no new architecture, honest findings, register
+      (don't sudo-workaround) the known Chromium missing-libs blocker if it affects anything.
+
+      Part 1 (desktop nav-surface gap check): real `document.querySelectorAll('a[href]')` re-run from
+      an authenticated `/home` against the live site's current state. Result: 115 distinct hrefs,
+      byte-identical set-equality against the existing baseline (`nav-hrefs-v2.json`) -- zero delta.
+      The 115-page surface remains complete and clean, a real positive certification result.
+
+      Part 2a (PWA install flow): real `GET /manifest.webmanifest` from a Pixel-7-emulated Playwright
+      context confirmed the full manifest contract live -- name/short_name "VERIDIAN AI",
+      `start_url: "/home"`, `display: "standalone"`, correct theme/background colors, one icon
+      (`/logo-mark.svg`, independently confirmed resolving `200`/`image/svg+xml`), and the real wired
+      `share_target` contract. Real mobile-viewport screenshot of `/home` captured, clean render, no
+      crash, no horizontal overflow.
+
+      Part 2b (Web Share Target): real `multipart/form-data POST` to `/api/veri-chat/share-target`
+      with a unique marker string, as a real authenticated user. Got a real `303` redirect to
+      `/chat?conversation=<id>`. Independently confirmed via a follow-up authenticated
+      `GET /api/conversations/<id>/messages` that the real content genuinely landed in the real
+      conversation -- full end-to-end real evidence, not just a status-code check.
+
+      Part 2c (offline/service-worker absence): real, live, deterministic checks --
+      `navigator.serviceWorker.controller` is `null` and `getRegistrations()` returns empty on both
+      `/home` and `/dashboard`; `context.setOffline(true)` + reload produced a real
+      `net::ERR_INTERNET_DISCONNECTED` (the browser's own native offline behavior, not an app-shell
+      fallback) -- deterministic proof no service worker intercepts navigation. Registered as the
+      real, honest Part 2c finding: no offline/service-worker behavior exists to test, confirmed live
+      rather than assumed from a code search alone.
+
+      Part 2d (mobile-viewport nav sweep): full 115-item nav list re-run with Pixel-7 device
+      emulation, same anomaly heuristics as Part 1 plus a new per-page horizontal-scroll check.
+      **115/115 real page-checks passed** -- zero crashes, zero page errors, zero `Application error`
+      matches, zero pages with horizontal overflow at the emulated viewport width. Real load-time
+      distribution: min 452ms / max 3,841ms / avg 1,059ms.
+
+      Infra note: the existing no-sudo Chromium fix (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`)
+      worked without issue for every real test in this pass, including mobile device-emulation
+      contexts (not previously explicitly confirmed working under emulation). Nothing in this pass hit
+      the known missing-system-libs blocker; no sudo change was needed or attempted.
+
+      **OCID-051 is complete.** Zero new gaps registered this pass -- every real check passed against
+      this OCID's own pre-written acceptance criteria (its planning doc's Definition of Done).
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`
+      (completion amendment, in place, already-indexed doc), `PROGRESS.md`, this ACTIVE-CLAIMS entry.
+      No src/, schema, or migration changes -- pure testing/documentation, per this dispatch's own
+      scope. No production data touched -- all writes (the one real Web Share Target message) went
+      through real, live, self-service test accounts, isolated from any real customer org.
+
   - session_label: "claude-code (docs/ocid050-full-115x3-sweep-and-large-data-org) -- OCID-050 full 115-page x 3-state sweep + real large-data org, 345/345 [DONE]"
     claimed_at: "2026-08-03T19:00Z (this session, closed same session)"
     claim: |

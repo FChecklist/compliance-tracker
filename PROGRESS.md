@@ -1805,3 +1805,38 @@ OCID-051).
       not silently absorbed into a "fully done" claim.
 - [ ] Per PM decision, OCID-051 real testing execution is the next real priority once this lands, not
       started under this dispatch.
+
+---
+
+# PROGRESS -- docs/ocid051-cross-surface-certification-complete
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-115558-170e` (OCID-051),
+`UMR-20260803-195837-dde3` (PM decision: OCID-050 confirmed genuinely complete via PR #843, proceed
+with OCID-051 real testing execution now).
+
+## Completed
+- [x] Part 1 (desktop nav-surface gap check): real `document.querySelectorAll('a[href]')` re-run from
+      an authenticated `/home` against the live site. Result: 115 distinct hrefs, byte-identical
+      set-equality against the existing baseline -- zero delta, clean re-check recorded as the real
+      positive result.
+- [x] Part 2a (PWA install flow): real `GET /manifest.webmanifest` from a Pixel-7-emulated context
+      confirmed the full manifest contract live (name/start_url/display/theme/icon/share_target);
+      icon URL independently resolved 200; real mobile-viewport screenshot captured.
+- [x] Part 2b (Web Share Target): real multipart POST to `/api/veri-chat/share-target` with a unique
+      marker, real 303 redirect, independently confirmed via follow-up authenticated GET that the
+      real content landed in the real conversation.
+- [x] Part 2c (offline/service-worker absence): real, live checks -- `serviceWorker.controller` null,
+      zero registrations on `/home` and `/dashboard`; `context.setOffline(true)` + reload produced a
+      real `net::ERR_INTERNET_DISCONNECTED`, deterministically proving no service worker intercepts
+      navigation. Registered as the real, honest finding for this axis.
+- [x] Part 2d (mobile-viewport nav sweep): full 115-item nav list re-run with Pixel-7 device
+      emulation, same anomaly heuristics as Part 1 plus a new horizontal-scroll check. 115/115 real
+      page-checks passed, zero horizontal-overflow pages, load times 452ms-3841ms (avg 1059ms).
+- [x] Confirmed the existing no-sudo Chromium fix (LD_LIBRARY_PATH) works under mobile
+      device-emulation contexts too (not previously explicitly confirmed) -- the known missing-libs
+      blocker did not affect any part of this pass; no sudo change attempted.
+- [x] Wrote the closing amendment in the OCID-051 planning doc itself, citing this UMR chain.
+
+## Remaining
+- [ ] Zero new gaps found this pass -- OCID-051 is complete. Next real priority is whatever the PM
+      confirms after independently verifying this PR's merge.
