@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-142324-pm-decision--add-real-yaml-safe-load-ci) -- add real YAML safe-load CI guardrail for ai-os governance YAML files"
+    claimed_at: "2026-08-03T14:23Z"
+    claim: |
+      SPEC (PM decision, citing UMR-20260803-140106-6307 /
+      UMR-20260802-165606-4413 OCID-020): add a real new CI job that runs
+      yaml safe-load against `ai-os/boss/ACTIVE-CLAIMS.yaml` (and the other
+      governance YAML files this repo's own CLAUDE.md "Read Before
+      Starting Work" list names as depended-on: `ai-os/CONSTITUTION.yaml`,
+      `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml`), so the same class of
+      parse error just fixed under PR #818 (malformed duplicate entry ->
+      real YAML ParserError) cannot silently recur. Mechanical CI addition
+      only, reusing the existing scripts/check-*.mjs + ci.yml job pattern
+      (Guardrail Presence Check / Doc Quarantine Banner Check) -- no new CI
+      framework, not blocked by OCID-021.
+    scope_note: >-
+      File scope: new `scripts/check-yaml-safe-load.mjs`, a new job in
+      `.github/workflows/ci.yml`, this `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      entry, `PROGRESS.md`. No product/business logic, no src/ or schema
+      changes.
   - session_label: "claude-code (task-20260803-125054-register-ocid-052-veri-chat-ai-escalatio) -- OCID-052 dedicated deepening, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T12:51Z (this session, closed same session)"
     claim: |
