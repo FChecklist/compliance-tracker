@@ -8281,3 +8281,49 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+
+  - session_label: "claude-code (task-20260803-180107-analyze-current-umr-and-utm-implementati) -- UMR/UTM naming-collision discovery for the Owner's proposed Universal Knowledge and Execution Architecture (OCID-020, UMR-20260802-165606-4413), discovery-only"
+    claimed_at: "2026-08-03T18:xx (this session)"
+    claim: |
+      SPEC (PM decision citing `UMR-20260802-165606-4413`/OCID-020): the Owner supplied a spec for a
+      new Universal Metadata Registry (reusable knowledge as UMR records) + Universal Task Metadata
+      model (UTM) + End User Identity (EUID = brand id + org id + end user, synced server/browser/PWA).
+      Before any implementation: read `/opt/veridian/scripts/resource_governor.py` and
+      `/opt/veridian/scripts/superboss-register.py` directly, confirm the REAL current schema of
+      `instructions`/`work_items`/`actions`/`system_index`/`umr_tasks` (live SQLite introspection, not
+      just source), and honestly flag the real naming collision: `utm_source/utm_medium/utm_campaign/
+      utm_content/utm_term` already live across those tables as a marketing-style tagging convention.
+      Discovery/analysis only -- explicitly no schema, code, DB, or new architecture change, per the
+      standing OCID-020 discovery-only instruction (SEC-07 lock). Zero-duplication check performed:
+      searched `ai-os/boss/ACTIVE-CLAIMS.yaml` (this file, full read of prior UMR/UTM/OCID-020 hits) and
+      `ai-os/OS.yaml` for an existing "UMR vs UTM naming collision" discovery artifact -- none found;
+      the closest prior work (`ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`,
+      OCID-027) is a discovery/reuse *search-order* doc, not this specific naming-collision analysis.
+
+      Found the collision is deeper than the SPEC's own framing: confirmed live (Python sqlite3
+      introspection against `/opt/veridian/ai-os/memory/superboss-register.sqlite`) that `utm_*`
+      columns exist not just on the 4 named tables but also on `umr_tasks` itself (added 2026-07-29,
+      "Phase 6: task-umr-tasks-utm-correlation-phase6-2026-07-29"), plus `knowledge_engine` and
+      `capability_registry`. Also found "UMR" itself is already a live, overloaded abbreviation with
+      at least 2 pre-existing, DIFFERENT meanings before the Owner's new spec introduces a 3rd:
+      (a) `ai-os/registry/asset-registry-coverage.yaml` / `scripts/check-asset-registry-coverage.mjs`
+      already name themselves "UMR (Universal Metadata Registry)" -- verbatim the same full name the
+      Owner is now proposing -- for a live, CI-enforced, Postgres-backed DB-table/row asset-registration
+      system, not a reusable-knowledge store; (b) every "UMR-YYYYMMDD-HHMMSS-hex" ID cited throughout
+      this entire session (including this SPEC's own `UMR-20260802-165606-4413`) is literally a row's
+      `umr_id` in `resource_governor.py`'s `umr_tasks` SQLite queue table (real task-dispatch/execution
+      records, confirmed by direct row lookup) -- functionally closer to what the Owner is now calling
+      "UTM" (a per-task metadata record) than to "reusable knowledge." Checked PR #610 for the SPEC's
+      cited "historical registry terminology audit" -- found PR #610 is unrelated (Sales Pipeline
+      dashboard; its only real "terminology" hit is the Terminology Guardrail Check, a CI gate against
+      hardcoded ISO dates in comments, coincidentally fixed the same week) -- no registry-terminology
+      naming audit exists near PR #610; flagged honestly rather than fabricated.
+
+      Full findings written to `ai-os/UMR_UTM_NAMING_COLLISION_DISCOVERY_2026-08-03.md`, registered in
+      `ai-os/OS.yaml`'s index. No rename, no new table/schema/model created for the Owner's proposed
+      UMR/UTM/EUID concepts, per the SPEC's own explicit hold -- next PM decision required first.
+    scope_note: >-
+      File scope: `ai-os/UMR_UTM_NAMING_COLLISION_DISCOVERY_2026-08-03.md` (new), `ai-os/OS.yaml`
+      (index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/, schema,
+      migration, or DB changes anywhere (compliance-tracker Postgres or the server's own SQLite
+      registers) -- read-only introspection only.
