@@ -1045,3 +1045,44 @@ Cites: `UMR-20260802-165606-4413` (OCID-020), PM decision `UMR-20260803-140106-6
       guardrail scripts don't currently strict-parse this file at merge time -- the
       MASTER-TRACKER entry recommends adding one; not implemented here (governance-process
       change, not this task's mechanical-fix scope).
+
+# PROGRESS -- docs/governance-yaml-guardrail-script-blocked-on-workflow-scope
+
+Cites: `UMR-20260803-142309-da1f`, `UMR-20260803-142956-d931` (both under
+`UMR-20260802-165606-4413`, OCID-020).
+
+## Completed
+- [x] Per PM decision `UMR-20260803-142309-da1f`, wrote `scripts/check-governance-yaml-parse.mjs`
+      -- same pattern/family as `check-guardrail-presence.mjs`/`check-doc-quarantine-banner.mjs`,
+      checks `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/boss/COMPLETED.yaml`, `ai-os/CONSTITUTION.yaml`,
+      `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml` via `js-yaml`'s `load()` (`json: true` mode,
+      deliberately duplicate-key-tolerant like PyYAML's default -- a real, separate,
+      pre-existing duplicate-mapping-key condition was found in `ACTIVE-CLAIMS.yaml` while
+      building this, out of scope per explicit PM instruction not to expand scope).
+- [x] Independently verified for real, twice, locally: deliberately reintroduced the exact
+      malformed 0-indent duplicate entry fixed in PR #818 -> script exits 1 with a clear
+      error; restored the real file -> script exits 0.
+- [x] Drafted the `.github/workflows/ci.yml` wiring (new `governance-yaml-parse` job,
+      matching the existing `doc-quarantine-banner` job shape) -- real, locally correct, but
+      `git push` was rejected by GitHub: this server's git-push credential (gh CLI OAuth
+      token, account `FChecklist`) has scopes `gist, read:org, repo`, missing `workflow` --
+      required for any push touching `.github/workflows/*.yml`. Checked for an alternate,
+      more-privileged credential in the worker/supervisor dispatch pipeline; found none.
+- [x] Attempted the one safe, additive resolution (`gh auth refresh -h github.com -s
+      workflow`) -- requires a live human device-code browser flow; killed the waiting
+      process rather than leave a credential-escalation flow open unattended.
+- [x] Per PM decision `UMR-20260803-142956-d931`: stopped attempting the credential
+      escalation (Owner being asked separately by the PM), registered
+      `GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE` in `MASTER-TRACKER.yaml`
+      as a real, honest, open follow-up gap citing `UMR-20260803-142309-da1f`, and this PR
+      preserves the real, tested guardrail script as real work product rather than
+      discarding it -- pushed on its own, without the still-blocked `ci.yml` change.
+- [x] Confirmed `GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR` (PR #818) remains correctly `status:
+      resolved` -- that real fix is genuinely merged and independently verified; this task's
+      blocker is only the secondary preventive CI guardrail, not the underlying fix.
+
+## Remaining
+- [ ] Wire `scripts/check-governance-yaml-parse.mjs` into `.github/workflows/ci.yml` once a
+      workflow-scoped credential is available -- not this task's or session's to perform
+      further per the PM's explicit stop instruction. Tracked in
+      `GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE`.
