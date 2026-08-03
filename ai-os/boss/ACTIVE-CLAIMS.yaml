@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-081346-pm-resume-ocid-020-sweep-now-that-host-l) -- OCID-020: resume real nav-surface sweep, host load independently re-verified as recovered"
+    claimed_at: "2026-08-03T08:20Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own prompt.txt): the prior deferral doc
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_RESUME_2026-08-03.md`, merged PR #788) deferred the
+      heavy multi-navigation Playwright sweep because `uptime` showed load average 10.23 on this
+      8-core box with swap under real pressure (3.7Gi/4.0Gi used, 259Mi free). PM directive
+      independently re-verified host load before acting on the claim (never act on an unverified
+      claim, including the PM's own): `uptime` now shows load average `3.40, 3.97, 5.86`, `free -h`
+      shows swap `2.6Gi/4.0Gi` used (`1.4Gi` free) and `11Gi` available memory -- a real, current,
+      measured improvement, at/under the deferral doc's own stated resume threshold ("below ~4-5").
+      Resuming the real nav-surface sweep now against live `https://projexa-ai.com`, using the
+      per-batch browser health-check/restart harness the deferral doc itself specified (~10-15
+      navigations per browser instance, fresh browser process per batch, `storageState` reuse for
+      the authenticated session rather than re-logging-in every batch), targeting the 99 real,
+      previously-enumerated nav hrefs (`/tmp/ocid020-continue/nav-hrefs-v2.json`, 115 total) not yet
+      validly exercised by any prior real run (16 already covered: `/`, `/home`, `/dashboard`,
+      `/connectors`, `/rewards`, `/reports`, `/users`, `/audit`, `/settings`, `/crm`,
+      `/erp/procurement`, `/erp/journal-entries`, `/compliance`, `/compliance?status=overdue`,
+      `/departments`, `/chat`).
+
+      Separately (not this session's own work, noted per ACTIVE-CLAIMS protocol item 4): PM's own
+      prompt flagged two other currently-running worker tasks ("correct real OCID number
+      mislabeling in PR titles 771/772/774" and "urgent correct wrong and unverifiable UMR citations
+      in PR 781 and 779") as likely re-diagnosing already-fixed/merged issues. Independently checked
+      `gh pr view` for all five: 771, 772, 774, 779, and 781 are all real `state: MERGED` (merged
+      between 2026-08-03T06:44Z and 08:13Z). Not touching those tasks or their branches from this
+      session -- this is an observation for the record, consistent with the standing rule not to
+      kill another session's in-flight work destructively.
+    scope_note: >-
+      File scope: `ai-os/` (new sweep-completion doc, `MASTER-TRACKER.yaml` if new gaps are found,
+      `OS.yaml` index), this ACTIVE-CLAIMS entry, `PROGRESS.md`. Browser automation runs from a
+      throwaway `/tmp/ocid020-sweep2/` script + `/opt/veridian/browser/screenshots/` output, not
+      committed to the repo (screenshots referenced by path, same convention as prior OCID-020
+      sessions). No src/, schema, or CI changes anticipated unless a new gap requires its own
+      separately-scoped fix task (out of this task's own scope per the established "own UMR, don't
+      fold in" pattern).
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
