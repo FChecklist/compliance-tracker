@@ -4671,20 +4671,20 @@ recently_completed:
       audit/gatekeeper/unified-memory/recovery-framework UMRs). Documentation
       only, no implementation -- consistent with the real OCID-020 lock
       (`SEC-07`, `ai-os/CONSTITUTION.yaml`), which permits discovery/matrix
-      work to continue. **Real numbering discrepancy found and flagged, not
-      silently resolved either way:** this task's own directory/branch label
-      says "ocid-027" and its citation chain is parented to a UMR framed as
-      "the real OCID-026 directive," but the spec's own verbatim mission text
-      is the OCID-026 title/scope ("VERIDIAN Global Knowledge Discovery and
-      Reuse Runtime") per the real, independently-verified status table in
-      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (row for
-      OCID-20260803-026), not the OCID-027 title ("VERIDIAN Unified
-      Synchronization Runtime") that same table lists. Re-confirmed via
+      work to continue. **Real numbering discrepancy found and flagged, later
+      corrected by a real PM decision:** this task's own directory/branch
+      label says "ocid-027," and that was independently verified correct --
+      real PM decision `UMR-20260803-045159-ec55` confirmed this task's real
+      content ("VERIDIAN Global Knowledge Discovery and Reuse Runtime") is
+      OCID-027, correcting a mislabel in an earlier draft of
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s own status
+      table that had placed this content at row `OCID-20260803-026`. OCID-028
+      is "VERIDIAN Unified Synchronization Runtime." Re-confirmed via
       `gh pr list` + this file: no open PR or active claim exists anywhere for
-      either OCID-026 or OCID-027 as of this claim, so proceeding on the
-      literal, detailed spec content actually given (Knowledge Discovery and
-      Reuse) is not a duplicate of any in-flight work -- same class of
-      mislabeling as the real OCID-036/037 correction already recorded under
+      OCID-027's content as of this claim, so proceeding on the literal,
+      detailed spec content actually given (Knowledge Discovery and Reuse) is
+      not a duplicate of any in-flight work -- same class of mislabeling as
+      the real OCID-036/037 correction already recorded under
       `UMR-20260803-045159-ec55` in that same status-snapshot document.
       File scope: one new canonical artifact
       (`ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`),

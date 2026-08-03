@@ -1063,7 +1063,7 @@ OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and 
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
 
-## Amendment (2026-08-03): OCID-20260803-026 — VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0
+## Amendment (2026-08-03): OCID-20260803-027 — VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0
 
 Real, Owner-directed, tier 1 directive, documentation only — no implementation. Parented to
 `UMR-20260803-041122-b22d`, citing `UMR-20260803-041047-03ee` (OCID-025), `UMR-20260803-041000-70ae`
@@ -1074,15 +1074,17 @@ rule), `UMR-20260802-165434-cd91` (unified project memory), `UMR-20260802-165541
 framework). Consistent with the `SEC-07` implementation lock (`ai-os/CONSTITUTION.yaml`), which
 permits discovery/matrix-building work to continue.
 
-**Real numbering discrepancy, flagged not silently resolved**: this task's own directory/branch label
-reads "ocid-027" and its citation chain frames itself as parented to "the real OCID-026 directive, just
-registered" — but the mission text actually dispatched is, verbatim, OCID-026's own title and section
-list per `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status table (row
-`OCID-20260803-026`), not OCID-027's real title ("VERIDIAN Unified Synchronization Runtime," same
-table). Same mislabeling class as the already-corrected OCID-036/037 row swap
-(`UMR-20260803-045159-ec55`). Re-confirmed via `gh pr list` and `ai-os/boss/ACTIVE-CLAIMS.yaml` that no
-open PR or active claim exists for either OCID-026 or OCID-027's content before proceeding — this is
-not duplicate work.
+**Real numbering discrepancy, found by this task, corrected by a later real PM decision**: this task's
+own directory/branch label reads "ocid-027" and its citation chain frames itself as parented to "the
+real OCID-026 directive, just registered." At the time this document was originally drafted, that
+was read against a since-corrected version of `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
+status table that itself mislabeled this content as row `OCID-20260803-026`. Real PM decision
+`UMR-20260803-045159-ec55` independently verified this task's own branch/directory label ("ocid-027")
+was correct all along and corrected the mislabel: this document is real OCID-027 ("VERIDIAN Global
+Knowledge Discovery and Reuse Runtime"); OCID-028 is "VERIDIAN Unified Synchronization Runtime." Same
+mislabeling class as the already-corrected OCID-036/037 row swap (also `UMR-20260803-045159-ec55`).
+Re-confirmed via `gh pr list` and `ai-os/boss/ACTIVE-CLAIMS.yaml` that no open PR or active claim
+exists for OCID-027's content before proceeding — this is not duplicate work.
 
 **Canonical artifact**: `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md` — a
 36-section discovery-and-reuse operating model grounded in real, already-existing infrastructure, not a
@@ -1103,7 +1105,7 @@ layers already are.
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-20260803-026 | `UMR-20260803-041122-b22d` (parent) | VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0 | **Documentation complete** — canonical artifact created; no implementation performed or proposed, per this task's own prohibition. Real, disclosed gaps (no dedicated report/business-rule catalog, hand-maintained screen/UX narrative) left open for a future extension of the existing generator pattern. |
+| OCID-20260803-027 | `UMR-20260803-041122-b22d` (parent) | VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0 | **Documentation complete** — canonical artifact created; no implementation performed or proposed, per this task's own prohibition. Real, disclosed gaps (no dedicated report/business-rule catalog, hand-maintained screen/UX narrative) left open for a future extension of the existing generator pattern. |
 
 Canonical artifact updated: `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`
 (new file), this file (this amendment), `ai-os/MASTER_INDEX.yaml` / `ai-os/OS.yaml` (registration) —

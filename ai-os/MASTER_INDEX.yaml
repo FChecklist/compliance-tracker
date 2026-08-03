@@ -1602,7 +1602,7 @@ registries:
 - id: veridian_global_knowledge_discovery_and_reuse_runtime_1_0
   type: knowledge_discovery_and_reuse_spec
   path: ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md
-  scope: 'OCID-20260803-026 (dispatched under a task labeled "ocid-027" -- real numbering discrepancy
+  scope: 'OCID-20260803-027 (dispatched under a task labeled "ocid-027" -- real numbering discrepancy
     flagged in the document itself, same class as the already-corrected OCID-036/037 swap), documentation
     only. 36-section discovery-and-reuse operating model grounded in real, already-existing
     infrastructure: the 4-layer search order already live in this file (protocol field, system_index
@@ -1614,7 +1614,7 @@ registries:
     certification criteria and names two real, honest gaps: no dedicated mechanical catalog yet for
     reports or business rules as a distinct class, and screen/UX discovery remains hand-maintained
     narrative (system-tree/13-compliance-tracker-ui.yaml), not mechanically regenerated. Amends
-    ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md in place (new OCID-20260803-026 section) rather than
+    ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md in place (new OCID-20260803-027 section) rather than
     duplicating it. No implementation performed.'
   status: live
   query_command: cat ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md

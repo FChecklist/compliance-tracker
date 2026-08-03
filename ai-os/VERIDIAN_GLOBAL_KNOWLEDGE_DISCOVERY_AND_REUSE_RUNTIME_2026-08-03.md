@@ -19,7 +19,7 @@ directive, just registered." But the mission text this task actually received, v
 OCID-026 title and full section list ("VERIDIAN Global Knowledge Discovery and Reuse Runtime") — not
 OCID-027's real title, "VERIDIAN Unified Synchronization Runtime," per the independently-verified
 status table in `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (§1, row
-`OCID-20260803-026` vs. row `OCID-20260803-027`). This is the same class of dispatch-labeling error
+`OCID-20260803-027` vs. row `OCID-20260803-027`). This is the same class of dispatch-labeling error
 already found and corrected once in this exact chain (`OCID-036`/`OCID-037`, resolved under
 `UMR-20260803-045159-ec55`). Before starting, this session re-confirmed (`gh pr list`,
 `ai-os/boss/ACTIVE-CLAIMS.yaml`) that **no open PR or active claim exists for either OCID-026 or
