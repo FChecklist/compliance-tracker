@@ -4659,6 +4659,37 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (task-20260803-050456-ocid-027-veridian-global-knowledge-disco) -- VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0, documentation only"
+    claimed_at: "2026-08-03T05:05Z (this session)"
+    claim: |
+      SPEC (real Owner directive, tier 1, parented to `UMR-20260803-041122-b22d`,
+      citing `UMR-20260803-041047-03ee` OCID-025, `UMR-20260803-041000-70ae`
+      OCID-024, `UMR-20260803-040929-9713` OCID-023, `UMR-20260803-040844-4a33`
+      OCID-022, `UMR-20260802-173631-ca85` ERP Functional Completeness Master
+      Program, `UMR-20260802-165606-4413` OCID-020, plus the traceability
+      audit/gatekeeper/unified-memory/recovery-framework UMRs). Documentation
+      only, no implementation -- consistent with the real OCID-020 lock
+      (`SEC-07`, `ai-os/CONSTITUTION.yaml`), which permits discovery/matrix
+      work to continue. **Real numbering discrepancy found and flagged, not
+      silently resolved either way:** this task's own directory/branch label
+      says "ocid-027" and its citation chain is parented to a UMR framed as
+      "the real OCID-026 directive," but the spec's own verbatim mission text
+      is the OCID-026 title/scope ("VERIDIAN Global Knowledge Discovery and
+      Reuse Runtime") per the real, independently-verified status table in
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (row for
+      OCID-20260803-026), not the OCID-027 title ("VERIDIAN Unified
+      Synchronization Runtime") that same table lists. Re-confirmed via
+      `gh pr list` + this file: no open PR or active claim exists anywhere for
+      either OCID-026 or OCID-027 as of this claim, so proceeding on the
+      literal, detailed spec content actually given (Knowledge Discovery and
+      Reuse) is not a duplicate of any in-flight work -- same class of
+      mislabeling as the real OCID-036/037 correction already recorded under
+      `UMR-20260803-045159-ec55` in that same status-snapshot document.
+      File scope: one new canonical artifact
+      (`ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`),
+      amendments to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`,
+      `ai-os/MASTER_INDEX.yaml`, `ai-os/OS.yaml` (registration only, existing
+      UMR chain), this file, `PROGRESS.md`. No src/, schema, or CI changes.
 recently_completed:
   - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
     claimed_at: "2026-08-03T01:16Z (this session)"
