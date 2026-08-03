@@ -952,12 +952,25 @@ state (file existence, real git merge history, a real idempotency-guard scan of 
 text, and scoped citation-existence checks — structurally the same rigor as the existing Category A
 KE-id/decision-file checks, same honest "real, findable record, not a semantic content audit"
 limitation). Any single failed condition blocks execution and reports plainly which one, and why.
-41 tests pass (`claude-control` PR #123), including a fixture-repo-based Category B suite. Two real
-bugs were found and fixed while building this: a cross-entry false-positive in citation matching
-(a bare file-wide search could be satisfied by an unrelated, earlier entry in a large shared file
-like `COMPLETED.yaml`), and a false-negative in the idempotency heuristic on
+
+**Real status, not glossed over: `claude-control` PR #123 is open, under active independent review,
+NOT yet merged to `claude-control`'s `main` — the production dispatch pipeline does not run this
+gate today.** Two real, substantive `AUDIT: FAIL` rounds so far, each with genuine findings that were
+independently verified and fixed, not routed around: round 1 found a materially weaker bare-path
+evidence-citation bypass (citing e.g. `README.md` with no anchor would have satisfied 6 of the 10
+conditions with zero content check), a path-traversal gap (a `..`-containing evidence field could
+resolve outside the named sibling repo), and a false-negative in the idempotency heuristic on
 `ALTER TABLE ... ENABLE ROW LEVEL SECURITY` (inherently idempotent in Postgres, incorrectly flagged
-as needing a guard).
+as needing a guard) — all fixed, with regression tests. Round 2 found a critical, severe gap:
+`check_category_b_recovery()` alone never verified the SQL cited in `evidence['sql_file']` was what
+the prompt's own SCOPE would actually execute — a prompt could cite a safe, unrelated,
+already-reviewed file to satisfy all 10 conditions while its real SCOPE instructed different,
+unreviewed DDL. Fixed via a new binding check (`_prompt_scope_matches_cited_sql()`, condition 11).
+50 tests pass as of the latest push (`claude-control` PR #123, commit `7faf848`), including a
+fixture-repo-based Category B suite. **Do not cite this as settled, working evidence until a real
+`AUDIT: PASS` is posted and the PR is merged** — this file will be updated with the real merge commit
+once that happens; until then `ai-os/CONSTITUTION.yaml`'s `SEC-06` correctly reads
+`PARTIALLY_ENFORCED`, not `ENFORCED`.
 
 **Retroactive test against a real, non-hypothetical past incident** (not simulated): reclassified
 `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` under this rule and ran it through
@@ -986,12 +999,21 @@ own yet (confirmed directly — it remains gated behind the OCID-20260802-020 PR
 sweep, per `ai-os/boss/ACTIVE-CLAIMS.yaml`) and is unaffected by this amendment; noted here, not
 fabricated a new section for, since this amendment is not part of that program's real scope.
 
-**Closed on this evidence:**
+**Status, real and current — NOT closed yet:**
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-20260803-021 | `UMR-20260803-025317-0c64` / `UMR-20260803-025414-8274` | Category A / Category B production-DB governance split | **CLOSED** |
+| OCID-20260803-021 | `UMR-20260803-025317-0c64` / `UMR-20260803-025414-8274` | Category A / Category B production-DB governance split | **OPEN — implementation on `claude-control` PR #123, pending a real `AUDIT: PASS` and merge to `main`** |
 
-Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (new `SEC-06`), `ai-os/MASTER-TRACKER.yaml`
-(`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced, not falsely closed), `ai-os/boss/COMPLETED.yaml`
-(`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) — not rewritten, not duplicated.
+This governance-registration itself (this file, `SEC-06`, the `MASTER-TRACKER.yaml` cross-reference,
+the `COMPLETED.yaml` retroactive-test result) is real and can land now — it documents a real,
+in-progress implementation honestly, including its own real independent-review history, rather than
+overclaiming the underlying gate is already live. OCID-20260803-021 moves to **CLOSED** only once
+`claude-control` PR #123 receives a real `AUDIT: PASS` and merges — at that point this table and
+`SEC-06`'s `status` field should both be updated with the real merge commit hash, in a follow-up PR,
+not silently backdated here.
+
+Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (new `SEC-06`, status `PARTIALLY_ENFORCED`),
+`ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced, not falsely closed),
+`ai-os/boss/COMPLETED.yaml` (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) —
+not rewritten, not duplicated.
