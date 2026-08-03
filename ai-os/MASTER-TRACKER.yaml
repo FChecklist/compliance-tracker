@@ -1043,7 +1043,7 @@ open_items:
         frontend reads `.length` on the failed-403 response. Add a real
         regression test (fresh org, module not enabled, load `/erp/reports`,
         assert no client-side exception) so this can't silently regress.
-      status: fix_implemented_pending_merge
+      status: resolved
       fix_detail: |
         Root cause confirmed at the component level (this task's PM decision,
         UMR-20260803-094100): `src/app/(app)/erp/reports/page.tsx`'s Trial
@@ -1069,8 +1069,39 @@ open_items:
         the identical `TypeError` when run against the pre-fix logic, and
         passes against the fix. `bun test` (4/4 pass), `bunx tsc --noEmit`
         clean, `bunx eslint` clean on both changed files.
-      first_raised_by_fix: "UMR-20260803-094100 (this PM decision), PR pending"
+
+        Merged as PR #803 (real merge commit `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`,
+        independently confirmed ancestor of `origin/main` via `git merge-base --is-ancestor`,
+        per PM decision `UMR-20260803-162547-b968`). PR #803's own branch had diverged before
+        PR #795's separate, independently-merged Cash Flow tab `?.` fix landed -- rebased
+        (squash-cherry-pick, not a raw multi-commit replay, to avoid re-playing a known-broken
+        intermediate `PROGRESS.md`-truncation commit already fixed within PR #803's own
+        history) onto current `main`; confirmed the real Trial Balance guard change
+        (`hasTrialBalanceFooterRows()`) does not touch or regress the already-merged Cash Flow
+        fix (verified via diff: PR #803's own commit only ever touched the Trial Balance
+        footer-guard line, never the Cash Flow lines). Full local verification re-run after
+        the rebase, not assumed still valid: `bun test` (2479/2479 pass), `bunx tsc --noEmit`
+        (clean), `bunx eslint` (clean).
+
+        **Independently re-tested live against `projexa-ai.com` after the merge, real evidence,
+        not narrated**: provisioned a fresh, isolated, module-not-enabled test org (Supabase
+        Admin API), confirmed the real backing API still genuinely 403s
+        (`GET /api/erp/reports/trial-balance` -> `403`, the same real trigger condition as the
+        original finding), then loaded `/erp/reports` in a real headless browser with the
+        session cookie injected (using the real, verified no-sudo Playwright fix from OCID-048's
+        execution, `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`) -- the page renders
+        its real "Financial Reports" UI shell (Trial Balance/P&L/Balance Sheet tabs, nav
+        sidebar, onboarding checklist), with **no** "Application error: a client-side exception
+        has occurred" blank-page crash. Real screenshot captured:
+        `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png` (host-local, not
+        committed -- same convention as the original finding's own screenshot reference).
+      first_raised_by_fix: "UMR-20260803-094100, merged as PR #803"
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
+      resolved: "2026-08-03: PR #803 merged (`e6e5a156b331ca817f33c3ad561ab755a6b7cd77`),
+        independently confirmed ancestor of `origin/main`. Independently re-tested live
+        post-merge with a real browser and a real screenshot (not narrated) confirming the
+        page no longer crashes on the original 403 trigger path. Per PM decision
+        `UMR-20260803-162547-b968`."
 
     - id: GAP-403-VS-500-CLM-HR-PERFORMANCE
       name: "5 more endpoints returned 500 instead of 403/real-data for a fresh org -- RESOLVED, two distinct real root causes found and fixed"

@@ -1369,3 +1369,39 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
 ## Remaining
 - [ ] PR #803 CI: Lint/Type Check/Unit Tests/Build/security+doc gates all pass. `audit-check` fails as expected -- it requires an independent structured `AUDIT: PASS`/`AUDIT: FAIL` comment (AGENTS.md Rule 10), and this session is the implementer of the fix, so per Rule 7(c) ("whichever agent did not implement a task is the mandatory auditor -- no self-certification") this session deliberately did not post one itself. Needs a genuinely separate session/agent to audit and post the verdict before merge.
 - [ ] Re-test the 3 timed-out pages (`/orchestra`, `/prompt-eval`, `/sales-hq`, `GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) in isolation once host load is genuinely low -- checked at hand-off: `13.62, 9.25, 8.58`, worse than the `10.23` that triggered the prior deferral in this same chain. Not attempted this session; left for whoever resumes once load actually drops, per the standing circuit-breaker rule against a 3rd invalidated attempt under the same failure class.
+
+---
+
+# PROGRESS -- docs/close-finding1-real-live-retest-confirmed
+
+Cites: `UMR-20260803-162547-b968` (UMR-20260802-165606-4413, OCID-020).
+
+## Completed
+- [x] Rebased PR #803 onto current `main` (squash-cherry-pick, not raw multi-commit replay --
+      avoids re-playing a known-broken intermediate `PROGRESS.md`-truncation commit already
+      fixed once within PR #803's own history). Confirmed via direct diff that PR #803's real
+      commit only ever touched the Trial Balance footer-guard line, never the Cash Flow
+      lines PR #795 independently fixed -- no regression risk.
+- [x] Full local verification after rebase: `bun test` (2479/2479 pass), `bunx tsc --noEmit`
+      (clean), `bunx eslint` (clean).
+- [x] Union-reconciled `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` (extracted PR #803's own
+      real delta via `git cat-file -p` against the exact blob hash -- `git show` was
+      independently reproduced as unreliable for this exact purpose again this session,
+      consistent with PR #803's own prior finding of the same class of bug).
+- [x] Pushed, retriggered review, real `AUDIT: PASS`, merged: PR #803 real merge commit
+      `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`, independently confirmed ancestor of
+      `origin/main`.
+- [x] **Independently retested Finding 1 live against `projexa-ai.com`, real evidence, not
+      narrated**: fresh module-not-enabled test org, confirmed the real backing API still
+      403s, loaded `/erp/reports` in a real headless browser (session cookie injected, using
+      the real Playwright fix from OCID-048's execution) -- page renders correctly, no
+      "Application error" crash. Real screenshot:
+      `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png`.
+- [x] Updated `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` in `MASTER-TRACKER.yaml` to `status:
+      resolved` only after this real live retest succeeded, not before.
+
+## Remaining
+- [ ] Per PM's explicit sequencing (`UMR-20260803-162547-b968`): PR #828, then #829, then #830
+      still need the same rebase treatment (real OCID-047-049 evidence, blocked on the same
+      shared-file conflict pattern) -- next.
+- [ ] OCID-050 real testing execution remains pending until after PR #828/829/830 land.
