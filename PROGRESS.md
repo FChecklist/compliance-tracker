@@ -1086,3 +1086,48 @@ Cites: `UMR-20260803-142309-da1f`, `UMR-20260803-142956-d931` (both under
       workflow-scoped credential is available -- not this task's or session's to perform
       further per the PM's explicit stop instruction. Tracked in
       `GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE`.
+
+# PROGRESS -- test/ocid052-item2-item3-real-execution
+
+Cites: `UMR-20260803-142956-d931` (UMR-20260802-165606-4413, OCID-020) -- "determining and beginning
+real testing execution across the six Business Certification OCIDs, OCID-047 through OCID-052."
+
+## Completed
+- [x] Surveyed all 6 real, merged OCID-047-052 planning docs (via a dedicated Explore-agent pass) to
+      determine the single cheapest, highest-signal, no-new-setup-required task to execute first.
+      Chosen: OCID-052 Item 2 (deterministic-only VERI Chat routing test) -- no new org/data/role
+      provisioning needed, unlike every alternative surveyed.
+- [x] Found host under real load (10.35 avg, 93% swap) matching a prior documented Playwright-deferral
+      trigger, then found (separately, by actually trying) that Playwright itself cannot launch on this
+      server at all right now -- real missing shared libraries on both installed Chromium builds, no
+      passwordless sudo. Registered `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
+- [x] Worked around the missing-browser blocker for this specific test (API-level, not UI-level, testing)
+      by driving the real Supabase Auth REST API + this app's own authenticated routes directly: real
+      signup, real Admin-API email-confirm bypass, real password-grant login, a hand-constructed
+      `@supabase/ssr` v0.12.3 session cookie (verified against that package's own source), real
+      `GET /api/conversations` (confirmed live server-side org auto-provisioning via VERI's real welcome
+      message), real `POST .../messages`.
+- [x] **Item 2 (deterministic path) executed for real -- PASS.** "what's the status" -> real "No tasks
+      yet" reply, `confidence_label IS NULL`, ~1.4s round-trip. All 3 stated success criteria confirmed
+      via live DB query, not narration.
+- [x] **Item 3 (AI-escalation path) executed for real -- PASS on routing, plus 2 new real findings.** A
+      genuinely free-text question -> real `confidence_label = "high"` (~6.6s round-trip), confirming
+      `callLLM()` genuinely fired. But the actual reply was a refusal to a benign, in-scope question.
+      Root-caused via a dedicated Explore-agent pass (not assumed): a real system-prompt self-contradiction
+      (`purpose-bound-ai.ts`'s `PURPOSE_CLAUSE` vs. the persona's own stated domain list). Registered
+      `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`. Also found and registered
+      `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION` (the confidence heuristic has zero
+      refusal-language coverage, so this refusal was mislabeled "high confidence").
+- [x] Updated `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md` in
+      place with the real test-execution results and both new findings, rather than creating a
+      duplicate/parallel doc.
+
+## Remaining
+- [ ] OCID-052 Items 4 (UI-distinguishability) and 5 (dialogue-script path) not executed this pass --
+      real UI/DOM-level testing is blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` until someone
+      with sudo access fixes the missing libraries.
+- [ ] The two new VERI Chat product gaps (`GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`,
+      `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`) are registered but not fixed -- fixing is a
+      product-code change, out of scope for this test-execution task itself.
+- [ ] Real testing execution for OCID-047/048/049/050/051 has not started yet -- this task covered only
+      the single highest-priority starting point identified by the survey.

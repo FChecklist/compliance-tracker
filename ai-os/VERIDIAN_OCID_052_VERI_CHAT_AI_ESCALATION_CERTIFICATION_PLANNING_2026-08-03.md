@@ -114,6 +114,66 @@ confirm or refute directly, not assume solved by the badge's incidental behavior
    distinct deterministic-adjacent path (Lower-AI-driven, not zero-AI, not full free-text LLM) that this
    OCID's definition of done should account for explicitly rather than collapsing into either bucket.
 
+## Real test execution results (2026-08-03, PM decision UMR-20260803-142956-d931)
+
+Items 2 and 3 above were actually executed live against `projexa-ai.com`, not narrated. No browser was
+available on this server for the run (see `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` below), so both
+tests were driven directly against the real Supabase Auth REST API + this app's own authenticated API
+routes: real signup (`POST /auth/v1/signup`) → real Admin-API email-confirm bypass → real password-grant
+login (`POST /auth/v1/token?grant_type=password`) → a hand-constructed `@supabase/ssr` v0.12.3 session
+cookie (`base64-` + base64url JSON, matching `node_modules/@supabase/ssr/dist/module/cookies.js`'s own
+encoding exactly) → real `GET /api/conversations` (which triggers `requireAuth()`'s real, server-side
+`autoProvisionUser()` — confirmed live via VERI's real welcome message: "Your workspace is set up and all
+your modules are switched on") → real `POST /api/conversations/[id]/messages`. Two fresh, real, isolated
+test orgs were used (one per item), zero pre-existing/shared test data.
+
+**Item 2 (deterministic-only path) — PASS.** Sent `"what's the status"` to a fresh org with zero tasks.
+Real response: `{"aiReply":{"senderId":null,"content":"No tasks yet"}}`, HTTP 201, ~1.4s round-trip. Live
+DB row (`compliance.messages`, queried directly) confirmed: `content = "No tasks yet"` (exact match to
+`suggestResponseForTaskStatus`'s empty-state output, ruling out the policy-refusal/no-model-configured
+null-producing paths named in this doc's own Step 2), `confidence_label IS NULL`. All three Step 2 success
+criteria (correct reply, no `callLLM()`, null `confidenceLabel`) independently confirmed.
+
+**Item 3 (AI-escalation path) — PASS on routing, with a new real finding.** Sent a genuinely free-text,
+non-triggering message (`"Can you help me understand how depreciation works for our fixed assets?"`) to a
+second fresh org. Real response HTTP 201, ~6.6s round-trip (consistent with a real LLM call, not a DB
+lookup). Live DB row confirmed `confidence_label = "high"` (populated — proof `callLLM()` genuinely fired,
+per this doc's own Step 3 criterion). Routing behavior itself is correct and confirmed.
+
+However, the actual reply content was: `"Boss, I'm sorry—I can't help with that."` — a refusal to a
+completely benign, in-scope business question. Root-caused (not assumed): the real system prompt
+(`drizzle/0172_priority11_gap_d13_assumption_scoped.sql`'s `chat.ai_thread_system`, assembled at
+`chat-service.ts:680-694`) contains a real, direct self-contradiction. Its own persona paragraph states
+VERIDIAN covers "finance & accounting... operations & inventory... compliance & legal", but the appended
+`{{PURPOSE_CLAUSE}}` (`src/lib/purpose-bound-ai.ts:76-82`) separately instructs: *"You are strictly scoped
+to the 'compliance' business domain. Refuse any request outside this domain's purpose..."* A model reading
+"depreciation of fixed assets" as accounting/finance rather than strictly "compliance" has explicit
+license, from the app's own system prompt, to decline -- registered as `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`
+below. A second, related finding: `deriveConfidenceLabel()` (`src/lib/floor-tier-escalation.ts:116-120`)
+defaults to `"high"` whenever `detectLowConfidenceResponse()` (same file, lines 49-55) doesn't match a
+narrow "I'm not sure"/"I don't know"-style phrase list -- that list has zero refusal-language coverage, so
+a genuine refusal gets mislabeled as a high-confidence reply. This directly matters for this OCID's own
+Item 4 (UI-distinguishability): `confidenceLabel` is not just an unintentional distinguishing signal (per
+the gap already named above), it is also not a reliable *quality* signal -- registered as
+`GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION` below.
+
+**Item 4 (UI-distinguishability) and Item 5 (dialogue-script path) — not executed this pass**, deferred to
+a future cycle; the routing-correctness items (2-3) were prioritized as the highest-signal, lowest-setup
+starting point per the Explore-agent survey across all six OCID-047-052 docs.
+
+## New real gaps registered this pass (`ai-os/MASTER-TRACKER.yaml`)
+
+- `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION` -- system prompt's persona and its `PURPOSE_CLAUSE`
+  disagree on VERI Chat's real scope, causing live, reproducible refusals on benign, in-scope questions.
+- `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION` -- `detectLowConfidenceResponse()` has no
+  refusal-language coverage, so genuine refusals are mislabeled `"high"` confidence.
+- `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` -- both installed Playwright Chromium builds
+  (`chromium-1228`/`chromium_headless_shell-1228`) fail to launch on this server: `ldd` confirms real
+  missing shared libraries (`libnspr4.so`, `libnss3.so`, `libatk-1.0.so.0`, and 10+ others). No
+  passwordless `sudo` available to install them. Blocks any future Playwright-based E2E work on this
+  server until resolved by someone with `sudo` access (`apt-get install -y` the missing libs, or
+  `npx playwright install --with-deps` re-run with elevated privileges).
+
 ## Definition of done (unchanged from the merged section, restated precisely against the real mechanism)
 
 Real test cases confirming `tryDeterministicRoute()`/`runDialogueScriptTurn()` genuinely resolve a routine
