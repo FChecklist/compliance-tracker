@@ -1062,3 +1062,36 @@ OCID-023's own dispatched worker). The real gate every directive in this chain a
 OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): OCID-035 VERIDIAN Continuous Platform Evolution Runtime v1.0 (this task's own directive, parented to `UMR-20260803-042003-5e92`, OCID-034)
+
+Real, documentation-only definition of how VERIDIAN continuously evolves — enhancement request capture
+and classification, search-before-change (deferring to OCID-027's own discovery/reuse taxonomy rather
+than restating it), per-artifact-type enhancement patterns (function/report/analysis/prompt/business
+rule/workflow/UI/UX), multi-brand and multi-tenant propagation, generic component extraction, canonical
+artifact and UMR chain update, regression/duplication prevention, compatibility/impact/performance
+validation, release readiness, and platform governance/health/metrics. Full detail:
+`ai-os/VERIDIAN_CONTINUOUS_PLATFORM_EVOLUTION_RUNTIME_2026-08-03.md`.
+
+**Real numbering note:** this task's own `task.yaml`/`prompt.txt` self-identify as OCID-035, parented
+to OCID-034 (`UMR-20260803-042003-5e92`, "VERIDIAN Universal Context and Predictive Runtime",
+dispatched as `task-20260803-055118-ocid-034-veridian-universal-context-and`, in progress, no document
+yet). `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s own table labels this same mission
+text as OCID-034 instead — the same class of off-by-one drift that document has already self-corrected
+twice (OCID-036/037 in its own §1a; OCID-026/027/028/029/030 in PR #776). Per the precedent PR #776
+established, this document trusts its own task's real self-identification over the snapshot table and
+flags the snapshot row for a future correction pass, rather than silently renumbering itself either
+way. No content in the new document depends on which integer it carries.
+
+**Cluster-overlap check performed (per real PM decision `UMR-20260803-045159-ec55`):** read the one
+real adjacent document that existed at the time this was written — OCID-027's "Global Knowledge
+Discovery and Reuse Runtime" (PR #771, open/unmerged) — and explicitly scoped this document's own
+"search before change" section to cross-reference it rather than restate its discovery taxonomy. Also
+checked OCID-029/030 (PRs #773/#772, separate functional domains — organization modeling and decision
+logic, no overlap found). OCID-032/034/036 had not started (no document, no PR) as of this pass.
+
+Canonical artifact created: `ai-os/VERIDIAN_CONTINUOUS_PLATFORM_EVOLUTION_RUNTIME_2026-08-03.md` (new)
+— not rewritten, not duplicated. This entry amends the existing UMR chain in place; no new chain
+started.
