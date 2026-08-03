@@ -40,6 +40,65 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-062914-ocid-036-veridian-universal-capability-d) -- OCID-036 dispatch, real content is VERIDIAN Universal Capability Discovery and Evolution Runtime v1.0 (documentation only)"
+    claimed_at: "2026-08-03T06:29Z"
+    claim: |
+      SPEC (this task's own prompt.txt): tier 1 Owner directive, parented to
+      `UMR-20260803-042034-0c1f` (cited in the prompt as "the real OCID-035
+      directive just registered"), citing the full OCID-022 through OCID-034
+      chain plus the ERP Functional Completeness Master Program
+      (`UMR-20260802-173631-ca85`), OCID-020 (`UMR-20260802-165606-4413`), the
+      server artifact traceability audit, the gatekeeper rule, and the unified
+      project memory model. Mission: create exactly one document, "VERIDIAN
+      Universal Capability Discovery and Evolution Runtime v1.0" -- documentation
+      only, no implementation, consistent with the `SEC-07` implementation lock
+      (`ai-os/CONSTITUTION.yaml`), which explicitly permits discovery/matrix-
+      building work to continue.
+
+      **Real numbering check performed before starting** (per the pattern
+      PR #776/#777 already established for this exact cluster): this task's own
+      directory/branch label is `ocid-036`, but its mission text ("Universal
+      Capability Discovery and Evolution Runtime") matches the title
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` attributes to
+      **OCID-035**, and this task's own SPEC self-describes as "parented to...
+      the real OCID-035 directive" (i.e. this task IS that directive, dispatched
+      one step later in real time than the snapshot's table). Independently
+      confirmed via `gh pr list`/`git branch -r` that PR #777
+      (`worker/task-20260803-055122-ocid-035-veridian-continuous-platform-ev`)
+      already used the sibling "OCID-035" folder label for different, real
+      content ("Continuous Platform Evolution Runtime", parented to
+      `UMR-20260803-042003-5e92`/OCID-034) and explicitly flagged its own
+      folder-vs-table numbering mismatch rather than silently resolving it --
+      same root cause (the snapshot table's dispatch-order-to-number mapping),
+      same honest-disclosure pattern applied here. No existing document, PR, or
+      branch anywhere in this repo is titled "Universal Capability Discovery and
+      Evolution Runtime" (verified via `grep -rl` across `ai-os/` and `gh pr
+      list --search`) -- this is real, undispatched content, not a duplicate.
+
+      Confirmed real, substantial content overlap with two adjacent, already-
+      dispatched documents in this same cluster: OCID-027 "Global Knowledge
+      Discovery and Reuse Runtime" (PR #771, open/unmerged -- covers search
+      order + all per-artifact-type discovery) and OCID-034/035 "Continuous
+      Platform Evolution Runtime" (PR #777, open/unmerged -- covers the
+      enhancement/propagation/certification lifecycle). This document's mandated
+      section list is close to the union of both. Per the real PM decision
+      `UMR-20260803-045159-ec55` (cluster-overlap check required before any
+      029/030/032/034/035/036/037-cluster worker starts), this document cross-
+      references both as the canonical authority for the sections they already
+      own, and adds its own genuinely new content: a unified "capability" model
+      spanning function/report/analysis/prompt/business-rule/workflow/UI/UX,
+      grounded against the 3 real, distinct existing meanings of "capability"
+      already in this codebase (AI-dispatch `capability_registry`,
+      app-layer `capability-learning-service.ts`/`capability-audit-service.ts`,
+      and `dynamic_chains`/`capability-tree-service.ts`), plus capability
+      classification (net-new vs. enhancement vs. duplicate) and capability
+      versioning -- concepts neither sibling document names explicitly.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`
+      (new, the one canonical artifact), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (amendment, existing UMR chain), `ai-os/OS.yaml` (index registration), this
+      ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes --
+      documentation only.
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
