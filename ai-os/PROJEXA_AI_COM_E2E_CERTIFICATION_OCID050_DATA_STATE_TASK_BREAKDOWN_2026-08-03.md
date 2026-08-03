@@ -172,3 +172,64 @@ This document is registered under the existing OCID-020 UMR chain (`UMR-20260802
 OCID-050's own canonical planning artifact, indexed in `ai-os/OS.yaml`. Its own UMR,
 `UMR-20260803-120723-716b`, is a new leaf on that chain, not a new root — OCID-050 remains a real child
 of OCID-020's Business Certification phase, not an independent initiative.
+
+---
+
+## Amendment (2026-08-03): real State A (Empty) + State B (Sample) execution, 30/30 checks
+
+Per PM decision `UMR-20260803-173939-4e9e` ("proceed with OCID-050 real testing execution now...
+real, live, API level or browser level testing... reuse existing infrastructure, no new
+architecture"), citing `UMR-20260803-115534-af31` (OCID-050 itself).
+
+**Real infrastructure reused, not reinvented**: the real, committed... actually host-local (per
+Part 1's own honest note, unchanged this pass) 115-item nav fixture at
+`/tmp/ocid020-continue/nav-hrefs-v2.json` (confirmed genuinely present on the server, 115 real
+entries); the real, verified no-sudo Playwright fix from OCID-048's execution
+(`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`) for real browser navigation; the real,
+already-seeded `demo_co_1` ("Sharma & Associates LLP") sibling org for State B, using its real,
+already-working hero-user credential (`rohit.sharma.0@sharma-associates.veridiandemo.internal` /
+`DemoVeridian2026!`, from `scripts/wave111-create-hero-logins.ts`) rather than provisioning new
+sample data.
+
+**Scope, honestly narrowed for this first real pass**: a representative 15-page sample (not the
+full 115) spanning ERP finance, CRM, HR, Board/Governance, Construction, Compliance core, Risk, and
+general reports -- `/dashboard`, `/compliance`, `/crm/accounts`, `/erp/reports`,
+`/erp/journal-entries`, `/erp/fixed-assets`, `/erp/procurement`, `/hr/attendance`, `/hr`, `/board`,
+`/risks`, `/construction-dashboard`, `/site-diary`, `/departments`, `/reports` -- consistent with
+this session's own established "real first pass, representative sample, honestly disclosed"
+precedent from OCID-047/048's execution, not the full 345-check Definition of Done (Part 4) in one
+pass.
+
+**State A (Empty)**: a fresh, real, zero-configuration org provisioned via the Supabase Admin API
+(no public-signup rate limit hit). All 15 real page loads returned real `200`s, zero
+"Application error" crashes, zero page errors.
+
+**State B (Sample)**: real login as the `demo_co_1` hero user above. All 15 real page loads
+returned real `200`s, zero crashes, zero page errors. Real screenshot evidence
+(`/opt/veridian/browser/screenshots/ocid050-sample_erp_reports_v2.png`, 6-second real render wait,
+not the shorter wait used for the other in-sweep screenshots) shows genuine, real sample data --
+the real org name "Sharma & Associates LLP" and real pendency badges ("11 Overdue", "0 Due in 30
+days", "4 Safe") -- definitively confirming this state renders real, distinct data, not a copy of
+the empty state's generic onboarding checklist.
+
+**Result: 30/30 real page-checks (15 pages x 2 states) passed -- zero crashes, zero page errors,
+zero nav failures.** Real, positive evidence for OCID-050's Part 4 Definition of Done items 2-3, for
+States A and B specifically (not yet State C, see below). Full raw JSON result log (all 30 checks,
+per-page status + captured page errors) preserved at (host-local, not repo-tracked)
+`/tmp/claude-1000/-opt-veridian/2d098571-60e7-4d38-8d5d-4223a50d15de/scratchpad/ocid050-test-output.log`.
+
+**State C (Large Data): reconfirmed, not newly discovered, still does not exist.** Part 1's own
+"State C" section already names this as a real, honest, open prerequisite (`TASK-050-1`, "requires
+an explicit, written decision"). Re-read directly this pass, not assumed still accurate from memory
+-- confirmed the doc's own text is unchanged and no later commit created such an org. Per PM's
+explicit instruction not to implement a fix for any gap found under this dispatch (implementation
+stays subject to the OCID-021 lock, needs its own separate PM decision), State C testing remains
+genuinely not executed this pass -- honestly left open, not skipped silently.
+
+No implementation performed this pass -- real test execution against the existing, already-built
+nav surface and existing seeded orgs, no code change, no new org/architecture created beyond the
+one standard, already-established fresh-empty-org provisioning pattern used throughout this
+session's Group F execution work.
+
+Canonical artifact: this file (amendment, in place). No new gap registered this pass -- 30/30 checks
+passed with zero real findings beyond the already-known, already-documented State C prerequisite.

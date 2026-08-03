@@ -1624,3 +1624,129 @@ OCID-050.
       (PR #803 conflict resolution), and duplicating or reaching into that other session's registered
       breakdown would violate the ACTIVE-CLAIMS zero-duplication protocol (AGENTS.md Rule 11). Leaving
       it for a dedicated follow-up task/session that starts from that breakdown artifact.
+
+---
+
+# PROGRESS -- test/ocid050-empty-sample-real-execution
+
+Cites: `UMR-20260803-173939-4e9e` (`UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115534-af31`
+OCID-050).
+
+## Completed
+- [x] Independently confirmed the real host-local 115-item nav fixture
+      (`/tmp/ocid020-continue/nav-hrefs-v2.json`) still exists (never committed to the repo, per the
+      planning doc's own honest note, unchanged this pass).
+- [x] Found a real, working, already-seeded sample-data credential without provisioning anything new:
+      `demo_co_1` ("Sharma & Associates LLP") hero user
+      (`rohit.sharma.0@sharma-associates.veridiandemo.internal` / `DemoVeridian2026!`, from
+      `scripts/wave111-create-hero-logins.ts`) -- confirmed working live, not assumed.
+- [x] Provisioned a fresh, real, zero-configuration org for State A (Empty) via the Admin API method
+      established for OCID-047/048/052.
+- [x] Ran a real 15-page representative sample (spanning ERP/CRM/HR/Board/Construction/Compliance/Risk)
+      x 2 states = 30 real browser-driven page loads against `projexa-ai.com`, using the real,
+      verified no-sudo Playwright fix from OCID-048's execution.
+- [x] **Result: 30/30 real checks passed** -- zero crashes, zero page errors, zero nav failures.
+      Real screenshot evidence (6s render wait) confirms State B genuinely renders real, distinct
+      data (org name "Sharma & Associates LLP", real pendency badges) vs. State A's generic
+      onboarding-only view.
+- [x] Amended `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      in place with these real results.
+- [x] Reconfirmed (re-read, not assumed from memory) State C's already-documented absence -- no new
+      gap registered; per PM's explicit instruction, did not attempt to create a large-data org
+      (implementation stays subject to the OCID-021 lock, needs its own separate PM decision).
+
+## Remaining
+- [ ] The full 115-page x 3-state (345-check) Definition of Done (Part 4) is not complete -- this
+      pass covered a 15-page representative sample across States A and B only.
+- [ ] State C (Large Data) real testing remains blocked on the already-documented prerequisite
+      (a real large-data-volume org does not yet exist) -- not this task's to create.
+- [ ] TASK-050-0 (commit the nav fixture as a durable repo file, currently host-local `/tmp` only)
+      remains open.
+
+---
+
+# PROGRESS -- docs/umr-utr-euid-discovery-vs-live-system
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-20260803-175139-dedf`.
+
+## Completed
+- [x] Read `/opt/veridian/scripts/resource_governor.py` and `superboss-register.py` directly (not
+      narrated). Confirmed the real live database (`superboss-register.sqlite`, 776MB, active WAL)
+      and the real, current schemas of `instructions`/`work_items`/`actions`/`system_index`/
+      `umr_tasks`, cited file:line.
+- [x] **Found and flagged a real naming collision**: `utm_source`/`utm_medium`/`utm_campaign`/
+      `utm_content`/`utm_term` are already real, live columns across those tables -- a deliberate,
+      Owner-specified internal provenance-tagging convention (documented in the script's own header),
+      not marketing data, but genuinely a different concept from the newly-proposed task-registry
+      model, colliding on the same 3-letter abbreviation.
+- [x] Searched thoroughly for a "registry terminology audit" connected to PR #610 -- found none;
+      PR #610 is real but unrelated (a Sales Pipeline Dashboard nav-link change). Reported honestly
+      that no such audit exists, rather than guessing or fabricating one.
+- [x] Did NOT rename/restructure any existing `utm_*` column; did NOT create any new table/schema
+      for the proposed concept -- discovery only, per explicit instruction.
+- [x] Per the Owner's own follow-up resolution (`UMR-20260803-175139-dedf`): the new concept is
+      renamed UTR ("Universal Task Registry"), not UTM. Independently re-verified (not trusted from
+      the PM message) that "UTR" is genuinely unused anywhere in `resource_governor.py`,
+      `superboss-register.py`, or this repo's `ai-os/` tree before writing it into the canonical
+      artifact.
+- [x] Investigated whether UTR or EUID already exist under different names -- confirmed both are
+      real, honest gaps, not hidden duplicates: no structured 6-context task schema exists today
+      (only a freeform `metadata_json` blob on `work_items`/`actions`); no unified brand+org+user
+      identity object exists, and EUID's "synced across... PWA" requirement is specifically blocked
+      by OCID-051's already-confirmed zero-service-worker finding.
+- [x] Wrote `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md`, registered in
+      `ai-os/OS.yaml` following the existing pattern.
+
+## Remaining
+- [ ] No implementation authorized or performed -- real UTR/EUID design + build remain future,
+      separate PM decisions, explicitly out of this document's scope.
+- [ ] The open question about whether every `[UMR-...]`-tagged PM dispatch message this session
+      corresponds 1:1 to a real `umr_tasks` row was not independently confirmed -- flagged honestly
+      as unverified, not blocking, per the Owner's own "UMR stays unchanged" resolution.
+
+---
+
+# PROGRESS -- docs/amend-umr-utr-discovery-third-umr-usage-found
+
+## Completed
+- [x] A duplicate-dispatch worker's own PR (#836) independently found a genuine, real, additional
+      fact this task's own merged artifact (PR #835) hadn't captured: `ai-os/registry/asset-registry-
+      coverage.yaml` + `scripts/check-asset-registry-coverage.mjs` already explicitly call themselves
+      "the mechanical half of... the Universal Metadata Registry" (Priority 4,
+      `09-priority4-umr-universal-tracker.yaml`) -- a third, real, pre-existing "UMR" usage, distinct
+      from `umr_tasks` and the `[UMR-...]` dispatch-message convention.
+- [x] Independently re-verified this claim directly (`grep` against both real files) before crediting
+      it -- not trusted from PR #836's own text alone.
+- [x] Closed PR #836 with an honest, credit-giving comment (its core content predates the Owner's
+      UTM->UTR correction and conflicts on file paths with the already-merged #835, but its real find
+      is preserved here, not silently dropped).
+- [x] Amended `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md` in place with this
+      third usage -- does not change the Owner's own "UMR stays unchanged" resolution, just names
+      what "as it already exists today" now includes.
+
+## Remaining
+- [ ] None for this amendment's own scope -- discovery/credit-preservation only, no schema/code/DB
+      change.
+
+---
+
+# PROGRESS -- task-20260803-180110-pm-decision-resolving-the-umr-and-utm-na (audit addendum)
+
+## Completed
+- [x] Independent audit (Rule 7c -- not the author of PR #835) of §0's "UTR is unused" claim: that
+      check only covered `resource_governor.py`, `superboss-register.py`, and `ai-os/` -- never
+      `src/`, which is exactly the scope §3 separately checked for the `utm_*` collision. Ran
+      `git grep -ni '\butr\b'` across `src/` directly: **two real, pre-existing hits**,
+      `src/lib/db/schema.ts:541` and `src/lib/services/erp-bank-reconciliation-service.ts:56`, both
+      the pre-existing Indian-banking "Unique Transaction Reference" convention -- unrelated to but
+      colliding with the new term on the literal three letters.
+- [x] Assessed as real but low-severity (a free-text financial reference-number value, not a
+      naming/ID-prefix convention the way `utm_*` was) -- does not reverse the Owner's UTR decision,
+      but §0's "zero matches"/"genuinely clean" phrasing needed narrowing to what was actually
+      checked, not left as a repo-wide claim.
+- [x] Added new `## 0a. Amendment` section to
+      `ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md` naming this finding, same
+      evidence-based style as the existing amendments in this document.
+
+## Remaining
+- [ ] None for this addendum's own scope -- discovery/audit only, no schema/code/DB change.
