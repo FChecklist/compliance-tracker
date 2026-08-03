@@ -12,7 +12,9 @@
 - [x] Registered new doc in `ai-os/OS.yaml` index (required by check-metadata-index-coverage.mjs) -- verified `path:` string matches the real filename exactly; verified both edited YAML files (`ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) parse cleanly around my own edit regions (a pre-existing, unrelated YAML break at ACTIVE-CLAIMS.yaml line ~7444 predates this task and was confirmed present at HEAD before any edit here)
 - [x] Amended `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` in place (Stream D row cross-reference + a new 2026-08-03 amendment section) pointing at the new OCID-048 artifact, not duplicating it
 
+- [x] Committed and pushed; opened PR #816 (https://github.com/FChecklist/compliance-tracker/pull/816)
+
 ## Remaining
-- [ ] Commit and push; open PR
+- [ ] None -- planning-only scope for this cycle is complete, pending CI + merge of PR #816
 
 Explicitly out of scope this cycle (per SPEC): no test execution, no Tenant B org provisioning, no certification. Deferred to a future OCID-048 execution cycle.
