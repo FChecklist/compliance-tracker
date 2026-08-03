@@ -40,6 +40,47 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-041002-ocid-023-veridian-universal-end-user-wor) -- OCID-023: VERIDIAN Universal End User Work Model v1.0, documentation only"
+    claimed_at: "2026-08-03T04:10Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, parented to UMR-20260803-040844-4a33
+      "the real OCID-022 directive just registered", citing
+      UMR-20260802-173631-ca85 ERP Functional Completeness Master Program,
+      UMR-20260802-165606-4413 OCID-020, UMR-20260802-164659-9a31 the server
+      artifact traceability audit, UMR-20260802-165034-5747 the gatekeeper
+      rule, UMR-20260802-165434-cd91 the unified project memory, and
+      UMR-20260802-165541-c27d the recovery framework): create exactly one
+      new document, `VERIDIAN Universal End User Work Model` v1.0 --
+      documentation only, no implementation, no UI/DB/AI/VERI Chat design.
+      Defines: what is work, what is a task, task uniqueness/identifier,
+      state model, ownership, assignment, delegation, transfer, approval,
+      escalation, completion, reopen, auditability, history, timeline,
+      attachments, chat, decisions, artifacts, reports, analysis,
+      notifications, search, permissions, visibility, retention,
+      synchronization, recovery, lifecycle summary -- grounded in what
+      already exists on the server (Drizzle schema, existing task/checklist/
+      helpdesk/audit tables and UI), not invented from scratch.
+
+      **Real hard dependency found at claim time**: the spec's own mandatory
+      inputs require reading "the complete real document produced under
+      OCID-022 once it exists" (`VERIDIAN End User Experience Foundation`
+      v1.0). Independently verified via `systemctl --user status` and that
+      task's own `task.yaml`: task-20260803-040852-ocid-022 is genuinely
+      `active (running)` right now (started 2026-08-03T04:08:56Z, its own
+      workspace still at repo HEAD `efa0366b` with zero new document
+      committed yet) -- a real concurrent sibling task, not yet complete.
+      This session will do all OCID-022-independent discovery
+      (existing task/ticket/workflow schema, UI, audit/notification/search
+      infrastructure) now, and hold final document authorship until
+      OCID-022's real artifact exists and has been read in full, per the
+      spec's own mandatory-inputs ordering -- not fabricating or
+      guessing its content.
+    scope_note: >-
+      File scope: one new document under `ai-os/` (exact path TBD, will be
+      `VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_v1.0.md` or similar),
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (UMR-chain update), this
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No src/, schema,
+      UI, or CI changes -- documentation only per spec.
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
