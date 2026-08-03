@@ -785,3 +785,15 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] Real fix (Checks API explicit SHA attachment, or trigger-mechanism change) not yet implemented -- registered as a gap, not fixed, since it's a claude-control/CI-infra concern outside this session's immediate priority (PR #795 merge)
+# PROGRESS -- fix GAP-403-VS-500-CLM-HR-PERFORMANCE (UMR-20260803-103053-9402)
+
+## Completed
+- [x] Independently diagnosed 2 distinct real root causes: (1) real migration drift on hr_attendance_records.shift_type_id + performance_reviews.weighted_score, same class as MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX; (2) real missing try/catch in clm/templates and clm/clauses GET route handlers, letting requireErpEnabled()'s 403 ServiceError propagate as an uncaught 500
+- [x] Confirmed live DB columns via direct query (information_schema.columns) before assuming drift -- ruled out drift for CLM tables (columns match schema.ts exactly)
+- [x] Reapplied drizzle/0266_hr_gap_closure_expense_loan_appraisal_shift.sql directly against production (fully idempotent, safe to re-run), independently verified both missing columns now exist live
+- [x] Independently re-tested all 3 HR/performance-reviews endpoints against the real live site: all now return real 200 with real data
+- [x] Fixed the CLM route handlers (added the same try/catch pattern their own POST handlers already use)
+- [x] Updated GAP-403-VS-500-CLM-HR-PERFORMANCE honestly: kept status open (not resolved) until the CLM fix is deployed and independently re-verified live
+
+## Remaining
+- [ ] CLM fix needs PR merge + deploy, then live re-verification of /api/clm/templates and /api/clm/clauses before marking the gap fully resolved

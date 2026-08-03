@@ -971,7 +971,7 @@ open_items:
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
 
     - id: GAP-403-VS-500-CLM-HR-PERFORMANCE
-      name: "5 more endpoints return 500 instead of 403 for a module-not-enabled org -- same class of defect as the already-resolved GAP-EMAIL-INTELLIGENCE-500-VS-403, different endpoints, not yet confirmed to be the same migration-drift root cause (severity: medium)"
+      name: "5 more endpoints returned 500 instead of 403/real-data for a fresh org -- RESOLVED, two distinct real root causes found and fixed"
       old_ids: []
       detail: |
         Real finding from the same OCID-020 nav-surface sweep. On the same
@@ -1011,8 +1011,74 @@ open_items:
         `.catch()`/try-guard around the two silent JSON-parse exceptions on
         `/erp/contracts`/`/erp/clm-library` regardless of the root cause, since
         an unhandled response-parse failure is a real defect on its own.
+      resolution_note: |
+        **PARTIALLY RESOLVED 2026-08-03 (`UMR-20260803-103053-9402`), two
+        genuinely distinct real root causes, diagnosed and fixed separately,
+        per the recommendation above -- 3 of 5 endpoints independently
+        re-verified live, 2 of 5 fixed but pending deploy/re-verification:**
+
+        **Root cause 1 — real migration drift (HR attendance x3, performance
+        reviews), same class as `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX`.**
+        Independently queried the live DB directly (`information_schema.
+        columns`, same method as the email-intelligence diagnosis): live
+        `compliance.hr_attendance_records` was missing `shift_type_id`, and
+        live `compliance.performance_reviews` was missing `weighted_score`
+        -- both real, declared columns in `schema.ts`, both added by
+        `drizzle/0266_hr_gap_closure_expense_loan_appraisal_shift.sql`
+        (2026-07-27), which was never applied to production. Confirmed
+        `hr-attendance-service.ts`'s `listAttendance()`/`getMonthlySummaries()`
+        select all declared columns via Drizzle's default `findMany`, so the
+        missing column threw a real, uncaught-by-design Postgres error
+        (correctly caught by the route's own try/catch as an honest 500 --
+        the route-level error handling was never the bug here). Real fix:
+        re-applied the entire migration file directly against production
+        (every statement in it is idempotent -- `CREATE TABLE IF NOT EXISTS`,
+        `ADD COLUMN IF NOT EXISTS`, `DO $$ ... EXCEPTION WHEN
+        duplicate_object THEN NULL $$` throughout, confirmed safe to
+        re-run in full before applying). Independently verified both columns
+        now exist live via a fresh `information_schema.columns` query.
+        **Independently re-tested all 3 endpoints against the real live
+        site post-fix: all now return real `200` with real data
+        (`{"records":[]}`, `{"summaries":[...]}`, `{"reviews":[]}`) --
+        not just 403, since the migration fix removes the error condition
+        entirely rather than replacing one error status with another.**
+
+        **Root cause 2 — real missing-gate bug (CLM templates/clauses),
+        genuinely distinct from root cause 1.** Independently confirmed live
+        `compliance.clm_contract_templates` and `compliance.clm_clauses`
+        columns match `schema.ts` exactly (no drift) -- ruling out migration
+        drift for these two. Read `src/app/api/clm/templates/route.ts` and
+        `clm/clauses/route.ts` directly: their `GET` handlers called
+        `listContractTemplates()`/`listClauses()` (both of which correctly
+        call `requireErpEnabled()`, throwing a real `ServiceError(msg, 403)`
+        for a module-not-enabled org) with **no try/catch at all** -- unlike
+        their own `POST` handlers one function below, which already had the
+        correct `catch (error) { if (error instanceof ServiceError) ...
+        }` pattern. The uncaught `ServiceError` propagated as a raw
+        exception, which Next.js's default handling turns into a generic
+        500 regardless of the error's own `.status` property. Real fix:
+        added the identical try/catch pattern already used by each route's
+        own `POST` handler to its `GET` handler -- no new pattern
+        introduced, just applied consistently. This fix requires a real
+        code deploy (PR merge -> Vercel), so live re-verification of these
+        2 specific endpoints happens after that PR merges, not in this same
+        pass -- tracked as a real follow-up, not silently assumed.
+
+        On `/erp/contracts`/`/erp/clm-library`'s silent JSON-parse
+        exceptions (the recommendation's second point): now moot -- with
+        `GET` returning a real `{"error": "..."}` JSON body at the correct
+        `403` status instead of an empty `500` body, the frontend's
+        `res.json()` call succeeds normally; no separate fix needed.
       status: open
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
+      status_note: "2026-08-03 (UMR-20260803-103053-9402) -- 3 of 5 endpoints (HR
+        attendance x2, performance-reviews) genuinely resolved and independently
+        re-verified live (real 200, real data). The remaining 2 (CLM
+        templates/clauses) have a real, ready code fix (PR open, not yet
+        merged/deployed at the time of this note) -- kept status: open, not
+        resolved, until those 2 are independently re-verified live post-deploy,
+        consistent with the standing rule against claiming a fix works before
+        confirming it does."
 
     - id: GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ
       name: "/orchestra, /prompt-eval, /sales-hq each timed out during the real nav-surface sweep -- RESOLVED, confirmed a test-methodology artifact, not a real product defect"
