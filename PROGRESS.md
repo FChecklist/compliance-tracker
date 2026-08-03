@@ -390,6 +390,8 @@ reaches a real completed status.
 - [x] Amend `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (existing UMR chain, not a new one)
 - [x] Register doc in `ai-os/OS.yaml` index (validated `yaml.safe_load` OK)
 
+- [x] Commit + push, open PR (PR #785)
+
 ## Remaining
-- [ ] Commit + push, open PR
-- [ ] Report real document location, updated UMR, confirm ready for OCID-038
+- [ ] Independent audit (`AUDIT: PASS`/`FAIL` comment, Rule 10) -- not this session, requires a different agent
+- [ ] Merge once CI + audit pass
