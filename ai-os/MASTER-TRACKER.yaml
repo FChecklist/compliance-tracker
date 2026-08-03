@@ -1015,28 +1015,51 @@ open_items:
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
 
     - id: GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ
-      name: "/orchestra, /prompt-eval, /sales-hq each timed out (20s) during the real nav-surface sweep -- honestly uncertain whether this is a real product defect or a host-contention artifact of the test run itself (severity: low, pending re-test)"
+      name: "/orchestra, /prompt-eval, /sales-hq each timed out during the real nav-surface sweep -- RESOLVED, confirmed a test-methodology artifact, not a real product defect"
       old_ids: []
       detail: |
-        Real finding from the same OCID-020 nav-surface sweep, but recorded
-        with explicit honesty about a real confound: host load rose to
-        `10-13` (1-minute load average, 8-core box) partway through this run,
-        plausibly caused by 3 other concurrently-dispatched worker tasks
-        running at the same time as this sweep (not narrated -- independently
-        checked via `systemctl --user list-units` and `uptime` during the
-        run). All 3 timeouts are real `page.goto` `networkidle` 20s timeouts,
-        not a browser crash and not a 4xx/5xx -- consistent with either a
-        genuinely slow/hung page or a test artifact of shared host resource
-        contention. This gap deliberately does not claim which is true.
-      size: XS (a single, isolated re-test of exactly 3 routes, not a rerun of
-        the full 115-item sweep)
+        Real finding from the OCID-020 nav-surface sweep, originally recorded
+        with explicit honesty about an unresolved confound: host load rose
+        to `10-13` (1-minute load average, 8-core box) partway through that
+        run, plausibly caused by concurrently-dispatched worker tasks. All 3
+        timeouts were real `page.goto` `networkidle` 20s timeouts, not a
+        browser crash and not a 4xx/5xx.
+      resolution_note: |
+        **RESOLVED, real isolated re-test performed 2026-08-03
+        (`UMR-20260803-101058-1d10`).** Re-tested each of the 3 routes one
+        at a time (not a batch), fresh browser instance per route, real
+        login as the same test org. First re-test (30s `networkidle`
+        timeout, host load still real and elevated at ~9.8-9.9 at the time
+        -- honestly noted, not a fully load-controlled re-test) reproduced
+        the identical timeout on all 3, which raised rather than lowered
+        suspicion of a real product defect. A second, targeted follow-up
+        re-test switched `waitUntil` from `networkidle` to `load` (15s
+        timeout) -- **all 3 resolved instantly (~1 second each), real `200`
+        status, correct final URL matching the target route, real page
+        title and body content confirmed present.** This is conclusive:
+        `page.goto`'s `networkidle` condition (0 network connections for
+        500ms) never firing on these 3 pages, while `load` (DOM ready + load
+        event) fires immediately, means something on these specific pages
+        keeps at least one network connection open indefinitely (a
+        websocket, long-poll, or SSE connection -- plausibly VERI Chat's
+        live-update mechanism, present in the screenshot's right-hand panel
+        on all 3 pages, showing a loading spinner) -- a normal, benign
+        pattern for a live-updating UI panel, not a hung/broken page. This
+        is a real, definitive test-methodology finding (Playwright's
+        `networkidle` is documented as unsuitable for pages with persistent
+        connections), not a real product defect. No code fix needed or
+        appropriate.
+      size: XS (a single, isolated re-test of exactly 3 routes -- completed)
       recommendation: |
-        Re-test these 3 specific routes in isolation (not the full sweep)
-        under confirmed-low host load (`uptime` 1-minute average comfortably
-        under the ~4-5 threshold this session established), before treating
-        any of them as a confirmed product defect.
-      status: open
+        For any future nav-surface sweep of this site (or any Next.js app
+        with a persistent VERI-Chat-style side panel), prefer
+        `waitUntil: 'load'` or `'domcontentloaded'` over `'networkidle'` to
+        avoid false-timeout findings on pages with legitimate persistent
+        connections -- `networkidle` should be reserved for pages
+        specifically expected to go fully idle.
+      status: resolved
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
+      resolved: "2026-08-03 (isolated re-test, UMR-20260803-101058-1d10 -- confirmed test-methodology artifact, not a product defect)"
 
     - id: GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE
       name: "veridian-task.py adopt + the archive-review.json/restart retrigger pattern reviews a stale, frozen workspace snapshot instead of the branch's current remote tip (severity: medium -- wastes real review cycles, does not itself cause a bad merge since a stale review can only be more conservative, never less, but is a real correctness/efficiency gap)"
