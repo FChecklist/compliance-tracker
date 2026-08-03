@@ -1065,7 +1065,7 @@ Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPS
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN Universal Software Execution Engine v1.0 (`UMR-20260803-041459-7c97`)
+## Amendment (2026-08-03): VERIDIAN Universal Software Execution Engine v1.0 (`UMR-20260803-041700-a741`)
 
 Documentation-only artifact defining how already-decided work actually executes and is tracked in the
 real, live system — task/function/workflow/report/analysis/background/scheduled/event-driven execution,
@@ -1079,14 +1079,13 @@ dedicated discovery pass over real code (`task-execution-engine.ts`, `engine-inv
 `compliance-engine-registry.ts`, `model-tier-eligibility.ts`) — no new architecture, no code, no DB
 objects, per SEC-07's real OCID-020 implementation lock.
 
-**Real numbering collision found and flagged, not silently resolved**: this task's own directory was
-labeled `ocid-031`, but its SPEC's literal mission text and citation chain
-(`UMR-20260803-041459-7c97`, "the real OCID-030 directive") match the original OCID-030 slot in
-`VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`. Two other real, open, unmerged PRs (#772
-"Universal Decision Engine," self-identifying as OCID-029; #776, a disputed correction asserting PR
-#772 is OCID-030 citing this same UMR) are in live, unresolved dispute over the same "OCID-030" label
-as of this writing. This document proceeds on its own explicit SPEC text and self-identifies primarily
-by UMR rather than asserting a contested ordinal — full detail in the document's own §0.
+**Real numbering error, found and resolved by a real PM decision**: this task's own directory was
+labeled `ocid-031`, and that label was correct all along. Its SPEC had mistakenly cited
+`UMR-20260803-041459-7c97` (OCID-030's own real UMR, "VERIDIAN Universal Decision Engine," PR #772)
+as if it were this task's own parent. Real PM decision `UMR-20260803-063016-8bfc` confirmed this
+document's real UMR is `UMR-20260803-041700-a741` (OCID-031) — not a genuine dispute with PR #772,
+which is and always was the real OCID-030 (`UMR-20260803-052107-71fa`). Full detail in the document's
+own §0.
 
 **Real, honest gaps surfaced, not glossed over**: no generic cross-cutting retry wrapper (retry is
 implemented per-mechanism); forward-only schema migrations, no rollback tooling beyond one

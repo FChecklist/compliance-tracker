@@ -590,11 +590,12 @@ prior cycle") since the spec is the only source for what it denotes.
       (task engine, rule engine, workflow engine, function/report/analysis libraries, background/scheduled/
       event-driven execution, logging/audit/traceability, retry/recovery/rollback, multi-tenant context,
       model-tier routing) -- zero net-new architecture proposed, all sections will ground in this
-- [x] Found and independently verified a real, live, unresolved OCID-030 numbering collision between two
-      other open/unmerged PRs (#772 "Universal Decision Engine" and #776, a disputed correction) -- neither
-      merged; this task's own SPEC (mission = Software Execution Engine, citing UMR-20260803-041459-7c97)
-      is the authoritative instruction for what this task itself must produce, so proceeding on it rather
-      than blocking; collision flagged honestly in ACTIVE-CLAIMS and will be flagged in the doc itself
+- [x] Found what looked like a real OCID-030 numbering collision against PR #772 ("Universal Decision
+      Engine"); resolved by real PM decision UMR-20260803-063016-8bfc: this task's own citation of
+      UMR-20260803-041459-7c97 was a real error (that UMR is OCID-030's own, "Universal Decision
+      Engine," not this task's real content). The real, correct UMR for this document
+      (Software Execution Engine) is UMR-20260803-041700-a741 (OCID-031) -- not a genuine collision,
+      a wrong citation, now corrected throughout this document and ACTIVE-CLAIMS
 - [x] Checked adjacent open PRs (#772 Decision Engine, #775 Deterministic Execution/AI Escalation, #773
       Universal Organization, #774 Unified Synchronization) for content overlap -- confirmed this task's
       mandated scope (execution lifecycle mechanics: queueing/priority/dependency/parallel/sequential,

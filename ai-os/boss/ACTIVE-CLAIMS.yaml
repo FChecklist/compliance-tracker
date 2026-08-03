@@ -44,35 +44,27 @@ active:
     claimed_at: "2026-08-03T05:5xZ (this session, PR opened same session)"
     claim: |
       SPEC (this task's own prompt.txt, tier 1): mission is to create exactly one
-      document, "VERIDIAN Universal Software Execution Engine v1.0", parented to
-      `UMR-20260803-041459-7c97` ("the real OCID-030 directive just registered"),
-      citing the full OCID-022..029 chain, the ERP Functional Completeness Master
-      Program, OCID-020, the traceability audit, the gatekeeper rule, and the
-      unified project memory. Documentation only, consistent with SEC-07
-      (`ai-os/CONSTITUTION.yaml`) -- discovery/documentation stays permitted while
-      implementation stays locked behind OCID-020.
+      document, "VERIDIAN Universal Software Execution Engine v1.0", real UMR
+      `UMR-20260803-041700-a741` (OCID-031, per real PM decision
+      `UMR-20260803-063016-8bfc`), citing the full OCID-022..030 chain, the ERP
+      Functional Completeness Master Program, OCID-020, the traceability audit,
+      the gatekeeper rule, and the unified project memory. Documentation only,
+      consistent with SEC-07 (`ai-os/CONSTITUTION.yaml`) -- discovery/
+      documentation stays permitted while implementation stays locked behind
+      OCID-020.
 
-      **Real numbering collision found and flagged, not silently resolved** (this
-      task's own directory is labeled `ocid-031`, but its SPEC's literal mission
-      text and citation chain match the ORIGINAL OCID-030 slot in
-      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s section-1
-      table): independently confirmed via `gh pr list` that PR #772
-      ("VERIDIAN Universal Decision Engine v1.0") already exists on an
-      OPEN/unmerged branch, and that PR's own document header self-identifies as
-      OCID-029 (`UMR-20260803-041351-0278`) -- NOT OCID-030 -- reasoning from its
-      own citation chain over its directory's `ocid-030` label. A later, also
-      OPEN/unmerged PR #776 attempts to reverse that self-correction, asserting
-      PR #772 IS the real OCID-030 (citing `UMR-20260803-041459-7c97`, the exact
-      same UMR this task's own SPEC cites as "the real OCID-030 directive" for
-      *this* Software Execution Engine mission). Neither PR #772 nor PR #776 is
-      merged as of this claim -- this is a real, live, unresolved dispute between
-      two parallel sessions over which document owns the OCID-030 label, not
-      something this task can unilaterally settle. Proceeding on this task's own
-      explicit, directly-issued SPEC text (mission = Software Execution Engine,
-      not Decision Engine) rather than guessing a number; the document itself
-      self-identifies primarily by UMR chain and flags this collision openly, per
-      the same honesty standard already established for the "OCID-021" and
-      OCID-036/037 mislabeling corrections in this same chain.
+      **Real numbering error found and resolved by a real PM decision**: this
+      task's own directory was labeled `ocid-031`, and that label was correct
+      all along. This task's own SPEC had mistakenly cited
+      `UMR-20260803-041459-7c97` -- OCID-030's own real UMR ("VERIDIAN Universal
+      Decision Engine," PR #772) -- as if it were this task's own parent. Real PM
+      decision `UMR-20260803-063016-8bfc` independently verified this task's real
+      content is OCID-031, citing the real, correct parent UMR
+      `UMR-20260803-041700-a741`. Not a genuine dispute between documents: PR
+      #772 is, and always was, the real OCID-030 (separately confirmed by
+      `UMR-20260803-052107-71fa`); this task is the real OCID-031. Same class of
+      citation error as the "OCID-021" and OCID-026/027/028/029/030 corrections
+      already resolved in this same chain.
 
       Cross-referenced (not duplicated) adjacent open PRs found during discovery:
       PR #772 (Decision Engine -- what to decide), PR #775 (Deterministic
