@@ -1040,3 +1040,25 @@ Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (`SEC-06`, stat
 merge commit cited), `ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced,
 not falsely closed; new `GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE`), `ai-os/boss/COMPLETED.yaml`
 (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): OCID-040 real status snapshot of the OCID-022 through 039 documentation series (`UMR-20260803-042918-60b8`)
+
+Real, current-as-of-commit status rollup, not a certification, not an implementation, not a platform
+freeze — per this OCID's own explicit directive, deferring all of those pending the real OCID-020
+(`UMR-20260802-165606-4413`) unlock condition. Full detail, per-OCID status table, real UMR-chain
+resolution, real canonical-artifact existence check, and a real dependency map:
+`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`.
+
+**Headline, real findings**: of 18 nominal documents (OCID-022 through 039), 3 have real draft content
+in open, unmerged PRs (#765, #766, #767); zero are merged; 14 have not started (queued behind the real
+5-worker concurrency cap); one (OCID-023) is genuinely blocked on a real, correctly-respected
+dependency. A real, unresolved content-overlap risk is flagged between OCID-023/031 and across the
+OCID-029/030/032/034/035/036 cluster. "OCID-021" / "the OCID-021 implementation lock", cited verbatim
+in every directive in this chain as an already-registered artifact, does not exist anywhere in this
+repo under that label — independently confirmed twice (a background research agent, and separately by
+OCID-023's own dispatched worker). The real gate every directive in this chain actually means is
+OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
+
+Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
