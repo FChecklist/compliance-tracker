@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-150821-pm-decision--proceed-with-ocid-047-real) -- OCID-047 RESPONSIBILITY/data-scope axis, real API-level execution"
+    claimed_at: "2026-08-03T15:15Z (this session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260803-115333-dab8`, `UMR-20260802-165606-4413` OCID-020): proceed with
+      real testing execution for OCID-047 Roles/Rights/Responsibilities Certification, real API-level
+      checks per role (no browser needed), and confirm `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` is
+      registered honestly citing what it blocks (OCID-050, OCID-051, OCID-052 items 4-5).
+
+      Real duplicate-dispatch collision found via this session's own mandatory `git fetch`/read-first
+      step (this file's own protocol): `origin/main` had already advanced to `066cad5f` (PR #823,
+      `test/ocid047-role-matrix-real-execution`, commit `7338db31`) -- a genuinely parallel session
+      under a DIFFERENT PM decision UMR (`UMR-20260803-145921-c0c4`, same parent OCID-020) had, minutes
+      earlier, already executed exactly this SPEC's RIGHTS-axis half: 55 real HTTP calls (11 roles x 5
+      real routes spanning member/manager/admin/veridian_admin) against live `projexa-ai.com`, 55/55
+      matched `ROLE_RANK` prediction for 10/11 roles, found+registered a real `stage_0`-missing-from-
+      `ROLE_RANK` bug (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`), AND already amended
+      `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` to name OCID-050/051/052 items 4-5 exactly as this
+      SPEC separately asked. Independently re-verified via `git cat-file -p` diff against the real blobs
+      (not trusted from the commit message alone) before concluding this, per this file's own honesty
+      standard -- both halves of this SPEC are genuinely done, merged, real.
+
+      Did NOT redo that work. Merged `origin/main` into this branch first. Real, substantive, non-
+      duplicate scope found instead, named explicitly in that merged PR's own "Remaining" list: the
+      RESPONSIBILITY/data-scope axis (separate from the RIGHTS/rank axis just tested) --
+      `home-service.ts`'s rank-based dashboard rollup, `client-access-service.ts`'s
+      `FULL_CLIENT_ACCESS_ROLE` client-list visibility gate, `risk-register-service.ts`'s
+      `BROAD_SCOPE_ROLES` risk-visibility gate, `classification.ts`'s `ROLE_CLEARANCE` ceiling -- and
+      specifically the 3 real same-rank/different-clearance divergences the original OCID-047 planning
+      amendment (PR #814) named but never tested: `external_auditor` vs `member`, `senior_professional`
+      vs `manager`, `team_member` vs `member`. This session executes real, live API-level tests against
+      that axis instead.
+    scope_note: >-
+      File scope: reuses the existing OCID-047 canonical planning doc (amend in place, no new doc),
+      `ai-os/MASTER-TRACKER.yaml` (any new gap found), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No
+      src/ code changes -- real test execution only, against the existing responsibility model.
   - session_label: "claude-code (task-20260803-125054-register-ocid-052-veri-chat-ai-escalatio) -- OCID-052 dedicated deepening, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T12:51Z (this session, closed same session)"
     claim: |
