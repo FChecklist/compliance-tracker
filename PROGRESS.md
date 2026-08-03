@@ -10,6 +10,8 @@
 - [x] Wrote ai-os/VERIDIAN_UNIFIED_SYNCHRONIZATION_RUNTIME_2026-08-03.md (35 mandated sections + summary table + OCID-029 handoff)
 - [x] Registered canonical artifact in ai-os/OS.yaml index
 
+- [x] Committed, pushed, opened PR #774 (https://github.com/FChecklist/compliance-tracker/pull/774)
+
 ## Remaining
-- [ ] Commit, push, open PR
-- [ ] Report canonical artifact location, updated UMR, OCID-029 readiness
+- [ ] PR #774 merge (blocked on CI + no dedicated human reviewer per AGENTS.md Rule 6 -- will merge once green)
+- [ ] Move ACTIVE-CLAIMS.yaml entry from active: to recently_completed: once merged
