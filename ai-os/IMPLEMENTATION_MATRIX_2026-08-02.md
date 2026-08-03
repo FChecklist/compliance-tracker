@@ -1065,7 +1065,7 @@ Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPS
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN Universal Context and Predictive Runtime v1.0 (`UMR-20260803-055709-368e`, dispatch `UMR-20260803-042003-5e92`, OCID-034)
+## Amendment (2026-08-03): VERIDIAN Universal Context and Predictive Runtime v1.0 (`UMR-20260803-042003-5e92`, OCID-034, real dispatch UMR per `UMR-20260803-063016-8bfc`)
 
 Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-041851-085a` (real OCID-033,
 "VERIDIAN Universal End User Work Orchestration Runtime" — a distinct, real, sibling dispatch, independently
