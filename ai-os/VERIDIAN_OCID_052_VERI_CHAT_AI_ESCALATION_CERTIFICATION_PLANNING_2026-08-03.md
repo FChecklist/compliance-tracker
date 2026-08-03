@@ -261,5 +261,13 @@ outside this dispatch's scope.
 end to end (Items 2-3), but this OCID's own real testing surfaced three real, honest, unfixed gaps
 along the way (purpose-clause contradiction, unreliable confidence labeling, and now the real absence
 of any end-user-visible distinguishing signal) — each registered in `ai-os/MASTER-TRACKER.yaml` with
-real evidence, none fixed under this dispatch per the standing OCID-021 implementation lock. This
-closes the full Group F Business Certification scope under OCID-020 (OCID-047 through OCID-052).
+real evidence, none fixed under this dispatch per the standing OCID-021 implementation lock.
+
+**Correction (2026-08-03, PM decision `UMR-20260803-203925-1a38`): the "closes the full Group F
+Business Certification scope" claim below was premature and is retracted.** `ai-os/MASTER-TRACKER.yaml`
+and `PROGRESS.md`, checked directly at the time of the correction, showed OCID-049 (Subscription Plan
+Entitlement Certification) had never had real testing execution — planning/discovery only, with its
+own honestly-registered open item ("no real plan tier to branch mapping located yet") still on record.
+OCID-052 completing does not, on its own, close Group F — see
+`ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`'s own amendment (same date)
+for OCID-049's real testing execution and its own honest completion status.

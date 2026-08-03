@@ -5223,6 +5223,64 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (docs/ocid049-real-testing-and-group-f-retraction-fix) -- OCID-049 real testing execution (1/4 tiers, real infra blocker on rest) + retracted PR #846/#847's premature 'closes Group F' claim [DONE]"
+    claimed_at: "2026-08-03T20:40Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-203925-1a38, citing UMR-20260802-165606-4413/OCID-020 and
+      UMR-20260803-115513-c990/OCID-049): PR #846/#847's "closes Group F" framing retracted --
+      PROGRESS.md/ACTIVE-CLAIMS.yaml checked directly showed OCID-049 never had real testing
+      execution. Find and confirm the real plan-tier-to-branch mapping (the honestly-registered open
+      item), run real live test cases confirming entitlement enforcement matches, document real
+      findings honestly, only then describe Group F as closed.
+
+      Closed a genuine duplicate first: PR #847 (a duplicate worker's own version of the just-merged
+      #846) independently reached the same real finding and also correctly flagged OCID-049 as the
+      real outstanding item -- closed with a credit-preserving comment, nothing lost.
+
+      Plan-tier-to-branch mapping: confirmed live, via 2 fresh real test orgs, that no such mapping
+      exists -- both show `erpEnabled`/`salesEnabled: false` via real `GET /api/me`, independent of
+      any resolved tier. Resolves the PM's own named open item: the answer is "confirmed genuinely
+      absent," not "found."
+
+      `assistants_per_user` cap: confirmed live as unenforced with concrete numbers. A real 1-user org
+      (which resolves to Basic tier per `getOrgAiPackage()`'s real, re-verified counting logic, whose
+      real cap is 3) already has **5** real `GET /api/assistants` rows -- live, numeric confirmation of
+      this OCID's own earlier code-read finding, not a repeat of the same claim without new evidence.
+
+      Attempted a real tier-boundary-crossing test (scale a real org past the Basic/Standard 10-user
+      threshold via `POST /api/users`) -- hit a real, hard Supabase email-rate-limit on the
+      `inviteUserByEmail` code path this endpoint uses (2 "invalid email" + 9 "rate limit exceeded").
+      Registered honestly as a real infrastructure constraint, not retried past the point of
+      diminishing returns, not worked around with a direct DB insert (this session has independently
+      established that channel carries its own real, unresolved trust risk -- see next finding).
+
+      New finding: `platform.ai_routing_audit_log` (every real `end_user_org`/`software_team` AI
+      resolution writes to it, per `mother-router.ts`'s own code) is unreadable via any safe channel --
+      PostgREST doesn't expose the `platform` schema (`Accept-Profile: platform` -> `PGRST106`), no API
+      route or UI page reads it (confirmed via `git grep`), and a direct read-only `psql` query returned
+      **zero rows total** despite this session's own confirmed-real routing activity (2 real
+      `end_user_org` AI messages, both got real on-topic LLM replies). Amended
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` (broadened its title/scope rather than
+      duplicating it) to record this second, independent occurrence in a structurally different
+      schema/table -- rules out "isolated to product_branches" as an explanation.
+
+      Corrected the retracted claim directly in both the already-merged OCID-052 doc and PROGRESS.md's
+      own earlier section, citing this PM decision rather than silently editing history.
+
+      **OCID-049 is honestly NOT fully certified**: 1 of 4 tiers (Basic) has real, live evidence; 3
+      remain blocked on the real rate-limit constraint, not an app-code gap. Per the PM's own
+      instruction, Group F as a whole is correspondingly NOT described as closed by this entry --
+      OCID-049's own real, partial-completion status is the accurate description.
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`
+      (completion amendment, already-indexed doc), `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (correction to its own already-merged "closes Group F" claim), `ai-os/MASTER-TRACKER.yaml` (2
+      amended gap entries, no new gap IDs -- broadened an existing one), `PROGRESS.md`, this
+      ACTIVE-CLAIMS entry. No src/, schema, or migration changes -- pure testing/documentation, per
+      this dispatch's own scope and the standing OCID-021 implementation lock. No production data
+      touched -- all real writes (2 test orgs, 2 chat messages, 0 successful additional user invites)
+      went through real, live, self-service test accounts, isolated from any real customer org.
+
   - session_label: "claude-code (docs/ocid052-item4-ui-distinguishability-complete) -- OCID-052 complete, real UI-distinguishability finding, closes Group F Business Certification [DONE]"
     claimed_at: "2026-08-03T20:20Z (this session, closed same session)"
     claim: |
