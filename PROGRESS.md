@@ -1759,3 +1759,90 @@ Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260803-174634-5a2f`, `UMR-2
 
 ## Remaining
 - [ ] None for this addendum's own scope -- discovery/audit only, no schema/code/DB change.
+
+# PROGRESS -- task-20260803-193419-pm-correction--retract-the-prior-instruc
+
+Cites: `UMR-20260802-165606-4413` (OCID-020, parent). PM correction, retracting prior
+dispatch `UMR-20260803-191827-043b`.
+
+## Completed
+- [x] Restored this workspace's own `PROGRESS.md` from a wholesale-replace-stub regression
+      (same known class as the fix in `task-20260803-171457`'s entry above) before appending
+      this section -- the working copy had been scaffolded to 6 lines, silently replacing
+      1761 real lines from `HEAD` (`git cat-file -p HEAD:PROGRESS.md`, not `git show | wc -l`,
+      which under-reports on this box per this session's own large-output-truncation finding).
+- [x] Independently re-verified the retraction's premise (did not just trust the SPEC) against
+      the real, separate shared checkout at `/opt/veridian/repos/compliance-tracker`: `git
+      status --short` there shows exactly 100 lines -- 1 real staged file
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`,
+      +235 lines, `git diff --cached --stat`) and 99 unstaged working-tree modifications. Sampled
+      three of the 99 directly: `ai-os/scripts/sync-repos.sh` (+47/-0), `ai-os/scripts/veridian-task.py`
+      (+274/-few), `ai-os/scripts/worker-entrypoint.sh` (+206/-few) -- a real insertion-heavy pattern,
+      not the balanced 1:1 pattern a line-ending-only rewrite would produce. Confirms the SPEC's own
+      re-verification was correct.
+- [x] Retracted prior dispatch `UMR-20260803-191827-043b` completely. Took **no** action against
+      `/opt/veridian/repos/compliance-tracker` -- did not unstage, discard, or otherwise touch any of
+      its 99 unstaged files or its 1 staged file. That checkout's working tree is untouched by this
+      task, byte-for-byte, start to finish.
+- [x] Registered this decision in `ai-os/boss/ACTIVE-CLAIMS.yaml` (this workspace's own copy, which
+      is current-with-`origin/main`; the shared checkout's copy is ~450 lines behind and was left
+      alone per the above).
+- [x] Continued OCID-050 State C as this cycle's real priority, scoped to what a single cycle can
+      honestly complete: closed **TASK-050-0** (durable-fixture prerequisite, blocks all 3 data-state
+      passes including C) from the canonical breakdown
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`,
+      `task-20260803-120314`, `[DONE, docs-only]` per `ACTIVE-CLAIMS.yaml`). Copied
+      `/tmp/ocid020-continue/nav-hrefs-v2.json` verbatim (byte-identical, diffed, not just
+      length-checked) into the repo as `ai-os/fixtures/ocid020-nav-surface-115.json`, 115 entries
+      confirmed. That source file is host-local `/tmp`, not durable across host restarts and not
+      visible to a worktree-isolated session on a different checkout -- committing it removes that
+      single point of fragility for whichever session next runs a State C pass.
+- [x] Did **not** attempt **TASK-050-1** (create the real large-data-volume org) or a live State C
+      browser sweep this cycle -- both require the org to exist first, which itself requires an
+      explicit, written scale decision (entities + row-count targets) that no session, including this
+      one, has made yet with real grounding (checked `src/db/seed.ts`'s existing `Acme Corp` baseline --
+      18 compliance items, 7 users -- as a size reference; did not find a documented default
+      list-endpoint page size to ground a "large enough to force pagination" number, and that
+      discovery is itself already flagged as part of TASK-050-2, a separate prerequisite in the
+      canonical breakdown). Fabricating a scale number without that grounding would repeat exactly the
+      failure mode this OCID's own planning doc was written to avoid (assumed/fabricated state
+      instead of independently verified). Left as the next concrete, actionable step for whichever
+      session picks up OCID-050 next.
+- [x] Found, independently, a second body of real-but-undocumented work while checking for
+      OCID-050 collisions (`ps aux` — no browser/node processes currently running; `ACTIVE-CLAIMS.yaml`
+      — no open claim covers it): `/tmp/ocid020-continue/ocid050-100rem-*` (run.log, summary.json,
+      empty.jsonl, sample.jsonl, the driving `ocid050-remaining100-sweep.mjs`), timestamped
+      2026-08-03T18:09-18:15Z, i.e. very recent, real, and complete (`=== DONE ===` in the log; JSON
+      summary shows a real 100-item-surface State A/B re-run: State A 98 attempted/95 clean/2
+      nav-errors/2 uncovered paths (`/erp/credit-notes`, `/erp/inventory`); State B 100
+      attempted/94 clean/6 pages with failed API requests or console errors, 0 crashes, 0 5xx in
+      either state). This predates this task and was never logged in `ACTIVE-CLAIMS.yaml` or turned
+      into a doc/PR -- flagging honestly here rather than silently absorbing it into this task's own
+      claim or ignoring it. Whoever picks up OCID-050 next should triage this real result set into
+      the canonical doc chain (it appears to be real progress on State A/B beyond PR #794's original
+      115-item pass, not yet credited anywhere).
+- [x] Per the SPEC's own explicit "whenever convenient, not displacing OCID-050/051 priority" framing:
+      documenting, not triaging, the 99-file unstaged `ai-os/scripts/**` body in
+      `/opt/veridian/repos/compliance-tracker` (real triage -- deciding which of the ~99 files'
+      changes are wanted, splitting into a real reviewable commit/PR -- was out of scope for this
+      cycle and would have meant touching that checkout, which this task was explicitly told not to
+      do). What it honestly appears to be, from the diffstat pattern alone (not opened/read
+      file-by-file this cycle): a real, substantial, insertion-heavy body of modifications across
+      most of `ai-os/scripts/*.py` and `*.sh` (the AI-OS worker/supervisor/sync/credit-accountant
+      tooling itself), sitting unstaged and uncommitted in a shared checkout, with only one unrelated
+      file (the OCID-050 breakdown doc) actually staged alongside it. This is real work-in-progress,
+      not noise or a byproduct of a line-ending tool -- but its origin (which session, why, whether it
+      was mid-edit or already complete) was not established this cycle. It should be triaged into a
+      real, reviewed commit/PR rather than left indefinitely ambiguous in a shared worktree where
+      another concurrent session could plausibly commit over it, `git clean` it, or lose it to a
+      `git stash` collision (per this repo's own documented shared-worktree stash risk).
+
+## Remaining
+- [ ] TASK-050-1: explicit written scale decision (Owner/PM) + real large-data-volume org creation,
+      reusing `src/db/seed.ts` conventions -- next actionable step for OCID-050 State C.
+- [ ] TASK-050-2: acceptance criteria (pagination correctness, empty-state messaging bar, a real
+      numeric performance budget) -- still undefined anywhere in the codebase.
+- [ ] Triage the 99-file unstaged `ai-os/scripts/**` body in `/opt/veridian/repos/compliance-tracker`
+      into a real commit/PR (out of this task's scope; flagged above for a dedicated follow-up).
+- [ ] Triage the undocumented `/tmp/ocid020-continue/ocid050-100rem-*` State A/B re-run result set
+      into the canonical OCID-050 doc chain (flagged above; not performed this cycle).

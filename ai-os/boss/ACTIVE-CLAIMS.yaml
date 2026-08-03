@@ -8324,3 +8324,60 @@ recently_completed:
       File scope: `PROGRESS.md` (restored from wholesale-replace regression + this task's own section),
       this ACTIVE-CLAIMS entry. No src/, schema, migration, or CI changes -- the real code fix already
       landed via PR #803 before this session started; nothing left to merge or fix in this cycle.
+  - session_label: "claude-code (task-20260803-193419-pm-correction--retract-the-prior-instruc) -- PM correction: retracted a wrong prior instruction to unstage real work; closed OCID-050 TASK-050-0 [DONE, docs+fixture only]"
+    claimed_at: "2026-08-03T19:34Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, citing `UMR-20260802-165606-4413`/OCID-020, correcting a prior dispatch
+      `UMR-20260803-191827-043b`): the prior dispatch had wrongly assumed a risk of an accidental
+      combined commit across the shared `/opt/veridian/repos/compliance-tracker` checkout's working
+      tree and instructed an unstage. Independently re-verified before acting on the retraction itself
+      (not just trusted): `git status --short` there shows exactly 100 changed paths -- 1 real staged
+      file (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`,
+      `git diff --cached --stat` confirms +235/-0, a genuinely unrelated file) and 99 unstaged
+      modifications, all under `ai-os/scripts/**`. Sampled three directly:
+      `ai-os/scripts/sync-repos.sh` (+47/-0), `ai-os/scripts/veridian-task.py` (+274/-few),
+      `ai-os/scripts/worker-entrypoint.sh` (+206/-few) -- confirms the SPEC's own diagnosis (real
+      insertion-heavy content, not a balanced line-ending rewrite). Retracted the prior instruction
+      completely; took no action against that checkout -- did not unstage, discard, or otherwise touch
+      any of its files, staged or unstaged.
+
+      Also fixed, in this task's own workspace only, the same wholesale-PROGRESS.md-replace regression
+      documented in `task-20260803-171457`'s entry above: this workspace's `PROGRESS.md` had been
+      scaffolded to a 6-line stub, silently discarding 1761 real lines present at `HEAD`. Restored via
+      `git cat-file -p HEAD:PROGRESS.md` (not `git show | wc -l`, which silently under-reports large
+      output on this box) before appending this task's own section.
+
+      Per the SPEC's explicit sequencing ("Continue the OCID-050 state C sweep as the real priority"),
+      closed the one concrete, boundable piece of it a single cycle can honestly complete without
+      duplicating `task-20260803-120314`'s existing `[DONE, docs-only]` planning claim or attempting a
+      multi-hour live sweep out of scope for a correction task: **TASK-050-0**, committing
+      `/tmp/ocid020-continue/nav-hrefs-v2.json` (host-local, non-durable) verbatim into the repo as
+      `ai-os/fixtures/ocid020-nav-surface-115.json` (115 entries, byte-diffed identical to the source,
+      not just length-checked). Did not attempt TASK-050-1 (real large-data-volume org creation) --
+      it requires an explicit, written scale decision this session found no real grounding to make
+      (checked `src/db/seed.ts`'s `Acme Corp` baseline; found no documented default list-endpoint page
+      size to size a "forces pagination" target against, and that discovery is itself already part of
+      the separate TASK-050-2 prerequisite) -- fabricating one would repeat the exact failure mode
+      (assumed/unverified state) this OCID's own planning doc exists to avoid.
+
+      Separately found and flagged, not silently absorbed: a real, complete, but wholly undocumented
+      OCID-050 State A/B "remaining 100" re-run in `/tmp/ocid020-continue/ocid050-100rem-*`
+      (2026-08-03T18:09-18:15Z, `=== DONE ===`, real summary JSON -- State A 98/95 clean, 2
+      nav-errors, 2 uncovered paths; State B 100/94 clean, 6 pages with API/console errors, 0
+      crashes/5xx in either state) -- predates this task, not covered by any `ACTIVE-CLAIMS.yaml`
+      entry, no `ps aux` process still running it. Left for the next OCID-050 session to triage into
+      the canonical doc chain rather than credited to this claim or ignored.
+
+      Per the SPEC's own "whenever convenient, not displacing priority" framing: documented (in
+      `PROGRESS.md`, not triaged -- triage would mean touching the shared checkout, explicitly out of
+      scope) what the 99-file unstaged `ai-os/scripts/**` body honestly appears to be from its diffstat
+      pattern alone -- real, substantial, insertion-heavy in-progress tooling work, not noise -- while
+      being explicit that its origin/intent was not established this cycle and real triage into a
+      reviewed commit/PR is separate follow-up work.
+    scope_note: >-
+      File scope, this workspace only (`/opt/veridian/ai-os/tasks/task-20260803-193419-pm-correction--retract-the-prior-instruc/workspace`):
+      `PROGRESS.md` (regression-restored + this task's section), `ai-os/fixtures/ocid020-nav-surface-115.json`
+      (new file, verbatim copy), this `ACTIVE-CLAIMS.yaml` entry. Zero changes of any kind to
+      `/opt/veridian/repos/compliance-tracker`'s working tree (the checkout the SPEC's retraction is
+      about) -- confirmed untouched, staged and unstaged state identical start to finish. No src/,
+      schema, or CI changes.
