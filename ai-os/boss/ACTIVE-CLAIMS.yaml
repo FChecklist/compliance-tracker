@@ -40,8 +40,8 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only)"
-    claimed_at: "2026-08-03T (this session, in progress)"
+  - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only) [PUSHED, PR OPEN]"
+    claimed_at: "2026-08-03T (this session, closed same session)"
     claim: |
       SPEC citing UMR-20260803-041257-e9c3 (parent OCID-028 directive) and the
       OCID-022 through 028 chain. Documentation-only deliverable: one new
