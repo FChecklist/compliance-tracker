@@ -1,0 +1,207 @@
+# OCID-049 -- Subscription Plan Entitlement Certification (planning only)
+
+**Parent:** OCID-020, `UMR-20260802-165606-4413` (the PROJEXA end-user certification sweep).
+**Phase:** Business Certification (a new phase the Owner has opened directly under OCID-020, distinct
+from the ERP Functional Completeness Master Program's OCID-021 through OCID-040 chain and from the
+OCID-041 through OCID-046 Universal External Execution chain -- this OCID does not sit in either of
+those two chains).
+**This cycle's scope:** planning only. No implementation, no testing, no certification performed here --
+per this task's own dispatch text ("Do not test anything yet, do not fix anything yet, only produce the
+real enumeration and task breakdown as a canonical artifact"). Consistent with `SEC-07`
+(`ai-os/CONSTITUTION.yaml`), which keeps real implementation/gap-closure/certification locked behind
+OCID-020's own independent verification, while explicitly leaving discovery/documentation permitted.
+**Own UMR:** this task's real dispatch (`task-20260803-120310-register-ocid-049-subscription-plan-enti`,
+created `2026-08-03T12:03:12Z` per its own `task.yaml`) has **no row in
+`/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks` table** -- independently checked via
+`resource_governor.py --query-umr --search "register-ocid-049"` (0 matches) and a direct sqlite query for
+any `ts_submitted` in this task's own creation minute (0 rows). Flagging this honestly rather than
+fabricating a `UMR-...` id for this task itself: it registers against the one real, given UMR in its own
+dispatch text -- OCID-020's `UMR-20260802-165606-4413` -- as its parent, and against this repo's own file
+identity (`task-20260803-120310-register-ocid-049-subscription-plan-enti`) as its task-level anchor.
+
+## Zero-duplication check (performed before writing anything below)
+
+- `python3 /opt/veridian/scripts/resource_governor.py --query-umr --search "OCID-049"` -> `{"count": 0}`
+- `python3 /opt/veridian/scripts/resource_governor.py --query-umr --search "entitlement"` -> `{"count": 0}`
+- `python3 /opt/veridian/scripts/resource_governor.py --query-umr --search "register-ocid-049"` -> `{"count": 0}`
+- `grep -rn "OCID-049"` across `ai-os/` (including `MASTER-TRACKER.yaml`, `OS.yaml`, `IMPLEMENTATION_MATRIX_2026-08-02.md`) -> 0 matches prior to this document.
+- `grep -n "Business Certification"` across `ai-os/` -> 0 matches prior to this document -- this is the first registration of that phase name.
+
+No prior registration of OCID-049, or of a subscription-plan-entitlement gap/task, exists anywhere in the
+governance record or the resource governor. This document is not a duplicate.
+
+## Real, existing model this OCID is scoped to -- and the 3 adjacent mechanisms it is deliberately NOT
+
+VERIDIAN already has **four**, real, distinct, independently-shipped mechanisms that each touch the word
+"plan"/"entitlement"/"cap." Conflating them would misname this OCID's own scope, so each is named here
+explicitly, with the one this OCID actually governs called out last:
+
+1. **`organisations.plan`** (`schema.ts`, text, default `'free'`) -- a marketing/trial flag only. Its only
+   two real consumers are `TrialBanner.tsx` (shows the trial banner while `orgPlan === "free"`) and
+   `sales-engine-service.ts`'s "Paid" milestone growth-loop event (fires when this moves off `'free'`). It
+   gates no feature and is not a tier system.
+2. **`organisations.licensedSeats` / `seatEnforcementEnabled`** (`org-license-service.ts`) -- a real,
+   enforced, but manually-configured per-org seat cap (admin sets a number via
+   `OrgLimitsSection.tsx` -> `PATCH /api/settings/org-limits`), checked at user-activation time
+   (`auth-guard.ts`). It is independent of, and has no column linking it to, `subscription_plans` --
+   an org on any of the 4 real subscription-plan tiers below can set any `licensedSeats` number or leave
+   it null (unenforced, the default). Real prior art for a 403 with a clear reason
+   (`org-license-service.ts`'s `"This organisation has used all N licensed seats..."` string) but not the
+   axis OCID-049 is about.
+3. **Product-branch module enablement** (`product-branch-service.ts` + the per-module wrappers --
+   `erp-enablement-service.ts`, `crm-enablement-service.ts`, `pms-enablement-service.ts`,
+   `firm-enablement-service.ts`, `veri-chat-v2-enablement-service.ts`) -- a real, enforced, per-org
+   on/off switch per product branch (ERP/CRM/PMS/Firm/VeriChatV2), surfaced via `/api/me`
+   (`erpEnabled`/`salesEnabled`/`pmsEnabled`/`firmEnabled`/`veriChatV2Enabled`) and, as of this same
+   session's `GAP-ERP-CRM-403-NO-UX-EXPLANATION` fix (PR #809, `fef80f2c`), a shared
+   `ModuleNotEnabledCard` component. **This is the pattern this OCID's own directive says to reuse for
+   the explanation surface** -- see "The reusable explanation pattern" below -- but branch enablement
+   itself is a yes/no per module, not a plan *tier*, and is not driven by `subscription_plans` anywhere in
+   the codebase (confirmed: zero references to `subscriptionPlans`/`subscriptionPlanId` inside any
+   `*-enablement-service.ts` file).
+4. **`compliance.subscription_plans`** (`schema.ts` line 182) + `organisations.subscriptionPlanId` (FK,
+   nullable) -- **the real subscription plan model this OCID is scoped to.** Real table, real columns
+   (`name`, `userPackSize`, `assistantsPerUser`, `priceMonthly`, `features` jsonb, `isActive`), real seeded
+   rows (below), platform-wide by design (no `org_id` column -- one shared catalog every org's
+   `subscriptionPlanId` points into, per `drizzle/0155_priority4_domain_c_access.sql`'s own documented
+   RLS reasoning for this table). No new plan model or billing architecture is introduced by this
+   document, per this OCID's own explicit instruction -- everything below is a mapping of what already
+   exists.
+
+## Every real existing plan tier (enumerated, not invented)
+
+Seeded by `drizzle/0231_ai_router_mother_router.sql` (Owner directive 2026-07-18, "In 1st phase we will
+give number of user based subscription packages"). Exactly 4 rows exist; none have been added, removed,
+or renamed since:
+
+| Tier (`name`) | `user_pack_size` | `assistants_per_user` | `features.aiPackage` | `price_monthly` |
+|---|---|---|---|---|
+| Basic | 10 | 3 | `"basic"` | `NULL` |
+| Standard | 25 | 5 | `"standard"` | `NULL` |
+| Professional | 50 | 8 | `"professional"` | `NULL` |
+| Enterprise | 100 | 15 | `"enterprise"` | `NULL` |
+
+`price_monthly` is `NULL` on all 4 rows by design (the seeding migration's own comment: "real pricing is a
+business decision outside this task's scope, not invented here") -- still true today, not a gap this OCID
+introduces or needs to close.
+
+## Real feature mapping per tier -- what is actually wired today vs. schema-only
+
+Mapping each tier to features honestly means separating what already has a real, live code path from
+what is a real column with zero consumer. Both are named -- inventing enforcement that doesn't exist
+would violate this OCID's own "no new... architecture" instruction just as much as omitting the gap would
+misrepresent the platform's real state:
+
+- **`features.aiPackage` -> AI model-routing override (real, wired, currently dormant in practice).**
+  `getOrgAiPackage()` (`mother-router.ts:506`) resolves an org's tier -- preferring the explicit
+  `organisations.subscriptionPlanId` assignment, falling back to classifying the org's real live user
+  count against the 4 tiers' `user_pack_size` bands (ascending, smallest fitting band wins, Enterprise as
+  ceiling) when no explicit assignment exists. The resolved `aiPackage` string is then looked up in
+  `computeEndUserOrgResolution()` against `policy?.rule.preferredModelByPackage?.[aiPackage]` -- an
+  admin-configurable per-scope override table (`ai_routing_policies`, scope `end_user_org`) that lets a
+  specific tier be pinned to a specific provider/model. **Real mechanism, real code path, exercised by
+  `mother-router.test.ts` -- but confirmed via `grep` that zero `ai_routing_policies` rows seed any
+  `preferredModelByPackage` value today**, so in live practice all 4 tiers currently resolve to the exact
+  same platform-default model until an admin actually sets a policy. This is an honest "wired but
+  dormant" state, not a defect -- there is nothing to fix, only a real future admin action that would
+  activate it.
+- **`assistants_per_user` (3 / 5 / 8 / 15) -> zero enforcement anywhere.** Confirmed by `git grep` across
+  `src/`: the only reference to this column in the entire codebase is its own declaration in
+  `schema.ts`. `POST /api/users` inserts exactly one `aiAssistants` row per new user unconditionally, with
+  no read of this column, no count check, and no cap. This is schema-present, feature-absent -- a real
+  gap for the task breakdown below, not something to silently "map" as if it were already gating
+  anything.
+- **No other column or table on `subscription_plans`/`organisations.subscriptionPlanId` gates anything
+  else today.** Module-level gating (ERP/CRM/PMS/Firm/VeriChatV2) and seat-level gating (`licensedSeats`)
+  are both real and enforced, but on the two separate axes named above (#2 and #3), not this one -- an org
+  on the Basic tier and an org on the Enterprise tier see identical ERP/CRM/PMS availability today, driven
+  entirely by their own independent product-branch enablement rows.
+
+## The reusable explanation pattern (already merged this session -- reused here, not reinvented)
+
+`GAP-ERP-CRM-403-NO-UX-EXPLANATION` (PR #809, commit `fef80f2c`, merged via `536bdd6f`) fixed
+the exact "silent block, not a crash, not a mystery" failure mode this OCID's own directive asks the test
+path to confirm the *absence* of, for the module-enablement axis. The established, real, 3-part shape any
+future subscription-plan-tier gate should reuse verbatim:
+
+1. **Backend throws a specific, human-readable `ServiceError(message, 403)`** at the one real chokepoint
+   every route/service already funnels through (`requireErpEnabled()`'s own precedent: *"This capability
+   is not part of the Module your organization purchased..."*), not a generic 403/500.
+2. **The relevant boolean is surfaced on `/api/me`** (`erpEnabled`, `salesEnabled`, `pmsEnabled`,
+   `firmEnabled`, `veriChatV2Enabled` -- `src/app/api/me/route.ts:23-27,53-54`) so a page can know the
+   real reason *before* it even attempts the gated call, not just catch a failure after the fact.
+3. **The frontend renders the shared `ModuleNotEnabledCard`** (`src/components/ModuleNotEnabledCard.tsx`)
+   -- an explicit "X is not enabled, ask an org admin to enable it from Settings -> Y" card with a link to
+   Settings -- instead of an empty table, a raw error, or a client-side crash.
+
+For a subscription-plan-tier gate (e.g. the `assistants_per_user` cap, once real Task A below is
+implemented), the same 3-part shape applies with a tier-specific message (e.g. *"Your organisation's
+Basic plan is limited to 3 AI assistants per user. Ask an organisation admin to upgrade the subscription
+plan to add more."*) and a small tier-aware sibling of `ModuleNotEnabledCard` (or the same component,
+generalized with a message prop) -- not a new explanation mechanism.
+
+## Deterministic task breakdown (future implementation, NOT started this cycle)
+
+Ordered, each independently schedulable once the Owner unlocks implementation for this OCID. None of
+these has been dispatched, coded, or tested as part of this planning cycle.
+
+- **Task A -- Enforce `assistants_per_user` as a real per-user cap.** At the one real chokepoint
+  (`POST /api/users`'s `aiAssistants` insert, `src/app/api/users/route.ts:125`), resolve the org's tier via
+  the already-real `getOrgAiPackage()`-adjacent lookup (or a new, equally small
+  `getAssistantsPerUserLimit(orgId)` reading `subscription_plans.assistantsPerUser` the same way
+  `getOrgAiPackage()` already reads `features.aiPackage`), count the target user's existing `aiAssistants`
+  rows, and throw the same `ServiceError(message, 403)` shape `requireErpEnabled()` already establishes
+  when the cap would be exceeded. No new table, no new architecture -- reuses the existing
+  `subscription_plans` row and the existing `ServiceError` class.
+- **Task B -- Surface the resolved tier + its real limits on `/api/me`.** Add `subscriptionPlanName`,
+  `assistantsPerUserLimit`, and (once Task A ships) `assistantsUsedByCurrentUser` next to the existing
+  `erpEnabled`/`salesEnabled` booleans, following the exact same "resolve server-side once, let every
+  client read one flat field" shape already established there -- no new endpoint.
+- **Task C -- Frontend gate + explanation card for the assistant-creation flow.** Wherever a user creates
+  a new AI assistant, check the Task B fields client-side (same `fetch("/api/me")` pattern every
+  `salesEnabled`/`erpEnabled` page already uses) and render a tier-aware explanation card (reusing or
+  lightly generalizing `ModuleNotEnabledCard`) instead of letting the create action silently fail or
+  crash on the real 403 Task A now throws.
+- **Task D -- Decide and seed at least one real `ai_routing_policies` row exercising
+  `preferredModelByPackage`.** Not a code change -- an actual admin/business decision (which tier gets
+  routed to which model) needed to move the already-real `aiPackage` routing mechanism from "wired but
+  dormant" to "observably different behavior per tier," so the definition of done below has something
+  live to test for tiers beyond the assistant cap.
+- **Task E -- (explicitly out of scope, named so it is not silently dropped) an admin-facing UI to change
+  an org's `organisations.subscriptionPlanId`.** Confirmed via `git grep`: zero references to
+  `subscriptionPlanId` anywhere under `src/app/`, i.e. no settings page can assign or change an org's
+  plan today -- it can only be set directly in the database (or left null, in which case
+  `getOrgAiPackage()`'s live-user-count fallback applies). Real testing of "each plan tier independently"
+  (the definition of done below) needs *some* way to place a real org on a specific tier; whether that's a
+  new minimal admin control or a direct, documented DB assignment for test purposes is a decision for
+  whoever picks up Task A/B, not decided here.
+
+## Real test path per tier (to be executed once implementation above ships -- not run this cycle)
+
+For each of the 4 real tiers (Basic, Standard, Professional, Enterprise), independently:
+
+1. Assign a real test org to that tier (`organisations.subscriptionPlanId` pointed at that tier's real
+   `subscription_plans` row -- via Task E's mechanism once it exists, or a documented direct assignment
+   until then).
+2. Confirm `/api/me` (Task B) reports that org's real, correct `assistantsPerUserLimit` matching the
+   table above (3/5/8/15) -- not a hardcoded/guessed value.
+3. As a real user in that org, create AI assistants up to the tier's limit -- each succeeds normally.
+4. Attempt one more, past the limit -- confirm the real backend `ServiceError` 403 fires (Task A), *and*
+   confirm the frontend shows the explanation card (Task C) with the tier's real limit named in the
+   message -- not a silent no-op, not an unhandled promise rejection, not a client crash. This is the
+   literal "gated feature shows a real user-facing explanation rather than a silent block or a crash"
+   check this OCID's own directive asks for, run once per tier so a Basic-tier failure mode can't hide
+   behind an Enterprise-tier pass.
+5. If Task D has shipped a real `preferredModelByPackage` policy: issue one real AI-routed request as a
+   user in that org and confirm (via `aiRoutingAuditLog`, the same table `mother-router.ts` already writes
+   every resolution to) that the actually-used provider/model matches that tier's configured override --
+   independent, per-tier evidence, not inferred from the policy's existence alone.
+
+## Definition of done for OCID-049
+
+Once real implementation/testing begins (a later cycle, per this OCID's own explicit "no testing yet"
+scope): **each of the 4 real existing plan tiers independently tested, live, confirming its real
+entitlements (the `assistants_per_user` cap, and any `aiPackage` routing override actually configured) are
+correctly enforced** -- per-tier evidence (step 4 and, where applicable, step 5 above for all 4 rows), not
+a single tier's pass generalized to the others, and not a certification claim made from this planning
+document alone. This document performs none of that testing itself.

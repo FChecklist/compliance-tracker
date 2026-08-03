@@ -1465,6 +1465,33 @@ open_items:
       status: open
       first_raised: "Independent Agent-tool review of PR #795, 2026-08-03 (UMR-20260803-085428-9332)"
 
+    - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
+      name: "OCID-049 Subscription Plan Entitlement Certification -- planning artifact registered, entitlement enforcement not yet built"
+      detail: |
+        OCID-020 (UMR-20260802-165606-4413), Business Certification phase (new, first registered by this
+        entry). Real, existing compliance.subscription_plans model (4 seeded tiers: Basic/Standard/
+        Professional/Enterprise, drizzle/0231_ai_router_mother_router.sql) has exactly one real, wired
+        consumer today (mother-router.ts's getOrgAiPackage() -> AI model-routing override via
+        ai_routing_policies.preferredModelByPackage) -- confirmed real but dormant in practice (zero
+        seeded policy rows exercise it yet). assistants_per_user (3/5/8/15 per tier) has zero enforcement
+        anywhere in src/ -- schema-only. No admin UI exists to assign/change an org's
+        organisations.subscriptionPlanId. Full real enumeration, 3-way disambiguation against adjacent
+        mechanisms (organisations.plan trial flag, licensedSeats seat cap, product-branch module
+        enablement), 5-task breakdown (A: enforce assistants_per_user cap reusing the existing
+        ServiceError 403 + ModuleNotEnabledCard explanation pattern from GAP-ERP-CRM-403-NO-UX-EXPLANATION
+        PR #809; B: surface resolved tier/limits on /api/me; C: frontend gate + explanation card; D: seed
+        a real preferredModelByPackage policy; E: admin UI to assign subscriptionPlanId), and a per-tier
+        test path: ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md.
+      size: M -- Task A/B/C are each small (reuse existing ServiceError/ModuleNotEnabledCard/`/api/me`
+        patterns, no new architecture); Task E is a real but separate admin-settings addition; Task D is a
+        business decision, not code.
+      recommendation: "Planning only this cycle, per this OCID's own dispatch text and SEC-07. Do not
+        implement/test/certify until the Owner explicitly opens implementation for this OCID (same
+        discipline SEC-07 already applies to the OCID-038/039/040 chain) -- this entry exists so the real
+        task breakdown is findable and not re-derived from scratch by whichever session picks it up next."
+      status: open
+      first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
