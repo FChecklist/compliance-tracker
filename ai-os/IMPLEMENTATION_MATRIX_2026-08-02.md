@@ -1304,3 +1304,45 @@ queued under this OCID's name at write time).
 Canonical artifact: this file (this amendment) only — no new document created this cycle, since the
 substantive OCID-041 through OCID-046 discovery artifacts remain genuinely undone, not yet duplicated or
 speculatively authored ahead of their own real dependency chain.
+
+---
+
+## Amendment (2026-08-03): OCID-042 substantive discovery performed — VERIDIAN Universal Context Packaging Runtime v0.1
+
+Real dispatched worker task (`veridian-worker@task-20260803-085550-register-ocid-042-universal-context-
+pack.service`, real UMR `UMR-20260803-084332-5b52`, confirmed by direct query against `umr_tasks`, tier
+2), distinct from the governance-registration-only amendment immediately above (that entry explicitly
+stated OCID-041 through OCID-046's substantive discovery work "remain[ed] genuinely undone" and that "no
+worker has yet been dispatched"). This amendment records that OCID-042's own substantive discovery has
+now genuinely happened, producing a new canonical artifact:
+`ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md`.
+
+**What was actually done**: a real, file:line-grounded inventory (not narrated from the dispatch prompt)
+of the existing VERIDIAN components a future universal context-packaging runtime would need to reuse —
+`AssembledContext`/`context-assembly.ts` (the one existing typed, serializable context bundle, confirmed
+not wired to any external-provider call site today), `MotherRouterContext`/`resolveModel()` (provider
+resolution only, builds no payload), chat-service.ts history bounding, mode-pill/chain selection data,
+task/report/document content sources, and — the central finding — one canonical low-level dispatcher
+(`llm-client.ts`) fed by roughly two dozen independent ad hoc prompt-construction call sites, plus two
+further fully independent construction paths outside it entirely (`webllm-engine.ts`'s in-browser WebLLM
+path, and `worker-entrypoint.sh`'s raw `task.yaml`/`prompt.txt`-text path to the `claude` CLI). Confirmed
+via repo-wide grep that no `ContextPackage`/`RequestPackage`/`PromptPackage`/`UniversalContext`
+abstraction already exists anywhere in `src/` — zero duplication risk for a future implementation.
+Cross-referenced, not duplicated: OCID-034's existing document (`VERIDIAN_UNIVERSAL_CONTEXT_AND_
+PREDICTIVE_RUNTIME_2026-08-03.md`), which covers predictive *end-user* context, a related but distinct
+subject from this document's outbound-*provider-payload* scope.
+
+**Why this stays discovery-only, not implementation, despite the dispatch prompt requesting EXECUTION**:
+(1) OCID-042's own cited parent, OCID-041, was itself only registered this same cycle as a governance
+record with zero substantive design work performed yet — building a real runtime against a foundation
+that does not yet exist would mean inventing that foundation here, which was explicitly out of scope;
+(2) `SEC-07` (`ai-os/CONSTITUTION.yaml`) locks real implementation under the ERP Functional Completeness
+Master Program, and specifically OCID-038/039/040, until `UMR-20260802-165606-4413` (OCID-020)
+independently clears — unmet as of this writing. No code was written, no existing call site among the
+~24-26 identified was rewired, no schema or `CONSTITUTION.yaml` change was made, and OCID-042 is not
+marked complete anywhere.
+
+Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md` (new file), this
+amendment, `ai-os/OS.yaml` (index entry) — not a rewrite or duplicate of the governance-registration
+amendment above, which stays accurate for OCID-041/043/044/045/046 (still genuinely undispatched as of
+this writing).

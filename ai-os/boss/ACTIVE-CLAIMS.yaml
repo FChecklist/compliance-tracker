@@ -4859,6 +4859,50 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-085550-register-ocid-042-universal-context-pack) -- OCID-042 VERIDIAN Universal Context Packaging Runtime, discovery only [DONE, docs-only]"
+    claimed_at: "2026-08-03T09:00Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, real UMR `UMR-20260803-084332-5b52` confirmed by direct query
+      against `umr_tasks`; parent OCID-041, `UMR-20260803-084109-6875`, registered the same cycle and
+      itself discovery-only per `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s "OCID-041 through
+      OCID-046" amendment; citing `UMR-20260802-173631-ca85` OCID-021, `SEC-07`
+      (`ai-os/CONSTITUTION.yaml`), and the OCID-022 through OCID-041 chain). Mission: a universal
+      deterministic minimum context-packaging runtime so every external-AI-provider request is built
+      exclusively from a standard VERIDIAN context package, not raw chat/document/task text -- reusing
+      existing components only, no new context/prompt engine, no new database, no duplicate registries.
+
+      Real, checked reason this stays discovery-only despite the dispatch prompt's own EXECUTION-type
+      request: OCID-042's own cited parent, OCID-041, was registered this exact cycle as governance
+      text only, with zero substantive discovery/design performed and no worker yet dispatched for it
+      (per that amendment's own text) -- building a real runtime against a foundation that does not
+      exist would mean inventing that foundation here, out of this task's scope. Independently
+      confirmed no newer commit exists on `origin/main` past `cb28bde3` (the OCID-041..046 registration
+      merge) and no open PR references OCID-041/042 before starting, per the ACTIVE-CLAIMS protocol.
+
+      Real discovery performed (dispatched to an Explore sub-agent for the codebase sweep, findings
+      independently spot-checked, not taken on faith): a file:line-grounded inventory across
+      `AssembledContext`/`context-assembly.ts` (real, typed, serializable context bundle -- confirmed
+      not wired to any provider call site today via its only live route,
+      `app/api/prompt-compiler/execute/route.ts`), `MotherRouterContext`/`resolveModel()` (provider
+      resolution only, builds no payload), `chat-service.ts` history bounding, mode-pill/chain
+      selection data (`capability-learning-service.ts`, `ChainSelector.tsx` -- real typed data, never
+      itself serialized into a request), task/report/document content sources, and the central finding:
+      one canonical low-level dispatcher (`llm-client.ts`) fed by ~24 independent ad hoc
+      prompt-construction call sites, plus two further fully independent construction paths
+      (`webllm-engine.ts` in-browser WebLLM, `worker-entrypoint.sh`'s raw `task.yaml`/`prompt.txt`-text
+      path to the `claude` CLI). Confirmed via repo-wide grep that no `ContextPackage`/`RequestPackage`/
+      `PromptPackage`/`UniversalContext` abstraction already exists -- zero duplication risk. Cross-
+      referenced (not duplicated) the adjacent OCID-034 document (predictive end-user context, a
+      distinct subject from this document's outbound-provider-payload scope).
+
+      No code written, no existing call site rewired, no schema or `CONSTITUTION.yaml` change, OCID-042
+      not marked complete.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md` (new file, the one
+      canonical artifact), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (new amendment section),
+      `ai-os/OS.yaml` (new index entry), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema,
+      CI, or `.github/` changes. No implementation -- consistent with `SEC-07`
+      (`ai-os/CONSTITUTION.yaml`) and OCID-041's own not-yet-existing foundation.
   - session_label: "claude-code (task-20260803-050456-ocid-027-veridian-global-knowledge-disco) -- VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0, documentation only [DONE]"
     claimed_at: "2026-08-03T05:05Z (this session, closed same session)"
     claim: |
