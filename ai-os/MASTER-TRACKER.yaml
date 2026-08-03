@@ -1043,7 +1043,33 @@ open_items:
         frontend reads `.length` on the failed-403 response. Add a real
         regression test (fresh org, module not enabled, load `/erp/reports`,
         assert no client-side exception) so this can't silently regress.
-      status: open
+      status: fix_implemented_pending_merge
+      fix_detail: |
+        Root cause confirmed at the component level (this task's PM decision,
+        UMR-20260803-094100): `src/app/(app)/erp/reports/page.tsx`'s Trial
+        Balance tab footer guard read `tb && tb.accounts.length > 0`. `tb` is
+        set directly from `trial-balance`'s parsed JSON body; for a 403 it is
+        the error body `{ error: "..." }` -- truthy, but with no `accounts`
+        field, so `tb.accounts.length` threw exactly the evidenced
+        `TypeError: Cannot read properties of undefined (reading 'length')`.
+        This is the default-active tab (`Tabs defaultValue="tb"`), so the
+        crash fires on first render, matching the sweep's fully-blank-page
+        screenshot. The Cash Flow tab's superficially-similar
+        `cf?.operating.xxx` chains were checked and are NOT a bug: `?.`
+        short-circuits the whole remaining chain, not just the first hop, so
+        `.operating` is only read once `cf` is confirmed non-null.
+
+        Fix: extracted `hasTrialBalanceFooterRows()` to
+        `src/lib/erp-reports-guards.ts` (guards `report.accounts` existence,
+        not just `report`, before reading `.length`), used in place of the
+        inline guard in `page.tsx`. Added
+        `src/lib/erp-reports-guards.test.ts` (bun:test, matching this repo's
+        pure-logic-extraction test convention since there's no
+        component-render harness here) -- verified the new test reproduces
+        the identical `TypeError` when run against the pre-fix logic, and
+        passes against the fix. `bun test` (4/4 pass), `bunx tsc --noEmit`
+        clean, `bunx eslint` clean on both changed files.
+      first_raised_by_fix: "UMR-20260803-094100 (this PM decision), PR pending"
       first_raised: "OCID-020 real nav-surface sweep, 2026-08-03 (UMR-20260803-081331-af0b)"
 
     - id: GAP-403-VS-500-CLM-HR-PERFORMANCE
