@@ -12,7 +12,9 @@
       (OCID-033), documentation only, grounded in real cited files, with an honest gap register.
 - [x] Amended `ai-os/OS.yaml` with the new document's index entry.
 
+- [x] Committed + pushed the document, OS.yaml amendment, and PROGRESS.md.
+- [x] Opened PR #778. CI running (Vercel rate-limit fail is the known unrelated flake; required
+      checks pending/passing at last check).
+
 ## Remaining
-- [ ] Commit + push the document, OS.yaml amendment, and PROGRESS.md.
-- [ ] Open PR, confirm CI, report back real document location + updated UMR + OCID-034 handoff
-      confirmation.
+- [ ] Merge once CI is green (no code paths touched; docs-only diff).

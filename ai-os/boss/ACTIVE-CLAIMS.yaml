@@ -42,6 +42,7 @@
 active:
   - session_label: "claude-code (task-20260803-055114-ocid-033-veridian-universal-end-user-wor) -- OCID-033: VERIDIAN Universal End User Work Orchestration Runtime v1.0, documentation only"
     claimed_at: "2026-08-03T05:51Z (this session)"
+    pr: "compliance-tracker PR #778 (open, CI in progress) -- new file ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_ORCHESTRATION_RUNTIME_2026-08-03.md, plus ai-os/OS.yaml index entry and PROGRESS.md"
     claim: |
       SPEC (this task's own prompt.txt): real Owner directive, tier 1, parented
       to `UMR-20260803-041743-d271` (OCID-032, "just registered") and citing
