@@ -1,9 +1,34 @@
 # PROGRESS -- task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl
 
+Cites: `UMR-20260802-165606-4413` (OCID-020, independently confirmed declared complete via
+`UMR-20260803-212402-1922`) and `UMR-20260803-042801-ec4b` (OCID-038). Per SEC-07's explicit unlock
+sequence, OCID-038 real implementation now proceeds, closing gaps its own discovery already registered.
+
 ## Completed
+- [x] Read governance chain: ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml (SEC-07), OS.yaml, MASTER-TRACKER.yaml.
+- [x] Independently verified PR #786 (OCID-038 discovery, `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`)
+      is genuinely merged to `main` (`4d9b4a84`, confirmed live via `gh api repos/.../branches/main` and
+      `git merge-base --is-ancestor`) -- this landed seconds before this session started reading
+      governance docs, a real concurrent-session race, not a stale/fabricated citation.
+- [x] Synced this workspace to the new `origin/main` tip (merge commit `eda2227b`), resolving the one
+      real `PROGRESS.md` conflict by union (this task's own fresh scaffold + full prior history preserved).
+- [x] Read all 6 `GAP-OCID038-*` entries in `ai-os/MASTER-TRACKER.yaml`. 2 already resolved during PR
+      #786's own merge-conflict re-verification (`GAP-OCID038-NO-PWA`, `GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED`).
+      4 remain genuinely open: `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`,
+      `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`, `GAP-OCID038-OCID035-DUPLICATE-PRS`,
+      `GAP-OCID038-PROJEXA-OWN-SCHEMA`.
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`, starting with `GAP-OCID038-OCID035-DUPLICATE-PRS`
+      (S-sized, mechanical reconciliation between PR #777 and PR #782, no Owner-level product call needed
+      unlike the domain-routing/Mother-Router-wiring gaps).
 
 ## Remaining
-- [ ] Not started
+- [ ] Close `GAP-OCID038-OCID035-DUPLICATE-PRS`: read both PR #777 and PR #782 in full, reconcile.
+- [ ] Decide + close `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` (real architectural call, per its own
+      recommendation).
+- [ ] `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`: recommendation explicitly flags this as an
+      Owner-level product decision (which live deployment `projexa-ai.com` routes to) -- likely to be
+      flagged back to PM/Owner rather than unilaterally decided.
+- [ ] `GAP-OCID038-PROJEXA-OWN-SCHEMA`: cross-repo investigation (projexa repo), scope TBD.
 
 <!-- Prior task history preserved below (this repo's established PROGRESS.md convention: append, never truncate). -->
 
