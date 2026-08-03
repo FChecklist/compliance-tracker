@@ -1876,10 +1876,34 @@ OCID-020.
       `src/lib/db/schema.ts:3852` (`confidenceLabel` nullable text column, no default). Confirmed the
       planning doc's claim is accurate: `confidenceLabel` is the only field that differs by reply
       origin, and it is set on the genuine-LLM path only.
+- [x] Cross-checked the code-level conclusion against the real, already-captured live evidence from
+      Items 2-3 (`confidence_label IS NULL` for the deterministic reply, `"high"` for the AI-escalated
+      one) -- confirmed `MessageBubble`'s badge computation is a pure per-message function, so this
+      holds for any real thread containing both reply types.
+- [x] Registered `GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL` in `ai-os/MASTER-TRACKER.yaml`: honest
+      finding is **absent** -- no designed deterministic-vs-AI UI label exists; the only real signal is
+      incidental and independently shown unreliable by `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`.
+- [x] Item 5 (dialogue-script path) honestly assessed as not executed -- explicitly optional per its
+      own task breakdown, no active `dialogue_script` capability package confirmed for the test orgs
+      used.
+- [x] Amended `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      with real "Item 4 execution results" + an "OCID-052 completion summary" section.
+- [x] Updated `ai-os/OS.yaml`'s index entry for that doc to reflect real completion (was "Planning
+      only").
+- [x] Independently re-verified OCID-049's hold-gate (PR #826) has genuinely merged into `main`
+      (`gh pr view 826` + `git merge-base --is-ancestor <sha> origin/main`) since the 16:09Z hold
+      decision that had cited it as still `CONFLICTING` -- named this honestly in the completion
+      summary as the one real outstanding item in the Group F batch (OCID-049 real execution itself
+      not started, out of this task's scope).
+- [x] Committed and pushed each unit separately (claim registration; PROGRESS.md history-restore fix;
+      Item 4 work).
 
 ## Remaining
-- [ ] Register `GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL` in `ai-os/MASTER-TRACKER.yaml`.
-- [ ] Amend the OCID-052 planning doc with Item 4 results + overall completion summary.
-- [ ] Update `ai-os/OS.yaml` index entry.
-- [ ] Move this session's ACTIVE-CLAIMS.yaml entry to `recently_completed`.
-- [ ] Final commit + push.
+- [ ] None -- OCID-052 is complete: all 5 task-breakdown items have real evidence behind a pass, a
+      found-and-registered gap, or an honest, explicit deferral (Item 5). Three real product gaps
+      remain open as product work, not this task's to fix:
+      `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`,
+      `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`,
+      `GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL`.
+- [ ] OCID-049 real testing execution remains genuinely outstanding across the whole Group F batch
+      (its hold-gate PR #826 has now merged) -- a future session's task, not this one's.

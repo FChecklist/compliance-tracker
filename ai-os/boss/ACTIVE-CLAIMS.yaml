@@ -40,27 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-201852-pm-decision-to-proceed-with-ocid-052-rem) -- OCID-052 Item 4 (UI-distinguishability) real execution + OCID-052 completion summary [IN PROGRESS]"
-    claimed_at: "2026-08-03T20:18Z (this session)"
-    claim: |
-      SPEC (PM decision, `UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115620-29c6` OCID-052):
-      OCID-051 confirmed merged (PR #844). OCID-052 Items 2-3 (deterministic-only and AI-escalation
-      routing test cases) already executed with real evidence earlier this session (see
-      `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION` / `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`
-      in `ai-os/MASTER-TRACKER.yaml`). This task executes the remaining Item 4: independently read the
-      real VERI Chat message-rendering code and confirm, or honestly find absent, a real visible way an
-      end user can tell a deterministic reply apart from an AI-escalated one -- then write the honest
-      OCID-052 completion summary, closing the full Group F (OCID-047 through OCID-052) Business
-      Certification batch under OCID-020.
-
-      Zero-duplication check performed first: read this file in full before starting; no other active
-      or recently-completed entry claims OCID-052 Item 4/5 execution specifically -- only the planning
-      entries and the Item 2-3 execution entry exist.
-    scope_note: >-
-      File scope: `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
-      (amended in place), `ai-os/MASTER-TRACKER.yaml` (new GAP entry), `ai-os/OS.yaml` (index entry
-      update), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No `src/`, schema, or CI changes -- code
-      read and real test-execution confirmation only, no product code modified.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |
@@ -5244,6 +5223,45 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-201852-pm-decision-to-proceed-with-ocid-052-rem) -- OCID-052 Item 4 (UI-distinguishability) real execution + OCID-052 completion summary [DONE, closed same session]"
+    claimed_at: "2026-08-03T20:18Z (this session, closed 2026-08-03T20:35Z)"
+    claim: |
+      SPEC (PM decision, `UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115620-29c6` OCID-052):
+      OCID-051 confirmed merged (PR #844). OCID-052 Items 2-3 already executed with real evidence
+      earlier this session. This task executed the remaining Item 4: independently read the real VERI
+      Chat message-rendering code and confirm, or honestly find absent, a real visible way an end user
+      can tell a deterministic reply apart from an AI-escalated one -- then write the honest OCID-052
+      completion summary.
+
+      Independently re-read (not trusted from the existing planning doc alone) `ThreadView.tsx:15-30,
+      227-297` (`MessageBubble`/`ChatMessage`) and every real `messages` insert call site in
+      `chat-service.ts` (policy-refusal :632, deterministic :644, dialogue-script :664, genuine-LLM
+      :872/:999) plus `schema.ts:3852`. Confirmed: `confidenceLabel` is the only field that varies by
+      reply origin, set only on the genuine-LLM path. Cross-checked against the real, already-captured
+      Item 2/3 evidence (`confidence_label` NULL vs `"high"`) -- holds because `MessageBubble`'s badge
+      computation is a pure per-message function. **Honest finding: absent** -- no designed
+      deterministic-vs-AI UI label exists; the only real signal is incidental and independently shown
+      unreliable by the already-registered `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`.
+      Registered as `GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL`. Item 5 honestly deferred (optional
+      per its own task breakdown, no active dialogue-script package confirmed for the test orgs used).
+
+      Real mistake caught and fixed within this same session, noted honestly: an early commit on this
+      branch (`6df51f92`) replaced this repo's shared, cumulative `PROGRESS.md` (1,842 real lines of
+      prior task history) with a fresh per-task stub via `Write` instead of appending -- the identical
+      bug class already named once before (see the `task-20260803-094100-pm-priority-reorder` entry
+      below). Caught via `git cat-file -p HEAD~1:PROGRESS.md` before this went further; fixed with a
+      follow-up commit (`4dc6545f`) restoring the full history and appending this task's section.
+
+      Also independently re-verified OCID-049's hold-gate (PR #826) has genuinely merged into `main`
+      (`gh pr view 826 --json mergeCommit` + `git merge-base --is-ancestor <sha> origin/main`) since the
+      16:09Z hold decision that had cited it as still `CONFLICTING` -- named honestly in the OCID-052
+      completion summary as the one real outstanding item across the Group F batch; did NOT start
+      OCID-049 real execution (out of this task's own scope).
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (amended in place), `ai-os/MASTER-TRACKER.yaml` (new GAP entry), `ai-os/OS.yaml` (index entry
+      update), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No `src/`, schema, or CI changes -- code
+      read and real test-execution confirmation only, no product code modified.
   - session_label: "claude-code (docs/ocid051-cross-surface-certification-complete) -- OCID-051 Cross-Surface Certification (browser + Mobile PWA), all real checks passed [DONE]"
     claimed_at: "2026-08-03T20:00Z (this session, closed same session)"
     claim: |
