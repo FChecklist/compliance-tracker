@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-055114-ocid-033-veridian-universal-end-user-wor) -- OCID-033: VERIDIAN Universal End User Work Orchestration Runtime v1.0, documentation only"
+    claimed_at: "2026-08-03T05:51Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt): real Owner directive, tier 1, parented
+      to `UMR-20260803-041743-d271` (OCID-032, "just registered") and citing
+      the full OCID-022 through 031 chain plus the ERP Functional
+      Completeness Master Program, OCID-020, the gatekeeper rule, and the
+      unified project memory. Documentation only -- create exactly one new
+      document, `VERIDIAN Universal End User Work Orchestration Runtime
+      v1.0`, defining continuous end-user work orchestration grounded in
+      what already exists (task/decision/execution/rule/notification
+      engines, workflow, VERI Chat, mode pills, option chain). No
+      implementation, no code, no new DB objects.
+      Real, independently-confirmed numbering note before starting: this
+      repo's own `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
+      table (as last amended by merged PR #776) lists OCID-032 as "VERIDIAN
+      Universal End User Work Orchestration Runtime v1.0" -- i.e. that
+      snapshot's table currently disagrees with this task's own prompt.txt
+      (which assigns that exact title to OCID-033, and treats OCID-032 as a
+      distinct, separately-cited parent directive `UMR-20260803-041743-d271`).
+      PR #776 itself documents an already-confirmed, systemic off-by-one
+      drift in that snapshot table's rows for the 026-030 range (three
+      separate downstream workers found their own real task/branch label
+      disagreed with the table and were confirmed correct by PM decision
+      `UMR-20260803-052107-71fa` -- the table was wrong, not the tasks). This
+      task's own directory (`task-20260803-055114-ocid-033-...`) and its own
+      prompt.txt independently agree with each other on "OCID-033" for this
+      exact title, consistent with that established pattern of trusting each
+      task's own real directive over the snapshot table. Proceeding on that
+      basis; noting the snapshot table likely needs the same class of
+      correction for row 032/033 as a follow-up, not blocking this task.
+      Checked for collision: no branch, PR, or ACTIVE-CLAIMS entry exists for
+      OCID-032 or OCID-033 as of this claim (`git ls-remote --heads`, `gh pr
+      list`, grep of this file) -- registering fresh, no duplication.
+    scope_note: >-
+      File scope: one new file under `ai-os/` (the OCID-033 document itself),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`, and minimal
+      index-file amendments (`ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml`,
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`) consistent with how prior
+      OCID-022/024/025 PRs registered their own new documents. No src/,
+      schema, or CI changes -- documentation only, per this task's own
+      explicit prohibition on implementation.
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
