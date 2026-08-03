@@ -663,3 +663,16 @@ prior cycle") since the spec is the only source for what it denotes.
 ## Remaining
 - [ ] PR #774 merge (blocked on CI + no dedicated human reviewer per AGENTS.md Rule 6 -- will merge once green)
 - [ ] Move ACTIVE-CLAIMS.yaml entry from active: to recently_completed: once merged
+
+# PROGRESS -- task-20260803-071115-ocid-038-veridian-unified-platform-integ
+
+## Completed
+- [x] Read governance chain: ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml SEC-07 lock (discovery/docs permitted, implementation locked behind OCID-020), VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md (confirms this task = row "OCID-20260803-038"), EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md
+- [x] Merged origin/main (was 8 commits behind incl. PR #774); restored PROGRESS.md from wholesale-replace by worker-start template before merging
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
+
+## Remaining
+- [ ] Real cross-repo/cross-layer discovery pass (VERI Chat/Mother Router wiring, PWA existence, projexa-ai.com live check, FChecklist repo-level backend-unification check)
+- [ ] Write canonical artifact: OCID-038 discovery + honest E2E integration certification (do not implement)
+- [ ] Register gap entries in MASTER-TRACKER.yaml, index in OS.yaml
+- [ ] Commit, push, open PR

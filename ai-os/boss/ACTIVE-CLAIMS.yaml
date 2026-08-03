@@ -40,6 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-071115-ocid-038-veridian-unified-platform-integ) -- OCID-038 real platform discovery + honest E2E integration certification, discovery/gap-analysis only [IN PROGRESS]"
+    claimed_at: "2026-08-03T07:15Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, tier 1, parent UMR-20260803-042230-180c real OCID-037,
+      citing the full UMR-20260803-040844-4a33..UMR-20260803-042230-180c / OCID-022..037 chain,
+      the ERP Functional Completeness Master Program (UMR-20260802-173631-ca85), OCID-020
+      (UMR-20260802-165606-4413), the traceability audit (UMR-20260802-164659-9a31), the
+      gatekeeper rule (UMR-20260802-165034-5747), and the unified project memory
+      (UMR-20260802-165434-cd91)): real, honest platform-wide discovery and gap analysis --
+      whether compliance-tracker/PROJEXA/every FChecklist repo operate as one VERIDIAN backend
+      today, whether projexa-ai.com is really a production PROJEXA thin client today, whether the
+      full browser->PWA->server->VERI Chat->VERI Assistant->task/decision/execution
+      engine->sync/cache/audit chain operates as one system today -- citing real evidence per
+      claim. Explicitly matches row "OCID-20260803-038" in
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` ("Real platform discovery +
+      honest E2E verification (do not implement)" -- "not yet dispatched as its own worker task as
+      of this snapshot"; this task IS that dispatch). Discovery/documentation only -- real
+      implementation of any found gap stays locked behind SEC-07 (`ai-os/CONSTITUTION.yaml`) /
+      OCID-020, per this task's own explicit instruction not to implement.
+
+      This task does NOT re-run the OCID-022..037 individual-layer discovery already done by
+      those sessions (open PRs #765-767, #771, #772, #774, #781, plus
+      `ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md`'s already-spot-verified findings) --
+      it synthesizes and adds NEW, distinct evidence at the cross-repo/cross-layer integration
+      level those documents explicitly deferred (see the OCID-040 snapshot's own §5 "Explicit
+      non-certifications", which names exactly these three claims as not yet certified and defers
+      them here).
+    scope_note: >-
+      File scope: one new canonical artifact (the OCID-038 discovery + gap-analysis document),
+      `ai-os/OS.yaml` (index entry), `ai-os/MASTER-TRACKER.yaml` (new gap entries if found), this
+      ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, or CI changes -- discovery/gap
+      documentation only, no implementation, per SEC-07 and this task's own explicit prohibition.
   - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only [PUSHED, PR #781 OPEN]"
     claimed_at: "2026-08-03T05:5xZ (this session, PR opened same session)"
     claim: |
