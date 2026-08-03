@@ -22,6 +22,8 @@ OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
       (passed: 120 governance items accounted for)
 - [x] Committed + pushed
 
+- [x] Opened PR #775 (FChecklist/compliance-tracker)
+
 ## Remaining
-- [ ] Open PR
-- [ ] Report canonical artifact location + updated UMR + OCID-027 handoff confirmation
+- [ ] Report canonical artifact location + updated UMR + OCID-027 handoff confirmation to Owner
+- [ ] (post-merge, separate step) move ACTIVE-CLAIMS.yaml entry from active to recently_completed
