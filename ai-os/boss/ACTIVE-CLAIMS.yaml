@@ -65,6 +65,34 @@ active:
       `enableConstructionForOrg` already exist and are fully implemented, this only wires a real
       authenticated route to each), `ai-os/MASTER-TRACKER.yaml` (gap status update),
       `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration changes.
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-veri-chat-no-visible-ai-signal) -- OCID-021 Wave 1: real fix for GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL [DONE, PR opened]"
+    claimed_at: "2026-08-03T23:10Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): continuing the same OCID-021 Wave 1 backlog
+      this task's own prior invocation started (Item 1 `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`,
+      PR #851, merged; Item 2 `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
+      PR #852, open pending independent audit -- not touched further by this entry).
+
+      On resume, found this task's own workspace had real, uncommitted, working (tsc-clean) code for
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` sitting directly on top of PR #852's own
+      branch (`fix/gap-erp-sales-construction-self-service-enablement`) -- a prior invocation had
+      started the next backlog item without switching to its own branch first, which would have mixed
+      two unrelated gaps into one PR/audit unit. Verified the in-progress diff was real and correct
+      (not narrated): `bunx tsc --noEmit` clean, matches `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`'s
+      own `recommendation` in `ai-os/MASTER-TRACKER.yaml`, and the `confidenceLabel` field it reads
+      already exists on the real `getMessages()` API response (`chat-service.ts:394`), confirmed by
+      direct read, not assumed. Relocated it to its own isolated worktree/branch (`git worktree add`
+      off `origin/main`, not the shared main workspace, to respect
+      [[veridian-shared-worktree-stash-risk]]) rather than commit it onto PR #852's branch, added a
+      real regression test (`HomeThreadSlot.test.ts`, 4 tests/6 assertions, matching this repo's
+      established pure-function-test pattern), reran `bunx tsc --noEmit` and `bun test` clean in the
+      new worktree itself (not just the original workspace) before committing.
+    scope_note: >-
+      File scope: `src/components/veri-chat/HomeThreadSlot.tsx` (message-mapping change only, no new
+      mechanism), new `src/components/veri-chat/HomeThreadSlot.test.ts`, `ai-os/MASTER-TRACKER.yaml`
+      (gap status update), `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration/API
+      changes -- `confidenceLabel` was already returned by the real backend, this only reads it.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |

@@ -1988,8 +1988,39 @@ open_items:
         and render a real, explicit, intentional indicator (not reuse the confidence badge, which this
         session separately found unreliable for refusal detection); (b) decide whether the same
         indicator should also appear in any other real AI-thread rendering surface found later.
-      status: open
+      status: resolved
       first_raised: "This session, 2026-08-03, real live test during OCID-052 Item 4 execution (UMR-20260803-201840-af59, UMR-20260802-165606-4413 OCID-020)"
+      resolved: |
+        2026-08-03, OCID-021 Wave 1 (real implementation, `UMR-20260802-173631-ca85`, authorized by PM
+        decision `UMR-20260803-212402-1922` after OCID-020 was declared complete), per this gap's own
+        `recommendation` above. Added `confidenceLabel` to `HomeThreadSlot.tsx`'s `RawMessage` type
+        (matching the shape `getMessages()` in `chat-service.ts` already returns, per that function's
+        own `confidenceLabel: m.confidenceLabel as "high" | "medium" | "low" | null` mapping -- the
+        backend was already emitting this field, `HomeThreadSlot.tsx` was simply never reading it) and
+        a new exported pure function, `withSourceTypeLabel()`, that prepends a real, explicit
+        `"✨ AI-generated reply"` marker line to a message's `content` when `senderId === null` (an
+        assistant message, never the org's own user) and `confidenceLabel !== null` (a real LLM call
+        produced this reply, per `deriveConfidenceLabel()`'s own contract of never being called for a
+        deterministic/scripted/gated reply) -- deliberately using presence/absence only, not the
+        high/medium/low value itself, so this does not inherit
+        `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`'s separate tier-accuracy issue. Content is
+        overloaded rather than a new UI slot because the real, external `@fchecklist/veridian-ui-kit/panel`
+        `ThreadView` component `/home` renders through has no per-message metadata slot to render a
+        badge into, and extending it would require a cross-repo package release for one surface.
+
+        Verification performed: `bunx tsc --noEmit` clean (full repo). New regression test file
+        `HomeThreadSlot.test.ts` (4 tests, 6 assertions, all pass) covers the pure `withSourceTypeLabel()`
+        function directly -- matching this repo's established pattern of testing the pure derivation
+        function a component delegates to (see `ChainSelector.test.ts`) rather than rendering the
+        component itself, since `ThreadView` is an external package component not under test here.
+
+        **Real, honest limitation, not glossed over:** this pass verified the derivation logic
+        (`withSourceTypeLabel()`) directly via unit tests, not a full live browser re-render of `/home`
+        with a real deterministic + real AI-escalated message pair (the exact live repro this gap's own
+        `detail` section used to originally find the bug) -- that live re-confirmation is a tracked
+        follow-up for once this PR merges and deploys, same discipline already established by
+        `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`'s own fix for the same class of
+        "route/UI change requires a real deploy before live re-verification is possible."
 
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
       name: "stage_0 is a real DB role (userRoleEnum) but is missing from the UserRole type and ROLE_RANK map, so a stage_0 user fails every requireRole()/requirePermissionForUser() gate in the app -- including the lowest-bar (viewer/member) ones"
