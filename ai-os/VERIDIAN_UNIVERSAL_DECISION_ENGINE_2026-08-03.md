@@ -18,15 +18,15 @@ matrix-building, which SEC-07 explicitly permits to continue.
 
 **A note on task numbering, resolved by a real PM decision:** this task's own working directory is
 labeled `task-...-ocid-030-veridian-universal-decision-eng`, and that label was correct all along. Real
-PM decision `UMR-20260803-045159-ec55` independently verified this document's real content ("VERIDIAN
-Universal Decision Engine") is OCID-030, correcting an earlier draft of
-`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status table that had mislabeled this
-content as row `OCID-20260803-029`. Same mislabeling class as the OCID-036/037 correction (`UMR-20260803-045159-ec55`). This document's own
-correction does not resolve what OCID-029's real content is -- the same status-snapshot table has shown
-a demonstrated, real off-by-one drift across this numbering range, and re-guessing that mapping here
-without independent confirmation would risk repeating the same error. Whoever picks up whichever
+PM decision `UMR-20260803-052107-71fa` (citing `UMR-20260803-041459-7c97`) independently verified this
+document's real content ("VERIDIAN Universal Decision Engine") is OCID-030, correcting an earlier draft
+of `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status table that had mislabeled this
+content as row `OCID-20260803-029`. Same mislabeling class as the OCID-036/037 correction
+(`UMR-20260803-045159-ec55`). This document's own correction does not resolve what OCID-029's real
+content is -- the status snapshot's table marks that row as genuinely unconfirmed rather than
+re-guessed, to avoid repeating the same class of error a third time. Whoever picks up whichever
 directive is really OCID-029 next should verify its own real UMR/content mapping directly against the
-real dispatch chain, not against this document's own guess.
+real dispatch chain.
 
 ---
 
