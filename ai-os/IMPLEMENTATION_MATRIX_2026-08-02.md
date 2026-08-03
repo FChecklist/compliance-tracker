@@ -1159,3 +1159,50 @@ need already does.
 Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md` (new), this
 file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim entry,
 to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
+## Amendment (2026-08-03): OCID-20260803-027 — VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0
+
+Real, Owner-directed, tier 1 directive, documentation only — no implementation. Parented to
+`UMR-20260803-041122-b22d`, citing `UMR-20260803-041047-03ee` (OCID-025), `UMR-20260803-041000-70ae`
+(OCID-024), `UMR-20260803-040929-9713` (OCID-023), `UMR-20260803-040844-4a33` (OCID-022),
+`UMR-20260802-173631-ca85` (ERP Functional Completeness Master Program), `UMR-20260802-165606-4413`
+(OCID-020), `UMR-20260802-164659-9a31` (traceability audit), `UMR-20260802-165034-5747` (gatekeeper
+rule), `UMR-20260802-165434-cd91` (unified project memory), `UMR-20260802-165541-c27d` (recovery
+framework). Consistent with the `SEC-07` implementation lock (`ai-os/CONSTITUTION.yaml`), which
+permits discovery/matrix-building work to continue.
+
+**Real numbering discrepancy, found by this task, corrected by a later real PM decision**: this task's
+own directory/branch label reads "ocid-027" and its citation chain frames itself as parented to "the
+real OCID-026 directive, just registered." At the time this document was originally drafted, that
+was read against a since-corrected version of `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
+status table that itself mislabeled this content as row `OCID-20260803-026`. Real PM decision
+`UMR-20260803-045159-ec55` independently verified this task's own branch/directory label ("ocid-027")
+was correct all along and corrected the mislabel: this document is real OCID-027 ("VERIDIAN Global
+Knowledge Discovery and Reuse Runtime"); OCID-028 is "VERIDIAN Unified Synchronization Runtime." Same
+mislabeling class as the already-corrected OCID-036/037 row swap (also `UMR-20260803-045159-ec55`).
+Re-confirmed via `gh pr list` and `ai-os/boss/ACTIVE-CLAIMS.yaml` that no open PR or active claim
+exists for OCID-027's content before proceeding — this is not duplicate work.
+
+**Canonical artifact**: `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md` — a
+36-section discovery-and-reuse operating model grounded in real, already-existing infrastructure, not a
+new discovery mechanism: the 4-layer search order already live in `ai-os/MASTER_INDEX.yaml`
+(protocol field, `system_index` check-duplicate, `knowledge_engine` query-knowledge, `wiring_registry`
+call-graph); the mechanical `DATABASE_CATALOG.json` (444 tables, 124 enums) and `FUNCTION_CATALOG.json`
+(5,019 functions) catalogs, both reused unmodified across `compliance-tracker`/`projexa`/`veda-advisors`;
+the 247-entry VCEL engine registry; the 195-role `AI_ROSTER_CATALOG.json`; the versioned/lifecycle-managed
+prompt registry (`compliance.promptVersions` + `prompt-os-service.ts`); and the real `##
+Amendment`-in-place pattern this very entry follows as the standing global-library update process.
+Names two real, honest gaps rather than hiding them: no dedicated mechanical catalog yet exists for
+reports or business rules as a distinct class (discoverable today only via the function/database/engine
+catalogs' own filters), and screen/UX discovery remains hand-maintained narrative
+(`system-tree/13-compliance-tracker-ui.yaml`), not mechanically regenerated the way the database/function
+layers already are.
+
+**Status:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-20260803-027 | `UMR-20260803-041122-b22d` (parent) | VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0 | **Documentation complete** — canonical artifact created; no implementation performed or proposed, per this task's own prohibition. Real, disclosed gaps (no dedicated report/business-rule catalog, hand-maintained screen/UX narrative) left open for a future extension of the existing generator pattern. |
+
+Canonical artifact updated: `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`
+(new file), this file (this amendment), `ai-os/MASTER_INDEX.yaml` / `ai-os/OS.yaml` (registration) —
+not rewritten, not duplicated.
