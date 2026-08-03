@@ -40,6 +40,70 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-094100-pm-priority-reorder--complete-ocid-020-f) -- OCID-020: PR #794 status re-verify + real fix for Finding 1 (GAP-ERP-REPORTS-CLIENT-CRASH-ON-403) [FIX PUSHED, PR #803 OPEN]"
+    claimed_at: "2026-08-03T09:41Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own prompt.txt): Owner-set top priority to finish
+      OCID-020 (`UMR-20260802-165606-4413`) first and fast, ahead of the OCID-041..046
+      discovery chain. PM's spec asked to move PR #794 to pending review (bypassing a
+      retry of an unrelated auto-fix failure, per the PR #755 precedent), then fix +
+      reverify Finding 1 (the high-severity `/erp/reports` client crash), then separately
+      re-test the 3 timed-out pages (`/orchestra`, `/prompt-eval`, `/sales-hq`) in
+      isolation under low host load.
+
+      Independently re-verified before acting (never act on an unverified claim,
+      including the PM's own, per standing rule): `gh pr view 794` showed
+      `state: MERGED`, `mergedAt: 2026-08-03T08:59:13Z` -- PR #794 had **already merged**
+      before this session started (tip of `main` is `b47b9caf`, the literal merge commit).
+      The spec's premise that it was still blocked/pending-review is stale by the time
+      this session read it -- no action taken on "moving it to pending review" since
+      there was nothing left to move.
+
+      Real root-cause investigation of Finding 1 (`GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`,
+      `src/app/(app)/erp/reports/page.tsx`): read the actual component. The Trial Balance
+      tab's footer guard (`tb && tb.accounts.length > 0`) assumes any truthy `tb` has an
+      `.accounts` array, but a 403 response body (`{ error: "..." }`, no `accounts` field)
+      is itself truthy -- `tb.accounts` is `undefined`, and `.length` on it throws exactly
+      the evidenced `TypeError: Cannot read properties of undefined (reading 'length')`.
+      This is the default-active tab (`Tabs defaultValue="tb"`), so it fires on first
+      render -- matches the sweep's fully-blank-page screenshot. Separately checked the
+      Cash Flow tab's `cf?.operating.receivableChange`-style chains: confirmed these are
+      **not** a bug -- `?.` short-circuits the *entire* remaining chain (not just the
+      first hop), so `cf.operating` is only read when `cf` is non-null, at which point
+      `.operating` is guaranteed present by the state's own type. Did not "fix" this --
+      it was never broken; noted here so a future session doesn't re-flag it.
+
+      Fix shipped: extracted `hasTrialBalanceFooterRows()` as a generic type-predicate
+      guard (preserves `tb`'s non-null narrowing for the sibling `tb.isBalanced`/
+      `tb.totalDebit`/`tb.totalCredit` reads in the same JSX block -- a plain boolean
+      helper would have silently broken that narrowing, caught via a full `bunx tsc
+      --noEmit` run before pushing) to `src/lib/erp-reports-guards.ts`, with a regression
+      test that independently reproduces the exact `TypeError` against the pre-fix logic
+      and passes against the fix. Verified `bun test` (4/4 new, 2479/2479 full suite),
+      `bunx tsc --noEmit` (clean, full repo), `bunx eslint` (clean). PR #803 opened.
+
+      Real mistake caught and fixed within this same session, noted honestly: an early
+      commit on this branch replaced main's real 769-line `PROGRESS.md` with a fresh
+      per-task stub instead of appending to it, because `git show HEAD~1:PROGRESS.md |
+      wc -l` silently truncated its output in this sandbox (a known class of bug) and
+      showed 31 lines instead of 769, masking the real file size before the Write.
+      Caught via `git cat-file -p` (untruncated) before the PR was opened; fixed with a
+      follow-up commit restoring the full history and appending this task's section.
+
+      Timeout re-test (`GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) explicitly NOT
+      attempted this session: host load re-checked at hand-off time was `13.62, 9.25,
+      8.58` -- worse than the `10.23` load that triggered the prior deferral in this
+      same OCID-020 chain, not the "low host load" condition the spec itself required
+      before this specific re-test could produce a trustworthy result. Deferring rather
+      than risking a 3rd invalidated attempt, per the standing circuit-breaker rule and
+      the same precedent already used twice in this chain.
+    scope_note: >-
+      File scope: `src/app/(app)/erp/reports/page.tsx` (the one-line guard fix),
+      new `src/lib/erp-reports-guards.ts` + `src/lib/erp-reports-guards.test.ts`
+      (extracted pure predicate + regression test, matching this repo's established
+      test-pure-logic convention since there's no component-render test harness
+      here), `ai-os/MASTER-TRACKER.yaml` (GAP status update), this ACTIVE-CLAIMS entry,
+      `PROGRESS.md`. No schema/CI changes.
   - session_label: "claude-code (task-20260803-151937-pm-decision--proceed-with-ocid-048-real, UMR-20260803-115452-a35d) -- OCID-048 real API-level cross-tenant isolation test execution [DONE, closed same session]"
     claimed_at: "2026-08-03T15:20Z (this session; claim recorded after work completed, verified first via `git fetch origin main` that no other session had claimed OCID-048 real execution -- only the prior planning/task-breakdown entry existed)"
     claim: |

@@ -1350,3 +1350,22 @@ Full raw JSON result log (setup + all 18 checks) preserved at (host-local, not r
       unfixed -- not this test-execution task's to prescribe a fix for.
 - [ ] Real testing execution for OCID-048/049/050/051/052 items 4-5 has not started yet (052 items 2-3
       already done; 050/051/052-items-4-5 blocked on Playwright per the now-amended gap).
+
+# PROGRESS -- task-20260803-094100-pm-priority-reorder--complete-ocid-020-f
+
+## Completed
+- [x] Re-verified PR #794 status independently: `state: MERGED`, `mergedAt: 2026-08-03T08:59:13Z`, already the tip of `main` (`b47b9caf`). Spec's premise that it needed to be "moved to pending review" was stale before this session started -- no action needed there.
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` for Finding 1 fix work.
+- [x] Root-caused Finding 1 (`GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`): `src/app/(app)/erp/reports/page.tsx`'s Trial Balance tab footer guard (`tb && tb.accounts.length > 0`) reads `.length` on `tb.accounts`, which is `undefined` when `tb` is a truthy 403 error body (`{ error: "..." }`) -- exact match for the evidenced `TypeError: Cannot read properties of undefined (reading 'length')`.
+- [x] Checked the Cash Flow tab's `cf?.operating.xxx` chains: confirmed NOT a bug (optional chaining short-circuits the whole remaining chain, not just the first hop) -- no fix needed there.
+- [x] Applied the fix: extracted `hasTrialBalanceFooterRows()` as a generic type-predicate guard (preserves `tb`'s non-null narrowing for the sibling `tb.isBalanced`/`tb.totalDebit`/`tb.totalCredit` reads -- a plain boolean helper silently broke that narrowing, caught by a full `tsc --noEmit` run before pushing) to `src/lib/erp-reports-guards.ts`.
+- [x] Added `src/lib/erp-reports-guards.test.ts` -- independently confirmed it reproduces the exact `TypeError` against the pre-fix logic, and passes against the fix.
+- [x] Ran full verification: `bun test` (4/4 new, 2479/2479 full suite pass), `bunx tsc --noEmit` (clean, full repo, after installing deps via `bun install`), `bunx eslint` (clean on changed files).
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`'s `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` entry with fix detail, status `fix_implemented_pending_merge`.
+- [x] Caught and fixed a real mistake from earlier in this session: a `git show | wc -l` pipe silently truncated its output (masking `PROGRESS.md`'s real 769-line size as 31), causing an earlier commit to replace history with a stub instead of appending. Restored via `git cat-file -p` + a follow-up commit before opening the PR.
+- [x] Committed, pushed, opened PR #803: https://github.com/FChecklist/compliance-tracker/pull/803
+- [x] Registered claim + logged fix detail in `ai-os/boss/ACTIVE-CLAIMS.yaml`
+
+## Remaining
+- [ ] PR #803 CI: Lint/Type Check/Unit Tests/Build/security+doc gates all pass. `audit-check` fails as expected -- it requires an independent structured `AUDIT: PASS`/`AUDIT: FAIL` comment (AGENTS.md Rule 10), and this session is the implementer of the fix, so per Rule 7(c) ("whichever agent did not implement a task is the mandatory auditor -- no self-certification") this session deliberately did not post one itself. Needs a genuinely separate session/agent to audit and post the verdict before merge.
+- [ ] Re-test the 3 timed-out pages (`/orchestra`, `/prompt-eval`, `/sales-hq`, `GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) in isolation once host load is genuinely low -- checked at hand-off: `13.62, 9.25, 8.58`, worse than the `10.23` that triggered the prior deferral in this same chain. Not attempted this session; left for whoever resumes once load actually drops, per the standing circuit-breaker rule against a 3rd invalidated attempt under the same failure class.
