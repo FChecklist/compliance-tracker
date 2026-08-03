@@ -5223,7 +5223,62 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
-  - session_label: "claude-code (task-20260803-201239-pm-confirmation-to-proceed-with-ocid-051) -- OCID-051 real execution: found already-done in PR #844, independently verified, posted required audit verdict [DONE, docs-only, no PR of its own]"
+  - session_label: "claude-code (docs/ocid051-cross-surface-certification-complete) -- OCID-051 Cross-Surface Certification (browser + Mobile PWA), all real checks passed [DONE]"
+    claimed_at: "2026-08-03T20:00Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-195837-dde3, citing UMR-20260802-165606-4413/OCID-020 and this
+      OCID's own UMR-20260803-115558-170e): OCID-050 confirmed genuinely complete via PR #843
+      (independently verified merge commit 8b7d03c8, ancestor of origin/main), proceed with OCID-051
+      real testing execution now -- cross-surface certification covering browser completeness and
+      mobile PWA, reusing existing infrastructure, no new architecture, honest findings, register
+      (don't sudo-workaround) the known Chromium missing-libs blocker if it affects anything.
+
+      Part 1 (desktop nav-surface gap check): real `document.querySelectorAll('a[href]')` re-run from
+      an authenticated `/home` against the live site's current state. Result: 115 distinct hrefs,
+      byte-identical set-equality against the existing baseline (`nav-hrefs-v2.json`) -- zero delta.
+      The 115-page surface remains complete and clean, a real positive certification result.
+
+      Part 2a (PWA install flow): real `GET /manifest.webmanifest` from a Pixel-7-emulated Playwright
+      context confirmed the full manifest contract live -- name/short_name "VERIDIAN AI",
+      `start_url: "/home"`, `display: "standalone"`, correct theme/background colors, one icon
+      (`/logo-mark.svg`, independently confirmed resolving `200`/`image/svg+xml`), and the real wired
+      `share_target` contract. Real mobile-viewport screenshot of `/home` captured, clean render, no
+      crash, no horizontal overflow.
+
+      Part 2b (Web Share Target): real `multipart/form-data POST` to `/api/veri-chat/share-target`
+      with a unique marker string, as a real authenticated user. Got a real `303` redirect to
+      `/chat?conversation=<id>`. Independently confirmed via a follow-up authenticated
+      `GET /api/conversations/<id>/messages` that the real content genuinely landed in the real
+      conversation -- full end-to-end real evidence, not just a status-code check.
+
+      Part 2c (offline/service-worker absence): real, live, deterministic checks --
+      `navigator.serviceWorker.controller` is `null` and `getRegistrations()` returns empty on both
+      `/home` and `/dashboard`; `context.setOffline(true)` + reload produced a real
+      `net::ERR_INTERNET_DISCONNECTED` (the browser's own native offline behavior, not an app-shell
+      fallback) -- deterministic proof no service worker intercepts navigation. Registered as the
+      real, honest Part 2c finding: no offline/service-worker behavior exists to test, confirmed live
+      rather than assumed from a code search alone.
+
+      Part 2d (mobile-viewport nav sweep): full 115-item nav list re-run with Pixel-7 device
+      emulation, same anomaly heuristics as Part 1 plus a new per-page horizontal-scroll check.
+      **115/115 real page-checks passed** -- zero crashes, zero page errors, zero `Application error`
+      matches, zero pages with horizontal overflow at the emulated viewport width. Real load-time
+      distribution: min 452ms / max 3,841ms / avg 1,059ms.
+
+      Infra note: the existing no-sudo Chromium fix (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`)
+      worked without issue for every real test in this pass, including mobile device-emulation
+      contexts (not previously explicitly confirmed working under emulation). Nothing in this pass hit
+      the known missing-system-libs blocker; no sudo change was needed or attempted.
+
+      **OCID-051 is complete.** Zero new gaps registered this pass -- every real check passed against
+      this OCID's own pre-written acceptance criteria (its planning doc's Definition of Done).
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`
+      (completion amendment, in place, already-indexed doc), `PROGRESS.md`, this ACTIVE-CLAIMS entry.
+      No src/, schema, or migration changes -- pure testing/documentation, per this dispatch's own
+      scope. No production data touched -- all writes (the one real Web Share Target message) went
+      through real, live, self-service test accounts, isolated from any real customer org.
+  - session_label: "claude-code (task-20260803-201239-pm-confirmation-to-proceed-with-ocid-051) -- OCID-051 real execution: found already-done in PR #844, independently verified, posted required audit verdict, PR #844 merged [DONE, PR #845]"
     claimed_at: "2026-08-03T20:12Z (this session, closed same session)"
     claim: |
       SPEC (PM decision citing UMR-20260802-165606-4413 OCID-020, UMR-20260803-115534-af31 OCID-050,
@@ -5254,17 +5309,28 @@ recently_completed:
       `mandatory-audit-check.yml` was failing for exactly that reason (all other real checks
       passing). Per AGENTS.md Rule 7c/10, this session -- independent of PR #844's authorship --
       posted the required structured 8-field `AUDIT: PASS` verdict comment on PR #844, the real,
-      concrete unblock toward merge.
+      concrete unblock toward merge. Re-triggered `audit-check` re-ran and passed; PR #844 then
+      auto-merged under the Owner's standing autonomous-merge rule -- confirmed via `git fetch
+      origin main`, `b86578e5` (PR #844's merge commit) is now the tip of `origin/main`. OCID-051 is
+      genuinely complete.
 
       Separately confirmed the SPEC's own note (2 duplicate workers on a retracted CRLF thread, 2
       harmless partial-duplicate test orgs from earlier background-job timeouts) needs no new action
       this session, per the SPEC's own explicit instruction to leave them alone unless they produce
       something real -- no such artifact found, none reconciled.
+
+      Real mistake caught and fixed within this same session, noted honestly: this task's own
+      workspace had `PROGRESS.md` already silently truncated to a 7-line stub in the working tree
+      before this session's first read (same bug class as a documented prior OCID-020 incident) --
+      a first commit briefly replaced the real 1807-line committed history with that stub. Caught
+      via `git cat-file -p HEAD~1:PROGRESS.md` before pushing; fixed with a follow-up commit
+      restoring the full history before this section, verified purely additive against `main` (0
+      deletions) before pushing.
     scope_note: >-
-      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS.yaml entry (this task's own workspace) plus one
-      PR comment on PR #844 (a different branch, not this session's own). No src/, schema, or CI
-      changes. No new PR opened by this session -- the real work product is the audit verdict
-      already posted to #844, not a separate branch.
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS.yaml entry (this task's own workspace, opened as
+      PR #845), plus one PR comment on PR #844 (a different branch, not this session's own -- that
+      PR itself is not this session's code). No src/, schema, or CI changes -- documentation and one
+      audit-verdict comment only.
   - session_label: "claude-code (docs/ocid050-full-115x3-sweep-and-large-data-org) -- OCID-050 full 115-page x 3-state sweep + real large-data org, 345/345 [DONE]"
     claimed_at: "2026-08-03T19:00Z (this session, closed same session)"
     claim: |
