@@ -40,6 +40,56 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-005952-pm-decision-trigger-backlog-pr-review-no) -- review+merge real open PRs 752-756 on compliance-tracker, oldest to newest, resolving shared-file conflicts"
+    claimed_at: "2026-08-03T01:01Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260802-165606-4413`)
+      claimed: real running units dropped from 5 to 1 (only task-210700
+      active per `systemctl list-units`); six real open unmerged PRs
+      751-756; a plan to hold these PRs for a free slot "already agreed
+      this session." **All three checked independently on the server and
+      found FALSE, not narrated:** `systemctl --user list-units --all
+      --type=service` shows 6 real active/running veridian units right now
+      (2x `veridian-worker@` incl. this task's own,
+      `veridian-supervisor@task-20260803-010046...`,
+      `veridian-directive-engine.service`,
+      `veridian-governor-tick.service`) -- task-210700 is not among them at
+      all, matching this file's own prior entry that task-210700 was
+      already confirmed dead (clean SIGTERM 23:14:21Z) with its real value
+      already merged via PR #747. `gh pr view 751` shows state `MERGED`,
+      `mergedAt: 2026-08-03T00:59:50Z` -- already merged before this task
+      started, so only 5 PRs (752-756) are actually open. No prior
+      "agreed this session" plan exists (fresh session). Recorded as
+      another concrete example of the recurring false-premise-in-task-spec
+      pattern. The underlying ask -- review and merge the real open PRs,
+      resolving real shared-file conflicts (`PROGRESS.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, same pattern as every prior PR in
+      this chain) in sensible order, verifying CI green before each real
+      merge -- is legitimate on its own merits, so proceeding with that,
+      corrected. Order: 752, 753, 754, 755, then 756 (756 is a genuine,
+      already-auditor-verified production-fix log per its own PR body, but
+      is chronologically last and all 5 are docs-only, so processing
+      oldest-to-newest avoids re-doing conflict resolution out of order).
+
+      **UPDATE (still this session, before any manual merge by this task):**
+      PR #753 was independently merged by the live autonomous supervisor
+      (`veridian-supervisor@task-20260803-010046...`, real `active running`
+      per `systemctl`) at `2026-08-03T01:04:40Z`, confirmed via
+      `gh pr view 753` (`state: MERGED`) and `git log origin/main`
+      (`60635f87` merges it). Not this task's own action -- real live
+      concurrent drift. Remaining real open PRs to process: 752, 754, 755,
+      756. Re-checking PR state before each merge to avoid racing the
+      supervisor.
+    scope_note: >-
+      File scope this session: `PROGRESS.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), plus rebasing/merging
+      PR branches `worker/task-20260803-000354-pm-unblock-decision-for-task-231514-cred`
+      (#752), `worker/task-20260803-000319-pm-confirmation-of-cert-sweep-continuati`
+      (#753), `worker/task-20260803-000241-pm-answer-on-task-210700-real-terminal-s`
+      (#754), `worker/task-20260802-231454-ocid-020-continue-certification-sweep-ac`
+      (#755), `worker/task-20260802-210700-pm-decision--fix-the-real-high-severity`
+      (#756) -- all docs-only per their own PR bodies, no src/schema/CI
+      changes expected. Not touching any other open PR.
   - session_label: "claude-code (task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next) -- monitor task-210700 for real completion, then rebase+push PR #744 onto then-current main"
     claimed_at: "2026-08-02T23:17Z (this session)"
     claim: |
