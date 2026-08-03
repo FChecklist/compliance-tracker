@@ -8,9 +8,10 @@
 - [x] Discovery: grounded "capability" term against 3 real distinct existing meanings (capability_registry, capability-learning/audit-service.ts, dynamic_chains/capability-tree-service.ts) + confirmed task_capabilities does NOT exist (OPEN_NOT_BUILT)
 - [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml with real numbering-discrepancy note
 
+- [x] Write ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md (the one canonical artifact, 36 sections)
+- [x] Amend ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (existing UMR chain, not a new one)
+- [x] Register doc in ai-os/OS.yaml index
+
 ## Remaining
-- [ ] Write ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md (the one canonical artifact)
-- [ ] Amend ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (existing UMR chain, not a new one)
-- [ ] Register doc in ai-os/OS.yaml index
 - [ ] Commit + push, open PR
 - [ ] Report real document location, updated UMR, confirm ready for OCID-037
