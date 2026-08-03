@@ -4981,6 +4981,64 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, tier not given -- treated as planning-only
+      per its own explicit text): register OCID-048 as a real child of OCID-020
+      (`UMR-20260802-165606-4413`), part of a newly-opened "Business
+      Certification" phase for OCID-020. Planning only this cycle -- no
+      implementation, no test execution, no certification. Produce a real
+      deterministic task breakdown, using only the existing organization/
+      tenant/brand model already built, defining the exact real test path for
+      (1) data isolation across >= 2 real distinct organizations, (2) a real
+      brand (e.g. projexa-ai.com) confirmed as a configuration of the one
+      shared platform rather than separate software, (3) no cross-tenant data
+      leakage. Explicit instruction: reuse the existing pending item for
+      creating a separate Tenant B demo org rather than duplicate it.
+
+      Duplication check performed before any of this was written: full read
+      of this file's own `active:`/`recently_completed:` sections (grep for
+      "tenant"/"isolat"/"multi.org"/"multi.brand"/"rls"/"048"/"business.cert"
+      -- zero collisions found beyond an unrelated closed RLS-gap fix);
+      `python3 /opt/veridian/scripts/resource_governor.py --query-umr
+      --search "OCID-048"` and `--search "Tenant B"` (zero real matches for
+      the former; the latter's 8 hits are all unrelated historical-backfill
+      rows, none about a demo org); grep across
+      `ai-os/MASTER-TRACKER.yaml`/`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`/
+      `ai-os/STANDING_DIRECTIVE.yaml`/`ai-os/boss/COMPLETED.yaml` for a
+      literal "create Tenant B demo org" item -- none exists verbatim
+      anywhere; the real, closest, already-open item is
+      `IMPLEMENTATION_MATRIX_2026-08-02.md`'s Stream D ("Multi-tenant RLS
+      table-by-table verification") plus the explicit "Still open, not yet
+      tested" note in
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+      (extend the real Org A/Org B `/api/departments` cross-org probe, PR
+      #747, to every other tenant-scoped route) -- reused and cited by name
+      in the new artifact, not duplicated. Also confirmed OCID-046
+      ("Universal Multi-Brand Multi-Tenant Platform Runtime",
+      `IMPLEMENTATION_MATRIX_2026-08-02.md`'s 2026-08-03 amendment) is
+      adjacent but distinct scope -- a locked, not-yet-started future-runtime
+      design parented through the separate OCID-041-045 external-execution
+      chain, not a certification-of-what-already-exists task -- and said so
+      explicitly in the new artifact rather than silently overlapping it.
+
+      STATUS: canonical artifact written
+      (`ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`,
+      real 6-task breakdown T1-T6 + Definition of Done mapping), registered in
+      `ai-os/OS.yaml`, cross-referenced in place (not duplicated) from
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s Stream D row + a new
+      2026-08-03 amendment section. PR opened same session -- will confirm
+      merge separately; no further ACTIVE-CLAIMS update needed once merged
+      since this entry already reflects the real, closed scope of this task.
+    scope_note: >-
+      File scope: one new canonical artifact
+      `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`,
+      `ai-os/OS.yaml` (index registration), a small in-place cross-reference
+      amendment to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (Stream D),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration,
+      or CI changes -- planning/documentation only per SPEC's explicit
+      prohibition on implementation and certification this cycle.
   - session_label: "claude-code (task-20260803-120310-register-ocid-049-subscription-plan-enti) -- OCID-049 Subscription Plan Entitlement Certification, planning only, child of OCID-020 Business Certification [DONE, docs-only]"
     claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
     claim: |
