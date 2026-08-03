@@ -203,3 +203,156 @@ order -- exactly as this OCID's own directive requires.
 
 Canonical artifact created: this file. Amends the existing UMR chain (`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`);
 does not start a new one.
+
+---
+
+## 6. Real refresh, ~2.5 hours later (`UMR-20260803-042918-60b8`, this same OCID-040 directive re-dispatched
+## as `task-20260803-071335-ocid-040-veridian-end-user-platform-cons`) — state as of 2026-08-03T07:20Z
+
+This section amends sections 1-5 above in place with genuinely current facts. It does not re-litigate anything
+already correctly settled above; it reports what has changed, resolves two rows section 1 explicitly left
+unconfirmed, and independently re-verifies OCID-020 is still open. Every fact below was checked directly at
+write time: `gh pr list --json ...` (had to cap `--limit` at 150 — `--limit 300` truncated to ~120 bytes of
+output for reasons not fully diagnosed, possibly an environment output-size interaction with gh's own
+pagination; 150 was confirmed complete and sufficient, no PR in this chain is older than #729), `find` over
+`/opt/veridian/ai-os/tasks/` (plain `ls` on this same directory silently truncated to zero matching entries in
+this session more than once — `find -maxdepth 1` was used instead and confirmed reliable), each task's own
+`task.yaml`, each task's own `prompt.txt` (the real, original PM/Owner dispatch text — the most authoritative
+source available, since it states "parented to UMR-X the real OCID-N directive" in the PM's own words at
+issuance time, before any downstream worker self-doubt could introduce a mislabel), and a direct query against
+`/opt/veridian/ai-os/memory/superboss-register.sqlite`'s real `umr_tasks` table (1,045 rows) — this is the real
+structured UMR registry; the file at the *other* path this repo's docs sometimes cite,
+`/opt/veridian/ai-os/superboss-register.sqlite`, is confirmed to exist but has zero tables (empty schema) —
+that path is not where the real data lives, the `memory/` one is.
+
+### 6a. The complete, authoritative OCID→UMR chain, resolved from the original dispatch prompts
+
+Every one of the 19 UMRs below was independently confirmed present in `umr_tasks` (`status: running` for all —
+this table's `status` column tracks the *dispatch/systemd* lifecycle, not document-merge state, so `running`
+here just means the underlying task process is alive, not that the document is unfinished; cross-reference
+column 4 for the real document state). Resolved by reading each task's own `prompt.txt` literal
+"parented to UMR-X the real OCID-N directive" clause, which is a stronger source than any downstream table
+(this repo's own) because it is what the PM/Owner actually wrote at dispatch time, not a worker's later
+self-report:
+
+| OCID | Real UMR | Real title (from its own dispatch mission / merged doc) | Real state |
+|---|---|---|---|
+| 022 | `UMR-20260803-040844-4a33` | VERIDIAN End User Experience Foundation v1.0 | OPEN PR #765 |
+| 023 | `UMR-20260803-040929-9713` | VERIDIAN Universal End User Work Model v1.0 | OPEN PR #768 |
+| 024 | `UMR-20260803-041000-70ae` | VERIDIAN Laptop Web Browser Runtime v1.0 | OPEN PR #767 |
+| 025 | `UMR-20260803-041047-03ee` | VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 | OPEN PR #766 |
+| 026 | `UMR-20260803-041122-b22d` | VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 | OPEN PR #775 |
+| 027 | `UMR-20260803-041211-b7b7` | VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0 | OPEN PR #771 |
+| 028 | `UMR-20260803-041257-e9c3` | VERIDIAN Unified Synchronization Runtime v1.0 | **MERGED** PR #774, `2026-08-03T07:13:18Z` |
+| 029 | `UMR-20260803-041351-0278` | VERIDIAN Universal Organization Runtime v1.0 | OPEN PR #773 |
+| 030 | `UMR-20260803-041459-7c97` | VERIDIAN Universal Decision Engine v1.0 | OPEN PR #772 |
+| 031 | `UMR-20260803-041700-a741` | VERIDIAN Universal Software Execution Engine v1.0 | **MERGED** PR #781, `2026-08-03T06:44:27Z` |
+| 032 | `UMR-20260803-041743-d271` | VERIDIAN Universal Task Lifecycle Runtime v1.0 | OPEN PR #780 |
+| 033 | `UMR-20260803-041851-085a` | VERIDIAN Universal End User Work Orchestration Runtime v1.0 | OPEN PR #778 |
+| 034 | `UMR-20260803-042003-5e92` | VERIDIAN Universal Context and Predictive Runtime v1.0 | **MERGED** PR #779, `2026-08-03T07:03:19Z` |
+| 035 | `UMR-20260803-042034-0c1f` | VERIDIAN Continuous Platform Evolution Runtime v1.0 | OPEN PR #777 |
+| 036 | `UMR-20260803-042144-e83f` | VERIDIAN Universal Capability Discovery and Evolution Runtime v1.0 | OPEN PR #782 (see 6b — PR's own commit title mislabels this content) |
+| 037 | `UMR-20260803-042230-180c` | VERIDIAN Universal Knowledge and Service Catalog v1.0 | **NOT STARTED** — dispatched 07:11:11Z, `status: in_progress`, zero `completed_steps`, no PR |
+| 038 | `UMR-20260803-042801-ec4b` | Real platform discovery + honest E2E verification (no implementation) | **NOT STARTED** — dispatched 07:11:15Z, `status: in_progress`, zero `completed_steps`, no PR |
+| 039 | `UMR-20260803-042839-b9c4` | Real verification of OCID-022..038 status + dependency mapping | **NOT STARTED** — dispatched 07:11:19Z, `status: in_progress`, zero `completed_steps`, no PR |
+| 040 | `UMR-20260803-042918-60b8` | Final certification + platform freeze (locked) | **THIS SECTION** — dispatched 07:13:35Z, this task |
+
+**Real, honest summary of section 6a:** of the 18 OCID-022..039 documents, **3 are MERGED** (028, 031, 034 —
+merged out of numeric order, which is immaterial for independent documents), **12 have real, substantive draft
+content sitting in OPEN, unmerged PRs** (022, 023, 024, 025, 026, 027, 029, 030, 032, 033, 035, 036), and
+**3 (037, 038, 039) were dispatched only ~2 minutes before this OCID-040 task and have produced no real
+output yet** — genuinely in flight, running concurrently with this document's own writing. Section 1's
+original "14 not started" count is now stale; every one of 026-036 now has real open-PR content.
+
+### 6b. Two rows section 1 left explicitly unconfirmed — now resolved
+
+Section 1 (row 029) said the label "VERIDIAN Universal Organization Runtime v1.0" was "plausibly" OCID-029
+"but this is an inference from a pattern, not an independent confirmation." **Now independently confirmed
+from the original dispatch prompt itself** (`task-20260803-050508-ocid-030-...`'s own `prompt.txt`: "parented
+to `UMR-20260803-041257-e9c3` the real OCID-028 directive... citing... `UMR-20260803-041351-0278` OCID-029"):
+`UMR-20260803-041351-0278` is really OCID-029, and PR #773's real content (Universal Organization Runtime)
+really is OCID-029. Confirmed correct, not just plausible.
+
+Section 1 (row after 031) flagged "VERIDIAN Universal Task Lifecycle Runtime v1.0" as a real document with an
+unconfirmed real OCID number. **Now independently confirmed**, same method (`task-20260803-055114-ocid-033-...`'s
+own `prompt.txt`: "parented to `UMR-20260803-041743-d271` the real OCID-032 directive"): this is really OCID-032,
+matching PR #780's own title exactly ("VERIDIAN Universal Task Lifecycle Runtime v1.0 (OCID-20260803-032)"). The
+real content-overlap flag against OCID-023 (task status model / delegation / escalation / audit) remains real
+and unreconciled — not resolved by this numbering fix, still open for whoever picks up either document next.
+
+**A new mislabel found this pass, not previously flagged:** PR #782's own commit title reads "OCID-036
+dispatch, real content OCID-035 VERIDIAN Universal Capability Discovery and Evolution Runtime v1.0" — the
+worker second-guessed its own folder label (`task-...-ocid-036-...`) using the same kind of stale-table
+reasoning the 026-030 cluster's workers used, and guessed wrong in the opposite direction this time. The real,
+original dispatch prompt for `task-...-ocid-036-...` states plainly: "parented to `UMR-20260803-042144-e83f`
+the real OCID-036 directive just registered" (`task-20260803-071111-ocid-037-...`'s own prompt.txt, which cites
+036's UMR by that exact label) — confirming this task's folder label was correct all along, and its own PR
+title's self-correction was the actual error. Separately, the *other* document this worker may have been
+confusing itself with — the real OCID-035 (`task-...-ocid-035-veridian-continuous-platform-ev`, PR #777,
+"Continuous Platform Evolution Runtime") — is itself correctly labeled with no confusion on its own end. Net
+effect: no document is missing or duplicated, only PR #782's own commit-message text misdescribes which OCID
+its content really is. Not fixed here (in scope for a dedicated PM-decision/fix task, same pattern as the three
+`adopted-fix-ocid-0{27,28,30}` tasks already on record) — documented honestly instead, per this OCID's own
+directive to report gaps rather than close them.
+
+### 6c. OCID-020 (`UMR-20260802-165606-4413`) — independently re-verified, still genuinely open
+
+The most recent OCID-020-chain task on this server, `task-20260803-022230-adopted-ocid020-continuation-blocker-resolved-fi`
+(PR #757, merged as a findings-report, not a completion), has real `status: blocked` in its own `task.yaml` as
+of this check — no newer OCID-020 task exists (`find /opt/veridian/ai-os/tasks/ -iname '*ocid*020*'` finds
+nothing dispatched after it). Real, current evidence for why it is genuinely not complete, cross-checked
+directly against `ai-os/MASTER-TRACKER.yaml`:
+- **Nav-surface sweep: still incomplete.** `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+  records real progress of only ~17 of 118 discovered nav hrefs actually, validly exercised — roughly 100
+  remain unswept, invalidated partway by a real test-harness/browser-process crash, not a product defect.
+- **Multi-tenant isolation: real PASS**, not a gap — corrected here since section 1 above did not carry this
+  forward explicitly: `multitenant-v2.json`'s real test (Org A / Org B cross-access) passed. Do not cite
+  "multi-tenant isolation" as an open OCID-020 blocker; it isn't one.
+- **`GAP-ERP-CRM-403-NO-UX-EXPLANATION`** (`ai-os/MASTER-TRACKER.yaml`): `status: open` — fresh self-signup
+  orgs get silently-empty CRM/ERP screens with no "module not enabled" messaging. Correct gate behavior,
+  missing UX explanation; medium severity, not urgent.
+- **`GAP-MIGRATION-APPLY-NOT-AUTOMATED`**: `status: open` — no CI/deploy step verifies a migration's DDL
+  actually ran against production; the specific incident this gap was found from (email-intelligence 500) is
+  itself separately resolved (`GAP-EMAIL-INTELLIGENCE-500-VS-403`, `status: resolved`, live-reverified), but
+  the systemic automated-drift-detection gap that allowed it remains open.
+
+None of this is new bad news — it is the same real gate `ai-os/CONSTITUTION.yaml`'s `SEC-07` already names,
+independently re-confirmed still standing rather than assumed to have quietly resolved in the ~2.5 hours since
+the last snapshot.
+
+### 6d. Real dependency map, refreshed
+
+```
+OCID-020 (UMR-20260802-165606-4413) -- PROJEXA end-user certification sweep
+  |  STILL OPEN / status: blocked (re-verified 07:20Z, section 6c) -- nav sweep ~17/118,
+  |  2 real open gaps (403-UX-explanation, migration-drift-automation), multi-tenant PASS.
+  |  This is the real, single gate SEC-07 locks OCID-038/039/040 implementation behind.
+  v
+OCID-022..027, 029, 030, 032, 033, 035, 036 -- OPEN PRs, real drafted content, none merged
+OCID-028, 031, 034 -- MERGED (out of numeric order; each is an independent document, order is immaterial)
+  -- known unresolved content-overlap: OCID-023 <-> OCID-032 (task status model, both real, not reconciled)
+  -- known real mislabel: PR #782 (real OCID-036) self-describes as "OCID-035" in its own commit title (6b)
+  v
+OCID-037 (Knowledge and Service Catalog), OCID-038 (discovery+E2E, no implementation),
+OCID-039 (verification+dependency mapping) -- all 3 dispatched 07:11Z, all 3 status: in_progress,
+zero completed_steps as of 07:20Z -- genuinely concurrent with this document's own writing, not yet
+producing real output to report on beyond "dispatched, running."
+  v
+OCID-040 (this task) -- final certification + platform freeze, LOCKED by SEC-07 pending the above
+```
+
+### 6e. Explicit non-certification, restated against current (not stale) facts
+
+Same as section 5, re-affirmed against this refresh: this document does **not** certify VERIDIAN as one
+integrated platform, does **not** certify `projexa-ai.com` as a certified production thin client, does **not**
+certify the full stack as operating as one verified system, does **not** perform any of OCID-038/039/040's own
+mandatory certifications, and does **not** freeze the platform. OCID-020 remains open with real, specific,
+named gaps (6c); OCID-038 and OCID-039 have not yet produced real implementation or certification content
+(6a); the unlock sequence in `SEC-07` (OCID-020 verified complete -> OCID-038 implementation -> OCID-039
+certification -> OCID-040 final certification+freeze) has not been reached. This section amends, and does not
+supersede, section 5's own non-certification list above.
+
+Canonical artifact amended (not replaced): this file, section 6. Real UMR relationships updated in
+`ai-os/CONSTITUTION.yaml`'s `SEC-07` (already correct, re-verified, no change needed) and the OCID->UMR table
+above, which is the first place in this repo all 19 UMRs in this chain are resolved against their real
+original-dispatch source in one place.
