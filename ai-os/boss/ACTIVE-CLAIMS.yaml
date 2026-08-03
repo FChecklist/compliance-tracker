@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-142324-pm-decision--add-real-yaml-safe-load-ci) -- add real YAML safe-load CI guardrail for ai-os governance YAML files"
+    claimed_at: "2026-08-03T14:23Z"
+    claim: |
+      SPEC (PM decision, citing UMR-20260803-140106-6307 /
+      UMR-20260802-165606-4413 OCID-020): add a real new CI job that runs
+      yaml safe-load against `ai-os/boss/ACTIVE-CLAIMS.yaml` (and the other
+      governance YAML files this repo's own CLAUDE.md "Read Before
+      Starting Work" list names as depended-on: `ai-os/CONSTITUTION.yaml`,
+      `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml`), so the same class of
+      parse error just fixed under PR #818 (malformed duplicate entry ->
+      real YAML ParserError) cannot silently recur. Mechanical CI addition
+      only, reusing the existing scripts/check-*.mjs + ci.yml job pattern
+      (Guardrail Presence Check / Doc Quarantine Banner Check) -- no new CI
+      framework, not blocked by OCID-021.
+    scope_note: >-
+      File scope: new `scripts/check-yaml-safe-load.mjs`, a new job in
+      `.github/workflows/ci.yml`, this `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      entry, `PROGRESS.md`. No product/business logic, no src/ or schema
+      changes.
   - session_label: "claude-code (task-20260803-125054-register-ocid-052-veri-chat-ai-escalatio) -- OCID-052 dedicated deepening, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T12:51Z (this session, closed same session)"
     claim: |
@@ -1814,6 +1833,7 @@ active:
       the cross-tenant scenario. Pushed as commits b97bdac5/8001e478 to the
       same worker/task-20260726-035742-... branch. bun test: 2029 pass / 0
       fail. Re-audit pending as of this addendum.
+  - session_label: "claude-code (task, 2026-07-25) -- phase_2_compiler_pipeline_intelligence_engines of VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml [session_label reconstructed 2026-08-03 while fixing a duplicate-key YAML parse error -- the original list-item boundary before this entry's `claimed_at:` was missing, merging it into the preceding phase_3 entry above as one malformed mapping; the real session_label text (if it differed from this reconstruction) was already lost before this fix]"
     claimed_at: "2026-07-25T (this session)"
     claim: |
       phase_2_compiler_pipeline_intelligence_engines of
@@ -2157,6 +2177,7 @@ active:
       the very registry/scope infrastructure this task extends, it does not
       conflict with extending it.
 
+  - session_label: "claude-code (task, 2026-07-19) -- veridian-ui-kit v0.2.0 swap regression gate [session_label reconstructed 2026-08-03 while fixing a duplicate-key YAML parse error -- the original list-item boundary before this entry's `claimed_at:` was missing, merging it into the preceding AI Router entry above as one malformed mapping; the real session_label text (if it differed from this reconstruction) was already lost before this fix]"
     claimed_at: "2026-07-19T (this session)"
     claim: |
       Bumping @fchecklist/veridian-ui-kit to v0.2.0 and swapping
@@ -2188,6 +2209,7 @@ active:
       file for collisions: none found (the closest prior entry, PR #436
       below, explicitly scoped this exact full-swap decision OUT as "a
       separate, larger follow-on" -- this task is that follow-on).
+  - session_label: "claude-code (task, 2026-07-19) -- closing remaining GP-09/GP-08 confidence-scoring gap [session_label reconstructed 2026-08-03 while fixing a duplicate-key YAML parse error -- the original list-item boundary before this entry's `claimed_at:` was missing, merging it into the preceding ui-kit-swap entry above as one malformed mapping; the real session_label text (if it differed from this reconstruction) was already lost before this fix]"
     claimed_at: "2026-07-19T (this session)"
     claim: |
       Closing the real remaining slice of GP-09 (Confidence) /
@@ -3352,40 +3374,7 @@ active:
       per the dispatch brief's primary target, left open. This session has
       no further active claims.
 
-  - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login)"
-  - session_label: "claude-code (sub-agent) -- Priority 21, Layer 2 Workspace Memory: 3 sync transport options"
-    claimed_at: "2026-07-16T (this session)"
-    claim: |
-      Owner directive: "have all 3 options for the user" -- extends the
-      already-merged PR #367 (workspace-memory-service.ts, memvid .mv2
-      capsule export/import, Option 1 manual download/upload) with the 2
-      transport options ai-os/priority21_workspace_memory_design.md section
-      4 explicitly deferred as an open question: Option 2 (Google Drive
-      auto-sync, via the existing per-user Composio connection in
-      src/lib/composio-connectors.ts -- no new OAuth flow) and Option 3
-      (first-party "pull latest capsule" endpoint against the existing
-      workspace_memory_capsule_events rows + compliance-documents storage
-      bucket, no manual file handling). SEC-04: both new import paths reuse
-      the EXACT SAME importWorkspaceMemory() additive-only function PR #367
-      already built -- no second import code path. Scope: extends
-      src/lib/services/workspace-memory-service.ts, adds new
-      src/app/api/workspace-memory/{drive-export,drive-import,latest}
-      routes (or equivalent, matching this codebase's route-naming
-      convention), updates src/components/WorkspaceMemorySection.tsx to
-      present all 3 as named, distinct choices. Does NOT touch
-      src/lib/supabase/auth-guard.ts or any auth/membership shape in
-      schema.ts. Reuses connector-data-service.ts's existing
-      missing-connection error-handling pattern, does not invent a new one.
-      Re-verified live before starting: GAP-CONNECTOR-LAYERS (Priority 14
-      Wave 2, active claim below) only touches
-      src/app/api/v1/connectors/office-addin/** -- a disjoint namespace
-      from src/app/api/connectors/drive/** and src/app/api/workspace-memory/**
-      this claim touches. No other active claim references workspace-memory,
-      memvid, capsule, Google Drive, or composio-connectors.ts. Branch:
-      feat/workspace-memory-sync-options, worktree
-      compliance-tracker/.claude/worktrees/agent-workspace-memory-sync. Will
-      not self-merge the implementation PR (Rule 10) -- left for the
-      supervising session's audit, same convention as PR #367/#368.
+  - session_label: "claude-code (sub-agent) -- Priority 14 Wave 2, GAP-AUTH-REBUILD (additive 4-digit passcode login) [entry reordered 2026-08-03 while fixing a duplicate-key YAML parse error -- this label's claimed_at/claim block had been physically displaced below the following entry's, merging the two into one malformed mapping; content unchanged, only re-paired with its own label]"
     claimed_at: "2026-07-15T (this session)"
     claim: |
       Owner directive 2026-07-15 ("complete all 100% except priority 19"),
@@ -3431,6 +3420,39 @@ active:
       suite; migration applied live via Supabase MCP and verified) --
       NOT self-merged, left for the supervising session's audit per the
       standing 2026-07-13 Claude-only-review procedure.
+  - session_label: "claude-code (sub-agent) -- Priority 21, Layer 2 Workspace Memory: 3 sync transport options"
+    claimed_at: "2026-07-16T (this session)"
+    claim: |
+      Owner directive: "have all 3 options for the user" -- extends the
+      already-merged PR #367 (workspace-memory-service.ts, memvid .mv2
+      capsule export/import, Option 1 manual download/upload) with the 2
+      transport options ai-os/priority21_workspace_memory_design.md section
+      4 explicitly deferred as an open question: Option 2 (Google Drive
+      auto-sync, via the existing per-user Composio connection in
+      src/lib/composio-connectors.ts -- no new OAuth flow) and Option 3
+      (first-party "pull latest capsule" endpoint against the existing
+      workspace_memory_capsule_events rows + compliance-documents storage
+      bucket, no manual file handling). SEC-04: both new import paths reuse
+      the EXACT SAME importWorkspaceMemory() additive-only function PR #367
+      already built -- no second import code path. Scope: extends
+      src/lib/services/workspace-memory-service.ts, adds new
+      src/app/api/workspace-memory/{drive-export,drive-import,latest}
+      routes (or equivalent, matching this codebase's route-naming
+      convention), updates src/components/WorkspaceMemorySection.tsx to
+      present all 3 as named, distinct choices. Does NOT touch
+      src/lib/supabase/auth-guard.ts or any auth/membership shape in
+      schema.ts. Reuses connector-data-service.ts's existing
+      missing-connection error-handling pattern, does not invent a new one.
+      Re-verified live before starting: GAP-CONNECTOR-LAYERS (Priority 14
+      Wave 2, active claim below) only touches
+      src/app/api/v1/connectors/office-addin/** -- a disjoint namespace
+      from src/app/api/connectors/drive/** and src/app/api/workspace-memory/**
+      this claim touches. No other active claim references workspace-memory,
+      memvid, capsule, Google Drive, or composio-connectors.ts. Branch:
+      feat/workspace-memory-sync-options, worktree
+      compliance-tracker/.claude/worktrees/agent-workspace-memory-sync. Will
+      not self-merge the implementation PR (Rule 10) -- left for the
+      supervising session's audit, same convention as PR #367/#368.
   - session_label: "claude-code (this session, CLI) -- Priority 21, Layer 2 Workspace Memory (memvid capsule)"
     claimed_at: "2026-07-15T (this session)"
     claim: |
