@@ -40,6 +40,46 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-020705-pm-confirms-pr-756-real-merge-and-flags) -- independently re-verify PR #755/#756 merge state and PR #759 staleness, continue watching PR #754/#757/#758"
+    claimed_at: "2026-08-03T02:07Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260802-165606-4413` and
+      `UMR-20260803-012711-18b4`): independently re-checked directly on the
+      server via `gh pr view`, not narrated. PR #756 is genuinely MERGED,
+      real mergedAt `2026-08-03T01:34:19Z`, merge commit
+      `9b28f68f722dac8992ffba293d7d002135177726` -- confirms the retroactive
+      authorization decision was correctly applied and the migration-drift
+      fix is really live on `main`. PR #755 is also genuinely MERGED,
+      mergedAt `2026-08-03T01:21:42Z`, merge commit
+      `db5d531b026f0d90665cd9508c367bae7cf0160f`.
+
+      PR #759 (title: "PR #755 merged, PR #756 correctly left blocked
+      (false premise corrected)") was created `2026-08-03T01:32:04Z`, two
+      minutes before PR #756's actual merge -- accurate at that exact
+      moment, but its title reads stale next to current reality. Checked
+      whether this needed correcting: it already had been, inside the same
+      PR before it merged -- commit `0e9ec836` (part of PR #759 itself,
+      authored `2026-08-03T01:41:13Z`, merged into `main` via PR #759 at
+      `2026-08-03T01:45:35Z`) already added a `status_update` field to the
+      immediately-preceding `ACTIVE-CLAIMS.yaml` entry stating plainly that
+      PR #756 has since merged at commit `9b28f68f`, mergedAt
+      `2026-08-03T01:34:19Z`, "so a reader of this governance record isn't
+      left with an outdated snapshot" -- the same honest self-correction
+      pattern as PR #748. Confirmed this is present and accurate on current
+      `main` (verified via `git show 0e9ec836` and reading the live entry
+      above this one). No further correction needed there; recording this
+      verification rather than inventing a duplicate fix.
+
+      Real state of the remaining held backlog, independently checked via
+      `gh pr view`: PR #754, PR #757, and PR #758 are all still `OPEN` /
+      `mergeStateStatus=DIRTY` / `mergeable=CONFLICTING` -- unresolved,
+      continuing to watch per the spec.
+    scope_note: >-
+      File scope: this repo's own `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. Read-only verification via `gh pr view` of PR
+      #754/#755/#756/#757/#758/#759 and `git show`/`git log` of commits
+      `0e9ec836`/`9b28f68f`/`5a09c0bf` -- no src/, schema, or CI changes, no
+      edits to PR #759's own (already-merged, already-correct) content.
   - session_label: "claude-code (task-20260803-010937-pm-decision-proceed-with-pr-755-and-756) -- rebase+verify+merge PR #755 and PR #756, same pattern as PR #751-754"
     claimed_at: "2026-08-03T01:09Z (this session)"
     claim: |
