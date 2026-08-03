@@ -578,3 +578,57 @@ prior cycle") since the spec is the only source for what it denotes.
 - [ ] Follow-up (separate task, not this one): complete the remaining ~100/118 nav-surface
       sweep with a hardened harness (per-batch browser health-check/restart) once host load
       allows
+
+# PROGRESS -- task-20260803-055106-ocid-031-veridian-universal-software-exe
+
+## Completed
+- [x] Read governance chain: ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml (SEC-07), OS.yaml, MASTER-TRACKER.yaml,
+      VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md
+- [x] Confirmed SEC-07 permits documentation/discovery while OCID-020 remains open -- this task's
+      "documentation only" framing is consistent with it
+- [x] Discovery agent dispatched: real existing execution machinery inventoried with file:line evidence
+      (task engine, rule engine, workflow engine, function/report/analysis libraries, background/scheduled/
+      event-driven execution, logging/audit/traceability, retry/recovery/rollback, multi-tenant context,
+      model-tier routing) -- zero net-new architecture proposed, all sections will ground in this
+- [x] Found what looked like a real OCID-030 numbering collision against PR #772 ("Universal Decision
+      Engine"); resolved by real PM decision UMR-20260803-063016-8bfc: this task's own citation of
+      UMR-20260803-041459-7c97 was a real error (that UMR is OCID-030's own, "Universal Decision
+      Engine," not this task's real content). The real, correct UMR for this document
+      (Software Execution Engine) is UMR-20260803-041700-a741 (OCID-031) -- not a genuine collision,
+      a wrong citation, now corrected throughout this document and ACTIVE-CLAIMS
+- [x] Checked adjacent open PRs (#772 Decision Engine, #775 Deterministic Execution/AI Escalation, #773
+      Universal Organization, #774 Unified Synchronization) for content overlap -- confirmed this task's
+      mandated scope (execution lifecycle mechanics: queueing/priority/dependency/parallel/sequential,
+      validation/logging/audit/retry/recovery/rollback/timeout/monitoring, reuse/standardization/
+      certification, multi-tenant/multi-brand/role-based execution) is distinct from all four; will
+      cross-reference rather than duplicate their content
+- [x] Registered ACTIVE-CLAIMS entry, committed + pushed
+- [x] Fixed own process error: first commit on this branch replaced PROGRESS.md wholesale instead of
+      appending after prior-task history; restored the 580 lines of prior history and re-appended this
+      task's section, committed + pushed
+- [x] Wrote ai-os/VERIDIAN_UNIVERSAL_SOFTWARE_EXECUTION_ENGINE_2026-08-03.md, all 35 mandated sections
+      (execution principles through execution certification + readiness for OCID-032), each grounded in
+      real file:line evidence from the discovery pass; §0 documents the OCID-030 numbering collision and
+      cross-references (not duplicates) PRs #772/#773/#774/#775
+- [x] Registered canonical artifact in ai-os/OS.yaml document index
+- [x] Amended ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md with a new dated amendment section (existing UMR
+      chain, not a new one)
+
+- [x] Committed + pushed (b3422927, ed99d39c), opened PR #781: https://github.com/FChecklist/compliance-tracker/pull/781
+- [x] Confirmed readiness for OCID-032 handoff in the document's own §35 -- OCID-032 should
+      cross-reference (not re-derive) this document's §11-15 (queueing/priority/dependency/parallel/
+      sequential execution)
+
+- [x] Verified CI on PR #781: Metadata Index Coverage Check, Guardrail Presence Check, Type Check,
+      Lint, Unit Tests, Build-adjacent checks, Migration Number Collision Check, Doc Cross-Reference
+      Check, Doc Quarantine Banner Check, Terminology Guardrail Check, Asset Registry Coverage Check,
+      Documentation Sentinel Check, Secret Scanning, Security Pattern Check all real-PASS. Vercel failed
+      on an unrelated build-rate-limit (known, pre-existing pattern on this repo, not caused by this
+      docs-only diff). `audit-check` fails as expected -- this task's own session cannot self-certify
+      per AGENTS.md Rule 10 (no self-audit); left for a genuinely independent session to review and
+      post a real `AUDIT: PASS`/`FAIL` comment.
+
+## Remaining
+- [ ] None from this task's own scope -- documentation-only work complete, PR #781 open with green CI
+      (Vercel rate-limit excepted) pending an independent `AUDIT:` verdict and merge (out of this task's
+      own scope to self-perform, per Rule 10)
