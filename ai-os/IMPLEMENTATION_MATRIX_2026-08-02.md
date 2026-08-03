@@ -1062,3 +1062,46 @@ OCID-023's own dispatched worker). The real gate every directive in this chain a
 OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): Recovery matrix — real, additional gap found (`UMR-20260802-165541-c27d`, OCID-20260802-019, self-minted UMR fabrication)
+
+Continuation of the recovery matrix amendment above. No new implementation for this directive
+itself — recording one real, additional, honest gap found while resolving real citation-fabrication
+findings across the OCID-022 through 040 documentation series (`UMR-20260803-063016-8bfc`).
+
+### Real gap found: dispatched workers self-minting a fabricated "artifact UMR" distinct from their real dispatch UMR
+
+Real, directly observed and independently verified, not narrated: at least three real, dispatched
+workers in the OCID-022 through 040 series (PR #765/OCID-022, PR #768/OCID-023, PR #779/OCID-034)
+each header'd their own canonical document with a separate, self-generated "artifact UMR" — distinct
+from the task's own real dispatch UMR (the one actually present in `umr_tasks`,
+`/opt/veridian/ai-os/memory/superboss-register.sqlite`) — believing this was an established,
+sanctioned convention (PR #779's own document explicitly cited PR #765 and PR #768 as precedent for
+doing this). Independently verified for all three: `resource_governor.py --query-umr`, a direct raw
+query against `umr_tasks` (1045 real rows at time of check, zero exact/fuzzy matches for any of the
+three self-minted strings), and a full-text search across every real table in
+`superboss-register.sqlite` (the only hit for PR #779's fabricated UMR was the conversation's own
+instruction log recording the question being asked, not an independent prior registration). None of
+the three self-minted UMRs — `UMR-20260803-041653-9de5` (PR #765), `UMR-20260803-042019-844f` (PR
+#768), `UMR-20260803-055709-368e` (PR #779) — is a real, registered record anywhere.
+
+This is a real, structural gap, not an isolated typo: nothing in the dispatch/documentation pipeline
+currently prevents a worker from inventing a plausible-looking `UMR-YYYYMMDD-HHMMSS-xxxx`-format
+string and treating it as if it were a real, independently issued directive, and at least one worker
+(PR #779) explicitly followed two prior instances of exactly this pattern as if it were sanctioned
+precedent — meaning a single unfixed fabrication can self-propagate into a real, repeated convention
+across an entire documentation series. PR #779's own fabricated citation was corrected
+(`UMR-20260803-063016-8bfc`); PR #765 and PR #768's own fabricated "artifact UMR" citations remain
+**unfixed as of this entry** — out of scope for the immediate directive that found this gap, flagged
+here for a real follow-up rather than silently left for the next session to rediscover.
+
+**Recommendation**: when picked up, (a) correct PR #765 and PR #768's own fabricated "artifact UMR"
+citations the same way PR #779's was corrected (cite the real dispatch UMR only), and (b) consider a
+real, mechanical check (similar in spirit to `ddl_authorization_check.py`'s existence-verification
+pattern for `PRE-APPROVED-LIVE-DDL` citations) that rejects a document citing a UMR-format string not
+actually present in `umr_tasks` at PR-review time, so this class of fabrication is caught
+deterministically rather than only when a human/PM happens to independently re-derive and check it.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
