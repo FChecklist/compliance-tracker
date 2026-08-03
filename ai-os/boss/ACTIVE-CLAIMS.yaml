@@ -40,6 +40,55 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-055118-ocid-034-veridian-universal-context-and) -- OCID-034 VERIDIAN Universal Context and Predictive Runtime v1.0, documentation only [DONE, docs-only]"
+    claimed_at: "2026-08-03T06:00Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260803-041851-085a` real OCID-033 as parent, and
+      the full OCID-022 through 032 chain): created exactly one canonical artifact,
+      `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md`, defining how VERIDIAN
+      maintains, discovers, reuses, and predicts end user context, and how software knows what the user
+      is doing before AI is invoked. Documentation only -- no code, no database objects, no new
+      architecture.
+
+      Mandatory discovery performed first, per this task's own directive (real, cited, not narrated):
+      confirmed the real existing context mechanisms already in the product --
+      `withTenantContext()` (`src/lib/db/tenant-scoped.ts:65`), `VeriChatContext`
+      (`veri-chat-service.ts:19`), `AssembledContext`/`RelevanceScorer`/`ContextWindow`
+      (`prompt-compiler/context-assembly.ts:1-9`), `MotherRouterContext` (`mother-router.ts:594`),
+      mode-pill capability-key derivation (`capability-learning-service.ts:27-31`, `ChainSelector.tsx`),
+      Dynamic Chains (`api/dynamic-chains/route.ts`, `dynamic-chain-directory-service.ts` -- the real,
+      existing analogue to the directive's "option chain," no literal match found), report registries
+      (`report-engine-service.ts:208,1379,1735`), and the real L0 (browser intent cache/mode pills) and
+      L5 (context-cache, partial) layers in `ai-os/AI_CACHE_AND_TRIAGE_ARCHITECTURE.md`. Also confirmed
+      real, honest absences rather than guessing: no shared request-scoped context carrier across
+      auth/chat/session/browser/task/AI-prep; no runtime function or analysis registry; no PWA
+      (zero `manifest.json`/service-worker matches); VERI Chat not wired to Mother Router; no
+      next-best-action/predictive-navigation/predictive-form-population mechanism.
+
+      Zero-duplication check performed per the binding PM decision (`UMR-20260803-045159-ec55`):
+      `gh pr list` confirmed OCID-022 through 030's PRs (#765-768, #771-775) are all still open/unmerged
+      at writing time; read OCID-023's real 739-line document directly from its branch and confirmed it
+      is a task-lifecycle model, a distinct (not duplicate) subject from context reuse and prediction.
+
+      **Real numbering correction found and stated, not silently worked around**: this task's own live
+      dispatch row (`umr_tasks`, queried directly) is genuinely titled "OCID-034," and its cited parent
+      UMR is genuinely "OCID-033" (Work Orchestration Runtime) -- this differs by one slot from the
+      earlier OCID-022-039 status snapshot's own table (which had labeled this same Context/Predictive
+      mission "OCID-033"), the same off-by-one drift class that snapshot's own table already needed a
+      correction for one row further down (036/037). Documented in the new artifact's own header and in
+      the `IMPLEMENTATION_MATRIX_2026-08-02.md` amendment rather than silently picking one label.
+
+      Updated the existing UMR chain, not a new one: `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (new
+      amendment section), `ai-os/OS.yaml` (new index entry, required by `scripts/check-metadata-index-
+      coverage.mjs`), this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md` (new file, the
+      one canonical artifact), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amended),
+      `ai-os/OS.yaml` (amended), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, CI, or
+      `.github/` changes. No implementation -- consistent with `SEC-07`
+      (`ai-os/CONSTITUTION.yaml`), which locks implementation/gap-closure behind OCID-020's independent
+      verification while explicitly still permitting documentation and discovery.
+
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
