@@ -25,6 +25,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { ModuleAccessNotice } from "@/components/ModuleAccessNotice";
 
 type Lead = {
   id: string; name: string; contactEmail: string | null; source: string | null; status: string;
@@ -48,6 +49,7 @@ export default function CrmLeadsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
 
@@ -64,6 +66,14 @@ export default function CrmLeadsPage() {
     if (statusFilter !== "all") params.set("status", statusFilter);
     const res = await fetch(`/api/crm/leads?${params.toString()}`);
     const data = await res.json();
+    if (res.status === 403) {
+      setBlockedReason(data.error ?? "This module isn't enabled for your organisation.");
+      setLeads([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+    setBlockedReason(null);
     setLeads(data.items ?? []);
     setTotal(data.total ?? 0);
     setLoading(false);
@@ -142,6 +152,18 @@ export default function CrmLeadsPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-heading text-ct-navy">Leads</h1>
+          <p className="text-sm text-ct-muted mt-1">Prospects not yet a client -- score, qualify, and convert.</p>
+        </div>
+        <ModuleAccessNotice message={blockedReason} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

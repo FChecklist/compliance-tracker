@@ -28,6 +28,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleAccessNotice } from "@/components/ModuleAccessNotice";
 
 type Supplier = { id: string; supplierName: string };
 type Requisition = { id: string; requisitionNumber: number; postingDate: string; purpose: string | null; status: string; items: { description: string; quantity: string; estimatedRate: string | null }[] };
@@ -44,6 +45,7 @@ export default function ErpProcurementPage() {
   const [rfqs, setRfqs] = useState<Rfq[]>([]);
   const [quotations, setQuotations] = useState<Quotation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [convertingId, setConvertingId] = useState<string | null>(null);
   const [compareRfqId, setCompareRfqId] = useState<string>("");
@@ -75,11 +77,20 @@ export default function ErpProcurementPage() {
       fetch("/api/erp/procurement/rfqs"),
       fetch("/api/erp/procurement/quotations"),
     ])
-      .then(([supRes, reqRes, rfqRes, qRes]) => Promise.all([
-        supRes && supRes.ok ? supRes.json() : { suppliers: [] },
-        reqRes.json(), rfqRes.json(), qRes.json(),
-      ]))
-      .then(([supData, reqData, rfqData, qData]) => {
+      .then(([supRes, reqRes, rfqRes, qRes]) => {
+        const gatingRes = [reqRes, rfqRes, qRes].find((r) => r.status === 403);
+        return Promise.all([
+          supRes && supRes.ok ? supRes.json() : { suppliers: [] },
+          reqRes.json(), rfqRes.json(), qRes.json(),
+        ]).then((data) => [gatingRes, ...data] as const);
+      })
+      .then(([gatingRes, supData, reqData, rfqData, qData]) => {
+        if (gatingRes) {
+          setBlockedReason(qData.error ?? reqData.error ?? rfqData.error ?? "This module isn't enabled for your organisation.");
+          setLoading(false);
+          return;
+        }
+        setBlockedReason(null);
         setSuppliers(supData.suppliers ?? []);
         setRequisitions(reqData.requisitions ?? []);
         setRfqs(rfqData.rfqs ?? []);
@@ -183,6 +194,18 @@ export default function ErpProcurementPage() {
     if (!res.ok) { const d = await res.json().catch(() => ({})); toast.error(d.error ?? "Failed to convert quotation to a purchase order"); return; }
     toast.success("Purchase order created as draft — manage it on the Goods Receipt page");
   };
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="font-heading text-2xl md:text-3xl text-ct-navy">Procurement Workflow</h1>
+          <p className="text-sm text-ct-muted mt-1">Requisition → RFQ → Supplier quotation comparison, above the purchase order — VERI ERP AI</p>
+        </div>
+        <ModuleAccessNotice message={blockedReason} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

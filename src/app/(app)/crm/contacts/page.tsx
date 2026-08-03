@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ModuleAccessNotice } from "@/components/ModuleAccessNotice";
 
 type Contact = { id: string; accountId: string; name: string; title: string | null; email: string | null; phone: string | null; isPrimary: boolean };
 type Account = { id: string; name: string };
@@ -29,6 +30,7 @@ export default function CrmContactsPage() {
   const pageSize = 25;
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -39,6 +41,14 @@ export default function CrmContactsPage() {
       fetch("/api/crm/accounts?pageSize=200"),
     ]);
     const contactsData = await contactsRes.json();
+    if (contactsRes.status === 403) {
+      setBlockedReason(contactsData.error ?? "This module isn't enabled for your organisation.");
+      setContacts([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+    setBlockedReason(null);
     setContacts(contactsData.items ?? []);
     setTotal(contactsData.total ?? 0);
     const accountsData = await accountsRes.json();
@@ -50,6 +60,18 @@ export default function CrmContactsPage() {
 
   const accountName = (accountId: string) => accounts.find((a) => a.id === accountId)?.name ?? "Unknown account";
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-heading text-ct-navy">Contacts</h1>
+          <p className="text-sm text-ct-muted mt-1">Every named person across your account book -- add new contacts from an account's own page.</p>
+        </div>
+        <ModuleAccessNotice message={blockedReason} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

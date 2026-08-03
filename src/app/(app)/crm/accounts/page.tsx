@@ -24,6 +24,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { ModuleAccessNotice } from "@/components/ModuleAccessNotice";
 
 type Account = {
   id: string; name: string; industry: string | null; website: string | null;
@@ -50,6 +51,7 @@ export default function CrmAccountsPage() {
   const [search, setSearch] = useState("");
   const [lifecycleFilter, setLifecycleFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [users, setUsers] = useState<User[]>([]);
 
   const [open, setOpen] = useState(false);
@@ -67,6 +69,14 @@ export default function CrmAccountsPage() {
     if (lifecycleFilter !== "all") params.set("lifecycleStage", lifecycleFilter);
     const res = await fetch(`/api/crm/accounts?${params.toString()}`);
     const data = await res.json();
+    if (res.status === 403) {
+      setBlockedReason(data.error ?? "This module isn't enabled for your organisation.");
+      setAccounts([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+    setBlockedReason(null);
     setAccounts(data.items ?? []);
     setTotal(data.total ?? 0);
     setLoading(false);
@@ -102,6 +112,18 @@ export default function CrmAccountsPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-heading text-ct-navy">Accounts</h1>
+          <p className="text-sm text-ct-muted mt-1">Company-level records -- industry, address, lifecycle stage, and subsidiary hierarchy, with contacts underneath each one.</p>
+        </div>
+        <ModuleAccessNotice message={blockedReason} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

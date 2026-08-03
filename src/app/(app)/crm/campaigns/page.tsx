@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleAccessNotice } from "@/components/ModuleAccessNotice";
 
 type Campaign = { id: string; name: string; campaignType: string | null; status: string; startDate: string | null; endDate: string | null; expectedRevenue: string | null };
 
@@ -28,6 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
 export default function CrmCampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
   const [campaignType, setCampaignType] = useState("");
@@ -37,6 +39,14 @@ export default function CrmCampaignsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     const res = await fetch("/api/crm/campaigns");
+    if (res.status === 403) {
+      const data = await res.json().catch(() => ({}));
+      setBlockedReason(data.error ?? "This module isn't enabled for your organisation.");
+      setCampaigns([]);
+      setLoading(false);
+      return;
+    }
+    setBlockedReason(null);
     setCampaigns(res.ok ? await res.json() : []);
     setLoading(false);
   }, []);
@@ -59,6 +69,18 @@ export default function CrmCampaignsPage() {
     } catch (err) { toast.error(err instanceof Error ? err.message : "Failed to create campaign"); }
     finally { setCreating(false); }
   };
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-heading text-ct-navy">Campaigns</h1>
+          <p className="text-sm text-ct-muted mt-1">Marketing efforts leads can be attributed to.</p>
+        </div>
+        <ModuleAccessNotice message={blockedReason} />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">

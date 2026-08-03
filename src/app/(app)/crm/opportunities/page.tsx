@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleAccessNotice } from "@/components/ModuleAccessNotice";
 
 type Opportunity = {
   id: string; name: string; leadId: string | null; clientId: string | null; stage: string;
@@ -52,6 +53,7 @@ export default function CrmOpportunitiesPage() {
   const [leads, setLeads] = useState<Lead[]>([]);
   const [lostReasons, setLostReasons] = useState<LostReason[]>([]);
   const [loading, setLoading] = useState(true);
+  const [blockedReason, setBlockedReason] = useState<string | null>(null);
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
 
@@ -77,6 +79,14 @@ export default function CrmOpportunitiesPage() {
       fetch("/api/crm/lost-reasons"),
     ]);
     const oppData = await oppRes.json();
+    if (oppRes.status === 403) {
+      setBlockedReason(oppData.error ?? "This module isn't enabled for your organisation.");
+      setOpportunities([]);
+      setTotal(0);
+      setLoading(false);
+      return;
+    }
+    setBlockedReason(null);
     setOpportunities(oppData.items ?? []);
     setTotal(oppData.total ?? 0);
     const leadData = await leadRes.json();
@@ -149,6 +159,18 @@ export default function CrmOpportunitiesPage() {
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const fmt = (v: string | null) => v ? `${currencyLabel(undefined, currencies)}${Number(v).toLocaleString()}` : null;
+
+  if (blockedReason) {
+    return (
+      <div className="space-y-4">
+        <div>
+          <h1 className="text-2xl font-heading text-ct-navy">Opportunities</h1>
+          <p className="text-sm text-ct-muted mt-1">Deals in progress -- linked to a lead, tracked stage by stage.</p>
+        </div>
+        <ModuleAccessNotice message={blockedReason} />
+      </div>
+    );
+  }
 
   const OppCard = ({ opp }: { opp: Opportunity }) => (
     <Card className="rounded-lg shadow-card bg-white">
