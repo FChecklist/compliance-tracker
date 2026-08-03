@@ -820,3 +820,13 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None -- both gaps fully closed with live, independently-verified evidence
+# PROGRESS -- OCID-047 through OCID-052 Business Certification planning
+
+## Completed
+- [x] Zero-duplication check for all 6 real OCIDs via resource_governor.py (all count: 0)
+- [x] Real discovery for each: 11 roles + 73 centrally-registered actions (OCID-047); real cross-tenant isolation mechanism + reused the standing pending task-list item (OCID-048); 27 real live product branches (caught and fixed my own schema-targeting mistake -- platform.product_branches, not compliance.product_branches), honest gap on plan-tier mapping (OCID-049); real candidate data-state orgs, honest gap on "large" org (OCID-050); honest re-flag that the "no PWA exists" finding needs reconfirmation not assumption (OCID-051); caught and corrected a real conflation risk between gateway.py/OWNER_ENGINE (this session's own server tooling) and the product's real Mother Router (OCID-052)
+- [x] Wrote one combined canonical artifact (ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md) with real task breakdowns and definitions of done for all 6
+- [x] Registered in ai-os/OS.yaml and ai-os/boss/ACTIVE-CLAIMS.yaml
+
+## Remaining
+- [ ] No testing or implementation performed against any of the 6 real definitions of done -- explicitly out of scope this cycle, per every directive's own instruction

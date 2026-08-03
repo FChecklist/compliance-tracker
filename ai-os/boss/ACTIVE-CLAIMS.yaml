@@ -40,6 +40,49 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, UMR-20260803-115333-dab8 through -115620-29c6) -- OCID-047 through OCID-052, Business Certification phase planning, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T11:53Z (this session, closed same session)"
+    claim: |
+      SPEC (6 real, back-to-back PM decisions, all explicitly planning-only,
+      no testing/implementation this cycle): produce real, deterministic
+      task breakdowns for OCID-047 (Roles/Rights/Responsibilities
+      Certification), OCID-048 (Multi-Org/Tenant/Brand Isolation
+      Certification), OCID-049 (Subscription Plan Entitlement
+      Certification), OCID-050 (Data State Certification), OCID-051
+      (Cross-Surface Certification: desktop + Mobile PWA), OCID-052 (VERI
+      Chat AI Escalation Certification) -- each reusing only real,
+      already-existing VERIDIAN mechanisms, no new architecture.
+
+      Zero-duplication check performed per directive, before starting:
+      `resource_governor.py --query-umr --search` for each real OCID
+      number/name, all returned `count: 0`.
+
+      Real discovery performed for each, not narrated: userRoleEnum's real
+      11 roles + ROLE_RANK (auth-guard.ts) + permission-service.ts's real
+      73 centrally-registered actions (OCID-047); the real, already-merged
+      cross-tenant isolation test + this session's own standing pending
+      task-list item, explicitly reused not duplicated (OCID-048); a real,
+      live query against `platform.product_branches` (not
+      `compliance.product_branches`, a real schema-targeting mistake
+      caught and corrected mid-investigation) found 27 real active product
+      branches, plus an honest gap -- no real plan-tier-to-branch mapping
+      located yet, stated as the real open first task rather than assumed
+      (OCID-049); real candidate empty/sample orgs identified, "large
+      data volume" org honestly left open (OCID-050); a real, direct
+      re-check confirming the earlier "no PWA exists" finding needs
+      reconfirmation, not silent assumption either way (OCID-051); a real,
+      important correction -- `gateway.py`/OWNER_ENGINE is this
+      orchestration session's own server-ops tooling for Owner-dispatch
+      messages, not the product's real end-user VERI Chat router (that's
+      `mother-router.ts`) -- caught before a test plan got built against
+      the wrong system (OCID-052).
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md`
+      (new file, the one canonical artifact for all six), `ai-os/OS.yaml`
+      (index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, or CI changes -- planning only, no testing or implementation
+      performed against any of the six real definitions of done, per every
+      directive's own explicit instruction.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
