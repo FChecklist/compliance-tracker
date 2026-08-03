@@ -36,14 +36,35 @@ Do not wait for OCID-052. Independently confirm each merge via
         docs/governance files also touched by #814 which merged first).
         Needs conflict resolution before the merge pipeline can act.
 
+- [x] **PR #812 merged** (`46a7f894`). Independently confirmed via
+      `git merge-base --is-ancestor 46a7f894 origin/main` -> ancestor confirmed.
+- [x] Re-checked PR #815: all required checks (Lint/Type Check/Build/
+      audit-check/Guardrail Presence Check/Asset Registry Coverage Check/
+      Unit Tests) passed. Went CONFLICTING (PROGRESS.md + OS.yaml) only
+      because #812 landed on main first. Resolved in a separate clone
+      (`/tmp/pr815-fix`): merged `origin/main`, kept both new OS.yaml index
+      entries (OCID-051 doc from this branch + OCID-050 doc from #812) and
+      both PROGRESS.md task sections, no content dropped. Pushed
+      (`99a5d794`).
+- [x] PR #816: audit already showed `AUDIT: PASS` (13:20:09Z) but
+      `mergeable=CONFLICTING`. Used `git merge-tree` to confirm the *only*
+      real conflict was PROGRESS.md (IMPLEMENTATION_MATRIX.md/OS.yaml
+      auto-merged clean). Resolved in `/tmp/pr816-fix` the same way
+      (keep both task sections), pushed (`2870eb3c`).
+- [x] PR #813: real gap found -- only `AUDIT: FAIL` existed when first
+      checked (corrective push never followed up at that point). A
+      concurrent automated pass then pushed the fix and posted
+      `AUDIT: PASS` (13:34:29Z) independently, before this session acted on
+      it -- re-verified, did not duplicate that work. Its branch was still
+      stale against the post-#812 main (PROGRESS.md conflict only, per
+      `git merge-tree`); resolved in `/tmp/pr813-fix`, pushed (`0b324f1`).
+
 ## Remaining
-- [ ] Merge PR #812 (ready now) and confirm via `git merge-base --is-ancestor`
-- [ ] Re-check PR #815 CI completion; merge and confirm if green
-- [ ] Investigate PR #816's real conflict; resolve if trivial (shared docs
-      file), re-run required checks, merge and confirm
-- [ ] Investigate PR #813's real `AUDIT: FAIL` reason; determine whether it's
-      a same-session-fixable docs issue or a genuine block to report back,
-      separately from its conflict state
-- [ ] Confirm PR #814 merge-base ancestor status (already merged, just needs
-      the independent check)
-- [ ] Final PROGRESS.md update + commit/push
+- [ ] Wait for required CI (Lint/Type Check/Build/audit-check/Guardrail
+      Presence Check/Asset Registry Coverage Check/Unit Tests) to go green
+      on the new merge commits for #813, #815, #816, then merge each and
+      independently confirm via `git merge-base --is-ancestor` against
+      `origin/main`.
+- [ ] Confirm PR #814 merge-base ancestor status (already merged before this
+      task started; just needs the independent check for completeness).
+- [ ] Final PROGRESS.md update + commit/push.
