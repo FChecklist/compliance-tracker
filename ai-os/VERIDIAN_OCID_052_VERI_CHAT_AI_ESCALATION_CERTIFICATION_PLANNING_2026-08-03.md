@@ -188,3 +188,93 @@ No new chat engine, no new routing architecture, no new schema — every mechani
 (`llm-routing-gate.ts`, `intent-engine.ts`, `dialogue-script-executor.ts`, `chat-service.ts`,
 `ThreadView.tsx`, `messages.confidenceLabel`) already exists and is already wired into the real VERI Chat
 1:1 AI thread send path. This document adds no code.
+
+## Item 4 real execution results (2026-08-03, this session)
+
+Executed per this session's PM decision (task-20260803-201852-pm-decision-to-proceed-with-ocid-052-rem),
+which confirmed OCID-051 genuinely merged (PR #844) and Items 2-3 above already real (see "Real test
+execution results" section above). This section independently re-verifies — not re-narrates — the "Real,
+honest gap found" analysis earlier in this document, then formally registers it.
+
+**Independent re-read of the real code (not trusted from this document's own earlier claim):**
+- `src/components/chat/ThreadView.tsx:15-30` — `ChatMessage` type; `confidenceLabel` is the only field
+  that varies by reply origin, per its own code comment ("null for every non-AI message and every AI
+  message from before this change").
+- `src/components/chat/ThreadView.tsx:227-297` — `MessageBubble`. `isAi = message.senderId === null &&
+  !isGuest` (:233); `confidenceBadge = isAi && message.confidenceLabel ? CONFIDENCE_BADGE[...] : null`
+  (:234). Render block (:250-262): every `isAi` message gets the identical `Bot` icon + "VERI" label
+  (:251-253); the confidence badge (:254-261) is the *only* conditional element, gated purely on
+  `confidenceLabel` being non-null. Nothing else in the component varies by reply origin.
+- `src/lib/services/chat-service.ts` — grepped every real `messages` insert call site inside
+  `generateAiReply()`: policy-refusal (:632), deterministic-route (:644), dialogue-script (:664) all omit
+  `confidenceLabel` (defaults to the column's real `NULL`); only the two genuine-LLM branches (:872, :999)
+  set it via `deriveConfidenceLabel()`.
+- `src/lib/db/schema.ts:3852` — `confidenceLabel: text('confidence_label')`, nullable, no default.
+  Confirms the null default independently of the insert-call reasoning above.
+
+**Confirmed against real, already-captured live data (Items 2-3 above), not just static code reading:**
+Item 2's real deterministic reply persisted with `confidence_label IS NULL` → renders with no badge under
+the code above. Item 3's real AI-escalated reply persisted with `confidence_label = "high"` → renders
+with a badge. `MessageBubble`'s badge computation is a pure function of a single message's own fields
+(no dependency on sibling messages), so this per-message confirmation holds for any real thread containing
+both reply types, including a shared one — re-sending Items 2 and 3 into the same thread would not change
+either message's own render output.
+
+**Honest finding: absent.** There is no explicit, designed "Deterministic" vs "AI-generated" label
+anywhere in VERI Chat's UI. The one real, observable correlation (badge present ⇒ AI call happened; badge
+absent ⇒ deterministic/scripted/refused) is a side effect of an unrelated feature (`ThreadView.tsx:217-220`'s
+own comment: "labeled honestly as a heuristic proxy..., never presented as a calibrated model confidence
+score"), never explained to the end user as a deterministic-vs-AI signal, and independently shown
+unreliable even for its own stated purpose by `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`
+(a genuine refusal — exactly Item 3's own live reply — is mislabeled `"high"` confidence). Registered as
+its own tracked gap, `GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL`, in `ai-os/MASTER-TRACKER.yaml`
+(this document's earlier pass had found this by reading the code but had not given it a standalone
+GAP-ID or re-confirmed it against real captured data — both done now).
+
+**Item 5 (dialogue-script path) — not executed.** Per this document's own task breakdown, Item 5 was
+explicitly optional ("if a scripted capability package exists for the test org"). No active
+`dialogue_script` capability package was confirmed for either test org used in Items 2-3, and none was
+provisioned for this pass — deferred honestly, not silently skipped, and not blocking this OCID's
+closure per its own stated optionality.
+
+## OCID-052 completion summary
+
+All five task-breakdown items are now accounted for with real evidence or an honest, explicit deferral:
+
+1. **Mechanism identification** — done (this document's own correction of the merged section's
+   `mother-router.ts` placeholder guess; real mechanism grounded in file:line: `llm-routing-gate.ts` +
+   `dialogue-script-executor.ts` + `chat-service.ts`).
+2. **Deterministic-only path** — **PASS**, real live test (`"what's the status"` → correct empty-state
+   reply, zero `callLLM()`, `confidence_label IS NULL`).
+3. **AI-escalation path** — **PASS on routing** (real `callLLM()` invocation confirmed via 6.6s
+   round-trip + `confidence_label = "high"`), with two real product gaps found and registered along the
+   way (`GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`, `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`).
+4. **UI-distinguishability** — executed this session. Honest finding: **absent** — no designed signal
+   exists; the only real, observable signal is incidental and independently shown unreliable. Registered
+   as `GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL`.
+5. **Dialogue-script path** — explicitly optional per its own task breakdown; not executed, honestly
+   deferred (no active capability package confirmed for the test orgs used).
+
+OCID-052 is complete as a certification pass: every item has real evidence behind either a pass, a
+found-and-registered gap, or an explicit, non-silent deferral — the same honesty standard used for
+OCID-050 and OCID-051. Three real product gaps remain open (not this OCID's scope to fix — test
+execution only): `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION`,
+`GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`, `GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL`.
+
+With OCID-052 closed, five of the six Group F Business Certification OCIDs (OCID-047 through OCID-052)
+under OCID-020 (`UMR-20260802-165606-4413`) have real test-execution evidence: OCID-047
+(Roles/Rights/Responsibilities, PR #823 merged + this session's RESPONSIBILITY-axis work), OCID-048
+(Multi-Org/Tenant/Brand Isolation, 7/7 real cross-tenant probes), OCID-050 (Data State, 345/345 real
+page-checks, PR #843), OCID-051 (Cross-Surface, all real checks pass, PR #844), OCID-052 (this
+document). This does **not** close the full batch — one real, honest exception:
+
+**OCID-049 (Subscription Plan Entitlement) has not had its real testing execution performed by any
+session yet.** Its hold condition (wait for the OCID-048 isolation-results PR to merge) has, as of
+this task, genuinely cleared — independently re-verified here (not trusted from the prior hold
+decision's now-stale framing), via `gh pr view 826 --json mergeCommit` +
+`git merge-base --is-ancestor <sha> origin/main`, that PR #826 merged into `main` at
+2026-08-03T16:19:02Z, after the 16:09Z hold decision that had cited it as still `CONFLICTING`. No
+session has since picked up OCID-049's real execution under this cleared gate. Registering this here so
+it isn't silently folded into a false "all six done" claim — OCID-049 real testing execution remains
+the one real, explicit item left in the Group F batch, and is not this task's scope to perform (this
+task's SPEC was OCID-052 Item 4 specifically).

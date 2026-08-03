@@ -1896,6 +1896,72 @@ open_items:
       status: open
       first_raised: "This session, 2026-08-03, real live test during OCID-047 execution (UMR-20260803-145921-c0c4, UMR-20260802-165606-4413 OCID-020)"
 
+    - id: GAP-VERI-CHAT-NO-DETERMINISTIC-VS-AI-UI-LABEL
+      name: "VERI Chat's UI has no explicit, designed way for an end user to tell a deterministic reply apart from a genuine AI-escalated one -- the only real signal is the incidental presence/absence of the (unreliable) confidence badge"
+      old_ids: []
+      detail: |
+        Real finding, `UMR-20260802-165606-4413` (OCID-020), OCID-052 Item 4 (`UMR-20260803-115620-29c6`),
+        executed per this session's PM decision (task-20260803-201852-pm-decision-to-proceed-with-ocid-052-rem,
+        no separate dedicated UMR cited for this specific dispatch beyond the three named above). Confirms
+        and formally registers,
+        with its own GAP-ID, the "real, honest gap" already surfaced in
+        `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`'s own
+        planning pass -- that document found this by reading the code but did not register it as a
+        standalone tracked gap or independently re-confirm it against real data; this pass does both.
+
+        Independently re-read the real rendering code (not trusted from the planning doc alone):
+        `src/components/chat/ThreadView.tsx`'s `MessageBubble` (:227-297) computes
+        `isAi = message.senderId === null && !isGuest` (:233) and
+        `confidenceBadge = isAi && message.confidenceLabel ? CONFIDENCE_BADGE[...] : null` (:234). The
+        render block (:250-262) shows, for every `isAi` message regardless of origin, the identical `Bot`
+        icon + "VERI" label; the only conditional element is the confidence badge, present only when
+        `message.confidenceLabel` is non-null. No other field of `ChatMessage` (`:15-30`) varies by reply
+        origin, and the type's own code comment already concedes this: "null for every non-AI message and
+        every AI message from before this change" -- written as a confidence-heuristic caveat, not as a
+        deterministic-vs-AI design.
+
+        Cross-checked against `src/lib/services/chat-service.ts`'s real `messages` insert call sites: the
+        policy-refusal (:632), deterministic-route (:644), and dialogue-script (:664) paths all insert
+        with no `confidenceLabel` field (defaults to the column's real null, `src/lib/db/schema.ts:3852`,
+        `text('confidence_label')`, no default); only the two genuine-LLM paths (:872, :999) set it via
+        `deriveConfidenceLabel()`. This exactly matches the real, already-captured live evidence from this
+        OCID's own Items 2-3 execution: Item 2's deterministic reply persisted with `confidence_label IS
+        NULL` (no badge would render); Item 3's genuine AI-escalated reply persisted with
+        `confidence_label = "high"` (a badge would render). Since `MessageBubble` computes its badge from
+        a single message's own fields only (no dependency on sibling messages in the thread), this
+        per-message confirmation generalizes correctly to any real thread containing both reply types --
+        re-running the two Item 2/3 sends into one shared thread would not change either message's own
+        `isAi`/`confidenceBadge` computation.
+
+        Confirmed, not assumed: this signal is real but unintentional. The badge's own code comment
+        (`ThreadView.tsx:217-220`) states it is "labeled honestly as a heuristic proxy..., never presented
+        as a calibrated model confidence score" -- built for AI-reply-quality signaling, not for
+        distinguishing deterministic-software output from AI output. It is also not a reliable signal even
+        for its own stated purpose: `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION` (this file)
+        already shows a genuine LLM refusal gets mislabeled `"high"` confidence, meaning a badge can appear
+        on a reply an end user would reasonably read as "a real answer" when it was actually a refusal --
+        the incidental signal is not even internally consistent, let alone a designed indicator.
+
+        Net finding: **no**, an end user cannot reliably tell a deterministic reply apart from an
+        AI-escalated one in VERI Chat's UI today. The one real, observable correlation (badge
+        present/absent) is a side effect of an unrelated feature, requires the user to already understand
+        what the badge means (never explained as such anywhere in the product), and is itself demonstrated
+        unreliable by a separate, already-registered gap.
+      size: "S -- add a real, designed `replyOrigin` (or similar) enum alongside the existing
+        `confidenceLabel` column (deterministic | dialogue_script | policy_refusal | ai), set it at each
+        of chat-service.ts's real insert sites (already enumerated above, so no new discovery needed), and
+        render a small explicit label in ThreadView.tsx decoupled from the confidence badge"
+      recommendation: |
+        Do not overload `confidenceLabel` further for this purpose -- it already has one unrelated,
+        registered reliability gap (`GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION`). Add a
+        dedicated, explicit field set at every real insert site named above, and a small UI label (e.g.
+        "Automated" vs "AI" chip) that does not depend on the confidence heuristic. Worth scoping together
+        with the other two open VERI Chat gaps in this file, since a `replyOrigin` value of `refusal` would
+        also directly fix the ambiguity `GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION` describes,
+        without needing refusal-phrase pattern matching at all.
+      status: open
+      first_raised: "This session, 2026-08-03, OCID-052 Item 4 real execution (UMR-20260802-165606-4413 OCID-020, UMR-20260803-115620-29c6 OCID-052)"
+
     - id: GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
       name: "OCID-049 Subscription Plan Entitlement Certification -- planning artifact registered, entitlement enforcement not yet built"
       detail: |
