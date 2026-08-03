@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-151937-pm-decision--proceed-with-ocid-048-real, UMR-20260803-115452-a35d) -- OCID-048 real API-level cross-tenant isolation test execution [DONE, closed same session]"
+    claimed_at: "2026-08-03T15:20Z (this session; claim recorded after work completed, verified first via `git fetch origin main` that no other session had claimed OCID-048 real execution -- only the prior planning/task-breakdown entry existed)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-115452-a35d`, child of `UMR-20260802-165606-4413` OCID-020):
+      proceed with real testing execution for OCID-048, focused on API-level-testable parts, real
+      cross-tenant data isolation checks across at least two real organizations using the same
+      session-cookie + direct-API-call pattern already proven for OCID-047/OCID-052. Genuinely
+      browser-DOM-dependent sub-parts to be honestly flagged as blocked, not skipped or faked.
+
+      Zero-duplication check: `git fetch origin main` confirmed no new commits since this branch
+      forked, and `ai-os/boss/ACTIVE-CLAIMS.yaml` had no other real-execution claim for OCID-048 --
+      only the already-merged planning/task-breakdown entry (this file, further down).
+
+      Real, live results: provisioned 2 fresh real orgs via the proven Admin-API +
+      hand-constructed-session-cookie method; ran 6 real cross-tenant isolation probes across 4
+      independent route families (departments list+by-id, tasks, clients, products, users) --
+      **7/7 PASS**, zero leakage found. Also ran a real brand-as-configuration check
+      (`PATCH`/`GET /api/settings/branding`) -- Org A's custom branding persisted to Org A only, Org
+      B unaffected. Discovered and confirmed (not assumed) that the browser-DOM half of the brand
+      check was NOT actually blocked by `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` -- a real,
+      already-durable no-sudo fix from an earlier session
+      (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`) makes headless Chromium launch
+      cleanly; ran a real cookie-injected headless browser session confirming the live-rendered
+      Branding UI shows the exact values set via the API. Narrowed (not closed) the shared gap entry
+      in `MASTER-TRACKER.yaml` accordingly, since this pass only confirmed
+      cookie-injected-navigation/DOM-read/screenshot, not full interactive-flow/device-emulation
+      coverage other OCIDs (050/051/052) still need.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`
+      (amended in place, new §8), `ai-os/MASTER-TRACKER.yaml` (`GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`
+      entry narrowed), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No `src/`, schema, or CI changes --
+      real test execution against the existing, already-built tenant-isolation and branding mechanisms,
+      no code modified. Test scripts and screenshot are ephemeral (`/tmp`), not committed, consistent
+      with the OCID-047/052 sessions' own convention.
   - session_label: "claude-code (task-20260803-150821-pm-decision--proceed-with-ocid-047-real) -- OCID-047 RESPONSIBILITY/data-scope axis, real API-level execution [DONE, 18/18 checks]"
     claimed_at: "2026-08-03T15:15Z (this session, closed same session)"
     claim: |
