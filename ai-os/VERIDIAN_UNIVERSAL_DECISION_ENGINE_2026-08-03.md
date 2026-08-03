@@ -16,17 +16,17 @@ implementation/gap-closure/production-change/completion-certification work stays
 independently verified complete; this document, like OCID-022 through OCID-028 before it, is discovery and
 matrix-building, which SEC-07 explicitly permits to continue.
 
-**A note on task numbering (recorded for honesty, not as a scope change):** this task's own working
-directory is labeled `task-...-ocid-030-veridian-universal-decision-eng`, but the spec's own citation
-(`UMR-20260803-041351-0278`, described in its own prompt as "the real OCID-029 directive") and its mission
-text ("VERIDIAN Universal Decision Engine") match the **OCID-20260803-029** row of
-`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s table ("VERIDIAN Universal Decision Engine
-v1.0"), not that snapshot's OCID-030 row ("VERIDIAN Universal Software Execution Engine v1.0"). This
-document proceeds on the spec's real mission text, per the same directory/label-vs-content drift already
-found and corrected once in this chain (the OCID-036/037 mislabel, `UMR-20260803-045159-ec55`). Whoever
-picks up the real OCID-030 (Software Execution Engine) directive next should independently verify its own
-content requirements rather than assuming this document already covers them — it does not; this document
-is the Decision Engine only.
+**A note on task numbering, resolved by a real PM decision:** this task's own working directory is
+labeled `task-...-ocid-030-veridian-universal-decision-eng`, and that label was correct all along. Real
+PM decision `UMR-20260803-045159-ec55` independently verified this document's real content ("VERIDIAN
+Universal Decision Engine") is OCID-030, correcting an earlier draft of
+`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status table that had mislabeled this
+content as row `OCID-20260803-029`. Same mislabeling class as the OCID-036/037 correction (`UMR-20260803-045159-ec55`). This document's own
+correction does not resolve what OCID-029's real content is -- the same status-snapshot table has shown
+a demonstrated, real off-by-one drift across this numbering range, and re-guessing that mapping here
+without independent confirmation would risk repeating the same error. Whoever picks up whichever
+directive is really OCID-029 next should verify its own real UMR/content mapping directly against the
+real dispatch chain, not against this document's own guess.
 
 ---
 

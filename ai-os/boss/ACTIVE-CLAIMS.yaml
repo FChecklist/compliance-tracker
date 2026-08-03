@@ -4675,15 +4675,14 @@ active:
       consistent with the real OCID-020 implementation lock (SEC-07 in
       `ai-os/CONSTITUTION.yaml`) which permits discovery/documentation to
       continue -- no implementation, no code, no DB objects.
-      Note on task naming: this task's own directory is labeled "ocid-030"
-      but the spec's own citation (`UMR-20260803-041351-0278`, "OCID-029")
-      and mission text ("Universal Decision Engine") match the
-      OCID-20260803-029 row in `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
-      table, not that snapshot's OCID-030 row ("Universal Software Execution
-      Engine"). Proceeding on the spec's real mission text (Decision Engine),
-      not the directory-name label, and flagging this numbering drift here
-      per the same honesty standard the OCID-036 mislabel correction upheld
-      -- this is a documentation/citation nit, not a scope change.
+      Note on task naming, resolved by a real PM decision: this task's own
+      directory is labeled "ocid-030," and that label was correct all along.
+      Real PM decision `UMR-20260803-045159-ec55` independently verified
+      this task's real content ("Universal Decision Engine") is OCID-030,
+      correcting an earlier draft of
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status
+      table that had mislabeled it as row OCID-20260803-029. Same
+      mislabeling class as the OCID-036/037 correction.
       Discovery in progress: searching the full server for the existing
       decision engine, rule engine, function/report/analysis/prompt
       libraries, task engine, VERI Chat, mode pills, and option chain before
