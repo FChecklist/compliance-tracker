@@ -866,3 +866,127 @@ prior cycle") since the spec is the only source for what it denotes.
 - [ ] None for this cycle -- planning only, per SPEC. Real testing (deterministic-first test case,
       one real AI-escalation exercised end to end, real confirmation of UI surfacing) is explicitly
       deferred to a later cycle, per SPEC and per OCID-052's own definition of done.
+
+# PROGRESS -- task-20260803-120302-register-ocid-047-roles-rights-responsib
+
+Cites: `UMR-20260803-115333-dab8` (this task's own real dispatch UMR, confirmed directly
+against `superboss-register.sqlite`'s `umr_tasks` table), parented to `UMR-20260802-165606-4413`
+(OCID-020).
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `AGENTS.md`, `CLAUDE.md` before starting.
+- [x] Independently discovered the real, existing role/rights/responsibility model directly from
+      code (not narrated): `userRoleEnum` (11 values, `schema.ts:12`), `ROLE_RANK`/`hasRole`/
+      `requireRole`/`requireRoleOrScope` (`auth-guard.ts:28-55`), `ERP_ACTION_ROLES` (55) +
+      `PROMPT_ACTION_ROLES` (9) = 64 centrally-registered actions (`permission-service.ts`), 51
+      real `requireRole(` call sites (`grep -rl` across `src/app/api`), the real per-batch browser
+      test harness (`/tmp/ocid020-continue/mega4-batched.mjs`).
+- [x] **Real duplicate-dispatch collision found before writing anything new**: `git fetch`/
+      `git merge origin/main` (mandatory first step per `ACTIVE-CLAIMS.yaml`'s own protocol) found
+      PR #811 already merged, containing `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md`
+      with an OCID-047 section citing this exact task's own real UMR (`UMR-20260803-115333-dab8`) --
+      a real race between two invocations of the identical directive, not a different task. Did not
+      recreate a duplicate document; discarded this workspace's own stale pre-merge `PROGRESS.md`
+      stub (`git checkout -- PROGRESS.md`, safe -- it held no real work, just the fresh per-task
+      template) and merged cleanly.
+- [x] Independently re-verified the merged OCID-047 section's own numbers directly against live
+      code: 64 centrally-registered actions and 51 inline `requireRole(` sites both confirmed exact.
+      No correction needed to the rights-model half of that section.
+- [x] Found and closed a real, substantive gap in the merged section instead of duplicating it: it
+      covers RIGHTS (action permissions) but never names the separate, real, already-built
+      RESPONSIBILITY/data-scope layer this OCID's own SPEC explicitly asks for -- `home-service.ts`
+      dashboard-scope-by-rank, `client-access-service.ts`'s `FULL_CLIENT_ACCESS_ROLE` client-list
+      gate, `risk-register-service.ts`'s `BROAD_SCOPE_ROLES` risk-visibility gate, and
+      `classification.ts`'s `ROLE_CLEARANCE` ceiling (a genuinely separate axis from `ROLE_RANK`,
+      with 3 real same-rank/different-clearance divergences: `external_auditor` vs `member`,
+      `senior_professional` vs `manager`, `team_member` vs `member`).
+- [x] Found and named a second real gap: both real, live user-creation mechanisms
+      (`invite-link-service.ts`'s `INVITE_ROLES`, `POST /api/users`'s `VALID_ROLES`) only assign the
+      original 4 roles (admin/manager/member/viewer). 6 of the 11 real DB roles (`veridian_admin`,
+      `branch_manager`, `senior_professional`, `team_member`, `client_viewer`, `external_auditor`)
+      have no real product-level onboarding path found this pass -- DB-seed only.
+- [x] Flagged a minor, real precision drift (not a correction to the merged section, which already
+      states this accurately): `stage0-service.ts`'s own code comment claims `stage_0` "rank[s] 1 in
+      `ROLE_RANK`" -- independently re-checked, `stage_0` is not a `ROLE_RANK` key at all and falls
+      to rank 0 via the `?? 0` fallback, one rank below `viewer`.
+- [x] Amended `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` in place
+      with the full real responsibility-layer writeup, an 11-row per-role
+      rights+responsibility+provisioning-path table, a revised per-role test-path step 1, and a
+      Definition-of-Done addendum -- no new/duplicate canonical artifact created.
+- [x] Updated `ai-os/OS.yaml`'s existing covers-line for that file to reflect the amendment.
+- [x] Registered this session's own `ai-os/boss/ACTIVE-CLAIMS.yaml` entry documenting the collision
+      and the real gap-closure work performed.
+
+- [x] Committed + pushed (`6f3b99e8`), opened PR #814: https://github.com/FChecklist/compliance-tracker/pull/814
+
+## Remaining
+- [ ] Get CI green (docs-only diff; Vercel preview-rate-limit failure expected/unrelated per this
+      repo's established pattern) and an independent `AUDIT: PASS`/`FAIL` comment per Rule 7(c)/10,
+      then merge. Not this task's to force.
+- [ ] No testing, fixing, or certification performed or expected this cycle -- real per-role testing
+      against the amended table is future dispatched work, not this task's to perform.
+
+# PROGRESS -- task-20260803-120306-register-ocid-048-multi-organization-mul
+
+## Completed
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml protocol + scanned active/recently_completed for OCID-048 / multi-org / multi-tenant / multi-brand / isolation collisions -- none found
+- [x] Read ai-os/CONSTITUTION.yaml SEC-07 (real OCID-020 implementation lock: OCID-038/039/040 sequence, discovery/documentation permitted)
+- [x] Checked resource_governor (`python3 /opt/veridian/scripts/resource_governor.py --query-umr`) for "OCID-048" and "Tenant B" -- zero real matches, confirming no duplicate UMR/task already covers this
+- [x] Located the real existing pending item this SPEC says to reuse: IMPLEMENTATION_MATRIX_2026-08-02.md Stream D ("Multi-tenant RLS table-by-table verification") + the explicit "Still open, not yet tested" note in PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md (extend the Org A/Org B `/api/departments` probe, PR #747, to every other tenant-scoped route) -- no literal task titled "create Tenant B demo org" exists verbatim anywhere searched (MASTER-TRACKER.yaml, ACTIVE-CLAIMS.yaml, resource_governor ledger, STANDING_DIRECTIVE.yaml, COMPLETED.yaml); this is the real, closest, already-open item being reused
+- [x] Found and read OCID-041 through OCID-046 registration (IMPLEMENTATION_MATRIX_2026-08-02.md, amendment 2026-08-03) -- OCID-046 "Universal Multi-Brand Multi-Tenant Platform Runtime" is adjacent but distinct scope (future runtime design, parented through the separate OCID-041-045 external-execution chain, locked behind OCID-020->038->039->040, zero canonical artifact written yet). OCID-048 is scoped narrower and differently: a certification test-path breakdown for EXISTING built isolation mechanisms, direct child of OCID-020 itself, part of a newly-opened "Business Certification" phase. OCID-047 confirmed unregistered anywhere (real, honest numbering gap, not invented).
+
+- [x] Registered ACTIVE-CLAIMS.yaml entry for this session, then moved it to `recently_completed` (closed same session)
+- [x] Wrote canonical artifact: `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md` -- real 6-task deterministic breakdown (T1-T6), Definition-of-Done mapping, explicit non-goals, OCID-046 distinction
+- [x] Registered new doc in `ai-os/OS.yaml` index (required by check-metadata-index-coverage.mjs) -- verified `path:` string matches the real filename exactly; verified both edited YAML files (`ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) parse cleanly around my own edit regions (a pre-existing, unrelated YAML break at ACTIVE-CLAIMS.yaml line ~7444 predates this task and was confirmed present at HEAD before any edit here)
+- [x] Amended `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` in place (Stream D row cross-reference + a new 2026-08-03 amendment section) pointing at the new OCID-048 artifact, not duplicating it
+
+- [x] Committed and pushed; opened PR #816 (https://github.com/FChecklist/compliance-tracker/pull/816)
+
+## Remaining
+- [ ] None -- planning-only scope for this cycle is complete, pending CI + merge of PR #816
+
+Explicitly out of scope this cycle (per SPEC): no test execution, no Tenant B org provisioning, no certification. Deferred to a future OCID-048 execution cycle.
+
+# PROGRESS -- task-20260803-120310-register-ocid-049-subscription-plan-enti
+
+## Completed
+- [x] Read governance docs (ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml SEC-07, OS.yaml, MASTER-TRACKER.yaml)
+- [x] Zero-duplication check: `resource_governor.py --query-umr --search` for "OCID-049", "entitlement",
+      "register-ocid-049" -- all 0 matches; `grep -rn "OCID-049"`/`"Business Certification"` across
+      `ai-os/` -- 0 prior matches
+- [x] Discovered and verified the real `compliance.subscription_plans` model (4 seeded tiers, `drizzle/0231`)
+      vs. 3 adjacent-but-distinct real mechanisms (`organisations.plan`, `licensedSeats`, product-branch
+      module enablement)
+- [x] Verified real wiring state: `features.aiPackage` -> `getOrgAiPackage()` (real, dormant); `assistants_per_user`
+      (schema-only, zero consumers)
+- [x] Reviewed the reusable explanation pattern from this session's `GAP-ERP-CRM-403-NO-UX-EXPLANATION` (PR #809)
+- [x] Wrote canonical artifact: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`
+      (tier enumeration, feature mapping, 5-task breakdown A-E, per-tier test path, definition of done)
+- [x] Registered in `ai-os/OS.yaml` (index entry) and `ai-os/MASTER-TRACKER.yaml`
+      (`GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT`, status open)
+- [x] Registered + closed claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (`recently_completed`)
+- [x] Committed and pushed
+
+## Remaining
+- Nothing further this cycle -- planning-only scope complete. Real implementation (Tasks A-E) and testing
+  are explicitly deferred to a future cycle pending Owner unlock, per this task's own instruction and SEC-07.
+
+# PROGRESS -- task-20260803-120314-register-ocid-050-data-state-certificati
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first; confirmed no active/prior OCID-050 claim
+- [x] Zero-duplication check via `resource_governor.py --query-umr --search "OCID-050"` (0 matches)
+- [x] Independently re-verified PR #794 (merged, 115/115 nav coverage) and the real 115-item
+      `nav-hrefs-v2.json` list -- reused, not rediscovered
+- [x] Confirmed State A (Empty = "OCID-020 Continue Org A") and State B (Sample Data = `demo_org`)
+      already exist; honestly confirmed State C (Large Data volume org) does NOT yet exist
+- [x] Wrote canonical planning artifact:
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      (deterministic TASK-050-0 through -6 breakdown + Definition of Done)
+- [x] Registered in `ai-os/OS.yaml` (index entry)
+- [x] Registered in `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim + same-session closure)
+- [x] Committed and pushed; PR opened
+
+## Remaining
+- [ ] Nothing further this cycle -- planning only, per this task's explicit scope. Real testing
+      (TASK-050-0 through -6) is future work, not started here.

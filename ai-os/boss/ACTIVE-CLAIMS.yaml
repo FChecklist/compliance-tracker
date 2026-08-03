@@ -77,6 +77,48 @@ active:
       (new file), `ai-os/OS.yaml` (index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema,
       or CI changes -- planning only, no testing or implementation performed against OCID-052's own
       definition of done.
+  - session_label: "claude-code (task-20260803-120302-register-ocid-047-roles-rights-responsib, UMR-20260803-115333-dab8) -- OCID-047 responsibility-model amendment, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, citing the same real UMR `UMR-20260803-115333-dab8` and the same
+      parent `UMR-20260802-165606-4413`/OCID-020): register OCID-047 (Roles/Rights/Responsibilities
+      Certification), enumerating every real role, mapping each to real rights AND responsibilities,
+      defining a real per-role test path reusing the existing browser harness. Planning only.
+
+      Real duplicate-dispatch collision found and handled per this file's own protocol (not silently
+      worked around): `git fetch`/`git merge origin/main`, this session's own mandatory first step,
+      found `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` (PR #811)
+      already merged minutes earlier, citing the exact same UMR this task was dispatched under -- a
+      real race between two invocations of the same directive, not a different task. Did not
+      re-author a duplicate document.
+
+      Independently re-verified the existing OCID-047 section's own numbers directly against live code
+      before amending anything: `ERP_ACTION_ROLES` (55) + `PROMPT_ACTION_ROLES` (9) = 64, exact match;
+      51 real `requireRole(` call sites under `src/app/api`, exact match. Both confirmed accurate, no
+      correction needed to the rights-model half.
+
+      Found and closed a real, substantive gap instead: the existing section covers RIGHTS (the 64
+      centrally-registered actions + 51 inline sites) but never names the separate, real, already-built
+      RESPONSIBILITY/data-scope layer this OCID's own SPEC explicitly asks for -- `home-service.ts`'s
+      rank-based dashboard scope (individual/team/org), `client-access-service.ts`'s
+      `FULL_CLIENT_ACCESS_ROLE` client-list visibility gate, `risk-register-service.ts`'s
+      `BROAD_SCOPE_ROLES` risk-visibility gate, and `classification.ts`'s `ROLE_CLEARANCE` ceiling -- a
+      genuinely separate axis from `ROLE_RANK` with 3 real same-rank/different-clearance divergences
+      (`external_auditor` vs `member`, `senior_professional` vs `manager`, `team_member` vs `member`)
+      a rank-only test plan would miss. Also found and named a real provisioning-path gap: both real,
+      live user-creation mechanisms (`invite-link-service.ts`'s `INVITE_ROLES`,
+      `POST /api/users`'s `VALID_ROLES`) only assign the original 4 roles -- 6 of the 11 real DB roles
+      (`veridian_admin`/`branch_manager`/`senior_professional`/`team_member`/`client_viewer`/
+      `external_auditor`) have no real product-level onboarding path found this pass, DB-seed only.
+
+      Amended the existing canonical artifact in place with a full per-role rights+responsibility+
+      provisioning-path table (11 rows) and a Definition-of-Done addendum, rather than creating a
+      second, parallel document.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` (amended,
+      in place -- not rewritten, not duplicated), `ai-os/OS.yaml` (covers-line update), this
+      ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, or CI changes -- planning only, per this
+      OCID's own explicit prohibition on testing/implementation this cycle.
   - session_label: "claude-code (interactive, UMR-20260803-115333-dab8 through -115620-29c6) -- OCID-047 through OCID-052, Business Certification phase planning, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T11:53Z (this session, closed same session)"
     claim: |
@@ -120,6 +162,43 @@ active:
       schema, or CI changes -- planning only, no testing or implementation
       performed against any of the six real definitions of done, per every
       directive's own explicit instruction.
+  - session_label: "claude-code (task-20260803-120314-register-ocid-050-data-state-certificati) -- OCID-050 Data State Certification: planning-only task breakdown, child of OCID-020 [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:07Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, `UMR-20260802-165606-4413` OCID-020 as parent, Business
+      Certification phase): register OCID-050, "Data State Certification," covering Empty/Sample/Large
+      data states, as a real child of OCID-020. Explicitly planning only this cycle -- no testing, no
+      fixing, no new org creation. Mission was to reuse the existing real 115-item nav-surface list from
+      PR #794 (no new discovery pass) and produce a deterministic task breakdown for re-running it
+      against three real data states, checking pagination, empty-state messaging, and performance under
+      load.
+
+      Zero-duplication check performed first, per this task's own instruction to check
+      `resource_governor` before creating any sub-task: `python3 scripts/resource_governor.py
+      --query-umr --search "OCID-050"` returned zero matches; `ACTIVE-CLAIMS.yaml` read in full, zero
+      prior OCID-050 entries. No sub-task was created (planning-only artifact, nothing to dispatch yet).
+
+      Independently re-verified the reused inputs rather than trusting the spec's own claims: `gh pr
+      view 794` confirms real, merged (115/115 nav coverage); `/tmp/ocid020-continue/nav-hrefs-v2.json`
+      opened directly, confirmed a real 115-item array. Confirmed State A (Empty = "OCID-020 Continue
+      Org A") and State B (Sample Data = `demo_org`, real ERP transactional usage since the 2026-07-06
+      seed) both already exist and require no new creation. Independently checked State C (Large Data
+      volume org) and found, honestly, that **no such org has been confirmed to exist yet** -- flagged
+      as a real open prerequisite (TASK-050-1) in the new artifact rather than assumed or fabricated.
+
+      Deliverable: one new canonical artifact,
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`, with a
+      real deterministic breakdown (TASK-050-0 through -6: durable-fixture prerequisite, large-data-org
+      prerequisite, acceptance-criteria prerequisite, then 3 independent per-state passes reusing the
+      PR #794 batched-browser harness, then synthesis/registration) and an explicit Definition of Done
+      (a real completed pass of the 115-item list under all 3 states, findings registered the same
+      honest way as Finding 1/2/3 from the original sweep). No browser automation run, no org created,
+      no findings registered this cycle -- planning only, per this task's own explicit scope.
+    scope_note: >-
+      File scope: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      (new file, the one canonical artifact), `ai-os/OS.yaml` (new index entry), this ACTIVE-CLAIMS
+      entry, `PROGRESS.md`. No src/, schema, CI, or `.github/` changes. No implementation, no testing,
+      no new organization created -- consistent with this task's own explicit planning-only scope.
   - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
     claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
     claim: |
@@ -4939,6 +5018,105 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, tier not given -- treated as planning-only
+      per its own explicit text): register OCID-048 as a real child of OCID-020
+      (`UMR-20260802-165606-4413`), part of a newly-opened "Business
+      Certification" phase for OCID-020. Planning only this cycle -- no
+      implementation, no test execution, no certification. Produce a real
+      deterministic task breakdown, using only the existing organization/
+      tenant/brand model already built, defining the exact real test path for
+      (1) data isolation across >= 2 real distinct organizations, (2) a real
+      brand (e.g. projexa-ai.com) confirmed as a configuration of the one
+      shared platform rather than separate software, (3) no cross-tenant data
+      leakage. Explicit instruction: reuse the existing pending item for
+      creating a separate Tenant B demo org rather than duplicate it.
+
+      Duplication check performed before any of this was written: full read
+      of this file's own `active:`/`recently_completed:` sections (grep for
+      "tenant"/"isolat"/"multi.org"/"multi.brand"/"rls"/"048"/"business.cert"
+      -- zero collisions found beyond an unrelated closed RLS-gap fix);
+      `python3 /opt/veridian/scripts/resource_governor.py --query-umr
+      --search "OCID-048"` and `--search "Tenant B"` (zero real matches for
+      the former; the latter's 8 hits are all unrelated historical-backfill
+      rows, none about a demo org); grep across
+      `ai-os/MASTER-TRACKER.yaml`/`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`/
+      `ai-os/STANDING_DIRECTIVE.yaml`/`ai-os/boss/COMPLETED.yaml` for a
+      literal "create Tenant B demo org" item -- none exists verbatim
+      anywhere; the real, closest, already-open item is
+      `IMPLEMENTATION_MATRIX_2026-08-02.md`'s Stream D ("Multi-tenant RLS
+      table-by-table verification") plus the explicit "Still open, not yet
+      tested" note in
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+      (extend the real Org A/Org B `/api/departments` cross-org probe, PR
+      #747, to every other tenant-scoped route) -- reused and cited by name
+      in the new artifact, not duplicated. Also confirmed OCID-046
+      ("Universal Multi-Brand Multi-Tenant Platform Runtime",
+      `IMPLEMENTATION_MATRIX_2026-08-02.md`'s 2026-08-03 amendment) is
+      adjacent but distinct scope -- a locked, not-yet-started future-runtime
+      design parented through the separate OCID-041-045 external-execution
+      chain, not a certification-of-what-already-exists task -- and said so
+      explicitly in the new artifact rather than silently overlapping it.
+
+      STATUS: canonical artifact written
+      (`ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`,
+      real 6-task breakdown T1-T6 + Definition of Done mapping), registered in
+      `ai-os/OS.yaml`, cross-referenced in place (not duplicated) from
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s Stream D row + a new
+      2026-08-03 amendment section. PR opened same session -- will confirm
+      merge separately; no further ACTIVE-CLAIMS update needed once merged
+      since this entry already reflects the real, closed scope of this task.
+    scope_note: >-
+      File scope: one new canonical artifact
+      `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`,
+      `ai-os/OS.yaml` (index registration), a small in-place cross-reference
+      amendment to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (Stream D),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration,
+      or CI changes -- planning/documentation only per SPEC's explicit
+      prohibition on implementation and certification this cycle.
+  - session_label: "claude-code (task-20260803-120310-register-ocid-049-subscription-plan-enti) -- OCID-049 Subscription Plan Entitlement Certification, planning only, child of OCID-020 Business Certification [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing UMR-20260802-165606-4413, OCID-020): register OCID-049 as
+      a real child of OCID-020's newly-opened Business Certification phase (first registration of that
+      phase name anywhere in this repo -- confirmed via grep). Planning only, per SEC-07 -- no
+      implementation, no testing, no certification performed.
+
+      Zero-duplication check performed first, per this task's own instruction ("check resource_governor
+      before creating any sub-task"): `resource_governor.py --query-umr --search` for "OCID-049",
+      "entitlement", and this task's own identity ("register-ocid-049") each returned 0 matches; a direct
+      sqlite query against `superboss-register.sqlite`'s `umr_tasks` table for any row in this task's own
+      creation minute also returned 0 rows -- this task's own dispatch has no resource_governor-tracked
+      UMR (an honest, stated limitation, not fabricated). `grep -rn "OCID-049"` / `"Business
+      Certification"` across `ai-os/` also returned 0 prior matches.
+
+      Real discovery performed (not assumed): identified the real, existing `compliance.subscription_plans`
+      model this OCID is scoped to (4 seeded tiers -- Basic/Standard/Professional/Enterprise --
+      `drizzle/0231_ai_router_mother_router.sql`) and explicitly disambiguated it from 3 real but distinct
+      adjacent mechanisms already in this codebase (`organisations.plan` trial flag, `licensedSeats`
+      manual seat cap, product-branch module enablement -- the last of which is where this same session's
+      `ModuleNotEnabledCard`/`ServiceError` 403 explanation pattern, GAP-ERP-CRM-403-NO-UX-EXPLANATION PR
+      #809, actually lives). Honestly mapped what's really wired today (`features.aiPackage` ->
+      `mother-router.ts`'s `getOrgAiPackage()` -> `ai_routing_policies.preferredModelByPackage`, real but
+      dormant -- zero seeded policy rows exercise it) vs. schema-only (`assistants_per_user`, confirmed via
+      `git grep` to have zero consumers anywhere in `src/`). Produced a 5-task deterministic breakdown
+      (A-E) and a per-tier test path reusing the existing explanation pattern, as this OCID's own mission
+      required -- no new plan model, no new billing architecture, no code/schema/DB changes.
+
+      Canonical artifact: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`.
+      Registered in `ai-os/OS.yaml` (index entry) and `ai-os/MASTER-TRACKER.yaml`
+      (`real_gaps_not_yet_built.GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT`, `status: open`, pending
+      Owner unlock of implementation for this OCID).
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md` (new file),
+      `ai-os/OS.yaml` (amended), `ai-os/MASTER-TRACKER.yaml` (amended), this ACTIVE-CLAIMS.yaml entry,
+      `PROGRESS.md`. No `src/`, schema, migration, or CI changes -- documentation/planning only, per
+      SEC-07 and this task's own explicit "do not test, do not fix" instruction. Could not run
+      `scripts/check-metadata-index-coverage.mjs` locally (this workspace has no installed
+      `node_modules`/`bun` binary) -- registered the new file in `OS.yaml` by hand, matching the existing
+      entry format exactly; CI's own run of that check is the real verification.
   - session_label: "claude-code (task-20260803-050456-ocid-027-veridian-global-knowledge-disco) -- VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0, documentation only [DONE]"
     claimed_at: "2026-08-03T05:05Z (this session, closed same session)"
     claim: |
