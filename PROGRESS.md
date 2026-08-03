@@ -176,3 +176,63 @@ Cites: `UMR-20260802-165606-4413` and the standing rebase directive
       exactly 1 match after the rebase.
 - [ ] Push the rebased branch and report real MERGEABLE/CONFLICTING status.
       Do NOT merge until CI is green; do NOT force past a real conflict.
+
+# PROGRESS -- task-20260803-000431-pm-correction-pr-748-false-task-210700-s
+
+Cites: `UMR-20260802-165606-4413` and `UMR-20260802-230119-c1f1` (PM
+correction spec directing this task to fix PR #748's false claim).
+
+## Completed
+- [x] **Independently re-verified the PM correction's premise directly on the
+      server (not narrated, not taken on faith from the incoming spec):**
+      `systemctl --user status` / `journalctl --user -u
+      veridian-worker@task-20260802-210700-pm-decision--fix-the-real-high-severity.service`
+      confirmed a real, clean `SIGTERM` to the main process and every child at
+      `23:14:21Z` on `2026-08-02`, and the unit's *only* subsequent `Started`
+      entry is at `2026-08-03T00:02:44Z` — a real ~48-minute dead window that
+      fully contains PR #748's actual creation timestamp
+      (`2026-08-02T23:19:41Z`, confirmed via `gh api .../pulls/748`). So the
+      spec's core claim — that PR #748's "genuinely still in_progress, live
+      lint pass in worker.log" reconfirmation was false at the moment it was
+      made — checks out against real systemd/journal evidence, not just the
+      spec's own assertion.
+- [x] **Before making any edit, discovered the correction had already been
+      made and merged by a concurrent session** — checked `gh pr view 748`
+      and found its live diff already contained the exact correction this
+      task was dispatched to make (task-20260802-231510's own later
+      invocation found the same SIGTERM evidence independently, amended its
+      commit in place — author date `23:18:59Z`, committer date
+      `00:04:30Z` — and task-20260802-235630 adopted that branch as a formal
+      audit target, posted two `AUDIT: PASS` comments, the second explicitly
+      "no issues found in this review", both citing the recovery-matrix
+      cross-link this spec also asks for: `UMR-20260802-165541-c27d` /
+      PR #750 (already merged, `162a9a71`)). CI was green on every required
+      check (`Lint`, `Type Check`, `Build`, `Unit Tests`, `audit-check`,
+      `Guardrail Presence Check`, plus the doc/security/asset checks); only
+      `Vercel` (preview-deploy rate limit, not a required check) and a
+      transient `E2E Tests: pending` were outstanding.
+- [x] PR #748 merged autonomously (`a8b566b0`, `2026-08-03T00:08:46Z`) via
+      the tier1 Superboss auto-merge path (Rule 12,
+      `AUTONOMOUS-FULL-APPROVAL-2026-07-31`) while this task was still
+      mid-verification. Re-pulled `origin/main` and confirmed the merged
+      `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` content on `main` matches
+      what was reviewed — the correction is real, live, and accurate: it
+      states plainly that task-210700 was cleanly terminated at `23:14:21Z`,
+      the original "genuinely running" reading was false, and logs this as a
+      concrete example for the OCID-019 status-staleness gap. No further
+      edit to those files is needed or was made by this task.
+- [x] **Caught and reverted an unrelated local hazard before it could be
+      committed**: this workspace's working tree had this task's own minimal
+      template already substituted in place of the full accumulated
+      `PROGRESS.md` (110 lines of prior task history replaced by 2 lines) —
+      `git checkout -- PROGRESS.md` restored it before rebasing onto the
+      merged `main`, so no history was lost.
+- [x] Confirmed PR #749 (traceability tranche 4) is untouched by any of the
+      above and requires no action from this task, per the spec.
+
+## Remaining
+- [ ] None. PR #748's false claim is corrected and merged; this task's own
+      change is docs-only (this `PROGRESS.md` entry) recording independent
+      verification, and can be merged on its own merits whenever convenient
+      — it makes no further edit to `ai-os/boss/ACTIVE-CLAIMS.yaml` since
+      this task holds no ongoing exclusive claim on any file.
