@@ -39,7 +39,19 @@ DB, UI, or UX change. OCID-20260803-022.
 - [x] Verified locally: `check-metadata-index-coverage.mjs` and `check-guardrail-presence.mjs`
       (88 markers) both pass against the amended tree.
 
+- [x] Committed + pushed, opened PR #765
+      (https://github.com/FChecklist/compliance-tracker/pull/765). All real required checks
+      pass: Lint, Type Check, Build, Unit Tests, E2E Tests, Analyze, Asset Registry Coverage,
+      Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, Guardrail Presence,
+      Metadata Index Coverage, Migration Number Collision, Secret Scanning, Security Pattern,
+      Terminology Guardrail. `Vercel` fails on an unrelated preview-deploy rate limit (not a
+      required merge gate). `audit-check` correctly fails, pending an independent, non-self
+      auditor per AGENTS.md Rule 10 -- this session is the doer and cannot self-certify it.
+
 ## Remaining
-- [ ] Commit + push, open PR, confirm CI green.
-- [ ] Move this session's ACTIVE-CLAIMS entry from `active:` to `recently_completed:` once merged.
-- [ ] Report to Owner: real document location, real updated UMR, OCID-023 handoff confirmation.
+- [ ] Independent auditor reviews PR #765 and posts a real `AUDIT: PASS`/`FAIL` comment (not
+      this session's job, per Rule 10).
+- [ ] Move this session's ACTIVE-CLAIMS entry from `active:` to `recently_completed:` once
+      PR #765 actually merges (not done yet -- protocol step 3 triggers on merge, not on open).
+- [x] Reported to Owner (this session's final message): real document location, real updated
+      UMR, OCID-023 handoff confirmation.
