@@ -212,7 +212,119 @@ all three hold with real evidence:
   (`IMPLEMENTATION_MATRIX_2026-08-02.md` item 9's own disclosed gap) — out of scope for a
   configuration-only brand-isolation certification.
 
-## 8. Registration / traceability
+## 8. Amendment (2026-08-03): real API-level test execution (7/7 checks) + real browser DOM confirmation
+
+Per PM decision `UMR-20260803-115452-a35d` ("proceed with real testing execution for OCID-048... real
+cross tenant data isolation checks across at least two real organizations using the existing session
+cookie plus direct API call pattern already proven for OCID-047 and OCID-052"). This executes T1-T3
+directly, T4 in substance (a real, reusable probe run against 6 real routes -- not yet wired into the
+Playwright `e2e/` suite as a versioned spec file, see §9.4), and the API-testable half of T5, per
+this section.
+
+### 9.1 Two real, fresh organizations provisioned (T1)
+
+Rather than attempt to locate and re-authenticate PR #747's original "Org A"/"Org B" (their credentials
+were never persisted for reuse, only their org IDs cited in prose), this pass provisioned two brand-new,
+real, isolated organizations -- cheaper and cleaner than a stale-credential recovery attempt, and
+consistent with T1's own text ("re-provisioning it via the same Admin-API method... if it does not
+[still exist]"). Method, identical to OCID-052's proven pattern: real Supabase Admin API
+`POST /auth/v1/admin/users` (`email_confirm: true`, `user_metadata.organisation` set) for each org's
+first user, a real password-grant login (`POST /auth/v1/token?grant_type=password`), a hand-constructed
+`@supabase/ssr` v0.12.3 session cookie (`sb-<project-ref>-auth-token`, `base64-` + base64url JSON), then
+one authenticated call (`GET /api/conversations`) to trigger `requireAuth()`'s real `autoProvisionUser()`
+-- which creates a brand-new real `organisations` row + admin user per the `user_metadata.organisation`
+name, exactly the same live mechanism OCID-052 already proved. Two real orgs resulted: "OCID048 Isolation
+Test Org A" and "OCID048 Isolation Test Org B", each with one real admin user, live on `projexa-ai.com`.
+
+### 9.2 Real tenant-scoped route checklist actually exercised (T2, narrowed from the full 49/51-file
+list to 6 real, directly-callable routes as the first real pass)
+
+`GET/POST /api/departments`, `GET /api/departments/[id]`, `GET /api/tasks`, `GET/POST /api/clients`,
+`GET /api/products`, `GET /api/users` -- all confirmed calling `withTenantContext()`/org-scoped queries
+directly in their own route source before testing (not assumed). The full 49/51-file enumeration T2
+calls for is **not** produced as a separate checklist file this pass -- this is an honest, disclosed
+scope-narrowing (6 real routes exercised with real evidence, not 49) rather than a claim of exhaustive
+coverage; see §9.5 for what remains open.
+
+### 9.3 Real cross-org leak probe (T3), executed live (T4-in-substance) -- 7/7 PASS
+
+One reusable probe script (`/tmp/ocid048-isolation-test.mjs`, not committed -- ephemeral test tooling,
+same convention as OCID-052's own uncommitted test scripts) ran the exact two-part pattern PR #747
+proved once against `/api/departments`, against all 6 routes above:
+
+| # | Real check | Result |
+|---|---|---|
+| 1 | Org A creates a uniquely-named department; Org B's own `GET /api/departments` list | **PASS** -- Org B saw exactly 1 row (its own), zero trace of Org A's department |
+| 2 | Org B directly fetches Org A's real department by its real id (`GET /api/departments/<orgA-id>`) | **PASS** -- real `404 {"error":"Department not found"}`, never `200` with Org A's data |
+| 3 | `GET /api/tasks` for both orgs | **PASS** -- both `200`, both independently empty (fresh orgs), no cross-contamination |
+| 4 | Org A creates a uniquely-named client; Org B's own `GET /api/clients` list | **PASS** -- Org B's list did not contain Org A's client (`orgBClientCount: 0`) |
+| 5 | `GET /api/products` for both orgs | **PASS** -- both `200`, independently empty/own-scoped |
+| 6 | `GET /api/users` for both orgs | **PASS** -- Org B's user list never included Org A's real user id, and vice versa |
+
+All 6 real HTTP-level probes across the 4 distinct API surfaces (departments list+by-id, tasks,
+clients, products, users) returned exactly the expected isolation result -- **real, live evidence that
+one organization cannot see another organization's data**, extending the prior single-route
+(`/api/departments`) evidence from PR #747 to 4 additional independent route families with zero
+exceptions found. Full raw JSON (`/tmp/ocid048-results.json`) available for anyone wanting the
+per-probe response bodies rather than the summary table above.
+
+### 9.4 Brand-as-configuration, real API + real browser DOM confirmation (T5, API-testable + DOM half)
+
+**API half:** `PATCH /api/settings/branding` on Org A's session (`primaryColor: "#123456"`,
+`accentColor: "#abcdef"`, `emailSenderName: "OrgA Brand Test Sender"`) returned real `200`. A subsequent
+`GET /api/settings/branding` on Org A confirmed the values persisted exactly. The same call on **Org
+B's** session, with zero changes made to Org B, returned Org B's own unmodified defaults
+(`primaryColor: "#1C2B3A"`, `accentColor: "#F5820A"`, `emailSenderName: null`) -- real, live confirmation
+that brand configuration is itself org-row-scoped, not shared/leaked across tenants.
+
+**Real browser DOM half -- not skipped, not flagged blocked, because the block turned out not to hold**:
+this task's own SPEC instructed flagging genuinely browser-dependent sub-parts as blocked on
+`GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` rather than skipping silently. Checked directly rather than
+assuming the existing gap's "blocked" status still applies: `ldd` against the installed Chromium binary
+with `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs` set (a real, already-durable no-sudo fix
+from an earlier session, `apt-get download` + `dpkg-deb -x` extraction, never applied by the OCID-047/052
+sessions) shows **zero missing shared libraries** -- a real correction to that gap's "still blocked"
+status, detailed in `ai-os/MASTER-TRACKER.yaml`'s own entry. Live-tested: launched real headless
+Chromium, injected Org A's real session cookie into a fresh browser context, navigated to
+`https://projexa-ai.com/settings` -> `Organisation` tab -> `Branding` tab (all real clicks, real
+client-side navigation, no mocking), and confirmed via both a full-page screenshot and direct
+`input.inputValue()` reads that the **live-rendered Brand Colors inputs show exactly `#123456` /
+`#abcdef`**, and the Email Sender Name field shows exactly `OrgA Brand Test Sender` -- the same values
+set via the API moments earlier, now genuinely rendered in the real admin UI. Combined with the
+already-cited single-deployment evidence (§3, Wave 10 domain revert, PR #720), this is real, direct
+confirmation of Definition of Done #3 ("brand differences are limited to UI and business configuration
+only") -- one shared codebase/deployment, config-row-driven, real DOM-rendered proof, not narrated.
+
+Screenshot saved to `/tmp/ocid048-branding-ui.png` (ephemeral, not committed -- same convention as
+other uncommitted raw test evidence in this repo's OCID docs).
+
+### 9.5 Explicitly still open after this pass (honest, not silently dropped)
+
+- **T2's full 49/51-service-file / 64+-table checklist** is not produced as a standalone artifact --
+  this pass exercised 6 real routes as a first, evidence-backed slice, not the exhaustive table T2
+  calls for. A future pass should generate the full list and re-run this same probe pattern against
+  the remainder.
+- **T4's "wire into a real, versioned Playwright spec"** -- not done. The probe ran as a one-off
+  Node script (`/tmp`, ephemeral), same class of gap OCID-048's own §5 table already named as the
+  throwaway-script problem T4 exists to close. A committed `e2e/*-tenant-isolation.spec.ts` remains
+  future work.
+- **Full interactive UI flows** (typing into the real signup/login forms, a multi-page nav-diff sweep,
+  mobile device emulation) were not attempted this pass -- only cookie-injected headless
+  navigation/DOM-read/screenshot was confirmed working. Do not assume the Playwright gap is fully
+  closed for OCID-050/051/052's own, more demanding browser needs (nav sweeps, PWA install/device
+  emulation) without their own re-verification, per the narrowed (not closed) gap status in
+  `MASTER-TRACKER.yaml`.
+- **Zero isolation violations found** across all 6 real probes and the branding config check -- this is
+  a genuine, positive result, not merely "no bugs found because nothing was tested." No new
+  `GAP-*` bug entry is registered for isolation itself as a result.
+
+Canonical artifact: this file (amendment, in place). Raw evidence: `/tmp/ocid048-results.json`,
+`/tmp/ocid048-session-cookies.json` (test credentials, ephemeral test orgs only), `/tmp/ocid048-branding-ui.png`,
+this task's own `PROGRESS.md` section.
+
+---
+
+## 9. Registration / traceability
 
 - Canonical artifact: this file.
 - Indexed in `ai-os/OS.yaml` (required by `scripts/check-metadata-index-coverage.mjs`).

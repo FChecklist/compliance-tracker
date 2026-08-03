@@ -1689,7 +1689,25 @@ open_items:
         any future Playwright-based E2E work on this server again -- do not assume a prior successful run
         earlier in this same long session guarantees the environment is still intact; this finding shows
         it silently isn't right now.
-      status: open
+
+        **Correction (2026-08-03, OCID-048 real execution, `UMR-20260803-115452-a35d`): a real, working,
+        no-sudo workaround already exists and was re-confirmed live this pass** -- `apt-get download
+        <pkg>` (fetches the `.deb` only, no root needed) + `dpkg-deb -x <deb> <dir>` (extracts files
+        without touching system package state) for each missing lib, into a durable directory
+        (`/home/rajat/.local/chrome-system-libs/`, ~26 packages incl. transitive deps), then
+        `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs` before launching Chromium. Re-verified
+        directly this pass: `ldd chromium-1228/chrome-linux64/chrome` reports zero "not found" entries
+        with that `LD_LIBRARY_PATH` set, and a real `chromium.launch({headless:true})` +
+        `page.goto('https://projexa-ai.com/settings')` + cookie-injected authenticated navigation +
+        screenshot all succeeded live (see OCID-048's own results doc). **This narrows, but does not
+        fully close, the "blocks OCID-050/051/052" claim below**: this pass only confirmed
+        cookie-injected headless navigation + DOM read + screenshot works, not a full interactive
+        sign-up/login-form flow, multi-page nav-diff sweep, or mobile device emulation -- those OCIDs'
+        own execution passes should re-verify with this same `LD_LIBRARY_PATH` set before re-asserting
+        this gap blocks them, rather than assuming the original "blocked" finding still holds unchanged.
+      status: open (narrowed -- a real no-sudo workaround is confirmed working for headless
+        cookie-injected navigation/DOM-read/screenshot; full interactive-flow/device-emulation coverage
+        unconfirmed)
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK

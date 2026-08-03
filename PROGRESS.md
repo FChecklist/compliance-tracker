@@ -1196,3 +1196,65 @@ everywhere for the wrong reason: total absence, not a deliberately-low real rank
       visibility, classification-clearance ceiling -- PR #814's amendment) was not tested this pass;
       this pass covered only the RIGHTS/action-permission axis.
 - [ ] Real testing execution for OCID-048/049/050/051 has not started yet.
+
+---
+
+# PROGRESS -- task-20260803-151937-pm-decision--proceed-with-ocid-048-real
+
+Cites: `UMR-20260803-115452-a35d`, child of `UMR-20260802-165606-4413` (OCID-020). PM decision: proceed
+with real testing execution for OCID-048 (Multi Organization / Multi Tenant / Multi Brand Isolation
+Certification), API-level, reusing the OCID-047/OCID-052 session-cookie + direct-API-call pattern.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` + `git fetch origin main` -- confirmed zero collision: no
+      other session has claimed OCID-048 real-execution work (only the prior planning/task-breakdown
+      entry exists, already merged).
+- [x] Read the existing task breakdown
+      (`ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`)
+      and the OCID-047 (`7338db31`)/OCID-052 (`da5a5e94`) real-execution commits to reuse their exact
+      proven method: Supabase Admin API user provisioning (`email_confirm: true`) -> real
+      password-grant login -> hand-constructed `@supabase/ssr` v0.12.3 session cookie
+      (`sb-<project-ref>-auth-token`, `base64-` + base64url JSON) -> real authenticated API calls.
+- [x] Provisioned two real, fresh, isolated organizations ("OCID048 Isolation Test Org A" / "Org B")
+      against `projexa-ai.com` via the real `autoProvisionUser()` auto-provisioning path (triggered by
+      each org's first authenticated `GET /api/conversations` call).
+- [x] Ran a real, live cross-tenant isolation probe (`/tmp/ocid048-isolation-test.mjs`, ephemeral, not
+      committed) against 6 real tenant-scoped API routes/checks: `GET/POST /api/departments`,
+      `GET /api/departments/[id]` (direct cross-org fetch-by-id), `GET /api/tasks`,
+      `GET/POST /api/clients`, `GET /api/products`, `GET /api/users`. **Result: 7/7 real checks PASS**
+      -- Org B never saw any of Org A's real data across any of the 6 routes; the direct cross-org
+      fetch-by-id returned a real `404`, never `200` with Org A's data. Full raw JSON:
+      `/tmp/ocid048-results.json`.
+- [x] Real brand-as-configuration check (API half): `PATCH /api/settings/branding` on Org A's session
+      (custom primary/accent color + email sender name) returned real `200` and persisted to Org A
+      only; Org B's own `GET` of the same endpoint returned its own unmodified defaults, zero leakage.
+- [x] **Discovered the real, live browser-DOM part of OCID-048's brand check was NOT actually blocked**
+      despite `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` -- re-checked rather than assuming the
+      existing "blocked" finding still held, and found a real, already-durable no-sudo fix from an
+      earlier session (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`, never applied by the
+      OCID-047/052 sessions) makes headless Chromium launch cleanly (`ldd` reports zero missing libs).
+      Ran a real Playwright test: launched headless Chromium, injected Org A's real session cookie,
+      navigated `https://projexa-ai.com/settings` -> `Organisation` -> `Branding` tab (real clicks, real
+      client-side nav), and confirmed via screenshot + `input.inputValue()` that the live-rendered
+      Brand Colors/Email Sender Name fields show exactly the values set via the API moments earlier.
+      Screenshot: `/tmp/ocid048-branding-ui.png` (ephemeral, not committed).
+- [x] Amended `ai-os/MASTER-TRACKER.yaml`'s `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` entry with
+      this correction -- narrowed (not closed): confirmed working for headless
+      cookie-injected-navigation/DOM-read/screenshot; full interactive-flow/device-emulation coverage
+      for OCID-050/051/052's own, more demanding browser needs remains unconfirmed and should be
+      re-verified independently by those OCIDs' own execution passes, not assumed either way.
+- [x] Amended the OCID-048 task breakdown doc in place (new §8, renumbering old §8 Registration to §9)
+      with the full real-execution results, per-probe table, and an honest "explicitly still open"
+      section (T2's full 49/51-route checklist not produced; T4's versioned Playwright spec not
+      wired; full interactive UI flows/device emulation not attempted).
+
+## Remaining
+- [ ] T2's full tenant-scoped route/table checklist (49/51 service files, 64+ RLS tables) -- this pass
+      covered 6 real routes as a first evidence-backed slice, not the exhaustive list.
+- [ ] T4: wire this probe pattern into a real, committed, versioned Playwright spec
+      (`e2e/*-tenant-isolation.spec.ts`) instead of the current ephemeral `/tmp` script.
+- [ ] Full interactive UI flow testing (real signup/login form typing, multi-page nav-diff sweep,
+      mobile device emulation) for OCID-050/051/052 -- explicitly NOT covered by this pass's browser
+      finding; only cookie-injected headless navigation/DOM-read/screenshot was confirmed working.
+- [ ] T6: full evidence-package certification writeup once the above are closed (this pass produced
+      real, substantial evidence toward it, not the final certification artifact itself).
