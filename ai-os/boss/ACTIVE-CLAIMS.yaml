@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-142324-pm-decision--add-real-yaml-safe-load-ci) -- add real YAML safe-load CI guardrail for ai-os governance YAML files"
+  - session_label: "claude-code (task-20260803-142324-pm-decision--add-real-yaml-safe-load-ci) -- add real YAML safe-load CI guardrail for ai-os governance YAML files [PUSHED, PR #821 OPEN -- ci.yml wiring itself blocked on workflow-scope handoff, see PR description]"
     claimed_at: "2026-08-03T14:23Z"
     claim: |
       SPEC (PM decision, citing UMR-20260803-140106-6307 /

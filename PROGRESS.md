@@ -25,8 +25,13 @@ clearly-labeled follow-up commit, with its exact diff also duplicated in
 the PR description, for the Owner or a session with `workflow` scope to
 apply directly to this branch or cherry-pick.
 
+- [x] Pushed everything except ci.yml (commit 55253a27)
+- [x] Independently verified via a dedicated real git branch (`verify/yaml-safe-load-negative-test`, local only, deleted after use): intentionally inserted a duplicate `claimed_at:` key into `ai-os/boss/ACTIVE-CLAIMS.yaml`, ran `node scripts/check-yaml-safe-load.mjs` -> genuinely failed (exit 1, clear file+line+column error), committed that state, then `git revert`'d it and re-ran -> genuinely passed (exit 0, "4 governance YAML file(s) parse cleanly")
+- [x] Opened PR #821 describing the workflow-scope split + included the exact `ci.yml` diff verbatim in the PR description for the Owner/a workflow-scoped session to apply directly to this branch
+- [x] Updated ACTIVE-CLAIMS.yaml claim status to `[PUSHED, PR #821 OPEN -- ci.yml wiring itself blocked on workflow-scope handoff]`
+
 ## Remaining
-- [ ] Push everything except ci.yml (this commit)
-- [ ] Independently verify the script itself (already done locally: fails on real pre-existing dupes, passes after fix, passes on all 4 target files)
-- [ ] Open PR describing the split + include the exact ci.yml diff for the Owner/workflow-scoped agent to apply, so the real CI job step can actually go live and then be verified end-to-end (break/restore) on GitHub Actions
-- [ ] Update ACTIVE-CLAIMS.yaml claim status, update COMPLETED.yaml per protocol
+- [ ] Push this final ACTIVE-CLAIMS.yaml/PROGRESS.md status update
+- [ ] Owner or a workflow-scoped session applies the `ci.yml` diff from PR #821's description to this branch and pushes it, so the "YAML Safe Load Check" job actually runs in GitHub Actions on this PR
+- [ ] Once that job is live: re-run the break/restore verification against the real GitHub Actions job (not just the local script) for full end-to-end confirmation, then merge
+- [ ] Update COMPLETED.yaml (doer + auditor entries) once merged, per AGENTS.md Rule 7(d)
