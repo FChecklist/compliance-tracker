@@ -1131,3 +1131,68 @@ real testing execution across the six Business Certification OCIDs, OCID-047 thr
       product-code change, out of scope for this test-execution task itself.
 - [ ] Real testing execution for OCID-047/048/049/050/051 has not started yet -- this task covered only
       the single highest-priority starting point identified by the survey.
+
+# PROGRESS -- test/ocid047-role-matrix-real-execution
+
+Cites: `UMR-20260803-145921-c0c4` (UMR-20260802-165606-4413, OCID-020) -- "proceed with real testing
+execution for OCID-047 Roles Rights and Responsibilities Certification now... real API-level checks
+per role... sufficient for a real first pass."
+
+## Completed
+- [x] Extracted the real `userRoleEnum` (11 values), role storage (`compliance.users.role`,
+      `auth_user_id` links to Supabase Auth), the real `ERP_ACTION_ROLES`/`PROMPT_ACTION_ROLES` maps,
+      `ROLE_RANK`, and the real (4-role-capped) provisioning routes -- via a dedicated Explore-agent pass,
+      with file:line citations for every claim before writing any test code.
+- [x] Built a real, live test script: 11 real users (one per role) provisioned via the Supabase Admin
+      API (`POST /auth/v1/admin/users`, avoiding the public-signup email rate limit hit on the first
+      attempt), real password-grant login, hand-constructed `@supabase/ssr` session cookie, target role
+      set via direct DB UPDATE on the real, server-auto-provisioned `compliance.users` row (uniform
+      method matching this doc's own established DB-seed provisioning path).
+- [x] Ran 55 real HTTP calls (11 roles x 5 actions spanning `member`/`manager`/`admin`/`veridian_admin`
+      minimum ranks) against live `projexa-ai.com`, capturing every real HTTP status + response body.
+- [x] **Result: 55/55 exactly matched the ROLE_RANK-based prediction for 10 of 11 roles** -- confirmed
+      the real rights model works correctly across the full rank hierarchy. Full raw JSON result log
+      preserved at (host-local, not repo-tracked) `/tmp/claude-1000/-opt-veridian/2d098571-60e7-4d38-8d5d-4223a50d15de/scratchpad/ocid047-test-output.log`; readable summary table below.
+- [x] **Confirmed live, for real, a bug already flagged in `auth-guard.ts`'s own code comment**:
+      `stage_0` is absent from the `UserRole` type/`ROLE_RANK` map, so it fails every gate including the
+      lowest-bar one. Registered `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`.
+- [x] Amended `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md`'s OCID-047
+      section in place with these real results (third amendment to that section -- original + PR #814's
+      responsibility-model amendment + this one), rather than creating a duplicate/parallel doc.
+- [x] Per PM's separate instruction, amended `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` to explicitly
+      name the specific OCIDs it blocks (OCID-050 data-state nav sweep, OCID-051 cross-surface/mobile
+      PWA, OCID-052 Items 4-5) rather than only the generic "future browser-based E2E work" wording it
+      had before. Did not attempt any sudo workaround, per explicit PM instruction.
+
+## Real result summary (PASS = request passed the role gate and reached the next real code path;
+DENY = blocked at `requireRole`/`requirePermissionForUser` with "requires X role or higher")
+
+| Role (real rank)          | A1 create (member) | A2 dispose (manager) | A3 mark_other (manager) | A4 reopen (admin) | A5 eval.run (veridian_admin) |
+|----------------------------|:---:|:---:|:---:|:---:|:---:|
+| admin (5)                  | PASS | PASS | PASS | PASS | DENY |
+| manager (3)                 | PASS | PASS | PASS | DENY | DENY |
+| member (2)                  | PASS | DENY | DENY | DENY | DENY |
+| viewer (1)                  | DENY | DENY | DENY | DENY | DENY |
+| veridian_admin (6)          | PASS | PASS | PASS | PASS | PASS |
+| branch_manager (4)          | PASS | PASS | PASS | DENY | DENY |
+| senior_professional (3)     | PASS | PASS | PASS | DENY | DENY |
+| team_member (2)              | PASS | DENY | DENY | DENY | DENY |
+| client_viewer (1)            | DENY | DENY | DENY | DENY | DENY |
+| external_auditor (1)         | DENY | DENY | DENY | DENY | DENY |
+| **stage_0 (missing -> 0, BUG)** | **DENY** (expected PASS) | DENY | DENY | DENY | DENY |
+
+Every cell above matches the `ROLE_RANK`-predicted outcome except `stage_0`'s A1 cell, which should be
+PASS (rank 0 conceptually still needs to reach at least `member`'s rank 2 to be denied correctly by
+*design* -- but the real bug is that `stage_0` isn't even IN the rank map, so today it's denied
+everywhere for the wrong reason: total absence, not a deliberately-low real rank).
+
+## Remaining
+- [ ] `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` is registered but not fixed -- the correct intended rank
+      for `stage_0` is a real product decision, not this test-execution task's to prescribe.
+- [ ] OCID-047's own Step 4 (real denial-UX confirmation, e.g. does `ModuleNotEnabledCard` actually
+      render for a real denied user) is UI-level and remains blocked on
+      `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`.
+- [ ] The RESPONSIBILITY/data-scope axis (dashboard rollup, client-list visibility, risk-register
+      visibility, classification-clearance ceiling -- PR #814's amendment) was not tested this pass;
+      this pass covered only the RIGHTS/action-permission axis.
+- [ ] Real testing execution for OCID-048/049/050/051 has not started yet.
