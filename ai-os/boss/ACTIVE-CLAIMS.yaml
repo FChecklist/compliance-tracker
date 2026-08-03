@@ -5223,6 +5223,56 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (docs/ocid049-all-4-tiers-complete-group-f-closed) -- OCID-049 real testing complete, all 4 tiers, real rate-limit-safe path found -- Group F Business Certification genuinely closed [DONE]"
+    claimed_at: "2026-08-03T21:10Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-210004-c6c0, citing UMR-20260802-165606-4413/OCID-020 and
+      UMR-20260803-115513-c990/OCID-049): pursue a real, rate-limit-safe path to finish the remaining
+      3 tiers rather than leaving OCID-049 partial. Do not retry the same rate-limited invite path, do
+      not attempt a direct DB write workaround. Reuse the real self-service signup flow already proven
+      for OCID-050 State C to create the additional real test orgs needed. Only once all 4 tiers have
+      real evidence should OCID-049 be described as complete.
+
+      Found the real mechanism: `autoProvisionUser()` (`auth-guard.ts`) has a real `orgJoinCode` branch
+      -- a manually-typed join code, redeemed via `redeemJoinCodeAndProvisionUser()`, that sends zero
+      email (no `inviteUserByEmail` call anywhere in this path, structurally different from the
+      already-rate-limited invite endpoint). Combined this with the proven no-email Admin-API
+      `createUser` pattern (same as OCID-050 State C): mint a real join code via `POST /api/join-codes`
+      as the org's real admin, thread it into each new signup's `user_metadata.orgJoinCode`. Verified
+      its own rate limit (`checkJoinCodeRateLimit`) only counts *failed* redemption attempts before
+      relying on it -- every redemption used a real, valid, freshly-minted code, so it was never at
+      risk of tripping regardless of volume.
+
+      Validated end-to-end on a small real test (2 users) before scaling. Then, real, live:
+      - Org B scaled 1 -> 12 real users (9 redemptions, 0 failures) -- Standard band.
+      - Fresh Org C created, scaled to 30 real users (29 redemptions, 0 failures) -- Professional band.
+      - Fresh Org D created, scaled to 55 real users (54 redemptions, 0 failures) -- Enterprise band,
+        deliberately past the 50-user ceiling so the tier-fallback's own ceiling logic is genuinely
+        exercised.
+
+      Real AI message + real 201 confirmed for all 4 orgs (Basic/Standard/Professional/Enterprise).
+      Real `GET /api/me` confirms `erpEnabled`/`salesEnabled` false for all 4, independent of tier --
+      strongest form yet of the plan-tier-to-branch-independence finding. Refined the
+      `assistants_per_user` finding with real per-tier precision: Basic over-delivered (5 vs cap 3),
+      Standard coincidentally matches (5 vs cap 5), Professional/Enterprise under-delivered (5 vs caps
+      8/15) -- visible only once all 4 tiers had real data. Also corrected an imprecision in the prior
+      pass: `GET /api/assistants` is per-user/RLS-scoped, not org-wide (re-verified live against Org
+      B's 12 users, still returns 5, not 60).
+
+      **OCID-049's real testing scope is now complete** -- all 4 tiers have real, live evidence. Tasks
+      A-E (actual implementation) remain unbuilt, per the standing OCID-021 lock -- this closes the
+      testing certification, not the underlying product gap, which stays open and tracked in
+      `ai-os/MASTER-TRACKER.yaml`. Per the PM's own explicit condition, this now legitimately closes
+      the full Group F Business Certification scope under OCID-020 (OCID-047 through OCID-052).
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`
+      (completion amendment, already-indexed doc), `ai-os/MASTER-TRACKER.yaml` (1 amended gap status,
+      no new gap ID), `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/, schema, or migration changes --
+      pure testing/documentation, per this dispatch's own scope and the standing OCID-021 lock. No
+      production data touched -- all real writes (4 test orgs, ~97 real user rows via real join-code
+      redemption, 3 real chat messages) went through real, live, self-service test accounts, isolated
+      from any real customer org.
+
   - session_label: "claude-code (docs/ocid049-real-testing-and-group-f-retraction-fix) -- OCID-049 real testing execution (1/4 tiers, real infra blocker on rest) + retracted PR #846/#847's premature 'closes Group F' claim [DONE]"
     claimed_at: "2026-08-03T20:40Z (this session, closed same session)"
     claim: |

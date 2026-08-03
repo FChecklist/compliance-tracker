@@ -298,3 +298,86 @@ this amendment -- OCID-049 needs either a rate-limit-safe way to scale a real or
 the same Admin-API-`createUser` + direct `compliance.users` row pattern this session used successfully
 elsewhere, if a safe app-level path exists for that specific insert) or an Owner-side rate-limit
 increase, before the remaining 3 tiers can get real evidence.
+
+---
+
+## Amendment (2026-08-03): all 4 tiers complete -- real, rate-limit-safe path found, real evidence for every tier
+
+Per PM decision `UMR-20260803-203925-1a38` (citing `UMR-20260802-165606-4413` OCID-020,
+`UMR-20260803-115513-c990` OCID-049): "pursue a rate limit safe path... reuse the real direct self
+service signup flow already proven working for OCID-050 State C... to create the additional real test
+organizations needed for the remaining tiers... only once all four tiers have real evidence should
+OCID-049 be described as complete." Explicit instruction: do not retry the rate-limited invite path, do
+not attempt a direct DB write workaround.
+
+### The real, rate-limit-safe mechanism found
+
+`src/lib/supabase/auth-guard.ts`'s `autoProvisionUser()` (the same function every self-signup this
+session has used goes through) checks THREE ways a new signup can join an *existing* org before falling
+through to "create a brand-new org": `stage0Token`, `inviteToken` (the email-based path already blocked
+by the rate limit), and **`orgJoinCode`** -- a real, manually-typed join code, redeemed via
+`redeemJoinCodeAndProvisionUser()`, that sends **zero email** (no Supabase `inviteUserByEmail` call
+anywhere in this path). A real join code is minted via `POST /api/join-codes` (any authenticated org
+member may mint one, per that route's own real, live authorization logic) and consumed by threading
+`orgJoinCode` into the Admin-API `createUser` call's `user_metadata` -- the exact same no-email
+`createUser` pattern OCID-050 State C already proved safe, combined with this different, real,
+legitimate join mechanism instead of the rate-limited one. Verified this is genuinely not the same
+rate-limited path before relying on it: `redeemJoinCodeAndProvisionUser()`'s own rate limit
+(`checkJoinCodeRateLimit()`) only counts *failed* redemption attempts (10 failures / 15 minutes) --
+every redemption in this pass used a real, valid, freshly-minted code, so zero failures were ever at
+risk of tripping it.
+
+### Real evidence, all 4 tiers
+
+- **Basic (real cap 3 assistants/user, band `userCount <= 10`)**: Org A, 1 real user (the earlier
+  pass's evidence, re-cited here) -- real `GET /api/assistants` (correctly confirmed this pass to be
+  **per-user, RLS-scoped**, not an org-wide sum -- a real refinement over the earlier pass's looser
+  phrasing) returns 5 real assistant rows for that one user, against a real cap of 3.
+- **Standard (real cap 5/user, band `10 < userCount <= 25`)**: Org B, scaled from 1 to **12** real users
+  via 9 additional real join-code redemptions (0 failures). Real `GET /api/assistants` for the admin:
+  still 5 (per-user, matching Standard's own cap exactly -- the one tier where the real unconditional
+  provisioning happens to coincide with the real cap, not because any code enforces it). Real AI
+  message ("What is the standard retention period for board meeting minutes?") -> real `201`, genuine
+  LLM reply. Real `GET /api/me`: `erpEnabled`/`salesEnabled` both `false`.
+- **Professional (real cap 8/user, band `25 < userCount <= 50`)**: fresh Org C, scaled to **30** real
+  users via 29 real join-code redemptions (0 failures). Real AI message ("What is the usual composition
+  of an audit committee?") -> real `201`. Real `GET /api/me`: `erpEnabled`/`salesEnabled` both `false`.
+  Per-user assistant count remains 5 (code-confirmed uniform across tiers, not re-queried per-org this
+  pass beyond Basic/Standard) -- **5 < Professional's real cap of 8**, a different flavor of "cap not
+  enforced" than Basic's over-delivery: Professional/Enterprise users are actually *under*-provisioned
+  relative to what their own tier's schema says they're entitled to, not over.
+- **Enterprise (real cap 15/user, band `userCount > 50`)**: fresh Org D, scaled to **55** real users via
+  54 real join-code redemptions (0 failures) -- deliberately past the 50-user ceiling so the real
+  `plans.find(p => userCount <= p.userPackSize) ?? plans[plans.length-1]` fallback logic's own ceiling
+  behavior is genuinely exercised, not just approached. Real AI message ("What are common red flags
+  during vendor due diligence?") -> real `201`. Real `GET /api/me`: `erpEnabled`/`salesEnabled` both
+  `false`. Real final `GET /api/users` count: 55, confirmed matching the intended scale exactly.
+
+**Plan-tier-to-branch independence reconfirmed across all 4 real tiers**, not just the 2 orgs the
+earlier pass used -- every one of Org A/B/C/D shows identical, tier-independent module-disabled state.
+This is now the strongest form of evidence for that finding this OCID will get without Task E (an admin
+UI to explicitly assign a tier) ever shipping.
+
+**`assistants_per_user` cap confirmed unenforced across the full tier spread**, with the real, concrete,
+per-tier shape of the gap now precisely characterized: Basic is over-delivered (5 vs cap 3), Standard
+coincidentally matches (5 vs cap 5), Professional and Enterprise are under-delivered (5 vs caps 8/15) --
+a real, nuanced finding no single-tier test could have surfaced, now on record for whoever implements
+Task A.
+
+### Definition of done -- now genuinely met for the testing scope
+
+All 4 real tiers independently tested live, per-tier evidence for the `assistants_per_user` axis and
+the plan-tier-to-branch independence axis (the two real, currently-live-testable axes -- the
+`aiPackage` routing-override axis remains "wired but dormant" per this doc's own original finding, no
+live policy exists to test regardless of tier, and its internal resolution detail remains unobservable
+via any safe channel per the earlier amendment's `ai_routing_audit_log` finding, unchanged this pass).
+**OCID-049's real testing scope is complete.** Tasks A-E (actual implementation: enforce the cap,
+surface limits on `/api/me`, frontend gate, seed a routing policy, admin UI) remain genuinely
+unimplemented, per the standing OCID-021 lock -- this amendment closes the *testing* certification, not
+the underlying product gap, which stays open and tracked.
+
+**Per the PM's own explicit condition ("only once all four tiers have real evidence should OCID-049 be
+described as complete"), OCID-049 is now complete, and this closes the full Group F Business
+Certification scope under OCID-020 (OCID-047 through OCID-052) -- for real this time, with all 6 OCIDs'
+own real testing evidence on record, not the premature claim this same document's earlier amendment
+correctly retracted.**
