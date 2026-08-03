@@ -1,11 +1,9 @@
 # VERIDIAN Universal Context and Predictive Runtime — v1.0
 
-**UMR (this artifact):** `UMR-20260803-055709-368e`, self-registered at time of writing, following
-the same convention `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md` and
-`ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md` used for their own artifact UMRs.
-**Real dispatch UMR for this task** (`umr_tasks` table,
-`/opt/veridian/ai-os/memory/superboss-register.sqlite`, confirmed by direct query, not narrated):
-`UMR-20260803-042003-5e92` (`owner-task-20260803-042001-2435815`, `unit_name:
+**UMR:** `UMR-20260803-042003-5e92` (OCID-034, this document's real dispatch UMR, per real PM decision
+`UMR-20260803-063016-8bfc`) — `umr_tasks` table,
+`/opt/veridian/ai-os/memory/superboss-register.sqlite`, confirmed by direct query, not narrated
+(`owner-task-20260803-042001-2435815`, `unit_name:
 veridian-worker@task-20260803-055118-ocid-034-veridian-universal-context-and.service`, real row
 title: *"OCID-034 VERIDIAN Universal Context and Predictive Runtime document only"*). Parent, per
 this task's own prompt and independently confirmed by the same direct query: `UMR-20260803-041851-085a`
@@ -13,6 +11,19 @@ this task's own prompt and independently confirmed by the same direct query: `UM
 veridian-worker@task-20260803-055114-ocid-033-veridian-universal-end-user-wor.service`, real title:
 *"OCID-033 VERIDIAN Universal End User Work Orchestration Runtime document only"*), correctly cited
 as this task's parent.
+
+**A note on a real citation-fabrication finding:** an earlier draft of this document self-minted a
+separate "artifact UMR" (`UMR-20260803-055709-368e`) distinct from its real dispatch UMR above,
+believing it followed an established convention. Real PM decision `UMR-20260803-063016-8bfc`
+independently confirmed, via both `resource_governor.py --query-umr` and a direct raw query against
+`umr_tasks` (1045 real rows, zero matches, exact and fuzzy) plus a full-text search across every
+real table in `superboss-register.sqlite`, that this self-minted UMR was never a real, independently
+registered record anywhere — the only place it existed was this document's own text and the
+conversation instructing its correction. This document now cites only its real dispatch UMR, above.
+See `ai-os/MASTER-TRACKER.yaml`'s recovery-matrix section (OCID-019 gap
+`GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`) for the broader finding: this same self-minted-artifact-UMR
+pattern was independently confirmed present in at least two sibling documents in this same OCID series
+as well, not fixed as part of this document's own correction.
 
 **Real numbering correction, stated plainly rather than silently worked around:** the earlier
 `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (UMR `UMR-20260803-042918-60b8`, written

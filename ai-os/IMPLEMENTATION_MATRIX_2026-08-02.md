@@ -1119,7 +1119,7 @@ need already does.
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-034 | `UMR-20260803-055709-368e` (artifact) / `UMR-20260803-042003-5e92` (dispatch) | VERIDIAN Universal Context and Predictive Runtime v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-022/023's own entries above** |
+| OCID-034 | `UMR-20260803-042003-5e92` (real dispatch UMR, per `UMR-20260803-063016-8bfc` -- an earlier self-minted "artifact UMR", `UMR-20260803-055709-368e`, was confirmed fabricated and removed) | VERIDIAN Universal Context and Predictive Runtime v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-022/023's own entries above** |
 
 Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md` (new), this
 file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim entry,
