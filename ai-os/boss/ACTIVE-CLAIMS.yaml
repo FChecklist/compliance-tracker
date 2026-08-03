@@ -5223,6 +5223,63 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (docs/ocid050-full-115x3-sweep-and-large-data-org) -- OCID-050 full 115-page x 3-state sweep + real large-data org, 345/345 [DONE]"
+    claimed_at: "2026-08-03T19:00Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision chain UMR-20260803-192841-b433/UMR-20260803-185714-89c6, citing
+      UMR-20260802-165606-4413 OCID-020): finish OCID-050 fully -- the remaining full 115-page sweep
+      across all 3 real data states, plus State C (Large Data) org creation and testing -- before
+      starting OCID-051, per the Owner's reinforced "completion over breadth" priority.
+
+      TASK-050-0: committed the existing 115-item nav-href fixture
+      (`ai-os/fixtures/ocid020-nav-surface-115.json`), diff-matched before commit.
+
+      TASK-050-1 (State C org): found a real, hard blocker during preparation -- no self-service API
+      route lets a regular org admin enable ERP/Sales/Construction/PMS for their own org
+      (`enableErpForOrg()`/`enableSalesForOrg()`/`enableConstructionForOrg()` have zero real callers
+      outside internal scripts and a bearer-key-gated platform endpoint this session doesn't hold).
+      Separately found a real, reproducible, unresolved contradiction: direct DB reads (`psql` via
+      `.env.local`'s `DATABASE_URL`, and PostgREST with `SUPABASE_SERVICE_ROLE_KEY`, both independently
+      verified against the real live project) show `compliance.product_branches` has only 1 row, yet
+      live app behavior proves branch resolution genuinely works for orgs like `demo_co_1_sharma`. Both
+      registered honestly in `ai-os/MASTER-TRACKER.yaml`
+      (`GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`), root cause not chased further -- direct
+      SQL writes were ruled unsafe given the unresolved read discrepancy. Built the large-data org
+      entirely through the live app's own self-service API instead: real signup, 5 real departments,
+      1,500 real compliance items via 1,500 individual authenticated `POST /api/compliance` calls (0
+      failures). Independently verified via `GET /api/compliance?limit=5` (`"total": 1500`) and `GET
+      /api/me` (erp/sales/pms/firm honestly `false`, not claimed enabled).
+
+      TASK-050-2: wrote explicit acceptance criteria (pagination correctness, empty-state messaging, an
+      8s first-pass performance-under-load budget for State C) into the breakdown doc.
+
+      TASK-050-3/4/5: ran the full 115-item nav list for real against all 3 states (own harness, reusing
+      the proven Supabase-Admin-API-login + session-cookie + no-sudo-Chrome pattern from this session's
+      earlier 15-page pass, extended to the full fixture and to capture per-page load latency).
+      **345/345 real page-checks passed** (State A 115/115, State B 115/115, State C 115/115) -- zero
+      crashes, zero page errors, zero `Application error` matches, zero nav failures. State C's real
+      load-time distribution (min 489ms / max 1,388ms / avg 751ms across 1,500-row-backed pages) showed
+      no volume-driven degradation, comfortably inside the 8s budget.
+
+      TASK-050-6: cross-state comparison found no page behaving differently across states in a way that
+      produced a real finding. Wrote the closing amendment in the OCID-050 breakdown doc itself.
+
+      Honestly scoped, not oversold: "large data volume" this pass means real, large-volume GRC-core
+      data (compliance items) -- the entity actually self-service-reachable. ERP/Sales/Construction/
+      PMS-specific large-volume data was not built (blocked by the enablement gap above); those pages
+      were still swept for real against State C (correctly rendering their gated disabled-module state),
+      just without module-specific large backing data. Named explicitly in the completion amendment
+      rather than silently absorbed into a "fully done" claim.
+    scope_note: >-
+      File scope: `ai-os/fixtures/ocid020-nav-surface-115.json` (new), `ai-os/MASTER-TRACKER.yaml` (2
+      new gap entries), `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      (acceptance-criteria + completion amendments), `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/,
+      schema, or migration changes -- pure testing/discovery/documentation, per this dispatch's own
+      scope and the standing OCID-021 implementation lock. No production data touched -- all writes
+      (departments, compliance items) went through real, live, self-service org accounts created for
+      this test, isolated from any real customer org.
+
   - session_label: "claude-code (task-20260803-161032-pm-decision--resolve-pr-826-merge-confli) -- PR #826 merge-conflict resolution, docs-only [DONE]"
     claimed_at: "2026-08-03T16:10Z (this session, closed same session)"
     claim: |
