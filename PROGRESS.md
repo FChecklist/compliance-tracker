@@ -663,6 +663,29 @@ prior cycle") since the spec is the only source for what it denotes.
 ## Remaining
 - [ ] PR #774 merge (blocked on CI + no dedicated human reviewer per AGENTS.md Rule 6 -- will merge once green)
 - [ ] Move ACTIVE-CLAIMS.yaml entry from active: to recently_completed: once merged
+
+# PROGRESS -- task-20260803-071115-ocid-038-veridian-unified-platform-integ
+
+## Completed
+- [x] Read governance chain: ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml SEC-07 lock (discovery/docs permitted, implementation locked behind OCID-020), VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md (confirms this task = row "OCID-20260803-038"), EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md
+- [x] Merged origin/main (was 8 commits behind incl. PR #774); restored PROGRESS.md from wholesale-replace by worker-start template before merging
+- [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
+
+- [x] Real cross-repo/cross-layer discovery pass: 15 FChecklist repos surveyed; VERI Chat/Mother Router wiring checked (zero refs, confirmed); task-execution-engine <-> mother-router wiring checked (comment only, no real call); PWA checked (zero manifest.json/service-worker); VERI Assistant checked (zero code, name only); projexa-ai.com + projexa-smoky.vercel.app live-curled (domain serves generic VERIDIAN shell, not PROJEXA branding); live `gh pr list` re-check of OCID-022-040 chain (found new, live OCID-035 duplication: PR #777 vs #782)
+- [x] Wrote ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md -- 3 headline certification questions answered honestly (all real "NO, not yet" with cited evidence), 6 gaps found
+- [x] Registered 6 gap entries in ai-os/MASTER-TRACKER.yaml (real_gaps_not_yet_built): GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED, GAP-OCID038-NO-PWA, GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED, GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, GAP-OCID038-OCID035-DUPLICATE-PRS, GAP-OCID038-PROJEXA-OWN-SCHEMA
+- [x] Registered canonical artifact in ai-os/OS.yaml index
+- [x] No implementation performed -- SEC-07 lock (pending OCID-020) fully respected
+
+- [x] Committed, pushed, opened PR #786 (https://github.com/FChecklist/compliance-tracker/pull/786)
+
+## Remaining
+- [ ] PR #786 merge (blocked on CI + no dedicated human reviewer per AGENTS.md Rule 6 -- will merge once green)
+- [ ] Move ACTIVE-CLAIMS.yaml entry from active: to recently_completed: once merged
+- [ ] Handoff ready for OCID-039 (per this document's own Section 8) -- real, live upstream gate: OCID-020 (UMR-20260802-165606-4413) still open
+
+---
+
 # PROGRESS -- interactive session, gap-registry update (2026-08-03)
 
 ## Completed

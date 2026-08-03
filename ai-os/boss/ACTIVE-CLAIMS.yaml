@@ -5223,6 +5223,41 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-071115-ocid-038-veridian-unified-platform-integ) -- OCID-038 real platform discovery + honest E2E integration certification merged; 2 of its 6 gaps found stale on re-verification during merge [DONE, PR #786 merged]"
+    claimed_at: "2026-08-03T21:45Z (this session, resolved a real merge conflict + honestly re-verified this document's own gaps before merging)"
+    claim: |
+      Real, honest platform-wide discovery and gap analysis (compliance-tracker/PROJEXA/every
+      FChecklist repo as one backend? projexa-ai.com a real PROJEXA thin client? full browser->PWA->
+      server->VERI Chat->engines->sync/cache/audit chain as one system?) -- all three answered "NO,
+      not yet" with real, cited evidence. 6 gaps registered (`GAP-OCID038-*`). This PR sat open,
+      unmerged, `CONFLICTING`, since 2026-08-03T07:xx while OCID-020 stayed open.
+
+      Picked up per PM decision `UMR-20260803-213741-34dd` (OCID-020 now independently verified
+      complete, real OCID-038 implementation authorized). Resolved this PR's real merge conflict
+      (`PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` -- both pure-union cases, `MASTER-TRACKER.yaml`/
+      `OS.yaml` merged cleanly on their own).
+
+      Before trusting this document's own 6-gap list as still-accurate (its own §8 explicitly warned
+      "state on this server has been observed to drift within minutes"), independently re-verified
+      each gap against current `origin/main` rather than assuming it. Found 2 of 6 genuinely stale:
+      `GAP-OCID038-NO-PWA` (overtaken -- `src/app/manifest.ts` now real and live, independently
+      confirmed by this same session's own OCID-051 execution, merged PR #844) and
+      `GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED` (a real methodology error -- the original discovery
+      grepped `veri-chat-service.ts`, a file whose own header comment says it only extends
+      `chat-service.ts`'s conversation/message CRUD; the real AI-thread reply path lives in
+      `chat-service.ts`, confirmed wired to Mother Router via `resolveModelConfig()`, and confirmed
+      working end-to-end live by this session's own OCID-049/052 real test execution, merged PR
+      #846/#850). Both marked `resolved` in `ai-os/MASTER-TRACKER.yaml` with the real re-verification
+      evidence, not silently dropped. The remaining 4 gaps
+      (`GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`, `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`,
+      `GAP-OCID038-OCID035-DUPLICATE-PRS`, `GAP-OCID038-PROJEXA-OWN-SCHEMA`) were independently
+      spot-checked where feasible and remain open/real.
+    scope_note: >-
+      File scope: merge-conflict resolution only (`PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`),
+      plus 2 gap-status amendments in `ai-os/MASTER-TRACKER.yaml` (no gap IDs added or removed). No
+      src/, schema, or CI changes. The discovery document itself (`ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`)
+      is unchanged from its original PR #786 content.
+
   - session_label: "claude-code (fix/gap-stage0-role-missing-from-role-rank) -- OCID-021 Wave 1 Item 1: real fix for GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK, plus a 2nd independent instance found via tsc [DONE]"
     claimed_at: "2026-08-03T21:25Z (this session, closed same session)"
     claim: |
