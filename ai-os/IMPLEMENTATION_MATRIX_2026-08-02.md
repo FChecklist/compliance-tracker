@@ -1040,3 +1040,59 @@ Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (`SEC-06`, stat
 merge commit cited), `ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced,
 not falsely closed; new `GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE`), `ai-os/boss/COMPLETED.yaml`
 (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-042019-844f`, dispatch `UMR-20260803-040929-9713`, OCID-20260803-023)
+
+Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-040844-4a33` (the real
+`owner_dispatch_gateway` UMR that created sibling task `task-20260803-040852-ocid-022`, independently
+confirmed via a direct query against `umr_tasks` in `/opt/veridian/ai-os/memory/
+superboss-register.sqlite`, not narrated). Cites `UMR-20260802-173631-ca85` (ERP Functional
+Completeness Master Program, this file's own parent), `UMR-20260802-165606-4413` (OCID-020),
+`UMR-20260802-164659-9a31` (server artifact traceability audit), `UMR-20260802-165034-5747`
+(standing gatekeeper rule), `UMR-20260802-165434-cd91` (unified project memory model),
+`UMR-20260802-165541-c27d` (recovery framework). Extends the existing master program; no new
+program, no new audit, no new file beyond the one canonical artifact named below.
+
+**Real dependency honored, not skipped**: this task's own mandatory inputs required reading OCID-022's
+real, complete document (`ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`) before
+writing. At claim time that sibling task (`task-20260803-040852-ocid-022`) was independently
+confirmed genuinely `active (running)`, not yet complete (`systemctl --user status` +
+its own `task.yaml`). This session registered the dependency in
+`ai-os/boss/ACTIVE-CLAIMS.yaml`, performed all OCID-022-independent discovery in parallel while
+waiting, and read OCID-022's real, complete 323-line artifact directly from that task's own live
+workspace once its content was finished (registration/commit/push steps were still pending on that
+sibling task at read time — its document content itself was already stable and complete).
+
+**Real discovery performed, not re-derived from memory**: a full schema/service inventory of every
+real end-user work-item table (`tasks`, `tickets`, `pmsIssues`, `comments`, `taskChatMessages`,
+`documents`, `notifications`, `auditLogs`, `scopedDelegations`, `approvalRequests`) via direct
+file:line citation; `ai-os/CONSTITUTION.yaml`'s `task_lifecycle` (TASK-01..05),
+`guardrail_protocols` (GP-01..30), and `audit_organization` (AUDIT-01..04) sections; and, critically,
+`UNIVERSAL_TASK_WRAPPER_DESIGN.md` (repo root, 2026-07-11) — pre-existing, real prior art for exactly
+this document's subject, found via `git log --all --name-only` after the file was absent from
+`ai-os/`. Direct grep of every real `recordActivity()` call site confirmed `activity_log`/TASK-04's
+own Phase 1 is wired for the `ai_team_dispatch` activity type only — `customer_task`/`orchestra_call`
+(the activity types that would cover real end-user tasks) have zero real call sites, a materially
+more precise finding than TASK-04's own `gap` field states, now recorded in the new artifact itself.
+
+**Real, honest gaps newly named from the end-user-work-model angle, none fixed by this document**:
+task reopen has no dedicated mechanism (indistinguishable from any other status PATCH); task
+transfer is not distinguished from ordinary reassignment; no task-level "decision" record exists
+beyond `approvalRequests.rejectionReason`/free-text comments; `tickets`/`pmsIssues` are not indexed
+by either real search mode (`tasks` is); no task/ticket-specific report or analytics surface exists;
+`tasks`/`tickets`/`pmsIssues` have no retention, soft-delete, or recovery mechanism at all (the sole
+partial exception being `pmsIssues.isArchived`, a bare flag with no retention/disposal semantics).
+
+**Status, real and current:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-20260803-023 | `UMR-20260803-042019-844f` (artifact) / `UMR-20260803-040929-9713` (dispatch) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
+
+Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md` (new, not a
+duplicate — confirmed via `git log --all --name-only` finding `UNIVERSAL_TASK_WRAPPER_DESIGN.md` as
+the one genuine piece of prior art, which the new document builds on rather than replaces), this
+file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim
+entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.

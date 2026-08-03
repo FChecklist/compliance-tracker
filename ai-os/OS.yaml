@@ -218,6 +218,8 @@ index:
       covers: "Reference doc for the Superboss Register -- four linked, full-text-searchable SQLite/FTS5 tables at /opt/veridian/ai-os/memory/superboss-register.sqlite, deployed 2026-07-20 so no session starts from zero."
     - path: ai-os/SYSTEM_DIAGRAM.md
       covers: "Auto-generated system diagram (23 components, 21 edges), rendered by ai-os/scripts/generate-system-diagram.py from that script's own SUBSYSTEMS/EDGES data -- do not hand-edit this file directly."
+    - path: ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md
+      covers: "OCID-20260803-023 (UMR-20260803-042019-844f, dispatch UMR-20260803-040929-9713): the first canonical VERIDIAN Universal End User Work Model, v1.0 -- documentation only. Defines what a task is, task uniqueness/identifier, state model, ownership/assignment/delegation/transfer, approval/escalation/completion/reopen, auditability/history/timeline, attachments/chat/decisions/artifacts, reports/analysis/notifications/search, permissions/visibility/retention/synchronization/recovery, and a lifecycle summary -- every claim grounded in real, live tables/services (tasks, tickets, pmsIssues, activity_log/TASK-04, comments, taskChatMessages, documents, notifications, auditLogs, scopedDelegations, approvalRequests) or an honestly-named existing gap, not invented. Builds directly on the pre-existing UNIVERSAL_TASK_WRAPPER_DESIGN.md (repo root, 2026-07-11) rather than proposing a competing mechanism. Point-in-time synthesis; not a living spec."
 
   # Same backfill as reference_docs_and_catalogs above -- real operational
   # automation (cron/systemd entrypoints, dispatchers, extractors, guards),
