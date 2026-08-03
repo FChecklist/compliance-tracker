@@ -5051,8 +5051,9 @@ active:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
-  - session_label: "claude-code (task-20260803-142213-pm-decision--register-and-fix-active-cla) -- PM decision on two Group F findings: ACTIVE-CLAIMS.yaml parse error (already resolved via PR #818) + investigating unattributed merge-conflict-resolution commits"
-    claimed_at: "2026-08-03T14:22Z"
+recently_completed:
+  - session_label: "claude-code (task-20260803-142213-pm-decision--register-and-fix-active-cla) -- PM decision on two Group F findings: ACTIVE-CLAIMS.yaml parse error (already resolved via PR #818) + investigated unattributed merge-conflict-resolution commits [DONE]"
+    claimed_at: "2026-08-03T14:22Z (this session, closed same session)"
     claim: |
       SPEC (this task's own prompt, citing UMR-20260802-165606-4413/OCID-020): two findings.
       (1) The pre-existing ACTIVE-CLAIMS.yaml YAML ParserError -- verified on starting this task
@@ -5061,15 +5062,37 @@ active:
       yaml.safe_load re-verification recorded. Re-confirmed independently in this session too
       (parses cleanly, no action needed -- this was done by an earlier invocation of this exact
       task before a context reset, not duplicate work).
-      (2) Investigating unattributed automated merge-conflict-resolution commits (0b324f1a,
-      2f398fc1, cf3ded0b) to identify the real process producing them, per PM instruction to not
-      trust them by default given they match the mechanism class that produced the real
-      wholesale-replace corruption on PR #815. No implementation/gap-closure work planned beyond
-      this investigation and continued hand-verification of merges.
+      (2) Investigated unattributed automated merge-conflict-resolution commits (0b324f1a,
+      2f398fc1, cf3ded0b) per PM instruction to not trust them by default given they superficially
+      match the mechanism class that produced the real wholesale-replace corruption on PR #815.
+      Real finding (not narrated -- checked `git branch --contains`/`git log --all --source`,
+      `git show --stat`, `gh pr list --json mergedBy`, and repo/workflow config directly): all
+      three are ordinary `git merge origin/main` housekeeping commits living on two OTHER
+      sessions' own worker branches (`worker/task-20260803-120310-register-ocid-049-...` for
+      0b324f1a; `worker/task-20260803-120639-register-ocid-051-...` for 2f398fc1/cf3ded0b),
+      made as those sessions repeatedly merged main to pick up sibling PRs (#812, #813, #816)
+      that landed ahead of them mid-cycle -- content is purely additive (new files/entries from
+      the landed sibling PRs), no wholesale-replace pattern. They read as "unattributed" only
+      because they belong to different, legitimately-running parallel ACTIVE-CLAIMS-registered
+      sessions, not to this one -- exactly the documented multi-session concurrency this file
+      exists to make visible (Rule 11), not a rogue process. Author/committer on all three is
+      "Rajat Agarwal <raajat.agarwal@gmail.com>" -- the one git identity every Claude Code
+      commit in this repo carries (no separate bot/service account configured) -- and they were
+      pushed/merged to GitHub under the shared `FChecklist` PAT that AGENTS.md documents both
+      authorized full-access agents using (`gh pr list --json mergedBy` confirms `FChecklist`,
+      not a bot login). Ruled out real alternatives directly, not assumed: repo-level
+      `allow_auto_merge` is `false` (`gh api repos/.../compliance-tracker`), and no
+      `.github/workflows/*.yml` implements auto-merge/Mergify-style conflict resolution --
+      so this is not GitHub's native auto-merge, not a bot account, and not a stale review
+      automation. The actual PR #815 wholesale-replace corruption was a separate, later mistake
+      on that same OCID-051 branch, independently caught by the mandatory-audit-check
+      (`AUDIT: FAIL`, per Rule 10) and self-corrected by that same session in commit `6055cf6c`
+      ("fix: correct earlier botched PROGRESS.md fix...") before PR #815 ultimately merged clean
+      -- these three commits are not that corruption and did not need any fix here. Per PM
+      instruction, hand-verification discipline continues unchanged regardless of this finding.
     scope_note: >-
       File scope: ai-os/boss/ACTIVE-CLAIMS.yaml (this entry only, no further edits expected),
       ai-os/MASTER-TRACKER.yaml (read-only verification), PROGRESS.md. No src/ changes.
-recently_completed:
   - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
     claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
     claim: |

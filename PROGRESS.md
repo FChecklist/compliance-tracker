@@ -14,11 +14,33 @@ Cites: `UMR-20260802-165606-4413` (OCID-020).
       `ai-os/MASTER-TRACKER.yaml` with `status: resolved` and a real
       independent-reverification note. No further action needed on Finding 1.
 
+- [x] Finding 2: investigated real authorship/mechanism of
+      `0b324f1a`/`2f398fc1`/`cf3ded0b` directly (`git branch --contains`,
+      `git log --all --source`, `git show --stat`, `gh pr list --json
+      mergedBy`, repo/workflow config -- not narrated). Real answer: these
+      are ordinary `git merge origin/main` housekeeping commits belonging to
+      two OTHER already-registered parallel sessions' own worker branches
+      (OCID-049's `worker/task-20260803-120310-...` for `0b324f1a`; OCID-051's
+      `worker/task-20260803-120639-...` for `2f398fc1`/`cf3ded0b`), made as
+      those sessions merged main to pick up sibling PRs #812/#813/#816 that
+      landed ahead of them -- purely additive content, no wholesale-replace
+      pattern. Author/committer on all three: `Rajat Agarwal
+      <raajat.agarwal@gmail.com>` -- the one git identity every Claude Code
+      commit in this repo carries, not a separate bot/service account.
+      Merged to GitHub under the shared `FChecklist` PAT both authorized
+      agents use per `AGENTS.md` (confirmed via `gh pr list --json
+      mergedBy`), not a bot login. Ruled out alternatives directly: repo
+      `allow_auto_merge` is `false`, and no `.github/workflows/*.yml`
+      implements auto-merge/Mergify-style conflict resolution -- so this is
+      not GitHub auto-merge, not a bot, not stale review automation. The
+      real PR #815 wholesale-replace corruption was a separate, later
+      mistake on that same OCID-051 branch, caught by the mandatory-audit-
+      check (`AUDIT: FAIL`) and self-corrected in commit `6055cf6c` before
+      PR #815 merged clean -- these three commits are not that corruption.
+      Full writeup recorded in `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      `recently_completed`. Re-verified the file still parses cleanly after
+      this edit (125 active + 79 recently_completed).
+
 ## Remaining
-- [ ] Finding 2: investigate real authorship/mechanism of unattributed
-      merge-conflict-resolution commits `0b324f1a`, `2f398fc1`, `cf3ded0b` --
-      check real commit author, message, and whether this matches a known
-      process (GitHub auto-merge, bot account, stale review automation).
-      Report honestly; do not assume safe.
-- [ ] Continue independent hand-verification of every real merge regardless
-      of Finding 2's outcome.
+- [ ] None for this task. Hand-verification discipline for every real merge
+      continues unchanged going forward, per PM instruction.
