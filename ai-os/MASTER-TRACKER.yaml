@@ -934,6 +934,70 @@ open_items:
       first_raised: "OCID-020 continuation sweep, 2026-08-02/03 (UMR-20260802-223152-0b6a)"
       resolved: "2026-08-03 (live-reverified via direct DB query; same root cause as MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX, UMR-20260803-012711-18b4)"
 
+    - id: GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE
+      name: "veridian-task.py adopt + the archive-review.json/restart retrigger pattern reviews a stale, frozen workspace snapshot instead of the branch's current remote tip (severity: medium -- wastes real review cycles, does not itself cause a bad merge since a stale review can only be more conservative, never less, but is a real correctness/efficiency gap)"
+      old_ids: []
+      detail: |
+        Real, directly observed and root-caused (not assumed) while resolving
+        claude-control PR #123 (UMR-20260803-025317-0c64's Category B
+        implementation). `veridian-task.py adopt` checks out the task's
+        workspace to a DETACHED HEAD at whatever the branch's tip was at
+        adoption time (confirmed via `git symbolic-ref -q HEAD` returning
+        non-zero in the workspace). `scripts/supervisor-entrypoint.sh` runs
+        `cd "$WORKSPACE" && git fetch origin` then computes the review diff as
+        `git diff "origin/$DEFAULT_BRANCH"...HEAD` -- `git fetch` refreshes
+        the REMOTE-TRACKING ref, but nothing re-checks-out the workspace's own
+        detached HEAD to match the branch's new tip. So pushing additional
+        commits to an already-adopted branch, then retriggering review via the
+        established "archive `$TASK_DIR/review.json`, `systemctl --user
+        restart veridian-supervisor@<task_id>"` pattern (used repeatedly this
+        session for exactly this purpose), reviews the SAME frozen diff every
+        time, not the real current one.
+        Directly confirmed for PR #123: 4 consecutive `AUDIT: FAIL` rounds
+        each reported an identical `git diff --stat` line ("3 files changed,
+        802 insertions(+), 17 deletions(-)") in their `Scope Confirmed` field,
+        despite 4 real fix commits having been pushed in between. Verified
+        directly: the task workspace's `git log -1` matched the SECOND commit
+        (the adoption-time HEAD), not the real branch tip, across all 4
+        rounds -- confirmed via `git fetch origin <branch>` +
+        `git log origin/<branch> -1` showing a different, later SHA each
+        time. Fixed for this specific task by manually running
+        `git fetch origin <branch> && git checkout origin/<branch>` inside
+        the workspace directory immediately before the 5th (successful)
+        retrigger.
+        Real, honest scope limitation on this finding: every "fix" pushed in
+        response to rounds 1-3's feedback was independently confirmed correct
+        via this session's own passing test suite before being pushed, so no
+        actually-broken code was ever incorrectly approved by this gap --  the
+        real cost was 3 wasted real review cycles (each a real, metered
+        Superboss review run) reviewing content that no longer reflected the
+        real branch state, and real time spent by this session investigating
+        review feedback that had already been addressed. Whether this same
+        staleness affected any EARLIER task in this session that used the
+        adopt-then-push-more-commits-then-retrigger pattern was not
+        separately audited here -- that would require checking each such
+        task's workspace HEAD against its branch's real commit history at the
+        time of each retrigger, which is out of scope for this entry.
+      size: "S-M -- the real fix is either (a) have the retrigger path itself
+        run `git fetch && git checkout origin/<branch>` in the workspace
+        before invoking supervisor-entrypoint.sh, or (b) change
+        supervisor-entrypoint.sh's own diff computation to fetch and diff
+        against the branch tip directly rather than trusting the workspace's
+        checked-out HEAD, or (c) have veridian-task.py provide a real
+        `resync`/`refresh` subcommand for an already-adopted task and require
+        retrigger tooling to call it first."
+      recommendation: |
+        Fix in claude-control (scripts/veridian-task.py and/or
+        supervisor-entrypoint.sh), not compliance-tracker -- this is
+        server-ops/dispatch infrastructure, not this repo's own product code.
+        When picked up: add an explicit resync step to the retrigger
+        procedure (or make supervisor-entrypoint.sh's diff computation
+        branch-tip-relative instead of workspace-HEAD-relative), and add a
+        regression test that pushes a second commit to an already-adopted
+        branch and confirms a subsequent review sees it.
+      status: open
+      first_raised: "Resolving claude-control PR #123, 2026-08-03 (UMR-20260803-025317-0c64)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.

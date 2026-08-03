@@ -1008,21 +1008,35 @@ own yet (confirmed directly — it remains gated behind the OCID-20260802-020 PR
 sweep, per `ai-os/boss/ACTIVE-CLAIMS.yaml`) and is unaffected by this amendment; noted here, not
 fabricated a new section for, since this amendment is not part of that program's real scope.
 
-**Status, real and current — NOT closed yet:**
+**Status, real and current:**
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-20260803-021 | `UMR-20260803-025317-0c64` / `UMR-20260803-025414-8274` | Category A / Category B production-DB governance split | **OPEN — implementation on `claude-control` PR #123, pending a real `AUDIT: PASS` and merge to `main`** |
+| OCID-20260803-021 | `UMR-20260803-025317-0c64` / `UMR-20260803-025414-8274` | Category A / Category B production-DB governance split | **CLOSED — `claude-control` PR #123 received a real `AUDIT: PASS` and merged to `master`, real merge commit `ae78aff66cfe254774d95b92a8f3a3668b1e9884`, independently reconfirmed via `git merge-base --is-ancestor` and a direct `grep` on the live master checkout** |
 
-This governance-registration itself (this file, `SEC-06`, the `MASTER-TRACKER.yaml` cross-reference,
-the `COMPLETED.yaml` retroactive-test result) is real and can land now — it documents a real,
-in-progress implementation honestly, including its own real independent-review history, rather than
-overclaiming the underlying gate is already live. OCID-20260803-021 moves to **CLOSED** only once
-`claude-control` PR #123 receives a real `AUDIT: PASS` and merges — at that point this table and
-`SEC-06`'s `status` field should both be updated with the real merge commit hash, in a follow-up PR,
-not silently backdated here.
+Real review history, in full, not glossed over: PR #123 took 5 real audit rounds (4 `AUDIT: FAIL`, 1
+`AUDIT: PASS`) before merging. Round 1 found a materially weaker bare-path evidence-citation bypass,
+a path-traversal gap, and an `ENABLE ROW LEVEL SECURITY` idempotency false-negative. Round 2 found a
+critical, severe gap: the 10 conditions alone never verified the prompt's own SCOPE actually executes
+the cited SQL, not different, unreviewed DDL. Round 3 found a second, separate live-vs-repo drift
+(`superboss-register.py`, the task_key feature's own dependency) plus incomplete DDL-form coverage in
+the idempotency scanner (several destructive forms silently treated as safe-by-omission). Round 4
+found a SQL-comment guard-keyword bypass (a comment merely containing "IF EXISTS" could fake a real
+guard). All four were real, independently verified, and fixed with regression tests (71 tests pass as
+of the merged commit).
 
-Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (new `SEC-06`, status `PARTIALLY_ENFORCED`),
-`ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced, not falsely closed),
-`ai-os/boss/COMPLETED.yaml` (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) —
-not rewritten, not duplicated.
+**A distinct, real infrastructure gap was also found and is separately registered, not silently
+absorbed here**: rounds 2 through 4 were discovered, mid-review, to have all been reviewing the SAME
+STALE workspace snapshot — frozen at the task's original `veridian-task.py adopt` commit — because the
+retrigger flow (archive `review.json`, restart the supervisor service) does not resync an adopted
+task's git worktree to its branch's current remote tip before reviewing. Every "fix" pushed in
+response to rounds 1-3's feedback was real and correct, but was never actually re-reviewed until the
+workspace was manually synced before the final (5th) retrigger. See
+`GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE` in `ai-os/MASTER-TRACKER.yaml` for the full write-up —
+this is a real, likely-recurring gap in the adopt-then-iterate-then-retrigger workflow, not unique to
+this one task.
+
+Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (`SEC-06`, status `ENFORCED`, real
+merge commit cited), `ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOMATED` cross-referenced,
+not falsely closed; new `GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE`), `ai-os/boss/COMPLETED.yaml`
+(`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) — not rewritten, not duplicated.
