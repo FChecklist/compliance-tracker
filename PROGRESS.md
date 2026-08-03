@@ -742,3 +742,18 @@ prior cycle") since the spec is the only source for what it denotes.
 
 ## Remaining
 - [ ] None -- ready for re-review, real content already independently confirmed sound by the prior audit round
+# PROGRESS -- OCID-020 real nav-surface sweep completion (UMR-20260803-081331-af0b)
+
+## Completed
+- [x] Independently re-verified real host-load claim (load avg dropped from 10.23 to 3.12, swap from 3.7Gi to 2.6Gi) before resuming
+- [x] Built a hardened per-batch-browser-instance harness (`mega4-batched.mjs`, ~12 navigations per fresh browser instance), reusing the already-discovered 115-item nav-href list and the already-passing 2 items
+- [x] Executed a real, complete sweep against live projexa-ai.com: 113/113 remaining items covered, zero uncovered, zero unrecovered batch failures -- 115/115 (100%) real nav surface now exercised
+- [x] Found and evidenced (screenshots, exact API URLs/status codes, exact exception text) 3 new real gaps: GAP-ERP-REPORTS-CLIENT-CRASH-ON-403 (high), GAP-403-VS-500-CLM-HR-PERFORMANCE (medium), GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ (low, honestly flagged as possibly a test-run confound)
+- [x] Registered all 3 in ai-os/MASTER-TRACKER.yaml with full detail/recommendation/first_raised
+- [x] Wrote ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_NAV_SWEEP_COMPLETE_2026-08-03.md, registered in ai-os/OS.yaml
+- [x] Noted honestly (per PM's own instruction) that 3 duplicate-diagnosis worker tasks were dispatched concurrently; not killed, to be independently verified once they complete
+
+## Remaining
+- [ ] Fix the 3 new real gaps (separate tasks, own UMRs, per the established no-fold-in pattern)
+- [ ] Re-test GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ in isolation under confirmed-low load before treating as confirmed
+- [ ] Verify the 3 concurrently-dispatched duplicate-diagnosis worker tasks' real outcomes once they finish
