@@ -857,3 +857,34 @@ worker, mirroring what `veridian-task.py checkpoint --status` already does for e
 status transition.
 
 Canonical artifact updated: this file — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): PM decision — task-231514 credit-accountant rejection ACCEPTED as correct (`UMR-20260802-233539-d8cd`)
+
+PM decision on `task-20260802-231514-pm-confirmation-of-task-210700-real-stat`, which terminated
+`rejected_duplicate`. Relates to `UMR-20260802-165606-4413` (the OCID-020 finding chain — real
+`departments` 500 crash + CRM/ERP 403 UX gap — whose PM-decision work by task-210700 is what
+task-231514 was independently re-confirming).
+
+**Real chain of events, independently re-verified directly against `task.yaml`/git, not narrated:**
+task-231514's own dispatch-tick resume attempt for task-210700 was correctly rejected by the credit
+accountant as a real duplicate (`UMR-20260802-234312-976e`, `rejected_duplicate`) — task-210700's
+real value (the departments-500 fix and the multi-tenant isolation finding) had already merged to
+`main` via PR #747 (`f18275cc`, confirmed an ancestor of this branch's `HEAD`). task-231514's own
+closing note (`UMR-20260802-235225-fbb1`) reached the same conclusion independently.
+
+**Decision: the rejection is ACCEPTED as correct.** This is a working safeguard doing its job, not
+a bug and not a product-level question for the Owner — spending further AI credits to resume a task
+whose real findings were already merged would be pure wasteful duplicate work. No fix, override, or
+resume is opened against this rejection.
+
+**One genuinely new, useful thing task-231514 found is folded forward, not re-litigated:**
+task-210700's own `task.yaml` `status` field staying stale at `in_progress` after a clean SIGTERM
+(no live process, confirmed via `systemctl --user is-active` returning `inactive`) was already
+independently written up as its own honest gap under the OCID-019 recovery matrix in the amendment
+directly above this one (`UMR-20260802-165541-c27d`, commit `162a9a71`, merged via PR #750 —
+confirmed present on `main` at this branch's `HEAD`, `db6524e7`). Re-verified that write-up directly
+and found it complete and accurate; not duplicated here.
+
+Canonical artifact updated: this file — not rewritten, not duplicated.
