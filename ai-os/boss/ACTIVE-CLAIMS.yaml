@@ -7831,3 +7831,35 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+
+# ── claim closed 2026-08-03 (task-20260803-085920) ──────────────────────
+  - session_label: "claude-code (task-20260803-085920-register-ocid-045-discovery-only--declin) -- OCID-045 certification re-verified DECLINED, no drift found [doc only, no code change]"
+    claimed_at: "2026-08-03T (this session, closed same session)"
+    claim: |
+      SPEC asked to register OCID-045 (`UMR-20260803-084637-ada4`, parent OCID-044
+      `UMR-20260803-084547-22fd`) discovery-only, certification explicitly declined. Real gatekeeper
+      check (per the standing rule in `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`) found this exact
+      registration and decline already committed (`8cdbe5ea`, ~11 minutes before this task's own
+      dispatch) -- not undone work. Did not duplicate it. Instead independently re-verified the real
+      state it depends on, current as of this session: (1) `gh pr list` -- zero open PRs reference
+      OCID-041 through OCID-045; (2) two new sibling `ACTIVE-CLAIMS` entries appeared after the prior
+      decline was written (OCID-041 discovery `5af793dc`, OCID-043 discovery `a38d9ebb`), both live
+      only on their own unmerged worker branches (confirmed via `git merge-base --is-ancestor` against
+      this branch's `HEAD` -- neither is an ancestor), i.e. discovery work is now actively in flight
+      for two of the four upstream stages but none has produced a merged PR or canonical artifact;
+      (3) OCID-020 (`UMR-20260802-165606-4413`) has not cleared -- the latest real nav sweep (`1bc85b36`,
+      merged PR #794) found 3 NEW real gaps while completing 115/115 coverage, the opposite of a clean
+      independent clearance; (4) `ai-os/CONSTITUTION.yaml` SEC-07 read directly at current `HEAD`:
+      unchanged, `status: ENFORCED`, same real unlock sequence (OCID-020 -> OCID-038 -> OCID-039 ->
+      OCID-040); (5) OCID-038/039/040 confirmed still locked per a sibling unmerged branch
+      (`8a7bb2f1`, explicitly titled "implementation LOCKED"). No drift found that would change the
+      decline. Appended one factual re-verification amendment to
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (the existing canonical artifact for this chain) --
+      did not create a new document, did not touch `CONSTITUTION.yaml`, did not mark OCID-045 or any
+      upstream OCID complete, made no "zero omissions"/"zero duplication" claim.
+    scope_note: >-
+      File scope: this repo's own `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment appended,
+      not rewritten), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/, schema,
+      CONSTITUTION.yaml, or CI changes. Read-only checks: `gh pr list`, `git merge-base
+      --is-ancestor` against sibling worker branches (no writes to those branches/workspaces),
+      direct read of `ai-os/CONSTITUTION.yaml` at current HEAD.
