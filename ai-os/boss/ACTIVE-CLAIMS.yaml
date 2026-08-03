@@ -4660,7 +4660,7 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
-  - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-028, real PM decision UMR-20260803-045159-ec55)"
+  - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-028, real PM decision UMR-20260803-052107-71fa)"
     claimed_at: "2026-08-03T05:05Z (this session)"
     claim: |
       SPEC (this task's own prompt, parented to UMR-20260803-041211-b7b7,
@@ -4675,12 +4675,14 @@ active:
       and the document grounded in what's actually built, not greenfield.
       Note on numbering, resolved by a real PM decision: this task's own
       folder/branch name said "ocid-028," and that label was correct all
-      along. Real PM decision `UMR-20260803-045159-ec55` independently
-      verified this task's real content (Unified Synchronization Runtime)
-      is OCID-028, correcting an earlier draft of
+      along. Real PM decision `UMR-20260803-052107-71fa` (citing
+      `UMR-20260803-041257-e9c3`) independently verified this task's real
+      content (Unified Synchronization Runtime) is OCID-028, correcting an
+      earlier draft of
       `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status
       table that had mislabeled it as row OCID-20260803-027. Same
-      mislabeling class as the OCID-036/037 correction.
+      mislabeling class as the OCID-036/037 correction
+      (`UMR-20260803-045159-ec55`, a separate, unrelated citation).
     scope_note: >-
       File scope: one new doc under `ai-os/` (VERIDIAN Unified
       Synchronization Runtime v1.0), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`

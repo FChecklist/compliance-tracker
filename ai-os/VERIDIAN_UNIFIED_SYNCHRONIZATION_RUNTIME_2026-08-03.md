@@ -10,12 +10,13 @@ redesigned, or proposed as new infrastructure — per this document's own mandat
 rules only, grounded in what already exists.**
 
 **Numbering note, resolved by a real PM decision:** this task's own folder/branch was labeled
-`ocid-028`, and that label was correct all along. Real PM decision `UMR-20260803-045159-ec55`
-independently verified this document's real content ("VERIDIAN Unified Synchronization Runtime")
-is OCID-028, correcting an earlier draft of
+`ocid-028`, and that label was correct all along. Real PM decision `UMR-20260803-052107-71fa`
+(citing `UMR-20260803-041257-e9c3`) independently verified this document's real content ("VERIDIAN
+Unified Synchronization Runtime") is OCID-028, correcting an earlier draft of
 `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status table that had mislabeled it
-as row `OCID-20260803-027`. OCID-027 is "VERIDIAN Global Knowledge Discovery and Reuse Runtime."
-Same mislabeling class as the OCID-036/037 correction (also `UMR-20260803-045159-ec55`).
+as row `OCID-20260803-027`. OCID-027 is "VERIDIAN Global Knowledge Discovery and Reuse Runtime"
+(PR #771). Same mislabeling class as the OCID-036/037 correction (`UMR-20260803-045159-ec55`, a
+separate, unrelated citation).
 
 **UMR:** parented to `UMR-20260803-041211-b7b7` (per this task's own SPEC, "the real OCID-027
 directive just registered"). Citing, in the order given: `UMR-20260803-041122-b22d` (OCID-026),
@@ -573,4 +574,4 @@ Real updated UMR: this document extends the existing chain rooted at `UMR-202608
 (ERP Functional Completeness Master Program) through `UMR-20260802-165606-4413` (OCID-020) and
 the OCID-022 through OCID-027 chain, under its own parenting UMR `UMR-20260803-041211-b7b7`
 (OCID-027, "VERIDIAN Global Knowledge Discovery and Reuse Runtime" — see the Numbering note above
-for the real OCID-028 correction, `UMR-20260803-045159-ec55`). No new UMR chain was created.
+for the real OCID-028 correction, `UMR-20260803-052107-71fa`). No new UMR chain was created.
