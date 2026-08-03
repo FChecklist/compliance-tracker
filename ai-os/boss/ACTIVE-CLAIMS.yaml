@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-071335-ocid-040-veridian-end-user-platform-cons) -- OCID-040 final-certification-and-freeze directive, discovery/verification/documentation only, implementation explicitly locked [PUSHED, PR #787 OPEN]"
+    claimed_at: "2026-08-03T07:13Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, tier 1, real Owner directive): parented to
+      `UMR-20260803-042839-b9c4` (OCID-039), citing `UMR-20260803-040844-4a33`
+      through `UMR-20260803-042839-b9c4` (OCID-022..039 in order),
+      `UMR-20260802-173631-ca85` (ERP Functional Completeness Master Program), and
+      `UMR-20260802-165606-4413` (OCID-020). Scope: verify real current state of
+      every OCID-022..039 (merged canonical artifact vs open PR vs not started),
+      verify every UMR resolves to a real registered record, verify every
+      canonical artifact referenced actually exists on disk, build a real
+      dependency map, and update the existing UMR chain/canonical artifacts with
+      an honest current-status snapshot. Explicitly held back under SEC-07's lock
+      (`ai-os/CONSTITUTION.yaml`): no gap closure, no platform-freeze, no
+      certification of VERIDIAN/projexa-ai.com as complete/integrated/certified,
+      until OCID-020 (`UMR-20260802-165606-4413`) is independently verified
+      complete, then OCID-038 implementation, then OCID-039 production
+      certification, in that explicit order.
+
+      A prior artifact already exists on `main`,
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (merged via PR
+      #776 at 06:47Z, superseding an earlier OCID-039 draft of the same rollup
+      per that document's own §1 row for OCID-039). Since that 06:47Z snapshot,
+      real additional PRs opened for OCID-026/027/029/030/032/033/035/036 plus
+      several fix/correction PRs (checked via `gh pr status` at claim time: #768,
+      #771-775, #777-780, #782-783, many with failing CI checks) -- this task's
+      real job is to refresh that snapshot against genuinely current state, not
+      to duplicate it from scratch.
+    scope_note: >-
+      File scope: amend `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
+      (or add a dated successor if amending in place would misrepresent history),
+      `ai-os/OS.yaml` / `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` index entries,
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes --
+      discovery/documentation only, per SEC-07.
   - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only [PUSHED, PR #781 OPEN]"
     claimed_at: "2026-08-03T05:5xZ (this session, PR opened same session)"
     claim: |
