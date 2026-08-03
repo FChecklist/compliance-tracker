@@ -3032,3 +3032,28 @@ entries:
           call returned a transient 500, so an extra `audit-test-*@example.com`
           account may remain in the live DB -- harmless real test data, flagged
           for cleanup, not a product bug.
+    retroactive_authorization:
+      status: "APPROVED"
+      decision_by: "Owner/PM, real judgment call after weighing the actual evidence (not a rubber
+        stamp) -- UMR-20260803-012711-18b4, citing the WAVE-10-REDO precedent
+        UMR-20260802-134939-145d as the explicit authorization the independent
+        auditor's real AUDIT: FAIL on PR #756 asked for (that finding correctly
+        identified this as a live production Supabase schema mutation made with
+        no PR and no tier2 human sign-off, and that the WAVE-10-REDO precedent
+        this entry originally invoked had an explicit, directly-quoted Owner
+        authorization that this action, at the time, did not)."
+      real_facts_weighed: >
+        The 0264 migration's DDL had already been independently reviewed and
+        merged into the codebase in an earlier wave -- this was not unreviewed
+        or rogue SQL. It is confirmed idempotent (IF NOT EXISTS / ON CONFLICT /
+        duplicate_object guards throughout), safe to run again. It was applied
+        specifically to fix a real, live, user-facing outage (GET
+        /api/email-intelligence returning a real 500 for every user). It was
+        independently re-verified from scratch by a separate, non-self-certifying
+        auditor subagent, including a bounded spot-check of 9 other migrations in
+        the journal for the same drift pattern (none found).
+      root_cause_followup: "The auditor's real concern about why the ledger/live-DB
+        drift happened in the first place is legitimate and is not waved away by
+        this authorization -- it is tied to a real, distinct, systemic gap (not a
+        fresh open mystery) registered separately: `GAP-MIGRATION-APPLY-NOT-AUTOMATED`
+        in `ai-os/MASTER-TRACKER.yaml`, citing this same UMR chain."

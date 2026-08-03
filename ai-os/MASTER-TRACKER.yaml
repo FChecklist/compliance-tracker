@@ -805,6 +805,52 @@ open_items:
       status: open
       first_raised: "OCID-020 redo, 2026-08-02 (UMR-20260802-165606-4413)"
 
+    - id: GAP-MIGRATION-APPLY-NOT-AUTOMATED
+      name: "Deploy pipeline never automatically applies pending Drizzle migrations to production; CI only checks migration NUMBER collisions, never whether a migration's DDL actually ran (severity: medium-high, real incident already occurred)"
+      old_ids: []
+      detail: |
+        Real, distinct systemic gap, separate from the specific incident it was
+        found by fixing -- see `ai-os/boss/COMPLETED.yaml` id
+        `MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` (retroactively authorized,
+        `UMR-20260803-012711-18b4`, citing `UMR-20260802-134939-145d`) for the
+        real incident this gap was discovered from: `drizzle/0264_helpdesk_tiered_sla_team_routing.sql`
+        was recorded as applied in `drizzle.__drizzle_migrations` but its DDL
+        never actually ran on the live production database, causing a real,
+        live, user-facing `500` on `GET /api/email-intelligence` for every
+        user, found during a certification sweep rather than caught before
+        reaching a real user.
+        Root cause of the systemic gap, confirmed by direct inspection, not
+        assumed: `vercel.json`'s `installCommand` is `bun install` only; no
+        build/deploy step anywhere in this repo runs `bun run db:migrate` or
+        `drizzle-kit push` against the production database. The only existing
+        CI guard, `scripts/check-migration-collision.mjs`, explicitly and only
+        checks that two NEW migration files don't share the same leading
+        number prefix -- it says nothing about whether a migration's DDL was
+        ever executed against the live DB. So a migration can be committed,
+        merged, and recorded as "applied" in the ledger (by whatever manual
+        process records that) while never actually running live, with no
+        automated check anywhere in the pipeline that would catch the
+        divergence before a real user hits the resulting real error.
+        A bounded (not exhaustive) spot-check of 9 other migrations in the
+        journal (0038-0311) for this same pattern found none -- so this is not
+        currently known to be a widespread active problem, but the pipeline
+        gap that allowed it to happen once, undetected, until a live user was
+        affected, remains real and unfixed.
+      size: "M -- likely a real CI job comparing drizzle.__drizzle_migrations
+        against information_schema for each migration's expected real DDL
+        artifacts, or a scheduled drift-check script; needs real design, not
+        a one-line fix"
+      recommendation: |
+        Not urgent enough to block other work, but real and should not be
+        deprioritized indefinitely given a real user-facing outage already
+        happened from it once. When picked up: a real, automated post-deploy
+        or scheduled check that verifies each migration ledger row's DDL
+        actually exists live (e.g. spot-check expected tables/columns per
+        migration, or a more general drift-detection query), distinct from
+        `check-migration-collision.mjs`'s narrower number-collision check.
+      status: open
+      first_raised: "OCID-020 certification sweep, 2026-08-03 (UMR-20260802-165606-4413, UMR-20260803-012711-18b4)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
