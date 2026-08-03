@@ -40,6 +40,44 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115513-c990` OCID-049):
+      do NOT start OCID-049 real testing execution yet. Gate: wait for PR #825 (real OCID-048
+      cross-org isolation results) to genuinely merge, independently confirm that merge the same way
+      every other real merge this session has been confirmed, then proceed with OCID-049 real
+      testing execution only after that AND only if real swap pressure has eased (SPEC cited
+      3.9/4.0Gi swap used at dispatch time, near the 2026-07-26 OOM-incident pressure class).
+
+      Real, material correction to the SPEC's own premise found this session, via `gh pr view
+      825 --json state,mergedAt` (not trusted from the SPEC's framing): PR #825 is **CLOSED, not
+      merged** (closed 2026-08-03T15:44:25Z, `mergedAt: null`) -- it will never satisfy the SPEC's
+      literal "wait for PR 825 to merge" gate. Full reason found via `gh api .../issues/825/comments`:
+      a second-pass audit (`AUDIT: FAIL`) found PR #825 collided on the same 3 files with
+      concurrently-open PR #826 and that the two asserted contradictory OCID-048 findings (#825:
+      Playwright/DOM parts still blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`; #826: a
+      real no-sudo Chromium workaround already resolves that gap) -- #825 was closed in favor of
+      #826 as the more complete, independently-re-verified-accurate successor.
+
+      Re-applied the gate's real intent to its real current carrier, PR #826
+      (`worker/task-20260803-151937-pm-decision--proceed-with-ocid-048-real`): confirmed via `gh pr
+      view 826 --json mergeable` (`CONFLICTING`) and `gh pr checks 826` (`audit-check: fail`, no
+      audit verdict posted yet) that it is also not yet merged. Confirmed via `git merge-base
+      --is-ancestor <sha> origin/main` (not just trusting PR metadata) that neither #825's nor #826's
+      commits are ancestors of `origin/main` -- the real OCID-048 cross-org/cross-tenant isolation
+      work has not landed on `main` under any PR yet. Checked real swap via `free -h`: 2.5Gi/4.0Gi
+      used (62.5%), improved from the SPEC's cited 97.5% but not the controlling factor here.
+
+      Decision: continue to hold OCID-049 real testing execution. Did not start it. Registering this
+      correction here so a future session re-reading the original "wait for PR 825" language re-checks
+      PR #826 (or whatever next carries this result) instead of waiting on a PR that will never merge.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS.yaml entry. No src/, schema, planning-doc, or
+      MASTER-TRACKER.yaml changes -- the existing `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` entry
+      already correctly states "do not implement/test/certify until the Owner explicitly opens
+      implementation," so no update was needed there. Decision/verification only, no testing or
+      implementation performed against OCID-048 or OCID-049.
   - session_label: "claude-code (task-20260803-094100-pm-priority-reorder--complete-ocid-020-f) -- OCID-020: PR #794 status re-verify + real fix for Finding 1 (GAP-ERP-REPORTS-CLIENT-CRASH-ON-403) [FIX PUSHED, PR #803 OPEN]"
     claimed_at: "2026-08-03T09:41Z (this session)"
     claim: |
