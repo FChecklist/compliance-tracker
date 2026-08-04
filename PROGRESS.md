@@ -60,14 +60,43 @@ per [[veridian-shared-worktree-stash-risk]].
       audit-check shows the same main-SHA bug, apply the same empty-commit resync fix before
       merging.**
 
+## Completed (invocation 3, 2026-08-04 resume)
+- [x] **Re-verified #765/#767/#768's real state via `gh pr view --json state,mergedAt` directly**
+      (not trusted from the prior invocation's own PROGRESS.md claim) -- found #765 and #768
+      were, contrary to the prior checkpoint note, actually still `OPEN`/unmerged (the prior
+      invocation's merge attempt apparently did not land, or was never actually run to
+      completion before budget ran out). Ground-truthed all 11 PR states via `gh pr view` before
+      acting, per [[veridian-live-concurrent-state-drift]].
+- [x] PR #765 (OCID-022): was `MERGEABLE`/`UNSTABLE` with all required checks already green
+      (only non-required Vercel/build-rate-limit and CodeQL/skipping not passing) -- merged
+      directly via `gh pr merge 765 --squash` (local branch delete failed harmlessly, branch in
+      use by its own separate task worktree, not a merge blocker). Merge commit `bc49b165`.
+      **Independently verified `bc49b165` is a real ancestor of `origin/main`.**
+- [x] PR #768 (OCID-023): merging #765 advanced `origin/main`, which flipped #768 from
+      `MERGEABLE` to `CONFLICTING` in real time (the exact "don't batch syncs" pattern this file
+      already warned about). Checked out its real head branch fresh, merged `origin/main`: one
+      real conflict in `ai-os/MASTER_INDEX.yaml` (both-sides-additive, each PR's own distinct
+      index entry -- kept both via marker-strip), `IMPLEMENTATION_MATRIX_2026-08-02.md`/`OS.yaml`/
+      `ACTIVE-CLAIMS.yaml` auto-merged clean, no `PROGRESS.md` conflict this time. Verified
+      merged `MASTER_INDEX.yaml` is valid YAML, `node scripts/check-metadata-index-coverage.mjs`
+      passed locally (139 items, 136 indexed + 7 exempted) before pushing. Posted validated
+      8-field `AUDIT: PASS` comment, pushed a real commit (the merge commit itself served as the
+      post-comment `synchronize` trigger since push preceded the comment by only seconds and the
+      job was still pending -- confirmed via `gh run view --json headSha` the audit-check run
+      that picked it up reported against the PR's real head SHA, not `main`'s, so the known bug
+      did not bite this time). Waited out all required checks (Type Check/Lint/Analyze/Build/E2E
+      were still `pending` when first checked), all green, merged via `gh pr merge 768 --squash`.
+      Merge commit `f23385d2`. **Independently verified `f23385d2` is a real ancestor of
+      `origin/main`.**
+
 ## Remaining
-- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop).**
-      Immediate next steps in order: (1) re-verify #767/#765/#768 merge commits are ancestors
-      of `origin/main`; (2) resolve PR #766's audit-check main-SHA issue (see above) and merge;
-      (3) check/merge PR #775; (4) each merge advances `origin/main` further, so **every
-      subsequent PR needs a fresh `git merge origin/main` sync immediately before its own CI
-      run** -- do not batch syncs, `origin/main` moves multiple times per hour on this repo
-      (other concurrent sessions are also merging).
+- [ ] Next: PR #766 (OCID-025) and #775 (OCID-026) both currently show `mergeable: UNKNOWN`
+      (GitHub still computing after #768's merge) -- re-check `gh pr view --json mergeable`
+      after a short wait, expect both now need a fresh `git merge origin/main` resync (same
+      pattern as #768). #766 previously had 5 real conflicts incl. `IMPLEMENTATION_MATRIX.md`'s
+      interleave issue (see notes below) and an in-flight empty-commit CI resync from the prior
+      invocation that never completed -- treat as needing a full fresh resync, not a resume of
+      that old push. #775 previously had 4 conflicts, same categories, no interleave.
 - [ ] Review + resolve conflicts + merge PR #773 (OCID-029), #780 (OCID-032), #778 (OCID-033),
       #777 (OCID-035), #785 (OCID-037; review after #784's fix, per spec, already merged) --
       **not started yet this invocation**. PR #773 was `git checkout`'d and diff-stat'd only
