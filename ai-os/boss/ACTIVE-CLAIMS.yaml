@@ -40,6 +40,73 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-094823-pm-decision--resolve-the-ocid-050-and-oc) -- PM decision UMR-20260804-094823 (OCID-020): investigated claimed OCID-050/OCID-051 shared-UMR ambiguity, found the SPEC's own root cause was backwards, corrected honestly without performing the requested swap [DONE, docs-only]"
+    claimed_at: "2026-08-04T09:48Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision under OCID-020, UMR-20260802-165606-4413): resolve a claimed ambiguity where
+      one ACTIVE-CLAIMS.yaml entry allegedly calls `UMR-20260803-115558-170e` "OCID-050's own" UMR
+      citing PR #843, and a separate entry attributes the same UMR to OCID-051 citing PR #844. The
+      SPEC's own stated root cause and requested fix: keep `UMR-20260803-115558-170e` assigned to
+      OCID-050 (Data State Certification, PR #843) unchanged, mint a new distinct UMR for OCID-051
+      (Cross-Surface Certification, PR #844), and correct the entry that "mistakenly" cited the shared
+      UMR for OCID-051.
+
+      **Independently re-verified before acting, per this file's own standing rule (never act on an
+      unverified claim, including the PM's own) -- and found the SPEC's premise does not hold.** Full
+      grep of `ACTIVE-CLAIMS.yaml` for `UMR-20260803-115558-170e` returns exactly 4 hits, and all 4
+      name OCID-051, zero name OCID-050: (1) the original registration entry, session_label literally
+      "...UMR-20260803-115558-170e reused -- OCID-051 Cross-Surface Certification..."; (2) that same
+      entry's own zero-duplication-check line, again searching for "OCID-051"; (3) the PR #844
+      completion entry (`docs/ocid051-cross-surface-certification-complete`), whose own SPEC line reads
+      "...and this OCID's own UMR-20260803-115558-170e): OCID-050 confirmed genuinely complete via PR
+      #843 ..., proceed with OCID-051 real testing execution now" -- "this OCID" there is grammatically
+      OCID-051 (the entry's own subject, per its session_label), and "OCID-050 confirmed complete via
+      PR #843" is a true, separately-attributed prerequisite fact, not a UMR ownership claim; (4)
+      OCID-052's own completion entry, which explicitly writes "UMR-20260803-115558-170e/OCID-051
+      confirmed complete via PR #844". `gh pr view 843/844` independently confirms the same mapping:
+      PR #843's own real PM-decision citation is `UMR-20260803-192841-b433` (OCID-050's real chain,
+      never 170e); PR #844's own real PM-decision citation is `UMR-20260803-195837-dde3`, which itself
+      cites "this OCID's own UMR-20260803-115558-170e" for OCID-051.
+
+      Real root cause found instead (the actual, verified one, not the SPEC's assumed one): the
+      sequential batch that registered OCID-047 through OCID-052 back-to-back on 2026-08-03
+      (11:53:33-11:56:20) minted exactly 5 distinct UMRs for 6 OCIDs --
+      `UMR-20260803-115333-dab8`->OCID-047, `-115452-a35d`->OCID-048, `-115513-c990`->OCID-049,
+      `-115558-170e`->**OCID-051**, `-115620-29c6`->OCID-052 (all independently confirmed via their own
+      registration entries elsewhere in this file). The missing 6th slot belongs to **OCID-050**, not
+      OCID-051 -- OCID-050 was registered separately, ~11 minutes later
+      (`task-20260803-120314-register-ocid-050-data-state-certificati`, claimed 12:07Z), using a
+      task-id label rather than a UMR from that batch, and its real completion (PR #843) cites its own
+      separate, legitimate PM-decision UMR chain (`UMR-20260803-192841-b433`/`UMR-20260803-185714-89c6`)
+      instead. OCID-051 never "inherited" OCID-050's UMR by mistake -- OCID-051 has always correctly and
+      consistently owned `UMR-20260803-115558-170e`; it is OCID-050 that lacks a UMR in that batch's own
+      naming convention (a real, but much lower-stakes, cosmetic asymmetry -- not a shared/duplicate
+      assignment bug).
+
+      **Decision: did NOT perform the requested swap.** Relabeling `UMR-20260803-115558-170e` as
+      OCID-050's and minting a "new" UMR for OCID-051 would replace a correct, 4-times-consistent record
+      with a fabricated one, and this session has no real mechanism to mint a legitimate PM-decision UMR
+      out of thin air -- that requires an actual dispatched instruction through the PM/superboss
+      register, per every other real UMR cited in this file, not something a worker session can invent
+      to satisfy a request. Both OCID-050's and OCID-051's real entries (registration and PR-843/844
+      completion) are left completely unchanged -- they were already correct. One small, non-factual
+      clarity edit was made instead: the PR #844 completion entry's SPEC line (originally at what is
+      now line ~6045) had its "this OCID's own UMR-170e" parenthetical reworded to
+      "OCID-051's own UMR-170e [NOT OCID-050's -- see this correction entry]" to remove the adjacency
+      ambiguity that most plausibly produced the original misreading, without altering any factual
+      content.
+
+      Honest limitation: this correction does not itself register a "new canonical OCID-050 UMR" in the
+      batch's own naming convention, since fabricating one would repeat the same category of error this
+      entry is correcting. If the Owner/PM still wants OCID-050 to carry a UMR consistent with its
+      047/048/049/051/052 siblings, that is a real, separate, low-stakes documentation-consistency item
+      requiring an actual new PM-decision dispatch to mint legitimately -- not something this pass
+      invented.
+    scope_note: >-
+      File scope: this `ACTIVE-CLAIMS.yaml` entry (new, plus a 3-line non-factual clarity edit to the
+      existing PR #844 completion entry's SPEC line), `PROGRESS.md`. No `MASTER-TRACKER.yaml` change --
+      no real gap or new UMR is being registered, since the investigation's conclusion is that no
+      corrective action of that shape is warranted. No `src/`, schema, or CI changes.
   - session_label: "claude-code (task-20260803-055114-ocid-033-veridian-universal-end-user-wor) -- OCID-033: VERIDIAN Universal End User Work Orchestration Runtime v1.0, documentation only"
     claimed_at: "2026-08-03T05:51Z (this session)"
     pr: "compliance-tracker PR #778 (open, CI in progress) -- new file ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_ORCHESTRATION_RUNTIME_2026-08-03.md, plus ai-os/OS.yaml index entry and PROGRESS.md"
@@ -6038,8 +6105,10 @@ recently_completed:
   - session_label: "claude-code (docs/ocid051-cross-surface-certification-complete) -- OCID-051 Cross-Surface Certification (browser + Mobile PWA), all real checks passed [DONE]"
     claimed_at: "2026-08-03T20:00Z (this session, closed same session)"
     claim: |
-      SPEC (PM decision UMR-20260803-195837-dde3, citing UMR-20260802-165606-4413/OCID-020 and this
-      OCID's own UMR-20260803-115558-170e): OCID-050 confirmed genuinely complete via PR #843
+      SPEC (PM decision UMR-20260803-195837-dde3, citing UMR-20260802-165606-4413/OCID-020 and
+      OCID-051's own UMR-20260803-115558-170e [NOT OCID-050's -- see the 2026-08-04 correction entry
+      below for the disambiguation and why this parenthetical was worth calling out explicitly]):
+      OCID-050 confirmed genuinely complete via PR #843
       (independently verified merge commit 8b7d03c8, ancestor of origin/main), proceed with OCID-051
       real testing execution now -- cross-surface certification covering browser completeness and
       mobile PWA, reusing existing infrastructure, no new architecture, honest findings, register
