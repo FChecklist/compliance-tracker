@@ -843,9 +843,21 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/org-branding-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2026-08-04 (GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, PR #885): +1 for the new resolveBrandingByHost() gap-closure comment, same class as every other exempted instance in this file -- a dated changelog comment, not example data."
+    findings_by_category:
+      hardcoded_iso_date: 3
+  - file: src/app/layout.tsx
+    reason: "GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH (PR #885, 2026-08-04): 2 dated changelog/gap-closure comments (the pre-existing Wave 112 repositioning note, line 15, and this PR's own Stage 1 host-header-resolution note, line 52) -- same class as every other exempted instance in this repo, not example/sample data."
     findings_by_category:
       hardcoded_iso_date: 2
+  - file: src/app/page.tsx
+    reason: "GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH (PR #885, 2026-08-04): 2 dated changelog/gap-closure comments (the pre-existing AI Innovation finding note, line 14, and this PR's own Stage 1 host-header-resolution note, line 107) -- same class as every other exempted instance in this repo, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/app/login/page.tsx
+    reason: "GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH (PR #885, 2026-08-04): 1 dated gap-closure comment (this PR's own Stage 1 host-header-resolution note, line 16) -- same class as every other exempted instance in this repo, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/lib/services/org-provisioning-service.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
     findings_by_category:
