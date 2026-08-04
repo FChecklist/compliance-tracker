@@ -88,15 +88,69 @@ per [[veridian-shared-worktree-stash-risk]].
       were still `pending` when first checked), all green, merged via `gh pr merge 768 --squash`.
       Merge commit `f23385d2`. **Independently verified `f23385d2` is a real ancestor of
       `origin/main`.**
+- [x] PR #766 (OCID-025): main advancing from #768's merge flipped it to `CONFLICTING` in real
+      time as predicted. Fresh full resync (not a resume of the prior invocation's stale
+      empty-commit push): 2 real conflicts (`MASTER_INDEX.yaml`, `OS.yaml`, both both-sides-
+      additive, kept both via marker-strip), `IMPLEMENTATION_MATRIX.md`/`ACTIVE-CLAIMS.yaml`
+      auto-merged clean -- directly inspected the `IMPLEMENTATION_MATRIX.md` amendment section
+      for the previously-seen interleave bug and confirmed it did NOT recur this time (both
+      OCID-022/025 amendments fully intact). Coverage check passed locally (140 items). Posted
+      validated `AUDIT: PASS`, waited out CI (Build/E2E were the long poles), merged via
+      `gh pr merge 766 --squash`. Merge commit `52b4cfc5`. **Independently verified `52b4cfc5`
+      is a real ancestor of `origin/main`.**
+- [x] PR #775 (OCID-026): had a genuinely stale prior partial resync (an older merge commit
+      `1989b822` already on the remote branch, from before this session, against an older
+      `origin/main`) -- did a full fresh second resync on top of it against #765/#767/#768's
+      newly-merged `origin/main`, clean auto-merge, no conflicts. **Real, confirmed but
+      non-blocking gap found**: this doc was registered in `ai-os/OS.yaml` (CI-enforced by
+      `check-metadata-index-coverage.mjs`, which passed) but never in `ai-os/MASTER_INDEX.yaml`
+      (not CI-enforced, confirmed by reading `check-metadata-index-coverage.mjs` directly --
+      it only walks `ai-os/OS.yaml`). Noted in the audit comment as a real but non-blocking
+      convention inconsistency. Merging #766 advanced `origin/main` again mid-flight, requiring
+      a THIRD resync pass: this one hit a real `PROGRESS.md` conflict (resolved per this file's
+      own documented append convention -- kept `origin/main`'s side, which already had #766's
+      OCID-025 section folded in, then appended this branch's own OCID-026 section after it)
+      and an `ai-os/boss/ACTIVE-CLAIMS.yaml` conflict (both-sides-additive, kept both).
+      **Separately discovered while validating this merge's YAML** (not this PR's own doing --
+      confirmed pre-existing on `origin/main` itself via `git cat-file -p origin/main:ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      not a truncated read): `ai-os/boss/ACTIVE-CLAIMS.yaml` has had a duplicate top-level
+      `recently_completed:` key for a while, which breaks `scripts/check-governance-yaml-parse.mjs`
+      (confirmed via `grep -rn "check-governance-yaml-parse" .github/workflows/` that this
+      script is NOT wired into CI, so it wasn't blocking anything). Partially fixed (deduped the
+      key) while already in the file for an unrelated reason; a deeper structural issue remains
+      (parse still fails at the same line after dedup -- root cause not fully isolated, likely
+      an indentation issue in an earlier literal block scalar) and is explicitly left as a
+      separate, out-of-scope follow-up, logged in memory as
+      [[veridian-governance-yaml-parse-check-not-wired-to-ci]]. Coverage check (the real,
+      CI-enforced one) passed locally (141 items) after this fix. Posted validated `AUDIT: PASS`
+      comment BEFORE this final push (a pre-existing audit comment from an earlier resync of
+      this same PR), then pushed. All required CI checks (Type Check/Lint/Build/E2E/Unit
+      Tests/Guardrail Presence/Metadata Index Coverage/audit-check/etc.) went green (only
+      non-required Vercel/CodeQL non-passing). Merged via `gh pr merge 775 --squash`. Merge
+      commit `c72627f0`. **Independently verified `c72627f0` is a real ancestor of
+      `origin/main`.**
 
 ## Remaining
-- [ ] Next: PR #766 (OCID-025) and #775 (OCID-026) both currently show `mergeable: UNKNOWN`
-      (GitHub still computing after #768's merge) -- re-check `gh pr view --json mergeable`
-      after a short wait, expect both now need a fresh `git merge origin/main` resync (same
-      pattern as #768). #766 previously had 5 real conflicts incl. `IMPLEMENTATION_MATRIX.md`'s
-      interleave issue (see notes below) and an in-flight empty-commit CI resync from the prior
-      invocation that never completed -- treat as needing a full fresh resync, not a resume of
-      that old push. #775 previously had 4 conflicts, same categories, no interleave.
+- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop).**
+      6 of 11 Group C PRs now genuinely merged this invocation + prior:
+      784, 767, 765, 768, 766, 775 -- all independently ancestor-verified. 5 remain entirely
+      untouched: #773 (OCID-029), #780 (OCID-032), #778 (OCID-033), #777 (OCID-035), #785
+      (OCID-037; review after #784's fix, per spec, already merged).
+- [ ] PR #773 (OCID-029), #780 (OCID-032), #778 (OCID-033), #777 (OCID-035), #785 (OCID-037)
+      remain entirely unstarted this invocation too -- each will need the same treatment:
+      fetch its real head branch fresh (local `pr77Xx`/`pr785x` branches from a much earlier
+      invocation are almost certainly stale now, given how many merges have landed on
+      `origin/main` since -- do a full fresh fetch+resync, don't resume the old local branch),
+      resolve conflicts (expect `MASTER_INDEX.yaml`/`OS.yaml`/`ACTIVE-CLAIMS.yaml` both-sides-
+      additive, `PROGRESS.md` append-with-separator per this file's own convention,
+      `IMPLEMENTATION_MATRIX.md` needs a manual interleave check even though it hasn't
+      recurred the last two times), run `node scripts/check-metadata-index-coverage.mjs`
+      locally before pushing, push, post a validated (`/tmp/audit_validate.py`) 8-field
+      `AUDIT: PASS` comment, wait for CI, merge, verify ancestor. **Critical**: every single
+      merge in this batch advances `origin/main` and stales out every other still-open PR's
+      mergeability within seconds -- do not batch syncs across multiple PRs, resync
+      immediately before each one's own CI run, confirmed repeatedly this invocation (#768,
+      #766, and #775 each needed a fresh resync caused by the immediately-preceding merge).
 - [ ] Review + resolve conflicts + merge PR #773 (OCID-029), #780 (OCID-032), #778 (OCID-033),
       #777 (OCID-035), #785 (OCID-037; review after #784's fix, per spec, already merged) --
       **not started yet this invocation**. PR #773 was `git checkout`'d and diff-stat'd only
