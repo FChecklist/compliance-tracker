@@ -5576,6 +5576,31 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+  - session_label: "claude-code (task-20260804-153149-ocid-020-real-critical-regression-trigge) -- OCID-020: PR #898 audit-review status check + real production root-cause hunt for GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS"
+    claimed_at: "2026-08-04T15:32Z (this session)"
+    claim: |
+      SPEC (real PM decision, UMR-20260802-165606-4413 OCID-020): PR #898 (the
+      GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS discovery/documentation artifact) assumed OPEN by
+      this task's own spec -- re-verified fresh at session start and it had already MERGED
+      (2026-08-04T15:12:28Z, ~19 min before this session's own start timestamp) via the normal
+      autonomous supervisor-sweep + AUDIT:PASS path, before this session touched anything. Not
+      re-litigating that merge. This session's real scope: (1) assess whether the AUDIT:PASS
+      comment on PR #898 (posted by the same `FChecklist` account that authored/merged it --
+      GitHub has no way to show a distinct human/bot identity per session) reflects genuine
+      independent review or a templated same-identity pass, and note that honestly; (2) the actual
+      substantive remaining goal -- attempt real production-side evidence (Vercel runtime function
+      logs for `/api/me`, or equivalent) to get the real stack trace behind the live 500, since
+      `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS`'s own `recommendation` field in
+      `ai-os/MASTER-TRACKER.yaml` explicitly says no prior session had production log access.
+      Discovery only, no code fix, per the standing OCID-021 lock and this task's explicit
+      instruction. `VERCEL_ACCESS_TOKEN` is present in this session's env and `vercel project ls`
+      confirms `veridian-compliance-ai` (projexa-ai.com) is a real, accessible project under
+      `meet-track-s-projects`.
+    scope_note: >-
+      File scope: ai-os/MASTER-TRACKER.yaml (additive root-cause fields on the existing
+      GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS entry only), ai-os/boss/ACTIVE-CLAIMS.yaml (this
+      entry), PROGRESS.md. No src/ changes -- discovery/documentation only.
+
 recently_completed:
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
