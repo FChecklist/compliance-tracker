@@ -1,3 +1,22 @@
+# PROGRESS -- chore/active-claims-cleanup-stale-projexa-schema-claim
+
+Cites: `UMR-20260802-173631-ca85` (OCID-021), `UMR-20260803-042801-ec4b` (OCID-038),
+`UMR-20260804-020819-3a5f` (PM authorization: real housekeeping, docs only).
+
+## Completed
+- [x] Removed the stale `ai-os/boss/ACTIVE-CLAIMS.yaml` `active:` entry (claimed `2026-08-03T21:53Z`,
+      past this file's own >4hr-abandonment threshold, flagged by an independent audit on PR #860).
+      Confirmed all 4 gaps it named are genuinely resolved by later, separate, real work before
+      removing it: `GAP-OCID038-OCID035-DUPLICATE-PRS` (PR #782 fix, merged), `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`
+      (PR #856, merged `622db105`), `GAP-OCID038-PROJEXA-OWN-SCHEMA` (PR #859/#860, merged `dc10b0bf`/`cabdb212`),
+      `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` (explicitly held, escalated to the Owner). Recorded a
+      note in `recently_completed:` explaining the removal rather than silently deleting with no trace.
+
+## Remaining
+- [ ] None for this branch.
+
+---
+
 # PROGRESS -- docs/ocid038-projexa-schema-investigation-3-steps
 
 Cites: `UMR-20260803-042801-ec4b` (OCID-038), `UMR-20260804-014117-915e` (PM authorization: proceed

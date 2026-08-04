@@ -40,42 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl) -- OCID-038 real implementation: closing GAP-OCID038-OCID035-DUPLICATE-PRS (reconcile PR #777 vs #782) first, real gap-by-gap"
-    claimed_at: "2026-08-03T21:53Z (this session)"
-    claim: |
-      SPEC (PM decision, citing `UMR-20260802-165606-4413` OCID-020 -- independently confirmed
-      declared complete via `UMR-20260803-212402-1922`, real proof-artifact audit -- and
-      `UMR-20260803-042801-ec4b` OCID-038): per SEC-07's explicit unlock sequence, OCID-038 real
-      implementation now proceeds, closing gaps its own discovery (PR #786,
-      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`) already
-      registered. Independently re-verified PR #786 is genuinely merged (`4d9b4a84`, confirmed via
-      `gh api repos/.../branches/main` live and `git merge-base --is-ancestor`), landing literally
-      seconds before this session started reading governance docs -- a real, concurrent-session race,
-      not a fabricated premise. Of the 6 gaps PR #786 registered, 2 were already found stale/resolved
-      during its own merge-conflict re-verification (`GAP-OCID038-NO-PWA`,
-      `GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED`) -- 4 remain genuinely open:
-      `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`, `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`,
-      `GAP-OCID038-OCID035-DUPLICATE-PRS`, `GAP-OCID038-PROJEXA-OWN-SCHEMA`. This session closes them
-      one at a time, real branch/fix/retest/PR/merge each, citing the specific gap id per dispatch --
-      starting with `GAP-OCID038-OCID035-DUPLICATE-PRS` (S-sized, mechanical reconciliation, no
-      Owner-level product call needed, unlike the domain-routing and Mother Router wiring gaps).
-      This runs alongside, not sequenced against, the separate in-progress OCID-021 Group F gap
-      backlog implementation (different gap IDs, no file overlap expected). Not starting OCID-039/040
-      work, per SEC-07's explicit ordering.
-    scope_note: >-
-      File scope (expected, per gap): PR #777/#782 content reconciliation (whichever doc file(s) those
-      branches touch), `ai-os/MASTER-TRACKER.yaml` (gap status updates only, no new gap IDs unless a
-      genuinely new finding surfaces), `ai-os/OS.yaml` index if a doc is renamed/merged, `PROGRESS.md`,
-      this ACTIVE-CLAIMS entry. No src/ changes expected for this first gap (pure doc reconciliation).
-
-      **Update (2026-08-03T22:1xZ):** `GAP-OCID038-OCID035-DUPLICATE-PRS` closed -- real fix pushed
-      directly onto PR #782's own branch (commit `62c5ed46`), corrected its numbering from a
-      second-guessed OCID-035 claim (colliding with PR #777, confirmed independently correct via
-      merged PR #779) to its own real folder/branch label, OCID-036 -- no content discarded, genuinely
-      distinct documents. Also resolved 4 real merge conflicts against `origin/main` in that same
-      commit. PR #782 title corrected via `gh api` PATCH. CI running on the new head; merge pending
-      independent audit (Rule 10 -- this session cannot self-certify). Now proceeding to
-      `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
@@ -5284,7 +5248,22 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
-  - session_label: "claude-code (docs/ocid038-projexa-schema-investigation-3-steps) -- OCID-038: real 3-step schema investigation for GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation; DOMAIN-BRAND-MISMATCH held, escalated to Owner by PM [DONE, PR pending]"
+  - session_label: "claude-code (chore/active-claims-cleanup-stale-projexa-schema-claim) -- housekeeping: removed stale active: entry (claimed 2026-08-03T21:53Z, past this file's own 4hr-abandonment threshold), superseded by real completed work [DONE, docs only]"
+    claimed_at: "2026-08-04T02:08Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-020819-3a5f`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038): real housekeeping, docs only. An independent audit on
+      PR #860 correctly flagged that the `active:` entry claimed at `2026-08-03T21:53Z` (originally
+      for "OCID-038 real implementation: closing GAP-OCID038-OCID035-DUPLICATE-PRS... real gap-by-gap")
+      was stale, past this file's own >4hr-abandonment rule, and had never been moved to
+      `recently_completed:` despite all 4 gaps it named being resolved by later, real, separate work:
+      `GAP-OCID038-OCID035-DUPLICATE-PRS` (PR #782 fix, merged), `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`
+      (PR #856, merged, `622db105`), `GAP-OCID038-PROJEXA-OWN-SCHEMA` (PR #859 + PR #860, merged,
+      `dc10b0bf`/`cabdb212`), `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` (explicitly held per PM
+      instruction, escalated to the Owner directly, not this session's to decide). Removed the stale
+      entry from `active:` and recorded this note in its place, rather than silently deleting it with
+      no trace.
+  - session_label: "claude-code (docs/ocid038-projexa-schema-investigation-3-steps) -- OCID-038: real 3-step schema investigation for GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation; DOMAIN-BRAND-MISMATCH held, escalated to Owner by PM [DONE, PR #860 merged]"
     claimed_at: "2026-08-04T01:45Z (this session)"
     claim: |
       SPEC (PM decision `UMR-20260804-014117-915e`, citing `UMR-20260803-042801-ec4b` OCID-038): the
