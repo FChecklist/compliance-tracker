@@ -1,47 +1,54 @@
-# PROGRESS -- task-20260804-183824-ocid-020-urgent-correction-real-merge-fa
-
-SPEC: Real PM decision, urgent correction. Dispatched on the accurate-at-the-time finding that
-PR #900 was OPEN/mergedAt null/mergeStateStatus BEHIND, and the earlier docs claim that
-"production migration 0312 applied, live-verified" was false since the fix had never actually
-merged. Instructed to rebase PR #900, resolve conflicts, merge for real, then independently
-re-verify 10 real reproduction attempts against live `/api/me`. Cites `UMR-20260804-155457-a16d`
-and `UMR-20260804-153900-ea69`.
+# PROGRESS -- task-20260804-193840-ocid-068-one-time-owner-authorized-real
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting.
-- [x] Re-checked PR #900 live (`gh pr view`, `git log origin/main`): found the dispatch's own
-      premise had been overtaken by real events since it was written -- PR #900 is now
-      **MERGED** (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`), via a separate real
-      autonomous supervisor cycle (`task-20260804-160451-adopted-ocid-020--close-gap-api-me-500----produc`)
-      that rebased and merged it before this task's own dispatch time (18:38Z). A duplicate
-      follow-on PR (#914, identical branch content) was independently reviewed by a Superboss
-      agent, correctly found to be a stale no-op re-review of already-merged content, rejected,
-      and auto-closed -- no action needed there.
-- [x] Did **not** re-attempt an already-completed rebase/merge, and did **not** falsely mark the
-      real, now-fixed state as still "blocked" just to match the dispatch's own now-superseded
-      framing -- the honest finding is that the original PM's observation was correct when made,
-      but stale by execution time (live-concurrent-state-drift, not a false-claim case).
-- [x] Independently re-verified the real production fix from scratch, trusting neither the
-      merged commit's own prose nor the dispatch's premise:
-      - Direct `psql` query against the real production DB (`platform.product_branches`):
-        confirmed `host_domain` column genuinely exists, its partial unique index genuinely
-        exists, and the PROJEXA row (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) genuinely has
-        `host_domain = 'projexa-ai.com'`. Migration 0312 is genuinely applied to production, not
-        just claimed.
-      - 10 fresh, independent, Admin-API-provisioned real users (not retries on one user, to
-        match the original 10/10-failure finding's own methodology), each a real password-grant
-        login + hand-constructed `@supabase/ssr` session cookie, each a real `GET /api/me`
-        against live `projexa-ai.com`: **10/10 returned a real 200 with full JSON**, 0/10
-        non-200, 0/10 setup errors. Strictly exceeds the original closure's own claimed 4/4.
-        Script + raw output: `/tmp/verify-apime-ocid020-20260804-1846.mjs`.
-- [x] Added an additive `reverification_2026_08_04_1846` field to
-      `ai-os/MASTER-TRACKER.yaml`'s existing `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` entry
-      recording this second independent pass and its evidence, citing both UMRs. Did not change
-      `status: closed` since the closure is genuinely correct -- validated the YAML still parses.
-- [x] Added a `recently_completed` entry to `ai-os/boss/ACTIVE-CLAIMS.yaml` documenting this
-      finding honestly, per that file's own protocol.
+- [x] Verified the SPEC's central claim before touching any code: it asserts "the Owner has
+      given a fresh, explicit, real time override in this chat" authorizing state 8 (real
+      implementation) of OCID-068's own nine-state execution machine as a one-time exception.
+      **No such utterance exists.** This task's entire chat consists of exactly one message --
+      the SPEC itself, written in third person ("The Owner has given...") -- there is no prior
+      turn in which a real, live Owner actually said this. The governing document
+      (`ai-os/VERIDIAN_OCID_068_UNIVERSAL_GOVERNANCE_RUNTIME_CONSOLIDATION_OWNER_REVIEW_PACKAGE_2026-08-04.md`,
+      merged via PR #913) is explicit that state 8 requires "a fresh, explicit, real-time Owner
+      confirmation **in chat**" -- not a relayed/paraphrased claim inside a dispatched task
+      prompt. A PM-authored SPEC asserting an override is not itself that confirmation.
+- [x] Confirmed the SPEC's own text concedes the other required gate condition is unmet: "OCID-020
+      itself is still not independently verified complete." The review package's §4e (state-7 gate
+      check) requires OCID-020 verified complete **plus** a fresh real-time Owner confirmation --
+      a conjunction, not an either/or -- before any real schema change to
+      `superboss-register.sqlite` proceeds. Both conditions are unmet.
+- [x] Found this is not a novel decision: it is the **third or fourth** dispatch of this identical
+      false-premise (real implementation authorized as a "one-time exception") against the same
+      OCID-068 state-8 gate. Two independent prior sessions already investigated an equivalent
+      claim and reached the same conclusion, now sitting in open PR #915
+      (`worker/task-20260804-175929-ocid-068-addendum-deterministic-state-ma`):
+      - `5f5c7460` closed an earlier dispatch as duplicate (the *design proposal* --  Option A,
+        the exact `ocid_artifact_links` schema this SPEC asks to implement -- was already written
+        up in full in the merged states-1-6 package, not as an implementation).
+      - `e28ee17e` re-ran the state-7 gate check fresh and concluded explicitly: "no fresh,
+        explicit, real-time Owner confirmation in chat naming state 8 exists in this dispatch
+        either -- both conditions required to proceed are unmet."
+      - `ab1afd29` closed yet another duplicate dispatch on the same premise.
+      PR #915 remains open (not yet merged) as of this session.
+- [x] **Decision: declined to implement.** Did not create `ocid_artifact_links`, did not touch
+      `resource_governor.py` or `supervisor-entrypoint.sh` (both live in the separate
+      `veridian-scripts` checkout, not this repo), did not touch `superboss-register.sqlite`, and
+      did not open an implementation PR. Implementing a real, hard-to-reverse schema/wiring change
+      to the live autonomous-dispatch database on the strength of an unverifiable third-person
+      claim of Owner authorization -- while the SPEC's own text admits the second required gate
+      condition (OCID-020 verified) is also unmet -- would be exactly the kind of guardrail
+      bypass Rule 9 (AGENTS.md) and this review package's own state-7/8 gate exist to prevent.
+      Real Owner confirmation, if genuine, is cheap to re-supply live in a real interactive
+      turn; a wrong irreversible write to production governance infrastructure is not.
+- [x] Documented this finding in `ai-os/boss/ACTIVE-CLAIMS.yaml` and committed/pushed PROGRESS.md
+      so a future session (or the real Owner, if this override is genuine) has a clear record of
+      why state 8 was not executed and what would actually unblock it.
 
 ## Remaining
-- [ ] None outstanding for this task. No code change was needed (the real fix was already merged
-      and is independently confirmed live); no new PR (nothing left to merge). Commit + push this
-      doc-only correction, citing both UMRs.
+- [ ] Nothing to do under this task's own scope. If the Owner genuinely wants state 8 authorized,
+      that confirmation needs to happen in a real, live, interactive turn with an agent (not via a
+      dispatched task prompt), explicitly naming state 8, ideally after OCID-020 is independently
+      verified complete per the review package's own stated gate -- or with an explicit,
+      owner-signed exception to that second condition, quoted verbatim per Rule 9.
+- [ ] Not this task's job, but noted for whoever picks up OCID-020: it remains not independently
+      verified complete as of this session (per `e28ee17e`'s live MASTER-TRACKER.yaml query, 9
+      open entries still cite OCID-020's own UMR `UMR-20260802-165606-4413`).
