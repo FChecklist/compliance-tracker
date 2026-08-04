@@ -1,4 +1,4 @@
-import { db, users, aiAssistants } from "@/lib/db";
+import { db, users } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
@@ -7,6 +7,7 @@ import { createClient as createAdminClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { canAssignSeat } from "@/lib/org-license-service";
+import { provisionAiAssistantsForUser } from "@/lib/services/subscription-plan-service";
 
 export async function GET() {
   const { response, orgId } = await requireAuth()
@@ -117,18 +118,14 @@ export async function POST(request: NextRequest) {
       }).returning()
     )
 
-    // Wave 2: provision 5 AI Assistants for the invitee. Uses the raw
+    // Wave 2: provision the invitee's AI Assistants, capped at the org's
+    // real resolved subscription-plan tier (GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
+    // Task A -- was unconditionally 5 regardless of tier). Uses the raw
     // (RLS-bypassing) db client deliberately -- ai_assistants RLS requires
     // current_user_id() to equal the row's user_id, and the inviting admin's
     // tenant context has no reason to carry the invitee's user id. This
     // mirrors autoProvisionUser's rationale in auth-guard.ts.
-    await db.insert(aiAssistants).values(
-      Array.from({ length: 5 }, (_, i) => ({
-        userId: newUser.id,
-        assistantNumber: i + 1,
-        label: `Assistant ${i + 1}`,
-      }))
-    )
+    await provisionAiAssistantsForUser(newUser.id, orgId)
 
     return NextResponse.json({ id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }, { status: 201 })
   } catch (error) {

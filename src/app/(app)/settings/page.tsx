@@ -23,6 +23,7 @@ import {
   Paintbrush,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
+import SubscriptionPlanSection from "@/components/SubscriptionPlanSection";
 import BrandingSection from "@/components/BrandingSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
@@ -70,6 +71,7 @@ const SETTINGS_NAV = [
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "org-limits", label: "Seats & AI Spend", icon: Users2 },
+  { id: "subscription-plan", label: "Subscription Plan", icon: Bot },
   { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
@@ -522,6 +524,24 @@ export default function SettingsPage() {
                   <OrgLimitsSection />
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change seat and spend limits.</p>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "subscription-plan" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <Bot className="size-4" />
+                  Subscription Plan
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {isAdmin ? (
+                  <SubscriptionPlanSection />
+                ) : (
+                  <p className="text-sm text-muted-foreground">Only admins can view and change the organisation&apos;s subscription plan.</p>
                 )}
               </CardContent>
             </Card>

@@ -44,8 +44,29 @@ proceed authorization. PM decision resolving the credit-accountant block on
       (a claim under ~4h old is binding, not treated as abandoned): NOT duplicating that live E2E
       confirmation work myself. Recording this here rather than silently reworking it.
 
+- [x] **GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E implemented, real code.** New
+      `src/lib/services/subscription-plan-service.ts`. Task A found the real chokepoint was 6 call
+      sites (not 1 as the planning doc assumed) -- all fixed. Task B: `/api/me` new fields. Task C:
+      `AiAssistantsSection.tsx` usage/limit banner. Task E: new `SubscriptionPlanSection.tsx` +
+      `/api/settings/subscription-plan` admin route. Task D explicitly NOT decided -- flagged back to
+      PM/Owner per this dispatch's own instruction (business decision, not code).
+- [x] Verified: cgroup-unconstrained `bunx tsc --noEmit` clean, `bunx eslint` clean on every
+      changed/new file, 4 directly-relevant existing test suites green (74/74 pass, 0 regressions):
+      `org-join-code-service.test.ts`, `stage0-service.test.ts`, `invite-link-service.test.ts`,
+      `auth-guard.test.ts`.
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` entry with
+      full evidence.
+
 ## Remaining
-- [ ] GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E (Task D explicitly held for PM/Owner).
+- [ ] Open PR, push, get CI green, merge.
+- [ ] Live browser confirmation against the real deployed site (per-tier test path from
+      `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`) -- NOT run this
+      cycle, budget-constrained. Real code, independently type/lint/test-verified, but not yet
+      independently re-verified live. Flagging honestly rather than claiming a live confirmation that
+      did not happen.
+- [ ] No new unit test file for `subscription-plan-service.ts` itself (every export is DB-context-
+      dependent -- same documented precedent as `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`'s
+      resolution for this class of call site).
 
 ---
 
