@@ -130,39 +130,83 @@ per [[veridian-shared-worktree-stash-risk]].
       commit `c72627f0`. **Independently verified `c72627f0` is a real ancestor of
       `origin/main`.**
 
+## Completed (invocation 4, 2026-08-04 resume)
+- [x] Re-grounded in the real spec: read PROGRESS.md lines 1-207 directly (not the file's own
+      2600+-line accumulated tail from unrelated tasks that share this same file path across
+      worktrees) -- confirmed the real scope is these exact 11 PRs, 6 already merged
+      (784/767/765/768/766/775), 5 remaining (773/780/778/777/785).
+- [x] PR #773 (OCID-029): fresh fetch (old local `pr773x` deleted, refetched as `pr773-fresh`
+      from the real remote head), resynced against `origin/main` TWICE (main advanced once
+      mid-resync from an unrelated concurrent session's PR #883 merge, confirming this file's
+      own "don't batch syncs" warning applies to drift from *other* sessions too, not just this
+      one's own merges). Conflicts: `PROGRESS.md`/`ACTIVE-CLAIMS.yaml`/`OS.yaml`/
+      `MASTER_INDEX.yaml`/`IMPLEMENTATION_MATRIX.md` (round 1), `PROGRESS.md`/`ACTIVE-CLAIMS.yaml`
+      only (round 2, smaller since main hadn't moved on the other 3 files). `IMPLEMENTATION_MATRIX.md`
+      amendment was self-contained (no interleave this time). `node
+      scripts/check-metadata-index-coverage.mjs` passed both rounds. Posted validated 8-field
+      `AUDIT: PASS`. All required CI checks green (Vercel rate-limit fail is the known
+      unrelated flake). Merged via `gh pr merge 773 --squash` (local branch delete failed
+      harmlessly, in use by its own separate task worktree). Merge commit `8e90dc35`.
+      **Independently verified `8e90dc35` is a real ancestor of `origin/main`.**
+- [x] PR #780 (OCID-032), #778 (OCID-033), #777 (OCID-035): same fresh-fetch + resync
+      treatment, conflicts resolved (both-sides-additive strip for `OS.yaml`/`ACTIVE-CLAIMS.yaml`/
+      `MASTER_INDEX.yaml` where present, append-with-separator for `PROGRESS.md`, self-contained
+      dual-section reconstruction for `IMPLEMENTATION_MATRIX.md` on #780/#777 -- no interleave
+      bug hit on either). `node scripts/check-metadata-index-coverage.mjs` passed on all three.
+      Noted (non-blocking, same class already flagged on #775): #778 and #777's new docs are
+      registered in `OS.yaml` but not `MASTER_INDEX.yaml`, which the CI-enforced coverage script
+      doesn't walk. Posted validated `AUDIT: PASS` on all three, pushed. **CI not yet confirmed
+      green this invocation for #780/#778/#777 -- check `gh pr checks` on resume for each, then
+      merge + ancestor-verify, resyncing immediately before each merge since #773's own merge
+      just advanced `origin/main` again.**
+- [x] PR #785 (OCID-037; reviewed after #784's fix per spec, already merged): fresh fetch,
+      resync hit the interleave bug for real on `IMPLEMENTATION_MATRIX.md` (git's recursive
+      merge split this branch's OCID-037 amendment and origin/main's OCID-038/039/040 amendment
+      across two separate, wrongly-boundaried conflict blocks). Fixed properly this time by
+      pulling the true complete content for both sides directly from their git blobs
+      (`git cat-file -p` on the stage-2/stage-3 blob SHAs from `git ls-files -u`, not `git show`
+      which the Bash tool's own known large-output truncation silently cut to 31 lines) and
+      reconstructing origin/main's full file with this branch's own complete amendment appended,
+      rather than trusting marker positions. **Also found and fixed a second, real, distinct
+      defect**: a first-pass naive marker-strip on the `OS.yaml` conflict (the same method used
+      safely on #773/#780/#778/#777) produced a genuine duplicate YAML key -- a second `covers:`
+      line for an already-existing OCID-034 entry ended up attached under the new OCID-037
+      path entry instead of its own. Caught by `node scripts/check-metadata-index-coverage.mjs`
+      (js-yaml throws on duplicate keys); NOT caught by this session's own
+      `python3 -c "import yaml; yaml.safe_load(...)"` pre-check, since PyYAML silently keeps the
+      last value on a duplicate key instead of raising -- a real gap in this session's own
+      validation method for any future both-sides-additive YAML resolution, not just this PR.
+      Fixed by moving the correction text back onto the real OCID-034 entry and deleting the
+      stray duplicate. Re-ran the coverage check clean after both fixes. Posted validated
+      `AUDIT: PASS` disclosing both defects and fixes. Pushed. **CI not yet confirmed green this
+      invocation -- check `gh pr checks 785` on resume.**
+
 ## Remaining
-- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop).**
-      6 of 11 Group C PRs now genuinely merged this invocation + prior:
-      784, 767, 765, 768, 766, 775 -- all independently ancestor-verified. 5 remain entirely
-      untouched: #773 (OCID-029), #780 (OCID-032), #778 (OCID-033), #777 (OCID-035), #785
-      (OCID-037; review after #784's fix, per spec, already merged).
-- [ ] PR #773 (OCID-029), #780 (OCID-032), #778 (OCID-033), #777 (OCID-035), #785 (OCID-037)
-      remain entirely unstarted this invocation too -- each will need the same treatment:
-      fetch its real head branch fresh (local `pr77Xx`/`pr785x` branches from a much earlier
-      invocation are almost certainly stale now, given how many merges have landed on
-      `origin/main` since -- do a full fresh fetch+resync, don't resume the old local branch),
-      resolve conflicts (expect `MASTER_INDEX.yaml`/`OS.yaml`/`ACTIVE-CLAIMS.yaml` both-sides-
-      additive, `PROGRESS.md` append-with-separator per this file's own convention,
-      `IMPLEMENTATION_MATRIX.md` needs a manual interleave check even though it hasn't
-      recurred the last two times), run `node scripts/check-metadata-index-coverage.mjs`
-      locally before pushing, push, post a validated (`/tmp/audit_validate.py`) 8-field
-      `AUDIT: PASS` comment, wait for CI, merge, verify ancestor. **Critical**: every single
-      merge in this batch advances `origin/main` and stales out every other still-open PR's
-      mergeability within seconds -- do not batch syncs across multiple PRs, resync
-      immediately before each one's own CI run, confirmed repeatedly this invocation (#768,
-      #766, and #775 each needed a fresh resync caused by the immediately-preceding merge).
-- [ ] Review + resolve conflicts + merge PR #773 (OCID-029), #780 (OCID-032), #778 (OCID-033),
-      #777 (OCID-035), #785 (OCID-037; review after #784's fix, per spec, already merged) --
-      **not started yet this invocation**. PR #773 was `git checkout`'d and diff-stat'd only
-      (6 files changed, same docs-only shape) -- no conflict resolution done yet. All are in
-      local branches `pr773x`/`pr780x`/`pr778x`/`pr777x`/`pr785x` in
-      `/home/rajat/work/group-c-merge` already (fetched from their real remote head branches),
-      ready to resume from. Each still needs: check for a missing `ai-os/OS.yaml` registration
-      (a real, confirmed gap class this session found on PR #767's original head -- always
-      grep the new doc's filename in `ai-os/OS.yaml` before trusting the PR's own claim that
-      it registered itself), conflict resolution against current `origin/main`, local
-      `node scripts/check-metadata-index-coverage.mjs` re-check, audit comment (validate via
-      `/tmp/audit_validate.py` first), push, CI wait, merge, ancestor-verify.
+- [ ] **Real, confirmed defect class for future PRs in this batch (or any future YAML
+      both-sides-additive conflict in this repo)**: a naive `<<<<<<</=======/>>>>>>>` marker
+      strip is only safe when each side's inserted list items are genuinely independent blocks.
+      When two adjacent amendments/entries sit close enough that git's diff heuristic merges
+      part of one side's insertion with part of the other's (confirmed twice now:
+      `IMPLEMENTATION_MATRIX.md`'s Status-table interleave on #766/#768/#785, and this
+      invocation's new `OS.yaml` duplicate-`covers:`-key finding on #785), the strip can silently
+      attach one entry's content under the wrong list item. Validate with the same tool that
+      actually gates CI (`node scripts/check-metadata-index-coverage.mjs`, which uses a
+      duplicate-key-throwing YAML parser), not just a Python `yaml.safe_load` sanity check
+      (PyYAML silently accepts duplicate keys, keeping the last value) -- re-verify this on any
+      already-merged PR in this batch if time allows, since #773/#780/#778/#777 all used the
+      same naive strip method and only #785's arrangement happened to expose the bug so far
+      (all four re-ran the Node coverage check after resolution and it passed, but that's a
+      point-in-time check against that PR's own content, not a guarantee no other duplicate-key
+      pattern exists elsewhere in the file from an earlier, already-merged PR in this same
+      batch -- worth a fresh full-file coverage-check run once all 11 are in).
+- [ ] Confirm CI green (checking non-Vercel/non-CodeQL required checks specifically) for #780,
+      #778, #777, #785, resyncing immediately before each merge attempt since `origin/main`
+      keeps advancing both from this task's own merges and from other concurrent sessions --
+      do not assume a resync done earlier this invocation is still current by the time CI
+      finishes.
+- [ ] Merge #780, #778, #777, #785 once each is confirmed green + mergeable, independently
+      verifying each merge commit is a real ancestor of `origin/main` via
+      `git merge-base --is-ancestor` before moving to the next.
 - [ ] **Merge-conflict resolution notes, corrected this invocation** (the prior note "always
       take origin/main's side for PROGRESS.md" was incomplete/risky -- silently drops the
       branch's own unique task section since it hasn't been folded into main's yet on these
