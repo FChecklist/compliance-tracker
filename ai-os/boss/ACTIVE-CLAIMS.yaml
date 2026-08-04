@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-062800-register-the-mandatory-governance-direct) -- PM registration of standing normalization-discipline rule (parent OCID-20260802-015/017, related OCID-020/021) + real cross-reference table OCID-20260802-015 through OCID-052"
+    claimed_at: "2026-08-04T06:29Z (this session)"
+    claim: |
+      SPEC (PM directive): formally register, as a standing rule going forward (not a new OCID, not
+      a new platform/database/framework/auth/execution/knowledge model), the discover -> verify ->
+      reuse -> enhance -> standardize -> update UMR -> update UTR -> update canonical artifact ->
+      implement discipline, parented to OCID-20260802-017 (`UMR-20260802-165034-5747`, the standing
+      gatekeeper rule) and OCID-20260802-015 (`UMR-20260802-164801-2ab9`, Master Execution Framework
+      design), related to OCID-020 (`UMR-20260802-165606-4413`) and OCID-021 (`UMR-20260802-173631-ca85`).
+      Also requested: one real normalized cross-reference table (parent/UMR/dependency OCIDs/real
+      PR-merge status) covering "OCID-015 through OCID-062", reusing knowledge-graph discovery
+      "already authorized under OCID-053 (UMR-20260804-033853-2a17) and OCID-057
+      (UMR-20260804-035943-3c38)", folded into those UMRs' existing deliverables rather than a new
+      parallel document.
+
+      Pre-work verification (per this repo's own standing gatekeeper rule and this session's own
+      discipline of checking claimed dependency state independently rather than trusting prompt
+      text): `git grep` across `ai-os/` for `OCID-053`/`OCID-057` (all formats) and for the literal
+      UMR IDs `UMR-20260804-033853-2a17` / `UMR-20260804-035943-3c38` returns zero hits anywhere in
+      this repo. The real, currently-registered OCID chain tops out at OCID-052
+      (`ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md` and neighbors);
+      OCID-053 through OCID-062 do not exist under any label. This is the same class of finding this
+      repo already has one real, documented precedent for (`CONSTITUTION.yaml` SEC-07, the
+      "OCID-021 implementation lock" fictitious-label finding) -- treating it accordingly: not
+      fabricating content for nonexistent OCIDs/UMRs, and folding the real table into the real
+      existing artifact that already serves this purpose
+      (`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` + `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`)
+      extended to cover OCID-015 through the real ceiling (OCID-052), rather than inventing a
+      "fold into OCID-053/057" home that does not exist.
+    scope_note: >-
+      File scope: `ai-os/CONSTITUTION.yaml` (new standing-rule entry), the real existing status-
+      rollup artifacts named above (extended, not replaced), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. Documentation/governance only -- no src/, schema, or CI changes, per
+      the directive's own explicit "no new platform/database/framework" instruction.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
