@@ -55,7 +55,7 @@ last cycle as the completeness audit).
 - [x] Validated both touched YAML files parse clean via
       `python3 -c "import yaml; yaml.safe_load(...)"` before committing.
 ## Remaining
-- [ ] Open PR, confirm CI green.
+- [ ] PR #888 opened (https://github.com/FChecklist/compliance-tracker/pull/888) -- watch CI, merge once green.
 - [ ] Real implementation of the continuous-governance/PM-reporting-discipline
       enhancement itself is explicit future-cycle work, gated on a future cycle
       independently re-confirming swap has genuinely recovered (a single improved
