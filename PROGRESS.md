@@ -524,8 +524,10 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
       (`real_gaps_not_yet_built`, severity high) with full evidence -- validated YAML still parses
       clean (`python3 -c "import yaml; yaml.safe_load(...)"`).
 - [x] Closed out the ACTIVE-CLAIMS.yaml claim entry for this task with the real final result.
+- [x] Committed, pushed, opened PR #898: https://github.com/FChecklist/compliance-tracker/pull/898
 
 ## Remaining
+- [ ] Confirm CI green, hand off for independent audit -- not self-certified here.
 - [ ] `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` needs a real owner with production log access to
       find the exact stack trace and fix it -- out of this task's own locked scope.
 - [ ] Once `/api/me` is fixed, OCID-052's own planned re-verification of
