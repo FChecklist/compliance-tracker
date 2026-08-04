@@ -181,7 +181,28 @@ per [[veridian-shared-worktree-stash-risk]].
       `AUDIT: PASS` disclosing both defects and fixes. Pushed. **CI not yet confirmed green this
       invocation -- check `gh pr checks 785` on resume.**
 
+## Completed (invocation 4 continued)
+- [x] PR #780: main advanced again from #773's own merge, flipping #780 back to CONFLICTING
+      as predicted. Did a full fresh second resync (not a resume) -- this time explicitly
+      inspected each YAML conflict's list-item boundaries before stripping markers (applying
+      the lesson from #785's duplicate-key defect below) and confirmed each side's insertion
+      was a complete, independent `- path:`/`covers:` pair before stripping. Re-ran
+      `node scripts/check-metadata-index-coverage.mjs` (146 items, 143 indexed + 7 exempted)
+      and `yaml.safe_load` on all three YAML files -- clean. Pushed, posted an updated
+      `AUDIT: PASS` disclosing the resync. **Budget ran out before CI could be confirmed green
+      or the PR merged -- this is the real stopping point, not a completed merge.**
+
 ## Remaining
+- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop).**
+      7 of 11 Group C PRs now genuinely merged: 784, 767, 765, 768, 766, 775, 773 -- all
+      independently ancestor-verified. 4 remain, all resynced against the post-#773 `origin/main`
+      tip and pushed with a validated `AUDIT: PASS` comment, but **none of the 4 has been
+      confirmed CI-green or merged yet**: #780 (OCID-032, resynced twice, latest push
+      `cfc30961`), #778 (OCID-033, resynced once against the pre-#773 tip only -- will need a
+      THIRD resync against the post-#773 tip before it can merge, not yet done), #777
+      (OCID-035, same -- resynced once against pre-#773 tip, needs a fresh resync), #785
+      (OCID-037, resynced once against pre-#773 tip with two real defects found and fixed --
+      see below -- also needs a fresh resync against post-#773 tip before merging).
 - [ ] **Real, confirmed defect class for future PRs in this batch (or any future YAML
       both-sides-additive conflict in this repo)**: a naive `<<<<<<</=======/>>>>>>>` marker
       strip is only safe when each side's inserted list items are genuinely independent blocks.
