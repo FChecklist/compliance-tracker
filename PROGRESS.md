@@ -53,6 +53,8 @@ from symptom into root cause. Discovery only, no code fix, per the standing OCID
 - [x] Moved this session's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry from `active:` to
       `recently_completed:` (validated with `yaml.safe_load`).
 - [x] Commit + push this cycle's work.
+- [x] Opened PR #899 (`worker/task-20260804-153149-ocid-020-real-critical-regression-trigge` ->
+      `main`): https://github.com/FChecklist/compliance-tracker/pull/899
 
 ## Remaining
 - [ ] Real owner: confirm `platform.product_branches.host_domain` exists live (Supabase SQL
