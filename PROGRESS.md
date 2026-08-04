@@ -2288,3 +2288,80 @@ decision, PR #851, confirmed merged before this session started via `git merge-b
       against a `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` branch -- check
       `ai-os/boss/ACTIVE-CLAIMS.yaml` for a live claim on that gap before picking it up, to avoid
       duplicate work.
+
+# PROGRESS -- task-20260804-011908-pm-decision--hold-on-the-two-remaining-o
+
+**SPEC:** PM decision (citing `UMR-20260802-173631-ca85` OCID-021 and `UMR-20260803-042801-ec4b`
+OCID-038). Confirms PR #856 genuinely merged (`622db105`, independently confirmed a real ancestor of
+`origin/main`), closing `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`. Confirms this session's own prior
+judgment call to hold on the two remaining gaps -- `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` and
+`GAP-OCID038-PROJEXA-OWN-SCHEMA` -- rather than making a unilateral product/domain-routing call was
+correct, and explicitly does **not** approve an unsubmitted "proceed" suggestion, because neither gap has
+a real written discovery brief committed anywhere, only short narration in the existing canonical doc.
+Scope: discovery + documentation only, into `PROGRESS.md` (this section) and
+`ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md` §9 (full brief, this is a
+condensed mirror) -- no implementation, no routing change, no schema change, until the PM makes the real
+call informed by this.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first, registered this session's own claim (discovery-only,
+      no implementation) before starting real work, per AGENTS.md Rule 11 -- committed/pushed separately
+      and first, ahead of the doc work below (commit `dae34729`).
+- [x] Found and fixed the recurring PROGRESS.md wholesale-replace regression (same class as the
+      2026-08-03 PR #831/#803 fix already on record in this file): this task's workspace `PROGRESS.md`
+      had been silently scaffolded to a 2-line stub, dropping 2286 lines of real prior history.
+      Restored via `git checkout HEAD -- PROGRESS.md` before appending this section.
+- [x] **GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH discovery brief written** (full text:
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md` §9.1). Summary:
+      - Freshly re-verified live (2026-08-04T01:21Z): `projexa-ai.com` still serves compliance-tracker's
+        generic shell (33 "VERIDIAN" hits, 0 "projexa" hits in the served HTML); the real PROJEXA-branded
+        app is live only at `projexa-smoky.vercel.app` (42 "PROJEXA" hits). Not stale, one day later.
+      - Direct code read confirms today's "routing" is pure DNS/Vercel-alias binding with **zero
+        hostname-aware code** anywhere in compliance-tracker: no `middleware.ts` exists at all, no
+        `rewrites`/`redirects`/host logic in `next.config.ts` (read in full), no brand-switch code in
+        `src/` (only the unrelated `/api/v1/projexa/*` backend API namespace, 51 subdirectories, no UI
+        page directory).
+      - The domain-to-compliance-tracker binding itself is a deliberate, already-executed Owner directive
+        (quoted directly from `task-20260802-141942-owner-decision--revert-projexa-ai-com-to`'s prompt) --
+        not an accident. But *branding on top of that binding* was never posed to the Owner and has no
+        recorded intent anywhere in this repo's governance trail. Real finding: this is an open product
+        question (which of two structurally different fixes -- re-point the alias vs. add hostname-aware
+        branding to compliance-tracker -- and which UI/backend the branded experience should actually
+        use), not a defect with one obvious correct fix.
+- [x] **GAP-OCID038-PROJEXA-OWN-SCHEMA discovery brief written** (full text: same doc, §9.2). Summary:
+      - Read the separate `projexa` repo's real local checkout directly
+        (`/opt/veridian/repos/projexa`), per the existing gap's own recommendation ("not GitHub code
+        search only") -- found the prior "0 hits" GitHub code-search finding was a **false negative**.
+        `projexa/src/lib/veridian-client.ts` (241 lines) is a real, wired API client whose base URL is
+        `https://veridian-compliance-ai.vercel.app/api/v1/projexa` (a string "compliance-tracker" code
+        search would never match). 51 files call it, matching compliance-tracker's own 51
+        `/api/v1/projexa/*` subdirectories 1:1. A real per-tenant credential-provisioning contract exists
+        (`veridian_credentials` table + `provisionVeridianOrg()` calling
+        compliance-tracker's real `/api/v1/platform/provision-org` endpoint, confirmed present on both
+        sides).
+      - Every other local table (`organizations`/`memberships`/`profiles`/`notifications`/`todos`/
+        `assistantQueries`+chat tables/`workProgressPhotos`/`contactRequests`) has a documented,
+        non-duplicative rationale confirmed by reading each table's own in-code comment -- tenant/auth
+        plumbing, a documented Tasks-API workaround, one explicitly non-duplicative attachment table, and
+        unrelated marketing-site leads. Not architectural drift.
+      - Correction flagged (immaterial): actual `pgTable(` count is 12, not the "11-table" figure in the
+        existing gap detail.
+      - This materially refines §1/§2's own "zero-hit API search" / "may be architectural drift" framing
+        into a positive data point for platform integration -- but does not by itself flip §2's overall
+        "NO, not a fully unified backend" verdict (its other findings still stand, including §9.1 above).
+      - Real follow-up flagged as genuinely unverified, not performed in this brief (out of scope for a
+        documentation-only pass): no live runtime trace of an actual request crossing from
+        `projexa-smoky.vercel.app` into compliance-tracker; production env-var values in `projexa`'s
+        Vercel deployment not checked; the 51/51 route-count match not diffed path-by-path for orphans.
+- [x] Confirmed no implementation, routing, or schema change made anywhere this session --
+      `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` and `GAP-OCID038-PROJEXA-OWN-SCHEMA` remain
+      `status: open` in `ai-os/MASTER-TRACKER.yaml`, unchanged.
+
+## Remaining
+- [ ] The real PM call on both gaps, informed by the briefs above -- not this session's decision to make.
+- [ ] Once that call is made: whichever gap(s) get unlocked need their own real
+      branch/fix/retest/PR/merge, following this repo's standard gap-closure pattern (same as
+      `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`'s PR #856).
+- [ ] The three "genuinely unverified" follow-ups flagged in §9.2 (live runtime trace, production env-var
+      confirmation, full 51/51 route-path diff) are real candidate next steps if/when the PM authorizes
+      moving `GAP-OCID038-PROJEXA-OWN-SCHEMA` past discovery.
