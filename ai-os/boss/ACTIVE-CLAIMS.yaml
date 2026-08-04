@@ -40,6 +40,59 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
+    claimed_at: "2026-08-03T21:55Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): OCID-020 declared complete, OCID-021 real
+      implementation authorized, scoped to the honestly registered gap backlog from Group F testing,
+      one gap per dispatch, real branch/fix/retest/PR/merge, citing the gap id closed each time.
+
+      Verified before starting (per standing rule, never trust a PM spec's framing unverified):
+      `git merge-base --is-ancestor` confirmed this task's starting HEAD was already an ancestor of
+      `origin/main` (5 commits behind, incl. PR #786) -- fast-forwarded first. Confirmed via
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed` + `PROGRESS.md`'s own tail that Item 1
+      (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`) was already done by a prior session under this exact
+      same PM decision ID (PR #851, merged, confirmed ancestor of the fast-forwarded `origin/main`) --
+      not re-doing it. Picking up Item 2 of the same 6-item backlog, next in the PM's own listed order:
+      `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API` (MASTER-TRACKER.yaml status:
+      open, confirmed via direct read, not assumed from the SPEC's framing).
+    scope_note: >-
+      File scope (planned): new `src/app/api/erp/enablement/route.ts`,
+      `src/app/api/crm/enablement/route.ts`, `src/app/api/construction/enablement/route.ts` (mirroring
+      the existing `src/app/api/pms/enablement/route.ts` / `src/app/api/the-firm/enablement/route.ts`
+      pattern -- the service-layer functions `enableErpForOrg`/`enableSalesForOrg`/
+      `enableConstructionForOrg` already exist and are fully implemented, this only wires a real
+      authenticated route to each), `ai-os/MASTER-TRACKER.yaml` (gap status update),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration changes.
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-veri-chat-no-visible-ai-signal) -- OCID-021 Wave 1: real fix for GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL [DONE, PR opened]"
+    claimed_at: "2026-08-03T23:10Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): continuing the same OCID-021 Wave 1 backlog
+      this task's own prior invocation started (Item 1 `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`,
+      PR #851, merged; Item 2 `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
+      PR #852, open pending independent audit -- not touched further by this entry).
+
+      On resume, found this task's own workspace had real, uncommitted, working (tsc-clean) code for
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` sitting directly on top of PR #852's own
+      branch (`fix/gap-erp-sales-construction-self-service-enablement`) -- a prior invocation had
+      started the next backlog item without switching to its own branch first, which would have mixed
+      two unrelated gaps into one PR/audit unit. Verified the in-progress diff was real and correct
+      (not narrated): `bunx tsc --noEmit` clean, matches `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`'s
+      own `recommendation` in `ai-os/MASTER-TRACKER.yaml`, and the `confidenceLabel` field it reads
+      already exists on the real `getMessages()` API response (`chat-service.ts:394`), confirmed by
+      direct read, not assumed. Relocated it to its own isolated worktree/branch (`git worktree add`
+      off `origin/main`, not the shared main workspace, to respect
+      [[veridian-shared-worktree-stash-risk]]) rather than commit it onto PR #852's branch, added a
+      real regression test (`HomeThreadSlot.test.ts`, 4 tests/6 assertions, matching this repo's
+      established pure-function-test pattern), reran `bunx tsc --noEmit` and `bun test` clean in the
+      new worktree itself (not just the original workspace) before committing.
+    scope_note: >-
+      File scope: `src/components/veri-chat/HomeThreadSlot.tsx` (message-mapping change only, no new
+      mechanism), new `src/components/veri-chat/HomeThreadSlot.test.ts`, `ai-os/MASTER-TRACKER.yaml`
+      (gap status update), `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration/API
+      changes -- `confidenceLabel` was already returned by the real backend, this only reads it.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |
@@ -5223,6 +5276,101 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (chore/active-claims-cleanup-stale-projexa-schema-claim) -- housekeeping: removed stale active: entry (claimed 2026-08-03T21:53Z, past this file's own 4hr-abandonment threshold), superseded by real completed work [DONE, docs only]"
+    claimed_at: "2026-08-04T02:08Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-020819-3a5f`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038): real housekeeping, docs only. An independent audit on
+      PR #860 correctly flagged that the `active:` entry claimed at `2026-08-03T21:53Z` (originally
+      for "OCID-038 real implementation: closing GAP-OCID038-OCID035-DUPLICATE-PRS... real gap-by-gap")
+      was stale, past this file's own >4hr-abandonment rule, and had never been moved to
+      `recently_completed:` despite all 4 gaps it named being resolved by later, real, separate work:
+      `GAP-OCID038-OCID035-DUPLICATE-PRS` (PR #782 fix, merged), `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`
+      (PR #856, merged, `622db105`), `GAP-OCID038-PROJEXA-OWN-SCHEMA` (PR #859 + PR #860, merged,
+      `dc10b0bf`/`cabdb212`), `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` (explicitly held per PM
+      instruction, escalated to the Owner directly, not this session's to decide). Removed the stale
+      entry from `active:` and recorded this note in its place, rather than silently deleting it with
+      no trace.
+  - session_label: "claude-code (docs/ocid038-projexa-schema-investigation-3-steps) -- OCID-038: real 3-step schema investigation for GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation; DOMAIN-BRAND-MISMATCH held, escalated to Owner by PM [DONE, PR #860 merged]"
+    claimed_at: "2026-08-04T01:45Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-014117-915e`, citing `UMR-20260803-042801-ec4b` OCID-038): the
+      3 real mechanical next steps PR #859's own discovery brief (§9.2) named for
+      `GAP-OCID038-PROJEXA-OWN-SCHEMA` are authorized -- discovery/documentation only, no
+      implementation, no schema change. `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` held exactly as
+      written, the PM is escalating that question directly to the real Owner in chat.
+
+      Spot-checked 15 real call sites (financial/CRM/HR/procurement/recruitment/construction domains):
+      zero import the local DB client, all follow requireAuth()->callVeridian() proxy shape, one
+      legitimate local side effect found (notifications write, a known non-construction table). Read
+      requireAuth() and middleware.ts in full: confirmed precisely no VERIDIAN session-token
+      forwarding, and zero pre-login VERIDIAN-org context for anonymous visitors.
+
+      Real, unplanned finding: this session's shell shadows `grep` with a `ugrep --ignore-files`
+      wrapper that silently undercounts AND strips real path prefixes -- the "51 real files" figure
+      already merged via PR #859 was wrong, real count is 195 (confirmed via 3 independent methods:
+      `\grep`, raw Python subprocess, direct `ls` checks). Corrected everywhere it appeared in
+      already-merged governance docs (OCID-038 canonical doc §9.2, MASTER-TRACKER.yaml) rather than
+      leaving it wrong. `find` showed the same unreliability class separately. Same tooling-discipline
+      pattern as the earlier `git show` truncation correction this session.
+  - session_label: "claude-code (docs/ocid038-projexa-domain-and-schema-discovery-brief) -- OCID-038: real discovery brief for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH + GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation [DONE, PR #859 merged]"
+    claimed_at: "2026-08-04T01:20Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-011851-676b`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038): PM correctly declined to authorize implementation on
+      either remaining OCID-038 gap since neither had a real written discovery brief. Write one for
+      both, into `PROGRESS.md` and the OCID-038 canonical doc -- discovery/documentation only, no
+      code, routing, or schema change.
+
+      Live-verified today, not carried forward unverified: `vercel domains inspect` confirms
+      `projexa-ai.com`/`www.projexa-ai.com` are on Vercel project `veridian-compliance-ai`, and this
+      is the Owner's own explicit, re-confirmed `WAVE-10-REDO` decision (`UMR-20260802-134939-145d`,
+      2026-08-02), not accidental drift -- found and read the real 3-step history
+      (`ai-os/boss/completed-work/wave10-dns-cutover.md`). Root-caused the branding symptom to
+      `resolveBranding()`'s deliberate org-scoped/post-login design (already independently documented
+      across 3 prior waves as a known, deferred gap). Checked live data: `customDomain` set for
+      exactly 1 org platform-wide (a test fixture, zero real PROJEXA orgs); flagged a
+      `product_branches` discrepancy as a likely 3rd occurrence of the already-tracked
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` rather than fresh standalone proof.
+      Precisely named the real open product question (single canonical PROJEXA identity vs. the
+      Owner's brand-merge framing possibly meaning today's state already is intended) rather than
+      re-asserting "fix the domain."
+
+      Separately: fresh clone + direct `grep` (not GitHub's own code search, which the original
+      finding's own text already flagged non-exhaustive) finds `veridian-client.ts` (240 lines, real,
+      live) and 51 real call sites across genuine construction-domain routes -- substantially updates
+      the original "not a thin client" verdict for the application-data layer specifically, while
+      separately, precisely naming what is NOT unified (auth/session -- PROJEXA's own separate
+      Supabase Auth, no user-level SSO).
+
+      Full brief: OCID-038 canonical doc's new §9. Both `MASTER-TRACKER.yaml` gap entries amended
+      with a `discovery_brief` cross-reference field, `status` left `open` for both. No implementation.
+  - session_label: "claude-code (fix/gap-ocid038-taskengine-motherrouter-unwired) -- OCID-038: real fix for GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED [DONE, PR #856 merged]"
+    claimed_at: "2026-08-04T00:58Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-005752-fcb1`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038, authorizing this gap after PR #854's independently-confirmed
+      merge): proceed with the next real OCID-038 gap, same audited standard.
+
+      Read both `mother-router.ts` (666 lines) and `task-execution-engine.ts` (2567 lines) in full
+      before deciding, per the gap's own "real architectural call, not a mechanical wiring fix"
+      caveat. Rejected the naive fix (wiring `orchestrate/route.ts` to call
+      `task-execution-engine.ts`'s executor directly) as a real, unsafe behavior change -- that route
+      only ever suggests actions for a compliance event, never executes them; auto-executing on its
+      own output would silently bypass the Policy Enforcement Engine / RATIFIED-03's
+      always_approve/always_reject model. Found the real, safe fix instead: migrated
+      `task-execution-engine.ts`'s 2 "task_oa"-layer direct `resolveModelConfig()` call sites
+      (`executePackageDispatch()`, `executeTask()`) to resolve through mother-router.ts's
+      `resolveModel({scope: "end_user_org", ...}).resolvedConfig` -- the exact incremental-migration
+      pattern `orchestrate/route.ts` already proved out for the same layer, and the exact "handful of
+      files at a time" approach mother-router.ts's own header already recommended over the 35-file
+      mass-migration it explicitly rejected as too risky. Behavior-preserving for BYO orgs (verified by
+      reading `computeEndUserOrgResolution()` directly), additive real audit-log coverage for the rest,
+      zero circular import (checked). `bunx tsc --noEmit` clean, `bunx eslint` clean, full `bun test`
+      2481/2481 pass (same baseline, no dedicated unit coverage exists for either call site --
+      DB-context-dependent, same class as other internal call sites in this file). Full writeup in
+      `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` entry. PR not yet
+      opened/merged as of this claim -- updating once real.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR #852 merged]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
