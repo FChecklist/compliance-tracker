@@ -35,5 +35,7 @@
 - [x] Zero credential rotation, revocation, or modification performed. Zero repository visibility/
       ownership/permission change performed.
 
+- [x] Committed, pushed, opened PR #906 (docs only, zero credential/code changes).
+
 ## Remaining
-- [ ] Commit + push, open PR containing only discovery documentation (zero credential/code changes).
+- [ ] None -- Owner decision needed on Finding A/B's remediation (see security discovery report §6); out of this dispatch's own scope.
