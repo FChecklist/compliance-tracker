@@ -2119,6 +2119,18 @@ export const productBranches = platformSchemaDB.table('product_branches', {
   // catalog so it's queryable and can't drift out of sync with the doc.
   buildTier: text('build_tier'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, real Owner decision
+  // 2026-08-04 (UMR-20260804-090421-c647): the real HTTP host this brand's
+  // Stage 1 (pre-authentication) resolution should match, e.g.
+  // "projexa-ai.com". Deliberately a SEPARATE column from `domain` above --
+  // that one is an unrelated, pre-existing, free-text business-taxonomy
+  // grouping (real values: "construction", "compliance", etc.), not a DNS
+  // hostname; see drizzle/0312_stage1_preauth_brand_host_lookup.sql for the
+  // full real-data verification behind this distinction. Nullable: most
+  // branches have no dedicated pre-login domain of their own yet and fall
+  // through to the platform default (org-branding-service.ts's
+  // DEFAULT_BRAND_NAME).
+  hostDomain: text('host_domain'),
 })
 
 export const productBranchModules = platformSchemaDB.table('product_branch_modules', {
