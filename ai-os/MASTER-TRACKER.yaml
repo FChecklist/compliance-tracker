@@ -625,15 +625,50 @@ open_items:
         the crash cause, noted honestly as an open question for whoever picks this up.
       size: M
       recommendation: |
-        Needs a real owner to read the actual Vercel function logs for `/api/me` (this task had no
-        access to production runtime logs, only black-box HTTP behavior + local read-only DB
-        checks) to get the real stack trace before attempting a fix -- do not guess-fix based on
-        the circumstantial link above alone. Once root-caused, the fix is very likely narrow (one
-        of the two new calls in `2cb73100`'s diff to `src/app/api/me/route.ts`), but this entry
-        deliberately stops at discovery per the standing OCID-021 implementation lock and this
-        task's own explicit "discovery/testing only, no fixing" instruction.
-      status: open
+        CLOSED. Root cause found and fixed (UMR-20260804-153900-ea69 root-cause investigation,
+        UMR-20260804-155457-a16d PM fix authorization).
+
+        The `2cb73100`/`subscription-plan-service.ts` circumstantial link above was directly
+        empirically REFUTED, not confirmed: `getSubscriptionPlanStatus()` and
+        `getAssistantsUsedByUser()` were run against every real row of production data (168 real
+        orgs, 963 real users) via a direct `bun run` of the actual service functions -- zero throws.
+        The `user_pack_size` tie theory was separately refuted on its own logic (`Array.prototype.find`
+        is deterministic on ties, never throws).
+
+        The real root cause was found via `compliance.application_errors`, a DB-side fallback error
+        log written by `src/instrumentation.ts`'s `onRequestError` hook independently of Sentry/Vercel
+        CLI (both of which were confirmed unavailable in the investigating session -- no stored Vercel
+        CLI credentials, no `SENTRY_DSN`, and the `SUPABASE_ACCESS_TOKEN` in the shared env was
+        independently confirmed genuinely stale via a direct real 401 from the Supabase Management
+        API). Real captured stack trace: `PostgresError: column "host_domain" does not exist` (code
+        `42703`) on `platform.product_branches`, thrown from `isPmsEnabledForOrg(orgId)` at
+        `route.ts:19` -- unconditional, pre-existing code, unrelated to `2cb73100`, and triggered on
+        every `/api/me` request with an `orgId`. First occurrence 2026-08-04T14:43:25Z on route `/`,
+        spreading to `/api/me` by 14:49Z -- an active, live incident at discovery time, not historical.
+
+        Root cause of the missing column: migration `drizzle/0312_stage1_preauth_brand_host_lookup.sql`
+        (added in `d45dbd3b`, this same initiative's own OCID-038 Stage 1 pre-auth brand resolution
+        work, already reviewed and merged to `origin/main`) was never actually applied to the live
+        production database -- confirmed absent from both `drizzle/meta/_journal.json` and the real
+        `drizzle.__drizzle_migrations` table (262 applied, none matching 0312), while the deployed
+        application code already queried the column on every `product_branches` read.
+
+        Fix applied: migration 0312 independently re-confirmed purely additive from a fresh
+        `origin/main` clone (`ADD COLUMN IF NOT EXISTS host_domain text`, a partial
+        `CREATE UNIQUE INDEX IF NOT EXISTS`, and a single-row `UPDATE` scoped by primary key -- no
+        destructive alter/drop/rename) before being applied. Real before/after schema snapshots taken
+        directly against production: before had 13 columns, no `host_domain`; after has 14 columns,
+        `host_domain text` nullable, the new unique partial index present, the target `projexa` row
+        set to `projexa-ai.com`, all 26 other rows correctly left `NULL`, row count unchanged at 27.
+        Independently re-verified live and honestly, not narrated: 4/4 fresh, real,
+        Admin-API-provisioned users now get a real `200` with full JSON from `GET /api/me`, both
+        immediately and at +20s (previously `500` 10/10) -- and the real full redirect chain for an
+        authenticated session, `/` -> `/login` -> `/home`, now resolves to a genuine `200` with
+        ~114KB of real rendered app-shell HTML and no error markers, confirming the frontend blank-panel
+        symptom this gap originally reported is also resolved.
+      status: closed
       first_raised: "OCID-020 Group F / OCID-052 re-verification, 2026-08-04 (UMR-20260802-165606-4413)"
+      closed_by: "UMR-20260804-155457-a16d, 2026-08-04 -- production DB migration 0312 applied, independently re-verified live"
 
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
