@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-161625-ocid-055-registration-and-discovery-only) -- OCID-055 canonical registration + repository governance discovery, found the dispatch's own 'zero duplication' premise was false [IN PROGRESS]"
+  - session_label: "claude-code (task-20260804-161625-ocid-055-registration-and-discovery-only) -- OCID-055 canonical registration + repository governance discovery, found the dispatch's own 'zero duplication' premise was false [DONE, PR #902 open, CI green]"
     claimed_at: "2026-08-04T16:16Z (this session)"
     claim: |
       SPEC (this task's own prompt.txt): registration and real read-only discovery only. Parent
