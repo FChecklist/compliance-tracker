@@ -2503,10 +2503,20 @@ implementation/redesign explicitly out of scope.
       real file:line evidence gathered, `bun test src/lib/browser-execution/` run live
       (108/108 pass, matches prior OCID-024/025/028 citations, still accurate).
 
-## Remaining
-- [ ] Write and push `ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md`
+- [x] Wrote and committed `ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md`
       -- the real Browser Runtime Certification, PWA Certification, and Synchronization/Offline-Queue
       Report the SPEC asked for, with honest `NOT_YET_BUILT`/`REAL_BUT_UNWIRED` labeling (no
-      implementation, no architecture redesign).
-- [ ] Update `ai-os/MASTER-TRACKER.yaml` and `ai-os/OS.yaml` index entries pointing at the new
-      document; move this session's ACTIVE-CLAIMS entry to `recently_completed`.
+      implementation, no architecture redesign). Key new finding: browser-execution tier SELECTION
+      is live-wired (`client-compile.ts` <- `VeriComposer.tsx:245`) but per-tier local model
+      EXECUTION (webllm/npu/builtin-ai/transformers engines) is real, tested, and unwired -- zero
+      non-test callers anywhere. Independently re-confirmed OCID-051's PWA finding and OCID-028's
+      sync-engine.ts finding are both still accurate.
+- [x] Updated `ai-os/MASTER-TRACKER.yaml` (new gap `GAP-OCID059-BROWSER-TIER-SELECTION-NOT-EXECUTION`)
+      and `ai-os/OS.yaml` index entry pointing at the new document; moved this session's
+      ACTIVE-CLAIMS entry to `recently_completed`.
+
+## Remaining
+- [ ] None -- discovery/certification scope complete. Real implementation of any gap named in the
+      new document (wiring `sync-engine.ts`, building a service worker, wiring the browser-execution
+      inference tiers into the live UI) is out of this task's scope and stays behind SEC-07 pending
+      OCID-020, per the SPEC's own explicit instruction to hold implementation for a separate PM call.
