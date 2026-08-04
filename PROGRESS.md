@@ -1,3 +1,51 @@
+# PROGRESS -- docs/ocid038-projexa-schema-investigation-3-steps
+
+Cites: `UMR-20260803-042801-ec4b` (OCID-038), `UMR-20260804-014117-915e` (PM authorization: proceed
+with the 3 real mechanical next steps `GAP-OCID038-PROJEXA-OWN-SCHEMA`'s own discovery brief named,
+discovery/documentation only, no implementation, no schema change; `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`
+held exactly as-is, escalated by the PM directly to the Owner).
+
+## Completed
+- [x] **Spot-checked 15 real call sites** (of the corrected 195 total, spanning financial/accounting,
+      CRM, HR/payroll, procurement, recruitment, construction-specific domains): zero import the local
+      Drizzle DB client; all follow an identical `requireAuth()` -> `callVeridian()` proxy shape,
+      confirmed by reading full file contents, not just grep counts. One sampled file (`punch-list`)
+      has a legitimate local side effect (a `notifications` write, one of the 12 known non-construction
+      tables) -- consistent with, not contradicting, the schema's own claim. Structural argument, not
+      just sampling confidence: only 12 local tables exist total, none construction-domain, so no route
+      could silently persist that data locally even if it tried.
+- [x] **Confirmed precisely: no PROJEXA-side code path forwards/trusts a VERIDIAN session token.** Read
+      `requireAuth()` (`auth-guard.ts`) in full -- 100% self-contained to PROJEXA's own Supabase
+      project + its own `memberships` table; only `organizationId` (a static per-org API key lookup)
+      is ever passed toward a VERIDIAN call, never a user-level token. Matches that file's own explicit
+      design-rationale comment.
+- [x] **Confirmed: an anonymous PROJEXA visitor's session carries zero pre-login VERIDIAN-org context.**
+      Read `middleware.ts` in full -- unauthenticated requests get no VERIDIAN awareness at all; the
+      question is genuinely, entirely post-login only, on both sides of the integration (PROJEXA's
+      middleware and VERIDIAN's `resolveBranding()` independently converge on the same design).
+- [x] **Real, unplanned, significant tooling-reliability finding + correction.** While re-running the
+      call-site search to pick the spot-check sample, discovered this session's shell shadows `grep`
+      with a function wrapping `ugrep --ignore-files ...` that silently undercounts AND strips the real
+      `src/` path prefix from results (returning paths to files that don't exist). The originally-cited
+      "51 real files" (already merged into PR #859) was wrong -- real count is **195**, confirmed via
+      3 independent agreeing methods (`\grep`, a raw Python `subprocess` call, direct `ls` existence
+      checks). `find` showed the same class of unreliability separately (falsely placed `middleware.ts`
+      at the repo root; real path is `src/middleware.ts`). Corrected the figure everywhere it appears
+      (OCID-038 canonical doc §9.2, `ai-os/MASTER-TRACKER.yaml`'s gap entry) rather than letting the
+      wrong number stand uncorrected in already-merged governance docs.
+- [x] Held `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` exactly as-is per the PM's explicit instruction
+      -- no domain, routing, or branding change made or attempted. The PM is escalating that specific
+      question to the real Owner directly; this branch touches only §9.2/9.3 and the schema gap's own
+      `MASTER-TRACKER.yaml` entry.
+- [x] Wrote all of the above into the OCID-038 canonical doc's existing §9.2 (amended in place, not a
+      new section) and §9.3 (status update), plus the schema gap's `MASTER-TRACKER.yaml` entry.
+
+## Remaining
+- [ ] `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` remains open, held for the real Owner's answer via
+      the PM's direct escalation -- no further action from this session until that PM decision lands.
+
+---
+
 # PROGRESS -- docs/ocid038-projexa-domain-and-schema-discovery-brief
 
 Cites: `UMR-20260803-042801-ec4b` (OCID-038), `UMR-20260804-011851-676b` (PM decision: write a real

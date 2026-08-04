@@ -2245,23 +2245,43 @@ open_items:
         lines, a real, substantial API client, VERIDIAN_API_BASE defaulting to
         https://veridian-compliance-ai.vercel.app/api/v1/projexa -- the same Vercel project that owns
         the projexa-ai.com domain, see the sibling GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH entry) and
-        51 real files importing/calling it, covering genuinely construction-domain routes
-        (manpower-cost-report, sales-pipeline, schedule-tracker, punch-list, sales-invoices, and more).
-        The schema file's own top comment states plainly: "PROJEXA's own tenant/auth/billing schema. All
-        construction domain data... lives in VERIDIAN... Nothing construction-related is stored here" --
-        confirmed accurate by direct inspection of the (now 12, was 11) tables, all genuinely tenant/
-        auth/billing/UI-collaboration concerns (including a literal veridian_credentials bridge table).
-        Revised assessment: PROJEXA genuinely IS, today, live, an extensively-wired thin client for
-        construction-domain data -- this repo's own status quo already matches its stated design intent
-        for the DATA layer. What remains genuinely NOT unified, precisely named for the first time in
-        this document: authentication/session -- PROJEXA runs its own separate Supabase Auth project
-        with no user-level SSO to VERIDIAN, only a static per-org service-role API key used
-        server-to-server. Concrete, mechanical (not Owner-level) next-step recommendations for whoever
-        picks this up: (1) spot-check a handful of the 51 call sites for any shadow local-write path the
-        schema comment's claim might miss; (2) confirm the no-session-forwarding finding precisely
-        against PROJEXA's own login flow; (3) if GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH's hostname
-        branding fix is ever pursued, confirm whether an anonymous PROJEXA visitor's session needs any
-        pre-login VERIDIAN-org context.
+        195 real files importing/calling it (corrected 2026-08-04 from an initially-miscounted 51 -- see
+        below), covering genuinely construction-domain routes (manpower-cost-report, sales-pipeline,
+        schedule-tracker, punch-list, sales-invoices, and more). The schema file's own top comment states
+        plainly: "PROJEXA's own tenant/auth/billing schema. All construction domain data... lives in
+        VERIDIAN... Nothing construction-related is stored here" -- confirmed accurate by direct
+        inspection of the (now 12, was 11) tables, all genuinely tenant/auth/billing/UI-collaboration
+        concerns (including a literal veridian_credentials bridge table). Revised assessment: PROJEXA
+        genuinely IS, today, live, an extensively-wired thin client for construction-domain data -- this
+        repo's own status quo already matches its stated design intent for the DATA layer. What remains
+        genuinely NOT unified: authentication/session -- PROJEXA runs its own separate Supabase Auth
+        project with no user-level SSO to VERIDIAN, only a static per-org service-role API key used
+        server-to-server.
+
+        **Update (2026-08-04, PM decision UMR-20260804-014117-915e): all 3 mechanical next steps done.**
+        (1) Spot-checked 15 real call sites across financial/CRM/HR/procurement/recruitment/construction
+        domains -- zero import the local DB client; each follows an identical requireAuth()->
+        callVeridian() proxy shape; one (punch-list) has a legitimate local side effect (a notification
+        write, one of the 12 known non-construction tables), consistent with, not contradicting, the
+        schema's own claim. Structural confidence, not just sampling: only 12 local tables exist total,
+        none construction-domain, so no route could silently persist that data locally even if it tried.
+        (2) Read requireAuth() (auth-guard.ts) in full: 100% self-contained to PROJEXA's own Supabase
+        project + its own memberships table; the only thing forwarded to a VERIDIAN call is
+        organizationId (resolves a static org-level API key), never a user-level VERIDIAN token --
+        confirmed precisely, not approximately, matching that file's own explicit design-rationale
+        comment. (3) Read middleware.ts in full: unauthenticated visitors get zero VERIDIAN-org
+        awareness of any kind; the question is genuinely, entirely post-login only on both sides of the
+        integration (PROJEXA's middleware and VERIDIAN's resolveBranding() independently converge on the
+        same design). Full detail: OCID-038 canonical doc section 9.2 (2026-08-04 addendum).
+
+        **Correction, same pass: the "51 real files" figure above was wrong -- real count is 195.**
+        Root cause: this session's shell environment shadows `grep` with a function wrapping `ugrep
+        --ignore-files ...`, which silently undercounted AND stripped the real `src/` path prefix from
+        results (reporting nonexistent paths). Confirmed via 3 independent agreeing methods (`\grep`,
+        raw Python subprocess, direct `ls` existence checks). `find` showed the same class of
+        unreliability separately (falsely placed `middleware.ts` at the repo root instead of `src/`).
+        Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
+        bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
