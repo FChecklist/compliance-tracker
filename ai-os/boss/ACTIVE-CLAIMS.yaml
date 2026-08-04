@@ -40,6 +40,51 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
+    claimed_at: "2026-08-04T03:20Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260802-165606-4413` OCID-020 / `UMR-20260802-173631-ca85` OCID-021,
+      standing auto-proceed authorization): `task-20260803-214944-pm-final-decision--ocid-020-independentl`
+      is blocked -- its credit accountant rejected an auto-fix attempt with "existing software/mechanism
+      already covers this (system_index match)". Verified directly against `/opt/veridian/scripts/quality-gate.sh`:
+      the real existing mechanism is the pre-vetted, opt-in `BUILD_MAX_OLD_SPACE_MB` heap-ceiling override
+      (default 2048MB) + host-wide `flock` build serializer already in that script (2026-08-01 comment,
+      validated via a real manual build needing ~8GB). The blocked task's own last gate failure
+      (`quality-gate-0.json`: `build` exit 124 after 1800s) is the same heap-thrash class, not a code
+      defect. Confirmed directly: a manual, cgroup-unconstrained verification build
+      (`systemd-run --user --scope` w/ unlimited memory, `BUILD_MAX_OLD_SPACE_MB=8192`, real
+      `flock`-serialized against `/tmp/veridian-quality-gate-build.lock`) against the blocked task's own
+      workspace passed clean, `exit=0`, in 124s (first queued behind a real concurrent build already
+      holding the lock -- the exact "duplicate worker" contention case this mechanism is designed to
+      handle safely). On pulling `origin/main` fresh, found `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
+      (one of the two Wave 1 backlog items this dispatch also names) was already independently resolved by
+      a concurrent session (PR #863, merged) -- real cause was a schema migration
+      (`drizzle/0245_create_platform_schema_compartment.sql`) moving `product_branches` from `compliance`
+      to `platform`; direct psql/PostgREST reads had queried the stale pre-migration location. Not
+      re-doing it; a duplicate investigation agent this session had already launched was stopped
+      immediately on discovering this. Remaining real scope: resume+complete
+      `task-20260803-214944-pm-final-decision--ocid-020-independentl`'s own live end-to-end confirmation,
+      then `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A (assistants_per_user cap enforcement,
+      reusing the ServiceError 403 + ModuleNotEnabledCard pattern from PR #809), B (`/api/me` resolved
+      tier/limits), C (frontend gate + explanation card), E (admin UI to assign `subscriptionPlanId`).
+      Task D (seeding a real `preferredModelByPackage` policy) is explicitly held per this PM's own
+      instruction -- a business decision, not code, flagged back rather than decided unilaterally.
+
+      **Update (2026-08-04T03:35Z, same session):** before touching `task-20260803-214944`'s own
+      remaining live-E2E-confirmation step, found a fresh checkpoint on that task
+      (`2026-08-04T03:24:45Z`) from a DIFFERENT, independent PM decision (`UMR-20260804-030715-b004`)
+      that reached the identical `BUILD_MAX_OLD_SPACE_MB=8192` conclusion and is already proceeding to
+      that same E2E step. No live process for that task_id is currently running, but the claim is
+      under 4h old -- not duplicating it. This session's real remaining scope narrows to
+      `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A/B/C/E only.
+    scope_note: >-
+      File scope (planned): `/opt/veridian/scripts/quality-gate.sh` verification only (no edit to the
+      global default, per its own opt-in-only design); GAP-OCID-049 Tasks A/B/C/E touch
+      `src/lib/services/subscription-plan-service.ts` (or equivalent new service), `/api/me/route.ts`,
+      a new frontend gate component reusing `ModuleNotEnabledCard`, and a new admin settings route/page
+      for assigning `subscriptionPlanId`. `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `PROGRESS.md` throughout. No changes to `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`'s
+      own files -- that gap is already closed on `main`.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
@@ -5210,6 +5255,40 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+recently_completed:
+  - session_label: "claude-code (task-20260803-041006-ocid-024-veridian-laptop-web-browser-run) -- OCID-024: VERIDIAN Laptop Web Browser Runtime v1.0 (documentation only) [PUSHED, PR #767 OPEN]"
+    claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner directive, tier 1, parented to `UMR-20260803-040929-9713`
+      OCID-023, citing `UMR-20260803-040844-4a33` OCID-022,
+      `UMR-20260802-173631-ca85` ERP Functional Completeness Master Program,
+      `UMR-20260802-165606-4413` OCID-020, `UMR-20260802-164659-9a31` server
+      artifact traceability audit, `UMR-20260802-165034-5747` gatekeeper
+      rule, `UMR-20260802-165434-cd91` unified project memory, and
+      `UMR-20260802-165541-c27d` recovery framework): created exactly one new
+      document, `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`
+      (real UMR `UMR-20260803-041000-70ae`, confirmed via
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks`
+      table -- no new UMR chain minted, this task's own row was already
+      registered by the dispatch gateway), documentation only -- no code,
+      DB, UI, or UX change. Two parallel Explore-agent discovery passes +
+      direct reads confirmed no duplicate document exists anywhere in
+      `ai-os/`, grounded all 38 sections in real file:line citations (VERI
+      Chat composer/chain-selector/mode pills, prompt-compiler pipeline,
+      browser-execution tiers, capability tree, permission/role system, 99
+      real app modules), and explicitly labeled every mandated topic with
+      no real built counterpart as `NOT_YET_BUILT`/`POLICY_ONLY`/real gap
+      rather than inventing one. Carried forward OCID-022's own honest
+      disclosure (`ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`,
+      PR #765) that the "OCID-021 implementation lock" language in these
+      task prompts actually refers to the unrelated, already-closed SEC-06
+      governance split. PR #767 opened; not self-merged (Rule 6 PR/CI gate).
+    scope_note: >-
+      File scope: this repo's new `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/,
+      schema, or CI changes. Read-only discovery over src/components/veri-chat,
+      src/lib/prompt-compiler, src/lib/services, ai-os/BROWSER_EXECUTION_TIERS*,
+      ai-os/audit-tree/04-veri-chat.yaml.
   - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-028, real PM decision UMR-20260803-052107-71fa)"
     claimed_at: "2026-08-03T05:05Z (this session)"
     claim: |
