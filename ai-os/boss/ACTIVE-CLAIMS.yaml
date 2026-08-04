@@ -40,6 +40,29 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-175929-ocid-068-addendum-deterministic-state-ma) -- OCID-068 addendum: nine-state machine states 1-6 already merged (PR #913), this dispatch is a duplicate directive; produced a fresh state-7 gate re-check only, docs-only [DONE]"
+    claimed_at: "2026-08-04T18:05Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision, citing parent UMR-20260804-164106-3fb8/OCID-068 and reference gate
+      OCID-020 UMR-20260802-165606-4413): execute states 1-6 of the deterministic nine-state
+      execution machine for OCID-068, stop at state 7 (implementation gate) since OCID-020 is not
+      verified, open a docs-only PR.
+
+      Independently discovered before writing anything: this exact deliverable (states 1-6, owner
+      review package) was already produced and merged one dispatch prior (commit aa96b1f9, PR #913,
+      `ai-os/VERIDIAN_OCID_068_UNIVERSAL_GOVERNANCE_RUNTIME_CONSOLIDATION_OWNER_REVIEW_PACKAGE_2026-08-04.md`),
+      already visible in this task's own `task.yaml` checkpoint commit log at dispatch time. Did not
+      re-execute states 1-6 (would duplicate ~430 already-merged lines). Instead performed the one
+      genuinely new ask -- a fresh, independently-queried OCID-020 state-7 gate re-check, since real
+      time had passed and one of the prior document's three cited reasons had since changed
+      (`GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` closed via PR #900/migration 0312, live-verified).
+      Direct query of `ai-os/MASTER-TRACKER.yaml` found 9 other real entries still `status: open`
+      under OCID-020's own UMR, plus corroborating evidence of open OCID-038 items from OCID-067's
+      unrelated gate condition -- OCID-020 remains not verified. Stopped at state 7 per the
+      addendum's own logic (also independently: no fresh Owner chat confirmation naming state 8
+      exists). New file:
+      `ai-os/VERIDIAN_OCID_068_ADDENDUM_STATE7_GATE_RECHECK_2026-08-04.md`, indexed in `ai-os/OS.yaml`.
+      Zero code, zero database, zero registry changes.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
