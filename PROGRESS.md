@@ -1,3 +1,37 @@
+# PROGRESS -- docs/ocid063-mechanical-handoff-envelope-discovery
+Cites: `UMR-20260804-060832-9fdf` (OCID-063 PM directive), real parent OCID-021
+`UMR-20260802-173631-ca85` / OCID-020 `UMR-20260802-165606-4413`, governed by the
+Mandatory Governance Directive `UMR-20260804-051521-7099` (OCID-017
+`UMR-20260802-165034-5747`).
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting; registered this session's
+      claim.
+- [x] Real investigation, direct code reads (not narrated): `veridian-task.py`'s
+      `cmd_checkpoint` (task.yaml schema), `ACTIVE-CLAIMS.yaml`'s real entry structure,
+      `plan_generator.py`'s `check_reuse_before_dispatch()` docstring + `resource_governor.py`'s
+      real usage of its result on `metadata_json.reuse_check_result`, `credit-accountant.py`'s
+      real deterministic verdict print statements, `src/lib/audit-protocol.ts`'s
+      `AuditProtocolFields` + `scripts/validate-audit-verdict.ts`.
+- [x] Wrote the honest comparison doc:
+      `ai-os/VERIDIAN_OCID_063_MECHANICAL_HANDOFF_ENVELOPE_DISCOVERY_2026-08-04.md`.
+      Confirmed real gap: no existing mechanism is a mechanical per-tool-invocation call
+      log with real status codes.
+- [x] Registered the design proposal in `ai-os/MASTER-TRACKER.yaml`'s
+      `needs_owner_decision` section (extend task.yaml's checkpoint schema and/or the
+      existing `metadata_json` column, per the `reuse_check_result` precedent, rather than
+      a new schema) -- discovery only, no code, held for a fresh PM decision.
+- [x] Indexed the new doc in `ai-os/OS.yaml`.
+## Remaining
+- [ ] Open PR, confirm CI green, hand off for independent audit per Rule 7(c)/10.
+- [ ] No implementation performed or proposed as code this cycle, per this OCID's own
+      explicit discovery-only scope -- real implementation needs a fresh PM decision.
+# PROGRESS -- task-20260803-071119-ocid-039-veridian-real-end-user-producti
+Registers OCID-038, OCID-039, OCID-040 under `SEC-07`'s implementation lock
+(`ai-os/CONSTITUTION.yaml`, gated on `UMR-20260802-165606-4413` / OCID-020,
+... more files changed
+
+---
+
 # PROGRESS -- task-20260804-091309-register-ocid-065--deterministic-browser
 
 ## Context
@@ -7,6 +41,15 @@ OCID-021 (`UMR-20260802-173631-ca85`) -> OCID-020 (`UMR-20260802-165606-4413`),
 governed by the Mandatory Governance Directive (`UMR-20260804-051521-7099`).
 Verification/gap-analysis only -- no new architecture/registry/DB/table/
 framework authorized this cycle.
+
+Note on the section above this one: `PROGRESS.md` on `origin/main` was already
+truncated to this exact 31-line, mid-sentence, `... more files changed` state
+before this task started (confirmed via `git show origin/main:PROGRESS.md`) --
+a real, recurring cross-session regression (same tool-output-truncation class
+this audit separately found baked into PR #878's canonical doc, see below).
+Preserved additively rather than wholesale-replaced, per the established
+fix pattern other sessions have used for this same regression (e.g. PR #882).
+Full historical reconstruction is out of this task's scope.
 
 ## Completed
 - [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, registered this session's claim,
