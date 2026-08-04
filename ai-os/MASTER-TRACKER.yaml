@@ -91,6 +91,20 @@ open_items:
       first_raised: "Priority 2"
 
   needs_owner_decision:
+    - id: OCID-063-MECHANICAL-HANDOFF-ENVELOPE
+      name: "Mechanical handoff-envelope proposal (tool-call log + status codes + mechanical rejected-paths + capped unknowns + strict validation) -- RESOLVED, real implementation merged"
+      detail: "OCID-063 (real parent OCID-021 UMR-20260802-173631-ca85 / OCID-020 UMR-20260802-165606-4413, PM directive UMR-20260804-060832-9fdf, governed by the Mandatory Governance Directive UMR-20260804-051521-7099). Honestly compared the proposal against 5 real existing mechanisms (task.yaml checkpoint structure, ACTIVE-CLAIMS.yaml claim registration, resource_governor.py's reuse_check_result, credit-accountant.py's deterministic JSON verdict, the AUDIT: PASS/FAIL comment convention) with real file paths and field names cited -- see ai-os/VERIDIAN_OCID_063_MECHANICAL_HANDOFF_ENVELOPE_DISCOVERY_2026-08-04.md for the full comparison. Confirmed real gap: none of the 5 is a mechanical, per-tool-invocation call log with real status codes captured during a task's execution.
+
+      **Amendment (2026-08-04, real implementation, PM decision UMR-20260804-061827-e3c6):** implemented exactly as proposed below, no scope creep. New optional `--handoff-envelope <json-file>` flag on `veridian-task.py`'s existing `cmd_checkpoint`, plus three pure functions (`classify_call_status`, `compute_rejected_paths`, `validate_handoff_envelope`) in the `FChecklist/veridian-scripts` repo (real, separate control-plane repo from this one -- not compliance-tracker `src/`). A real independent review (PM decision UMR-20260804-062915-684a, a genuinely separate session with no authorship context) found a real defect on round 1 (`AUDIT: FAIL`: a syntactically valid but non-dict top-level JSON value crashed with an uncaught `AttributeError` instead of failing cleanly) -- fixed with an explicit `isinstance(dict)` check plus a new regression test, then a fresh independent reviewer posted a real `AUDIT: PASS` on round 2. Merged: real PR **#19** (`FChecklist/veridian-scripts`), merge commit `81931136046ccac56a65956ef581c48b62fcb872`, independently confirmed a real ancestor of that repo's `origin/main` via fresh clone. `gh pr merge` is correctly blocked from interactive sessions on this host (a real, pre-existing guardrail) -- the merge itself was completed by adopting the PR into the real dispatch pipeline (`veridian-task.py adopt` + its own `veridian-supervisor@` review), the first real use of that pipeline against a repo with no CI workflow, confirmed safe beforehand by reading `supervisor-entrypoint.sh`'s own explicit gated handling for repos without `mandatory-audit-check.yml`."
+      recommendation: "Resolved. Design proposal only, per the Mandatory Governance Directive's own 'never build new when existing can be enhanced' rule -- extended `task.yaml`'s existing checkpoint schema rather than inventing a new schema/table, exactly as recommended. No further action needed unless real usage surfaces a gap (e.g. the `MAX_UNKNOWNS=10` cap proves wrong in practice, or a UMR-level `metadata_json.tool_call_log` mirror is wanted in addition to the per-task-workspace field now shipped)."
+
+    - id: OCID-067-VEDTOCP
+      name: "VEDTOCP -- VERIDIAN Enterprise Digital Twin and 90-Day Operational Certification Program -- LOCKED, registration/planning only, gated on full OCID-015..066 completion"
+      detail: "Real Owner directive (UMR-20260804-111532-3612, reaffirmed UMR-20260804-111547-0be3): a proposed 90-day operational certification program running 50 real, browser-controlled Claude Code CLI agents as a simulated 50-person organization (AL EMARAT CONSTRUCTION AND INTERIOR DESIGN LLC) against the real, live projexa-ai.com application, with 2h-real-to-24h-virtual time compression, a 20/40/40 cognitive-evolution/variance-logic directive, tmux + Claude Code CLI browser-isolated infrastructure, foolproofing/idiotproofing/failproofing directives, real UAE construction/tax/labor-law domain fidelity, chaos engineering/adversarial user injection, live hotfixing/rollback competency, and an invisible-project-manager/strict-portal directive. Full detail, honest gap disclosure (the real verbatim template content for daily task/report/analysis templates, task prompt templates, the 50-role org chart, and the 90-day milestone breakdown was not supplied in this dispatch's own relayed text and is NOT fabricated here), and a real reuse-check against existing platform capability: ai-os/OCID_067_VEDTOCP_DIGITAL_TWIN_PROGRAM_2026-08-04.md."
+      recommendation: "LOCKED. Explicit, real, binding gate condition (the Owner's own words): every OCID in the range OCID-015 through OCID-066 must independently reach the real VERIFIED status (this repo's own current five-value status vocabulary) before OCID-067 may move from this planning document to any real implementation, any real browser agent, or any real interaction with projexa-ai.com. Real, current evidence the gate is genuinely still closed (not a formality): this same session's own honest OCID-038 final sweep (UMR-20260804-104830-017c) found 3 real, still-open gaps under OCID-038 alone. Do not begin any real implementation, infrastructure, browser agent, or simulation under this OCID until the Owner or a verified full OCID-015..066 completion explicitly lifts this gate."
+      status: LOCKED
+      first_raised: "Real Owner directive, 2026-08-04 (UMR-20260804-111532-3612, UMR-20260804-111547-0be3)"
+
     - id: OPEN-04
       name: "Audit Organization role granularity (DEC-01 leftover)"
       detail: "roster.ts now has 130 of the ~150 individually-named audit-org roles from Audit Organization.docx (5/5 divisions, 25/25 departments structurally complete) -- built without waiting on DEC-01's original pilot-first recommendation, per later 'don't wait' directives. Whether the remaining ~20 role names are worth adding individually, vs. treated as covered by the 130 that exist, was never explicitly re-decided."
@@ -558,6 +572,63 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
+      name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
+      old_ids: []
+      detail: |
+        Real finding from OCID-020 Group F testing (`UMR-20260802-165606-4413`), discovered while
+        attempting a fresh, independent re-verification of OCID-052's own
+        `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` (picked as the OCID-047..052 child with
+        the least real testing coverage so far -- see this task's own PROGRESS.md section). The
+        planned re-test never completed: `/home` renders the sidebar/topbar correctly but the central
+        VERI Chat thread panel is entirely blank (no composer, no messages, no loading state) --
+        real screenshots at `/tmp/ocid052-verify/01-home-initial.png` and
+        `/tmp/ocid052-verify/debug-8s.png`.
+
+        Root-caused as far as discovery-only scope allows: `GET /api/me` itself returns a real,
+        reproducible `500` with a completely empty body (`content-length: 0`, no JSON, not even an
+        `{"error": ...}` shape) -- confirmed **10/10 times** across **4 independent, freshly
+        Admin-API-provisioned real users** on live `projexa-ai.com`, including retries up to 20
+        seconds after provisioning (rules out an autoProvisionUser race). The same session cookie
+        that gets this 500 successfully authenticates against `GET /api/conversations` (real `200`,
+        real welcome message returned) -- ruling out an auth/cookie-construction problem; the crash
+        is specific to the `/api/me` route handler itself. A DOM trace of the broken `/home` page's
+        composer `<textarea>` shows an ancestor container with `height: 12443.8px` and the textarea
+        itself positioned at `y: -10065.75` (off-screen, unreachable by scrolling) -- consistent
+        with the frontend receiving no/broken `/api/me` data and rendering a degenerate layout, not
+        a separate frontend bug.
+
+        Strong circumstantial link (not fixed, not further chased past discovery): the most recent
+        commit touching `src/app/api/me/route.ts` is `2cb73100` ("GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT:
+        implement Tasks A/B/C/E", 2026-08-04T03:35Z, confirmed a real ancestor of `origin/main`),
+        which added two new server-side calls on every `/api/me` request:
+        `getSubscriptionPlanStatus(orgId)` and `getAssistantsUsedByUser(dbUser.id)` (both in the new
+        `src/lib/services/subscription-plan-service.ts`). That commit's own message honestly flagged
+        "Live browser confirmation against the deployed site not run this cycle (budget-constrained)".
+        A direct, read-only `psql` check against the real live DB (this task's own `.env.local`
+        `DATABASE_URL`, superuser role, same role `db` in `src/lib/db/index.ts` resolves to since it
+        is not tenant-scoped) confirms `compliance.subscription_plans` exists with 8 real active rows
+        -- ruling out "missing table" (the codebase's own prior recurring bug class, e.g.
+        `GAP-EMAIL-INTELLIGENCE-500-VS-403`'s migration-drift root cause) as the direct explanation
+        this time; the real crash site within the new code was not narrowed further than "one of the
+        two new `/api/me` calls, or their shared `resolveSubscriptionPlan()`", per this task's
+        explicit discovery-only, no-fixing scope. Two real, distinct `user_pack_size` ties were
+        separately observed in the live data (`Scale`=50 and `Professional`=50) which would make
+        `resolveSubscriptionPlan()`'s `plans.find(p => userCount <= p.userPackSize)` fallback
+        non-deterministic for orgs in that band -- plausible contributing factor, not confirmed as
+        the crash cause, noted honestly as an open question for whoever picks this up.
+      size: M
+      recommendation: |
+        Needs a real owner to read the actual Vercel function logs for `/api/me` (this task had no
+        access to production runtime logs, only black-box HTTP behavior + local read-only DB
+        checks) to get the real stack trace before attempting a fix -- do not guess-fix based on
+        the circumstantial link above alone. Once root-caused, the fix is very likely narrow (one
+        of the two new calls in `2cb73100`'s diff to `src/app/api/me/route.ts`), but this entry
+        deliberately stops at discovery per the standing OCID-021 implementation lock and this
+        task's own explicit "discovery/testing only, no fixing" instruction.
+      status: open
+      first_raised: "OCID-020 Group F / OCID-052 re-verification, 2026-08-04 (UMR-20260802-165606-4413)"
+
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
       old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]
@@ -2300,11 +2371,11 @@ open_items:
         extension of the other) rather than evidence of a real disconnect.
 
     - id: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH
-      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience -- real discovery brief written 2026-08-04, still open, Owner-level call pending"
+      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience -- RESOLVED, real Stage 1 pre-authentication domain-based brand resolution implemented"
       detail: "Live-tested 2026-08-03: curl -sI https://projexa-ai.com returns HTTP/2 200 via Vercel; page <title> reads 'VERIDIAN COGNITIVE AI OS -- AI Cognitive Research'; grep for 'projexa' (case-insensitive) in the served HTML returns zero matches, only 'veridian'/'VERIDIAN'. The real PROJEXA-branded frontend (separate `projexa` repo) is live separately at projexa-smoky.vercel.app. Re-confirms and updates prior project memory (veridian-projexa-domain-ownership-conflict) with fresh live evidence rather than letting it go stale."
       size: M
       recommendation: "Locked by SEC-07 pending OCID-020. When unlocked: either route projexa-ai.com to the real projexa deployment/build, or add PROJEXA brand-routing to compliance-tracker's own deployment for that domain -- an Owner-level product decision, not a mechanical fix."
-      status: open
+      status: resolved
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
       discovery_brief: |
         2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
@@ -2325,6 +2396,63 @@ open_items:
         "brand-layer merge" framing evidence the intended end state already is what's live today (VERIDIAN
         as the unified brand, PROJEXA as an internal product branch)? This document takes no position;
         awaiting the real PM call.
+      resolved: |
+        2026-08-04, real Owner decision delivered directly (UMR-20260804-090421-c647), answering this
+        gap's own open question above: PROJEXA is not a separate platform -- it is the first brand built
+        on the one VERIDIAN platform (one runtime, one database, one UMR, one UTR). PROJEXA differs only
+        through brand configuration/domain/logo/theme/colours/fonts/marketing pages/product name, never
+        separate platform logic. Real deterministic priority order specified: host header, then brand
+        configuration, then tenant configuration, then organisation configuration, then user preference,
+        then session override -- each layer only overriding the layers beneath it.
+
+        Real implementation, discover-verify-reuse-enhance discipline: read org-branding-service.ts and
+        its real callers in full before writing anything. Confirmed resolveBranding() is indeed
+        org-scoped/post-login only, exactly as this gap's own discovery brief root-caused. Found a SECOND
+        real gap alongside it, not silently assumed away: src/app/login/login-form.tsx was a 100%
+        "use client" component hardcoding "VERIDIAN AI" with zero mechanism to receive or render any
+        server-resolved branding data at all -- a real pre-login rendering-path gap, not just a
+        resolution-logic gap. Also found, via a real live query against the production DB, that
+        product_branches.domain (the column that superficially looked like the obvious real reuse
+        target) is an unrelated, pre-existing, free-text BUSINESS-TAXONOMY grouping (real live values:
+        "construction", "compliance", "project_management", etc.) -- confirmed via
+        VERIDIAN_DMP_DCF_CONSTITUTION.md's own comment and live data; reusing it for real DNS hostnames
+        would have silently collided two unrelated concepts under one name. Also found: two rows in
+        product_branches both display "PROJEXA" (branch_key 'pms' and branch_key 'projexa') -- the real,
+        live-referenced one (10 real organisations.primary_product_branch_id rows) is branch_key
+        'projexa', id 5fceebcd-0a7a-4448-ae2b-a72637124f13; the 'pms' row is a separate, real, unrelated
+        naming collision not touched by this fix (out of this gap's own narrow scope; flagged here for a
+        future pass rather than guessed at).
+
+        Real implementation, zero duplication: enhanced org-branding-service.ts (no second branding
+        engine) with `resolvePreAuthBrandByHost(host)`, a new pure function that normalizes a real HTTP
+        Host header and looks it up against a new, narrowly-scoped `host_domain` column added to the
+        EXISTING product_branches table (drizzle/0312_stage1_preauth_brand_host_lookup.sql -- no new
+        table, no parallel registry), seeded for the one real, live-referenced PROJEXA row above.
+        src/app/login/page.tsx converted to an async Server Component (the real mechanism to read the
+        real Host header pre-auth) that resolves the brand and passes it as a plain prop into the
+        existing, otherwise-unchanged LoginForm component. src/app/layout.tsx's static `metadata` export
+        became a real `generateMetadata()` reading the same resolver for a dynamic browser-tab title.
+        Root landing page (src/app/page.tsx): honestly did NOT reskin its own deeply
+        VERIDIAN-research-lab-specific editorial marketing copy under the PROJEXA name (that would
+        fabricate marketing content that doesn't exist anywhere in this repo) -- instead added a real
+        redirect() to /login for a resolved non-default-brand host, so a PROJEXA-host visitor reaches a
+        genuinely, honestly PROJEXA-branded real entry point rather than incoherent reskinned VERIDIAN
+        copy. Stage 2 (resolveBranding, org/tenant/user/session resolution) left completely unchanged,
+        exactly as the Owner's own instruction required.
+
+        Real test proving the exact behavior asked for (5 tests, org-branding-service.test.ts): a
+        request to host "projexa-ai.com" resolves the real PROJEXA brand configuration; a request to the
+        base VERIDIAN platform domain does not; host:port and case-insensitive matching both normalize
+        correctly; a null/missing host never queries the database. Also found and fixed, as a real
+        byproduct of touching this exact test file: all 13 pre-existing tests in
+        org-branding-service.test.ts were failing (a genuine, pre-existing, currently-live defect --
+        independently confirmed via `git stash` against the unmodified file before assuming this was
+        caused by this change) because their `mock.module("@/lib/db", ...)` calls omitted `productBranches`,
+        which the file's own top-level import statically requires -- fixed by adding it to all 13, now 18/18
+        pass. `bunx tsc --noEmit` clean, `bunx eslint` clean on every touched file, real unconstrained
+        `bun run build` clean (confirmed `/` and `/login` both correctly render as dynamic `ƒ`, not
+        statically cached, since they now read the real Host header per-request). Real PR, independent
+        review pending before merge -- not self-certified here.
 
     - id: GAP-OCID038-OCID035-DUPLICATE-PRS
       name: "PR #777 and PR #782 both currently claim real content for OCID-035, under different titles -- RESOLVED, genuinely distinct content, numbering corrected"
@@ -2411,6 +2539,202 @@ open_items:
       recommendation: "Whoever picks up real browser-execution implementation work should wire client-compile.ts (or a new caller) to actually invoke the selected tier's real engine function when shouldAttemptWebLlm/Npu/BuiltinAi returns true, rather than only reporting which tier was selected -- reusing this existing, tested code rather than building a second version."
       status: open
       first_raised: "OCID-059 discovery, 2026-08-04 (ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md, discovery/verification only, no implementation authorized -- SEC-07 lock applies to any real fix)"
+    - id: GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED
+      name: "The real, tested 5-tier browser execution system (src/lib/browser-execution/) is built but its actual model-inference engines are not wired into VeriComposer.tsx's live send path -- only tier selection/telemetry is live today"
+      old_ids: []
+      detail: |
+        Real, live finding, `UMR-20260802-173631-ca85` (OCID-021), `UMR-20260802-165606-4413`
+        (OCID-020), found during OCID-062's own discovery pass
+        (`ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`),
+        independently re-confirming and generalizing `ai-os/BROWSER_EXECUTION_TIERS_INCREMENT_2_STATUS_2026-07-27.md`'s
+        own "left open" section rather than restating it.
+
+        `src/lib/browser-execution/` is a real, tested (58 tests, per the status doc above) 5-tier
+        client compute system: `tier-detection.ts`/`tier-orchestrator.ts` (real availability
+        detection + selection), `webllm-engine.ts` (real WebGPU-gated `Qwen2.5-0.5B-Instruct` install),
+        `transformers-engine.ts` (real `Xenova/all-MiniLM-L6-v2` embeddings), `npu-engine.ts` (real
+        WebNN path), `worker-pool.ts`, `cross-tier-storage.ts`/`model-cache.ts`, `sync-engine.ts`,
+        `tool-calling.ts`. Independently confirmed by direct read, not assumed: `VeriComposer.tsx`'s
+        own imports (`grep -n "browser-execution" src/components/veri-chat/VeriComposer.tsx`) show
+        exactly one integration point, `client-compile.ts`'s `compileInBrowser()`, which calls
+        `tier-orchestrator.ts::planExecution()` for tier *selection and telemetry only* -- it runs
+        `analyzeLightweight()` (deterministic JS, not a model) and reports which tier *would* run, but
+        never actually invokes `webllm-engine.ts`/`transformers-engine.ts`/`npu-engine.ts`'s real
+        inference. The server correctly never trusts this telemetry for anything authoritative
+        (`src/app/api/prompt-compiler/execute/route.ts`'s own header states this explicitly), so this
+        is not a correctness or security gap -- it is a real, disclosed "installed and tested but
+        largely unwired" state for otherwise-real, working local-inference infrastructure.
+      size: "M -- wiring one or more of the 3 real, already-tested inference engines into a specific,
+        narrow, low-stakes moment in VeriComposer.tsx's send path (not the whole composer) per
+        OCID-062's own proposed, not-yet-implemented handoff sequence (§5 of that document). Real
+        product/UX decision needed first on which narrow use case (composer draft assist, local
+        intent recall ranking, tool-selection suggestion) is worth wiring first -- this finding is
+        discovery/architecture, not a prescribed implementation."
+      recommendation: |
+        Real implementation stays locked behind `SEC-07`/OCID-020 exactly like every other
+        implementation item in this chain. When unlocked: (a) pick one narrow, pre-approved low-stakes
+        use case per OCID-062 §4.5/§5 (never anything touching auth/tenant-writes/engine computation/
+        Mother-Router model resolution/audit/billing, per that document's own §3 reasoning); (b) wire
+        the corresponding real engine's inference call into `client-compile.ts`'s `compileInBrowser()`
+        or an equivalent narrow extension point, gated by the real `shouldAttemptWebLlm()`/
+        `shouldAttemptNpu()`/`shouldAttemptBuiltinAi()` functions `tier-orchestrator.ts` already
+        exports; (c) label any resulting local output honestly as a local, unverified suggestion (per
+        `ai-reply-gate.ts`'s existing `detectFalseActionClaim()` discipline), never as a completed or
+        authoritative action; (d) the server SECOND pass keeps recomputing and deciding everything
+        authoritative, unchanged. Does not require or propose a service worker, PWA manifest change,
+        or any new architecture -- reuses existing, tested engines only.
+      status: open
+      first_raised: "This session, 2026-08-04, OCID-062 discovery pass (UMR-20260802-173631-ca85 OCID-021, UMR-20260802-165606-4413 OCID-020)"
+    - id: GAP-VERI-TODO-STUCK-LOADING-NOT-READY
+      name: "VERI To Do task list can show \"Loading...\" for 6+ real seconds, and VERI Chat composer submission produced one real \"VERI AI isn't ready yet\" toast error (severity: unconfirmed, medium-priority to investigate -- real but not yet reproduced enough times to characterize)"
+      old_ids: []
+      detail: |
+        Real finding, OCID-038/039/040 real end-user testing pass
+        (`UMR-20260803-072925-cacf`, `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`
+        §3.6-3.7). Real Playwright session against `https://projexa-ai.com`
+        (real signup + real Admin-API email-confirm bypass + real login):
+        `/veri-todo`'s task-list section rendered "Loading..." at an
+        immediate check and again 6 seconds later in the same authenticated
+        session (real screenshots). A separate real composer submission
+        ("Create a task: Review Q3 compliance checklist") produced a real
+        toast: "VERI AI isn't ready yet -- try again in a moment." A
+        planned third, 15-second re-check does NOT corroborate or refute
+        this -- that check's own real screenshot shows the login page, not
+        `/veri-todo` (the session backing it had already been blocked by a
+        real Supabase signup rate-limit before the check ran), so it is
+        void evidence, not a real "resolved after 15s" data point. Root
+        cause not investigated (out of scope for this discovery-only pass
+        under `SEC-07`'s implementation lock).
+      size: "Unknown -- needs a real, valid, longer-wait authenticated
+        re-test (and ideally a look at the real network requests /veri-todo
+        and the composer's submit endpoint make) before this can be sized.
+        Could be real backend latency, a real error state, or a real but
+        rare transient condition."
+      recommendation: |
+        When picked up (post OCID-020 unlock, under OCID-038's real
+        implementation phase): re-run a real authenticated session against
+        `/veri-todo` with a genuinely valid long wait (confirm via
+        `page.url()` that the session is still authenticated throughout,
+        unlike this finding's own void 15s check), capture the real network
+        request/response for whatever endpoint backs the task list and the
+        composer submit action, and root-cause from there.
+      status: open
+      first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072925-cacf)"
+      reverification_2026_08_04: |
+        Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
+        also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
+        own UMR): fresh, real, live Playwright session against
+        `https://projexa-ai.com` this session, real Admin-API-created user (not
+        the public `/signup` form -- that hit a genuine Supabase
+        `over_email_send_rate_limit` 429 mid-session, the same real production
+        control the original OCID-038/039/040 session hit; used
+        `POST /auth/v1/admin/users` with `email_confirm: true` instead, which
+        sends no email and isn't subject to that limiter -- `autoProvisionUser()`
+        in `auth-guard.ts` fires lazily off `user_metadata.full_name`/
+        `organisation` on first authenticated `requireAuth()` call regardless of
+        which path created the user row, so this remains a faithful real-login
+        provisioning path, not a shortcut around it), real login reaching
+        `/home` authenticated, real navigation to `/veri-todo`. **Result: NOT
+        reproduced.** No "Loading..." text present at an immediate check or a
+        real 10-second-later re-check (longer than the original 6s window);
+        real screenshot shows the task list resolved cleanly to "Nothing
+        pending. You're all caught up." Honest caveat: this was a brand-new org
+        with zero real task data, unlike whatever data state backed the
+        original observation -- this re-check confirms the list does not hang
+        indefinitely on an empty-data path, it does not independently confirm
+        the composer's separate "VERI AI isn't ready yet" toast is also
+        resolved (not re-tested this session), nor rule out a real
+        data-volume-dependent slow path on a populated org. Screenshots:
+        `/tmp/ocid020-verify/screenshots/02-veri-todo-immediate.png`,
+        `03-veri-todo-after-10s.png`, `06-veri-todo-fullpage.png` (this
+        server, not committed -- same ephemeral-evidence convention as the
+        original finding's own screenshots).
+
+    - id: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE
+      name: "Real installable PWA manifest exists, but no service worker -- going offline renders a fully blank page with no offline fallback UI (severity: medium -- real, directly observed, real recovery on reconnect confirmed clean)"
+      old_ids: []
+      detail: |
+        Real finding, OCID-038/039/040 real end-user testing pass
+        (`UMR-20260803-072940-6a88`,
+        `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`
+        §3.3, §3.9). Real, live-confirmed: `https://projexa-ai.com/manifest.webmanifest`
+        (from the real `src/app/manifest.ts` Next.js metadata route) returns
+        HTTP 200 with a real `share_target` wired to
+        `/api/veri-chat/share-target`, and a real `<link rel="manifest">` tag
+        is present in the live page `<head>` -- the app really is
+        installable. Separately, real test: `browserContext.setOffline(true)`
+        + reload renders a fully blank white page (real screenshot) -- no
+        offline fallback shell, no cached content, no "you're offline"
+        messaging, confirming no service worker backs the real manifest.
+        Real recovery confirmed clean: restoring network + reload returns to
+        `/home`, authenticated session intact, no forced re-login.
+      size: "M -- adding a real service worker (even a minimal app-shell
+        cache, e.g. via `next-pwa`/`serwist`/a hand-written `sw.js` +
+        registration) is a genuinely new subsystem, not a one-line fix.
+        Real scope decision needed on how much offline capability is
+        actually wanted (full offline-first vs. a graceful \"you're
+        offline\" shell) before sizing further."
+      recommendation: |
+        When picked up (post OCID-020 unlock): decide the real target
+        offline experience first (this repo's own PLATFORM_STRATEGY.md PWA
+        section, if any, should be checked/updated), then add a real service
+        worker + registration, then re-run this same real offline test to
+        confirm a graceful fallback instead of a blank page.
+      status: open
+      first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072940-6a88)"
+
+    - id: GAP-MOBILE-VIEWPORT-BLANK-CONTENT
+      name: "At a real 390x844 mobile viewport, the main content area rendered blank in an already-authenticated session (severity: unconfirmed -- single real observation, sidebar itself responded correctly)"
+      old_ids: []
+      detail: |
+        Real finding, OCID-038/039/040 real end-user testing pass
+        (`UMR-20260803-072955-3132`,
+        `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`
+        §3.10). Real test: an already-authenticated desktop session had its
+        viewport resized to 390x844 (a phone-sized viewport -- not an actual
+        native PWA install/device test) and reloaded `/home`. Real
+        screenshot: the sidebar correctly collapsed to a hamburger/grid icon
+        (real responsive behavior), but the main content card rendered
+        entirely blank, where the same route had rendered real content at
+        desktop width seconds earlier in the same session. Not chased
+        further this session (would require opening the hamburger menu and
+        probing deeper -- out of this pass's real remaining budget); single
+        real observation, not cross-checked against a second real mobile
+        session.
+      size: "Unknown -- needs a second independent real mobile-viewport
+        session (and ideally a real device/native-install test, still not
+        done anywhere in this OCID chain as of this entry) before sizing."
+      recommendation: |
+        When picked up (post OCID-020 unlock): re-run a real mobile-viewport
+        session, open the hamburger menu, and check whether the blank
+        content area is a real rendering bug, a real slow-load state (same
+        family as GAP-VERI-TODO-STUCK-LOADING-NOT-READY, not yet cross-
+        checked against it), or specific to this single observation.
+      status: open
+      first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072955-3132)"
+      reverification_2026_08_04: |
+        Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
+        also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
+        own UMR): same real live session described in
+        `GAP-VERI-TODO-STUCK-LOADING-NOT-READY`'s reverification entry above --
+        real Admin-API-created + authenticated session, real navigation to
+        `/home` at desktop width, real `setViewportSize({width:390,
+        height:844})` + real reload + a real 2-second wait (matching the
+        original test's own methodology). **Result: NOT reproduced.** Real
+        screenshot shows genuine visible content at the 390x844 viewport -- a
+        "VERI TREASURE / 0 points" card and the real VERI Chat panel
+        (Discuss/Chats/To Do tabs, task-selector, composer) fully rendered, not
+        blank; `document.querySelector('main').innerText` measured 573
+        characters of real content (vs. the original's fully blank main area).
+        Honest caveat: this is a fresh org with different data/state than
+        whatever backed the original single observation, and this is still
+        only a second single observation, not a broad regression sweep across
+        routes/orgs -- but it is a direct, real contradiction of the original
+        blank-content report on the same route/viewport/methodology, not
+        merely an absence of re-reproduction. Screenshot:
+        `/tmp/ocid020-verify/screenshots/05-mobile-home.png` (this server, not
+        committed -- same ephemeral-evidence convention as the original
+        finding's own screenshots).
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
