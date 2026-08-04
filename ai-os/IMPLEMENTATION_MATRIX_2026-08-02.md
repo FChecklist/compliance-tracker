@@ -1209,6 +1209,40 @@ existing UMR chain (this file, `ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml`) — d
 
 ---
 
+## Amendment (2026-08-03): VERIDIAN Universal Organization Runtime v1.0 (OCID-20260803-029)
+
+Real Owner directive, tier 1, parented to `UMR-20260803-041257-e9c3` (OCID-028), citing the
+OCID-022 through 027 chain and `UMR-20260802-173631-ca85` (ERP Functional Completeness Master
+Program). Documentation only — implements nothing, changes no schema, changes no code. Per
+SEC-07 (`ai-os/CONSTITUTION.yaml`), the real implementation lock gates implementation/gap-
+closure/production-changes/certification/freeze, not documentation, so this deliverable
+proceeds unaffected.
+
+**What it is**: one canonical, cited inventory of how organizations already operate inside
+VERIDIAN — organization/multi-brand/multi-tenant/legal-entity/department/project structure
+(`organisations`, `clientEntities`, `erpCompanies`, `departments`, `projects`, `committees`),
+the people model (`users`, employee=associate equivalence, `stage_0` level-zero users), the
+`ROLE_RANK` + deny-only-`abacPolicies` rights model, the deterministic Approval Workflow Engine
++ `delegationOfAuthority` limits + `scopedDelegations` transfer/delegation/succession
+mechanism, `leaveRequests`, shared-link/guest level-zero access
+(`conversationShareLinks`/`conversationGuestAccess`/`stage0Sources`), and audit/data/work
+visibility (`auditLogs`/`userClientAccess`). Every claim cites a real `schema.ts` file:line.
+
+**Real gaps named, not fixed**: no Owner row/flag on `organisations` (admin authority is real
+and role-based, but no structurally distinct, irreplaceable "Owner" concept exists); no
+`locations` table; no `teams` table; two unreconciled legal-entity tables (`clientEntities` vs
+`erpCompanies`); no single guided exit/offboarding workflow (composable today from access
+revocation + delegation + reassignment); no uniform work-item "private vs. shared" visibility
+column across all work-item types.
+
+**Cluster-overlap check** (per PM decision `UMR-20260803-045159-ec55`): confirmed via `gh pr
+list` at write time that no open PR or merged `main` content exists yet for the sibling
+OCID-026/027/028/030/032/034/035/037 cluster covering this ground — no duplication found.
+
+Canonical artifact updated: this file, `ai-os/VERIDIAN_UNIVERSAL_ORGANIZATION_RUNTIME_2026-08-03.md` (new), `ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml` — not rewritten, not duplicated.
+
+---
+
 ## Amendment (2026-08-03): OCID-026, VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 (`UMR-20260803-041047-03ee`)
 
 Documentation-only artifact, consistent with `SEC-07`'s implementation lock (`ai-os/CONSTITUTION.yaml:652-656`),
