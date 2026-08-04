@@ -1798,6 +1798,66 @@ open_items:
       status: open
       first_raised: "PR #779 real AUDIT: FAIL investigation, 2026-08-03 (UMR-20260803-063016-8bfc)"
 
+    - id: GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886
+      name: "A real SEC-07/Hard-Rule-7 violation: OCID-038 real implementation (PR #886, Stage 1
+        pre-authentication domain-based brand resolution) was dispatched and merged before
+        OCID-020 was independently verified complete, with no explicit Owner override of the
+        lock cited anywhere (severity: high -- this exact premature implementation's own
+        undeployed migration file is the confirmed root cause of the OCID-020 production
+        incident, GAP-API-ME-500, the very incident SEC-07's lock exists to gate against)"
+      old_ids: []
+      detail: |
+        Real, independently verified finding (discovery-only audit per UMR-20260804-194323-0bc5,
+        part of a five-way parallel expedite directive, related to UMR-20260803-042801-ec4b and
+        UMR-20260802-165606-4413/OCID-020).
+
+        `SEC-07` (`ai-os/CONSTITUTION.yaml` lines 652-657) locks "real implementation, gap
+        closure, production changes... under OCID-038, OCID-039, and OCID-040" until
+        `UMR-20260802-165606-4413` (OCID-020) is independently verified complete. Real dispatch
+        `UMR-20260804-090421-c647` (submitted 2026-08-04T09:04:21Z, own text: "dispatch real
+        implementation to enhance the existing Brand Runtime, closing OCID-038 last real gap")
+        authorized exactly that: a new `resolvePreAuthBrandByHost()` function, a new
+        `host_domain` column via drizzle migration `0312`, and changed pre-auth rendering logic
+        in `login/page.tsx`/`layout.tsx`/`page.tsx`. This merged as PR #886 (commit
+        `d45dbd3b`, merged 2026-08-04T10:41:41Z), whose own title ("OCID-038 real gap closure")
+        and commit message self-identify it as real implementation/gap-closure under OCID-038 --
+        not documentation, not a pre-existing bug fix that merely borrowed OCID-038 numbering for
+        tracking.
+
+        No explicit Owner override of SEC-07 is cited in `UMR-20260804-090421-c647`'s dispatch
+        text, in commit `d45dbd3b`'s message, or in PR #886's description -- contrast with the
+        later, correctly-handled override `UMR-20260804-172011-b839` (17:20 same day, unrelated
+        change), which explicitly invoked "a fresh, explicit, real time override... one time
+        exception to the standing implementation lock, hard rule seven."
+
+        OCID-020 was NOT independently verified complete at PR #886's 10:41 UTC merge time: this
+        session's own real history shows PR #900 (the OCID-020/GAP-API-ME-500 fix documentation)
+        was still OPEN/unmerged as of `UMR-20260804-170918-3621` (17:09 UTC same day) and only
+        genuinely merged and live-reverified after that. Concrete, independently confirmed
+        real-world consequence: PR #886's own migration `0312` file (adding `host_domain`) was
+        merged into the repo but never actually applied to the live production database -- this
+        is the exact, confirmed root cause of the OCID-020 production incident (`/api/me` live
+        500 errors) that this session subsequently root-caused and fixed by applying the missing
+        `ALTER TABLE` directly to production. Implementing OCID-038 before OCID-020 cleared
+        caused the very incident the lock exists to prevent.
+
+        Per explicit instruction, this is a discovery/audit finding only -- no implementation, no
+        gap fix, no further production change was made in response to it.
+      size: "N/A (discovery/audit finding, not sized for a fix -- disposition is an Owner/PM
+        decision, whether PR #886's real implementation stands as retroactively ratified, is
+        reverted, or is otherwise addressed)"
+      recommendation: |
+        Owner/PM disposition needed: (a) retroactively ratify PR #886 as an accepted exception
+        (consistent with how `UMR-20260804-172011-b839` was later handled explicitly, but this
+        one was never explicitly authorized as an exception at the time), or (b) treat this as a
+        real process violation requiring corrective action. Either way, the standing-lock dispatch
+        prompts in this OCID-series chain should explicitly require citing a SEC-07 override (or
+        confirming OCID-020 cleared) before any "real implementation"/"real gap closure" framing
+        is used, mirroring the fix already recommended for GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION
+        above (a template-level correction, not a per-instance one).
+      status: open
+      first_raised: "Discovery-only audit, 2026-08-04 (UMR-20260804-194323-0bc5)"
+
     - id: GAP-AUDIT-CHECK-ISSUE-COMMENT-STALE-CHECKRUN
       name: "mandatory-audit-check.yml's issue_comment re-run attaches its check-run result to main's HEAD SHA instead of the PR's own head SHA, leaving the PR's real head stuck on a stale pre-comment FAILURE even after a real AUDIT: PASS comment is posted (severity: medium -- delays/blocks autonomous tier1 merge, does not itself cause an incorrect merge)"
       old_ids: []
