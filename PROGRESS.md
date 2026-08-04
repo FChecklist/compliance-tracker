@@ -281,3 +281,37 @@ ignored.
 
 ## Remaining
 - [ ] Merge once CI is green (no code paths touched; docs-only diff).
+
+---
+
+# PROGRESS -- fix/ocid038-stage1-preauth-domain-brand-resolution (round 3, real independent review response)
+
+Round 2's real, genuine, independent `AUDIT: FAIL` found a real, serious security defect in
+round 2's own fix: `resolvePreAuthBrandByHost()`'s switch to `ilike()` (meant to fix case-
+insensitivity per round 1's minor observation) introduced an unescaped LIKE-wildcard injection
+-- a crafted `Host: %` or `Host: _` header would match ANY row with a non-null `hostDomain`,
+letting an unauthenticated attacker force incorrect brand resolution. Round 1's claimed
+precedent (`crm-accounts-service.ts` etc.) does not actually hold: those wrap user input in
+`%...%` for intentional fuzzy search, a materially different, non-comparable use case from an
+unescaped exact-match lookup.
+
+## Completed
+- [x] **Real fix**: replaced `ilike(productBranches.hostDomain, normalized)` with
+      `eq(sql\`lower(${productBranches.hostDomain})\`, normalized)` -- a real, safe,
+      case-insensitive EXACT match with no LIKE operator involved at all, immune to wildcard
+      metacharacters since `normalized` is a plain parameterized comparison value, never
+      interpolated into the SQL template itself (only the trusted, hardcoded column reference
+      is inside the `sql\`...\`` template).
+- [x] **Real fix, addressing the review's own minor non-blocking observation**: wrapped
+      `resolvePreAuthBrandByHost()` in React's `cache()` (the exact mechanism the review itself
+      named) so the double DB round-trip per request (once in `generateMetadata()`, once in the
+      page body) on `/` and `/login` is deduplicated to one real query per request.
+- [x] Re-ran full test suite (18/18 pass -- mock-level tests can't directly exercise SQL-level
+      wildcard-escaping behavior, but the code path itself no longer contains a LIKE operator at
+      all, a structural fix not a behavioral toggle), `bunx tsc --noEmit` (clean), `bunx eslint`
+      (clean), and a real, unconstrained `bun run build` (clean, full route manifest).
+
+## Remaining
+- [ ] Push, resubmit for a fresh real independent review (2nd resubmission after 2 real
+      `AUDIT: FAIL` verdicts, per this repo's own standing no-self-certification discipline) --
+      not self-certified here.

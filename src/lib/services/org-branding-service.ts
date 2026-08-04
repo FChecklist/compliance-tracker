@@ -10,8 +10,9 @@
 // organisations itself, the same precedent org-license-service.ts and
 // cost-guard.ts already established for this exact table).
 import { db, organisations, productBranches } from "@/lib/db"
-import { eq, and, ne, ilike } from "drizzle-orm"
+import { eq, and, ne, sql } from "drizzle-orm"
 import { createClient } from "@supabase/supabase-js"
+import { cache } from "react"
 
 export const ORG_BRANDING_BUCKET = "org-branding"
 
@@ -261,20 +262,26 @@ function normalizeHost(host: string | null | undefined): string | null {
 // Never throws -- an unmatched or missing host resolves to null (the
 // platform default), matching resolveBranding()'s own "never a broken UI"
 // posture above. Only ever reads product_branches; never writes.
-// Real, independent-review-caught fix: the lookup itself is
-// case-insensitive (ilike, no wildcards -- the same real, established
-// exact-case-insensitive-match precedent already used by
-// crm-accounts-service.ts/crm-service.ts/erp-selling-service.ts elsewhere
-// in this codebase), rather than relying on every future host_domain
-// column value being written in lowercase -- a mixed-case insert would
-// otherwise silently never match here.
-export async function resolvePreAuthBrandByHost(host: string | null | undefined): Promise<PreAuthBrand | null> {
+// Real, independent-review-caught security fix: `host` is the raw,
+// attacker-controlled HTTP Host header -- an EARLIER version of this
+// function used `ilike()`, which is LIKE-pattern matching, not exact
+// matching. A crafted `Host: %` or `Host: _` header would then match ANY/
+// arbitrary row with a non-null `hostDomain`, letting an attacker force
+// incorrect brand resolution pre-authentication. The intent here has always
+// been a case-insensitive EXACT match (not a fuzzy search like the real
+// ilike() precedent in crm-accounts-service.ts/crm-service.ts/
+// erp-selling-service.ts, which deliberately wraps user input in `%...%`
+// for intentional fuzzy search -- a materially different, non-comparable
+// use case). Real fix: compare `lower(host_domain) = normalized` via a raw
+// SQL `lower()` expression -- an exact match, immune to LIKE metacharacters
+// since no LIKE operator is used at all.
+export const resolvePreAuthBrandByHost = cache(async (host: string | null | undefined): Promise<PreAuthBrand | null> => {
   const normalized = normalizeHost(host)
   if (!normalized) return null
   const branch = await db.query.productBranches.findFirst({
-    where: ilike(productBranches.hostDomain, normalized),
+    where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
     columns: { id: true, displayName: true },
   })
   if (!branch) return null
   return { productBranchId: branch.id, brandName: branch.displayName }
-}
+})
