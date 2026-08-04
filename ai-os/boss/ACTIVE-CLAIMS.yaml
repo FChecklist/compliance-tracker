@@ -5577,6 +5577,37 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-183824-ocid-020-urgent-correction-real-merge-fa) -- OCID-020 GAP-API-ME-500: urgent-correction dispatch found its own premise stale (real merge already happened via a separate autonomous cycle before this task started), independently re-verified the real production fix instead of re-doing already-done work [DONE, no new PR -- additive doc corroboration only]"
+    claimed_at: "2026-08-04T18:38Z (this session)"
+    claim: |
+      SPEC (real PM decision, urgent correction, cites `UMR-20260804-155457-a16d` and
+      `UMR-20260804-153900-ea69`): dispatched on the accurate-at-the-time observation that PR #900
+      was OPEN/mergedAt null/BEHIND and the underlying migration-0312/`/api/me` fix had not
+      actually merged despite an earlier docs claim that it had. Independently re-checked live at
+      the start of this task and found the premise had been overtaken by real events in the
+      interim: a separate, real autonomous supervisor cycle
+      (`task-20260804-160451-adopted-ocid-020--close-gap-api-me-500----produc`) had already
+      rebased and genuinely merged PR #900 (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`,
+      confirmed via `gh pr view 900` and `git log origin/main`) before this task's own dispatch
+      time, and a duplicate follow-on PR (#914, identical branch content) was correctly rejected as
+      a stale no-op by an independent Superboss review agent and auto-closed. Did NOT re-attempt an
+      already-completed rebase/merge, and did NOT falsely mark the real, now-fixed state as still
+      "blocked" just to match the dispatch's own now-superseded framing -- instead independently
+      re-verified the live production result from scratch, trusting neither the merged commit's own
+      prose nor the dispatch's stale premise: (1) direct `psql` query against the real production
+      DB confirms `platform.product_branches.host_domain` genuinely exists with its unique index and
+      the PROJEXA row is genuinely set to `projexa-ai.com`; (2) 10 fresh, independent, Admin-API-
+      provisioned real users each got a real `200` from `GET /api/me` on live `projexa-ai.com` --
+      **10/10**, zero non-200, exceeding the original closure's own 4/4 coverage. Added an additive
+      `reverification_2026_08_04_1846` field to `ai-os/MASTER-TRACKER.yaml`'s existing
+      `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` entry recording this; made no change to that entry's
+      `status: closed` since the closure is genuinely correct. Reported the live-concurrent-state-
+      drift finding honestly rather than silently absorbing it.
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (one additive field, no existing content changed),
+      this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No src/, schema, or infrastructure changes --
+      read-only DB query plus read-only live HTTP checks against the deployed site, zero code
+      changes, zero new PR (nothing left to merge).
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |
