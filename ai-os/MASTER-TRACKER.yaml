@@ -1210,8 +1210,53 @@ open_items:
         large-volume ERP/Sales/Construction data for a self-service-created org;
         also blocks any future real live-testing of the "Go to Settings" UX fix's
         actual destination for these three modules specifically.
-      status: open
+      status: resolved
       first_raised: "OCID-050 State C preparation, 2026-08-03 (UMR-20260803-185714-89c6)"
+      resolved: |
+        2026-08-03, OCID-021 Wave 1 Item 2 (real implementation, `UMR-20260802-173631-ca85`,
+        authorized by PM decision `UMR-20260803-212402-1922` after OCID-020 was declared complete).
+        Added three real, authenticated self-service routes matching the exact existing
+        PMS (`src/app/api/pms/enablement/route.ts`) / THE FIRM (`src/app/api/the-firm/enablement/route.ts`)
+        pattern verbatim -- no new mechanism, no new architecture: `src/app/api/erp/enablement/route.ts`,
+        `src/app/api/crm/enablement/route.ts` (branchKey `sales`, routed under `/api/crm/` to match the
+        existing `crm-enablement-service.ts`'s own comment that it gates `src/app/api/crm/**`),
+        `src/app/api/construction/enablement/route.ts`. Each exposes real `GET`/`POST`/`DELETE`
+        handlers calling the already-fully-implemented `get*Enablement()`/`enable*ForOrg()`/
+        `disable*ForOrg()` service functions -- the admin-role gate (`hasRole(ctx.dbUser, "admin")`)
+        already existed inside `enableProductBranchForOrg()`/`disableProductBranchForOrg()` and needed
+        no change.
+
+        Verification performed: `bunx tsc --noEmit` clean (full repo), `bunx eslint` clean on all 3
+        new files, `bun test` 2481/2481 pass (unchanged baseline -- no new tests added, matching the
+        established convention that PMS/THE FIRM's own enablement routes also carry zero route-level
+        tests). Ran a real, live functional test against a local dev server (`bun run dev`, pointed at
+        the real production Supabase project via `.env.local`) using a real admin user created via the
+        Supabase Admin API, a real password-grant login, and a hand-constructed `@supabase/ssr` v0.12.3
+        session cookie (the same established methodology as OCID-047/048/052's real API-level testing)
+        -- this reached past `requireAuth()` and into the real DB-layer service call for all 3 new
+        routes (confirmed via the dev server's own request log, not narrated), which is real evidence
+        the routing/auth wiring is correct.
+
+        **Real, honest limitation, not glossed over:** the actual DB write could not be confirmed to
+        persist in this pass -- the local `.env.local` snapshot's `APP_RUNTIME_DATABASE_URL` (the
+        `app_runtime` RLS-scoped role every tenant-scoped query, including this fix's own service
+        calls, runs under) returns a genuine live Postgres `28P01 password authentication failed`
+        error. Independently confirmed this is a pre-existing local-environment credential-drift issue,
+        **not caused by this change**: `GET /api/me` (completely unrelated to this fix) fails with the
+        identical error against the same local server; direct `psql` against the same
+        `APP_RUNTIME_DATABASE_URL` connection string reproduces the same `28P01` outside the app
+        entirely, while the adjacent `DATABASE_URL` (`postgres` superuser role) connects fine with the
+        same `.env.local` snapshot -- ruling out a network/pooler-wide outage. Real production
+        (`projexa-ai.com`) was not similarly affected as of other sessions' testing today (OCID-049
+        completed live testing minutes before this pass), so this is very likely a stale/rotated
+        secret specific to this local snapshot, not a live production credential problem -- flagging
+        for whoever next refreshes local `.env.local` copies, not filed as its own MASTER-TRACKER gap
+        since it's an environment-snapshot issue, not a product defect. Full live end-to-end
+        confirmation (real enable -> real persisted `org_product_branch_enablements` row -> real 200
+        from a downstream ERP/Sales/Construction API) against the real deployed site is a tracked
+        follow-up for once this PR merges and deploys, same discipline already established by
+        `GAP-403-VS-500-CLM-HR-PERFORMANCE`'s own CLM-templates/CLM-clauses fix (PR #806/#809) for the
+        same class of "route change requires a real deploy before live re-verification is possible."
 
     - id: GAP-403-VS-500-CLM-HR-PERFORMANCE
       name: "5 more endpoints returned 500 instead of 403/real-data for a fresh org -- RESOLVED, two distinct real root causes found and fixed"
@@ -2040,12 +2085,51 @@ open_items:
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
-      name: "task-execution-engine.ts and mother-router.ts are not wired to each other"
+      name: "task-execution-engine.ts and mother-router.ts are not wired to each other -- RESOLVED via scoped Mother Router migration"
       detail: "Both real, independently well-built (task-execution-engine.ts has 36 real importing call sites incl. 20+ services and app/api/ai/orchestrate/route.ts; mother-router.ts is called from app/api/ai/team/dispatch/route.ts and app/api/ai/orchestrate/route.ts). app/api/ai/orchestrate/route.ts imports mother-router.ts's resolveMotherRouterModel() directly (real, active) but its only reference to task-execution-engine.ts is a code comment (line 254), not a call. grep for task-execution-engine/TaskExecutionEngine in mother-router.ts returns zero hits either direction."
       size: S-M
       recommendation: "Not this task's scope to fix (locked by SEC-07 pending OCID-020). Whoever closes this should decide whether orchestrate/route.ts should call into task-execution-engine.ts after routing, or whether the two are intentionally separate concerns (routing/model-selection vs. execution) that should stay decoupled -- a real architectural call, not a mechanical wiring fix."
-      status: open
+      status: resolved
       first_raised: "OCID-038 discovery, 2026-08-03 (this document, ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md)"
+      resolved: |
+        2026-08-04. The real architectural call this gap's own recommendation asked for: read both
+        files in full. orchestrate/route.ts and task-execution-engine.ts's executeTask() are genuinely
+        DIFFERENT concerns -- orchestrate/route.ts is a narrow, read-only "suggest actions for a
+        compliance event" endpoint (never executes anything itself, just returns a JSON action list);
+        executeTask()/executePackageDispatch() are the real, stateful, side-effecting dispatch/execution
+        engine (classification, planning, worker-agent dispatch, package dispatch). Wiring
+        orchestrate/route.ts to literally CALL task-execution-engine.ts after generating suggestions
+        would be a real, unsafe behavior change (auto-executing AI-suggested actions with no human
+        approval step) -- exactly what RATIFIED-03's always_approve/always_reject model and the Policy
+        Enforcement Engine exist to gate, not something to silently wire in as a side effect of closing
+        a wiring gap. That is NOT the fix.
+
+        The real, narrow, safe fix: task-execution-engine.ts's own two "task_oa" layer model-resolution
+        call sites (executePackageDispatch() and executeTask(), both previously calling
+        orchestra-model-resolver.ts's resolveModelConfig() directly) are exactly the class of call site
+        mother-router.ts's own header already documented as part of a deliberately-NOT-mass-migrated
+        35-file backlog, recommending "a properly scoped, incrementally-tested follow-up (a handful of
+        files at a time... rather than declared closed by a mass edit)" over a risky one-shot rewrite.
+        orchestrate/route.ts already proved this exact incremental-migration pattern out for the SAME
+        "task_oa" layer (its own 2026-07-25 Gateway G05 comment). Migrated task-execution-engine.ts's
+        two task_oa call sites to resolve through mother-router.ts's resolveModel({scope: "end_user_org",
+        orgId, layerKey: "task_oa"}).resolvedConfig instead -- the exact same pattern, same layer, same
+        scope. This IS the real wiring the gap asked for (task-execution-engine.ts now genuinely, live
+        calls into mother-router.ts), via the safe incremental path rather than the unsafe direct-call
+        path. Behavior-preserving for every BYO-configured org (computeEndUserOrgResolution() returns
+        the baseline untouched whenever isCustomerConfigured is true -- verified by reading that
+        function directly, not assumed); additive for the rest (real ai_routing_audit_log coverage +
+        any future active end_user_org routing policy override, neither of which existed as an active
+        policy at verification time, so zero live behavior change today). No circular import (checked:
+        mother-router.ts and its own dependency chain -- db, model-tier-eligibility.ts,
+        orchestra-model-resolver.ts, ai-config-crypto.ts, roster.ts -- have zero references to
+        task-execution-engine.ts). Verified: `bunx tsc --noEmit` clean, `bunx eslint` clean on the
+        changed file, full `bun test` 2481/2481 pass (same baseline as before this change -- no existing
+        test exercises this specific call site directly, both are internal to executeTask()/
+        executePackageDispatch(), which need a live tenant DB context to unit test; relying on
+        type-correctness + full-suite-no-regression + the same review/CI gate as every other change this
+        session, consistent with this codebase's own established practice for DB-context-dependent
+        internal call sites).
 
     - id: GAP-OCID038-NO-PWA
       name: "No PWA anywhere in the repo, despite a code comment describing one -- STALE, overtaken by later same-day work"
@@ -2095,12 +2179,31 @@ open_items:
         extension of the other) rather than evidence of a real disconnect.
 
     - id: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH
-      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience"
+      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience -- real discovery brief written 2026-08-04, still open, Owner-level call pending"
       detail: "Live-tested 2026-08-03: curl -sI https://projexa-ai.com returns HTTP/2 200 via Vercel; page <title> reads 'VERIDIAN COGNITIVE AI OS -- AI Cognitive Research'; grep for 'projexa' (case-insensitive) in the served HTML returns zero matches, only 'veridian'/'VERIDIAN'. The real PROJEXA-branded frontend (separate `projexa` repo) is live separately at projexa-smoky.vercel.app. Re-confirms and updates prior project memory (veridian-projexa-domain-ownership-conflict) with fresh live evidence rather than letting it go stale."
       size: M
       recommendation: "Locked by SEC-07 pending OCID-020. When unlocked: either route projexa-ai.com to the real projexa deployment/build, or add PROJEXA brand-routing to compliance-tracker's own deployment for that domain -- an Owner-level product decision, not a mechanical fix."
       status: open
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+      discovery_brief: |
+        2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
+        implementation authorized). Full brief: ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md
+        section 9.1. Key findings NOT in the original 2026-08-03 entry above: (1) the current domain
+        assignment (projexa-ai.com -> veridian-compliance-ai Vercel project) is not accidental drift --
+        it is the Owner's own explicit, re-confirmed decision (WAVE-10-REDO, UMR-20260802-134939-145d,
+        2026-08-02), reversing an earlier undocumented reversal of the original Wave 10 brand-merge
+        cutover; (2) the API surface (/api/v1/projexa/*) works identically through either hostname --
+        this is scoped entirely to the anonymous-visitor marketing/landing branding, not connectivity;
+        (3) root-caused precisely: resolveBranding() (org-branding-service.ts) is deliberately org-scoped
+        and post-login only, by explicit design (Wave 5/Wave B/Wave 10 all independently documented this
+        as a known, deferred gap, not newly discovered here); (4) organisations.customDomain is set for
+        exactly 1 org platform-wide (a synthetic test fixture) -- zero real PROJEXA orgs have it set, a
+        second precondition beyond missing code; (5) the real open question is narrower than "fix the
+        domain": is there a single canonical "PROJEXA" identity to show an anonymous visitor at all,
+        given the platform is genuinely multi-tenant (6+ separate PROJEXA orgs) -- or is the Owner's own
+        "brand-layer merge" framing evidence the intended end state already is what's live today (VERIDIAN
+        as the unified brand, PROJEXA as an internal product branch)? This document takes no position;
+        awaiting the real PM call.
 
     - id: GAP-OCID038-OCID035-DUPLICATE-PRS
       name: "PR #777 and PR #782 both currently claim real content for OCID-035, under different titles -- RESOLVED, genuinely distinct content, numbering corrected"
@@ -2127,12 +2230,58 @@ open_items:
         #782's updated head before merge (Rule 6/10).
 
     - id: GAP-OCID038-PROJEXA-OWN-SCHEMA
-      name: "projexa repo's own description claims 'built on VERIDIAN AI OS via API' but has its own 11-table local schema"
+      name: "projexa repo's own description claims 'built on VERIDIAN AI OS via API' but has its own 11-table local schema -- real discovery brief written 2026-08-04, finding substantially UPDATES the original negative signal to a confirmed-real, extensively-wired thin client"
       detail: "gh repo view FChecklist/projexa's description: 'Frontend for the AI-native construction ERP, built on VERIDIAN AI OS via API.' Per ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md Sec1.9, the projexa repo has its own 11-table schema (not a schemaless pure client). gh api search/code for a compliance-tracker/VERIDIAN API base URL inside the projexa repo returned 0 hits (GitHub code search, not exhaustive, but a real negative signal). May be intentional local caching/offline support, or may be real architectural drift from the repo's own stated design intent -- not resolved this pass."
       size: M
       recommendation: "Whoever picks up cross-repo integration work should read the projexa repo directly (not GitHub code search only) to determine whether it genuinely calls a shared VERIDIAN API anywhere, and reconcile the repo description with real behavior either way."
       status: open
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+      discovery_brief: |
+        2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
+        implementation authorized). Full brief: ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md
+        section 9.2. The original "0 hits" finding was a real false negative: it used GitHub's own code
+        search (already flagged as "not exhaustive" in this entry's own detail above), not a direct read
+        of the repo's real content. A fresh clone + direct grep finds src/lib/veridian-client.ts (240
+        lines, a real, substantial API client, VERIDIAN_API_BASE defaulting to
+        https://veridian-compliance-ai.vercel.app/api/v1/projexa -- the same Vercel project that owns
+        the projexa-ai.com domain, see the sibling GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH entry) and
+        195 real files importing/calling it (corrected 2026-08-04 from an initially-miscounted 51 -- see
+        below), covering genuinely construction-domain routes (manpower-cost-report, sales-pipeline,
+        schedule-tracker, punch-list, sales-invoices, and more). The schema file's own top comment states
+        plainly: "PROJEXA's own tenant/auth/billing schema. All construction domain data... lives in
+        VERIDIAN... Nothing construction-related is stored here" -- confirmed accurate by direct
+        inspection of the (now 12, was 11) tables, all genuinely tenant/auth/billing/UI-collaboration
+        concerns (including a literal veridian_credentials bridge table). Revised assessment: PROJEXA
+        genuinely IS, today, live, an extensively-wired thin client for construction-domain data -- this
+        repo's own status quo already matches its stated design intent for the DATA layer. What remains
+        genuinely NOT unified: authentication/session -- PROJEXA runs its own separate Supabase Auth
+        project with no user-level SSO to VERIDIAN, only a static per-org service-role API key used
+        server-to-server.
+
+        **Update (2026-08-04, PM decision UMR-20260804-014117-915e): all 3 mechanical next steps done.**
+        (1) Spot-checked 15 real call sites across financial/CRM/HR/procurement/recruitment/construction
+        domains -- zero import the local DB client; each follows an identical requireAuth()->
+        callVeridian() proxy shape; one (punch-list) has a legitimate local side effect (a notification
+        write, one of the 12 known non-construction tables), consistent with, not contradicting, the
+        schema's own claim. Structural confidence, not just sampling: only 12 local tables exist total,
+        none construction-domain, so no route could silently persist that data locally even if it tried.
+        (2) Read requireAuth() (auth-guard.ts) in full: 100% self-contained to PROJEXA's own Supabase
+        project + its own memberships table; the only thing forwarded to a VERIDIAN call is
+        organizationId (resolves a static org-level API key), never a user-level VERIDIAN token --
+        confirmed precisely, not approximately, matching that file's own explicit design-rationale
+        comment. (3) Read middleware.ts in full: unauthenticated visitors get zero VERIDIAN-org
+        awareness of any kind; the question is genuinely, entirely post-login only on both sides of the
+        integration (PROJEXA's middleware and VERIDIAN's resolveBranding() independently converge on the
+        same design). Full detail: OCID-038 canonical doc section 9.2 (2026-08-04 addendum).
+
+        **Correction, same pass: the "51 real files" figure above was wrong -- real count is 195.**
+        Root cause: this session's shell environment shadows `grep` with a function wrapping `ugrep
+        --ignore-files ...`, which silently undercounted AND stripped the real `src/` path prefix from
+        results (reporting nonexistent paths). Confirmed via 3 independent agreeing methods (`\grep`,
+        raw Python subprocess, direct `ls` existence checks). `find` showed the same class of
+        unreliability separately (falsely placed `middleware.ts` at the repo root instead of `src/`).
+        Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
+        bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
