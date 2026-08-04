@@ -21,9 +21,19 @@ proceed authorization. PM decision resolving the credit-accountant block on
       a live-app bug. Stopped a duplicate investigation agent immediately on discovering this to avoid
       wasted spend.
 
+- [x] **Confirmed the fix, real evidence.** Manual, cgroup-unconstrained verification build
+      (`systemd-run --user --scope` w/ unlimited memory, `BUILD_MAX_OLD_SPACE_MB=8192`, real
+      `flock`-serialized against `/tmp/veridian-quality-gate-build.lock`) against the blocked task's
+      own workspace (`task-20260803-214944-pm-final-decision--ocid-020-independentl`, branch
+      `chore/active-claims-close-ocid021-item2`): first queued behind a real concurrent build already
+      holding the lock (the "duplicate worker" contention case), then ran and passed clean --
+      `exit=0`, `elapsed=124s`. No code fix needed; the credit accountant was correct that an existing
+      mechanism covers this, and it does.
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before further work.
+
 ## Remaining
-- [ ] Confirm manual build verification (BUILD_MAX_OLD_SPACE_MB=8192, unconstrained cgroup, real
-      flock) passes clean, then resume the blocked task's remaining OCID-020/021 work.
+- [ ] Resume/complete the blocked task's remaining OCID-020/021 work (its own live end-to-end
+      confirmation against the real deployed site).
 - [ ] GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E (Task D explicitly held for PM/Owner).
 
 ---

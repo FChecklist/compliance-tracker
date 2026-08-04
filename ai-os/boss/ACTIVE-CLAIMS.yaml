@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection, resume OCID-021 Wave 1, then GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E"
+    claimed_at: "2026-08-04T03:20Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260802-165606-4413` OCID-020 / `UMR-20260802-173631-ca85` OCID-021,
+      standing auto-proceed authorization): `task-20260803-214944-pm-final-decision--ocid-020-independentl`
+      is blocked -- its credit accountant rejected an auto-fix attempt with "existing software/mechanism
+      already covers this (system_index match)". Verified directly against `/opt/veridian/scripts/quality-gate.sh`:
+      the real existing mechanism is the pre-vetted, opt-in `BUILD_MAX_OLD_SPACE_MB` heap-ceiling override
+      (default 2048MB) + host-wide `flock` build serializer already in that script (2026-08-01 comment,
+      validated via a real manual build needing ~8GB). The blocked task's own last gate failure
+      (`quality-gate-0.json`: `build` exit 124 after 1800s) is the same heap-thrash class, not a code
+      defect. Confirmed directly: a manual, cgroup-unconstrained verification build
+      (`systemd-run --user --scope` w/ unlimited memory, `BUILD_MAX_OLD_SPACE_MB=8192`, real
+      `flock`-serialized against `/tmp/veridian-quality-gate-build.lock`) against the blocked task's own
+      workspace passed clean, `exit=0`, in 124s (first queued behind a real concurrent build already
+      holding the lock -- the exact "duplicate worker" contention case this mechanism is designed to
+      handle safely). On pulling `origin/main` fresh, found `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
+      (one of the two Wave 1 backlog items this dispatch also names) was already independently resolved by
+      a concurrent session (PR #863, merged) -- real cause was a schema migration
+      (`drizzle/0245_create_platform_schema_compartment.sql`) moving `product_branches` from `compliance`
+      to `platform`; direct psql/PostgREST reads had queried the stale pre-migration location. Not
+      re-doing it; a duplicate investigation agent this session had already launched was stopped
+      immediately on discovering this. Remaining real scope: resume+complete
+      `task-20260803-214944-pm-final-decision--ocid-020-independentl`'s own live end-to-end confirmation,
+      then `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A (assistants_per_user cap enforcement,
+      reusing the ServiceError 403 + ModuleNotEnabledCard pattern from PR #809), B (`/api/me` resolved
+      tier/limits), C (frontend gate + explanation card), E (admin UI to assign `subscriptionPlanId`).
+      Task D (seeding a real `preferredModelByPackage` policy) is explicitly held per this PM's own
+      instruction -- a business decision, not code, flagged back rather than decided unilaterally.
+    scope_note: >-
+      File scope (planned): `/opt/veridian/scripts/quality-gate.sh` verification only (no edit to the
+      global default, per its own opt-in-only design); GAP-OCID-049 Tasks A/B/C/E touch
+      `src/lib/services/subscription-plan-service.ts` (or equivalent new service), `/api/me/route.ts`,
+      a new frontend gate component reusing `ModuleNotEnabledCard`, and a new admin settings route/page
+      for assigning `subscriptionPlanId`. `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `PROGRESS.md` throughout. No changes to `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`'s
+      own files -- that gap is already closed on `main`.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
