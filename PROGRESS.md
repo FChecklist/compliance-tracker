@@ -46,8 +46,10 @@ prompt.
       index blob). Restored the full prior history below, unchanged, and appended this section
       rather than repeating the same destructive overwrite.
 
+- [x] Committed, pushed, opened PR #895: https://github.com/FChecklist/compliance-tracker/pull/895
+
 ## Remaining
-- [ ] Open PR, confirm CI green, hand off for independent audit -- not self-certified here.
+- [ ] Confirm CI green, hand off for independent audit -- not self-certified here.
 - [ ] Report both reverification results (NOT reproduced, both gaps) to the PM as the concrete
       outcome of this redirect.
 

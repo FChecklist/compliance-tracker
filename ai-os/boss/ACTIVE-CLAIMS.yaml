@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-125247-ocid-020-concrete-redirect-stop-open-end) -- OCID-020 concrete redirect: real live re-verification of GAP-VERI-TODO-STUCK-LOADING-NOT-READY and the mobile-viewport-blank-content gap against live projexa-ai.com [DONE, PR pending]"
+  - session_label: "claude-code (task-20260804-125247-ocid-020-concrete-redirect-stop-open-end) -- OCID-020 concrete redirect: real live re-verification of GAP-VERI-TODO-STUCK-LOADING-NOT-READY and the mobile-viewport-blank-content gap against live projexa-ai.com [DONE, PR #895 OPEN]"
     claimed_at: "2026-08-04T13:03Z (this session)"
     claim: |
       SPEC (real PM decision, UMR-20260802-165606-4413 OCID-020): a prior interactive session had
