@@ -27,8 +27,11 @@
       under OCID-038's real implementation phase, `task-20260804-111301-...`).
 - [x] Registered ACTIVE-CLAIMS entry for this investigation.
 
+- [x] PR opened: https://github.com/FChecklist/compliance-tracker/pull/894
+
 ## Remaining
 - [ ] None for this task's own scope (investigate-the-stall + persist real
       root cause). Actual fix implementation for
       GAP-VERI-TODO-STUCK-LOADING-NOT-READY is out of scope here -- tracked
       under `task-20260804-111301-pm-decision--authorize-real-implementati`.
+- [ ] Awaiting CI green + merge on PR #894.
