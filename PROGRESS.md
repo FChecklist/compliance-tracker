@@ -1,3 +1,70 @@
+# PROGRESS -- task-20260804-091305-pm-decision--owner-has-resolved-the-proj
+
+SPEC: PM decision under OCID-038 (UMR-20260803-042801-ec4b) / OCID-021
+(UMR-20260802-173631-ca85), resolving GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH
+per the Owner's direct decision: PROJEXA is the first brand on the one VERIDIAN
+platform (one runtime/DB/UMR/UTR), never a separate platform. Enhance
+org-branding-service.ts's resolveBranding with a new Stage 1 (pre-auth,
+host-header-based) resolution layer; keep Stage 2 (post-auth, org-based)
+exactly as-is.
+
+## Discovery (honest findings before writing code)
+
+- [x] Confirmed GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH is real and open in
+      `ai-os/MASTER-TRACKER.yaml` -- matches this task's own SPEC framing.
+- [x] Read `src/lib/services/org-branding-service.ts` in full + all real callers
+      (`api/me/route.ts`, `api/settings/branding/route.ts`, `api/settings/branding/logo/route.ts`).
+      `resolveBranding(orgId)` is genuinely org-scoped/post-login only, exactly
+      as the gap's discovery_brief says.
+- [x] **Real additional gap found, as instructed to report honestly**: there is
+      NO `middleware.ts` anywhere in this repo (`git ls-files` confirms zero
+      matches for `middleware.(ts|js)`). There is no pre-auth request
+      interception point today at all -- Stage 1 has nothing to attach to as
+      literal Next.js Middleware.
+      Resolution chosen: rather than introduce a brand-new, unverified
+      Next.js-Middleware-with-Node-runtime surface (this repo has zero
+      precedent for it, and Node-runtime Middleware is a newer/riskier Next.js
+      surface not worth gambling a circuit-breaker retry on), Stage 1 is wired
+      directly into the real pre-auth server components that already render
+      before login (`src/app/layout.tsx`, `src/app/page.tsx`,
+      `src/app/login/page.tsx`) via `await headers()` -- an established pattern
+      already used in this exact codebase (`src/lib/supabase/auth-guard.ts`).
+      This satisfies the real requirement ("resolve the real HTTP host header
+      to a brand configuration and render the correct landing and login pages
+      before any login happens") without inventing new infrastructure.
+- [x] Confirmed the real reusable brand-configuration data: `organisations.customDomain`
+      (unique, already validated, already part of `OrgBranding`) -- NOT
+      `product_branches.domain`, which despite its name is a business-category
+      label (`'compliance'`), not an HTTP hostname (confirmed via
+      `drizzle/0017_wave20_module_registry_and_product_branches.sql`). Reusing
+      the wrong column would have been a real, silent bug.
+- [x] Confirmed zero real PROJEXA org has `customDomain` set to `projexa-ai.com`
+      today (only 1 synthetic test-fixture org platform-wide has any
+      `customDomain` at all, per the gap's own discovery_brief) -- this is a
+      **data/config precondition**, not a code gap. Flagging as a genuine
+      follow-up, not fabricating a production data assignment as part of this
+      code change.
+
+## Completed
+
+- [ ] `resolveBrandingByHost(host)` added to `org-branding-service.ts`
+- [ ] Root `layout.tsx` brand-aware `generateMetadata()`
+- [ ] `page.tsx` (root landing) nav wordmark/logo swap
+- [ ] `login/page.tsx` + `login-form.tsx` brand-aware
+- [ ] Real tests proving projexa-ai.com resolves PROJEXA pre-login, base domain does not
+- [ ] `bunx tsc --noEmit` clean
+- [ ] `bun test` clean
+- [ ] Commit + push, ACTIVE-CLAIMS.yaml claim registered
+- [ ] PR opened, independent review/audit (not self-certified)
+- [ ] Merge commit independently verified as ancestor of `origin/main`
+- [ ] `ai-os/MASTER-TRACKER.yaml` updated to close the gap
+- [ ] Report OCID-038 closure back to PM
+
+## Remaining
+- [ ] All items above not yet checked off
+
+---
+
 # PROGRESS -- docs/ocid063-mechanical-handoff-envelope-discovery
 Cites: `UMR-20260804-060832-9fdf` (OCID-063 PM directive), real parent OCID-021
 `UMR-20260802-173631-ca85` / OCID-020 `UMR-20260802-165606-4413`, governed by the

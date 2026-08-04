@@ -40,6 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-091305-pm-decision--owner-has-resolved-the-proj, feat/ocid038-projexa-stage1-domain-branding) -- OCID-038 real fix for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH: real Stage 1 pre-auth host-header brand resolution [IN PROGRESS]"
+    claimed_at: "2026-08-04T (this session)"
+    claim: |
+      SPEC: PM decision citing UMR-20260803-042801-ec4b (OCID-038) and
+      UMR-20260802-173631-ca85 (OCID-021), the Owner's direct chat decision that
+      PROJEXA is the first brand on the one VERIDIAN platform (one runtime/DB/
+      UMR/UTR), never a separate platform -- domain is only a lookup key into
+      the same brand configuration. Enhancing the real, existing
+      `src/lib/services/org-branding-service.ts` `resolveBranding()` with a new
+      Stage 1 (pre-auth, host-header-based) layer; Stage 2 (post-auth,
+      org-based) kept exactly as-is. Read the gap
+      (`ai-os/MASTER-TRACKER.yaml` id `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`)
+      and the real file in full before starting -- confirmed no `middleware.ts`
+      exists anywhere in this repo (real additional gap, reported honestly in
+      `PROGRESS.md` rather than assumed away); Stage 1 is wired directly into
+      the real pre-auth server components (`layout.tsx`/`page.tsx`/
+      `login/page.tsx`) via the already-established `await headers()` pattern
+      (`src/lib/supabase/auth-guard.ts`) instead of inventing new Middleware
+      infrastructure. Confirmed the real reusable brand-configuration column is
+      `organisations.customDomain`, not `product_branches.domain` (a business-
+      category label, not an HTTP hostname, despite the name) -- reusing the
+      wrong column would have been a real silent bug.
+    scope_note: >-
+      File scope: `src/lib/services/org-branding-service.ts` (new
+      `resolveBrandingByHost()` export, no changes to existing exports),
+      `src/lib/services/org-branding-service.test.ts` (new tests only),
+      `src/app/layout.tsx`, `src/app/page.tsx`, `src/app/login/page.tsx`,
+      `src/app/login/login-form.tsx` (brand-aware rendering, default/fallback
+      behavior unchanged when no host match), `ai-os/MASTER-TRACKER.yaml` (gap
+      status update on completion), `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `PROGRESS.md`. No schema/migration changes -- reuses the existing
+      `organisations.customDomain` column, no new table or parallel registry.
   - session_label: "claude-code (task-20260803-055110-ocid-032-veridian-universal-task-lifecyc) -- OCID-20260803-032, VERIDIAN Universal Task Lifecycle Runtime v1.0 (UMR-20260803-041743-d271, parent UMR-20260803-041700-a741)"
     claimed_at: "2026-08-03T~05:55Z (this session)"
     claim: |
