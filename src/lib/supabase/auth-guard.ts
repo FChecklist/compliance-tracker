@@ -18,18 +18,28 @@ export type AuthContext = {
   response: NextResponse | null
 }
 
-// The DB enum (schema.ts userRoleEnum) has 10 values: the original 4 plus 6
-// Wave 1 hierarchy roles. This type/ROLE_RANK previously only recognized the
-// original 4 -- any user with one of the 6 newer roles (including
-// veridian_admin, meant to be the MOST privileged) got `ROLE_RANK[role] ??
-// 0`, i.e. rank 0, and failed every requireRole() check including the
-// lowest-bar ones. That's a real, live bug: those 6 roles existed in the DB
-// and were assignable, but were functionally locked out of everything.
+// The DB enum (schema.ts userRoleEnum) has 11 values: the original 4, 6
+// Wave 1 hierarchy roles, and stage_0. This type/ROLE_RANK previously only
+// recognized the original 4 -- any user with one of the 6 newer roles
+// (including veridian_admin, meant to be the MOST privileged) got
+// `ROLE_RANK[role] ?? 0`, i.e. rank 0, and failed every requireRole() check
+// including the lowest-bar ones. That's a real, live bug: those 6 roles
+// existed in the DB and were assignable, but were functionally locked out
+// of everything.
+//
+// GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK: the same fix simply didn't extend
+// to stage_0 when it was added later -- schema.ts's own comment on that enum
+// value already specifies the intended rank ("Ranks 1 in ROLE_RANK
+// (auth-guard.ts) -- same tier as viewer/client_viewer/external_auditor"),
+// this was just never wired in. Confirmed via OCID-047's real API-level
+// role/rights test execution: a real stage_0 user failed all 5 real routes
+// tested, including the single lowest-bar action (rank 2, `member`).
 export type UserRole = 'admin' | 'manager' | 'member' | 'viewer'
   | 'veridian_admin' | 'branch_manager' | 'senior_professional' | 'team_member' | 'client_viewer' | 'external_auditor'
+  | 'stage_0'
 
 export const ROLE_RANK: Record<UserRole, number> = {
-  viewer: 1, client_viewer: 1, external_auditor: 1,
+  viewer: 1, client_viewer: 1, external_auditor: 1, stage_0: 1,
   member: 2, team_member: 2,
   senior_professional: 3, manager: 3,
   branch_manager: 4,
