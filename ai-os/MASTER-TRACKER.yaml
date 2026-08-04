@@ -1104,7 +1104,7 @@ open_items:
         `UMR-20260803-162547-b968`."
 
     - id: GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY
-      name: "Real, recurring pattern (2 independent occurrences, 2 different schemas/tables): direct DB reads (psql, PostgREST) disagree with confirmed-live app behavior -- root cause still not found"
+      name: "Real, recurring pattern (2 independent occurrences, 2 different schemas/tables): direct DB reads (psql, PostgREST) disagree with confirmed-live app behavior -- ROOT CAUSE FOUND AND CONFIRMED, 2026-08-04: a real hand-authored migration moved both tables to a separate `platform` Postgres schema; every direct read this session (including this gap's own two occurrences) queried the wrong (default/compliance) schema"
       old_ids: []
       detail: |
         Found during OCID-050's State C (large-data org) preparation, 2026-08-03.
@@ -1171,7 +1171,55 @@ open_items:
         confirmed in a second, structurally unrelated schema (`platform` vs `compliance`) and
         table. This rules out "product_branches specifically has some narrow sync issue" as an
         explanation -- whatever the real root cause is, it is not isolated to one table.
-      status: open
+
+        **ROOT CAUSE FOUND AND CONFIRMED (2026-08-04, PM decision `UMR-20260804-030715-b004`,
+        real DB evidence, not narration).** `src/lib/db/schema.ts` defines both `productBranches`
+        (line 2100) and `aiRoutingAuditLog` (line 11389) via `platformSchemaDB.table(...)`, where
+        `platformSchemaDB = pgSchema('platform')` -- the real, live table for both is in the
+        `platform` Postgres schema, not `compliance`. This is not a Drizzle-only abstraction: a
+        real, hand-authored SQL migration, `drizzle/0245_create_platform_schema_compartment.sql`
+        (Owner directive, 2026-07-19, "Supabase free tier limits us to 2 projects/databases
+        total... a new Postgres schema WITHIN this same database"), literally moved 22 tables --
+        including `product_branches` and `ai_routing_audit_log` -- from `compliance` to a newly
+        created `platform` schema via `ALTER TABLE compliance.product_branches SET SCHEMA
+        platform;` (and the sibling statement for `ai_routing_audit_log`). Every direct read this
+        gap's own two occurrences relied on (`psql "$DATABASE_URL" -c "select * from
+        compliance.product_branches"`, and the later `ai_routing_audit_log` psql check) queried
+        the pre-migration schema location -- a real, reproducible methodology error, not a live-app
+        bug or an unexplained infrastructure mystery.
+
+        Live-reconfirmed just now (2026-08-04), schema-qualified correctly this time:
+        `SELECT table_schema, table_name FROM information_schema.tables WHERE table_name IN
+        ('product_branches','ai_routing_audit_log')` shows `product_branches` exists in BOTH
+        `compliance` (1 row, `branch_key='grc'` -- see the new, separate finding below) AND
+        `platform` (27 rows, including `erp` id `2993b212-bd9a-4d0a-b25c-603ba1e236b0` and
+        `projexa` id `5fceebcd-0a7a-4448-ae2b-a72637124f13` -- the exact id a real Wave-9
+        PROJEXA org's `primaryProductBranchId` points to, independently confirming
+        `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md` section
+        9.1's "no PROJEXA branch exists" sub-finding was ALSO this same wrong-schema mistake, not a
+        real orphaned-FK data-integrity gap -- corrected separately in that document); `ai_routing_audit_log`
+        exists ONLY in `platform` (never had a `compliance` copy) and genuinely has 3 real rows
+        matching known real `end_user_org` AI-resolution activity from this session's own earlier
+        OCID-049 testing (`created_at` timestamps `2026-08-03 21:1x`, exactly matching that testing
+        window). **This fully explains both occurrences: the live app was always correct; every
+        direct-read verification this session performed against these two tables queried the wrong
+        schema.** No code fix is needed -- `getBranchId()`, `isBranchEnabledForOrg()`,
+        `logRoutingDecision()`, and every other real call site already correctly resolve
+        `platform.product_branches`/`platform.ai_routing_audit_log` via Drizzle's own schema
+        mapping; they were never broken.
+
+        **New, separate, minor finding this pass (not a live-app bug, real but low-priority
+        technical debt):** `compliance.product_branches` still exists as a genuinely separate,
+        orphaned table (1 row, `branch_key='grc'`) -- `ALTER TABLE ... SET SCHEMA` moves a table
+        rather than copying it, so this stray row was created AFTER the 2026-07-19 migration ran,
+        by some later process not yet identified (not chased further this pass -- a live, if
+        unused, data-integrity cleanup question, not blocking). Confirmed via `grep` that no `src/`
+        code references `compliance.product_branches` specifically (every real call site uses the
+        Drizzle `productBranches` symbol, which always resolves to `platform.product_branches`) --
+        this table appears to be dead weight, not a live shadow-read path, but deleting live
+        production data was not done unilaterally in this pass; flagged for whoever next does DB
+        hygiene work to confirm and clean up.
+      status: resolved
       first_raised: "OCID-050 State C preparation, 2026-08-03 (UMR-20260803-185714-89c6)"
 
     - id: GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API

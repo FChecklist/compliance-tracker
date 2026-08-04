@@ -5276,6 +5276,30 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (docs/gap-product-branches-schema-rootcause) -- real root cause found + fixed for GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY: wrong Postgres schema queried, real migration 0245 moved both tables to `platform` [DONE, PR pending]"
+    claimed_at: "2026-08-04T03:12Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-030715-b004`, citing `UMR-20260802-165606-4413` OCID-020 and
+      `UMR-20260802-173631-ca85` OCID-021): find the real root cause of the tracked live-vs-direct-read
+      discrepancy and fix it with real evidence, not narration.
+
+      Found: `productBranches`/`aiRoutingAuditLog` are defined via `pgSchema('platform')` in
+      `schema.ts`; `drizzle/0245_create_platform_schema_compartment.sql` (2026-07-19, real
+      hand-authored migration) moved both (+20 other tables) from `compliance` to `platform` via
+      `ALTER TABLE ... SET SCHEMA`. Every direct psql/PostgREST read this session performed against
+      these two tables (including this gap's own two tracked occurrences) queried the wrong,
+      pre-migration schema. Live-reconfirmed correctly: `platform.product_branches` has 27 real rows
+      (erp, projexa, all 25 others); `platform.ai_routing_audit_log` has 3 real rows matching known
+      OCID-049 testing timestamps. No code fix needed -- every real call site already resolves the
+      correct schema via Drizzle; the live app was never broken. Found and flagged a separate, real,
+      minor finding (an orphaned `compliance.product_branches`, 1 row, unreferenced by any code --
+      not deleted unilaterally). Corrected a directly-related false claim already merged into the
+      OCID-038 discovery doc §9.1 (same wrong-schema mistake, this session's own earlier work).
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (gap marked resolved with full evidence),
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md` (§9.1 correction),
+      `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/ or schema changes -- documentation-only fix,
+      since the real fix was correcting the verification methodology, not the application.
   - session_label: "claude-code (chore/active-claims-cleanup-stale-projexa-schema-claim) -- housekeeping: removed stale active: entry (claimed 2026-08-03T21:53Z, past this file's own 4hr-abandonment threshold), superseded by real completed work [DONE, docs only]"
     claimed_at: "2026-08-04T02:08Z (this session)"
     claim: |
