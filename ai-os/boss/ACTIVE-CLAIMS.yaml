@@ -5577,6 +5577,25 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-153925-ocid-020-attempt-real-production-log-acc) -- OCID-020: attempted real production log access (Supabase) for the 10 reproduced /api/me 500s from GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS [DONE, no code change -- diagnostic only, both real paths exhausted and honestly reported as blocked, no log access achieved]"
+    claimed_at: "2026-08-04T15:39Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, UMR-20260804-165606-4413 OCID-020, following real audit dispatch
+      UMR-20260804-150725-7ecf): Vercel CLI already confirmed unusable this session (no stored
+      creds, `vercel whoami` fails) -- attempt the real alternative, Supabase logs, for the
+      /api/me 500 regression (subscription plan status query). Tried (1) Supabase Management
+      API using SUPABASE_ACCESS_TOKEN from /opt/veridian/shared/.env -- independently
+      re-verified (not assumed) 401 Unauthorized on both /v1/projects and /v1/organizations,
+      confirming the prior session's finding that this token is genuinely stale/revoked, not a
+      one-endpoint fluke. (2) Checked this interactive session's own tool surface for a live
+      Supabase MCP tool (the previously-documented working path for this exact problem class)
+      via ToolSearch across multiple query terms -- none registered, no Supabase MCP tool
+      available in this session. Both real paths are exhausted. Reporting honestly: no log
+      access path currently works in this session; the actual stack trace/error detail behind
+      the 10 reproduced 500s remains unobtained. No code changed.
+    scope_note: >-
+      Diagnostic only -- no src/ changes. Touched files: PROGRESS.md, this ACTIVE-CLAIMS.yaml
+      entry.
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |
