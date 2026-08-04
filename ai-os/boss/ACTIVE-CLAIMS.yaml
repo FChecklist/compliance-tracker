@@ -40,7 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only) [PUSHED, PR OPEN]"
+  - session_label: "claude-code (task-20260804-091309-register-ocid-065--deterministic-browser) -- OCID-065: real completeness + zero-duplication audit of OCID-061/062/063 (verification/gap-analysis only, no code) [IN PROGRESS]"
+    claimed_at: "2026-08-04T09:13Z (this session)"
+    claim: |
+      SPEC (PM dispatch, real parent OCID-061 `UMR-20260804-044535-7214` ->
+      OCID-021 `UMR-20260802-173631-ca85` -> OCID-020 `UMR-20260802-165606-4413`,
+      governed by the Mandatory Governance Directive `UMR-20260804-051521-7099`):
+      audit whether OCID-061/062/063's recent design notes enhance existing
+      components or introduce duplicate architecture; certify whether intent/
+      tasks stay inside the existing UMR/UTR concepts with no new parallel
+      registry/cache/execution-engine. Verification and gap-analysis only --
+      explicitly no new architecture/registry/DB/table/framework authorized.
+      File scope: one new canonical audit doc under `ai-os/`, `ai-os/OS.yaml`
+      index entry, `ai-os/MASTER-TRACKER.yaml` (status-note only, no new gap
+      duplicating PR #878's own pending GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes.
     claimed_at: "2026-08-03T (this session, closed same session)"
     claim: |
       SPEC citing UMR-20260803-041257-e9c3 (parent OCID-028 directive) and the
@@ -58,8 +72,6 @@ active:
       content, none of which covers the organization/role/rights model this
       OCID is scoped to. File scope: the new doc, `PROGRESS.md`, this entry.
       No src/, schema, or CI changes.
-  - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [IN PROGRESS]"
-    claimed_at: "2026-08-04T06:08Z (this session)"
   - session_label: "claude-code (docs/ocid039-active-claims-completion-correction) -- housekeeping: correct stale 'PR #789 OPEN' label in this file's own active: section to reflect PR #789's real, independently-verified merge (commit 4284570af7d5d7ff2a4e6f1c32676794d3001ff9) [PUSHED]"
     claimed_at: "2026-08-04T08:10Z (this session)"
     claim: |
