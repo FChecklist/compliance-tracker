@@ -17,5 +17,7 @@
       this task requires "no action beyond confirming it is written" -- confirmation only, no
       write. Nothing to commit.
 
+- [x] Pushed branch and opened PR #891: https://github.com/FChecklist/compliance-tracker/pull/891
+
 ## Remaining
-- [ ] None. Task complete as a confirmation-only PM decision record.
+- [ ] None. Task complete as a confirmation-only PM decision record. Awaiting CI + merge on PR #891.
