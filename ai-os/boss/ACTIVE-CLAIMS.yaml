@@ -5577,6 +5577,34 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-205536-hard-rule-7-compliance-audit-on-ocid-038) -- Hard Rule 7/SEC-07 compliance audit on PR #886/OCID-038: independently confirmed genuine violation, but found the identical finding ALREADY registered by a parallel session in the same five-way expedite directive before this task was even dispatched [DONE, no new PR -- duplicate-dispatch, deferred to existing artifact]"
+    claimed_at: "2026-08-04T20:55Z (this session)"
+    claim: |
+      SPEC (PM decision, part of a five-way parallel expedite directive, citing
+      `UMR-20260803-042801-ec4b` and `UMR-20260802-165606-4413`): investigate honestly whether
+      PR #886 (OCID-038 Stage 1 pre-auth domain brand resolution) is a genuine Hard Rule 7 /
+      SEC-07 violation or a separate pre-existing PROJEXA bug fix that merely borrowed the
+      OCID-038 label. Read PR #886's real description and commit `d45dbd3b` directly: it is real
+      implementation (`resolvePreAuthBrandByHost()`, `drizzle/0312` schema migration, pre-auth
+      rendering changes), explicitly self-titled "OCID-038 real gap closure," not a borrowed-label
+      pre-existing fix. Independently confirmed via `gh pr view` that PR #886 merged
+      `2026-08-04T10:41:41Z`, ~7 hours before PR #900 (the real OCID-020 fix) merged
+      `2026-08-04T17:24:31Z` -- OCID-020 was not independently verified complete at PR #886's
+      merge time, and no explicit SEC-07 override is cited anywhere. **Honest finding: a genuine
+      violation, confirmed from primary sources.** Then found this exact investigation, citing
+      the identical UMR chain, was already completed by a parallel session in this same five-way
+      directive and merged to `main` ~1 hour before this task's own dispatch: commit `dc12b39f`
+      (PR #919, merged `2026-08-04T19:56:48Z`) already registered
+      `GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886` in `ai-os/MASTER-TRACKER.yaml` (verified
+      still present, `status: open`, on current `origin/main`) with the identical conclusion and
+      supporting evidence. Did NOT fabricate a second child UMR or a duplicate gap entry for the
+      same finding -- deferred to the real, already-registered artifact instead of re-doing
+      already-done work. No implementation, no gap fix, no production/reversion change made, per
+      explicit instruction.
+    scope_note: >-
+      File scope: this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No src/, schema, or
+      `MASTER-TRACKER.yaml` changes -- the real finding was already registered there by PR #919;
+      re-adding it would only create duplicate/noisy tracker content, not new signal.
   - session_label: "claude-code (task-20260804-183824-ocid-020-urgent-correction-real-merge-fa) -- OCID-020 GAP-API-ME-500: urgent-correction dispatch found its own premise stale (real merge already happened via a separate autonomous cycle before this task started), independently re-verified the real production fix instead of re-doing already-done work [DONE, no new PR -- additive doc corroboration only]"
     claimed_at: "2026-08-04T18:38Z (this session)"
     claim: |
