@@ -36,6 +36,25 @@
       ownership/permission change performed.
 
 - [x] Committed, pushed, opened PR #906 (docs only, zero credential/code changes).
+- [x] Resume (invocation 2): PR #906's `audit-check` required status was failing (Rule 10's
+      Mandatory Audit Check -- widened 2026-07-13 to run on every PR into `main`, not just
+      AI-team dispatch branches). Posted a real, structured 8-field `AUDIT: PASS` verdict comment
+      (all fields grounded in this PR's actual diff and findings, not boilerplate) per
+      `audit-protocol.ts`'s `validateAuditProtocolFields()` contract.
+- [x] Hit the known `issue_comment`-vs-PR-head-SHA gap (see
+      `veridian-audit-check-issue-comment-sha-bug` memory): the re-triggered check validated and
+      passed, but against `main`'s SHA, not PR #906's head -- the PR's own status stayed on the
+      stale pre-comment failing run. Confirmed PR was also `BEHIND` main (2 real docs-only PRs --
+      OCID-055 and an OCID-001/006 + OCID-068 registration -- merged concurrently while this PR
+      sat open). Merged `origin/main` into this branch (clean auto-merge, no conflicts) and pushed,
+      which fired a real `synchronize` event and a fresh, correctly-scoped `audit-check` run.
+- [x] All 7 of `main`'s branch-protection required checks (`Lint`, `Type Check`, `Build`,
+      `audit-check`, `Guardrail Presence Check`, `Asset Registry Coverage Check`, `Unit Tests`)
+      confirmed passing against the current head SHA. `Vercel` preview-deploy failure (build rate
+      limit) is not a required check -- left as-is, does not block merge.
 
 ## Remaining
-- [ ] None -- Owner decision needed on Finding A/B's remediation (see security discovery report §6); out of this dispatch's own scope.
+- [ ] Confirm PR #906 is fully green and merge (or leave for Owner/next invocation if merge
+      requires an explicit step this session hasn't taken yet).
+- [ ] None beyond that -- Owner decision needed on Finding A/B's remediation (see security
+      discovery report §6); out of this dispatch's own scope.
