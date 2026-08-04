@@ -2651,8 +2651,31 @@ OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
 - [x] Committed + pushed; opened PR #881 (FChecklist/compliance-tracker).
 
 ## Remaining
-- [ ] Report the comparison + fold recommendation back to PM for a fresh implementation decision.
+- [x] Report the comparison + fold recommendation back to PM for a fresh implementation decision --
+      done via PR #881's own summary + the canonical comparison doc it ships; there is no separate
+      interactive PM channel in this system, so the PR body + artifact together constitute the report
+      per this repo's established convention (same pattern every prior PM-decision-request PROGRESS.md
+      section above uses).
 - [ ] (out of scope for this dispatch, disclosed not fixed) OCID-061's own branch (PR #878) appears
       to replace rather than append several unrelated `MASTER-TRACKER.yaml`/`OS.yaml` entries versus
       current `origin/main` -- worth a look by whoever reviews that PR for merge.
 - [ ] (post-merge, separate step) move this ACTIVE-CLAIMS.yaml entry from active to recently_completed.
+
+## 2026-08-04 checkpoint (invocation 2/20): dispatch scope complete, blocked only on external audit
+Re-verified on resume (this file's own stub-checkout issue struck again -- recovered the same way as
+the prior invocation, see `veridian-shell-large-output-truncation-bug`/per-task-stub-checkout note
+above). `git status` clean, PR #881 diff confirmed docs-only (`PROGRESS.md`, `ai-os/OS.yaml`, the new
+comparison doc, `ai-os/boss/ACTIVE-CLAIMS.yaml` -- 4 files, 262 insertions, 0 deletions, 0 source
+changes) -- matches the PM's explicit comparison-only mandate exactly. `gh pr checks 881`: every
+branch-protection-required check green (`Lint`, `Type Check`, `Build`, `Guardrail Presence Check`,
+`Asset Registry Coverage Check`, `Unit Tests`) except `audit-check`, which fails by design until an
+independent session posts an `AUDIT: PASS`/`AUDIT: FAIL` comment (Rule 7(c)/10 -- this session
+authored the change and cannot self-certify it). `Vercel` also shows `fail` but is a build-rate-limit
+deploy preview, not a required status check (confirmed via
+`gh api repos/.../branches/main/protection/required_status_checks` -- not in its `contexts` list).
+This dispatch's own real scope (honest comparison, fold recommendation, zero new registry, claim
+registered, PR opened and reported) is fully complete. Nothing further is actionable from inside this
+session: the only remaining gate is an independent auditor's review, which by this repo's own rule
+must be a different session, and the post-merge ACTIVE-CLAIMS cleanup which by definition cannot
+happen before that merge. Not spinning further invocations on this -- next real action belongs to
+whichever session picks up the audit, or a fresh PM decision consuming this comparison's finding.
