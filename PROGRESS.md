@@ -589,6 +589,14 @@ discovery documentation only.
       same-identity-as-author limitation already documented in this session's own memory
       (`[[veridian-audit-pass-same-identity-limitation]]`) -- disclosed, not hidden.
 
+- [x] Confirmed PR #902 CI green: all required checks pass (Build, Lint, Type Check, Unit Tests,
+      Guardrail Presence Check, Asset Registry Coverage Check, audit-check). `Vercel` fails
+      (pre-existing infra rate-limit, not required for merge, identical to PR #868's own failure);
+      `E2E Tests`/`Analyze`/`CodeQL` non-required and non-blocking. `mergeable: MERGEABLE`.
+
 ## Remaining
-- [ ] Confirm PR #902 CI goes green (Vercel's build-rate-limit failure is pre-existing/infra-level,
-      not this PR's own content -- already seen identically on PR #868).
+- [ ] None for this task -- registration + discovery complete, PR #902 open and CI-green, ready
+      for Owner/independent merge decision. Real follow-up items (not blockers to this task):
+      unblock PR #868 (trivial PROGRESS.md conflict) so its full repository register lands; any
+      real governance action on the 4 flagged PUBLIC-visibility repos stays with the Owner, gated
+      behind OCID-020..040 as recorded in `ai-os/OCID_055_REGISTRATION_2026-08-04.md` §5.
