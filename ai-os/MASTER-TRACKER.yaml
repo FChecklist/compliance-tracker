@@ -1009,6 +1009,53 @@ open_items:
         real 403 message, this was purely a frontend surfacing gap, fixed
         by reusing PMS's own existing enablement-card pattern"
 
+    - id: GAP-PROGRESS-MD-RECURRING-TRUNCATION-ON-MAIN
+      name: "PROGRESS.md's accumulated history has now been genuinely truncated by a merge to origin/main twice (not just on individual feature branches); no automated check catches it"
+      old_ids: []
+      detail: |
+        Real, recurring pattern, not a one-off: multiple prior sessions independently found and
+        fixed `PROGRESS.md` arriving on their own feature branch already truncated (a task-
+        workspace-init step, or a stale working copy, collapsing hundreds of lines of real
+        accumulated history down to a short stub or a single new section) -- documented inline in
+        `PROGRESS.md` itself at least 4 times before this entry (see the
+        `fix/ocid038-stage1-preauth-domain-brand-resolution`,
+        `task-20260804-144006-ocid-020-group-f-real-business-certifica`, and
+        `task-20260804-175929-ocid-068-addendum-deterministic-state-ma` sections of this repo's own
+        `PROGRESS.md` for the individual-branch instances). This entry registers the two confirmed
+        instances where the truncation reached `origin/main` itself, uncaught, through a real
+        merge:
+        1. First instance: flagged (not reconstructed) in the
+           `fix/ocid038-stage1-preauth-domain-brand-resolution` section of `PROGRESS.md`,
+           2026-08-04 -- found `origin/main` at commit `8e90dc35` already carrying a truncated
+           113-line `PROGRESS.md` with a fabricated-looking `... more files changed` placeholder.
+        2. Second instance, independently discovered (this entry): merge commit `5e08c346`
+           (PR #917, merged into `origin/main`) replaced a real 40,109-byte `PROGRESS.md`
+           (present at this repo's own commit `c520d4b4`, the immediately prior merge) with a
+           3,572-byte file containing only PR #917's own new section -- confirmed via
+           `git cat-file -s` on both commits, not the `git show`/`Read`-tool large-output-
+           truncation artifact this sandbox is separately known to produce. Fixed at merge time
+           by the `task-20260804-175929-ocid-068-addendum-deterministic-state-ma` session's own
+           rebase (restored the full prior history beneath PR #917's genuinely new section).
+        Root cause not independently confirmed for either instance (no session that hit this has
+        had visibility into whichever tool/step produces the truncated version before it reaches a
+        commit) -- both known fixes were reactive (caught via `git cat-file -s` size comparison
+        against the immediately prior commit, then manually restored), not preventive.
+      size: "S -- likely a single CI check comparing `PROGRESS.md`'s line/byte count against its
+        immediate parent commit's version and failing (or warning) on a large unexplained drop,
+        the same class of guard as `check-doc-cross-references.mjs`; does not require
+        understanding the true root cause to add real protection"
+      recommendation: |
+        Add a lightweight CI check (or extend an existing doc-integrity check) that fails when a
+        PR's `PROGRESS.md` is more than, e.g., 80% smaller than its merge-base version, unless the
+        PR explicitly declares an intentional archival/rewrite in its description. Cheap, real
+        protection against a recurrence class that has now independently cost at least 2 sessions'
+        worth of manual discovery-and-restoration effort on `origin/main` alone, plus at least 2
+        more on individual feature branches.
+      status: open
+      first_raised: "2026-08-04 (task-20260804-175929-ocid-068-addendum-deterministic-state-ma,
+        UMR-20260804-164106-3fb8 / OCID-068), registering the pattern after independently
+        discovering the second origin/main-level instance"
+
     - id: GAP-MIGRATION-APPLY-NOT-AUTOMATED
       name: "Deploy pipeline never automatically applies pending Drizzle migrations to production; CI only checks migration NUMBER collisions, never whether a migration's DDL actually ran (severity: medium-high, real incident already occurred)"
       old_ids: []
