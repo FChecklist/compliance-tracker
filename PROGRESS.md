@@ -31,9 +31,20 @@ proceed authorization. PM decision resolving the credit-accountant block on
       mechanism covers this, and it does.
 - [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before further work.
 
+- [x] **Checked for concurrent duplicate work before resuming task-20260803-214944 myself** (per
+      `ACTIVE-CLAIMS.yaml`'s own protocol): its `task.yaml` already shows a fresh checkpoint
+      (`2026-08-04T03:24:45Z`, ~minutes old, status flipped back to `in_progress`) from a DIFFERENT,
+      independent PM decision (`UMR-20260804-030715-b004` -- not this task's own UMRs) that reached the
+      IDENTICAL conclusion (`BUILD_MAX_OLD_SPACE_MB=8192`, confirmed via 2 clean local re-runs) and is
+      now proceeding to the same "live end-to-end confirmation of PR #852 against the real deployed
+      site" step this task's own spec also asks for. No live systemd unit or process for that task_id
+      is currently running (`systemctl --user status` shows `inactive (dead)`; `ps` has zero matches
+      for `214944`) -- likely an interactive Super Boss/Claude Desktop session working outside the
+      systemd-worker lifecycle, not yet re-invoked for its next turn. Per `ACTIVE-CLAIMS.yaml` protocol
+      (a claim under ~4h old is binding, not treated as abandoned): NOT duplicating that live E2E
+      confirmation work myself. Recording this here rather than silently reworking it.
+
 ## Remaining
-- [ ] Resume/complete the blocked task's remaining OCID-020/021 work (its own live end-to-end
-      confirmation against the real deployed site).
 - [ ] GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E (Task D explicitly held for PM/Owner).
 
 ---

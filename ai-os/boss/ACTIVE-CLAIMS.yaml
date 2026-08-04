@@ -69,6 +69,14 @@ active:
       tier/limits), C (frontend gate + explanation card), E (admin UI to assign `subscriptionPlanId`).
       Task D (seeding a real `preferredModelByPackage` policy) is explicitly held per this PM's own
       instruction -- a business decision, not code, flagged back rather than decided unilaterally.
+
+      **Update (2026-08-04T03:35Z, same session):** before touching `task-20260803-214944`'s own
+      remaining live-E2E-confirmation step, found a fresh checkpoint on that task
+      (`2026-08-04T03:24:45Z`) from a DIFFERENT, independent PM decision (`UMR-20260804-030715-b004`)
+      that reached the identical `BUILD_MAX_OLD_SPACE_MB=8192` conclusion and is already proceeding to
+      that same E2E step. No live process for that task_id is currently running, but the claim is
+      under 4h old -- not duplicating it. This session's real remaining scope narrows to
+      `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A/B/C/E only.
     scope_note: >-
       File scope (planned): `/opt/veridian/scripts/quality-gate.sh` verification only (no edit to the
       global default, per its own opt-in-only design); GAP-OCID-049 Tasks A/B/C/E touch
