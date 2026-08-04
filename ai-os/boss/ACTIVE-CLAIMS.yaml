@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-164230-pm-decision-proceed-with-real-conflict-r) -- PM decision: dispatched to resolve real merge conflicts on 8 OCID-053..060 registration PRs citing 7 specific UMR IDs -- verified premise is stale, no real conflicts exist [DONE, no repo state change]"
+    claimed_at: "2026-08-04T16:42Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision): rebase 8 existing OCID-053..060 registration PRs onto current
+      origin/main, resolve real merge conflicts caused by opening them in rapid succession,
+      preserve both already-merged main content and each PR's own registration content, push,
+      confirm mergeable -- citing UMR-20260804-160456-41b3, -160559-cf7b, -160846-6fd8,
+      -160949-2f48, -161219-de16, -161257-68d0, -161339-d586. No merging, no credential/deletion/
+      archival/visibility action.
+
+      Real finding, independently verified this session: the premise is stale and does not match
+      live repo state. `gh pr view` (mergeable/mergeStateStatus, re-checked live) on every actual
+      open OCID-053..060 registration PR -- both the 040750-045447Z wave (#866 OCID-057, #867
+      OCID-053, #868 OCID-055, #869 OCID-054, #870 OCID-056, #873 OCID-059, #874 OCID-060, #875
+      OCID-058) and the newer 161617-161630Z wave (#902 OCID-055, #903 OCID-053, #905 OCID-054,
+      #906 OCID-056) -- shows `mergeable: MERGEABLE`, `mergeStateStatus: BEHIND` on every single
+      one. None are `CONFLICTING`/`DIRTY`. GitHub's own live test-merge computation says these
+      already merge cleanly against current main; "BEHIND" just means main has moved on, which
+      is not a git conflict and needs no manual rebase. (Contrast: unrelated open PRs in this repo
+      right now, e.g. #897/#896/#894/#893/#892/#889/#887/#885/#884/#882/#881/#880/#878/#877/#872/
+      #871, genuinely do show CONFLICTING/DIRTY -- so this isn't a blind API-field misread, the
+      signal clearly distinguishes real conflicts from non-conflicts elsewhere in the same query.)
+
+      Also verified none of the 7 cited UMR IDs match what these PRs actually minted/reference.
+      Grepped every added file across both waves' diffs against origin/main for all 7 IDs: only
+      `UMR-20260804-160456-41b3` appears anywhere, as a cross-reference inside PR #903 and #905's
+      new docs -- and it is in fact PR #901's (`docs/ocid053-registration`) own minted UMR, a PR
+      that is CLOSED, UNMERGED, and explicitly superseded: PR #903 documents a live re-verified
+      "duplicate dispatch" finding for OCID-053 (real query against the UMR ledger returned zero
+      new-registration need) and deliberately did not mint a new UMR. The other 6 cited UMR IDs
+      (-160559-cf7b, -160846-6fd8, -160949-2f48, -161219-de16, -161257-68d0, -161339-d586) do not
+      appear in any branch tip diff against origin/main at all.
+
+      PM decision made: do not fabricate conflict-resolution work (rebase/force-push) on PRs that
+      have no real conflict to resolve -- GitHub already reports them cleanly mergeable, and
+      forcing unneeded rebases would itself be an out-of-scope repository-state change the
+      dispatch's own boundary ("no new scope, no repository state change") argues against. No PR
+      branch was touched, no rebase/force-push/merge was performed. Documented finding in
+      PROGRESS.md for Owner visibility; this claim entry is the full record. Matches this
+      session's own prior pattern (see recently_completed OCID-020/duplicate-dispatch entries) of
+      task prompts describing a state that had already moved on by dispatch time in this
+      fast-moving, multi-session repo.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
