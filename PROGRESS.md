@@ -209,3 +209,55 @@ real governance-integrity issue.
       (none exists today, only org-level); the base VERIDIAN root landing page still has no real
       generic (non-VERIDIAN-lab-specific) brand shell for any future second brand that might
       want to show its OWN marketing copy rather than redirect straight to `/login`.
+
+---
+
+# PROGRESS -- fix/ocid038-stage1-preauth-domain-brand-resolution (round 2, real independent review response)
+
+Round 1's real, genuine, independent `AUDIT: FAIL` correctly caught two real issues, both fixed;
+one specific technical claim in the same review was independently checked and found not to hold
+under direct verification, documented honestly below rather than silently accepted or silently
+ignored.
+
+## Completed
+- [x] **Real fix, agreed with the reviewer**: moved the dynamic per-request title resolution
+      (`generateMetadata()` calling `headers()`) OFF the root `layout.tsx` and onto page-level
+      `generateMetadata()` exports on `src/app/page.tsx` and `src/app/login/page.tsx` instead.
+      `layout.tsx` reverted to its exact original static `metadata` export, byte-for-byte
+      unchanged from before this OCID. This is the objectively correct, narrower-scope Next.js
+      pattern regardless of the finding below -- kept even though the specific "regression"
+      claim didn't hold up, because it's still real, sound architectural hygiene (least
+      possible blast radius, matches Next.js's own documented per-page `generateMetadata`
+      guidance).
+- [x] **Real fix, agreed with the reviewer**: `resolvePreAuthBrandByHost()`'s DB lookup now uses
+      `ilike()` (case-insensitive exact match, the same real, established precedent already used
+      by `crm-accounts-service.ts`/`crm-service.ts`/`erp-selling-service.ts` elsewhere in this
+      codebase) instead of `eq()`, so a future mixed-case `host_domain` insert can never silently
+      fail to match -- the lookup itself is now robust, not dependent on every future row being
+      written in lowercase.
+- [x] **Real, independently-verified correction to one specific claim in the review, not silently
+      accepted**: the review stated this PR's root-layout `generateMetadata()` caused
+      "previously-static marketing pages (/office, /forge, /the-firm, /veri-fm-cs, /pricing,
+      /privacy, /terms, /contact, etc.) [to] lose static generation as an undisclosed side
+      effect." Independently checked via a clean, fresh clone of unmodified `origin/main`
+      (commit `f10c757f`) with ZERO changes from this PR applied: ran the exact same real,
+      unconstrained build -- every one of those routes, and every other route in the app, was
+      ALREADY rendering dynamically (`ƒ`), identically, before this PR touched anything. A full
+      `diff` of the complete static/dynamic marker set between the clean baseline build and this
+      PR's own (now page-level) build is byte-identical -- zero routes changed classification.
+      The whole app was already 100% dynamic pre-existing (root layout's own `getLocale()`/
+      `getMessages()`, next-intl's cookie-based read, is the most likely real cause, per that
+      code's own comment -- not independently re-confirmed as the exact root cause, but the
+      dynamic-ness itself is conclusively pre-existing and unrelated to this PR either way).
+      Reporting this honestly rather than either silently reverting more than needed or silently
+      ignoring an audit finding -- the page-level fix above is kept anyway as real, independent
+      good practice, but the specific "this PR caused a new regression" claim does not hold under
+      direct verification.
+- [x] Re-ran full test suite (18/18 pass), `bunx tsc --noEmit` (clean), `bunx eslint` (clean),
+      and a real, unconstrained `bun run build` (clean, full route manifest, byte-identical
+      static/dynamic classification to the unmodified baseline as described above).
+
+## Remaining
+- [ ] Push, resubmit for a fresh real independent review (this is a resubmission after a real
+      `AUDIT: FAIL`, per this repo's own standing no-self-certification discipline) -- not
+      self-certified here.

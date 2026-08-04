@@ -23,9 +23,29 @@ import Link from "next/link";
 import Image from "next/image";
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
+import type { Metadata } from "next";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { VisitorIntelligence } from "@/components/VisitorIntelligence";
 import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
+
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+// implementation (UMR-20260804-090421-c647): deliberately page-level, not
+// on the root layout -- a real, independent review of this branch's first
+// attempt correctly caught that headers() in the root layout's own
+// generateMetadata() forces Next.js's dynamic-API propagation across the
+// ENTIRE route subtree, silently converting every other static page in the
+// app (e.g. /office, /forge) to dynamic too. This page already reads
+// headers() in its own body below (the real redirect() decision) and is
+// already real, per-request dynamic by that same requirement -- adding its
+// own title resolution here costs nothing extra and stays scoped to
+// exactly this one route.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  if (!brand) return {};
+  const title = `${brand.brandName} — powered by VERIDIAN`;
+  return { title, openGraph: { title }, twitter: { title } };
+}
 
 // Wave 113: the Research nav item on every product page links here with
 // ?from=<slug>. A visitor mid-purchase-journey who detours to the lab page

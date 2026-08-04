@@ -10,7 +10,7 @@
 // organisations itself, the same precedent org-license-service.ts and
 // cost-guard.ts already established for this exact table).
 import { db, organisations, productBranches } from "@/lib/db"
-import { eq, and, ne } from "drizzle-orm"
+import { eq, and, ne, ilike } from "drizzle-orm"
 import { createClient } from "@supabase/supabase-js"
 
 export const ORG_BRANDING_BUCKET = "org-branding"
@@ -261,11 +261,18 @@ function normalizeHost(host: string | null | undefined): string | null {
 // Never throws -- an unmatched or missing host resolves to null (the
 // platform default), matching resolveBranding()'s own "never a broken UI"
 // posture above. Only ever reads product_branches; never writes.
+// Real, independent-review-caught fix: the lookup itself is
+// case-insensitive (ilike, no wildcards -- the same real, established
+// exact-case-insensitive-match precedent already used by
+// crm-accounts-service.ts/crm-service.ts/erp-selling-service.ts elsewhere
+// in this codebase), rather than relying on every future host_domain
+// column value being written in lowercase -- a mixed-case insert would
+// otherwise silently never match here.
 export async function resolvePreAuthBrandByHost(host: string | null | undefined): Promise<PreAuthBrand | null> {
   const normalized = normalizeHost(host)
   if (!normalized) return null
   const branch = await db.query.productBranches.findFirst({
-    where: eq(productBranches.hostDomain, normalized),
+    where: ilike(productBranches.hostDomain, normalized),
     columns: { id: true, displayName: true },
   })
   if (!branch) return null

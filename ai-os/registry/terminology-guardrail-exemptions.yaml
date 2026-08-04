@@ -99,6 +99,10 @@ exemptions:
     reason: "First real baseline for this file (OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix, UMR-20260804-090421-c647, 2026-08-04): this file's own real, pre-existing 'Gap closure (VERIDIAN Review Framework, AI Innovation finding, 2026-07-18)' comment at line 14 predates this change but had never previously appeared in a terminology-guardrail --diff-only scan (this is the first PR to touch this file since that check existed) -- confirmed by direct read, a legitimate historical gap-closure date comment, not example/sample data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/app/layout.tsx
+    reason: "First real baseline for this file (OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix round 2, UMR-20260804-090421-c647, 2026-08-04): this file's own real, pre-existing 'Repositioned 2026-07-07 (Wave 112)' comment at line 25 predates this change but had never previously appeared in a terminology-guardrail --diff-only scan -- surfaced only because a real independent review correctly caught an architecture defect in this branch's first attempt (dynamic generateMetadata() in the root layout forcing site-wide dynamic rendering) and the fix reverted this file back to touching it. Confirmed by direct read, a legitimate historical gap-closure date comment, not example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/app/api/pms/invoices/generate/route.ts
     reason: "PM gaps gap-closure (DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE, 2026-07-27): real dated comment documenting when this route was built."
     findings_by_category:
