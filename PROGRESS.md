@@ -1,3 +1,58 @@
+# PROGRESS -- task-20260804-175929-ocid-068-addendum-deterministic-state-ma (invocation 2, rebase + governance-integrity finding)
+
+Real continuation of this same task's own PR #915 (state-7 gate re-check). At invocation start,
+`origin/main` had moved 5 commits ahead (PRs #917, #919, #920) since this branch's own base
+(`c520d4b4`), leaving PR #915 `CONFLICTING`/`DIRTY`.
+
+## Completed
+- [x] Confirmed PR #915's own substantive conclusion still holds against current `origin/main`
+      before doing anything else: re-queried all 9 previously-cited open `GAP-*` entries directly
+      against `origin/main`'s live `ai-os/MASTER-TRACKER.yaml` (via `git cat-file -p`, not `git
+      show`, to avoid this sandbox's own known large-output truncation bug) -- all 9 remain under
+      `open_items:` (line 65-2874), none moved to `closed_priorities:` (line 2875+). OCID-020 is
+      still not verified complete; this task's state-7 conclusion is unchanged.
+- [x] Cross-checked the newest merged commit touching the same topic, `5e08c346` (PR #917,
+      "GAP-API-ME-500 urgent-correction ... premise stale, real fix independently re-verified
+      live") -- consistent with, and independently strengthens, this task's own citation of PR
+      #900 closing `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` (10/10 fresh re-verification vs. the
+      original 4/4).
+- [x] Rebased this branch onto current `origin/main` to resolve the real `CONFLICTING`/`DIRTY`
+      state. One genuine conflict, in `PROGRESS.md`.
+- [x] **Real, disclosed governance-integrity finding, discovered while resolving the rebase
+      conflict, not fabricated:** `origin/main`'s own `PROGRESS.md` was found genuinely truncated
+      at merge commit `5e08c346` (PR #917) -- confirmed via `git cat-file -s` (40,109 bytes at
+      this branch's own base `c520d4b4`, dropped to 3,572 bytes at `5e08c346`, containing only
+      that PR's own new section). Same recurring truncation-bug class this session's history has
+      hit and fixed repeatedly on individual feature branches (see the
+      `fix/ocid038-stage1-preauth-domain-brand-resolution` entry further below -- "first time it
+      landed on `origin/main` itself"); this is a second, independently-discovered instance
+      reaching `origin/main` directly. Resolved by restoring the full prior history (including
+      this branch's own already-merged sections) beneath the genuinely new
+      `task-20260804-183824` section, rather than accepting either side's truncated version.
+      Reporting honestly as a separate, real, recurring governance-integrity issue -- root-causing
+      *why* `PROGRESS.md`-editing sessions keep reproducing this is out of this task's own scope.
+- [x] `ai-os/boss/ACTIVE-CLAIMS.yaml` auto-merged cleanly (no conflict); verified post-rebase that
+      this session's own already-closed claim entry is present exactly once, unduplicated, and
+      correctly positioned.
+- [x] Validated both touched YAML files (`ACTIVE-CLAIMS.yaml`, `OS.yaml`) still parse
+      (`python3 -c "import yaml; yaml.safe_load(...)"`) and confirmed the full diff vs.
+      `origin/main` is still docs-only, 4 files, zero code/DB/registry changes.
+- [x] Force-pushed (`--force-with-lease`) the rebased branch; PR #915 confirmed `MERGEABLE`
+      (was `CONFLICTING`), CI re-triggered on the new head SHA.
+
+## Remaining
+- [ ] Confirm CI green on PR #915's rebased head, hand off for independent audit (Rule 10,
+      `audit-check` requires a real `AUDIT: PASS`/`FAIL` comment from a different agent/session) --
+      not self-certified here.
+- [ ] Report the second `origin/main`-level `PROGRESS.md` truncation instance to the PM/Owner as a
+      recurring, real, unresolved governance-integrity issue (this is now 2 independent
+      occurrences reaching `origin/main` directly, beyond the many individual-branch instances) --
+      out of this task's own scope to fix at the root.
+- [ ] No implementation work performed or proposed this invocation, per this addendum's own
+      state-7 gate (OCID-020 not verified) -- unchanged from the prior invocation.
+
+---
+
 # PROGRESS -- task-20260804-183824-ocid-020-urgent-correction-real-merge-fa
 
 SPEC: Real PM decision, urgent correction. Dispatched on the accurate-at-the-time finding that
