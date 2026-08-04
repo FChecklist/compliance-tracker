@@ -40,6 +40,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-164217-ocid-058-registration-only-universal-tas) -- OCID-058 registration-only pass: corrected the dispatch's own 'zero duplication' and predecessor-UMR premises, both found false/mischaracterized against real PRs #866/#875 and the live umr_tasks DB [DONE]"
+    claimed_at: "2026-08-04T16:42Z (this session)"
+    claim: |
+      SPEC (this task's own dispatch, full text preserved verbatim in
+      `ai-os/VERIDIAN_OCID_058_UMR_PREDECESSOR_REGISTRATION_2026-08-04.md` §0): registration and
+      discovery only, write a canonical registration document linking a "freshly minted real UMR
+      for OCID-058" to OCID-057's claimed real UMR (`UMR-20260804-053248-0e0f`) as predecessor, on
+      a premise of "zero duplication independently confirmed." Independently re-checked both
+      premises before writing anything (not trusted from the dispatch prompt alone, same discipline
+      OCID-057's own task applied to its dispatch prompt one task earlier in this chain, PR #866):
+      (1) `gh pr list --search "ocid-057"`/`"ocid-058"` (state: all) found real, open, unmerged PRs
+      already exist for both -- #866 (OCID-057, real `AUDIT: PASS` posted, all CI green except
+      Vercel's daily rate-limit) and #875 (OCID-058, three real discovery documents, `audit-check`
+      currently failing only because Rule 10's mandatory audit comment hasn't been posted yet) --
+      "zero duplication" was false. (2) Queried the live `umr_tasks` table directly
+      (`/opt/veridian/ai-os/memory/superboss-register.sqlite` via `resource_governor.py
+      --query-umr`): `UMR-20260804-053248-0e0f` is real but its own `status` field reads
+      `rejected_duplicate` -- one of 7 identical resume-retry rejections for the same
+      `task_identity`, all citing the real canonical `status=running` row,
+      `UMR-20260804-042343-572b`, as already queued. Also live-checked PR #875's own OCID-057
+      citation (`UMR-20260804-035943-3c38`): real row, but its `task_identity` is a raw
+      `owner_dispatch_gateway` dispatch with no confirmed textual link to "OCID-057" -- likely a
+      chronological-adjacency guess, not a verified identity match. This task's own dispatch
+      identity has zero real `umr_tasks` rows -- not fabricated to satisfy the "freshly minted UMR"
+      instruction. Registered `GAP-OCID058-DISPATCH-PREMISE-UMR-MISCHARACTERIZED` in
+      `ai-os/MASTER-TRACKER.yaml` (cross-linked to PR #866's own still-unmerged
+      `GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES`, same recurring defect class, different
+      symptom shape -- mischaracterized-but-real vs. wholesale-nonexistent). Recorded explicitly
+      that real UTR certification stays locked behind the OCID-020 through OCID-040 gate, mirroring
+      OCID-067's own gate pattern. No code, schema, database, or runtime change; no certification
+      performed; PR #866/#875 not superseded or re-derived, only cross-referenced.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
