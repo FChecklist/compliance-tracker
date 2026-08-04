@@ -40,6 +40,29 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-011908-pm-decision--hold-on-the-two-remaining-o) -- discovery brief ONLY for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH and GAP-OCID038-PROJEXA-OWN-SCHEMA, no implementation"
+    claimed_at: "2026-08-04T01:1xZ (this session)"
+    claim: |
+      SPEC (PM decision citing `UMR-20260802-173631-ca85` OCID-021 and `UMR-20260803-042801-ec4b`
+      OCID-038): independent verification confirmed PR #856 genuinely merged (`622db105`, confirmed
+      ancestor of `origin/main`), closing `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`. The PM
+      explicitly declined to approve an unsubmitted "proceed" suggestion on the two remaining gaps
+      (`GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`, `GAP-OCID038-PROJEXA-OWN-SCHEMA`) because neither
+      has a real written discovery brief, only short narration in the existing canonical doc. This
+      session's scope is strictly discovery + documentation: write a real brief for both gaps into
+      `PROGRESS.md` and `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`
+      covering the concrete domain/brand mismatch, what routing today does vs. would need to do, real
+      evidence either way, and what the projexa schema investigation needs to check and why it matters.
+      Explicitly NOT implementing, NOT changing routing, NOT changing schema -- the PM makes the real
+      call after reading this brief.
+    scope_note: >-
+      File scope (read-only investigation, write-only to docs): `PROGRESS.md`,
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`, this
+      ACTIVE-CLAIMS.yaml entry. Read (not written) directly: `/opt/veridian/repos/projexa` (separate
+      repo, local checkout on this server), this repo's `next.config.ts`, `src/app/api/v1/projexa/**`,
+      `src/app/api/v1/platform/provision-org/route.ts`, live `curl` against `projexa-ai.com` and
+      `projexa-smoky.vercel.app`. No src/, schema, migration, DNS/Vercel config, or CI changes of any
+      kind this session.
   - session_label: "claude-code (task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl) -- OCID-038 real implementation: closing GAP-OCID038-OCID035-DUPLICATE-PRS (reconcile PR #777 vs #782) first, real gap-by-gap"
     claimed_at: "2026-08-03T21:53Z (this session)"
     claim: |
