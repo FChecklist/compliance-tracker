@@ -738,6 +738,64 @@ active:
       `ai-os/OS.yaml` (index registration), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, or CI changes. Did not run any new browser automation this pass (deliberate,
       load-based deferral, documented above).
+  - session_label: "claude-code (task-20260803-071111-ocid-037-veridian-universal-knowledge-an) -- VERIDIAN Universal Knowledge and Service Catalog v1.0, documentation only [in progress]"
+    claimed_at: "2026-08-03T07:1xZ (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, tier 1): mission is to create exactly one
+      document, "VERIDIAN Universal Knowledge and Service Catalog v1.0", real UMR
+      `UMR-20260803-042230-180c` (OCID-20260803-037, per the real, corrected row in
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §1 and per
+      `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`
+      (OCID-036, real content OCID-035, PR #782) §36's own handoff note), citing the
+      full OCID-022..036 chain, the ERP Functional Completeness Master Program,
+      OCID-020, the traceability audit, the gatekeeper rule, and the unified
+      project memory. Documentation only, consistent with `SEC-07`
+      (`ai-os/CONSTITUTION.yaml`) -- discovery/documentation stays permitted while
+      implementation stays locked behind OCID-020.
+
+      **Real discovery performed before writing, not assumed**: read
+      `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`
+      (OCID-027, PR #771, open/unmerged) and
+      `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`
+      (OCID-036, PR #782, open/unmerged) in full via `git cat-file -p` (the Bash
+      tool's own known large-output truncation bug silently truncated a first
+      `git show` attempt at 31 lines; re-fetched via blob SHA to get the real 620-
+      and 502-line documents) -- both are directly adjacent, real, substantive, and
+      already cover most of this OCID's own mandated section list (catalog
+      principles, search order, per-type discovery, role/brand/tenant/industry
+      mapping, zero-duplication, traceability, governance, performance, cache,
+      certification). Also read `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`
+      (OCID-024, PR #767) §14-15 and `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md`
+      (OCID-025, PR #766) §12-13 for real, file:line-grounded Mode Pill / Option
+      Chain evidence, and `ai-os/CONSTITUTION.yaml` DMP-01..06 (Dynamic Mode Pills /
+      Dynamic Chain rules) -- confirming "option chain" (this OCID's own directive
+      term) = the real, live Chain Selector (`ChainSelector.tsx` + `dynamic_chains`
+      table), not a literal string anywhere in `src/` (already independently found
+      absent, twice, by OCID-034 §22 and by this session's own grep). This document
+      does not re-derive that finding a third time; it cites it.
+
+      This session's own document is scoped to genuinely new ground beyond OCID-027/
+      036 per the binding PM decision (`UMR-20260803-045159-ec55`): the actual
+      catalog-of-catalogs front door (unifying `MASTER_INDEX.yaml` +
+      `FUNCTION_CATALOG.json` + `DATABASE_CATALOG.json` + `ENGINES.yaml` +
+      `AI_ROSTER_CATALOG.json` + `promptVersions` + `system-tree/` into one
+      queryable map), Mode Pill catalog and Option Chain catalog entries (grounded
+      in the real DMP-01..06 rules and `ChainSelector.tsx`/`capability-tree-service.ts`
+      evidence above, including `DMP-06`'s real, unbuilt Dynamic Chain Master
+      Directory as the honestly-named gap for option-chain-level dependency
+      mapping), dependency mapping, version mapping (building on OCID-036 §21's
+      versioning model), browser/PWA/server/AI usage split (citing OCID-024/025
+      rather than restating them), auditability, and readiness for OCID-038.
+      Sections already fully covered by OCID-027/036 are cross-referenced, not
+      restated, per this whole chain's own established zero-duplication precedent.
+    scope_note: >-
+      File scope: this repo's own new file
+      `ai-os/VERIDIAN_UNIVERSAL_KNOWLEDGE_AND_SERVICE_CATALOG_2026-08-03.md`,
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment), `ai-os/OS.yaml`
+      (index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`.
+      No src/, schema, or CI changes. Read-only discovery of sibling PR branches
+      (#771, #782, #767, #766) via `git fetch`/`git cat-file` -- no writes to any
+      of those branches or worktrees.
   - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only [PUSHED, PR #781 OPEN]"
     claimed_at: "2026-08-03T05:5xZ (this session, PR opened same session)"
     claim: |

@@ -374,3 +374,35 @@ reaches a real completed status.
       every other documentation-only OCID registration this session; zero code, zero
       infrastructure, zero browser automation, zero new systemd units, zero network/firewall
       changes), real independent review before merge -- not self-certified here.
+# PROGRESS -- task-20260803-071111-ocid-037-veridian-universal-knowledge-an
+
+## Completed
+- [x] Read governance chain (ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml incl. SEC-07/DMP-01..06, OS.yaml, MASTER-TRACKER context)
+- [x] Discovery: read `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` -- confirmed real UMR for OCID-037 is `UMR-20260803-042230-180c`, confirmed zero merged content for OCID-026..037 as of this snapshot
+- [x] Discovery: verified no "Universal Knowledge and Service Catalog" doc/PR/branch exists anywhere (find + gh pr list)
+- [x] Discovery: read OCID-027 (PR #771, `VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME`, 620 lines) in full -- canonical for search order + per-type discovery
+- [x] Discovery: read OCID-036 (PR #782, `VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME`, 502 lines) in full -- canonical for classification/versioning, its own §36 hands off directly to OCID-037
+- [x] Discovery: read OCID-024 §14-15 (PR #767, Mode Pills/Option Chain execution) and OCID-025 §12-13 (PR #766, mobile) for real file:line grounding
+- [x] Discovery: confirmed "option chain" (directive term) has zero literal matches in `src/`; real analogue is Chain Selector / `dynamic_chains` (CONSTITUTION.yaml DMP-01..06), consistent with 3 independent prior findings (OCID-034 §22, OCID-024 §15, OCID-025 §13)
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`, committed + pushed
+
+- [x] Write `ai-os/VERIDIAN_UNIVERSAL_KNOWLEDGE_AND_SERVICE_CATALOG_2026-08-03.md` (the one canonical artifact, 37 sections, 524 lines)
+- [x] Amend `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (existing UMR chain, not a new one)
+- [x] Register doc in `ai-os/OS.yaml` index (validated `yaml.safe_load` OK)
+
+- [x] Commit + push, open PR (PR #785)
+
+## Remaining
+- [ ] Independent audit (`AUDIT: PASS`/`FAIL` comment, Rule 10) -- not this session, requires a different agent
+- [ ] Merge once CI + audit pass
+
+## Update (2026-08-04, real PM decision `UMR-20260804-113132-327c`)
+Real rebase performed against `origin/main` to resolve a real `DIRTY`/`CONFLICTING` merge state
+(`UMR-20260803-042230-180c`, OCID-037). Real conflicts in `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+`PROGRESS.md`, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (2 conflicts, including a real,
+previously-documented false-positive interleaved-conflict class this file is known to produce),
+and `ai-os/OS.yaml` -- resolved by preserving both this PR's own real OCID-037 content and every
+real, distinct entry already merged into `origin/main`, discarding only genuinely stale/duplicate
+copies of content already correctly present, per direct comparison, not guessed. All 4 governance
+checks re-verified passing post-rebase. Not merged by this action -- left for the existing real
+review/merge process, per explicit instruction.
