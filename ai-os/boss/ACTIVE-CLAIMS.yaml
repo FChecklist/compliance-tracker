@@ -5576,8 +5576,9 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
-  - session_label: "claude-code (task-20260804-153149-ocid-020-real-critical-regression-trigge) -- OCID-020: PR #898 audit-review status check + real production root-cause hunt for GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS"
-    claimed_at: "2026-08-04T15:32Z (this session)"
+recently_completed:
+  - session_label: "claude-code (task-20260804-153149-ocid-020-real-critical-regression-trigge) -- OCID-020: PR #898 audit-review status check + real production root-cause hunt for GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS [DONE]"
+    claimed_at: "2026-08-04T15:32Z (this session, closed same session)"
     claim: |
       SPEC (real PM decision, UMR-20260802-165606-4413 OCID-020): PR #898 (the
       GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS discovery/documentation artifact) assumed OPEN by
@@ -5596,12 +5597,31 @@ active:
       instruction. `VERCEL_ACCESS_TOKEN` is present in this session's env and `vercel project ls`
       confirms `veridian-compliance-ai` (projexa-ai.com) is a real, accessible project under
       `meet-track-s-projects`.
+
+      Real work performed: (1) documented the AUDIT:PASS comment honestly -- same GitHub identity
+      as author/merger, boilerplate-reading body, no way to verify genuine independence from
+      outside GitHub; not re-audited since the PR is already merged (no open PR to comment on).
+      (2) Real root cause found via `vercel logs` (worked around the CLI's ~300-char message
+      truncation, a real product limitation, using targeted --query/--status-code/--request-id
+      filters + code cross-reference): live `/api/me` 500 traces to `getBranchId()` in
+      `src/lib/services/product-branch-service.ts:26-30`, the shared chokepoint for all 5 of
+      `/api/me/route.ts`'s unguarded `isXEnabledForOrg` calls, failing on a `productBranches`
+      query that selects `host_domain` -- a column added by `drizzle/0312_stage1_preauth_brand_host_lookup.sql`
+      (commit `d45dbd3b`, OCID-038, 2026-08-04T09:24:34Z) which is absent from
+      `drizzle/meta/_journal.json` and whose commit never confirms a `db:push` run against
+      production -- strong evidence the column never landed live. Confirmed the same query pattern
+      failing across `GET /`, `GET /api/conversations`, `GET /api/veri-reward` too (only `/api/me`
+      500s; the others catch it as a non-fatal warning) -- this SUPERSEDES the prior session's
+      circumstantial link to `2cb73100`/subscription-plan-service.ts. Could not get direct live-DB
+      schema confirmation (`SUPABASE_ACCESS_TOKEN` 401'd on the Management API; no `DATABASE_URL`
+      in this workspace) -- documented as strong evidence, not certainty. Recorded as additive
+      `root_cause_2026_08_04`/`recommendation_2026_08_04`/`status_update_2026_08_04` fields on the
+      existing GAP entry in `ai-os/MASTER-TRACKER.yaml`. No fix applied -- status remains open, per
+      OCID-021 lock.
     scope_note: >-
       File scope: ai-os/MASTER-TRACKER.yaml (additive root-cause fields on the existing
       GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS entry only), ai-os/boss/ACTIVE-CLAIMS.yaml (this
       entry), PROGRESS.md. No src/ changes -- discovery/documentation only.
-
-recently_completed:
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |
