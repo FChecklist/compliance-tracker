@@ -5577,6 +5577,39 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-221848-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F checkpoint refresh: finished the interrupted OCID-052 re-verification, real live PASS confirmed [DONE]"
+    claimed_at: "2026-08-04T22:20Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, checkpoint refresh, `UMR-20260802-165606-4413` OCID-020, Group F children
+      OCID-047 through OCID-052): real current-status review of all six on `origin/main` found
+      OCID-047/048/049/050/051 unchanged and already broadly evidenced, and OCID-052 marked complete
+      with one open thread -- the task-20260804-144006 session's own interrupted re-verification of
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`, which never finished because it was
+      diverted by discovering `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` (now closed, independently
+      re-verified twice: PR #900/#904, PR #917).
+
+      Completed the interrupted re-verification for real: fresh Admin-API-provisioned user, real
+      password-grant login via `@supabase/ssr`'s own `createServerClient` cookie adapter (not
+      hand-constructed), real Playwright session against live `projexa-ai.com`. Confirmed `GET
+      /api/me` returns a real `200` (third independent confirmation the regression stays fixed) and
+      `/home` renders real, non-blank content. Noted a real UI change since the original 2026-08-03
+      finding (composer now gated behind a task-category tab; used the "Discuss" tab to reach it).
+      Sent the same real message pair as the original finding -- deterministic ("what's the status"
+      -> "No tasks yet", plain bubble) and AI-escalating ("Can you create a task for renewing our
+      fire safety certificate next month?" -> real reply prefixed `"✨ AI-generated reply"`, ~9s real
+      LLM round-trip). **Real, honest result: the gap no longer reproduces.** This closes the exact
+      "live re-render" follow-up that this gap's own `resolved` note (fix commit `8a815df5`,
+      2026-08-03) had left open as unit-test-only verification. Recorded as an additive
+      `reverification_2026_08_04_2230` field on the existing `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`
+      entry in `ai-os/MASTER-TRACKER.yaml`, citing this task's own identity (no self-minted UMR
+      exists yet for it in the real `umr_tasks` table as of this write -- checked read-only, none
+      fabricated). Real evidence (screenshots, scripts) left ephemeral at
+      `/tmp/ocid020-group-f-checkpoint-verify/` on this server, not committed.
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (additive re-verification field, no existing content
+      changed), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/, schema, or CI
+      changes -- discovery/re-verification only, per the standing OCID-021 implementation lock (the
+      finding itself was already fixed by a prior, separately-authorized task).
   - session_label: "claude-code (task-20260804-183824-ocid-020-urgent-correction-real-merge-fa) -- OCID-020 GAP-API-ME-500: urgent-correction dispatch found its own premise stale (real merge already happened via a separate autonomous cycle before this task started), independently re-verified the real production fix instead of re-doing already-done work [DONE, no new PR -- additive doc corroboration only]"
     claimed_at: "2026-08-04T18:38Z (this session)"
     claim: |
