@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-045443-register-ocid-059--universal-browser--pw) -- OCID-059: real browser runtime / PWA / synchronization-engine / offline-queue certification (discovery+verification only, no implementation) [IN PROGRESS]"
+    claimed_at: "2026-08-04T04:55Z (this session)"
+    claim: |
+      SPEC (PM registration of a new OCID): claimed parent chain OCID-058 (`UMR-20260804-040009-09bc`)
+      -> OCID-057 (`UMR-20260804-035943-3c38`) -> OCID-056/055/054/053 -> OCID-020/021. Independently
+      verified before treating any of it as real, per this repo's own standing practice (state drifts
+      within seconds under 4+ concurrent sessions): OCID-053 (`8bd602d9`), OCID-054 (`03f60ffd`),
+      OCID-055 (`865ce964`), OCID-056 (`caa85c95`), OCID-057 (`050b8e2c`) are all real, merged commits
+      on `origin/main` -- confirmed directly via `git log --all`. **OCID-058 is NOT real yet**: zero
+      commits, zero PRs, zero branches, zero grep hits for its UMR anywhere in this repo; its own task
+      directory (`task-20260804-045439-register-ocid-058--universal-task-regist`, created 4s before
+      this task) shows `status: in_progress` with an empty `worker.log` -- a real, currently-running
+      sibling task, not yet real committed content. Not reaching into that task's workspace (would be
+      exactly the collision this registry exists to prevent). This task's real parent is therefore the
+      actual highest real merged OCID on `main`, OCID-057, not the not-yet-real OCID-058 the SPEC
+      names -- flagging this rather than silently accepting the SPEC's framing, same treatment given to
+      OCID-012 (per this SPEC's own instruction: OCID-012 re-confirmed fake again this session, zero
+      matches in the real UMR chain).
+
+      Real scope: honest discovery/verification only (SPEC explicitly prohibits redesigning runtime
+      architecture) of `src/lib/browser-execution/*` (tier-detection/tier-orchestrator/client-compile/
+      sync-engine/worker-pool/cross-tier-storage/model-cache/webllm-npu-builtin-ai-transformers
+      engines), `src/app/manifest.ts`, and any service worker (none found). Producing one certification
+      document (browser runtime + PWA + synchronization/offline-queue, per the SPEC's own 3-report
+      ask) citing real file:line evidence, no implementation.
+    scope_note: >-
+      File scope: new `ai-os/VERIDIAN_OCID_059_*.md` certification document, `ai-os/MASTER-TRACKER.yaml`
+      (status update only, no gap redesign), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`.
+      No src/ code changes -- discovery/verification only per SPEC.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
