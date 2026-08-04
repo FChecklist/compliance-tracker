@@ -34,7 +34,7 @@ directive prompts that requested each item.
 | OCID-20260803-034 | VERIDIAN Continuous Platform Evolution Runtime v1.0 | **Not started** | Same as above. Content overlaps significantly with OCID-029/030/032/035/036's shared "search-first, reuse-first, zero-duplication" framing -- same reconciliation note as OCID-031 applies. |
 | OCID-20260803-035 | VERIDIAN Universal Capability Discovery and Evolution Runtime v1.0 | **Not started** | Same as above |
 | OCID-20260803-036 | (this document's original draft mislabeled this row -- see the real correction below) | **Not started** | Corrected per real PM decision `UMR-20260803-045159-ec55`: this document's original row here incorrectly placed "VERIDIAN Universal Knowledge and Service Catalog" content at 036. That real content is OCID-037 (see below). This slot's own exact distinct content was not independently re-derived as part of this correction pass, to avoid compounding the numbering error with a second guess -- the real UMR chain (`UMR-20260803-042144-e83f`) is the authoritative record for OCID-036's real mission text, not this row. |
-| OCID-20260803-037 | VERIDIAN Universal Knowledge and Service Catalog v1.0 | **Not started** | Corrected per `UMR-20260803-045159-ec55`: this document's original draft stated no independent mission text existed for OCID-037 -- that was wrong. Real, full mission text was dispatched under `UMR-20260803-042230-180c`. Its own directive correctly instructs "whether a catalog already exists must be independently verified, not assumed" -- real, relevant prior evidence exists: `ai-os/MASTER_INDEX.yaml` is already documented (`ai-os/OS.yaml`) as the real, existing query-before-building index across all 4 repos, and `ai-os/system-tree/` (Tree 3) is already documented as the real, grep-derived inventory of what's actually built. Whoever picks this up should treat those as the real starting point, not build a new catalog from nothing. |
+| OCID-20260803-037 | VERIDIAN Universal Knowledge and Service Catalog v1.0 | **Not started** | Corrected per `UMR-20260803-045159-ec55`: this document's original draft stated no independent mission text existed for OCID-037 -- that was wrong. Real, full mission text was dispatched under `UMR-20260803-042230-180c`. Its own directive correctly instructs "whether a catalog already exists must be independently verified, not assumed" -- real, relevant prior evidence exists: `ai-os/MASTER_INDEX.yaml` is already documented (`ai-os/OS.yaml`) as the real, existing query-before-building index across all 4 repos, and `ai-os/system-tree/` (Tree 3) is already documented as the real, grep-derived inventory of what's actually built. Whoever picks this up should treat those as the real starting point, not build a new catalog from nothing. **Minor correction, not a real gap** (per real PM decision citing `UMR-20260803-042918-60b8`): OCID-037 has simply not yet been picked up by a worker, same as OCID-026 through OCID-036 -- all are queued behind the real 5-worker concurrency cap, not missing or skipped. |
 | OCID-20260803-038 | Real platform discovery + honest E2E verification (do not implement) | **Not yet dispatched as its own worker task as of this snapshot** | No task.yaml or PR found matching this scope; its real directive (`UMR-20260803-042801-ec4b`) explicitly keeps all implementation locked pending OCID-020 |
 | OCID-20260803-039 | Real verification of OCID-022 through 038's actual status, dependency mapping | **This is functionally superseded by this same document** | The OCID-039 directive (`UMR-20260803-042839-b9c4`) and the OCID-040 directive (`UMR-20260803-042918-60b8`, this document's own citing UMR) ask for materially overlapping work -- a real status/dependency snapshot of the chain. This document satisfies both asks; a separate OCID-039-only artifact was not additionally produced to avoid creating the exact kind of duplication these directives themselves prohibit. |
 
@@ -62,7 +62,7 @@ complete, with the explicit unlock sequence (038 implementation, then 039 produc
 then 040 final certification+freeze, in that order). This formalizes, rather than changes, the lock
 every directive in this chain has already correctly, voluntarily observed.
 
-**On the real content-overlap risk (OCID-023/031, and the OCID-029/030/032/034/035/037 cluster):**
+**On the real content-overlap risk (OCID-023/031, and the OCID-029/030/032/034/035/036 cluster):**
 real, binding process decision for whichever worker picks up OCID-026 through OCID-037 next --
 **before starting, that worker must first check whether the other, related OCIDs in its own cluster
 have already merged real content covering the same ground.** If OCID-023 has merged and its real
@@ -72,8 +72,12 @@ cross-referencing OCID-023's document rather than repeating it -- or, in that wo
 judgment, if no genuinely new ground remains, fold OCID-031's real content into OCID-023's document as
 a real amendment and report that OCID-031 was correctly not created as a separate document, rather
 than force a redundant one into existence. The identical real check applies across
-OCID-029/030/032/034/035/037: each worker must read whichever siblings in that cluster have already
-produced real merged or open content and explicitly scope its own document to genuinely new ground.
+OCID-029/030/032/034/035/036 (not 037 -- OCID-037 is the distinct Knowledge and Service Catalog
+document, see §1a's own correction to the row-36/37 mislabel and the note below; conflating the two in
+an earlier draft of this section was a real, self-caught inconsistency, fixed here to match this
+document's own §1 row 34 and §4 dependency map, which both correctly said 036 all along): each worker
+must read whichever siblings in that cluster have already produced real merged or open content and
+explicitly scope its own document to genuinely new ground.
 
 ## 1b. Real PM decision on three further mislabels found downstream (`UMR-20260803-052107-71fa`)
 

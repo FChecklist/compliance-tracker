@@ -5348,6 +5348,47 @@ recently_completed:
       registry entry), this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry,
       `PROGRESS.md`. No src/, schema, UI, or CI changes -- documentation
       only per spec, confirmed by `git status` before commit.
+  - session_label: "claude-code (task-20260803-071339-pm-decision-register-the-real-implementa) -- PM decision on OCID-021 lock registration + overlap-resolution: ALREADY DONE, real inconsistency found+fixed [DONE, PR pending]"
+    claimed_at: "2026-08-03T07:1xZ (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260803-045159-ec55`, citing `UMR-20260803-042918-60b8`
+      the OCID-040 status snapshot, `UMR-20260802-173631-ca85` the ERP Functional
+      Completeness Master Program, and `UMR-20260802-165606-4413` OCID-020 the real
+      gate): register the "OCID-021 implementation lock" as a real CONSTITUTION.yaml
+      entry, and record the OCID-023/031 + OCID-029/030/032/034/035/036 overlap-
+      resolution process decision.
+
+      **Independently verified before doing any real work (not narrated)**: both asks
+      were already done. `SEC-07` already exists in `ai-os/CONSTITUTION.yaml`
+      (`git log` confirms commit `c9dbbef5`, merged to `main` via PR #770, merge
+      commit `42bdb408`, independently reconfirmed via `git merge-base --is-ancestor
+      42bdb408 HEAD` against this session's own checkout). The overlap-resolution
+      decision and the OCID-037-not-yet-picked-up correction both already exist in
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §1a and row 37,
+      same `UMR-20260803-045159-ec55`. This task's own dispatch is a duplicate/re-
+      issue of a PM decision a prior session already completed and merged -- not
+      redone here, per [[veridian-task-prompt-false-premise-pattern]]-class
+      diligence (verify before assuming a re-ask means real new work).
+
+      **One real, genuine defect found during this verification, fixed here**: §1a
+      of the already-merged snapshot doc (lines 65/75) stated the overlap cluster as
+      "OCID-029/030/032/034/035/**037**" -- internally inconsistent with the same
+      document's own §1 row 34 and §4 dependency map, both of which correctly say
+      "...**036**" (matching this task's own spec verbatim), and inconsistent with
+      OCID-037 being a distinct, separate document (Universal Knowledge and Service
+      Catalog) rather than a member of that runtime-overlap cluster. Root cause: the
+      036/037 mislabel-correction pass (same UMR) touched §1a's cluster reference by
+      mistake, substituting the corrected catalog number where the original cluster
+      slot number belonged. Fixed: §1a now reads 036, with an inline note explaining
+      the correction and pointing to §1/row 34 and §4 as the rows that were correct
+      all along. Also added one clarifying line to row 37 noting OCID-037 is simply
+      queued behind the real 5-worker concurrency cap, same as 026-036, not missing.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
+      (3 small in-place text fixes, no new sections -- SEC-07 and §1a/1b/row-37
+      already existed), this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No
+      `CONSTITUTION.yaml` change (SEC-07 already correct, nothing to amend). No
+      src/, schema, or CI changes.
   - session_label: "claude-code (docs/gap-product-branches-schema-rootcause) -- real root cause found + fixed for GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY: wrong Postgres schema queried, real migration 0245 moved both tables to `platform` [DONE, PR pending]"
     claimed_at: "2026-08-04T03:12Z (this session)"
     claim: |
