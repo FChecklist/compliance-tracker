@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-161625-ocid-055-registration-and-discovery-only) -- OCID-055 canonical registration + repository governance discovery, found the dispatch's own 'zero duplication' premise was false [IN PROGRESS]"
+    claimed_at: "2026-08-04T16:16Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt): registration and real read-only discovery only. Parent
+      chain: OCID-055 is a child of OCID-054, placed immediately after it. Job: write a canonical
+      registration document minting a fresh UMR for OCID-055 and linking it to OCID-054 as
+      predecessor; perform real, safe, read-only repository census (visibility/owner/
+      classification/dependencies) across every real GitHub repository; explicitly withhold any
+      visibility/ownership/permission change (reserved for the Owner directly in chat); record that
+      real governance changes stay locked behind the OCID-020..040 gate; open a PR with discovery
+      documentation only, zero repository state changes.
+
+      **Premise correction (found, not silently accepted):** the dispatch asserts "Zero duplication
+      independently confirmed, an exact query against the real umr_tasks database for the original
+      OCID-055 registration task identity returned zero matches." This is false. A prior task
+      (`task-20260804-040758-register-ocid-055--universal-repository`, dispatched ~04:07Z the same
+      day) already performed this exact repository census and opened
+      `FChecklist/compliance-tracker` PR **#868** (`ai-os/registry/OCID-055-repository-register.md`,
+      15 repos, classification/dependency/relationship-graph/documentation-audit sections, same
+      explicit no-visibility-change withholding). PR #868 is still real and OPEN, but blocked:
+      `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` (a trivial PROGRESS.md append-history
+      conflict, not a content conflict) and 3 failing checks (Metadata Index Coverage Check,
+      audit-check, Vercel rate-limited). Not re-running that census here -- would be genuine
+      duplicate work. Instead: fresh spot-check confirms the same 15 repos/same visibility as of
+      this dispatch (~12h later, zero drift), and this task's own distinct, not-yet-produced
+      artifact -- the canonical UMR-mint + OCID-054-predecessor registration document -- is what
+      gets written. PR #868 flagged as needing conflict resolution + CI fixes to actually land;
+      not fixed here (different task's branch, out of this dispatch's narrow scope, noted for the
+      Owner/a follow-up session rather than silently worked around).
+    scope_note: >-
+      File scope: one new file (ai-os/OCID_055_REGISTRATION_2026-08-04.md), ai-os/MASTER-TRACKER.yaml
+      (new needs_owner_decision entry), ai-os/OS.yaml (index entry), this ACTIVE-CLAIMS entry,
+      PROGRESS.md. No src/, schema, or repository visibility/ownership/permission changes of any
+      kind -- read-only discovery, confirmed via `gh api` against the live GitHub account only.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
