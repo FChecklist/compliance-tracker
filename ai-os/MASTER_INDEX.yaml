@@ -1599,6 +1599,22 @@ registries:
     disclaimer warned about.'
   status: live
   query_command: cat ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
+- id: veridian_mobile_pwa_and_veri_chat_runtime_1_0
+  type: end_user_experience_spec
+  path: ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md
+  scope: 'OCID-20260803-025, documentation only. 36-section real inventory of the mobile PWA
+    (src/app/manifest.ts, installable share-target PWA), VERI Chat (VeriComposer.tsx,
+    chat-service.ts, api/veri-chat/* surface), VERI the assistant, mode pills / Chain Selector
+    (capability-tree-service.ts, dynamic_chains table), the software-first AI escalation gate
+    (llm-routing-gate.ts -> ai-reply-gate.ts), the deterministic task model, and offline/cache/
+    sync/push/session-recovery -- each area graded honestly against real code (real IndexedDB
+    composer-history cache and conflict-resolution primitives exist and are largely unwired;
+    push notifications and session recovery do not exist at all; one working offline
+    photo-capture/sync flow exists but lives in the sibling projexa repo, not here). Amends
+    ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md in place (new OCID-20260803-025 section) rather
+    than duplicating it. No implementation performed.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md
 - id: veridian_universal_end_user_work_model_v1_0
   type: point_in_time_synthesis_doc
   path: ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md
