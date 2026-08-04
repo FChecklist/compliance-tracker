@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
+    claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision, UMR-20260802-165606-4413 OCID-020): PR #895 already merged, both
+      known end-user gaps re-verified as not reproduced, and the prior review-trigger task's
+      periodic checkpoints stopped producing new real output. Concrete next step: check the real
+      current status of OCID-047 through OCID-052 (children of OCID-020's Group F Business
+      Certification) via `ai-os/boss/ACTIVE-CLAIMS.yaml` on `origin/main` and
+      `ai-os/scripts/resource_governor.py --query-umr`, identify whichever has the least real
+      testing coverage so far, and perform one real concrete browser test against live
+      `projexa-ai.com` for it -- real screenshot, real honest reproduction result, no fixing.
+
+      Reviewed all six OCIDs' real claimed evidence on `origin/main`: OCID-047 (77 real API checks
+      across rights/responsibility/scope axes), OCID-048 (7/7 cross-tenant isolation + 1 browser
+      brand-DOM check), OCID-049 (4 tiers, ~97 real users via join-code redemption), OCID-050
+      (345/345 real page-checks across 3 data states), OCID-051 (115+115 nav checks plus PWA
+      manifest/share-target/offline checks) all have broad, multi-part real evidence. OCID-052 (VERI
+      Chat AI Escalation and Deterministic Software Execution Certification,
+      `UMR-20260803-115620-29c6`) has genuinely the least: only 2 real chat messages + 1 screenshot
+      from its single completing pass, and its own Item 5 was explicitly left "deferred (no active
+      dialogue-script package confirmed for testing)" rather than executed. Picked OCID-052.
+
+      Real work performed: fresh Admin-API-provisioned user, real password-grant login,
+      hand-constructed `@supabase/ssr` session cookie, real Playwright session against
+      `/home` on live `projexa-ai.com`. **Did not reach the planned re-verification** --
+      found a real, reproducible, currently-live regression instead: `GET /api/me` returns
+      `500` (empty body) for every authenticated user, 10/10 across 4 independent fresh users
+      including retries up to 20s post-provisioning. Real screenshots show `/home`'s central
+      VERI Chat panel renders entirely blank as a result (composer exists in DOM but is
+      pushed off-screen by a broken layout, `y: -10065px`). Circumstantially linked to
+      `2cb73100` (2026-08-04T03:35Z, OCID-049 Task B, added new `/api/me` DB calls, whose own
+      commit message admits live-site confirmation was never run) -- not fixed, not chased
+      past discovery, per the standing OCID-021 lock and this task's own explicit
+      discovery-only instruction. Registered `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` in
+      `ai-os/MASTER-TRACKER.yaml` (severity high) with full evidence. Real evidence
+      (screenshots, debug scripts, raw JSON) left at `/tmp/ocid052-verify/` and
+      `/tmp/debug-*.mjs` on this server, ephemeral, not committed.
   - session_label: "claude-code (task-20260804-125247-ocid-020-concrete-redirect-stop-open-end) -- OCID-020 concrete redirect: real live re-verification of GAP-VERI-TODO-STUCK-LOADING-NOT-READY and the mobile-viewport-blank-content gap against live projexa-ai.com [DONE, PR #895 OPEN]"
     claimed_at: "2026-08-04T13:03Z (this session)"
     claim: |

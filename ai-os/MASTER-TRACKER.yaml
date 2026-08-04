@@ -572,6 +572,63 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
+      name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
+      old_ids: []
+      detail: |
+        Real finding from OCID-020 Group F testing (`UMR-20260802-165606-4413`), discovered while
+        attempting a fresh, independent re-verification of OCID-052's own
+        `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` (picked as the OCID-047..052 child with
+        the least real testing coverage so far -- see this task's own PROGRESS.md section). The
+        planned re-test never completed: `/home` renders the sidebar/topbar correctly but the central
+        VERI Chat thread panel is entirely blank (no composer, no messages, no loading state) --
+        real screenshots at `/tmp/ocid052-verify/01-home-initial.png` and
+        `/tmp/ocid052-verify/debug-8s.png`.
+
+        Root-caused as far as discovery-only scope allows: `GET /api/me` itself returns a real,
+        reproducible `500` with a completely empty body (`content-length: 0`, no JSON, not even an
+        `{"error": ...}` shape) -- confirmed **10/10 times** across **4 independent, freshly
+        Admin-API-provisioned real users** on live `projexa-ai.com`, including retries up to 20
+        seconds after provisioning (rules out an autoProvisionUser race). The same session cookie
+        that gets this 500 successfully authenticates against `GET /api/conversations` (real `200`,
+        real welcome message returned) -- ruling out an auth/cookie-construction problem; the crash
+        is specific to the `/api/me` route handler itself. A DOM trace of the broken `/home` page's
+        composer `<textarea>` shows an ancestor container with `height: 12443.8px` and the textarea
+        itself positioned at `y: -10065.75` (off-screen, unreachable by scrolling) -- consistent
+        with the frontend receiving no/broken `/api/me` data and rendering a degenerate layout, not
+        a separate frontend bug.
+
+        Strong circumstantial link (not fixed, not further chased past discovery): the most recent
+        commit touching `src/app/api/me/route.ts` is `2cb73100` ("GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT:
+        implement Tasks A/B/C/E", 2026-08-04T03:35Z, confirmed a real ancestor of `origin/main`),
+        which added two new server-side calls on every `/api/me` request:
+        `getSubscriptionPlanStatus(orgId)` and `getAssistantsUsedByUser(dbUser.id)` (both in the new
+        `src/lib/services/subscription-plan-service.ts`). That commit's own message honestly flagged
+        "Live browser confirmation against the deployed site not run this cycle (budget-constrained)".
+        A direct, read-only `psql` check against the real live DB (this task's own `.env.local`
+        `DATABASE_URL`, superuser role, same role `db` in `src/lib/db/index.ts` resolves to since it
+        is not tenant-scoped) confirms `compliance.subscription_plans` exists with 8 real active rows
+        -- ruling out "missing table" (the codebase's own prior recurring bug class, e.g.
+        `GAP-EMAIL-INTELLIGENCE-500-VS-403`'s migration-drift root cause) as the direct explanation
+        this time; the real crash site within the new code was not narrowed further than "one of the
+        two new `/api/me` calls, or their shared `resolveSubscriptionPlan()`", per this task's
+        explicit discovery-only, no-fixing scope. Two real, distinct `user_pack_size` ties were
+        separately observed in the live data (`Scale`=50 and `Professional`=50) which would make
+        `resolveSubscriptionPlan()`'s `plans.find(p => userCount <= p.userPackSize)` fallback
+        non-deterministic for orgs in that band -- plausible contributing factor, not confirmed as
+        the crash cause, noted honestly as an open question for whoever picks this up.
+      size: M
+      recommendation: |
+        Needs a real owner to read the actual Vercel function logs for `/api/me` (this task had no
+        access to production runtime logs, only black-box HTTP behavior + local read-only DB
+        checks) to get the real stack trace before attempting a fix -- do not guess-fix based on
+        the circumstantial link above alone. Once root-caused, the fix is very likely narrow (one
+        of the two new calls in `2cb73100`'s diff to `src/app/api/me/route.ts`), but this entry
+        deliberately stops at discovery per the standing OCID-021 implementation lock and this
+        task's own explicit "discovery/testing only, no fixing" instruction.
+      status: open
+      first_raised: "OCID-020 Group F / OCID-052 re-verification, 2026-08-04 (UMR-20260802-165606-4413)"
+
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
       old_ids: ["GAP-07", "G-016", "G-017", "G-034 (Business Digital Twin, same substrate)"]

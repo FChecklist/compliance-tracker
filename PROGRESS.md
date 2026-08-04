@@ -463,3 +463,81 @@ real, distinct entry already merged into `origin/main`, discarding only genuinel
 copies of content already correctly present, per direct comparison, not guessed. All 4 governance
 checks re-verified passing post-rebase. Not merged by this action -- left for the existing real
 review/merge process, per explicit instruction.
+
+---
+
+# PROGRESS -- task-20260804-144006-ocid-020-group-f-real-business-certifica
+
+SPEC: Real PM decision, OCID-020 (`UMR-20260802-165606-4413`). PR #895 merged, both known
+end-user gaps re-verified as not reproduced. Concrete next step: check real status of
+OCID-047 through OCID-052 (Group F Business Certification children of OCID-020), identify
+the one with least real testing coverage, run one real browser test against live
+projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, no fixing.
+
+## Completed
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` per protocol (this session, before real work).
+- [x] Fetched `origin/main` fresh (local checkout was already in sync); reviewed real status of
+      OCID-047 through OCID-052 via `ai-os/boss/ACTIVE-CLAIMS.yaml` and
+      `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` on `origin/main`.
+      All six have "complete" claims, but real evidence depth varies sharply:
+      - OCID-047: 77 real API checks (55 rights + 18 responsibility/clearance + 4 broad-scope).
+      - OCID-048: 7/7 real cross-tenant isolation checks + 1 real browser brand-DOM screenshot.
+      - OCID-049: 4/4 tiers, ~97 real users via join-code redemption across 4 real orgs.
+      - OCID-050: 345/345 real page-checks across 3 real data states (empty/sample/large).
+      - OCID-051: 115+115 real nav checks + real PWA manifest/share-target/offline checks.
+      - OCID-052: only 2 real chat messages + 1 real screenshot from its single completing pass;
+        its own Item 5 was explicitly left "deferred (no active dialogue-script package confirmed
+        for testing)" rather than executed. **Least real testing coverage of the six.**
+- [x] Picked **OCID-052** (VERI Chat AI Escalation and Deterministic Software Execution
+      Certification, `UMR-20260803-115620-29c6`) as the real next concrete test target.
+- [x] Real, disclosed housekeeping: found this branch's own base carried a genuinely truncated
+      `PROGRESS.md` again (a task-workspace-init step had collapsed the real 465-line accumulated
+      history down to a 7-line stub -- discovered only via `git cat-file -p` against the real
+      committed blob after `git diff --numstat` showed 465 real deletions the `Read` tool's own
+      output had silently hidden, the same known Bash-tool large-output-truncation class a prior
+      session on this exact file already hit and fixed once). Restored the full prior history
+      above, unchanged, and appended this section rather than repeating the destructive overwrite
+      -- an earlier commit on this branch (since amended by this restoration) had briefly
+      re-introduced the truncation; caught and corrected within the same session before further
+      work.
+
+- [x] Real, live browser test attempted for OCID-052: Admin-API-provisioned fresh user, real
+      password-grant login, hand-constructed `@supabase/ssr` session cookie (same method as prior
+      OCID-047/048/052 sessions), Playwright (no-sudo Chromium fix,
+      `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`) navigated to `/home` on live
+      `projexa-ai.com`. **Result: CONFIRMED BROKEN, but not the originally-targeted finding.**
+      The planned deterministic-vs-AI-escalation message test never got to run: `/home`'s central
+      VERI Chat thread panel renders entirely blank (no composer, no messages) -- real screenshots
+      `/tmp/ocid052-verify/01-home-initial.png`, `/tmp/ocid052-verify/debug-8s.png` (8s wait,
+      still blank). Root-caused to `GET /api/me` returning a real, reproducible `500` (empty body)
+      for every authenticated user tested -- **10/10 reproductions across 4 independent fresh
+      users**, including retries up to 20s post-provisioning (rules out a provisioning race). The
+      same session cookie correctly authenticates `GET /api/conversations` (real 200 + welcome
+      message), ruling out an auth/cookie problem -- the crash is specific to `/api/me`.
+      Circumstantially linked (not fixed, not confirmed further -- no production log access) to
+      `2cb73100` (2026-08-04T03:35Z, real ancestor of `origin/main`), which added two new DB calls
+      to every `/api/me` request as part of OCID-049 Task B and honestly flagged in its own commit
+      message that live-site confirmation was never run. A direct read-only `psql` check ruled out
+      "missing table" as the cause (`compliance.subscription_plans` exists, 8 real rows) but did
+      not pin down the exact crash line, per this task's discovery-only, no-fixing scope.
+- [x] Registered `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` in `ai-os/MASTER-TRACKER.yaml`
+      (`real_gaps_not_yet_built`, severity high) with full evidence -- validated YAML still parses
+      clean (`python3 -c "import yaml; yaml.safe_load(...)"`).
+- [x] Closed out the ACTIVE-CLAIMS.yaml claim entry for this task with the real final result.
+- [x] Committed, pushed, opened PR #898: https://github.com/FChecklist/compliance-tracker/pull/898
+
+## Remaining
+- [ ] Confirm CI green, hand off for independent audit -- not self-certified here.
+- [ ] `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` needs a real owner with production log access to
+      find the exact stack trace and fix it -- out of this task's own locked scope.
+- [ ] Once `/api/me` is fixed, OCID-052's own planned re-verification of
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` (this task's original target) is still
+      genuinely un-re-verified and should be picked back up.
+
+## Notes
+- The root-landing-page `https://projexa-ai.com/` `HTTP 500` noted earlier in this session (same
+  error `digest` on repeat requests) is very likely the *same* underlying regression as
+  `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` above (both point at a server-side crash touching
+  every-page-shared org/user resolution, both appeared the same day as `2cb73100`) -- plausible,
+  not independently confirmed (the root page's error digest was never cross-checked against a
+  server-side stack trace), folded into the one gap entry above rather than registered twice.
