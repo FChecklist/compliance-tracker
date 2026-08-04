@@ -11,5 +11,8 @@
 - [x] Updated `ai-os/boss/ACTIVE-CLAIMS.yaml` (registered + closed same session, per protocol)
 - [x] Validated all edited YAML files parse clean (`python3 -c "import yaml..."`)
 
+- [x] Merged origin/main into branch (2 unrelated PRs #865/#767 had landed); only conflict was PROGRESS.md, resolved by keeping this branch's own notes
+- [x] Posted required 8-field structured `AUDIT: PASS` verdict comment on PR #866 (mandatory-audit-check.yml)
+
 ## Remaining
-- [ ] Open PR, let CI run, merge (no direct push to `main`)
+- [ ] Confirm CI (incl. audit-check) goes green on PR #866, then merge (no direct push to `main`)
