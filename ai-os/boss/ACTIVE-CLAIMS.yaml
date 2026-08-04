@@ -40,6 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [IN PROGRESS]"
+    claimed_at: "2026-08-04T06:08Z (this session)"
+    claim: |
+      SPEC (PM directive `UMR-20260804-060832-9fdf`, real parent OCID-021
+      `UMR-20260802-173631-ca85` / OCID-020 `UMR-20260802-165606-4413`, governed by the
+      Mandatory Governance Directive `UMR-20260804-051521-7099`, OCID-017
+      `UMR-20260802-165034-5747`): compare a proposed mechanical handoff envelope (a call log
+      of real tool invocations with real status codes, a mechanically-filtered rejected-paths
+      list, a one-sentence conclusion, a capped unknowns list, with strict validation) against
+      5 real existing platform mechanisms -- `task.yaml`'s checkpoint structure, `ACTIVE-CLAIMS.yaml`'s
+      claim registration, `resource_governor.py`'s `reuse_check_result`, `credit-accountant.py`'s
+      deterministic JSON verdict, and the `AUDIT: PASS`/`FAIL` comment convention -- honestly,
+      citing real file paths and field names. Discovery/comparison only, per the Mandatory
+      Governance Directive's own required sequence (discover -> verify -> reuse -> enhance ->
+      standardize -> update UMR -> update UTR -> update canonical artifact -> implement) and its
+      explicit prohibition on building a new execution/governance model when an existing one can
+      be enhanced. No new code, no new middleware, no new schema -- design proposal only, held for
+      a fresh PM decision before real implementation.
+    scope_note: >-
+      File scope: one new canonical artifact under `ai-os/` (the OCID-063 discovery doc),
+      `ai-os/OS.yaml` (index entry), `ai-os/MASTER-TRACKER.yaml` (design-proposal entry),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
