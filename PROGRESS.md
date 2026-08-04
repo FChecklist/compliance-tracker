@@ -38,6 +38,38 @@ sequence, OCID-038 real implementation now proceeds, closing gaps its own discov
       running on PR #782's new head; merge pending independent audit + green CI per Rule 6/10 (not this
       session's to self-certify).
 
+- [x] **Resolved this task's own `blocked` quality-gate status (per PM decision `UMR-20260803-224958-9db1`,
+      citing the established precedent already used for `PR #653`/task-231514, commit `667c6263`).** This
+      task's local quality gate failed `build` after `GATE_STEP_TIMEOUT_SECONDS=1800` (already an
+      extended, manager-wide value set earlier this session), and the worker's own AI auto-fix attempt
+      was correctly rejected by `credit-accountant.py`'s deterministic `check_existing_capability()`
+      check: `system_index` matched `scripts/quality-gate.sh` itself (`IDX-20260723-063736-d9f3`), i.e.
+      "an existing mechanism already covers this, don't spend AI credits." Independently confirmed, in
+      this interactive session (not another worker dispatch, per the PM's explicit instruction):
+      1) this branch's own diff vs. `origin/main` is genuinely docs-only (`PROGRESS.md`,
+      `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml` -- zero source changes), so a real
+      build regression was never plausible; 2) a first clean re-run of `scripts/quality-gate.sh` (default
+      `BUILD_MAX_OLD_SPACE_MB=2048`) failed with a genuine `JavaScript heap out of memory` OOM during
+      TypeScript checking -- real host memory pressure (confirmed live: `free -h` showed swap 90%+
+      utilized, load average 6-10 on this 8-core host), not a code defect; 3) a second re-run
+      (`BUILD_MAX_OLD_SPACE_MB=8192`) raced a second, independently-dispatched duplicate worker
+      (`task-20260803-225133-pm-decision-to-resolve-blocked-ocid-038`, itself created to act on this
+      same PM decision and itself independently reaching the identical "host-contention, not a code
+      gap" diagnosis before also hitting the same credit-accountant rejection) and returned
+      flock's own documented empty-`output_tail`/`exit_code=1` wait-timeout artifact (see
+      `scripts/quality-gate.sh`'s own 2026-08-01 comment on this exact failure shape) -- not a real
+      result either way; 4) once that concurrent build genuinely finished (confirmed via
+      `fuser`/`ps` before retrying), a third clean run with `BUILD_MAX_OLD_SPACE_MB=8192` and zero
+      concurrent contention **passed cleanly** (`lint` and `build` both `exit_code: 0`, full route
+      manifest generated). No source code was touched -- this confirms the credit accountant's own
+      "existing mechanism already covers this" verdict was correct: `BUILD_MAX_OLD_SPACE_MB` is a
+      pre-existing, documented, opt-in override in `scripts/quality-gate.sh` (added 2026-08-01,
+      explicitly "for a specific dispatch known to need more headroom... confirmed via a real manual
+      build outside this pipeline needing ~8GB"), i.e. this exact repo/host combination was already
+      anticipated by that mechanism's own design. Real fix: none needed to the codebase; this task's
+      block was an environment/host-capacity false-failure on a docs-only diff, now independently
+      reproduced as passing.
+
 ## Remaining
 - [ ] **Checkpoint (2026-08-03T22:2xZ):** 1 of 4 real gaps closed this cycle
       (`GAP-OCID038-OCID035-DUPLICATE-PRS`). The remaining 3 all require either an explicit
