@@ -40,6 +40,51 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
+    claimed_at: "2026-08-04T03:20Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260802-165606-4413` OCID-020 / `UMR-20260802-173631-ca85` OCID-021,
+      standing auto-proceed authorization): `task-20260803-214944-pm-final-decision--ocid-020-independentl`
+      is blocked -- its credit accountant rejected an auto-fix attempt with "existing software/mechanism
+      already covers this (system_index match)". Verified directly against `/opt/veridian/scripts/quality-gate.sh`:
+      the real existing mechanism is the pre-vetted, opt-in `BUILD_MAX_OLD_SPACE_MB` heap-ceiling override
+      (default 2048MB) + host-wide `flock` build serializer already in that script (2026-08-01 comment,
+      validated via a real manual build needing ~8GB). The blocked task's own last gate failure
+      (`quality-gate-0.json`: `build` exit 124 after 1800s) is the same heap-thrash class, not a code
+      defect. Confirmed directly: a manual, cgroup-unconstrained verification build
+      (`systemd-run --user --scope` w/ unlimited memory, `BUILD_MAX_OLD_SPACE_MB=8192`, real
+      `flock`-serialized against `/tmp/veridian-quality-gate-build.lock`) against the blocked task's own
+      workspace passed clean, `exit=0`, in 124s (first queued behind a real concurrent build already
+      holding the lock -- the exact "duplicate worker" contention case this mechanism is designed to
+      handle safely). On pulling `origin/main` fresh, found `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
+      (one of the two Wave 1 backlog items this dispatch also names) was already independently resolved by
+      a concurrent session (PR #863, merged) -- real cause was a schema migration
+      (`drizzle/0245_create_platform_schema_compartment.sql`) moving `product_branches` from `compliance`
+      to `platform`; direct psql/PostgREST reads had queried the stale pre-migration location. Not
+      re-doing it; a duplicate investigation agent this session had already launched was stopped
+      immediately on discovering this. Remaining real scope: resume+complete
+      `task-20260803-214944-pm-final-decision--ocid-020-independentl`'s own live end-to-end confirmation,
+      then `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A (assistants_per_user cap enforcement,
+      reusing the ServiceError 403 + ModuleNotEnabledCard pattern from PR #809), B (`/api/me` resolved
+      tier/limits), C (frontend gate + explanation card), E (admin UI to assign `subscriptionPlanId`).
+      Task D (seeding a real `preferredModelByPackage` policy) is explicitly held per this PM's own
+      instruction -- a business decision, not code, flagged back rather than decided unilaterally.
+
+      **Update (2026-08-04T03:35Z, same session):** before touching `task-20260803-214944`'s own
+      remaining live-E2E-confirmation step, found a fresh checkpoint on that task
+      (`2026-08-04T03:24:45Z`) from a DIFFERENT, independent PM decision (`UMR-20260804-030715-b004`)
+      that reached the identical `BUILD_MAX_OLD_SPACE_MB=8192` conclusion and is already proceeding to
+      that same E2E step. No live process for that task_id is currently running, but the claim is
+      under 4h old -- not duplicating it. This session's real remaining scope narrows to
+      `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A/B/C/E only.
+    scope_note: >-
+      File scope (planned): `/opt/veridian/scripts/quality-gate.sh` verification only (no edit to the
+      global default, per its own opt-in-only design); GAP-OCID-049 Tasks A/B/C/E touch
+      `src/lib/services/subscription-plan-service.ts` (or equivalent new service), `/api/me/route.ts`,
+      a new frontend gate component reusing `ModuleNotEnabledCard`, and a new admin settings route/page
+      for assigning `subscriptionPlanId`. `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `PROGRESS.md` throughout. No changes to `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`'s
+      own files -- that gap is already closed on `main`.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
@@ -5276,6 +5321,71 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-071339-pm-decision-register-the-real-implementa) -- PM decision on OCID-021 lock registration + overlap-resolution: ALREADY DONE, real inconsistency found+fixed [DONE, PR pending]"
+    claimed_at: "2026-08-03T07:1xZ (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260803-045159-ec55`, citing `UMR-20260803-042918-60b8`
+      the OCID-040 status snapshot, `UMR-20260802-173631-ca85` the ERP Functional
+      Completeness Master Program, and `UMR-20260802-165606-4413` OCID-020 the real
+      gate): register the "OCID-021 implementation lock" as a real CONSTITUTION.yaml
+      entry, and record the OCID-023/031 + OCID-029/030/032/034/035/036 overlap-
+      resolution process decision.
+
+      **Independently verified before doing any real work (not narrated)**: both asks
+      were already done. `SEC-07` already exists in `ai-os/CONSTITUTION.yaml`
+      (`git log` confirms commit `c9dbbef5`, merged to `main` via PR #770, merge
+      commit `42bdb408`, independently reconfirmed via `git merge-base --is-ancestor
+      42bdb408 HEAD` against this session's own checkout). The overlap-resolution
+      decision and the OCID-037-not-yet-picked-up correction both already exist in
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §1a and row 37,
+      same `UMR-20260803-045159-ec55`. This task's own dispatch is a duplicate/re-
+      issue of a PM decision a prior session already completed and merged -- not
+      redone here, per [[veridian-task-prompt-false-premise-pattern]]-class
+      diligence (verify before assuming a re-ask means real new work).
+
+      **One real, genuine defect found during this verification, fixed here**: §1a
+      of the already-merged snapshot doc (lines 65/75) stated the overlap cluster as
+      "OCID-029/030/032/034/035/**037**" -- internally inconsistent with the same
+      document's own §1 row 34 and §4 dependency map, both of which correctly say
+      "...**036**" (matching this task's own spec verbatim), and inconsistent with
+      OCID-037 being a distinct, separate document (Universal Knowledge and Service
+      Catalog) rather than a member of that runtime-overlap cluster. Root cause: the
+      036/037 mislabel-correction pass (same UMR) touched §1a's cluster reference by
+      mistake, substituting the corrected catalog number where the original cluster
+      slot number belonged. Fixed: §1a now reads 036, with an inline note explaining
+      the correction and pointing to §1/row 34 and §4 as the rows that were correct
+      all along. Also added one clarifying line to row 37 noting OCID-037 is simply
+      queued behind the real 5-worker concurrency cap, same as 026-036, not missing.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
+      (3 small in-place text fixes, no new sections -- SEC-07 and §1a/1b/row-37
+      already existed), this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No
+      `CONSTITUTION.yaml` change (SEC-07 already correct, nothing to amend). No
+      src/, schema, or CI changes.
+  - session_label: "claude-code (docs/gap-product-branches-schema-rootcause) -- real root cause found + fixed for GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY: wrong Postgres schema queried, real migration 0245 moved both tables to `platform` [DONE, PR pending]"
+    claimed_at: "2026-08-04T03:12Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-030715-b004`, citing `UMR-20260802-165606-4413` OCID-020 and
+      `UMR-20260802-173631-ca85` OCID-021): find the real root cause of the tracked live-vs-direct-read
+      discrepancy and fix it with real evidence, not narration.
+
+      Found: `productBranches`/`aiRoutingAuditLog` are defined via `pgSchema('platform')` in
+      `schema.ts`; `drizzle/0245_create_platform_schema_compartment.sql` (2026-07-19, real
+      hand-authored migration) moved both (+20 other tables) from `compliance` to `platform` via
+      `ALTER TABLE ... SET SCHEMA`. Every direct psql/PostgREST read this session performed against
+      these two tables (including this gap's own two tracked occurrences) queried the wrong,
+      pre-migration schema. Live-reconfirmed correctly: `platform.product_branches` has 27 real rows
+      (erp, projexa, all 25 others); `platform.ai_routing_audit_log` has 3 real rows matching known
+      OCID-049 testing timestamps. No code fix needed -- every real call site already resolves the
+      correct schema via Drizzle; the live app was never broken. Found and flagged a separate, real,
+      minor finding (an orphaned `compliance.product_branches`, 1 row, unreferenced by any code --
+      not deleted unilaterally). Corrected a directly-related false claim already merged into the
+      OCID-038 discovery doc §9.1 (same wrong-schema mistake, this session's own earlier work).
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (gap marked resolved with full evidence),
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md` (§9.1 correction),
+      `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/ or schema changes -- documentation-only fix,
+      since the real fix was correcting the verification methodology, not the application.
   - session_label: "claude-code (chore/active-claims-cleanup-stale-projexa-schema-claim) -- housekeeping: removed stale active: entry (claimed 2026-08-03T21:53Z, past this file's own 4hr-abandonment threshold), superseded by real completed work [DONE, docs only]"
     claimed_at: "2026-08-04T02:08Z (this session)"
     claim: |
