@@ -40,31 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
-    claimed_at: "2026-08-03T21:55Z (this session)"
-    claim: |
-      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
-      OCID-020-complete + OCID-021-authorized dispatch): OCID-020 declared complete, OCID-021 real
-      implementation authorized, scoped to the honestly registered gap backlog from Group F testing,
-      one gap per dispatch, real branch/fix/retest/PR/merge, citing the gap id closed each time.
-
-      Verified before starting (per standing rule, never trust a PM spec's framing unverified):
-      `git merge-base --is-ancestor` confirmed this task's starting HEAD was already an ancestor of
-      `origin/main` (5 commits behind, incl. PR #786) -- fast-forwarded first. Confirmed via
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed` + `PROGRESS.md`'s own tail that Item 1
-      (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`) was already done by a prior session under this exact
-      same PM decision ID (PR #851, merged, confirmed ancestor of the fast-forwarded `origin/main`) --
-      not re-doing it. Picking up Item 2 of the same 6-item backlog, next in the PM's own listed order:
-      `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API` (MASTER-TRACKER.yaml status:
-      open, confirmed via direct read, not assumed from the SPEC's framing).
-    scope_note: >-
-      File scope (planned): new `src/app/api/erp/enablement/route.ts`,
-      `src/app/api/crm/enablement/route.ts`, `src/app/api/construction/enablement/route.ts` (mirroring
-      the existing `src/app/api/pms/enablement/route.ts` / `src/app/api/the-firm/enablement/route.ts`
-      pattern -- the service-layer functions `enableErpForOrg`/`enableSalesForOrg`/
-      `enableConstructionForOrg` already exist and are fully implemented, this only wires a real
-      authenticated route to each), `ai-os/MASTER-TRACKER.yaml` (gap status update),
-      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration changes.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |
@@ -5248,6 +5223,27 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR #852 merged]"
+    claimed_at: "2026-08-03T21:55Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): OCID-020 declared complete, OCID-021 real
+      implementation authorized, scoped to the honestly registered gap backlog from Group F testing,
+      one gap per dispatch, real branch/fix/retest/PR/merge, citing the gap id closed each time.
+      Added 3 real, authenticated self-service enablement routes (ERP/Sales/Construction) mirroring
+      the existing PMS/THE FIRM pattern verbatim. `bunx tsc --noEmit`/`eslint`/`bun test` all clean.
+      Independently audited (per AGENTS.md Rule 7c, no self-certification) before certifying: diffed
+      the actual PR against `origin/main`, confirmed structural match to the pre-existing sibling
+      routes and that imported service functions predate this PR. Posted the required 8-field
+      `AUDIT: PASS` verdict comment on PR #852 (severity: low). Hit and worked around the known
+      `issue_comment`-triggered audit-check-reports-against-main's-SHA bug via `gh run rerun
+      <original-run-id> --failed`. Merged via `gh api .../pulls/852/merge` (squash) once all 7
+      required status checks were green (`Vercel` failing only on an unrelated build-rate-limit, not
+      a required context). Remote branch deleted. Full live end-to-end confirmation against the real
+      deployed site remains a tracked follow-up (local `.env.local` DB credential drift blocked full
+      persistence verification this pass, independently confirmed pre-existing and unrelated to this
+      change -- see `MASTER-TRACKER.yaml`'s `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`
+      entry for the full writeup).
   - session_label: "claude-code (task-20260803-071115-ocid-038-veridian-unified-platform-integ) -- OCID-038 real platform discovery + honest E2E integration certification merged; 2 of its 6 gaps found stale on re-verification during merge [DONE, PR #786 merged]"
     claimed_at: "2026-08-03T21:45Z (this session, resolved a real merge conflict + honestly re-verified this document's own gaps before merging)"
     claim: |
