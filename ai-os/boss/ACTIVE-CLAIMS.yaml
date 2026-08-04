@@ -40,6 +40,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-055110-ocid-032-veridian-universal-task-lifecyc) -- OCID-20260803-032, VERIDIAN Universal Task Lifecycle Runtime v1.0 (UMR-20260803-041743-d271, parent UMR-20260803-041700-a741)"
+    claimed_at: "2026-08-03T~05:55Z (this session)"
+    claim: |
+      SPEC: real Owner directive, tier 1, documentation only. Writing exactly one new
+      canonical artifact, `ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md`,
+      grounding task definition/creation/ID/classification/priority/owner/assignee/
+      delegation/transfer/split/merge/dependencies/status model/approval/escalation/AI
+      escalation/software execution/monitoring/heartbeat/timeout/recovery/resumption/
+      completion/verification/audit/traceability/reuse/analytics/dashboard/notification/
+      sync/history/certification in what already exists (activity_log, TASK-01..05,
+      GP-01..30, AUDIT-01..04, UNIVERSAL_TASK_WRAPPER_DESIGN.md, monitor-protocol.ts,
+      escalation-ladder.ts, exception-taxonomy.ts, qa-precompletion-gate.ts,
+      approval-workflow-service.ts, task-execution-engine.ts, veri-todo-service.ts).
+      **Real numbering correction found and applied**: the live `umr_tasks` registry
+      (`superboss-register.sqlite`) confirms this task's own dispatch unit is literally
+      `task-...-ocid-032-veridian-universal-task-lifecyc.service` and its cited parent
+      (`UMR-20260803-041700-a741`) is `...-ocid-031-veridian-universal-software-exe.service`
+      (Software Execution Engine) -- i.e. this document IS real OCID-032, not OCID-031 as
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s table had it (that
+      table already carries one prior self-corrected numbering error at the 036/037 row;
+      this is a second, independent one, corrected here rather than propagated).
+      No code, schema, or UI changes. File scope: this new doc,
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment section),
+      `ai-os/OS.yaml` (index registration), `ai-os/MASTER_INDEX.yaml` (registry entry),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`.
+    scope_note: >-
+      Per the standing PM overlap-resolution decision (`UMR-20260803-045159-ec55`,
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` section 1a): checked
+      whether OCID-023 (Universal End User Work Model) has merged real content covering
+      the same task-status/delegation/escalation/completion/audit ground first -- it has
+      not (PR #768 still open, unmerged, and its own committed document is truncated
+      mid-sentence at line 31, not yet reaching that content) -- so this document proceeds
+      as its own artifact rather than folding into OCID-023, cross-referencing it instead.
   - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only) [PUSHED, PR OPEN]"
     claimed_at: "2026-08-03T (this session, closed same session)"
     claim: |
