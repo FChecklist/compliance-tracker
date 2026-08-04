@@ -28,12 +28,38 @@ per [[veridian-shared-worktree-stash-risk]].
       CI running/passing.
 
 ## Remaining
-- [ ] Merge PR #765, #768, #767 once CI is green (re-sync each against `origin/main` again
-      first, since PR #784 already landed and advanced main -- ACTIVE-CLAIMS.yaml will need a
-      fresh conflict resolution pass for each).
+- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop)**:
+      PR #765, #768, #767 are re-synced against post-#784 `origin/main` (clean, docs-only,
+      confirmed via `git diff origin/main --stat` on each -- see commit log on
+      `/home/rajat/work/group-c-merge`), audited (structured `AUDIT: PASS` comments posted),
+      pushed, and CI was still running (not yet green) at last check. **Next session: check
+      `gh pr checks 765/768/767`, and once green, `gh pr merge <n> --squash`, then
+      independently verify via `git merge-base --is-ancestor <merge-commit> origin/main`
+      before crediting.**
 - [ ] Review + resolve conflicts + merge PR #766 (OCID-025), #775 (OCID-026), #773 (OCID-029),
       #780 (OCID-032), #778 (OCID-033), #777 (OCID-035), #785 (OCID-037; review after #784's
-      fix, per spec).
+      fix, per spec) -- **not started yet**. All 6 diffs were pre-scanned in this session
+      (see /tmp/pr{766,775,773,780,778,777,785}.diff if still present) and look genuinely
+      docs-only by the same pattern as #765/#768/#767/#784 (new `ai-os/*.md` canonical
+      artifact + index registration, zero code-fence/export/import/SQL hits on a grep sweep) --
+      but each still needs the same conflict-resolution-against-current-main +
+      audit-comment + CI-wait + merge + ancestor-verify treatment before being credited.
+      Reuse `/tmp/audit_validate.py` (local pre-check for validate-audit-verdict.ts's
+      ambiguous-phrase list and severity/verdict enum requirements) before posting any more
+      audit comments -- it would have caught both mistakes made on PR #784's first two
+      attempts.
+- [ ] **Merge-conflict resolution notes for next session**: PROGRESS.md conflicts -> always
+      take `origin/main`'s side (this repo resets PROGRESS.md per task, doesn't accumulate).
+      ACTIVE-CLAIMS.yaml / IMPLEMENTATION_MATRIX.md / MASTER_INDEX.yaml / OS.yaml conflicts are
+      normally pure both-sides-additive appends -- safe to auto-resolve by stripping only the
+      `<<<<<<</=======/>>>>>>>` marker lines (see the inline python one-liner used repeatedly
+      in this session's bash history) -- **except**: IMPLEMENTATION_MATRIX.md's conflict for
+      PR #768 was a false-positive interleave from git's diff heuristic matching repeated
+      "Status, real and current" table boilerplate across separate amendments. If a matrix
+      conflict looks interleaved/confusing rather than a clean single append block, don't
+      trust the marker layout -- find the true 3-way merge base
+      (`git merge-base <branch> origin/main`), diff base/head/main directly, and manually
+      reconstruct (main's full content + head's unique tail lines).
 - [ ] After each merge: independently verify the real commit hash is an ancestor of
       `origin/main` via `git merge-base --is-ancestor` before updating MASTER-TRACKER.yaml /
       ACTIVE-CLAIMS.yaml.
