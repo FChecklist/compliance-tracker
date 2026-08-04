@@ -40,6 +40,67 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl) -- OCID-038 real implementation: closing GAP-OCID038-OCID035-DUPLICATE-PRS (reconcile PR #777 vs #782) first, real gap-by-gap"
+    claimed_at: "2026-08-03T21:53Z (this session)"
+    claim: |
+      SPEC (PM decision, citing `UMR-20260802-165606-4413` OCID-020 -- independently confirmed
+      declared complete via `UMR-20260803-212402-1922`, real proof-artifact audit -- and
+      `UMR-20260803-042801-ec4b` OCID-038): per SEC-07's explicit unlock sequence, OCID-038 real
+      implementation now proceeds, closing gaps its own discovery (PR #786,
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`) already
+      registered. Independently re-verified PR #786 is genuinely merged (`4d9b4a84`, confirmed via
+      `gh api repos/.../branches/main` live and `git merge-base --is-ancestor`), landing literally
+      seconds before this session started reading governance docs -- a real, concurrent-session race,
+      not a fabricated premise. Of the 6 gaps PR #786 registered, 2 were already found stale/resolved
+      during its own merge-conflict re-verification (`GAP-OCID038-NO-PWA`,
+      `GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED`) -- 4 remain genuinely open:
+      `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`, `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`,
+      `GAP-OCID038-OCID035-DUPLICATE-PRS`, `GAP-OCID038-PROJEXA-OWN-SCHEMA`. This session closes them
+      one at a time, real branch/fix/retest/PR/merge each, citing the specific gap id per dispatch --
+      starting with `GAP-OCID038-OCID035-DUPLICATE-PRS` (S-sized, mechanical reconciliation, no
+      Owner-level product call needed, unlike the domain-routing and Mother Router wiring gaps).
+      This runs alongside, not sequenced against, the separate in-progress OCID-021 Group F gap
+      backlog implementation (different gap IDs, no file overlap expected). Not starting OCID-039/040
+      work, per SEC-07's explicit ordering.
+    scope_note: >-
+      File scope (expected, per gap): PR #777/#782 content reconciliation (whichever doc file(s) those
+      branches touch), `ai-os/MASTER-TRACKER.yaml` (gap status updates only, no new gap IDs unless a
+      genuinely new finding surfaces), `ai-os/OS.yaml` index if a doc is renamed/merged, `PROGRESS.md`,
+      this ACTIVE-CLAIMS entry. No src/ changes expected for this first gap (pure doc reconciliation).
+
+      **Update (2026-08-03T22:1xZ):** `GAP-OCID038-OCID035-DUPLICATE-PRS` closed -- real fix pushed
+      directly onto PR #782's own branch (commit `62c5ed46`), corrected its numbering from a
+      second-guessed OCID-035 claim (colliding with PR #777, confirmed independently correct via
+      merged PR #779) to its own real folder/branch label, OCID-036 -- no content discarded, genuinely
+      distinct documents. Also resolved 4 real merge conflicts against `origin/main` in that same
+      commit. PR #782 title corrected via `gh api` PATCH. CI running on the new head; merge pending
+      independent audit (Rule 10 -- this session cannot self-certify). Now proceeding to
+      `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`.
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
+    claimed_at: "2026-08-03T21:55Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): OCID-020 declared complete, OCID-021 real
+      implementation authorized, scoped to the honestly registered gap backlog from Group F testing,
+      one gap per dispatch, real branch/fix/retest/PR/merge, citing the gap id closed each time.
+
+      Verified before starting (per standing rule, never trust a PM spec's framing unverified):
+      `git merge-base --is-ancestor` confirmed this task's starting HEAD was already an ancestor of
+      `origin/main` (5 commits behind, incl. PR #786) -- fast-forwarded first. Confirmed via
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed` + `PROGRESS.md`'s own tail that Item 1
+      (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`) was already done by a prior session under this exact
+      same PM decision ID (PR #851, merged, confirmed ancestor of the fast-forwarded `origin/main`) --
+      not re-doing it. Picking up Item 2 of the same 6-item backlog, next in the PM's own listed order:
+      `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API` (MASTER-TRACKER.yaml status:
+      open, confirmed via direct read, not assumed from the SPEC's framing).
+    scope_note: >-
+      File scope (planned): new `src/app/api/erp/enablement/route.ts`,
+      `src/app/api/crm/enablement/route.ts`, `src/app/api/construction/enablement/route.ts` (mirroring
+      the existing `src/app/api/pms/enablement/route.ts` / `src/app/api/the-firm/enablement/route.ts`
+      pattern -- the service-layer functions `enableErpForOrg`/`enableSalesForOrg`/
+      `enableConstructionForOrg` already exist and are fully implemented, this only wires a real
+      authenticated route to each), `ai-os/MASTER-TRACKER.yaml` (gap status update),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration changes.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |

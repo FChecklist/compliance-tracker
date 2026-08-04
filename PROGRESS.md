@@ -1,3 +1,96 @@
+# PROGRESS -- task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl
+
+Cites: `UMR-20260802-165606-4413` (OCID-020, independently confirmed declared complete via
+`UMR-20260803-212402-1922`) and `UMR-20260803-042801-ec4b` (OCID-038). Per SEC-07's explicit unlock
+sequence, OCID-038 real implementation now proceeds, closing gaps its own discovery already registered.
+
+## Completed
+- [x] Read governance chain: ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml (SEC-07), OS.yaml, MASTER-TRACKER.yaml.
+- [x] Independently verified PR #786 (OCID-038 discovery, `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`)
+      is genuinely merged to `main` (`4d9b4a84`, confirmed live via `gh api repos/.../branches/main` and
+      `git merge-base --is-ancestor`) -- this landed seconds before this session started reading
+      governance docs, a real concurrent-session race, not a stale/fabricated citation.
+- [x] Synced this workspace to the new `origin/main` tip (merge commit `eda2227b`), resolving the one
+      real `PROGRESS.md` conflict by union (this task's own fresh scaffold + full prior history preserved).
+- [x] Read all 6 `GAP-OCID038-*` entries in `ai-os/MASTER-TRACKER.yaml`. 2 already resolved during PR
+      #786's own merge-conflict re-verification (`GAP-OCID038-NO-PWA`, `GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED`).
+      4 remain genuinely open: `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`,
+      `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`, `GAP-OCID038-OCID035-DUPLICATE-PRS`,
+      `GAP-OCID038-PROJEXA-OWN-SCHEMA`.
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`, starting with `GAP-OCID038-OCID035-DUPLICATE-PRS`
+      (S-sized, mechanical reconciliation between PR #777 and PR #782, no Owner-level product call needed
+      unlike the domain-routing/Mother-Router-wiring gaps).
+
+- [x] **Closed `GAP-OCID038-OCID035-DUPLICATE-PRS`.** Read PR #777 and PR #782 in full. Root-caused via
+      PR #779 (merged, independently confirms OCID-034 = "Universal Context and Predictive Runtime"):
+      this makes PR #777's own OCID-035 self-identification (parented to OCID-034) independently
+      correct. Applied the "trust the task's own real folder/branch label" precedent PR #776
+      (`UMR-20260803-052107-71fa`) already established for the OCID-026/027/028/029/030 cluster: PR
+      #782's folder/branch label is "ocid-036" -- corrected its numbering from a second-guessed
+      OCID-035 claim (colliding with PR #777) to OCID-036. Confirmed genuinely distinct content, not a
+      real duplicate -- nothing discarded. Pushed the fix directly onto PR #782's own branch
+      (`worker/task-20260803-062914-ocid-036-veridian-universal-capability-d`, commit `62c5ed46`;
+      corrected its doc header, `ai-os/OS.yaml`, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`,
+      `PROGRESS.md`, its own `ACTIVE-CLAIMS.yaml` entry), also resolving 4 real merge conflicts against
+      current `origin/main` in the same commit. Updated PR #782's title via `gh api` (PATCH, since `gh
+      pr edit` hit an unrelated Projects-classic-deprecation GraphQL error). Marked
+      `GAP-OCID038-OCID035-DUPLICATE-PRS` `resolved` in `ai-os/MASTER-TRACKER.yaml` (same commit). CI
+      running on PR #782's new head; merge pending independent audit + green CI per Rule 6/10 (not this
+      session's to self-certify).
+
+- [x] **Resolved this task's own `blocked` quality-gate status (per PM decision `UMR-20260803-224958-9db1`,
+      citing the established precedent already used for `PR #653`/task-231514, commit `667c6263`).** This
+      task's local quality gate failed `build` after `GATE_STEP_TIMEOUT_SECONDS=1800` (already an
+      extended, manager-wide value set earlier this session), and the worker's own AI auto-fix attempt
+      was correctly rejected by `credit-accountant.py`'s deterministic `check_existing_capability()`
+      check: `system_index` matched `scripts/quality-gate.sh` itself (`IDX-20260723-063736-d9f3`), i.e.
+      "an existing mechanism already covers this, don't spend AI credits." Independently confirmed, in
+      this interactive session (not another worker dispatch, per the PM's explicit instruction):
+      1) this branch's own diff vs. `origin/main` is genuinely docs-only (`PROGRESS.md`,
+      `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml` -- zero source changes), so a real
+      build regression was never plausible; 2) a first clean re-run of `scripts/quality-gate.sh` (default
+      `BUILD_MAX_OLD_SPACE_MB=2048`) failed with a genuine `JavaScript heap out of memory` OOM during
+      TypeScript checking -- real host memory pressure (confirmed live: `free -h` showed swap 90%+
+      utilized, load average 6-10 on this 8-core host), not a code defect; 3) a second re-run
+      (`BUILD_MAX_OLD_SPACE_MB=8192`) raced a second, independently-dispatched duplicate worker
+      (`task-20260803-225133-pm-decision-to-resolve-blocked-ocid-038`, itself created to act on this
+      same PM decision and itself independently reaching the identical "host-contention, not a code
+      gap" diagnosis before also hitting the same credit-accountant rejection) and returned
+      flock's own documented empty-`output_tail`/`exit_code=1` wait-timeout artifact (see
+      `scripts/quality-gate.sh`'s own 2026-08-01 comment on this exact failure shape) -- not a real
+      result either way; 4) once that concurrent build genuinely finished (confirmed via
+      `fuser`/`ps` before retrying), a third clean run with `BUILD_MAX_OLD_SPACE_MB=8192` and zero
+      concurrent contention **passed cleanly** (`lint` and `build` both `exit_code: 0`, full route
+      manifest generated). No source code was touched -- this confirms the credit accountant's own
+      "existing mechanism already covers this" verdict was correct: `BUILD_MAX_OLD_SPACE_MB` is a
+      pre-existing, documented, opt-in override in `scripts/quality-gate.sh` (added 2026-08-01,
+      explicitly "for a specific dispatch known to need more headroom... confirmed via a real manual
+      build outside this pipeline needing ~8GB"), i.e. this exact repo/host combination was already
+      anticipated by that mechanism's own design. Real fix: none needed to the codebase; this task's
+      block was an environment/host-capacity false-failure on a docs-only diff, now independently
+      reproduced as passing.
+
+## Remaining
+- [ ] **Checkpoint (2026-08-03T22:2xZ):** 1 of 4 real gaps closed this cycle
+      (`GAP-OCID038-OCID035-DUPLICATE-PRS`). The remaining 3 all require either an explicit
+      architectural call or an Owner-level product decision, not a mechanical fix -- flagging rather
+      than unilaterally deciding each, consistent with how this session has handled comparable
+      judgment calls elsewhere:
+      - `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`: its own recommendation explicitly says whether
+        `task-execution-engine.ts` should call into `mother-router.ts` after routing, or whether the
+        two are intentionally decoupled concerns, "is a real architectural call, not a mechanical
+        wiring fix."
+      - `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`: its own recommendation names this "an Owner-level
+        product decision" (whether `projexa-ai.com` should route to the real `projexa` deployment or
+        get PROJEXA branding added to this repo's own build) -- also touches live DNS/deployment
+        routing, real blast radius beyond this repo.
+      - `GAP-OCID038-PROJEXA-OWN-SCHEMA`: cross-repo investigation into the separate `projexa` repo,
+        scope not yet defined.
+      Next PM decision should say whether to proceed making these calls unilaterally (per the
+      2026-07-31 full-autonomy directive) or hold for explicit Owner/PM input first.
+
+<!-- Prior task history preserved below (this repo's established PROGRESS.md convention: append, never truncate). Self-correction (2026-08-04): an earlier commit on this same PR branch (docs: fix real audit rejection...) mistakenly restored this section from a Bash-tool large-output-capture that was itself silently truncated (31 lines, ending in a fake '... more files changed' string that is NOT real file content) and, worse, filed a false gap (GAP-PROGRESS-MD-TRUNCATED-210700-SECTION) blaming main for the truncation this session's own tooling caused. An independent audit on this PR correctly caught both errors. Re-verified via `git cat-file -p origin/main:PROGRESS.md` in a fresh clone (bypasses the Bash tool's own output path entirely) -- the real section below is 163 lines, fully intact, byte-for-byte matching origin/main. The false gap entry is removed from MASTER-TRACKER.yaml in this same commit. -->
+
 # PROGRESS -- task-20260802-210700-pm-decision--fix-the-real-high-severity
 
 Cites: `UMR-20260802-165606-4413` (OCID-020) throughout. `UMR-20260802-173631-ca85`
@@ -160,6 +253,7 @@ independently verified complete.
       real incremental findings every cycle, not one final claim.
       Multi-tenant, multi-brand, and first-time-onboarding are now each
       independently spot-checked live with real evidence (see above).
+
 
 # PROGRESS -- task-20260802-231510-pm-decision-on-idle-time-and-pr-744-next
 
