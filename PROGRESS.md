@@ -501,19 +501,41 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
       re-introduced the truncation; caught and corrected within the same session before further
       work.
 
-## In progress
-- [ ] Fresh, independent, live browser re-verification of OCID-052's own registered finding
-      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` (previously confirmed by only one
-      prior pass) against live `projexa-ai.com`: new Admin-API-provisioned user, real login, real
-      deterministic-trigger + AI-escalating messages, real screenshot, honest reproduction result.
+- [x] Real, live browser test attempted for OCID-052: Admin-API-provisioned fresh user, real
+      password-grant login, hand-constructed `@supabase/ssr` session cookie (same method as prior
+      OCID-047/048/052 sessions), Playwright (no-sudo Chromium fix,
+      `LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`) navigated to `/home` on live
+      `projexa-ai.com`. **Result: CONFIRMED BROKEN, but not the originally-targeted finding.**
+      The planned deterministic-vs-AI-escalation message test never got to run: `/home`'s central
+      VERI Chat thread panel renders entirely blank (no composer, no messages) -- real screenshots
+      `/tmp/ocid052-verify/01-home-initial.png`, `/tmp/ocid052-verify/debug-8s.png` (8s wait,
+      still blank). Root-caused to `GET /api/me` returning a real, reproducible `500` (empty body)
+      for every authenticated user tested -- **10/10 reproductions across 4 independent fresh
+      users**, including retries up to 20s post-provisioning (rules out a provisioning race). The
+      same session cookie correctly authenticates `GET /api/conversations` (real 200 + welcome
+      message), ruling out an auth/cookie problem -- the crash is specific to `/api/me`.
+      Circumstantially linked (not fixed, not confirmed further -- no production log access) to
+      `2cb73100` (2026-08-04T03:35Z, real ancestor of `origin/main`), which added two new DB calls
+      to every `/api/me` request as part of OCID-049 Task B and honestly flagged in its own commit
+      message that live-site confirmation was never run. A direct read-only `psql` check ruled out
+      "missing table" as the cause (`compliance.subscription_plans` exists, 8 real rows) but did
+      not pin down the exact crash line, per this task's discovery-only, no-fixing scope.
+- [x] Registered `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` in `ai-os/MASTER-TRACKER.yaml`
+      (`real_gaps_not_yet_built`, severity high) with full evidence -- validated YAML still parses
+      clean (`python3 -c "import yaml; yaml.safe_load(...)"`).
+- [x] Closed out the ACTIVE-CLAIMS.yaml claim entry for this task with the real final result.
 
 ## Remaining
-- [ ] Report the real finding (OCID number, evidence, reproduction result) once the live test completes.
+- [ ] `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` needs a real owner with production log access to
+      find the exact stack trace and fix it -- out of this task's own locked scope.
+- [ ] Once `/api/me` is fixed, OCID-052's own planned re-verification of
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` (this task's original target) is still
+      genuinely un-re-verified and should be picked back up.
 
 ## Notes
-- Ancillary, unrelated real observation made while probing the live site: `https://projexa-ai.com/`
-  (root landing page) returns a consistent `HTTP 500` (same error `digest`, not transient) as of
-  2026-08-04T14:5x Z, while `/login`, `/home`, `/dashboard`, `/api/me` all respond normally
-  (307/401 as expected for unauthenticated requests). Not investigated further -- out of this
-  task's scope (OCID-052, not the landing page), noted here only for visibility, not registered
-  as a new gap without deeper confirmation.
+- The root-landing-page `https://projexa-ai.com/` `HTTP 500` noted earlier in this session (same
+  error `digest` on repeat requests) is very likely the *same* underlying regression as
+  `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` above (both point at a server-side crash touching
+  every-page-shared org/user resolution, both appeared the same day as `2cb73100`) -- plausible,
+  not independently confirmed (the root page's error digest was never cross-checked against a
+  server-side stack trace), folded into the one gap entry above rather than registered twice.
