@@ -2615,3 +2615,41 @@ OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
 ## Remaining
 - [ ] Report canonical artifact location + updated UMR + OCID-027 handoff confirmation to Owner
 - [ ] (post-merge, separate step) move ACTIVE-CLAIMS.yaml entry from active to recently_completed
+
+---
+
+# PROGRESS -- docs/ocid039-active-claims-completion-correction
+
+Real, small housekeeping correction: PR #789 (OCID-038/039/040 real discovery + live
+end-user testing, `task-20260803-071119-ocid-039-veridian-real-end-user-producti`) was
+independently confirmed genuinely merged into `origin/main`
+(merge commit `4284570af7d5d7ff2a4e6f1c32676794d3001ff9`, confirmed a real ancestor of
+`origin/main` via a fresh independent clone), after a real, final round-4 `AUDIT: PASS`
+and auto-merge.
+
+## Completed
+- [x] Checked `ai-os/MASTER-TRACKER.yaml` for any stale "PR #789 open" reference needing
+      correction (same class as the earlier PR #865 stale-text fix) -- confirmed zero real
+      hits for "789" anywhere in that file; no correction needed there.
+- [x] Found the real stale record instead in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `active:`
+      section: this task's own entry was still labeled `[PUSHED, PR #789 OPEN]`, per this
+      file's own documented protocol (item 3: "WHEN your work merges ... move your entry
+      from `active:` to `recently_completed:`") this is now stale and out of date.
+- [x] Moved the entry from `active:` to the top of `recently_completed:`, updating its
+      session_label bracket text to `[DONE, PR #789 MERGED after 4 real merge-with-
+      origin/main rounds -- merge commit 4284570af7d5d7ff2a4e6f1c32676794d3001ff9,
+      independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04.
+      Round 4 posted a real independent AUDIT: PASS and it auto-merged.]`, matching the
+      exact correction pattern already used for the credit-accountant-b entry (PR #865)
+      elsewhere in this same file.
+- [x] Validated the edited YAML parses clean (`python3 -c "import yaml; yaml.safe_load(...)"`),
+      confirmed `active:` entry count dropped by exactly 1 and `recently_completed:` grew by
+      exactly 1, and confirmed no other content in the file changed
+      (`git diff --stat ai-os/boss/ACTIVE-CLAIMS.yaml` shows only this one file touched).
+- [x] Ran all 4 governance checks (`check-metadata-index-coverage.mjs`,
+      `check-doc-cross-references.mjs`, `check-guardrail-presence.mjs`,
+      `check-terminology-guardrail.mjs --diff-only`) -- all 4 pass.
+
+## Remaining
+- [ ] Open PR, confirm CI green, hand off for independent audit per this repo's own standing
+      review process -- not self-certified here.
