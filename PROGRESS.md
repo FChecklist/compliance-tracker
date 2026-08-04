@@ -192,17 +192,45 @@ per [[veridian-shared-worktree-stash-risk]].
       `AUDIT: PASS` disclosing the resync. **Budget ran out before CI could be confirmed green
       or the PR merged -- this is the real stopping point, not a completed merge.**
 
+## Completed (invocation 5, 2026-08-04 resume)
+- [x] Ground-truthed all 4 remaining PRs via `gh api repos/.../pulls/<n>` directly (not trusted
+      from the prior invocation's checkpoint note): **#780 and #778 were already genuinely
+      merged** -- by a concurrent session/invocation between checkpoints, not by this one.
+      Independently verified both merge commits are real ancestors of `origin/main`:
+      `e06786c3` (#780, merged 2026-08-04T09:14:40Z) and `f10c757f` (#778, merged
+      2026-08-04T09:44:47Z). This brings the real merged count to **9 of 11** before this
+      invocation did any new work.
+- [x] #777 and #785 were both `mergeable_state: dirty` (main had advanced past their last
+      resync) but both already had fully green required CI from their prior push (only Vercel
+      rate-limit-fail and CodeQL-skip, both known non-blocking). Did a fresh resync for each
+      against the new `origin/main` tip (post-#780/#778):
+      - **#777**: conflicts in `PROGRESS.md` (kept `origin/main`'s already-merged OCID-033
+        section, appended this branch's own OCID-035 section after it, per this file's own
+        documented append convention) and `ai-os/OS.yaml` (both-sides-additive `covers:` list
+        entries for OCID-035/OCID-033 -- kept both, verified each was a complete independent
+        block before stripping markers, per the duplicate-key lesson from #785 last invocation).
+        `ai-os/boss/ACTIVE-CLAIMS.yaml` auto-merged clean this time. Validated
+        `python3 yaml.safe_load` clean and `node scripts/check-metadata-index-coverage.mjs`
+        clean (148 items, 145 indexed + 7 exempted) before pushing. Pushed (`1021d7a3`); a
+        pre-existing `AUDIT: PASS` comment was already on the PR, and the push itself is a real
+        `synchronize` event so no separate empty-commit trigger was needed this time.
+      - **#785**: conflicts in `PROGRESS.md` (same append pattern, kept origin/main's OCID-033
+        section + appended this branch's own OCID-037 section) and
+        `ai-os/boss/ACTIVE-CLAIMS.yaml` (both-sides-additive `active:` list entries, kept both,
+        verified each was a complete independent list item first). `ai-os/OS.yaml` auto-merged
+        clean this time. Validated `python3 yaml.safe_load` clean and
+        `node scripts/check-metadata-index-coverage.mjs` clean (148 items) before pushing.
+        Pushed (`61598c95`); pre-existing `AUDIT: PASS` comment already present.
+- [x] Launched a background CI monitor for both PRs' required checks post-push rather than
+      polling synchronously.
+
 ## Remaining
-- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop).**
-      7 of 11 Group C PRs now genuinely merged: 784, 767, 765, 768, 766, 775, 773 -- all
-      independently ancestor-verified. 4 remain, all resynced against the post-#773 `origin/main`
-      tip and pushed with a validated `AUDIT: PASS` comment, but **none of the 4 has been
-      confirmed CI-green or merged yet**: #780 (OCID-032, resynced twice, latest push
-      `cfc30961`), #778 (OCID-033, resynced once against the pre-#773 tip only -- will need a
-      THIRD resync against the post-#773 tip before it can merge, not yet done), #777
-      (OCID-035, same -- resynced once against pre-#773 tip, needs a fresh resync), #785
-      (OCID-037, resynced once against pre-#773 tip with two real defects found and fixed --
-      see below -- also needs a fresh resync against post-#773 tip before merging).
+- [ ] Confirm #777 and #785's fresh CI runs (triggered by the pushes above) go fully green on
+      required checks, then merge each via `gh pr merge --squash`, independently verifying the
+      merge commit is a real ancestor of `origin/main` via `git merge-base --is-ancestor` before
+      moving to the next -- resync immediately before merging if `origin/main` has advanced
+      again in the interim (expected, per this file's own repeatedly-confirmed "don't batch
+      syncs" pattern).
 - [ ] **Real, confirmed defect class for future PRs in this batch (or any future YAML
       both-sides-additive conflict in this repo)**: a naive `<<<<<<</=======/>>>>>>>` marker
       strip is only safe when each side's inserted list items are genuinely independent blocks.
