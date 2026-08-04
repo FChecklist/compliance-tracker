@@ -1065,6 +1065,42 @@ Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPS
 
 ---
 
+## Amendment (2026-08-03): OCID-036 "Universal Capability Discovery and Evolution Runtime" (`UMR-20260803-042034-0c1f`)
+
+Real, Owner-directed, tier 1, documentation-only directive. Creates exactly one canonical artifact,
+`ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`, defining how VERIDIAN
+continuously adds new capabilities without duplication: a unified definition of "capability" grounded
+against the 3 real, distinct existing meanings already in this codebase (`capability_registry` AI-dispatch
+table, `capability-learning-service.ts`/`capability-audit-service.ts` app-layer services,
+`dynamic_chains`/`capability-tree-service.ts` end-user Mode Pills engine — plus the confirmed-not-real
+`task_capabilities`), capability classification (duplicate/enhancement/net-new), and capability versioning.
+
+**Real numbering discrepancy found, then genuinely resolved (real fix for
+`GAP-OCID038-OCID035-DUPLICATE-PRS`, `ai-os/MASTER-TRACKER.yaml`):** this task's own `task.yaml`/
+`prompt.txt` self-identify as OCID-036 but its mission text matches the OCID-035 row title in
+`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` — the same status-snapshot table already
+proven unreliable twice in this exact cluster (OCID-026/027/028/029/030 via PR #776; OCID-036/037 via
+`UMR-20260803-045159-ec55`). This document originally second-guessed itself into also claiming OCID-035,
+directly colliding with the sibling `worker/task-20260803-055122-ocid-035-...` branch (PR #777), which
+independently confirmed its own OCID-035 self-identification via a merged parent (PR #779 confirms
+OCID-034 = "Universal Context and Predictive Runtime"). Per the same "trust the task's own real
+folder/branch label" precedent PR #776 established, and since PR #777's OCID-035 claim is independently
+confirmed correct (not just self-asserted), this document is OCID-036 — its own folder/branch label,
+matching sequential order (034 -> 035 [PR #777] -> 036 [this document]). No content duplication: the two
+documents cover genuinely distinct ground (continuous-evolution process vs. capability-discovery model).
+
+**Cluster-overlap check performed per `UMR-20260803-045159-ec55`:** read the two real, adjacent,
+already-dispatched documents in full — OCID-027 "Global Knowledge Discovery and Reuse Runtime" (PR #771,
+open/unmerged) and OCID-034/035 "Continuous Platform Evolution Runtime" (PR #777, open/unmerged). This
+document's own mandated section list is close to the union of both; of its 36 mandated sections, 20 are
+pure cross-references to that already-existing sibling content, and 16 are its own genuinely new synthesis
+(the unified capability definition, classification, generic-extraction generalized across all classes, and
+versioning). Neither sibling is restated.
+
+Canonical artifact updated: this file, `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md` (new), `ai-os/OS.yaml` (index registration), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim registered) — not rewritten, not duplicated. No code, no schema, no new architecture.
+
+---
+
 ## Amendment (2026-08-03): VERIDIAN Universal Software Execution Engine v1.0 (`UMR-20260803-041700-a741`)
 
 Documentation-only artifact defining how already-decided work actually executes and is tracked in the
