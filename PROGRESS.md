@@ -1,3 +1,50 @@
+# PROGRESS -- docs/ocid038-projexa-domain-and-schema-discovery-brief
+
+Cites: `UMR-20260803-042801-ec4b` (OCID-038), `UMR-20260804-011851-676b` (PM decision: write a real
+discovery brief for `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` and `GAP-OCID038-PROJEXA-OWN-SCHEMA`
+before any implementation call — discovery/documentation only, no code/routing/schema change).
+
+## Completed
+- [x] **`GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` discovery.** Live-verified today (not carried
+      forward from 2026-08-03 unverified): `vercel domains inspect projexa-ai.com` confirms both
+      `projexa-ai.com`/`www.projexa-ai.com` are currently on Vercel project `veridian-compliance-ai`.
+      Found and read the real 3-step history behind this (`ai-os/boss/completed-work/wave10-dns-cutover.md`,
+      `ai-os/boss/COMPLETED.yaml`'s `WAVE-10-REDO` entry): this is the Owner's own explicit, re-confirmed
+      decision (`UMR-20260802-134939-145d`, 2026-08-02), not accidental drift. Root-caused the branding
+      symptom precisely: `org-branding-service.ts`'s `resolveBranding()` is deliberately org-scoped/
+      post-login-only by design (Wave 5/Wave B/Wave 10 all independently documented this as a known,
+      deferred gap already, not newly found here). Checked live data: `organisations.customDomain` is
+      set for exactly 1 org platform-wide (a test fixture), zero real PROJEXA orgs. Checked
+      `product_branches` directly (1 row, `branch_key='grc'`, no id match for a sampled real PROJEXA
+      org's `primaryProductBranchId`) and explicitly flagged this as a likely 3rd occurrence of the
+      already-tracked `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`, not fresh standalone proof.
+      Named the real, narrower open product question precisely (single canonical PROJEXA identity for
+      an anonymous visitor vs. the Owner's own "brand-layer merge" framing possibly meaning today's
+      VERIDIAN-branded state already IS the intended end state) rather than re-asserting "fix the
+      domain" as if it were purely mechanical.
+- [x] **`GAP-OCID038-PROJEXA-OWN-SCHEMA` discovery.** Fresh `git clone` + direct `grep -rl` (not
+      GitHub's own code search, which the original 2026-08-03 finding's own text already flagged as
+      "not exhaustive") finds `src/lib/veridian-client.ts` (240 lines, real, live, `VERIDIAN_API_BASE`
+      defaulting to the same Vercel project that owns `projexa-ai.com`) and 51 real files calling it,
+      covering genuine construction-domain routes. Read `schema.ts` directly: 12 tables (was 11 at
+      2026-08-03), all tenant/auth/billing/UI-collaboration, none construction-domain, matching the
+      file's own top comment exactly. Live `curl` confirms the real API surface responds (`401`, not
+      `404`) through both hostnames. This substantially updates (not just adds to) §3's original
+      "NO, not a genuine thin client" verdict for the application-data layer specifically — precisely
+      distinguished from the separate, real, still-true finding that auth/session is NOT unified
+      (PROJEXA's own separate Supabase Auth project, no user-level SSO, only a static server-to-server
+      API key).
+- [x] Wrote both findings as `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`
+      §9 (new addendum section, appended — original §1–§8 untouched, per this repo's real append-only
+      governance-doc convention). Amended both `ai-os/MASTER-TRACKER.yaml` gap entries with a
+      `discovery_brief` field cross-referencing §9 — `status` left `open` for both, no implementation.
+
+## Remaining
+- [ ] Awaiting the real PM decision informed by this brief before any implementation, routing change,
+      or schema change on either gap.
+
+---
+
 # PROGRESS -- fix/gap-ocid038-taskengine-motherrouter-unwired
 
 Cites: `UMR-20260803-042801-ec4b` (OCID-038), `UMR-20260804-005752-fcb1` (PM authorization to proceed

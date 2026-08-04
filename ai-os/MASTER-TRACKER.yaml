@@ -2179,12 +2179,31 @@ open_items:
         extension of the other) rather than evidence of a real disconnect.
 
     - id: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH
-      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience"
+      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience -- real discovery brief written 2026-08-04, still open, Owner-level call pending"
       detail: "Live-tested 2026-08-03: curl -sI https://projexa-ai.com returns HTTP/2 200 via Vercel; page <title> reads 'VERIDIAN COGNITIVE AI OS -- AI Cognitive Research'; grep for 'projexa' (case-insensitive) in the served HTML returns zero matches, only 'veridian'/'VERIDIAN'. The real PROJEXA-branded frontend (separate `projexa` repo) is live separately at projexa-smoky.vercel.app. Re-confirms and updates prior project memory (veridian-projexa-domain-ownership-conflict) with fresh live evidence rather than letting it go stale."
       size: M
       recommendation: "Locked by SEC-07 pending OCID-020. When unlocked: either route projexa-ai.com to the real projexa deployment/build, or add PROJEXA brand-routing to compliance-tracker's own deployment for that domain -- an Owner-level product decision, not a mechanical fix."
       status: open
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+      discovery_brief: |
+        2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
+        implementation authorized). Full brief: ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md
+        section 9.1. Key findings NOT in the original 2026-08-03 entry above: (1) the current domain
+        assignment (projexa-ai.com -> veridian-compliance-ai Vercel project) is not accidental drift --
+        it is the Owner's own explicit, re-confirmed decision (WAVE-10-REDO, UMR-20260802-134939-145d,
+        2026-08-02), reversing an earlier undocumented reversal of the original Wave 10 brand-merge
+        cutover; (2) the API surface (/api/v1/projexa/*) works identically through either hostname --
+        this is scoped entirely to the anonymous-visitor marketing/landing branding, not connectivity;
+        (3) root-caused precisely: resolveBranding() (org-branding-service.ts) is deliberately org-scoped
+        and post-login only, by explicit design (Wave 5/Wave B/Wave 10 all independently documented this
+        as a known, deferred gap, not newly discovered here); (4) organisations.customDomain is set for
+        exactly 1 org platform-wide (a synthetic test fixture) -- zero real PROJEXA orgs have it set, a
+        second precondition beyond missing code; (5) the real open question is narrower than "fix the
+        domain": is there a single canonical "PROJEXA" identity to show an anonymous visitor at all,
+        given the platform is genuinely multi-tenant (6+ separate PROJEXA orgs) -- or is the Owner's own
+        "brand-layer merge" framing evidence the intended end state already is what's live today (VERIDIAN
+        as the unified brand, PROJEXA as an internal product branch)? This document takes no position;
+        awaiting the real PM call.
 
     - id: GAP-OCID038-OCID035-DUPLICATE-PRS
       name: "PR #777 and PR #782 both currently claim real content for OCID-035, under different titles -- RESOLVED, genuinely distinct content, numbering corrected"
@@ -2211,12 +2230,38 @@ open_items:
         #782's updated head before merge (Rule 6/10).
 
     - id: GAP-OCID038-PROJEXA-OWN-SCHEMA
-      name: "projexa repo's own description claims 'built on VERIDIAN AI OS via API' but has its own 11-table local schema"
+      name: "projexa repo's own description claims 'built on VERIDIAN AI OS via API' but has its own 11-table local schema -- real discovery brief written 2026-08-04, finding substantially UPDATES the original negative signal to a confirmed-real, extensively-wired thin client"
       detail: "gh repo view FChecklist/projexa's description: 'Frontend for the AI-native construction ERP, built on VERIDIAN AI OS via API.' Per ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md Sec1.9, the projexa repo has its own 11-table schema (not a schemaless pure client). gh api search/code for a compliance-tracker/VERIDIAN API base URL inside the projexa repo returned 0 hits (GitHub code search, not exhaustive, but a real negative signal). May be intentional local caching/offline support, or may be real architectural drift from the repo's own stated design intent -- not resolved this pass."
       size: M
       recommendation: "Whoever picks up cross-repo integration work should read the projexa repo directly (not GitHub code search only) to determine whether it genuinely calls a shared VERIDIAN API anywhere, and reconcile the repo description with real behavior either way."
       status: open
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
+      discovery_brief: |
+        2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
+        implementation authorized). Full brief: ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md
+        section 9.2. The original "0 hits" finding was a real false negative: it used GitHub's own code
+        search (already flagged as "not exhaustive" in this entry's own detail above), not a direct read
+        of the repo's real content. A fresh clone + direct grep finds src/lib/veridian-client.ts (240
+        lines, a real, substantial API client, VERIDIAN_API_BASE defaulting to
+        https://veridian-compliance-ai.vercel.app/api/v1/projexa -- the same Vercel project that owns
+        the projexa-ai.com domain, see the sibling GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH entry) and
+        51 real files importing/calling it, covering genuinely construction-domain routes
+        (manpower-cost-report, sales-pipeline, schedule-tracker, punch-list, sales-invoices, and more).
+        The schema file's own top comment states plainly: "PROJEXA's own tenant/auth/billing schema. All
+        construction domain data... lives in VERIDIAN... Nothing construction-related is stored here" --
+        confirmed accurate by direct inspection of the (now 12, was 11) tables, all genuinely tenant/
+        auth/billing/UI-collaboration concerns (including a literal veridian_credentials bridge table).
+        Revised assessment: PROJEXA genuinely IS, today, live, an extensively-wired thin client for
+        construction-domain data -- this repo's own status quo already matches its stated design intent
+        for the DATA layer. What remains genuinely NOT unified, precisely named for the first time in
+        this document: authentication/session -- PROJEXA runs its own separate Supabase Auth project
+        with no user-level SSO to VERIDIAN, only a static per-org service-role API key used
+        server-to-server. Concrete, mechanical (not Owner-level) next-step recommendations for whoever
+        picks this up: (1) spot-check a handful of the 51 call sites for any shadow local-write path the
+        schema comment's claim might miss; (2) confirm the no-session-forwarding finding precisely
+        against PROJEXA's own login flow; (3) if GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH's hostname
+        branding fix is ever pursued, confirm whether an anonymous PROJEXA visitor's session needs any
+        pre-login VERIDIAN-org context.
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
