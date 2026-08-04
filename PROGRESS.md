@@ -115,10 +115,33 @@ No new decision needed.
         real merge conflicts against `main`, need rebase.
 - [x] Merged PR #780 (squash), no blocker was real. Merge commit `e06786c3`,
       confirmed `state: MERGED` at `2026-08-04T09:14:40Z`.
+- [x] PR #778: found a concurrent session had already pushed a conflict-resolution
+      merge to this same branch (`pr778-fresh`, commit `153858ee`), but it was based
+      on `main` from *before* PR #780 merged, so it was already stale again
+      (`mergeStateStatus: DIRTY` even after that push). Did not overwrite that
+      session's work -- reset to its real tip and merged fresh `origin/main`
+      (post-PR#780) on top. Real conflicts were confined to the shared governance
+      files (`ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) -- same additive,
+      insert-my-entry-among-siblings pattern documented by every prior session in
+      this file; resolved by keeping both sides' entries, validated both YAML files
+      parse clean, pushed (`e7f591f0`). Now `mergeable: MERGEABLE`.
+- [x] PR #777: same treatment -- local task workspace was behind the branch's own
+      remote tip (`6b8c4092`), reset to it, merged fresh `origin/main`. Conflicts in
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` and `ai-os/OS.yaml`, same additive
+      pattern (two amendment sections/index entries inserted side by side), resolved
+      by keeping both, `ai-os/boss/ACTIVE-CLAIMS.yaml` auto-merged clean this time.
+      Validated YAML, pushed (`76b54a6d`). Now `mergeable: MERGEABLE`.
+- [x] PR #785: same treatment, reset to remote tip (`2d9b01f5`), merged fresh
+      `origin/main`. Only `ai-os/boss/ACTIVE-CLAIMS.yaml` conflicted, same additive
+      pattern, resolved. Validated YAML, pushed (`0ce84fa3`). Now `mergeable: MERGEABLE`.
+- [x] All 4 PRs now `mergeable: MERGEABLE`; #778/#777/#785 are `mergeStateStatus:
+      BLOCKED` only pending required CI checks to finish running post-push (not a
+      real blocker -- same required-check set PR #780 already passed cleanly).
 
 ## Remaining
-- [ ] Rebase/resolve real merge conflicts on PR #778, then re-check CI, then merge.
-- [ ] Rebase/resolve real merge conflicts on PR #777, then re-check CI, then merge.
-- [ ] Rebase/resolve real merge conflicts on PR #785, then re-check CI, then merge.
+- [ ] Watch CI on PR #778, #777, #785; merge each once required checks (Lint/Type
+      Check/Build/audit-check/Guardrail Presence/Asset Registry Coverage/Unit Tests)
+      are green -- same non-required `Vercel` rate-limit flake as PR #780 is not a
+      real blocker if it recurs.
 - [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry to `recently_completed:` once
       all 4 PRs are resolved.
