@@ -27,8 +27,16 @@
   recurring dispatch-hygiene defect class, different symptom shape).
 - [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (Rule 11).
 - [x] Validated YAML parses cleanly for `MASTER-TRACKER.yaml`, `OS.yaml`, `ACTIVE-CLAIMS.yaml`.
+- [x] Committed + pushed on branch `worker/task-20260804-164217-ocid-058-registration-only-universal-tas`.
+- [x] Opened PR #909 (registration documentation only, zero code/architecture changes), cross-referencing
+  PRs #866/#875 honestly in the PR body.
+- [x] Moved this session's `ACTIVE-CLAIMS.yaml` claim from `active:` to `recently_completed:`
+  (fixed a self-caught mid-edit YAML mismatch where the claim body briefly attached to the wrong
+  `session_label` -- re-verified `active:`/`recently_completed:` entry counts and label alignment via
+  `python3 -c "import yaml; ..."` before committing the fix).
 
 ## Remaining
-- [ ] Commit + push this work on a branch.
-- [ ] Open a real pull request containing only this registration documentation (zero code/architecture
-  changes), noting the duplication finding and cross-referencing PRs #866/#875 honestly in the PR body.
+- [ ] Watch PR #909's CI (Lint/Type Check/Build/Unit Tests/Metadata Index Coverage/Guardrail Presence);
+  `check-metadata-index-coverage.mjs` could not be run locally (no `node_modules` in this workspace).
+- [ ] Per Rule 10, PR #909 needs an `AUDIT: PASS`/`AUDIT: FAIL` comment from a different session before
+  merge (this session authored it, so cannot self-certify).
