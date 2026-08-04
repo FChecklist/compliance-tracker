@@ -100,7 +100,7 @@ Full historical reconstruction is out of this task's scope.
 - [x] Validated all touched YAML parses clean (`python3 -c "import yaml; ..."`).
 
 ## Remaining
-- [ ] Commit + push this branch, open PR.
+- [x] Commit + push this branch, open PR (**PR #884**).
 - [ ] Independent audit per Rule 7(c)/Rule 10 (mandatory, this is documentation/
       governance work by a judgment-tier-eligible session).
 - [ ] Real fix of PR #878's truncated canonical doc is NOT this task's scope --

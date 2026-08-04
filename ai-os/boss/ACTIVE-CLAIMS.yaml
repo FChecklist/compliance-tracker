@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-091309-register-ocid-065--deterministic-browser) -- OCID-065: real completeness + zero-duplication audit of OCID-061/062/063 (verification/gap-analysis only, no code) [IN PROGRESS]"
+  - session_label: "claude-code (task-20260804-091309-register-ocid-065--deterministic-browser) -- OCID-065: real completeness + zero-duplication audit of OCID-061/062/063 (verification/gap-analysis only, no code) [PUSHED, PR #884 OPEN]"
     claimed_at: "2026-08-04T09:13Z (this session)"
     claim: |
       SPEC (PM dispatch, real parent OCID-061 `UMR-20260804-044535-7214` ->
