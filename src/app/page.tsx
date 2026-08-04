@@ -21,8 +21,11 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { VisitorIntelligence } from "@/components/VisitorIntelligence";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
 // Wave 113: the Research nav item on every product page links here with
 // ?from=<slug>. A visitor mid-purchase-journey who detours to the lab page
@@ -98,6 +101,27 @@ export default async function CognitiveRootPage({
 }: {
   searchParams: Promise<{ from?: string }>;
 }) {
+  // OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+  // implementation (UMR-20260804-090421-c647): this entire page is real,
+  // deliberate VERIDIAN-research-lab editorial copy (see this file's own
+  // header comment) -- reskinning it in place with a different brand name
+  // would produce incoherent, fabricated marketing copy ("PROJEXA COGNITIVE
+  // AI OS — AI Cognitive Research") that does not honestly represent
+  // PROJEXA, since no real PROJEXA marketing content exists anywhere in
+  // this repo (its own separate marketing site is a genuinely different
+  // deployment/repo, out of this change's scope). The honest, minimal, real
+  // behavior for a resolved non-default brand host is to route straight to
+  // the real, correctly-branded entry point that DOES exist for it --
+  // /login (Stage 1 already wired there) -- rather than show this page's
+  // VERIDIAN-specific narrative under someone else's name. Unmatched host
+  // (the default/common case) renders this page exactly as before, with no
+  // redirect at all.
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  if (brand) {
+    redirect("/login");
+  }
+
   const { from } = await searchParams;
   const returnTo = from ? RETURN_MAP[from] : undefined;
 

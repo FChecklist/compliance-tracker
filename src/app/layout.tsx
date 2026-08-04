@@ -6,45 +6,61 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import QueryProvider from "@/components/providers/QueryProvider";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
+import { headers } from "next/headers";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 import { veridianHeadingFont, veridianSansFont } from "@fchecklist/veridian-ui-kit/tokens/fonts";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  // Repositioned 2026-07-07 (Wave 112): the site root is now VERIDIAN
-  // COGNITIVE AI OS — the research-lab identity above the whole product
-  // family. The complete-business-system selling metadata moved with its
-  // page to /office/layout.tsx; product pages under /the-firm, /forge and
-  // /veri-fm-cs carry their own. This block is the browser tab, search
-  // headline and link preview for the lab itself.
-  title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
-  description:
-    "AI cognitive research that becomes advanced, working products. VERIDIAN builds operating systems that perceive a company's state, decide, act, and account for every action — bounded by a constitution, accountable to a ledger.",
-  keywords: [
-    "VERIDIAN",
-    "cognitive AI",
-    "AI research",
-    "AI operating system",
-    "enterprise AI",
-    "AI agents",
-    "purpose-bound AI",
-    "accountable AI",
-  ],
-  icons: { icon: "/logo-mark.svg" },
-  openGraph: {
-    title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
-    description:
-      "We research how a business thinks — then build the system that thinks for it. Advanced AI products and projects: OFFICE, THE FIRM, FM & CS, FORGE.",
-    url: "https://veridian-ai-os.vercel.app",
-    siteName: "VERIDIAN COGNITIVE AI OS",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
-    description:
-      "AI cognitive research that becomes advanced, working products — systems that perceive, decide, act, and account for themselves.",
-  },
-};
+const DEFAULT_TITLE = "VERIDIAN COGNITIVE AI OS — AI Cognitive Research";
+const DEFAULT_DESCRIPTION =
+  "AI cognitive research that becomes advanced, working products. VERIDIAN builds operating systems that perceive a company's state, decide, act, and account for every action — bounded by a constitution, accountable to a ledger.";
+
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+// implementation (UMR-20260804-090421-c647): a static `metadata` export
+// cannot see the real HTTP Host header -- `generateMetadata()` is the real,
+// standard Next.js mechanism for a per-request-dynamic title, and it is the
+// ONLY thing this change makes dynamic. Every other metadata field
+// (keywords, openGraph, twitter) is left exactly as it was: real,
+// VERIDIAN-research-lab-specific marketing copy that has no honest PROJEXA
+// equivalent to substitute in yet (see this OCID's own PROGRESS.md note on
+// why the root landing page itself redirects rather than being reskinned).
+// Unmatched host (the overwhelming common case) resolves to the exact same
+// literal default title as the static export it replaces.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  const title = brand ? `${brand.brandName} — powered by VERIDIAN` : DEFAULT_TITLE;
+
+  return {
+    title,
+    description: DEFAULT_DESCRIPTION,
+    keywords: [
+      "VERIDIAN",
+      "cognitive AI",
+      "AI research",
+      "AI operating system",
+      "enterprise AI",
+      "AI agents",
+      "purpose-bound AI",
+      "accountable AI",
+    ],
+    icons: { icon: "/logo-mark.svg" },
+    openGraph: {
+      title,
+      description:
+        "We research how a business thinks — then build the system that thinks for it. Advanced AI products and projects: OFFICE, THE FIRM, FM & CS, FORGE.",
+      url: "https://veridian-ai-os.vercel.app",
+      siteName: "VERIDIAN COGNITIVE AI OS",
+      type: "website",
+    },
+    twitter: {
+      card: "summary_large_image",
+      title,
+      description:
+        "AI cognitive research that becomes advanced, working products — systems that perceive, decide, act, and account for themselves.",
+    },
+  };
+}
 
 export default async function RootLayout({
   children,

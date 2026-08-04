@@ -2307,11 +2307,11 @@ open_items:
         extension of the other) rather than evidence of a real disconnect.
 
     - id: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH
-      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience -- real discovery brief written 2026-08-04, still open, Owner-level call pending"
+      name: "projexa-ai.com serves the generic VERIDIAN shell, not a PROJEXA-branded experience -- RESOLVED, real Stage 1 pre-authentication domain-based brand resolution implemented"
       detail: "Live-tested 2026-08-03: curl -sI https://projexa-ai.com returns HTTP/2 200 via Vercel; page <title> reads 'VERIDIAN COGNITIVE AI OS -- AI Cognitive Research'; grep for 'projexa' (case-insensitive) in the served HTML returns zero matches, only 'veridian'/'VERIDIAN'. The real PROJEXA-branded frontend (separate `projexa` repo) is live separately at projexa-smoky.vercel.app. Re-confirms and updates prior project memory (veridian-projexa-domain-ownership-conflict) with fresh live evidence rather than letting it go stale."
       size: M
       recommendation: "Locked by SEC-07 pending OCID-020. When unlocked: either route projexa-ai.com to the real projexa deployment/build, or add PROJEXA brand-routing to compliance-tracker's own deployment for that domain -- an Owner-level product decision, not a mechanical fix."
-      status: open
+      status: resolved
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
       discovery_brief: |
         2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
@@ -2332,6 +2332,63 @@ open_items:
         "brand-layer merge" framing evidence the intended end state already is what's live today (VERIDIAN
         as the unified brand, PROJEXA as an internal product branch)? This document takes no position;
         awaiting the real PM call.
+      resolved: |
+        2026-08-04, real Owner decision delivered directly (UMR-20260804-090421-c647), answering this
+        gap's own open question above: PROJEXA is not a separate platform -- it is the first brand built
+        on the one VERIDIAN platform (one runtime, one database, one UMR, one UTR). PROJEXA differs only
+        through brand configuration/domain/logo/theme/colours/fonts/marketing pages/product name, never
+        separate platform logic. Real deterministic priority order specified: host header, then brand
+        configuration, then tenant configuration, then organisation configuration, then user preference,
+        then session override -- each layer only overriding the layers beneath it.
+
+        Real implementation, discover-verify-reuse-enhance discipline: read org-branding-service.ts and
+        its real callers in full before writing anything. Confirmed resolveBranding() is indeed
+        org-scoped/post-login only, exactly as this gap's own discovery brief root-caused. Found a SECOND
+        real gap alongside it, not silently assumed away: src/app/login/login-form.tsx was a 100%
+        "use client" component hardcoding "VERIDIAN AI" with zero mechanism to receive or render any
+        server-resolved branding data at all -- a real pre-login rendering-path gap, not just a
+        resolution-logic gap. Also found, via a real live query against the production DB, that
+        product_branches.domain (the column that superficially looked like the obvious real reuse
+        target) is an unrelated, pre-existing, free-text BUSINESS-TAXONOMY grouping (real live values:
+        "construction", "compliance", "project_management", etc.) -- confirmed via
+        VERIDIAN_DMP_DCF_CONSTITUTION.md's own comment and live data; reusing it for real DNS hostnames
+        would have silently collided two unrelated concepts under one name. Also found: two rows in
+        product_branches both display "PROJEXA" (branch_key 'pms' and branch_key 'projexa') -- the real,
+        live-referenced one (10 real organisations.primary_product_branch_id rows) is branch_key
+        'projexa', id 5fceebcd-0a7a-4448-ae2b-a72637124f13; the 'pms' row is a separate, real, unrelated
+        naming collision not touched by this fix (out of this gap's own narrow scope; flagged here for a
+        future pass rather than guessed at).
+
+        Real implementation, zero duplication: enhanced org-branding-service.ts (no second branding
+        engine) with `resolvePreAuthBrandByHost(host)`, a new pure function that normalizes a real HTTP
+        Host header and looks it up against a new, narrowly-scoped `host_domain` column added to the
+        EXISTING product_branches table (drizzle/0312_stage1_preauth_brand_host_lookup.sql -- no new
+        table, no parallel registry), seeded for the one real, live-referenced PROJEXA row above.
+        src/app/login/page.tsx converted to an async Server Component (the real mechanism to read the
+        real Host header pre-auth) that resolves the brand and passes it as a plain prop into the
+        existing, otherwise-unchanged LoginForm component. src/app/layout.tsx's static `metadata` export
+        became a real `generateMetadata()` reading the same resolver for a dynamic browser-tab title.
+        Root landing page (src/app/page.tsx): honestly did NOT reskin its own deeply
+        VERIDIAN-research-lab-specific editorial marketing copy under the PROJEXA name (that would
+        fabricate marketing content that doesn't exist anywhere in this repo) -- instead added a real
+        redirect() to /login for a resolved non-default-brand host, so a PROJEXA-host visitor reaches a
+        genuinely, honestly PROJEXA-branded real entry point rather than incoherent reskinned VERIDIAN
+        copy. Stage 2 (resolveBranding, org/tenant/user/session resolution) left completely unchanged,
+        exactly as the Owner's own instruction required.
+
+        Real test proving the exact behavior asked for (5 tests, org-branding-service.test.ts): a
+        request to host "projexa-ai.com" resolves the real PROJEXA brand configuration; a request to the
+        base VERIDIAN platform domain does not; host:port and case-insensitive matching both normalize
+        correctly; a null/missing host never queries the database. Also found and fixed, as a real
+        byproduct of touching this exact test file: all 13 pre-existing tests in
+        org-branding-service.test.ts were failing (a genuine, pre-existing, currently-live defect --
+        independently confirmed via `git stash` against the unmodified file before assuming this was
+        caused by this change) because their `mock.module("@/lib/db", ...)` calls omitted `productBranches`,
+        which the file's own top-level import statically requires -- fixed by adding it to all 13, now 18/18
+        pass. `bunx tsc --noEmit` clean, `bunx eslint` clean on every touched file, real unconstrained
+        `bun run build` clean (confirmed `/` and `/login` both correctly render as dynamic `ƒ`, not
+        statically cached, since they now read the real Host header per-request). Real PR, independent
+        review pending before merge -- not self-certified here.
 
     - id: GAP-OCID038-OCID035-DUPLICATE-PRS
       name: "PR #777 and PR #782 both currently claim real content for OCID-035, under different titles -- RESOLVED, genuinely distinct content, numbering corrected"

@@ -40,6 +40,47 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, fix/ocid038-stage1-preauth-domain-brand-resolution) -- OCID-038 real gap closure: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 pre-authentication domain-based brand resolution [PUSHED, PR pending]"
+    claimed_at: "2026-08-04T09:10Z (this session)"
+    claim: |
+      SPEC (real Owner decision, delivered directly, UMR-20260804-090421-c647, parent OCID-038
+      `UMR-20260803-042801-ec4b` / OCID-021 `UMR-20260802-173631-ca85`): real implementation
+      authorized -- PROJEXA is the first brand on the one VERIDIAN platform, not a separate
+      platform. Enhance org-branding-service.ts's resolveBranding(), add a real Stage 1
+      pre-authentication host-header-based resolution, keep Stage 2 (org-scoped, post-login)
+      exactly unchanged. Zero duplication: no new table, no parallel registry -- reuses the
+      existing product_branches "brand configuration" table (one new nullable `host_domain`
+      lookup column) and the existing UMR/MASTER-TRACKER.yaml concepts.
+
+      Real discovery before writing anything: confirmed resolveBranding() is org-scoped/
+      post-login only (root cause already documented in this gap's own discovery brief).
+      Found a SECOND real gap, disclosed honestly rather than assumed away:
+      src/app/login/login-form.tsx was 100% client-side with zero mechanism to receive/render
+      server-resolved branding data. Found via a real live DB query that
+      product_branches.domain is an unrelated, pre-existing, free-text business-taxonomy
+      column (real values: "construction", "compliance", etc.), not a DNS hostname -- reusing
+      it would have silently collided two unrelated concepts; added a new, separate
+      `host_domain` column instead. Found a real, live, unrelated PROJEXA/PROJEXA branch_key
+      naming collision ('pms' vs 'projexa') -- not touched, out of this gap's narrow scope,
+      flagged for a future pass.
+
+      Real implementation: `resolvePreAuthBrandByHost()` (org-branding-service.ts),
+      drizzle/0312_stage1_preauth_brand_host_lookup.sql, login/page.tsx converted to an async
+      Server Component, layout.tsx's static metadata -> real generateMetadata(), root
+      page.tsx real redirect() to /login for a resolved non-default brand host (chose NOT to
+      reskin its own VERIDIAN-research-lab-specific marketing copy under the PROJEXA name --
+      that would fabricate content that doesn't exist in this repo). 5 real new tests proving
+      projexa-ai.com resolves PROJEXA pre-login and the base domain doesn't; also fixed a
+      real, pre-existing, currently-live defect in all 13 existing tests in the same file
+      (independently confirmed via git stash before attributing it to this change) -- 18/18
+      pass. tsc/eslint clean, real unconstrained build clean.
+    scope_note: >-
+      File scope: src/lib/services/org-branding-service.ts (enhanced, not replaced),
+      src/lib/services/org-branding-service.test.ts, src/lib/db/schema.ts,
+      drizzle/0312_stage1_preauth_brand_host_lookup.sql, src/app/login/page.tsx,
+      src/app/login/login-form.tsx, src/app/layout.tsx, src/app/page.tsx,
+      ai-os/MASTER-TRACKER.yaml, this ACTIVE-CLAIMS entry, PROGRESS.md. No changes to Stage 2
+      (resolveBranding's own org/tenant/user/session resolution, unchanged).
   - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only) [PUSHED, PR OPEN]"
     claimed_at: "2026-08-03T (this session, closed same session)"
     claim: |
