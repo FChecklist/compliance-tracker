@@ -5308,8 +5308,27 @@ recently_completed:
       zero circular import (checked). `bunx tsc --noEmit` clean, `bunx eslint` clean, full `bun test`
       2481/2481 pass (same baseline, no dedicated unit coverage exists for either call site --
       DB-context-dependent, same class as other internal call sites in this file). Full writeup in
-      `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` entry. PR not yet
-      opened/merged as of this claim -- updating once real.
+      `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` entry.
+
+      **Update (2026-08-04, independently re-verified by task-20260804-011434-pm-confirmation-to-
+      proceed-with-gap-ocid, a separate concurrent session dispatched against the same PM decision
+      `UMR-20260804-005752-fcb1`):** PR #856 confirmed genuinely `MERGED` at `2026-08-04T01:09:34Z`,
+      merge commit `622db10544475e41d6beb710c7738561fdfac1a9`, real ancestor of `origin/main`. Diff
+      independently re-read in full (`git diff 86e00cd1^ 86e00cd1 -- src/lib/task-execution-engine.ts`
+      -- note: plain `git show -- <path>` on this box truncated the same diff to a bare stat line with
+      no hunks, reproducing the known git-show-truncation tooling gap; `git diff <a> <b> -- <path>`
+      returned the real 22-line patch correctly) -- confirms both call sites genuinely migrated to
+      `resolveMotherRouterModel({scope: "end_user_org", ...})` exactly as described, `resolveModel()`
+      confirmed to exist at `src/lib/ai-router/mother-router.ts:594` with the matching `end_user_org`
+      scope arm. All 7 CI contexts required by branch protection (Lint/Type Check/Build/audit-check/
+      Guardrail Presence Check/Asset Registry Coverage Check/Unit Tests) passed on this PR before merge
+      (only the non-required `Terminology Guardrail Check` failed, confirmed not in
+      `required_status_checks.contexts` via `gh api`, so did not block merge -- no guardrail bypass).
+      This task's own local `bunx tsc --noEmit` could not be re-run for independent confirmation
+      (workspace `node_modules/` not installed in this task's own checkout), but CI's own Type Check
+      already ran it green against the real merged head, which is the authoritative signal branch
+      protection itself relies on. No duplicate work performed -- this session did not re-implement or
+      re-open this gap.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR #852 merged]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |

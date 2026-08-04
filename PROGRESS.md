@@ -2288,3 +2288,77 @@ decision, PR #851, confirmed merged before this session started via `git merge-b
       against a `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` branch -- check
       `ai-os/boss/ACTIVE-CLAIMS.yaml` for a live claim on that gap before picking it up, to avoid
       duplicate work.
+
+# =====================================================================
+# TASK: task-20260804-011434-pm-confirmation-to-proceed-with-gap-ocid
+# =====================================================================
+
+## Completed
+- [x] Independently re-verified the spec's premise before acting (per this repo's own established
+      practice -- server runs live concurrent worker/supervisor loops, state can go stale within
+      seconds). Found the named gap **already closed by a concurrent session**, not open:
+  - Local `git log` at task start already showed `622db105 Merge pull request #856 ...
+    fix/gap-ocid038-taskengine-motherrouter-unwired` and `86e00cd1 fix:
+    GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED -- wire task-execution-engine.ts to Mother Router` as
+    the two most recent commits, with local `HEAD` == `origin/main` exactly.
+  - `gh pr view 856`: `state: MERGED`, `mergedAt: 2026-08-04T01:09:34Z`, merge commit
+    `622db10544475e41d6beb710c7738561fdfac1a9` -- real, live confirmation, not assumed from git log
+    alone.
+  - `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` entry: already
+    `status: resolved` with a full `resolved:` writeup matching the PR.
+  - `ai-os/boss/ACTIVE-CLAIMS.yaml`: an entry already existed under `recently_completed:` for this
+    exact gap, citing the *same* PM authorization this task's own spec cites
+    (`UMR-20260804-005752-fcb1`) -- confirms this task and that concurrent session were dispatched
+    from the same PM decision. That entry's own text was stale ("PR not yet opened/merged as of this
+    claim") relative to the now-confirmed real merge; corrected in place with today's date.
+  - Independently re-read the real diff before trusting the commit message: `git diff 86e00cd1^
+    86e00cd1 -- src/lib/task-execution-engine.ts` shows both `executePackageDispatch()` and
+    `executeTask()` genuinely migrated from `resolveModelConfig()` to
+    `resolveMotherRouterModel({scope: "end_user_org", orgId, layerKey: "task_oa"}).resolvedConfig` --
+    confirmed `resolveModel()` (aliased on import) really exists at
+    `src/lib/ai-router/mother-router.ts:594` with a matching `end_user_org` scope arm at line 617.
+    **Tooling note (carried forward per this task's own spec):** plain `git show 86e00cd1 --
+    src/lib/task-execution-engine.ts` on this box silently truncated the diff to a bare `--stat` line
+    with zero hunks. `git diff <parent> <commit> -- <path>` returned the correct, full 22-line patch.
+    Separately, `git show 622db105:PROGRESS.md | wc -l` silently truncated a real 2290-line file to 31
+    lines with a fabricated-looking `... more files changed` trailer -- `git cat-file -p
+    622db105:PROGRESS.md > file` returned the real content correctly. Both reproduce the same class of
+    `git show` truncation bug this task's spec flagged; `git diff`/`git cat-file -p` are the reliable
+    alternatives on this box.
+  - CI genuineness check: `gh api repos/.../branches/main/protection/required_status_checks` --
+    required contexts are `Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset
+    Registry Coverage Check, Unit Tests`. `gh pr checks 856` shows all 7 of those `pass`; the one
+    `fail` (`Terminology Guardrail Check`) is confirmed NOT a required context, so did not block
+    merge -- no guardrail bypass, no Rule 9 concern.
+  - **Conclusion: no rework needed or performed.** `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` is
+    genuinely closed, real branch/fix/PR/CI/merge, matching the audited standard the spec asked for --
+    it was simply already done by a concurrent session responding to the same PM decision before this
+    task started.
+- [x] Surveyed the two other still-open OCID-038 gaps to check whether either should be picked up next
+      under this same authorization -- concluded **no**, out of scope for this task:
+  - `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`: still `status: open`, explicitly flagged as
+    "an Owner-level product decision, not a mechanical fix." Cross-checked against existing project
+    memory (`veridian-projexa-domain-ownership-conflict`), which independently confirms this is a
+    real, still-open, live gap.
+  - `GAP-OCID038-PROJEXA-OWN-SCHEMA`: still `status: open`, requires reading a *separate* repo
+    (`FChecklist/projexa`) directly to resolve -- a real cross-repo investigation, not a same-repo
+    mechanical fix either.
+  - Neither is named in this task's own spec, neither currently has an active claim from another
+    session, and both need an Owner-level/cross-repo call rather than a same-standard mechanical
+    wiring fix -- picking either up here would be scope creep beyond what this PM decision authorized.
+- [x] Corrected the one stale line in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s existing entry for this gap.
+- [x] Caught and fixed a real instance of this repo's own recurring PROGRESS.md wholesale-replace
+      regression on this task's first commit: the workspace's on-disk `PROGRESS.md` had already been
+      scaffolded as a 2-line stub before this session started, silently shadowing 2290 real lines of
+      prior task history that were still present in git history (`622db105:PROGRESS.md`). The first
+      commit on this branch (`58c5c560`) wrongly replaced the real file with the stub-derived version
+      (2292 deletions) instead of restoring first, per this repo's own established practice (see prior
+      sessions' identical fix, e.g. the `task-20260803-171457` and `task-20260803-214948` entries in
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`). Caught immediately via `git diff 622db105 58c5c560 --stat`
+      before this branch was merged anywhere; restored via `git cat-file -p 622db105:PROGRESS.md` and
+      amended this file to append this task's own section rather than replace.
+
+## Remaining
+- [ ] None for this task's authorized scope. `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` and
+      `GAP-OCID038-PROJEXA-OWN-SCHEMA` remain genuinely open in `ai-os/MASTER-TRACKER.yaml` for a
+      future PM decision that explicitly authorizes Owner-level/cross-repo work.
