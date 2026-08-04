@@ -40,6 +40,26 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-111825-ocid-067-registration-only-vedtocp-enter) -- OCID-067: VEDTOCP Enterprise Digital Twin 90-Day Program, registration/planning document only, LOCKED"
+    claimed_at: "2026-08-04T11:18Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, real dispatch UMR-20260804-111532-3612, plus a real
+      follow-on PM decision UMR-20260804-111547-0be3 confirming the LOCKED gate -- both
+      independently confirmed live in superboss-register.sqlite's umr_tasks table, not
+      self-minted): registration and planning ONLY. Write the VEDTOCP (Enterprise Digital
+      Twin and 90-Day Operational Certification Program -- 50-person simulated org for AL
+      EMARAT CONSTRUCTION AND INTERIOR DESIGN LLC, 50 real browser-controlled Claude Code CLI
+      agents against live projexa-ai.com) directive into a single canonical planning document,
+      `ai-os/OCID_067_VEDTOCP_DIGITAL_TWIN_PROGRAM_2026-08-04.md`. Add explicit UMR metadata
+      and a real dependency gate naming OCID-15 through OCID-66 as blocking prerequisites.
+      Zero implementation, zero infrastructure, zero browser agents, zero simulation, zero
+      writes to projexa-ai.com. Open a docs-only PR. This item stays permanently LOCKED until
+      the Owner or a verified full OCID-15..66 chain completion lifts the gate.
+    scope_note: >-
+      File scope: ai-os/OCID_067_VEDTOCP_DIGITAL_TWIN_PROGRAM_2026-08-04.md (new),
+      ai-os/OS.yaml (index entry), this ACTIVE-CLAIMS.yaml entry, PROGRESS.md. No code, no DB
+      migration, no browser automation, no systemd unit, no network/firewall rule, no
+      simulation of any kind.
   - session_label: "claude-code (interactive, fix/ocid038-stage1-preauth-domain-brand-resolution) -- OCID-038 real gap closure: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 pre-authentication domain-based brand resolution [PUSHED, PR pending]"
     claimed_at: "2026-08-04T09:10Z (this session)"
     claim: |
