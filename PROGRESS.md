@@ -1,47 +1,40 @@
-# PROGRESS -- task-20260804-183824-ocid-020-urgent-correction-real-merge-fa
-
-SPEC: Real PM decision, urgent correction. Dispatched on the accurate-at-the-time finding that
-PR #900 was OPEN/mergedAt null/mergeStateStatus BEHIND, and the earlier docs claim that
-"production migration 0312 applied, live-verified" was false since the fix had never actually
-merged. Instructed to rebase PR #900, resolve conflicts, merge for real, then independently
-re-verify 10 real reproduction attempts against live `/api/me`. Cites `UMR-20260804-155457-a16d`
-and `UMR-20260804-153900-ea69`.
+# PROGRESS -- task-20260804-205531-ocid-034-universal-context-and-predictiv
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting.
-- [x] Re-checked PR #900 live (`gh pr view`, `git log origin/main`): found the dispatch's own
-      premise had been overtaken by real events since it was written -- PR #900 is now
-      **MERGED** (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`), via a separate real
-      autonomous supervisor cycle (`task-20260804-160451-adopted-ocid-020--close-gap-api-me-500----produc`)
-      that rebased and merged it before this task's own dispatch time (18:38Z). A duplicate
-      follow-on PR (#914, identical branch content) was independently reviewed by a Superboss
-      agent, correctly found to be a stale no-op re-review of already-merged content, rejected,
-      and auto-closed -- no action needed there.
-- [x] Did **not** re-attempt an already-completed rebase/merge, and did **not** falsely mark the
-      real, now-fixed state as still "blocked" just to match the dispatch's own now-superseded
-      framing -- the honest finding is that the original PM's observation was correct when made,
-      but stale by execution time (live-concurrent-state-drift, not a false-claim case).
-- [x] Independently re-verified the real production fix from scratch, trusting neither the
-      merged commit's own prose nor the dispatch's premise:
-      - Direct `psql` query against the real production DB (`platform.product_branches`):
-        confirmed `host_domain` column genuinely exists, its partial unique index genuinely
-        exists, and the PROJEXA row (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) genuinely has
-        `host_domain = 'projexa-ai.com'`. Migration 0312 is genuinely applied to production, not
-        just claimed.
-      - 10 fresh, independent, Admin-API-provisioned real users (not retries on one user, to
-        match the original 10/10-failure finding's own methodology), each a real password-grant
-        login + hand-constructed `@supabase/ssr` session cookie, each a real `GET /api/me`
-        against live `projexa-ai.com`: **10/10 returned a real 200 with full JSON**, 0/10
-        non-200, 0/10 setup errors. Strictly exceeds the original closure's own claimed 4/4.
-        Script + raw output: `/tmp/verify-apime-ocid020-20260804-1846.mjs`.
-- [x] Added an additive `reverification_2026_08_04_1846` field to
-      `ai-os/MASTER-TRACKER.yaml`'s existing `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` entry
-      recording this second independent pass and its evidence, citing both UMRs. Did not change
-      `status: closed` since the closure is genuinely correct -- validated the YAML still parses.
-- [x] Added a `recently_completed` entry to `ai-os/boss/ACTIVE-CLAIMS.yaml` documenting this
-      finding honestly, per that file's own protocol.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` per protocol before picking up any work.
+- [x] Verified this task's SPEC premise against real `origin/main` history before writing anything.
+- [x] **Found the SPEC's premise is false.** OCID-034 ("Universal Context and Predictive
+      Runtime") is already merged: PR #779, merged `2026-08-03T07:03:19Z`, commit `7a6ad5ab`,
+      artifact `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md`. That
+      document cites the *exact same UMR* this task's SPEC cites as its own
+      (`UMR-20260803-042003-5e92`) as its real dispatch UMR. `git log origin/main --grep
+      OCID-034 -i` returns the merge commit directly; the SPEC's claim ("no merged PR found
+      citing OCID-034 anywhere in origin main history") is trivially disproven by that single
+      command.
+- [x] Cross-checked: the merged doc is not an orphaned/abandoned artifact -- it is actively
+      cross-referenced as the canonical, `MERGED` OCID-034 foundation by at least 5 other
+      later-merged documents (`ai-os/OS.yaml:267`, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      multiple entries, `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md:61`,
+      `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`,
+      `ai-os/MASTER-TRACKER.yaml:2586-2588`), plus one already-filed, already-merged honest
+      correction to one of its sub-claims (`VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_...md`,
+      re the PWA/manifest finding) -- so this is not a case of "the doc exists but needs
+      redoing," it is a live, healthy, already-corrected-once canonical artifact.
+- [x] Declined to create a duplicate documentation artifact. Per this repo's own established
+      precedent for false-premise dispatches (`veridian-duplicate-pm-authorization-same-fix`,
+      `veridian-ocid068-traceability-requirement-duplicate-dispatch`,
+      `veridian-ocid001-006-registration-duplicate-dispatch` memories; PR #918, PR #912), the
+      correct action is to document the real finding and close the task without a second
+      competing OCID-034 artifact -- not to fabricate new content on top of already-correct,
+      already-cross-cited work.
+- [x] Recorded a closure entry in `ai-os/boss/ACTIVE-CLAIMS.yaml` citing this UMR
+      (`UMR-20260803-042003-5e92`) and this task's own label, so a future session sees this was
+      checked and closed, not silently skipped.
+- [x] Opened a real PR carrying this finding through review/CI (no code, no schema, no
+      duplicate artifact -- `PROGRESS.md` + one `ACTIVE-CLAIMS.yaml` entry only) and merged it.
 
 ## Remaining
-- [ ] None outstanding for this task. No code change was needed (the real fix was already merged
-      and is independently confirmed live); no new PR (nothing left to merge). Commit + push this
-      doc-only correction, citing both UMRs.
+- [ ] None. Task closed as duplicate/false-premise; no further action needed unless the Owner
+      has a genuinely new, distinct piece of OCID-034 scope in mind (in which case that should
+      be dispatched as an explicit amendment/correction to the existing merged doc, the same way
+      the PWA/manifest correction was handled, not as a second full artifact).
