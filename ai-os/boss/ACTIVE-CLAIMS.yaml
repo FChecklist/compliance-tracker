@@ -9201,3 +9201,63 @@ recently_completed:
       File scope: `PROGRESS.md` (restored from wholesale-replace regression + this task's own section),
       this ACTIVE-CLAIMS entry. No src/, schema, migration, or CI changes -- the real code fix already
       landed via PR #803 before this session started; nothing left to merge or fix in this cycle.
+  - session_label: "claude-agent (docs/ocid062-server-authority-mini-veridian-architecture) -- OCID-062 Server Authority and Mini VERIDIAN Execution Architecture [DONE, closed same session]"
+    claimed_at: "2026-08-04 (this session, closed same session)"
+    claim: |
+      SPEC (PM-authorized documentation-only dispatch, parent chain OCID-021
+      `UMR-20260802-173631-ca85` -> OCID-020 `UMR-20260802-165606-4413`, same documentation-only
+      pattern as OCID-022 through OCID-037): produce one real canonical architecture document
+      describing authoritative server responsibilities, "Mini VERIDIAN" (a new term this dispatch
+      introduces, not a pre-existing component) primary client-execution responsibilities, and a
+      proposed local-vs-server execution handoff sequence, with real citations to actual browser and
+      server runtime code, honestly distinguishing what exists from what is proposed. Explicitly
+      documentation-only -- no browser/PWA execution code, no service worker, no manifest changes.
+
+      Independently re-verified this dispatch's 5 named dependencies via `gh pr view` before writing
+      rather than trusting the prompt's own snapshot: OCID-024 (PR #767) and OCID-025 (PR #766) both
+      real, `OPEN`, not merged (read directly from their branches via `gh pr diff`); OCID-031 (PR #781)
+      and OCID-034 (PR #779) both real, `MERGED` 2026-08-03; OCID-061 (universal input runtime
+      mapping) confirmed not started -- no worker dispatched, zero findings anywhere in the repo,
+      not fabricated here. Independently confirmed the next-free OCID number live (`gh pr list`
+      showed OCID-058 through OCID-060 already claimed by open PRs #866-875; OCID-061/062 both
+      confirmed zero hits in `ACTIVE-CLAIMS.yaml`/`MASTER-TRACKER.yaml`/`OS.yaml` on `origin/main` at
+      write time) rather than assuming the PM's own example number (062) was still free.
+
+      Did a dedicated discovery pass, not a restatement of the two merged/two open dependency docs:
+      read `src/lib/supabase/auth-guard.ts`, `src/lib/db/tenant-scoped.ts`,
+      `src/lib/ai-router/mother-router.ts`, `src/lib/llm-routing-gate.ts`,
+      `src/app/api/prompt-compiler/execute/route.ts`, and all 15 files under
+      `src/lib/browser-execution/` directly. Real finding, independently confirmed, not just cited
+      from the open OCID-024 draft: none of the tier system's actual model-inference engines
+      (webllm-engine.ts/transformers-engine.ts/npu-engine.ts) are wired into VeriComposer.tsx's live
+      send path -- `grep -n "browser-execution" src/components/veri-chat/VeriComposer.tsx` finds
+      exactly one import (`client-compile.ts`'s `compileInBrowser`), which uses tier-orchestrator.ts
+      for tier selection/telemetry only, never invoking any tier's real inference. Also found and
+      flagged a real stale claim in `ai-os/CONSTITUTION.yaml` (line 759, "Zero indexedDB... usage
+      anywhere," dated 2026-07-14): real IndexedDB usage now exists via `browser-intent-cache.ts` and
+      `model-cache.ts` (both post-dating that claim) -- named as drift, not corrected in that file
+      (out of this dispatch's scope). Re-confirmed, independently, the real absence of any service
+      worker (`git grep -niE "serviceWorker|service-worker|sw\.js|next-pwa|workbox"`, zero hits) and
+      the real presence of the installable `src/app/manifest.ts` (PR #435) -- matching
+      OCID-051/OCID-034's own prior findings, not contradicting them.
+
+      Did not self-mint a dispatch UMR for OCID-062: this task's working environment (a scratch
+      clone) has no access to `/opt/veridian/ai-os/memory/superboss-register.sqlite`, so this
+      document's own dispatch-row identity was not independently queried -- disclosed explicitly in
+      the document itself rather than inventing a UMR the way `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`
+      (this file's own recorded prior finding) already flagged as a real anti-pattern in this repo's
+      history.
+
+      Registered `ai-os/OS.yaml` index entry and a new `ai-os/MASTER-TRACKER.yaml` gap/planning
+      entry (`GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED`, matching this file's own real, independently
+      confirmed finding above) for this document. Appended to `PROGRESS.md` without touching or
+      truncating any existing content (per this session's own recorded prior incident where a bad
+      merge truncated `PROGRESS.md` from 2403 to 120 lines) -- verified `wc -l` before and after.
+      Validated every YAML file touched parses clean via `python3 -c "import yaml; yaml.safe_load(...)"`
+      before committing.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      (new), `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. No src/, schema, migration, CI, service-worker, manifest, or any other
+      application-code changes -- documentation and governance bookkeeping only, per this dispatch's
+      own hard constraint.
