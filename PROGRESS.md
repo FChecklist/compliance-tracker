@@ -341,6 +341,40 @@ and `UMR-20260804-153900-ea69`.
 
 - [x] Committed, pushed, opened PR #911: https://github.com/FChecklist/compliance-tracker/pull/911
 
+## Update (2026-08-04, invocation 2/20 resume -- real CI remediation, not self-certification)
+Resumed per checkpoint; PR #911 had gone stale/red while this task was between invocations:
+- [x] Real, live `gh pr checks 911` showed `Metadata Index Coverage Check: fail` and
+      `mergeable: CONFLICTING` (origin/main had moved 6 commits ahead in the interim, including a
+      merged, unrelated OCID-001..006 registration doc that was never indexed in `ai-os/OS.yaml`).
+      Ran the failing script locally (`node scripts/check-metadata-index-coverage.mjs`) rather than
+      guessing from CI log output alone -- confirmed the real, single missing-index cause.
+- [x] Added the missing `ai-os/OS.yaml` index entry for
+      `ai-os/VERIDIAN_OCID_001_006_EARLIER_GENERATION_REGISTRATION_2026-08-04.md` (pre-existing gap,
+      unrelated to this task's own OCID-061 content, but blocking this PR's own required check --
+      fixed rather than left red). Re-ran all 4 governance checks locally, all green.
+- [x] Rebased onto `origin/main` to resolve the real `CONFLICTING` mergeable state (2 real conflicts:
+      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`). Found `origin/main`'s own `PROGRESS.md` had
+      independently suffered a fresh instance of the same wholesale-replace regression this task's
+      own first section already fixed once (a same-day-later task,
+      `task-20260804-183824-ocid-020-urgent-correction-real-merge-fa`, had again scaffolded a
+      stub that silently dropped the accumulated history) -- resolved by prepending that section's
+      own real, legitimate new content (kept, not discarded) above this branch's own full restored
+      history, rather than accepting either side's file wholesale. `ACTIVE-CLAIMS.yaml`'s conflict
+      was two distinct, non-overlapping `recently_completed` list entries -- resolved by keeping
+      both, in chronological order.
+- [x] Found and fixed a real post-rebase side effect: git's own auto-merge of `ai-os/OS.yaml`
+      (no conflict marker, so not caught by the manual conflict-resolution pass above) had produced
+      a duplicate index entry for the OCID-001..006 doc -- this branch's own fix from the point
+      above, plus a real, independently-added, more accurate entry already on `origin/main` (via
+      commit `44848490`, PR #912, which post-dated this branch's fork point). Removed this branch's
+      own duplicate, kept the one real upstream entry. Re-validated all 4 governance checks clean
+      post-dedup.
+- [x] Force-pushed (`--force-with-lease`) the rebased branch; `gh pr view 911` confirmed
+      `mergeable: MERGEABLE` (was `CONFLICTING`) immediately after.
+- [x] CI re-triggered on push; awaiting final settle (tracked via a background Monitor watching
+      `gh pr checks 911` rather than a blocking sleep loop) before declaring this task's own
+      "confirm CI green" remaining item done.
+
 ## Remaining
 - [ ] Confirm CI green, hand off for independent audit -- not self-certified here.
 
