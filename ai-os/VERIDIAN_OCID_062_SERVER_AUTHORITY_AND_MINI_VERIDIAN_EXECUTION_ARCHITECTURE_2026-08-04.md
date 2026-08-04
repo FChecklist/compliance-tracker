@@ -187,6 +187,60 @@ enforced at the same server boundary. **Why server-only:** an audit or billing r
 forge or omit is not an audit or billing record — non-repudiability requires the write to happen
 where the client cannot intercept or suppress it.
 
+### 3.8 If a self-hosted local model joins this list: Ollama, not a new architecture
+
+**Real, targeted addition — closes OCID-064 (`UMR-20260804-072532-a02d`, `UMR-20260804-073906-3dd0`).
+Documentation only; nothing built or installed by this addition.** OCID-064's own incoming prompt was
+independently compared against this document's §3/§4 content and against OCID-061's real input-intake
+discovery; every element it described — local tool calling, context injection to prevent identifier
+hallucination, a deterministic (non-model-trusted) confidence calculation, and an identity envelope
+carrying brand/organization/task fields — was already covered above and in §5 below, with one genuine
+exception: **Ollama** as a specific, named local-inference mechanism.
+
+Ollama (`https://ollama.com`) is architecturally distinct from every client-side option already
+inventoried in §4: it is a **real local server process** (not in-browser) that exposes a REST API
+compatible with the OpenAI SDK's chat-completions/tool-calling shape
+(`POST /api/chat` / `POST /v1/chat/completions`). This makes it the concrete mechanism for a
+**self-hosted local model** — one running on infrastructure this organization controls, but off the
+Mother Router's managed-provider path — should that ever become part of the real deterministic
+execution path this document describes. It is **complementary to, not a replacement for**, the
+already-covered browser-side options:
+
+| Mechanism | Where it runs | Transport | Status in this codebase |
+|---|---|---|---|
+| `webllm-engine.ts` (§4.1) | In-browser, WebGPU | none (in-process) | Real, tested, unwired to live chat (`GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED`, §3.9 below cross-ref) |
+| `transformers-engine.ts` (§4.1) | In-browser, WASM/CPU | none (in-process) | Real, tested, unwired to live chat |
+| Ollama | Local server process (not the browser) | HTTP, OpenAI-compatible | Not present in this codebase — named here as a real, available mechanism only, nothing installed |
+
+**Why this stays consistent with §3's own reasoning, not an exception to it:** a self-hosted Ollama
+instance is still a server-side process from the browser's point of view — it does not change any of
+the "why server-only" arguments in §3.1–3.7 (auth, tenant isolation, DB writes, Mother Router model
+resolution, deterministic-vs-AI dispatch, engines, audit/billing all stay exactly where this document
+already places them). What it *would* change, if ever wired in, is only the Mother Router's own
+provider registry (`mother-router.ts:594`, §3.4) gaining one more real, self-hosted provider entry
+alongside the existing external providers — not a new code path, not a new trust boundary, and not a
+second parallel routing mechanism.
+
+**Why function calling/tool use, not free chat, is the pattern that keeps it deterministic:** this
+session's own reuse discipline (the Mandatory Governance Directive, `UMR-20260804-051521-fee4`/`-7099`)
+applies here directly. A local model given a free-text prompt and allowed to answer conversationally is
+exactly the "second, unauditable source of truth" §3.6 warns against for engines — its output cannot be
+verified against a fixed contract. Ollama's own OpenAI-compatible `tools`/`tool_calls` support (the same
+shape `tool-calling.ts`'s `BrowserToolRegistry`/`dispatchMcpToolCall` already uses client-side, §4.1)
+constrains the model to selecting from a fixed, pre-declared function/parameter schema rather than
+producing free-form text — the same discipline that lets `llm-routing-gate.ts`'s `tryDeterministicRoute()`
+(§3.5) and the engines (§3.6) stay auditable: **the schema is fixed and server-defined; the model
+picks, it does not invent.** Any real future wiring of a self-hosted Ollama instance should follow this
+same constraint — tool/function-call dispatch against a declared schema, never an open-ended chat
+completion trusted as authoritative — matching exactly how this document already requires every other
+AI-touched path in §3 and §5 to work.
+
+**Explicitly out of scope for this addition:** no Ollama install, no server process, no Mother Router
+provider-registry change, no code. This is a documentation note that the mechanism exists and how it
+would need to be wired if a fresh PM decision ever authorizes it — real installation and wiring remain
+a future implementation decision, gated the same as every other item in this document behind a real,
+separate PM authorization.
+
 ---
 
 ## 4. Mini VERIDIAN — real local/client execution today, and what it could reasonably scope to

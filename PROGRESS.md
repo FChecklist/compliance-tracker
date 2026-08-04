@@ -1,3 +1,62 @@
+# PROGRESS -- task-20260803-071119-ocid-039-veridian-real-end-user-producti
+
+Registers OCID-038, OCID-039, OCID-040 under `SEC-07`'s implementation lock
+(`ai-os/CONSTITUTION.yaml`, gated on `UMR-20260802-165606-4413` / OCID-020,
+confirmed still open). Scope: discovery + real end-user live testing +
+documentation ONLY. No implementation, gap closure, production changes,
+certification, or freeze performed.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/CONSTITUTION.yaml` (SEC-07
+      confirmed real/`ENFORCED`), `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
+      (confirmed OCID-020 still open; OCID-038 not yet dispatched before this task).
+- [x] Merged `origin/main`, registered ACTIVE-CLAIMS.yaml entry, pushed early.
+- [x] Discovery pass: real inventory via `git ls-files`/`git grep` (163 pages,
+      991 API routes, 654 lib files) cross-referenced against existing
+      OCID-022/024/025/028/034 findings. Found and disclosed that bare
+      recursive `find`/`grep -r` silently caps at 51 results in this sandbox
+      (saved to persistent memory) -- would have produced a false undercount.
+      Found + filed a real correction to OCID-034's "no PWA" claim (real
+      manifest exists at `src/app/manifest.ts`).
+- [x] Real live end-user testing against `https://projexa-ai.com` (Playwright,
+      borrowed `playwright-core` from compliance-tracker's node_modules
+      read-only + existing chromium-libs fix). 2 of 3 real signup+admin-
+      bypass+login sessions succeeded; 3rd hit a real Supabase rate-limit.
+      Real confirmed: PWA manifest+installability, "VERI, Your AI Assistant"
+      onboarding surface, mode-pill/option-chain composer UI, one real
+      "VERI AI isn't ready yet" toast, Sign Out UI, offline blank-page
+      behavior + clean reconnect recovery, partial mobile-viewport finding.
+      Honestly disclosed as untested: org switch, attachments, voice content,
+      task delegate/transfer/approve/reject, search palette, cross-device
+      continuity, native install, reports/analysis.
+- [x] Wrote canonical artifact:
+      `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`.
+      Registered UMR chain (OCID-038/039/040) + 3 real child-gap UMRs +
+      1 documentation-correction UMR in `ai-os/MASTER-TRACKER.yaml`.
+      Updated `ai-os/OS.yaml` index (new entry + OCID-034 correction note)
+      and `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (new amendment section).
+- [x] Verified locally (borrowed node_modules symlink, removed before commit):
+      `check-metadata-index-coverage.mjs`, `check-doc-cross-references.mjs`,
+      `check-guardrail-presence.mjs`, `check-doc-quarantine-banner.mjs`,
+      `check-terminology-guardrail.mjs` all pass.
+
+## Remaining
+- [ ] Final commit + push (this commit).
+- [ ] Open PR, confirm CI green, hand off for independent audit per Rule 7(c)/10.
+
+## Handoff for OCID-040
+OCID-038, OCID-039, OCID-040 are registered with a real UMR chain. Discovery,
+real end-user testing, traceability, dependency mapping, and gap
+identification are complete for this pass's disclosed scope. Implementation,
+gap closure, production changes, certification, and freeze remain explicitly
+deferred pending OCID-020 (`UMR-20260802-165606-4413`) being independently
+verified complete with real evidence. Once unlocked: OCID-038 implements the
+real gaps registered here (and whatever §3.11's untested items surface once
+tested) -> OCID-039 real production certification -> OCID-040 final
+certification + freeze, strictly in that order.
+
+---
+
 # PROGRESS -- task-20260804-031540-pm-decision--resolve-credit-accountant-b
 
 Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260802-173631-ca85` (OCID-021), standing auto
@@ -2563,6 +2622,29 @@ OCID-022 through OCID-037.
       `python3 -c "import yaml; yaml.safe_load(open(path, encoding='utf-8-sig'))"` for
       `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml`, and `ai-os/boss/ACTIVE-CLAIMS.yaml` -- all three
       OK, checked before committing.
+- [x] Merged `origin/main` (15 commits behind at resync time): resolved a real, genuine two-sided
+      `PROGRESS.md` conflict (kept this branch's own section, prepended origin/main's OCID-025
+      continuation + full OCID-026 sections) and a real `ai-os/MASTER-TRACKER.yaml` conflict (kept
+      both sides -- this branch's own `GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED` entry plus
+      origin/main's 3 real, distinct OCID-038/039/040 end-user-testing gap entries
+      `GAP-VERI-TODO-STUCK-LOADING-NOT-READY`, `GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE`,
+      `GAP-MOBILE-VIEWPORT-BLANK-CONTENT` -- all genuinely distinct findings, not a
+      truncation-bug artifact).
+- [x] Added real §3.8 to the document (`If a self-hosted local model joins this list: Ollama, not a
+      new architecture`) per PM directive `UMR-20260804-073906-3dd0`, closing OCID-064
+      (`UMR-20260804-072532-a02d`): documents Ollama as the concrete mechanism for a self-hosted
+      local model with an OpenAI-compatible REST API, explicitly complementary to (not a
+      replacement for) the already-covered browser-side WebLLM/Transformers.js options, and states
+      function-calling/tool-use (not free chat) as the pattern that keeps such a model deterministic
+      -- consistent with §3.6's "engines compute, AI never invents a number" discipline. Documentation
+      only; no install, no code, no Mother Router change made.
+- [x] Re-ran all 4 governance checks (`check-metadata-index-coverage.mjs`,
+      `check-doc-cross-references.mjs`, `check-guardrail-presence.mjs`,
+      `check-terminology-guardrail.mjs --diff-only`) after both the merge and the §3.8 addition --
+      all 4 pass. Ran a real, unconstrained `bun run build`
+      (`BUILD_MAX_OLD_SPACE_MB=8192`, `systemd-run --user --scope` w/ unlimited memory,
+      `flock`-serialized against `/tmp/veridian-quality-gate-build.lock`) -- clean, full route
+      manifest rendered, no errors.
 
 ## Remaining
 - [ ] Real implementation of anything this document proposes (§4.5/§5 of the new document -- wiring
@@ -2582,3 +2664,83 @@ OCID-022 through OCID-037.
       session that closed that gap, not newly introduced here.
 - [ ] Independent audit (`AUDIT: PASS`/`FAIL` PR comment) is required before this PR can merge, per
       this repo's own standing review process -- not self-certified here.
+# PROGRESS -- task-20260803-041115-ocid-025-veridian-mobile-pwa-and-veri-ch
+
+OCID-025: VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 (documentation only).
+
+## Completed
+- [x] Read governance chain: CLAUDE.md, AGENTS.md, ai-os/CONSTITUTION.yaml pointers.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` (full protocol) -- no collision found for this
+      scope. Found OCID-022/023/024 sibling sessions are genuinely concurrent and
+      `in_progress`, OCID-024's doc does not exist yet despite the spec citing it as
+      "just registered" -- disclosed, not blocking (documentation content here is
+      grounded in real production code independently of sibling docs' text, same
+      precedent OCID-022/023 already established).
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`; committed and
+      pushed immediately (commit `19d2f9a6`), ahead of the real work.
+- [x] Read `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (1042 lines) -- this is the real,
+      live UMR chain this task must extend (per OCID-022's own already-confirmed finding).
+
+- [x] Discovery pass (direct research + one background Explore agent, 39 tool calls):
+      PWA (real `src/app/manifest.ts` share-target manifest, zero service worker in this
+      repo), VERI Chat (`VeriComposer.tsx`, `chat-service.ts`, full `api/veri-chat/*`
+      surface), VERI Assistant (`llm-routing-gate.ts` -> `ai-reply-gate.ts` software-first
+      gate, `mother-router.ts`'s self-documented 35 unmigrated call sites), mode pills /
+      Chain Selector (`capability-tree-service.ts`, `dynamic_chains` table), deterministic
+      task model (`tasks.resolvedWorkerAgentId`/`dynamicChainId`), offline/cache/sync
+      (`browser-intent-cache.ts` real IndexedDB cache; `sync-engine.ts` real tested but
+      unwired conflict-resolution/delta-sync primitives; sibling `projexa` repo's real
+      hand-rolled service worker + IndexedDB offline work-progress queue), push
+      notifications (does not exist -- zero hits), session recovery (does not exist),
+      mobile-specific UI (`sidebar.tsx`'s `useIsMobile()`, real but with 4 disclosed open
+      gaps per `ai-os/REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md`).
+- [x] Drafted `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` v1.0 -- 36
+      sections, one per mandated topic, every claim grounded in a real file/line citation
+      from the discovery pass above; every gap stated honestly (`NOT_YET_BUILT`/"does not
+      exist") rather than glossed over.
+- [x] Amended `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` in place with an
+      OCID-20260803-025 section (parent UMR + full citation chain, canonical artifact
+      pointer, status table row).
+- [x] Registered the new artifact in `ai-os/MASTER_INDEX.yaml` (`veridian_mobile_pwa_and_veri_chat_runtime_1_0`)
+      and `ai-os/OS.yaml` (index entry), matching the pattern the sibling OCID-020/022/023
+      docs already use. Verified both files remain valid YAML after the edit
+      (`python3 -c "import yaml; yaml.safe_load(...)"`).
+- [x] Verified `ai-os/boss/ACTIVE-CLAIMS.yaml`'s pre-existing YAML-parse error predates
+      this session's edit (confirmed via `git cat-file -p <parent-commit>` -- broken before
+      this task started, a real pre-existing issue in a large, heavily concurrently-edited
+      file, out of this task's documentation-only scope to fix).
+- [ ] Commit + push, open PR, confirm CI.
+- [ ] Move ACTIVE-CLAIMS entry from `active:` to `recently_completed:` once merged.
+- [ ] Report: real document location, real updated UMR, OCID-026 handoff confirmation.
+
+---
+
+# PROGRESS -- task-20260803-050452-ocid-026-veridian-deterministic-executio
+
+OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
+(UMR-20260803-041047-03ee). Documentation only.
+
+## Completed
+- [x] Read governance chain: ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml, MASTER-TRACKER.yaml, OS.yaml,
+      IMPLEMENTATION_MATRIX_2026-08-02.md, VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md
+- [x] Confirmed no prior task/branch/PR exists for OCID-026 (per status snapshot + fresh ACTIVE-CLAIMS check)
+- [x] Registered OCID-026 claim in ai-os/boss/ACTIVE-CLAIMS.yaml, pushed on branch
+      feature/ocid-026-deterministic-execution-ai-escalation
+- [x] Launched 3 parallel discovery agents against compliance-tracker (real, live repo):
+      (1) AI runtime/prompt engine/guardrails/decision-rule-engine
+      (2) VERI Chat/mode pills/option chain/voice/attachment/input normalization
+      (3) function/report/analysis libraries, global reuse index, credit-accountant precedent
+
+- [x] Synthesized discovery findings from all 3 agents
+- [x] Drafted ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md (36 sections
+      per mandate, all grounded in real file:line citations, 6 honest gaps disclosed)
+- [x] Amended ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md with UMR chain entry
+- [x] Added ai-os/OS.yaml index-coverage entry, verified locally via check-metadata-index-coverage.mjs
+      (passed: 120 governance items accounted for)
+- [x] Committed + pushed
+
+- [x] Opened PR #775 (FChecklist/compliance-tracker)
+
+## Remaining
+- [ ] Report canonical artifact location + updated UMR + OCID-027 handoff confirmation to Owner
+- [ ] (post-merge, separate step) move ACTIVE-CLAIMS.yaml entry from active to recently_completed
