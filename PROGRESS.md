@@ -2615,3 +2615,28 @@ OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
 ## Remaining
 - [ ] Report canonical artifact location + updated UMR + OCID-027 handoff confirmation to Owner
 - [ ] (post-merge, separate step) move ACTIVE-CLAIMS.yaml entry from active to recently_completed
+
+# PROGRESS -- task-20260804-073455-register-ocid-064--local-deterministic-l
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/CONSTITUTION.yaml` context, confirmed no
+      existing claim collides with OCID-064; registered this session's own claim (comparison-only,
+      no new registry/table this phase, per PM's explicit prohibition).
+- [x] Located OCID-061 (PR #878, branch `worker/task-20260804-054220-register-ocid-061--universal-determinist`)
+      and OCID-062 (PR #876, branch `docs/ocid062-server-authority-mini-veridian-architecture`) --
+      both open, not yet merged to `origin/main`. Read both full discovery/design documents in full
+      via `git cat-file -p` (avoiding this environment's known Bash-output-truncation bug, see own
+      session memory `veridian-shell-large-output-truncation-bug`).
+- [x] Recovered `PROGRESS.md` from the same per-task-stub-checkout issue documented in that same
+      memory (local working tree had a fresh 6-line stub; restored the real 2617-line
+      `origin/main` history before appending this section).
+
+## Remaining
+- [ ] Produce the honest comparison document: what the OCID-064 prompt's four claimed elements
+      (local browser LLM tool calling, context injection against ID hallucination, deterministic
+      confidence calculation, and an identity envelope) add versus what OCID-061/OCID-062 already
+      cover.
+- [ ] Propose folding any genuinely new value into OCID-061 or OCID-062's own deliverables,
+      citing exact sections, rather than building OCID-064 as a separate initiative.
+- [ ] Commit + push; report back to PM for a fresh decision. No implementation, no new
+      table/registry/schema this phase per explicit instruction.

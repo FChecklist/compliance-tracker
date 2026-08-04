@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-073455-register-ocid-064--local-deterministic-l) -- OCID-064 dispatch: PM refuses to register a third parallel initiative, comparison-only this phase [IN PROGRESS]"
+    claimed_at: "2026-08-04T07:35Z (this session)"
+    claim: |
+      SPEC (this task's own prompt, citing `UMR-20260802-173631-ca85` OCID-021,
+      `UMR-20260802-165606-4413` OCID-020, and the Mandatory Governance Directive
+      `UMR-20260804-051521-7099`): the incoming prompt describes local browser-side LLM
+      tool calling, context injection against hallucinated identifiers, a deterministic
+      confidence calculation, and an identity envelope through browser/PWA/server --
+      the PM flags this as conceptually the same problem already registered under
+      OCID-061 (`UMR-20260804-044535-7214`, branch
+      `worker/task-20260804-054220-register-ocid-061--universal-determinist`, PR #878 OPEN)
+      and OCID-062 (branch `docs/ocid062-server-authority-mini-veridian-architecture`,
+      PR #876 OPEN). Explicitly NOT authorizing a new parallel registry/table/schema
+      (the prompt's own 4-field envelope reads as 4 parallel registries -- forbidden this
+      phase). This session's real scope: read OCID-061/OCID-062's full discovery output,
+      read the new prompt in full, produce an honest comparison of what's genuinely new vs
+      restatement, and propose folding any real new value into OCID-061/OCID-062 rather
+      than building OCID-064 as its own deliverable. Holding any implementation decision
+      for a fresh PM call. No new DB table, no new registry, no code changes this phase.
   - session_label: "claude-code (task-20260803-071119-ocid-039-veridian-real-end-user-producti) -- register OCID-038/039/040, discovery + real end-user live testing only, implementation/certification/freeze LOCKED [PUSHED, PR #789 OPEN]"
     claimed_at: "2026-08-03T07:20Z (this session)"
     claim: |
