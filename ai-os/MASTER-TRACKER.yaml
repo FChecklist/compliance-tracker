@@ -2205,6 +2205,47 @@ open_items:
         remaining step before this closes to resolved)"
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
+    - id: GAP-OCID058-UTR-MULTI-ACTOR-STRUCTURE-MISSING
+      name: "No genuine multi-actor UTR (Universal Task Registry) record structure exists in the live schema -- 5 real, independently-keyed task-tracking record types instead, only one of them (and only momentarily) referencing a real UMR object"
+      old_ids: []
+      detail: |
+        OCID-058 (parent chain: OCID-057 UMR-20260804-035943-3c38, OCID-056 UMR-20260804-035904-142e,
+        OCID-055 UMR-20260804-035817-6300, OCID-054 UMR-20260804-035759-1eb2, OCID-053
+        UMR-20260804-033853-2a17, OCID-020 UMR-20260802-165606-4413, OCID-021 UMR-20260802-173631-ca85
+        -- all 7 independently re-confirmed live in umr_tasks), a discovery/verification-only OCID
+        (explicitly barred from redesigning execution). Extends
+        ai-os/VERIDIAN_UMR_UTR_EUID_DISCOVERY_VS_LIVE_SYSTEM_2026-08-03.md's higher-level finding down
+        to real call-site evidence: 5 real, independently-keyed record types exist today --
+        `umr_tasks` (superboss-register.py), `instructions`/`work_items`/`actions` (same file),
+        `task.yaml` (veridian-task.py cmd_create), `platform.ops_dev_tasks` (ops-task-sync bridge),
+        and `platform.task_register` (AI Dev Team Instruction Contract/Execution Report,
+        src/lib/db/schema.ts:11412-11423) -- none has separately-named actor_context/
+        identity_context/governance_context fields, and only ONE real, momentary cross-reference to a
+        real UMR object was found across all of them: `work_items.ai_task_id = $UMR_ID`, written only
+        at the instant of owner dispatch (dispatch-owner-task.sh:83). From the moment a headless
+        worker task is actually created onward, the real trail uses a different id (`task_id`) with
+        no `umr_id` field anywhere to bridge back -- confirmed directly against this OCID's own real
+        `task.yaml`. GitHub `repository_dispatch` (`zai-task`/`claude-task`,
+        .github/workflows/ai-dispatch.yml) was also confirmed to be a real but fully inert 31-line
+        echo-only stub -- zero execution, zero record of any kind, matching AGENTS.md's own documented
+        caveat. Full evidence: ai-os/VERIDIAN_OCID_058_UTR_REGISTRY_2026-08-04.md,
+        ai-os/VERIDIAN_OCID_058_EXECUTION_ARCHITECTURE_REPORT_2026-08-04.md,
+        ai-os/VERIDIAN_OCID_058_EXECUTION_TRACEABILITY_REPORT_2026-08-04.md. Also re-confirmed:
+        OCID-012, again present in the incoming dispatch-prompt template, has zero real matches
+        anywhere in this repo (git grep, zero hits) -- flagged back to the Owner again, not
+        registered as real.
+      size: "L if a genuine six-context UTR table is built; S if only threading umr_id through the
+        existing 5 record types; XS if the decision is to just document the seam as-is (see the 3
+        options named in the traceability report's own recommendation section, none pre-decided)."
+      recommendation: |
+        Discovery/verification only, per this OCID's own explicit instruction -- no schema, code, or
+        database change made. Held for a PM decision on whether real implementation opens under
+        OCID-021 or a later phase, and if so, which of the 3 named options
+        (ai-os/VERIDIAN_OCID_058_EXECUTION_TRACEABILITY_REPORT_2026-08-04.md §4) to pursue.
+      status: "open (real gap confirmed and documented; not authorized for implementation by this
+        OCID)"
+      first_raised: "task-20260804-045439-register-ocid-058--universal-task-regist, 2026-08-04 (this task's own dispatch, citing UMR-20260804-035943-3c38)"
+
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
       name: "task-execution-engine.ts and mother-router.ts are not wired to each other -- RESOLVED via scoped Mother Router migration"
       detail: "Both real, independently well-built (task-execution-engine.ts has 36 real importing call sites incl. 20+ services and app/api/ai/orchestrate/route.ts; mother-router.ts is called from app/api/ai/team/dispatch/route.ts and app/api/ai/orchestrate/route.ts). app/api/ai/orchestrate/route.ts imports mother-router.ts's resolveMotherRouterModel() directly (real, active) but its only reference to task-execution-engine.ts is a code comment (line 254), not a call. grep for task-execution-engine/TaskExecutionEngine in mother-router.ts returns zero hits either direction."
