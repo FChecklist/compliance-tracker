@@ -8935,6 +8935,54 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+
+  - session_label: "claude-code (task-20260803-040852-ocid-022-veridian-end-user-experience-fo) -- OCID-20260803-022: VERIDIAN End User Experience Foundation v1.0, documentation only"
+    claimed_at: "2026-08-03T (this session)"
+    claim: |
+      Real Owner directive, tier 1, parented to `UMR-20260802-173631-ca85` (ERP
+      Functional Completeness Master Program), citing `UMR-20260802-165606-4413`
+      (OCID-020 certification directive), `UMR-20260802-164659-9a31` (server
+      artifact traceability audit), `UMR-20260802-165034-5747` (gatekeeper rule),
+      `UMR-20260802-165434-cd91` (unified project memory), and
+      `UMR-20260802-165541-c27d` (recovery framework). Extends the existing
+      master program, no new audit. Documentation only: no code, no DB, no UI,
+      no UX changes -- producing exactly one canonical artifact, "VERIDIAN End
+      User Experience Foundation v1.0".
+
+      Gatekeeper check run before starting, per the standing rule
+      (`UMR-20260802-165034-5747`): grepped this repo's `ai-os/` tree and this
+      file for "End User Experience Foundation" / "OCID-022" / "OCID-20260803-022"
+      -- no prior artifact or claim found; not a duplicate.
+
+      Honest discrepancy found during discovery, disclosed rather than silently
+      resolved: this task's own prompt cites an "OCID-021 implementation lock ...
+      UMR-20260802-165606-4413 gating real implementation until OCID-020 is
+      independently verified complete." Real OCID-021
+      (`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`, amendment dated 2026-08-03)
+      is actually the Category A/B production-DB governance split
+      (`UMR-20260803-025317-0c64`/`UMR-20260803-025414-8274`, SEC-06) -- already
+      CLOSED/merged, topically unrelated to end-user UX and not an "implementation
+      lock." `UMR-20260802-165606-4413` is the real UMR for OCID-020 itself, not
+      OCID-021. No artifact named "OCID-021 implementation lock" exists anywhere
+      in `ai-os/`. Separately confirmed OCID-020 itself is NOT yet independently
+      verified complete (this repo's own current `PROGRESS.md`, inherited from
+      task-20260802-210700, states the ERP master program "stays locked until
+      this fix AND the rest of the real certification sweep are independently
+      verified complete"; `ai-os/boss/ACTIVE-CLAIMS.yaml`'s own most recent
+      OCID-020 entries show the certification sweep `blocked`, not closed).
+      Practical effect: none for this task -- the directive is explicitly
+      documentation-only regardless of which lock is cited, so this
+      discrepancy does not block the real work here; recorded for the Owner's
+      awareness, not silently corrected into the directive's own text.
+    scope_note: >-
+      File scope: this repo's own new canonical artifact
+      (`ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`),
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment in place, OCID-022
+      section), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry),
+      `ai-os/MASTER_INDEX.yaml` / `ai-os/OS.yaml` (registry entry for the new
+      artifact, if their own coverage-check scripts require it), `PROGRESS.md`.
+      No src/, schema, migration, or UI component changes -- this task does not
+      touch `src/`, `drizzle/`, or any `.tsx`/`.ts` application file.
   - session_label: "claude-code (task-20260803-171457-resolve-pr-803-conflict--merge--and-inde) -- PR #803 conflict resolution, docs-only reconciliation [DONE, premise found stale]"
     claimed_at: "2026-08-03T17:15Z (this session, closed same session)"
     claim: |
