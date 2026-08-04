@@ -40,51 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
-    claimed_at: "2026-08-04T03:20Z (this session)"
-    claim: |
-      SPEC (PM decision `UMR-20260802-165606-4413` OCID-020 / `UMR-20260802-173631-ca85` OCID-021,
-      standing auto-proceed authorization): `task-20260803-214944-pm-final-decision--ocid-020-independentl`
-      is blocked -- its credit accountant rejected an auto-fix attempt with "existing software/mechanism
-      already covers this (system_index match)". Verified directly against `/opt/veridian/scripts/quality-gate.sh`:
-      the real existing mechanism is the pre-vetted, opt-in `BUILD_MAX_OLD_SPACE_MB` heap-ceiling override
-      (default 2048MB) + host-wide `flock` build serializer already in that script (2026-08-01 comment,
-      validated via a real manual build needing ~8GB). The blocked task's own last gate failure
-      (`quality-gate-0.json`: `build` exit 124 after 1800s) is the same heap-thrash class, not a code
-      defect. Confirmed directly: a manual, cgroup-unconstrained verification build
-      (`systemd-run --user --scope` w/ unlimited memory, `BUILD_MAX_OLD_SPACE_MB=8192`, real
-      `flock`-serialized against `/tmp/veridian-quality-gate-build.lock`) against the blocked task's own
-      workspace passed clean, `exit=0`, in 124s (first queued behind a real concurrent build already
-      holding the lock -- the exact "duplicate worker" contention case this mechanism is designed to
-      handle safely). On pulling `origin/main` fresh, found `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
-      (one of the two Wave 1 backlog items this dispatch also names) was already independently resolved by
-      a concurrent session (PR #863, merged) -- real cause was a schema migration
-      (`drizzle/0245_create_platform_schema_compartment.sql`) moving `product_branches` from `compliance`
-      to `platform`; direct psql/PostgREST reads had queried the stale pre-migration location. Not
-      re-doing it; a duplicate investigation agent this session had already launched was stopped
-      immediately on discovering this. Remaining real scope: resume+complete
-      `task-20260803-214944-pm-final-decision--ocid-020-independentl`'s own live end-to-end confirmation,
-      then `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A (assistants_per_user cap enforcement,
-      reusing the ServiceError 403 + ModuleNotEnabledCard pattern from PR #809), B (`/api/me` resolved
-      tier/limits), C (frontend gate + explanation card), E (admin UI to assign `subscriptionPlanId`).
-      Task D (seeding a real `preferredModelByPackage` policy) is explicitly held per this PM's own
-      instruction -- a business decision, not code, flagged back rather than decided unilaterally.
-
-      **Update (2026-08-04T03:35Z, same session):** before touching `task-20260803-214944`'s own
-      remaining live-E2E-confirmation step, found a fresh checkpoint on that task
-      (`2026-08-04T03:24:45Z`) from a DIFFERENT, independent PM decision (`UMR-20260804-030715-b004`)
-      that reached the identical `BUILD_MAX_OLD_SPACE_MB=8192` conclusion and is already proceeding to
-      that same E2E step. No live process for that task_id is currently running, but the claim is
-      under 4h old -- not duplicating it. This session's real remaining scope narrows to
-      `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A/B/C/E only.
-    scope_note: >-
-      File scope (planned): `/opt/veridian/scripts/quality-gate.sh` verification only (no edit to the
-      global default, per its own opt-in-only design); GAP-OCID-049 Tasks A/B/C/E touch
-      `src/lib/services/subscription-plan-service.ts` (or equivalent new service), `/api/me/route.ts`,
-      a new frontend gate component reusing `ModuleNotEnabledCard`, and a new admin settings route/page
-      for assigning `subscriptionPlanId`. `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
-      `PROGRESS.md` throughout. No changes to `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`'s
-      own files -- that gap is already closed on `main`.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
@@ -5321,6 +5276,109 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260804-045452-pm-decision--fix-pr-865-terminology-guar) -- PM decision: fix terminology guardrail + merge PR #865 [ALREADY DONE by a concurrent session on arrival; independently re-verified, not re-done]"
+    claimed_at: "2026-08-04T05:00Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision under OCID-021 `UMR-20260802-173631-ca85` and OCID-049
+      `UMR-20260803-115513-c990`): fix whatever the real Terminology Guardrail Check flagged on PR
+      #865, verify locally, merge PR #865 through the normal process, confirm the merge commit is a
+      real ancestor of `origin/main`, then update `MASTER-TRACKER.yaml` to reflect "all five real
+      Wave 1 tasks for the assistants per user enforcement gap" (`GAP-OCID-049-SUBSCRIPTION-PLAN-
+      ENTITLEMENT`) as "now genuinely complete, not just Task A."
+
+      **Independently verified before doing any real work (never trust a PM spec's framing
+      unverified, per [[veridian-task-prompt-false-premise-pattern]]-class diligence):** all of the
+      fix+merge work was already done, by the immediately-prior session
+      (`task-20260804-031540-pm-decision--resolve-credit-accountant-b`, see its own now-moved
+      `recently_completed` entry above). `gh pr view 865` showed `state: MERGED`,
+      `mergedAt: 2026-08-04T04:50:01Z`; `git merge-base --is-ancestor f11d04ff origin/main` confirmed
+      the real merge commit is a genuine ancestor of `origin/main`; `gh pr checks 865` showed
+      `Terminology Guardrail Check: pass`. Not re-fixed or re-merged (nothing left to do there).
+
+      **Real local re-run performed anyway (the SPEC's own explicit ask), and it surfaced a genuine
+      sandbox bug, not a guardrail regression:** built the PR's real changed-file list via `gh pr view
+      865 --json files`, filtered to the `.ts`/`.tsx` files the guardrail's `--diff-only` mode
+      actually scans (`SCANNABLE_EXT_RE = /\.(ts|tsx)$/`, `scripts/check-terminology-guardrail.mjs`
+      line 72). The filtering step, run through this sandbox's `grep` (both the shell-function
+      wrapper and `command grep`), silently stripped the leading `src/` from every matched path when
+      redirected to a file -- confirmed as real on-disk corruption (not a terminal-rendering
+      artifact) via the independent `Read` tool and `od -c`/`wc -c`. Re-derived the file list with
+      `python3` instead (unaffected). New memory saved:
+      [[veridian-grep-strips-src-lib-prefix-bug]]. With the correct 11-file list, `node
+      scripts/check-terminology-guardrail.mjs --file-list <list>` printed "Terminology Guardrail
+      Check passed -- 11 file(s) scanned, no new hardcoded-example findings" -- independently
+      confirms CI's own passing result, not just trusting it.
+
+      **Declined the "mark all five tasks complete" instruction as written -- flagged back, not
+      fabricated.** `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT`'s own entry in `MASTER-TRACKER.yaml`
+      already correctly records Tasks A/B/C/E as implemented and merged (PR #865) -- the SPEC's "not
+      just Task A" framing does not match the tracker's actual current text, which was possibly
+      stale by the time this session's dispatch was written (see
+      [[veridian-live-concurrent-state-drift]]). Task D (seeding a real `preferredModelByPackage`
+      policy) genuinely has zero implementing code anywhere in `src/` (confirmed via `git log --all
+      --oneline | grep -i preferredModelByPackage` and a direct grep of `drizzle/` +
+      `src/lib/db/schema.ts` -- no hits beyond the pre-existing dormant column) -- it was deliberately
+      left undone by the immediately-prior session, on the OCID's own explicit instruction that this
+      is "a business decision... flagged back to the Owner/PM, not decided unilaterally." Marking it
+      "genuinely complete" in the tracker without any real implementation, on this session's own
+      authority, would be exactly the unilateral decision that instruction forbids, and would leave a
+      false record in `MASTER-TRACKER.yaml` of a business decision (what `preferredModelByPackage`
+      values to seed, for which package/tier) that no one has actually made. Added a 4th amendment to
+      the gap's `recommendation` field instead, recording the real PR #865 merge + ancestor
+      confirmation + local guardrail re-verification, and explicitly re-stating Task D's real open
+      status so this doesn't get silently lost. This is a correction to the SPEC's premise, not a
+      refusal of the SPEC's real, mergeable work -- every other part of the SPEC (fix, verify, merge,
+      ancestor-check) was genuinely already satisfied.
+    scope_note: >-
+      File scope: `ai-os/boss/ACTIVE-CLAIMS.yaml` (moved the prior session's now-stale "PR #865 open"
+      entry to `recently_completed` with an updated title, added this entry), `ai-os/MASTER-TRACKER.yaml`
+      (GAP-OCID-049 4th amendment, Task D status unchanged/still open), `PROGRESS.md`. No src/ changes --
+      PR #865 was already merged before this session started.
+  - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 MERGED 2026-08-04T04:50:01Z, commit f11d04ff confirmed ancestor of origin/main]"
+    claimed_at: "2026-08-04T03:20Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260802-165606-4413` OCID-020 / `UMR-20260802-173631-ca85` OCID-021,
+      standing auto-proceed authorization): `task-20260803-214944-pm-final-decision--ocid-020-independentl`
+      is blocked -- its credit accountant rejected an auto-fix attempt with "existing software/mechanism
+      already covers this (system_index match)". Verified directly against `/opt/veridian/scripts/quality-gate.sh`:
+      the real existing mechanism is the pre-vetted, opt-in `BUILD_MAX_OLD_SPACE_MB` heap-ceiling override
+      (default 2048MB) + host-wide `flock` build serializer already in that script (2026-08-01 comment,
+      validated via a real manual build needing ~8GB). The blocked task's own last gate failure
+      (`quality-gate-0.json`: `build` exit 124 after 1800s) is the same heap-thrash class, not a code
+      defect. Confirmed directly: a manual, cgroup-unconstrained verification build
+      (`systemd-run --user --scope` w/ unlimited memory, `BUILD_MAX_OLD_SPACE_MB=8192`, real
+      `flock`-serialized against `/tmp/veridian-quality-gate-build.lock`) against the blocked task's own
+      workspace passed clean, `exit=0`, in 124s (first queued behind a real concurrent build already
+      holding the lock -- the exact "duplicate worker" contention case this mechanism is designed to
+      handle safely). On pulling `origin/main` fresh, found `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
+      (one of the two Wave 1 backlog items this dispatch also names) was already independently resolved by
+      a concurrent session (PR #863, merged) -- real cause was a schema migration
+      (`drizzle/0245_create_platform_schema_compartment.sql`) moving `product_branches` from `compliance`
+      to `platform`; direct psql/PostgREST reads had queried the stale pre-migration location. Not
+      re-doing it; a duplicate investigation agent this session had already launched was stopped
+      immediately on discovering this. Remaining real scope: resume+complete
+      `task-20260803-214944-pm-final-decision--ocid-020-independentl`'s own live end-to-end confirmation,
+      then `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A (assistants_per_user cap enforcement,
+      reusing the ServiceError 403 + ModuleNotEnabledCard pattern from PR #809), B (`/api/me` resolved
+      tier/limits), C (frontend gate + explanation card), E (admin UI to assign `subscriptionPlanId`).
+      Task D (seeding a real `preferredModelByPackage` policy) is explicitly held per this PM's own
+      instruction -- a business decision, not code, flagged back rather than decided unilaterally.
+
+      **Update (2026-08-04T03:35Z, same session):** before touching `task-20260803-214944`'s own
+      remaining live-E2E-confirmation step, found a fresh checkpoint on that task
+      (`2026-08-04T03:24:45Z`) from a DIFFERENT, independent PM decision (`UMR-20260804-030715-b004`)
+      that reached the identical `BUILD_MAX_OLD_SPACE_MB=8192` conclusion and is already proceeding to
+      that same E2E step. No live process for that task_id is currently running, but the claim is
+      under 4h old -- not duplicating it. This session's real remaining scope narrows to
+      `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` Tasks A/B/C/E only.
+    scope_note: >-
+      File scope (planned): `/opt/veridian/scripts/quality-gate.sh` verification only (no edit to the
+      global default, per its own opt-in-only design); GAP-OCID-049 Tasks A/B/C/E touch
+      `src/lib/services/subscription-plan-service.ts` (or equivalent new service), `/api/me/route.ts`,
+      a new frontend gate component reusing `ModuleNotEnabledCard`, and a new admin settings route/page
+      for assigning `subscriptionPlanId`. `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `PROGRESS.md` throughout. No changes to `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`'s
+      own files -- that gap is already closed on `main`.
   - session_label: "claude-code (task-20260803-071339-pm-decision-register-the-real-implementa) -- PM decision on OCID-021 lock registration + overlap-resolution: ALREADY DONE, real inconsistency found+fixed [DONE, PR pending]"
     claimed_at: "2026-08-03T07:1xZ (this session, closed same session)"
     claim: |
