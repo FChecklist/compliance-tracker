@@ -14,9 +14,15 @@ Duplicate-task verification only, no code/doc changes beyond this entry.
       8d8e1dba origin/main` confirms `8d8e1dba` is an ancestor of `origin/main`; `gh pr view
       785` confirms `state: MERGED`, `mergedAt: 2026-08-04T11:43:44Z`.
 
+- [x] Opened PR #893 (docs-only, PROGRESS.md entry) recording this verification; CI green
+      on all required checks (Lint/Type Check/Build/Unit/E2E/guardrail+doc checks) except
+      `audit-check` (expected -- needs an independent agent's `AUDIT: PASS`/`FAIL` comment
+      per Rule 10, not self-certifiable) and `Vercel` (build-rate-limited, unrelated to this
+      change). Leaving for the supervisor sweep / a different session to audit and merge.
+
 ## Remaining
-- [ ] None. No further action needed -- stopping to avoid duplicate/wasted work. No PR
-      needed since no repo code or governance content changed as a result of this task.
+- [ ] Independent audit (`AUDIT: PASS`/`FAIL` comment on PR #893, Rule 10) -- not this
+      session, requires a different agent. Merge once that lands and CI is green.
 # PROGRESS -- docs/ocid063-mechanical-handoff-envelope-discovery
 Cites: `UMR-20260804-060832-9fdf` (OCID-063 PM directive), real parent OCID-021
 `UMR-20260802-173631-ca85` / OCID-020 `UMR-20260802-165606-4413`, governed by the
