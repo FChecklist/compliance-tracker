@@ -1,3 +1,60 @@
+# PROGRESS -- task-20260804-125247-ocid-020-concrete-redirect-stop-open-end
+
+Real PM decision for OCID-020 (`UMR-20260802-165606-4413`): the prior interactive session had
+correctly noted both the VERI To Do stuck-loading and mobile-viewport-blank-content
+investigations already finished, but stalled deliberating on where to redirect freed capacity
+instead of committing to a concrete next action. This dispatch is that concrete redirect: use
+freed interactive capacity for one specific, bounded action -- a real fresh browser session
+against live `projexa-ai.com` independently re-verifying whether the two already-investigated
+gaps are still reproducible right now. Explicitly not duplicating the separate, already-running
+`task-20260803-150821-pm-decision--proceed-with-ocid-047-real` OCID-047 work, per this task's own
+prompt.
+
+## Completed
+- [x] Real live browser session (Playwright) against `https://projexa-ai.com`: created a fresh
+      user via the Admin API (`POST /auth/v1/admin/users`, bypasses the public `/signup` form's
+      Supabase `over_email_send_rate_limit` 429 the original OCID-038/039/040 session hit -- still
+      a faithful real-login path since `autoProvisionUser()` in `auth-guard.ts` fires off
+      `user_metadata` on first authenticated `requireAuth()` call regardless of which path created
+      the user row), real login reaching `/home`, real navigation to `/veri-todo`.
+- [x] **GAP-VERI-TODO-STUCK-LOADING-NOT-READY: NOT reproduced.** No "Loading..." text at an
+      immediate check or a real 10-second re-check (longer than the original 6s window); real
+      screenshot shows the task list resolved cleanly to "Nothing pending. You're all caught up."
+      Honest caveat: brand-new org with zero real task data, unlike whatever data state backed the
+      original observation -- confirms the empty-data path doesn't hang, doesn't independently
+      confirm the composer's separate toast issue, doesn't rule out a data-volume-dependent slow
+      path on a populated org.
+- [x] **GAP-VERI-CHAT-MOBILE-VIEWPORT-BLANK-CONTENT (`GAP-NO-...` mobile finding): NOT
+      reproduced.** Real `setViewportSize({width:390, height:844})` + reload + 2s wait (matching
+      the original methodology): real screenshot shows genuine visible content, not blank --
+      `document.querySelector('main').innerText` measured 573 characters of real content vs. the
+      original's fully blank main area. Honest caveat: fresh org/different data state, still only
+      a second single observation, not a broad regression sweep -- but a direct, real contradiction
+      of the original blank-content report on the same route/viewport/methodology.
+- [x] Recorded both real reverification results in `ai-os/MASTER-TRACKER.yaml`'s existing
+      `GAP-VERI-TODO-STUCK-LOADING-NOT-READY` and mobile-blank-content entries (new
+      `reverification_2026_08_04` field on each, additive, original findings preserved not
+      overwritten), citing this OCID-020 UMR alongside `UMR-20260803-042801-ec4b` (OCID-038, the
+      original finding's own UMR), per this task's own explicit citation instruction.
+- [x] Real evidence artifacts (screenshots, results.json, verify script) left at
+      `/tmp/ocid020-verify/` on this server -- ephemeral, not committed, same convention as the
+      original findings' own screenshots.
+- [x] Real, disclosed housekeeping: found this branch's own base already carried a genuinely
+      truncated `PROGRESS.md` (a prior session's edit had collapsed 408 lines of real accumulated
+      history down to 6, discovered via the known Bash-tool large-output silent-truncation bug
+      masking the true `git diff`/`git show` state -- confirmed via `git cat-file -p` on the real
+      index blob). Restored the full prior history below, unchanged, and appended this section
+      rather than repeating the same destructive overwrite.
+
+- [x] Committed, pushed, opened PR #895: https://github.com/FChecklist/compliance-tracker/pull/895
+
+## Remaining
+- [ ] Confirm CI green, hand off for independent audit -- not self-certified here.
+- [ ] Report both reverification results (NOT reproduced, both gaps) to the PM as the concrete
+      outcome of this redirect.
+
+---
+
 # PROGRESS -- docs/ocid063-mechanical-handoff-envelope-discovery
 Cites: `UMR-20260804-060832-9fdf` (OCID-063 PM directive), real parent OCID-021
 `UMR-20260802-173631-ca85` / OCID-020 `UMR-20260802-165606-4413`, governed by the
