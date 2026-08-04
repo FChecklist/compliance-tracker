@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server"
 import { headers } from "next/headers"
 import { createClient } from "./server"
-import { db, users, organisations, aiAssistants, accessReviewCertifications } from "@/lib/db"
+import { db, users, organisations, accessReviewCertifications } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
 import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
 import { redeemJoinCodeAndProvisionUser } from "@/lib/org-join-code-service"
+import { provisionAiAssistantsForUser } from "@/lib/services/subscription-plan-service"
 import { recordSessionAndCheckLimit } from "@/lib/services/session-limit-service"
 import { provisionOrganisation } from "@/lib/services/org-provisioning-service"
 
@@ -180,16 +181,11 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
       onboardingCompleted: false,
     }).returning()
 
-    // Wave 2: every user gets 5 numbered AI Assistants (User-tier, strictly
-    // per-user via RLS on current_user_id()). Matches the backfill migration
-    // applied to pre-existing users -- see orchestra_changes.md Wave 2.
-    await db.insert(aiAssistants).values(
-      Array.from({ length: 5 }, (_, i) => ({
-        userId: newUser.id,
-        assistantNumber: i + 1,
-        label: `Assistant ${i + 1}`,
-      }))
-    )
+    // Wave 2: every user gets AI Assistants provisioned at the org's real
+    // resolved subscription-plan tier (User-tier, strictly per-user via RLS
+    // on current_user_id()). Matches the backfill migration applied to
+    // pre-existing users -- see orchestra_changes.md Wave 2.
+    await provisionAiAssistantsForUser(newUser.id, organisationId)
 
     // Wave 109 (Sales Engine): if this signup carried a referral code
     // (threaded from /signup's ?ref= param into supabase.auth.signUp's
