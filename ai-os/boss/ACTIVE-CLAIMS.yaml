@@ -5284,6 +5284,32 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (fix/gap-ocid038-taskengine-motherrouter-unwired) -- OCID-038: real fix for GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED [DONE, PR pending]"
+    claimed_at: "2026-08-04T00:58Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-005752-fcb1`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038, authorizing this gap after PR #854's independently-confirmed
+      merge): proceed with the next real OCID-038 gap, same audited standard.
+
+      Read both `mother-router.ts` (666 lines) and `task-execution-engine.ts` (2567 lines) in full
+      before deciding, per the gap's own "real architectural call, not a mechanical wiring fix"
+      caveat. Rejected the naive fix (wiring `orchestrate/route.ts` to call
+      `task-execution-engine.ts`'s executor directly) as a real, unsafe behavior change -- that route
+      only ever suggests actions for a compliance event, never executes them; auto-executing on its
+      own output would silently bypass the Policy Enforcement Engine / RATIFIED-03's
+      always_approve/always_reject model. Found the real, safe fix instead: migrated
+      `task-execution-engine.ts`'s 2 "task_oa"-layer direct `resolveModelConfig()` call sites
+      (`executePackageDispatch()`, `executeTask()`) to resolve through mother-router.ts's
+      `resolveModel({scope: "end_user_org", ...}).resolvedConfig` -- the exact incremental-migration
+      pattern `orchestrate/route.ts` already proved out for the same layer, and the exact "handful of
+      files at a time" approach mother-router.ts's own header already recommended over the 35-file
+      mass-migration it explicitly rejected as too risky. Behavior-preserving for BYO orgs (verified by
+      reading `computeEndUserOrgResolution()` directly), additive real audit-log coverage for the rest,
+      zero circular import (checked). `bunx tsc --noEmit` clean, `bunx eslint` clean, full `bun test`
+      2481/2481 pass (same baseline, no dedicated unit coverage exists for either call site --
+      DB-context-dependent, same class as other internal call sites in this file). Full writeup in
+      `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` entry. PR not yet
+      opened/merged as of this claim -- updating once real.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR #852 merged]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |

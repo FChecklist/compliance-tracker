@@ -1,3 +1,61 @@
+# PROGRESS -- fix/gap-ocid038-taskengine-motherrouter-unwired
+
+Cites: `UMR-20260803-042801-ec4b` (OCID-038), `UMR-20260804-005752-fcb1` (PM authorization to proceed
+with `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` following PR #854's merge).
+
+## Completed
+- [x] Re-verified the gap's own evidence directly against current `main` (`b050f77b`) rather than
+      trusting the 2026-08-03 discovery doc unverified: `src/lib/ai-router/mother-router.ts` (666
+      lines, a real model/provider resolution registry -- 4 scopes, policy overrides, audit logging,
+      BYO tenant config) and `src/lib/task-execution-engine.ts` (2567 lines, the real task
+      classification/planning/dispatch engine -- `executeTask()`/`executePackageDispatch()`) are both
+      still real and still not wired to each other; `task-execution-engine.ts` still calls
+      `orchestra-model-resolver.ts`'s `resolveModelConfig()` directly at 2 "task_oa"-layer call sites.
+- [x] Made the real architectural call the gap's own recommendation asked for (read both files in
+      full, not just the discovery doc's summary): `app/api/ai/orchestrate/route.ts` (a narrow,
+      read-only "suggest actions for a compliance event" endpoint) and `executeTask()`/
+      `executePackageDispatch()` (the real, stateful, side-effecting dispatch engine) are genuinely
+      different concerns -- wiring the former to literally call the latter would silently auto-execute
+      AI-suggested actions with no human approval step, a real, unsafe behavior change this codebase's
+      own Policy Enforcement Engine and RATIFIED-03 (`always_approve`/`always_reject` model) exist to
+      gate, not something to introduce as a side effect of closing a wiring gap. Rejected that path.
+- [x] Found the real, safe, narrow fix instead: `mother-router.ts`'s own header already documents a
+      35-file backlog of direct `resolveModelConfig()`/`checkTierEligibility()` callers, explicitly
+      recommending "a properly scoped, incrementally-tested follow-up (a handful of files at a time...)
+      rather than declared closed by a mass edit" over a risky one-shot rewrite -- `orchestrate/
+      route.ts` already proved this exact pattern out for the same "task_oa" layer (its own 2026-07-25
+      Gateway G05 comment). Migrated `task-execution-engine.ts`'s 2 task_oa call sites
+      (`executePackageDispatch()`, `executeTask()`) to resolve through
+      `resolveModel({scope: "end_user_org", orgId, layerKey: "task_oa"}).resolvedConfig` instead of
+      calling `resolveModelConfig()` directly -- the same pattern, same layer, same scope
+      `orchestrate/route.ts` already uses. This is real, live wiring between the two files (not a
+      no-op comment), via the safe incremental path the codebase's own docs already recommended,
+      not the unsafe direct-call path.
+- [x] Verified behavior-preservation, not assumed: read `computeEndUserOrgResolution()` directly --
+      returns the baseline completely untouched whenever `isCustomerConfigured` is true, so every
+      BYO-configured org's dispatch is byte-identical to before. The only live-behavior addition is
+      real `ai_routing_audit_log` coverage (previously these 2 call sites wrote none) plus the ability
+      for a future active `end_user_org` routing policy to apply (none active today, confirmed --
+      zero live behavior change today, forward-wired for later).
+- [x] Checked for a circular import before wiring (`mother-router.ts` and its own dependency chain --
+      db, model-tier-eligibility.ts, orchestra-model-resolver.ts, ai-config-crypto.ts, roster.ts --
+      have zero references to `task-execution-engine.ts`, confirmed via grep): none.
+- [x] Full real verification: `bunx tsc --noEmit` clean, `bunx eslint` clean on the changed file,
+      full `bun test` 2481/2481 pass (identical to the pre-change baseline -- neither touched call
+      site has dedicated unit coverage, both need a live tenant-scoped DB context that
+      `task-execution-engine.test.ts`'s existing suite -- pure-function tests for
+      `buildNovelUmrHint()` only -- doesn't provide; relying on type-correctness + zero suite
+      regression + the standard PR/CI/audit gate, the same standard this codebase already applies to
+      other DB-context-dependent internal call sites).
+
+## Remaining
+- [ ] This closes `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` only. 2 real OCID-038 gaps remain open
+      (`GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`, `GAP-OCID038-PROJEXA-OWN-SCHEMA`), both flagged in
+      the discovery doc's own recommendation as an Owner-level product decision / cross-repo
+      investigation respectively, not a mechanical fix.
+
+---
+
 # PROGRESS -- task-20260803-214948-pm-decision-to-unlock-ocid-038-real-impl
 
 Cites: `UMR-20260802-165606-4413` (OCID-020, independently confirmed declared complete via

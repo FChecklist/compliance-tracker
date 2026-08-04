@@ -2085,12 +2085,51 @@ open_items:
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
-      name: "task-execution-engine.ts and mother-router.ts are not wired to each other"
+      name: "task-execution-engine.ts and mother-router.ts are not wired to each other -- RESOLVED via scoped Mother Router migration"
       detail: "Both real, independently well-built (task-execution-engine.ts has 36 real importing call sites incl. 20+ services and app/api/ai/orchestrate/route.ts; mother-router.ts is called from app/api/ai/team/dispatch/route.ts and app/api/ai/orchestrate/route.ts). app/api/ai/orchestrate/route.ts imports mother-router.ts's resolveMotherRouterModel() directly (real, active) but its only reference to task-execution-engine.ts is a code comment (line 254), not a call. grep for task-execution-engine/TaskExecutionEngine in mother-router.ts returns zero hits either direction."
       size: S-M
       recommendation: "Not this task's scope to fix (locked by SEC-07 pending OCID-020). Whoever closes this should decide whether orchestrate/route.ts should call into task-execution-engine.ts after routing, or whether the two are intentionally separate concerns (routing/model-selection vs. execution) that should stay decoupled -- a real architectural call, not a mechanical wiring fix."
-      status: open
+      status: resolved
       first_raised: "OCID-038 discovery, 2026-08-03 (this document, ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md)"
+      resolved: |
+        2026-08-04. The real architectural call this gap's own recommendation asked for: read both
+        files in full. orchestrate/route.ts and task-execution-engine.ts's executeTask() are genuinely
+        DIFFERENT concerns -- orchestrate/route.ts is a narrow, read-only "suggest actions for a
+        compliance event" endpoint (never executes anything itself, just returns a JSON action list);
+        executeTask()/executePackageDispatch() are the real, stateful, side-effecting dispatch/execution
+        engine (classification, planning, worker-agent dispatch, package dispatch). Wiring
+        orchestrate/route.ts to literally CALL task-execution-engine.ts after generating suggestions
+        would be a real, unsafe behavior change (auto-executing AI-suggested actions with no human
+        approval step) -- exactly what RATIFIED-03's always_approve/always_reject model and the Policy
+        Enforcement Engine exist to gate, not something to silently wire in as a side effect of closing
+        a wiring gap. That is NOT the fix.
+
+        The real, narrow, safe fix: task-execution-engine.ts's own two "task_oa" layer model-resolution
+        call sites (executePackageDispatch() and executeTask(), both previously calling
+        orchestra-model-resolver.ts's resolveModelConfig() directly) are exactly the class of call site
+        mother-router.ts's own header already documented as part of a deliberately-NOT-mass-migrated
+        35-file backlog, recommending "a properly scoped, incrementally-tested follow-up (a handful of
+        files at a time... rather than declared closed by a mass edit)" over a risky one-shot rewrite.
+        orchestrate/route.ts already proved this exact incremental-migration pattern out for the SAME
+        "task_oa" layer (its own 2026-07-25 Gateway G05 comment). Migrated task-execution-engine.ts's
+        two task_oa call sites to resolve through mother-router.ts's resolveModel({scope: "end_user_org",
+        orgId, layerKey: "task_oa"}).resolvedConfig instead -- the exact same pattern, same layer, same
+        scope. This IS the real wiring the gap asked for (task-execution-engine.ts now genuinely, live
+        calls into mother-router.ts), via the safe incremental path rather than the unsafe direct-call
+        path. Behavior-preserving for every BYO-configured org (computeEndUserOrgResolution() returns
+        the baseline untouched whenever isCustomerConfigured is true -- verified by reading that
+        function directly, not assumed); additive for the rest (real ai_routing_audit_log coverage +
+        any future active end_user_org routing policy override, neither of which existed as an active
+        policy at verification time, so zero live behavior change today). No circular import (checked:
+        mother-router.ts and its own dependency chain -- db, model-tier-eligibility.ts,
+        orchestra-model-resolver.ts, ai-config-crypto.ts, roster.ts -- have zero references to
+        task-execution-engine.ts). Verified: `bunx tsc --noEmit` clean, `bunx eslint` clean on the
+        changed file, full `bun test` 2481/2481 pass (same baseline as before this change -- no existing
+        test exercises this specific call site directly, both are internal to executeTask()/
+        executePackageDispatch(), which need a live tenant DB context to unit test; relying on
+        type-correctness + full-suite-no-regression + the same review/CI gate as every other change this
+        session, consistent with this codebase's own established practice for DB-context-dependent
+        internal call sites).
 
     - id: GAP-OCID038-NO-PWA
       name: "No PWA anywhere in the repo, despite a code comment describing one -- STALE, overtaken by later same-day work"
