@@ -2257,6 +2257,36 @@ open_items:
         follow-up for once this PR merges and deploys, same discipline already established by
         `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`'s own fix for the same class of
         "route/UI change requires a real deploy before live re-verification is possible."
+      reverification_2026_08_04_2230: |
+        Real live follow-up performed (OCID-020 Group F checkpoint refresh, `UMR-20260802-165606-4413`;
+        this task's own identity is `task-20260804-221848-ocid-020-group-f-real-business-certifica` --
+        no self-minted UMR for it exists yet in the real `umr_tasks` table as of this write, checked
+        read-only via `superboss-register.sqlite`, so none is fabricated here). This closes exactly the
+        tracked "live re-render" gap the `resolved` note above left open.
+
+        Fresh Admin-API-provisioned real user, real password-grant login via `@supabase/ssr`'s own
+        `createServerClient` (its real cookie adapter captured, not hand-constructed), real Playwright
+        session against live `projexa-ai.com`. First confirmed `GET /api/me` returns a real `200` with
+        full JSON (a third independent confirmation that `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS`,
+        which had blocked the previous session's attempt at this exact re-verification, stays fixed)
+        and `/home`'s `<main>` renders real, non-blank content (572 chars).
+
+        Note: the live task-selector UI has changed since this gap's original 2026-08-03 discovery
+        pass (composer is now disabled until a category tab is picked; clicked the real "Discuss" tab,
+        the plain-chat category, to reach the same composer the original finding used).
+
+        Sent the same real message pair as the original finding: `"what's the status"` (deterministic
+        trigger) -> real reply `"No tasks yet"`, plain bubble, no marker. `"Can you create a task for
+        renewing our fire safety certificate next month?"` (AI-escalating) -> real reply beginning
+        `"✨ AI-generated reply\nSure, Boss. I'll set up a compliance task..."`, a real ~9s LLM
+        round-trip. Real screenshot:
+        `/tmp/ocid020-group-f-checkpoint-verify/04-full-thread-final.png` (this server, ephemeral, not
+        committed) shows both bubbles side by side -- the deterministic reply plain, the AI-escalated
+        reply carrying the real, visible `✨ AI-generated reply` label the `8a815df5` fix added.
+
+        **Real, honest result: PASSES. The gap no longer reproduces.** The live re-render the prior
+        `resolved` note flagged as a tracked follow-up is now independently confirmed on deployed
+        `projexa-ai.com`, not just via the unit-test-only verification that shipped with the fix.
 
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
       name: "stage_0 is a real DB role (userRoleEnum) but is missing from the UserRole type and ROLE_RANK map, so a stage_0 user fails every requireRole()/requirePermissionForUser() gate in the app -- including the lowest-bar (viewer/member) ones"

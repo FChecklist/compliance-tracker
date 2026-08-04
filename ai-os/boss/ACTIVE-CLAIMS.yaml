@@ -40,29 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-221848-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F checkpoint refresh: finish the interrupted OCID-052 re-verification now that GAP-API-ME-500 is fixed"
-    claimed_at: "2026-08-04T22:20Z (this session)"
-    claim: |
-      SPEC (PM decision, checkpoint refresh, `UMR-20260802-165606-4413` OCID-020, Group F children
-      OCID-047 through OCID-052): reviewed real current status of all six on `origin/main`.
-      OCID-047/048/049/050/051 each already carry broad, multi-part, independently-verifiable real
-      evidence (unchanged since the task-20260804-144006 session's own review). OCID-052 itself is
-      marked complete (`ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`,
-      Items 1-4 real-executed, Item 5 honestly deferred as N/A -- no scripted dialogue-script
-      package exists to test). The one genuinely open thread: the task-20260804-144006 session's
-      own attempted re-verification of `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` never
-      completed -- it was interrupted by discovering `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` (a
-      live regression that blanked the whole VERI Chat panel). That regression is now closed and
-      independently re-verified twice (PR #900/#904, then PR #917, both confirming real `200`s from
-      `GET /api/me` for fresh users). Real next step: finish the interrupted re-verification -- fresh
-      admin-provisioned user, real login, real Playwright session against live `projexa-ai.com`,
-      confirm `/api/me` now works end-to-end and check whether the missing-distinguishing-signal
-      finding still reproduces now that the panel actually renders.
-    scope_note: >-
-      File scope: ai-os/MASTER-TRACKER.yaml (additive re-verification field on the existing gap
-      entry), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md. No src/ or schema changes
-      expected (discovery-only, per the standing OCID-021 implementation lock) unless findings
-      dictate otherwise.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
@@ -5600,6 +5577,39 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-221848-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F checkpoint refresh: finished the interrupted OCID-052 re-verification, real live PASS confirmed [DONE]"
+    claimed_at: "2026-08-04T22:20Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, checkpoint refresh, `UMR-20260802-165606-4413` OCID-020, Group F children
+      OCID-047 through OCID-052): real current-status review of all six on `origin/main` found
+      OCID-047/048/049/050/051 unchanged and already broadly evidenced, and OCID-052 marked complete
+      with one open thread -- the task-20260804-144006 session's own interrupted re-verification of
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`, which never finished because it was
+      diverted by discovering `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` (now closed, independently
+      re-verified twice: PR #900/#904, PR #917).
+
+      Completed the interrupted re-verification for real: fresh Admin-API-provisioned user, real
+      password-grant login via `@supabase/ssr`'s own `createServerClient` cookie adapter (not
+      hand-constructed), real Playwright session against live `projexa-ai.com`. Confirmed `GET
+      /api/me` returns a real `200` (third independent confirmation the regression stays fixed) and
+      `/home` renders real, non-blank content. Noted a real UI change since the original 2026-08-03
+      finding (composer now gated behind a task-category tab; used the "Discuss" tab to reach it).
+      Sent the same real message pair as the original finding -- deterministic ("what's the status"
+      -> "No tasks yet", plain bubble) and AI-escalating ("Can you create a task for renewing our
+      fire safety certificate next month?" -> real reply prefixed `"✨ AI-generated reply"`, ~9s real
+      LLM round-trip). **Real, honest result: the gap no longer reproduces.** This closes the exact
+      "live re-render" follow-up that this gap's own `resolved` note (fix commit `8a815df5`,
+      2026-08-03) had left open as unit-test-only verification. Recorded as an additive
+      `reverification_2026_08_04_2230` field on the existing `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`
+      entry in `ai-os/MASTER-TRACKER.yaml`, citing this task's own identity (no self-minted UMR
+      exists yet for it in the real `umr_tasks` table as of this write -- checked read-only, none
+      fabricated). Real evidence (screenshots, scripts) left ephemeral at
+      `/tmp/ocid020-group-f-checkpoint-verify/` on this server, not committed.
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (additive re-verification field, no existing content
+      changed), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/, schema, or CI
+      changes -- discovery/re-verification only, per the standing OCID-021 implementation lock (the
+      finding itself was already fixed by a prior, separately-authorized task).
   - session_label: "claude-code (task-20260804-183824-ocid-020-urgent-correction-real-merge-fa) -- OCID-020 GAP-API-ME-500: urgent-correction dispatch found its own premise stale (real merge already happened via a separate autonomous cycle before this task started), independently re-verified the real production fix instead of re-doing already-done work [DONE, no new PR -- additive doc corroboration only]"
     claimed_at: "2026-08-04T18:38Z (this session)"
     claim: |
