@@ -8978,3 +8978,48 @@ recently_completed:
       File scope: `PROGRESS.md` (restored from wholesale-replace regression + this task's own section),
       this ACTIVE-CLAIMS entry. No src/, schema, migration, or CI changes -- the real code fix already
       landed via PR #803 before this session started; nothing left to merge or fix in this cycle.
+  - session_label: "claude-code (task-20260804-062840-pm-decision--confirm-the-corrected-ocid) -- PM decision: confirm corrected OCID-039 UMR citation, monitor PR #789 to real completion [CONFIRMED, no code change needed]"
+    claimed_at: "2026-08-04T06:29Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision under `UMR-20260802-173631-ca85` OCID-021): confirms the real correction found
+      this cycle -- OCID-039's real end-user production-certification own-registration UMR is
+      `UMR-20260803-072825-3706`, not `UMR-20260803-042839-b9c4` (that other id belongs to the earlier
+      OCID-022-through-039 discovery/status-snapshot batch chain tail entry, not a dedicated OCID-039
+      production-certification registration). Independently re-verified rather than trusting the SPEC's
+      framing unchecked: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (already merged,
+      `main`) correctly and honestly describes `UMR-20260803-042839-b9c4` as the earlier "OCID-039
+      directive" for the discovery/status-mapping scope, itself explicitly noted there as "functionally
+      superseded by this same document" -- no error found on `main` needing a fix. The real, dedicated
+      production-certification UMR (`UMR-20260803-072825-3706`) is already correctly registered in PR
+      #789's own diff (`worker/task-20260803-071119-ocid-039-veridian-real-end-user-producti`, still
+      open as of this session), which explicitly documents the same real-numbering distinction under its
+      own "Real numbering note." No new decision or file fix needed beyond this confirmation.
+
+      Checked PR #789's real live state directly (not narrated): `AUDIT: FAIL` posted 2026-08-04T05:39:19Z,
+      followed by `AUDIT: PASS` 2026-08-04T06:27:30Z -- confirmed via the GitHub Checks API this verdict
+      attaches to the PR's real current head SHA (`7327fae51645f974e71c7af1b118ece2be50a5bd`), not a stale
+      SHA (the known `[[veridian-audit-check-issue-comment-sha-bug]]` class of bug does not apply here).
+      All required status checks (`Lint`/`Type Check`/`Build`/`audit-check`/`Guardrail Presence Check`/
+      `Asset Registry Coverage Check`/`Unit Tests`) pass against that same head SHA. `mergeable_state:
+      behind` (branch protection `strict: true` requires the branch be current with `main` before merge)
+      -- not yet merged. A live process (`veridian-supervisor@task-20260803-071119-ocid-039-veridian-
+      real-end-user-producti.service`, confirmed running via `systemctl --user list-units`) is actively
+      handling this task's own real independent review right now. Per the SPEC's own instruction, did
+      NOT self-certify or force-merge PR #789 -- letting that live review process land its own real
+      verdict and handle the branch update, consistent with `AGENTS.md` Rule 11 (don't duplicate another
+      session's in-flight work). `ai-os/MASTER-TRACKER.yaml` intentionally left untouched this cycle: PR
+      #789 has not merged, so its real merge commit cannot yet be independently confirmed an ancestor of
+      `origin/main` (`git merge-base --is-ancestor`) -- that verification, and the resulting tracker
+      update, is correctly deferred to whichever session picks this back up once it actually merges.
+
+      Honest gap: searched this repo (`ai-os/MASTER-TRACKER.yaml`, this file, `ai-os/OS.yaml`,
+      `ai-os/CONSTITUTION.yaml`, full `git grep -i "group c"`) for the SPEC's "Group C closure work"
+      reference and found no matching artifact -- only a documented "Group F" (PRs #812-#817) batch
+      exists in this repo's own governance record. Flagging this honestly per this codebase's own
+      discipline (do not silently pick an interpretation) rather than guessing which batch "Group C"
+      refers to; whoever has the fuller cross-session context on that label should reconcile it.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration, CI, or
+      `MASTER-TRACKER.yaml` changes -- this was a confirmation-only PM decision with no real
+      inconsistency found on `main` to fix, and the one real pending action (tracker update once PR
+      #789 merges) is explicitly deferred per the SPEC's own instruction.
