@@ -397,12 +397,12 @@ than assumed from the comment alone:**
   (`getVeridianApiKey(organizationId)` → `veridianCredentials` table → `VERIDIAN_API_KEY` env-var
   fallback) matches, call for call, the real Wave 9/10 provisioning data already independently
   confirmed live in this repo's own `ai-os/boss/COMPLETED.yaml`.
-- **51 real files** in the `projexa` repo import/call this client (`grep -rl "callVeridian\|
-  veridian-client" src`), confirmed via a direct file-content search, not GitHub's index. Sampled call
-  sites are genuinely construction/business-domain routes: `manpower-cost-report`, `sales-pipeline`,
-  `schedule-tracker`, `punch-list`, `sales-invoices`, `products`, `schedule-tracker/import`, and more
-  — all of these proxy to VERIDIAN rather than reading/writing a local table for that domain data,
-  consistent with the schema file's own comment.
+- **195 real files** in the `projexa` repo import/call this client, confirmed via a direct
+  file-content search, not GitHub's index (see the "Correction" note below for how this number itself
+  was first mis-measured at 51 and why). Sampled call sites are genuinely construction/business-domain
+  routes: `manpower-cost-report`, `sales-pipeline`, `schedule-tracker`, `punch-list`, `sales-invoices`,
+  `products`, `schedule-tracker/import`, and more — all of these proxy to VERIDIAN rather than
+  reading/writing a local table for that domain data, consistent with the schema file's own comment.
 - A live `curl` (both `veridian-compliance-ai.vercel.app` and `projexa-ai.com` hostnames) against
   `/api/v1/projexa/products` returns `401` (endpoint exists, requires the real Bearer auth the client
   code implements), not `404` — the real API surface the client targets genuinely exists and responds.
@@ -431,24 +431,84 @@ system" language conflates.
 
 **What the projexa repo's own schema investigation would concretely need to check next** (this part is
 genuinely mechanical/investigative — unlike §9.1's domain question, it is not an Owner-level product
-call, and is a reasonable real next step for whoever picks this up):
-1. Spot-check (not exhaustively audit) a handful of the 51 `callVeridian`/`veridian-client` call sites
-   to confirm none of them silently also read/write a local Postgres table for the same
-   construction-domain data as a shadow/cache path — the schema file's own comment asserts this, but
-   this addendum did not verify all 51 call sites individually, only that they exist and target
-   genuinely construction-domain routes.
-2. Confirm the auth-boundary/session finding above precisely (no PROJEXA-side code path exists that
-   forwards or trusts a VERIDIAN session token) — this addendum found no such call site via grep, but
-   did not exhaustively trace every auth-adjacent file in the ~51-call-site set.
-3. If §9.1's hostname-based branding fix is ever pursued, confirm whether an anonymous (not-yet-
-   logged-in) PROJEXA visitor's browser session would need to carry any "which VERIDIAN org"
-   context before login, or whether that question is genuinely scoped to post-login only (current
-   evidence: `resolveBranding()`'s own org-scoped, post-login design suggests the latter, but this
-   was not independently re-verified against PROJEXA's own login flow in this pass).
+call). Per PM decision `UMR-20260804-014117-915e`, all 3 real next steps this section originally named
+have now been done, on 2026-08-04:
+
+**1. Spot-checked a real sample (15 of 195 call sites, spanning financial/accounting, CRM, HR/payroll,
+procurement, recruitment, and construction-specific domains) for a shadow local-write path.** Sample:
+`journal-entries`, `leads`, `punch-list`, `floor-plans`, `site-diary`, `scope`, `payroll/runs`,
+`procurement/purchase-orders`, `recruitment/candidates`, `balance-sheet`, `trial-balance`,
+`opportunities`, `schedule/gantt`, `mood-boards`, `rfis` (all `route.ts`). **Zero of the 15 import
+`@/lib/db` or reference the local Drizzle client at all** — confirmed by direct file read, not just
+grep count. Each follows an identical, minimal proxy shape: `requireAuth()` (PROJEXA's own session)
+→ `callVeridian(...)` → return VERIDIAN's response verbatim (e.g. `journal-entries/route.ts`'s `GET`/
+`POST` handlers, read in full — 30 lines total, no local persistence of any kind). One sampled file
+(`punch-list/route.ts`) does call a local service after a successful VERIDIAN write —
+`notifyOrgMembers()`, writing to the `notifications` table — but that is exactly one of the 12
+tenant/UI-collaboration tables the schema comment already names as legitimately local, not a shadow
+copy of construction data. This is real, structural, not just circumstantial confidence: the local
+schema has exactly 12 tables total (§9.2 above), none construction-domain, so no route in this repo
+*could* silently persist BOQ/budget/schedule data locally even if it tried — there is no table for it
+to go into, and no other storage mechanism (raw SQL client, alternate ORM, file-based store) was found
+in any of the 15 sampled files or their imports.
+
+**2. Confirmed precisely: no PROJEXA-side code path forwards or trusts a VERIDIAN session token.**
+Read `requireAuth()` (`src/lib/supabase/auth-guard.ts`) in full, the single function every one of the
+195 call sites' route handlers calls before touching VERIDIAN. It is 100% self-contained to PROJEXA's
+own Supabase project: `createClient()` → `getClaimsWithRetry()` (PROJEXA's own JWT claims) →
+a `memberships` table lookup (also PROJEXA's own table) for `organizationId`/`role`. Nothing in this
+function reads, constructs, or forwards a VERIDIAN token of any kind. The *only* thing carried forward
+into a `callVeridian()` call is `ctx.organizationId` — used exclusively to look up that org's static,
+service-role-only API key via `getVeridianApiKey()` (§9.2 above), never a per-user identity. This
+repo's own code comment (`auth-guard.ts`, unchanged, predates this investigation) states the design
+rationale explicitly: *"PROJEXA users authenticate against PROJEXA's own Supabase project and
+PROJEXA's server routes call VERIDIAN with a single shared per-org API key... not a per-user VERIDIAN
+identity."* Confirms §9.2's auth-boundary finding above precisely, not just approximately.
+
+**3. Confirmed: an anonymous, not-yet-logged-in PROJEXA visitor's session carries zero "which VERIDIAN
+org" context — genuinely, entirely post-login only.** Read `src/middleware.ts` (the real Next.js
+middleware, `matcher` covers every path except static assets) in full. It resolves the visitor's auth
+state via the same `getClaimsWithRetry()` PROJEXA-only mechanism, redirects to `/login` only for a
+named list of protected path prefixes (`/dashboard`, `/schedule`, `/scope`, etc.), and never
+references `organizationId`, `veridian`, or any VERIDIAN-side concept for an unauthenticated request.
+Public/marketing pages pass through with zero VERIDIAN awareness of any kind. This confirms — by
+reading the real routing/auth layer directly, not inferring from `resolveBranding()`'s own
+(VERIDIAN-side) design alone — that both systems independently converge on the same answer: org
+context is genuinely post-login only, on both sides of the integration.
+
+**Correction (2026-08-04, same pass): the "51 real files" figure earlier in this section, and in
+`ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID038-PROJEXA-OWN-SCHEMA` entry, was wrong — the real count is
+195.** Root cause, found while re-running the same search to pick the spot-check sample above: this
+session's own shell environment shadows the `grep` command with a function that wraps `ugrep
+--ignore-files --hidden -I --exclude-dir=.git ...` — the `--ignore-files` flag makes it silently
+respect ignore-file semantics, and independently of that, the returned file paths were also missing
+their real `src/` directory prefix (e.g. reporting `app/api/companies/route.ts`, a path that does not
+exist — the real file is `src/app/api/companies/route.ts`). The undercount was not caught earlier
+because the wrapped `grep`'s output looked completely plausible (50 real, correctly-formatted-looking
+paths plus one path that happened to not exist was not obviously wrong at a glance). Found and
+confirmed via 3 independent, agreeing methods: `\grep` (backslash-escaped, bypasses the shell
+function), a raw Python `subprocess.run(["grep", ...])` call, and direct `ls` existence checks on the
+specific paths in question. **Real, session-wide tooling lesson, same class as the earlier
+`git show` truncation finding (`UMR-20260804-005752-fcb1`'s own correction): prefer `\grep`/`\find` or
+a Python `subprocess` call over the bare `grep`/`find` commands in this Bash tool's shell environment
+for anything where an exact file list or count matters** — the bare commands are not just prone to
+large-output truncation (the earlier finding), but can silently return an incomplete, wrongly-pathed
+result set even for normal-sized output, with no visible error. `find` was separately observed to
+exhibit the same class of unreliability in this same investigation (falsely reported
+`./middleware.ts` at the repo root; the real file is `src/middleware.ts`) — not re-investigated
+exhaustively here, but worth the same caution.
 
 ### 9.3 Status
 
 Both gaps' `ai-os/MASTER-TRACKER.yaml` entries are amended in the same commit as this addendum with a
 cross-reference to this section, `status` left `open` for both (per the PM's explicit instruction: this
-is discovery only, no implementation, no routing change, no schema change). Awaiting the real PM
-decision informed by the above before any further action on either gap.
+is discovery only, no implementation, no routing change, no schema change).
+
+**Update (2026-08-04, PM decision `UMR-20260804-014117-915e`):** `GAP-OCID038-PROJEXA-OWN-SCHEMA`'s
+3 real next steps (§9.2) are now done — all mechanical/investigative, no Owner-level call needed for
+this gap, confirmed by the PM's own decision. `status` remains `open` (the underlying architectural
+facts this section documents are not something to "close," they're a real, current, evidenced
+description of the system) but there is no further mechanical investigation outstanding for this gap
+as of this update. `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` (§9.1) remains explicitly held —
+per the PM's own words, "this is being escalated directly to the real Owner in chat right now" — no
+domain, routing, or branding change has been made or should be made pending that real Owner answer.

@@ -5284,7 +5284,29 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
-  - session_label: "claude-code (docs/ocid038-projexa-domain-and-schema-discovery-brief) -- OCID-038: real discovery brief for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH + GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation [DONE, PR pending]"
+  - session_label: "claude-code (docs/ocid038-projexa-schema-investigation-3-steps) -- OCID-038: real 3-step schema investigation for GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation; DOMAIN-BRAND-MISMATCH held, escalated to Owner by PM [DONE, PR pending]"
+    claimed_at: "2026-08-04T01:45Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-014117-915e`, citing `UMR-20260803-042801-ec4b` OCID-038): the
+      3 real mechanical next steps PR #859's own discovery brief (§9.2) named for
+      `GAP-OCID038-PROJEXA-OWN-SCHEMA` are authorized -- discovery/documentation only, no
+      implementation, no schema change. `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` held exactly as
+      written, the PM is escalating that question directly to the real Owner in chat.
+
+      Spot-checked 15 real call sites (financial/CRM/HR/procurement/recruitment/construction domains):
+      zero import the local DB client, all follow requireAuth()->callVeridian() proxy shape, one
+      legitimate local side effect found (notifications write, a known non-construction table). Read
+      requireAuth() and middleware.ts in full: confirmed precisely no VERIDIAN session-token
+      forwarding, and zero pre-login VERIDIAN-org context for anonymous visitors.
+
+      Real, unplanned finding: this session's shell shadows `grep` with a `ugrep --ignore-files`
+      wrapper that silently undercounts AND strips real path prefixes -- the "51 real files" figure
+      already merged via PR #859 was wrong, real count is 195 (confirmed via 3 independent methods:
+      `\grep`, raw Python subprocess, direct `ls` checks). Corrected everywhere it appeared in
+      already-merged governance docs (OCID-038 canonical doc §9.2, MASTER-TRACKER.yaml) rather than
+      leaving it wrong. `find` showed the same unreliability class separately. Same tooling-discipline
+      pattern as the earlier `git show` truncation correction this session.
+  - session_label: "claude-code (docs/ocid038-projexa-domain-and-schema-discovery-brief) -- OCID-038: real discovery brief for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH + GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation [DONE, PR #859 merged]"
     claimed_at: "2026-08-04T01:20Z (this session)"
     claim: |
       SPEC (PM decision `UMR-20260804-011851-676b`, citing `UMR-20260802-173631-ca85` OCID-021 and
