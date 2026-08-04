@@ -5256,6 +5256,60 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-054220-register-ocid-061--universal-determinist) -- OCID-061 discovery/mapping of the four intake surfaces (mode pill/Chain Selector, free chat, speech-to-text, API/webhook entry points) + canonical-intent-object gap search [DONE, discovery only, PR pending]"
+    claimed_at: "2026-08-04T05:42Z (this session, closed same session)"
+    claim: |
+      SPEC: incoming prompt for OCID-061 was truncated -- ends after the "universal input runtime"
+      heading with no deliverables/success-criteria/PR/commit/worker/review/merge/lock fields, and
+      names no explicit parent OCID/UMR the way OCID-053..060's prompts did. Registered under the
+      natural real parent OCID-021 (`UMR-20260802-173631-ca85`) and OCID-020 (`UMR-20260802-165606-4413`),
+      consistent with every other registration this session.
+
+      Independently confirmed before starting: a DIFFERENT concurrent session had already registered
+      this exact same OCID-061 with the identical provisional parent pairing under its own UMR
+      (`UMR-20260804-044535-7214`, OCID-053 cross-reference table §7, branch
+      `worker/task-20260804-040750-register-ocid-053--universal-knowledge-g`, commit `3556813b`, not
+      yet merged to `origin/main`), status "no worker dispatched yet, real discovery has not started"
+      -- confirming no other session had done the real discovery work itself, only the registration.
+      This entry is that real discovery/mapping, not a duplicate registration.
+
+      Real findings (dispatched a research agent, then independently spot-checked its key claims by
+      direct grep/read before trusting them -- VeriComposer.tsx mode pills, ChainSelector.tsx header
+      comment, whisper-client.ts's OPENAI_API_KEY gap, dispatchTool()'s fixed-codeReference shape,
+      repo-wide intent-object grep):
+      (1) Mode pill + cascading "Chain Selector" (the prompt's "option chain") -- REAL, wired
+      (`src/components/veri-chat/ChainSelector.tsx`, `VeriComposer.tsx:533`).
+      (2) Free chat -- REAL, wired (`composerMode === "discuss"` -> `sendMessage()` ->
+      `generateAiReply()` in `chat-service.ts`, real LLM call).
+      (3) Speech-to-text -- PARTIAL: real code (`src/lib/whisper-client.ts`) but wired only to the
+      separate Voice Tickets upload feature, not the composer, and not currently operational --
+      `OPENAI_API_KEY` is not provisioned in this codebase's secrets as of this wave (confirmed via
+      the file's own 2026-07-14 header comment).
+      (4) API/webhook entry points -- REAL outbound webhooks + narrow real inbound surfaces (PWA
+      share-target, guest-chat, partner-portal), but no generic inbound "submit an intent" gateway.
+      (5) Canonical intent object / shared intent-resolution layer / "hidden runtime" -- NOT FOUND,
+      confirmed real gap: each of the four surfaces resolves independently to a different backend
+      shape, with nothing tying them together. Registered as
+      `GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT` in `ai-os/MASTER-TRACKER.yaml` (status: open,
+      unassigned, needs a fresh PM decision before implementation).
+
+      Also found and fixed, while already editing this exact file: a genuine pre-existing duplicate
+      top-level YAML key (`recently_completed:` appeared twice, at the old line ~5290 and ~5389) --
+      any standard YAML parser (confirmed via `python3 -c "import yaml..."`, last-key-wins semantics)
+      was silently discarding the first block's 3 real entries (OCID-024, OCID-028, OCID-029/030)
+      every time this file was read programmatically. Merged the two blocks into one list under a
+      single key -- no entries lost, `recently_completed` count went from 94 (silently truncated) to
+      97 (all real entries visible) after the fix, re-verified via the same python yaml.safe_load
+      check.
+
+      Full discovery report: `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md`.
+      Dispatch authorized discovery/design-mapping only -- no runtime built or modified. A fresh PM
+      decision with real success criteria is required before any implementation.
+    scope_note: >-
+      File scope (actual): `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md` (new),
+      `ai-os/MASTER-TRACKER.yaml` (new gap entry), `ai-os/OS.yaml` (index entry for the new doc),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry + duplicate-key fix), `PROGRESS.md`. No src/,
+      schema, or runtime changes -- read-only investigation only.
   - session_label: "claude-code (task-20260803-041006-ocid-024-veridian-laptop-web-browser-run) -- OCID-024: VERIDIAN Laptop Web Browser Runtime v1.0 (documentation only) [PUSHED, PR #767 OPEN]"
     claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
     claim: |
@@ -5354,7 +5408,6 @@ recently_completed:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
-recently_completed:
   - session_label: "claude-code (task-20260803-071339-pm-decision-register-the-real-implementa) -- PM decision on OCID-021 lock registration + overlap-resolution: ALREADY DONE, real inconsistency found+fixed [DONE, PR pending]"
     claimed_at: "2026-08-03T07:1xZ (this session, closed same session)"
     claim: |
