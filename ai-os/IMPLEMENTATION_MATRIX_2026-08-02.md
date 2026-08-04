@@ -1041,6 +1041,40 @@ merge commit cited), `ai-os/MASTER-TRACKER.yaml` (`GAP-MIGRATION-APPLY-NOT-AUTOM
 not falsely closed; new `GAP-SUPERVISOR-RETRIGGER-STALE-WORKSPACE`), `ai-os/boss/COMPLETED.yaml`
 (`MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX` retroactive test result) — not rewritten, not duplicated.
 
+## Amendment (2026-08-03): OCID-20260803-025 — VERIDIAN Mobile PWA and VERI Chat Runtime v1.0
+
+Real, Owner-directed, tier 1 directive, documentation only — no implementation. Parented to
+`UMR-20260803-041000-70ae` (cited by the task's own spec as "OCID-024, just registered"),
+citing `UMR-20260803-040929-9713` (OCID-023), `UMR-20260803-040844-4a33` (OCID-022),
+`UMR-20260802-173631-ca85` (ERP Functional Completeness Master Program), `UMR-20260802-165606-4413`
+(OCID-020), `UMR-20260802-164659-9a31` (traceability audit), `UMR-20260802-165034-5747`
+(gatekeeper rule), `UMR-20260802-165434-cd91` (unified project memory), `UMR-20260802-165541-c27d`
+(recovery framework).
+
+**Canonical artifact**: `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` — a
+36-section inventory of the real, already-existing mobile PWA (`src/app/manifest.ts`, real
+installable share-target PWA), VERI Chat (`VeriComposer.tsx`, `chat-service.ts`, the full
+`api/veri-chat/*` surface), VERI the assistant (invite-only participation, never proactive),
+mode pills / Chain Selector (`capability-tree-service.ts`, `dynamic_chains` table), the
+software-first AI escalation gate (`llm-routing-gate.ts` → `ai-reply-gate.ts`), the
+deterministic task model (`tasks.resolvedWorkerAgentId`/`dynamicChainId`), and — the section
+requiring the most honest disclosure — offline/cache/sync/push/session-recovery, where real
+findings diverge sharply by area: a real IndexedDB composer-history cache
+(`browser-intent-cache.ts`) and a real conflict-resolution primitive (`sync-engine.ts`'s
+`coalesceQueuedChanges()`) exist but are largely unwired to any live Service Worker or push
+mechanism, which **does not exist at all** in this repo (zero `Notification`/`pushManager`/VAPID
+hits). One genuinely working offline-capture flow (photo + work-progress queueing) exists, but
+in the sibling `projexa` repo, not here — and its own code discloses that queued photos aren't
+uploaded on sync today due to a real, disclosed cross-repo gap (no photo column/endpoint on
+`constructionWorkProgressEntries`). Cross-references `ai-os/REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md`'s
+own already-open findings (CSV #106/#1792/#1793/#1794 — responsive scaling, offline resilience,
+touch-target sizing, mobile perf) rather than re-deriving or contradicting them.
+
+**Disclosed concurrency note**: sibling sessions for OCID-022/023/024 were genuinely concurrent,
+still `in_progress` at the time this document was written — see this document's own "Disclosed
+concurrency note" section and `ai-os/boss/ACTIVE-CLAIMS.yaml` for the full record. This entry's
+content has no hard read-dependency on those siblings' text.
+
 ---
 
 ## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-041653-9de5`, OCID-20260803-022)
@@ -1126,6 +1160,35 @@ OCID-023's own dispatched worker). The real gate every directive in this chain a
 OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): OCID-026, VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 (`UMR-20260803-041047-03ee`)
+
+Documentation-only artifact, consistent with `SEC-07`'s implementation lock (`ai-os/CONSTITUTION.yaml:652-656`),
+which permits discovery and matrix-building to continue while implementation/gap-closure/production
+work stays gated on the real OCID-020 unlock. Answers three questions -- how VERIDIAN software decides,
+when AI is invoked, when AI shall never be invoked -- grounded entirely in real, already-built mechanisms
+found by three parallel discovery passes against the live `compliance-tracker` repo: the Mother Router
+(`src/lib/ai-router/mother-router.ts`) and `model-tier-eligibility.ts` tier gate, `guardrail-engine.ts`'s
+deterministic rule engine, `report-engine-service.ts`'s four execution types (a real, already-built
+precedent for the exact software-vs-AI-decides pattern this document needed), VERI Chat/mode pills/Chain
+Selector (the real name for what this OCID's directive called "option chain" -- no such term exists in
+the codebase), and the `credit-accountant.py`/`system_index` search-before-build enforcement chain. No
+new architecture, prompt system, rule engine, or library was created -- every section cites and extends
+real, existing code. Six honest gaps surfaced during discovery (unwired composer attachment button,
+not-yet-built `TaskDocumentScreen.tsx`, no live voice-dictation control, uncommitted function-catalog
+artifact, no top-line AI-escalation performance-target SLA, aspirational-not-built cross-brand shared
+library) are recorded in the new document's own "Known Honest Gaps" section rather than glossed over.
+
+Also flagged, same honesty standard as OCID-040's OCID-021/036 corrections: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
+own guess for OCID-026's title ("VERIDIAN Global Knowledge Discovery and Reuse Runtime") does not match
+this task's real, directly-issued directive title ("VERIDIAN Deterministic Execution and AI Escalation
+Runtime") -- proceeded on the real directive text as authoritative, noted rather than silently resolved.
+
+Canonical artifact created: `ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md`
+(new). Amends this file and `ai-os/OS.yaml` (index-coverage entry) -- not rewritten, not duplicated. Ready
+for handoff to OCID-027.
 
 ---
 
@@ -1370,6 +1433,18 @@ layers already are.
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
+| OCID-20260803-025 | `UMR-20260803-041000-70ae` (parent) | VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 | **Documentation complete** — canonical artifact created; no implementation performed or proposed, per this task's own prohibition. Real, disclosed gaps (background sync, push notifications, session recovery, general offline data layer, mobile touch/perf hardening) left open for a future implementation OCID. |
+
+Canonical artifact updated: `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` (new
+file), this file (this amendment), `ai-os/MASTER_INDEX.yaml` / `ai-os/OS.yaml` (registration) —
+not rewritten, not duplicated.
+
+---
+
+**Status:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
 | OCID-20260803-027 | `UMR-20260803-041122-b22d` (parent) | VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0 | **Documentation complete** — canonical artifact created; no implementation performed or proposed, per this task's own prohibition. Real, disclosed gaps (no dedicated report/business-rule catalog, hand-maintained screen/UX narrative) left open for a future extension of the existing generator pattern. |
 
 Canonical artifact updated: `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`
@@ -1496,3 +1571,59 @@ certification issued this cycle, consistent with `SEC-07`'s discovery/planning p
 Canonical artifact: `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_
 BREAKDOWN_2026-08-03.md` (new file), this amendment, `ai-os/OS.yaml` (registration),
 `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`.
+
+---
+
+## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-042019-844f`, dispatch `UMR-20260803-040929-9713`, OCID-20260803-023)
+
+Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-040844-4a33` (the real
+`owner_dispatch_gateway` UMR that created sibling task `task-20260803-040852-ocid-022`, independently
+confirmed via a direct query against `umr_tasks` in `/opt/veridian/ai-os/memory/
+superboss-register.sqlite`, not narrated). Cites `UMR-20260802-173631-ca85` (ERP Functional
+Completeness Master Program, this file's own parent), `UMR-20260802-165606-4413` (OCID-020),
+`UMR-20260802-164659-9a31` (server artifact traceability audit), `UMR-20260802-165034-5747`
+(standing gatekeeper rule), `UMR-20260802-165434-cd91` (unified project memory model),
+`UMR-20260802-165541-c27d` (recovery framework). Extends the existing master program; no new
+program, no new audit, no new file beyond the one canonical artifact named below.
+
+**Real dependency honored, not skipped**: this task's own mandatory inputs required reading OCID-022's
+real, complete document (`ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`) before
+writing. At claim time that sibling task (`task-20260803-040852-ocid-022`) was independently
+confirmed genuinely `active (running)`, not yet complete (`systemctl --user status` +
+its own `task.yaml`). This session registered the dependency in
+`ai-os/boss/ACTIVE-CLAIMS.yaml`, performed all OCID-022-independent discovery in parallel while
+waiting, and read OCID-022's real, complete 323-line artifact directly from that task's own live
+workspace once its content was finished (registration/commit/push steps were still pending on that
+sibling task at read time — its document content itself was already stable and complete).
+
+**Real discovery performed, not re-derived from memory**: a full schema/service inventory of every
+real end-user work-item table (`tasks`, `tickets`, `pmsIssues`, `comments`, `taskChatMessages`,
+`documents`, `notifications`, `auditLogs`, `scopedDelegations`, `approvalRequests`) via direct
+file:line citation; `ai-os/CONSTITUTION.yaml`'s `task_lifecycle` (TASK-01..05),
+`guardrail_protocols` (GP-01..30), and `audit_organization` (AUDIT-01..04) sections; and, critically,
+`UNIVERSAL_TASK_WRAPPER_DESIGN.md` (repo root, 2026-07-11) — pre-existing, real prior art for exactly
+this document's subject, found via `git log --all --name-only` after the file was absent from
+`ai-os/`. Direct grep of every real `recordActivity()` call site confirmed `activity_log`/TASK-04's
+own Phase 1 is wired for the `ai_team_dispatch` activity type only — `customer_task`/`orchestra_call`
+(the activity types that would cover real end-user tasks) have zero real call sites, a materially
+more precise finding than TASK-04's own `gap` field states, now recorded in the new artifact itself.
+
+**Real, honest gaps newly named from the end-user-work-model angle, none fixed by this document**:
+task reopen has no dedicated mechanism (indistinguishable from any other status PATCH); task
+transfer is not distinguished from ordinary reassignment; no task-level "decision" record exists
+beyond `approvalRequests.rejectionReason`/free-text comments; `tickets`/`pmsIssues` are not indexed
+by either real search mode (`tasks` is); no task/ticket-specific report or analytics surface exists;
+`tasks`/`tickets`/`pmsIssues` have no retention, soft-delete, or recovery mechanism at all (the sole
+partial exception being `pmsIssues.isArchived`, a bare flag with no retention/disposal semantics).
+
+**Status, real and current:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-20260803-023 | `UMR-20260803-042019-844f` (artifact) / `UMR-20260803-040929-9713` (dispatch) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
+
+Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md` (new, not a
+duplicate — confirmed via `git log --all --name-only` finding `UNIVERSAL_TASK_WRAPPER_DESIGN.md` as
+the one genuine piece of prior art, which the new document builds on rather than replaces), this
+file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim
+entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
