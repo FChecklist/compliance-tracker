@@ -45,8 +45,19 @@
       in 24 hours") unrelated to this diff -- same failure mode PR #867 hit independently.
       `mergeable_state: unstable` reflects that one non-required check, not a real blocker.
 
+- [x] (invocation 2, 2026-08-04) Re-checked PR #903 live: all required status checks (Lint,
+      Analyze, audit-check, Secret Scanning, Type Check, Documentation Sentinel Check, Unit Tests,
+      Security Pattern Check, Guardrail Presence Check, Asset Registry Coverage Check, Metadata
+      Index Coverage Check, Terminology Guardrail Check, Migration Number Collision Check, Doc
+      Quarantine Banner Check, Doc Cross-Reference Check, Build, E2E Tests) were SUCCESS; CodeQL
+      NEUTRAL. `mergeStateStatus` was `BEHIND` main (main had advanced to `3b0069b4` / PR #913 in
+      the meantime, consistent with `[[veridian-live-concurrent-state-drift]]`) -- `gh pr merge`
+      correctly refused to merge a stale branch rather than force it. Merged `origin/main` into this
+      branch locally (clean, no conflicts -- two new unrelated docs from PR #913 in `ai-os/`), pushed
+      (`225df33f`), and re-armed a Monitor to wait for CI to re-run on the updated head before
+      merging via `gh pr merge --squash`.
+
 ## Remaining
-- [ ] None -- this task's real job (registration-only) is complete: PR #903 is open, green, and
-      correctly documents the duplicate-dispatch finding instead of re-registering OCID-053. The
-      genuinely open follow-up item (unblocking PR #867's own merge conflicts / stale audit-check)
-      belongs to a separate task/owner, not this registration-only dispatch's scope.
+- [ ] Confirm all checks pass on updated head `225df33f`, then `gh pr merge 903 --squash` to land
+      the finding doc on `main` (this task's registration-only job stays "no re-registration
+      performed"; landing the PR is the correct close-out of the work already done, not new scope).
