@@ -40,6 +40,45 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-205531-ocid-034-universal-context-and-predictiv) -- OCID-034 dispatch declined: already merged, false-premise duplicate [DONE, closed same session]"
+    claimed_at: "2026-08-04T20:55Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision, five-way parallel expedite directive, citing `UMR-20260803-042003-5e92`):
+      instructed to write "the real canonical documentation only artifact for OCID-034, Universal
+      Context and Predictive Runtime," asserting a real git-log search confirmed OCID-022 through
+      OCID-037 are all genuinely merged except OCID-034, with "no merged PR found citing OCID-034
+      anywhere in origin main history."
+
+      **That premise is false, confirmed with hard evidence before writing anything.** OCID-034
+      ("VERIDIAN Universal Context and Predictive Runtime") is already merged: PR #779, merged
+      `2026-08-03T07:03:19Z`, commit `7a6ad5ab`, artifact
+      `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md`. That merged document
+      cites the *exact same UMR* this task's own SPEC cites (`UMR-20260803-042003-5e92`) as its real
+      dispatch UMR -- not merely the same topic, the identical dispatch record. `git log origin/main
+      --oneline --grep="OCID-034" -i` surfaces the merge commit directly in one command; the SPEC's
+      "no merged PR found" claim does not survive that trivial check.
+
+      Confirmed this is not an orphaned or stale artifact needing redo: the merged doc is actively
+      cross-referenced as the canonical, `MERGED` OCID-034 foundation by at least five other
+      later-merged documents (`ai-os/OS.yaml:267`, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (6+
+      references), `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md:61`,
+      `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`,
+      `ai-os/MASTER-TRACKER.yaml:2586-2588`), and it already has one honest, already-merged
+      correction filed against one of its sub-claims (the PWA/manifest finding, via
+      `VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`) -- i.e.
+      this OCID is not just "done," it is a live, healthy, actively-maintained piece of the
+      documentation graph.
+
+      Declined to create a second, competing OCID-034 artifact. Per this repo's own established
+      precedent for false-premise dispatches (this file's own OCID-068 and OCID-001..006 duplicate
+      closures; PR #918, PR #912), the correct action is to record the real finding and close --
+      not fabricate new content that would either duplicate or silently contradict already-correct,
+      already-cross-cited work. No documentation artifact, no code, no schema, no UI/UX change.
+    scope_note: >-
+      File scope: `PROGRESS.md` (full reasoning trail), this `ACTIVE-CLAIMS.yaml` entry. No new
+      `ai-os/` artifact, no `OS.yaml`/`MASTER-TRACKER.yaml` edit (nothing to correct in either --
+      OCID-034's live status is already accurately reflected in both), no src/, schema, or CI
+      changes.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
