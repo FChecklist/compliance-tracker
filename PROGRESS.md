@@ -15,4 +15,5 @@
 - [x] Verified `check-metadata-index-coverage.mjs` and `check-guardrail-presence.mjs` both pass locally
 
 ## Remaining
-- [ ] Open PR, let CI run, report back to PM/Owner for a decision on whether real UTR-structure implementation opens under OCID-021 or a later phase
+- [x] Open PR (#875: https://github.com/FChecklist/compliance-tracker/pull/875)
+- [ ] Let CI run; report back to PM/Owner for a decision on whether real UTR-structure implementation opens under OCID-021 or a later phase
