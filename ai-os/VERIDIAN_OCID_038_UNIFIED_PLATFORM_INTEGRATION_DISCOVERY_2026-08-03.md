@@ -327,18 +327,23 @@ code boundary, not a vague "wrong branding":**
   if hostname-based branding resolution were built today, there is currently no data connecting that
   specific domain to any specific org's branding — this is a second, independent precondition, not
   just a missing code path.
-- A real Wave-9-provisioned PROJEXA org (`Acme Test Construction`,
-  `05886eb3-40bf-4b04-9bce-8d188da573af`) has `primaryProductBranchId` set
-  (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) — but a direct `psql` read of `compliance.product_branches`
-  shows exactly **1 row total**, `branch_key='grc'` ("VERIDIAN AI GRC") — no row matching that id, and
-  no "projexa"-named branch at all. **This finding should be treated as a possible 3rd occurrence of
-  the already-tracked `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`** (2 independent prior
-  occurrences already documented: a live `403` from `requireErpEnabled()` that could only happen if an
-  `'erp'` branch row resolved successfully server-side, and a confirmed-real Mother Router audit-log
-  write, both contradicting a direct external read showing the relevant table effectively empty) —
-  **not fresh, standalone proof that no PROJEXA branch exists.** That gap's own recommendation (a live
-  Vercel-side diagnostic, not another external read) applies equally here and has not been done for
-  this specific question.
+- **Correction (2026-08-04, PM decision `UMR-20260804-030715-b004`, real root cause found for
+  `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` — see that entry in `MASTER-TRACKER.yaml`
+  for the full evidence):** the paragraph below, as originally written, was itself a real instance of
+  that exact gap, not just a "possible 3rd occurrence" flagged for later investigation. A real
+  Wave-9-provisioned PROJEXA org (`Acme Test Construction`, `05886eb3-40bf-4b04-9bce-8d188da573af`)
+  has `primaryProductBranchId` set (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) — the original direct
+  `psql` read against `compliance.product_branches` found no matching row and no "projexa"-named
+  branch, but that query targeted the wrong Postgres schema: a real, hand-authored migration
+  (`drizzle/0245_create_platform_schema_compartment.sql`, 2026-07-19) had already moved
+  `product_branches` from `compliance` to a separate `platform` schema. Re-queried correctly against
+  `platform.product_branches`: **27 real rows**, including `branch_key='projexa'` at id
+  `5fceebcd-0a7a-4448-ae2b-a72637124f13` — an exact match for this org's `primaryProductBranchId`.
+  There is no orphaned-FK data-integrity gap; the real PROJEXA product-branch row genuinely exists and
+  this org's logged-in branding resolution (`resolveBranding()`, Wave 5) genuinely works as designed.
+  A separate, stray, orphaned `compliance.product_branches` (1 row, `branch_key='grc'`) does exist —
+  real but unrelated technical debt, not read by any live code path, flagged separately in
+  `MASTER-TRACKER.yaml`, not the explanation for anything in this document.
 
 **The real, still-open product question — precisely scoped, not "fix the domain":**
 Building hostname-aware branding resolution is a real, bounded, buildable piece of engineering (read
