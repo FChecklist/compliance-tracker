@@ -105,6 +105,69 @@ open_items:
       status: LOCKED
       first_raised: "Real Owner directive, 2026-08-04 (UMR-20260804-111532-3612, UMR-20260804-111547-0be3)"
 
+    - id: OCID-054-REGISTRATION-AND-DUPLICATION-RECONCILIATION
+      name: "OCID-054 (Universal Repository Reconciliation and Clean State Certification) registered -- discovery-only, real UMR UMR-20260804-162201-bc4e -- but this exact discovery was already performed ~12h earlier by still-open, unmerged PR #869"
+      detail: |
+        Real Owner directive, registration + read-only discovery/inventory only (no rotation, no
+        deletion/archival/visibility change, no cleanup/merge/retirement). Full text, metadata,
+        and findings: ai-os/OCID_054_UNIVERSAL_REPOSITORY_RECONCILIATION_REGISTRATION_2026-08-04.md.
+
+        Central finding: PR #869 (`worker/task-20260804-040754-register-ocid-054--universal-
+        repository`, opened 2026-08-04T04:19:20Z) already performed this exact org-wide 15-repo
+        discovery/branch-PR-census/security-scan pass and remains open/unmerged, CI failing
+        (Metadata Index Coverage Check, audit-check). This document does not re-derive that
+        census -- cites it, live-re-verifies the highest-risk facts (repo count unchanged at 15;
+        veda-advisors still 22 open publicly-leaked google_api_key alerts, unchanged), and adds
+        one new finding PR #869 doesn't have: its own commit (03f60ffd) quoted a raw leaked
+        secret value directly in its discovery doc and in this file, creating a fresh, live
+        secret-scanning alert (#1, google_api_key, publicly_leaked: true) on compliance-tracker
+        itself -- a public repo -- since post-dating PR #869's own clean scan. See
+        GAP-COMPLIANCE-TRACKER-PR869-SECRET-REEXPOSURE below.
+
+        Also honestly documents that OCID-053 (this OCID's stated parent) has no merged canonical
+        registration as of this writing: the original narrative-only UMR
+        (UMR-20260804-033853-2a17) was found by the Owner's own PR #901 to be "never a real
+        registered task identity"; PR #867 (the most substantial real attempt, 455 additions) is
+        open/unmerged; PR #901 (a fresh Owner-directed redo, real UMR UMR-20260804-160456-41b3)
+        was closed 2026-08-04T16:13:25Z by the Owner's own account as a genuine duplicate of PR
+        #867, with an explicit recommendation to reconcile the existing OCID-053..061 PR cluster
+        (#866-870, #873-875, #878) rather than keep creating fresh registration documents; a third
+        attempt, PR #903, is redoing the identical OCID-053 registration concurrently with this
+        very dispatch (sibling task, 4 seconds apart in the same batch).
+      recommendation: "Per the Owner's own 2026-08-04T16:13:25Z guidance (PR #901 close comment):
+        resolve/merge the existing OCID-053..061 PR cluster (especially PR #869 for OCID-054 and
+        PR #867 for OCID-053) through real independent review, rather than dispatching further
+        fresh registration documents for OCIDs this cluster already covers. Reconciliation
+        implementation itself (repository classification, rotation, disposition) stays LOCKED
+        behind the same OCID-020 through OCID-040 gate governing OCID-053 -- not started here."
+      status: "registered, discovery-only; real implementation LOCKED behind OCID-020..040 gate"
+      first_raised: "Real Owner directive, 2026-08-04 (this dispatch, UMR-20260804-162201-bc4e)"
+
+    - id: GAP-COMPLIANCE-TRACKER-PR869-SECRET-REEXPOSURE
+      name: "compliance-tracker's own first secret-scanning alert: PR #869 quoted a raw, already-known-leaked veda-advisors Google API key value verbatim in its own discovery doc + MASTER-TRACKER.yaml, creating a fresh live public exposure on this repo"
+      detail: |
+        Found during OCID-054's real discovery reconciliation pass
+        (ai-os/OCID_054_UNIVERSAL_REPOSITORY_RECONCILIATION_REGISTRATION_2026-08-04.md Sec.4).
+        `gh api repos/FChecklist/compliance-tracker/secret-scanning/alerts` returns 1 real,
+        currently open alert (#1), secret_type google_api_key, publicly_leaked: true, state: open,
+        created_at 2026-08-04T04:19:12Z, first location
+        ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md#L256 and
+        ai-os/MASTER-TRACKER.yaml#L2373, commit 03f60ffd (PR #869's own branch, NOT yet an
+        ancestor of origin/main). Root cause: that commit's own discovery text pasted the raw
+        secret value of an already-known veda-advisors leaked key directly into a document
+        committed to the public compliance-tracker repo, "to confirm the finding is real" --
+        compounding rather than just reporting the original veda-advisors leak (GAP-VEDA-
+        ADVISORS-EXPOSED-GOOGLE-API-KEYS, tracked on PR #869's own unmerged branch, not yet on
+        main). The raw secret value is deliberately NOT reproduced anywhere in this repo's own
+        tracked files by this entry or its parent document.
+      recommendation: "Highest urgency of this dispatch's findings: have PR #869 rewritten (drop
+        the raw secret value, cite the GitHub alert instead) or closed before it is ever merged --
+        merging as-is would carry this leak permanently into main's history. Not actioned here --
+        editing/closing another session's open PR is a retirement/cleanup action reserved for the
+        Owner per this dispatch's explicit hard boundary."
+      status: "open, awaiting explicit Owner decision -- time-sensitive (live public exposure on an open PR branch)"
+      first_raised: "OCID-054 registration + discovery reconciliation, 2026-08-04 (UMR-20260804-162201-bc4e)"
+
     - id: OPEN-04
       name: "Audit Organization role granularity (DEC-01 leftover)"
       detail: "roster.ts now has 130 of the ~150 individually-named audit-org roles from Audit Organization.docx (5/5 divisions, 25/25 departments structurally complete) -- built without waiting on DEC-01's original pilot-first recommendation, per later 'don't wait' directives. Whether the remaining ~20 role names are worth adding individually, vs. treated as covered by the 130 that exist, was never explicitly re-decided."
