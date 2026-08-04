@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-045456-pm-priority-decision--pr-865-review-supe) -- PM priority decision (SPEC citing OCID-021 `UMR-20260802-173631-ca85` / OCID-049 `UMR-20260803-115513-c990`): pause OCID-057, free a slot, start PR #865 review supervisor [CLOSED, premise stale -- no action needed]"
+    claimed_at: "2026-08-04T04:55Z (this session)"
+    claim: |
+      SPEC's stated premise (all 5 real worker slots full with an OCID-053-057 discovery cascade,
+      review supervisor for PR #865 unable to start) was verified directly against real state, not
+      assumed, and found stale by the time this session acted: `systemctl --user list-units
+      'veridian-worker@*'` shows the real 5 current slots as OCID-058/059/060 (next discovery wave),
+      the concurrent `task-20260804-045452-pm-decision--fix-pr-865-terminology-guar` session, and this
+      task itself -- none is OCID-057 or OCID-053-056. `git log --oneline --all | grep -iE
+      "OCID-05[3-7]"` confirms all five already have their own real completion commits (OCID-057's own:
+      `050b8e2c`, "real Universal Knowledge Register/Graph/Dedup/Broken-Reference/Orphan report") --
+      the cascade had already finished naturally, nothing to pause or checkpoint. `gh pr view 865`
+      confirms PR #865 was already `MERGED` at `2026-08-04T04:50:01Z`, 5 minutes before this task
+      started, by the concurrent terminology-guardrail-fix session's own work (commit `1142f050`,
+      already in this branch's history; this branch's own HEAD `f11d04ff` is the merge commit).
+      Independently re-verified the merge was genuine via `gh pr checks 865`: every required gate
+      (Lint/Type Check/Build/Unit/E2E/Guardrail Presence/Terminology Guardrail/audit-check/Secret
+      Scanning/Security Pattern/doc checks/migration checks) passes; only non-blocking `Vercel`
+      (rate-limited preview) and `CodeQL` (skipping) are not green. No pause/resume/supervisor-start
+      action was taken -- there was no live OCID-057 process and no un-merged PR #865 to act on. Full
+      write-up: this task's own `PROGRESS.md`. If a future session hits a similar "cap is full, pause X"
+      premise from a stale SPEC, re-check real state (`systemctl --user list-units`, `gh pr view`) before
+      acting, same as done here -- per this user's own cross-session memory note on live concurrent
+      state drift.
+    scope_note: >-
+      Investigation/verification only, no source changes. Files touched: this task's own `PROGRESS.md`
+      and this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry. Did not touch OCID-058/059/060's live work, the
+      concurrent terminology-guardrail-fix task, or any file PR #865 already merged.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
