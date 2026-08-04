@@ -1322,6 +1322,75 @@ need already does.
 Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md` (new), this
 file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim entry,
 to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
+
+---
+
+## Amendment 2026-08-03: OCID-038, OCID-039, OCID-040 — real discovery + real end-user verification (implementation/certification/freeze LOCKED)
+
+**Real numbering note:** this task's own `task.yaml` title is "OCID-039," but its own dispatched SPEC
+explicitly asks it to register all three of OCID-038 (`UMR-20260803-072810-a3c1`), OCID-039
+(`UMR-20260803-072825-3706`), and OCID-040 (`UMR-20260803-072840-52dd`) together, scoped to discovery
++ real live end-user testing + documentation only — matching what
+`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` had already described as OCID-038's own
+mission and recorded as "not yet dispatched as its own worker task" before this one. Recorded honestly
+rather than silently resolved, same class of correction as the OCID-026/027/028/029/030/036/037
+mislabels already fixed earlier in this same chain.
+
+**Real confirmation of the lock, not re-litigated:** `ai-os/CONSTITUTION.yaml`'s `SEC-07` is the real,
+formal record. OCID-020 (`UMR-20260802-165606-4413`) is independently re-confirmed **still open**
+(`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §4). Real Owner decision (this task's own
+SPEC): keep the lock strict. Therefore no implementation, gap closure, production change, completion
+certification, or platform freeze is performed by this amendment or its canonical artifact.
+
+**Real discovery performed** (`git ls-files`/`git grep`, not bare recursive `find`/`grep -r` — those
+were independently found this session to silently cap output at exactly 51 results regardless of real
+directory size, a real sandbox gotcha disclosed in the canonical artifact and this session's own
+memory): real inventory (163 pages, 991 API routes, 654 `src/lib` files, 301 services) cross-referenced
+against, not re-derived from, OCID-022/024/025/028/034's existing discovery. One real, disclosed
+correction filed against OCID-034's "no PWA" claim: a real PWA manifest does exist
+(`src/app/manifest.ts`, Next.js's native metadata-route convention, not the literal filename
+`manifest.json` OCID-034's search used) — live-confirmed serving HTTP 200 with a real `share_target`;
+the separate "no service worker" part of that same OCID-034 finding remains correct, live-reconfirmed.
+
+**Real, evidenced live end-user testing performed** against `https://projexa-ai.com` (real Playwright
+session, `playwright-core` borrowed read-only from `/opt/veridian/repos/compliance-tracker/node_modules`,
+the already-established `~/.local/chrome-system-libs` `LD_LIBRARY_PATH` fix): 2 of 3 real
+signup+Admin-API-bypass+login sessions fully succeeded (real Supabase user ids
+`b48476ea-d5d7-4e47-aae8-69ae5bb9bd27`, `177ce017-7379-4d94-86d3-d2ec5aaae397`); the 3rd was really
+rejected by Supabase's own `over_email_send_rate_limit` (HTTP 429) — a real production safety control,
+not a product bug, disclosed as the reason further fresh-account testing stopped this session rather
+than retried a 3rd consecutive time. Real confirmed findings: installable PWA manifest with
+`share_target`; a real user-facing "VERI, Your AI Assistant" onboarding surface; a real mode-pill/
+option-chain composer UI (`Discuss/Chats/To Do` pills, a literal "chain" selector captioned "Complete
+the chain above to start typing," a VERI Chat panel with `Overview/Tasks/Chats/Meetings/Approvals/
+Voice/To Do` tabs); one real reproducible "VERI AI isn't ready yet — try again in a moment" toast; real
+Sign Out UI (self-corrected after an initial false-negative automated text-probe); real offline
+behavior (blank page, no service worker, clean recovery on reconnect); a partial, single-observation
+mobile-viewport finding (blank main content area at 390×844 in an already-authenticated session).
+Explicitly, honestly left untested this session (disclosed, not silently skipped): real org switch
+between two member orgs, real file attachment upload, real voice input, real task delegate/transfer/
+approve/reject, the search command palette (`Cmd+K`/`Ctrl+K` opened no dialog), real cross-device
+continuity, native PWA install, and reports/analysis flows.
+
+**Real gaps registered as child UMRs, implementation explicitly deferred** (`ai-os/MASTER-TRACKER.yaml`):
+`GAP-VERI-TODO-STUCK-LOADING-NOT-READY` (`UMR-20260803-072925-cacf`),
+`GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE` (`UMR-20260803-072940-6a88`),
+`GAP-MOBILE-VIEWPORT-BLANK-CONTENT` (`UMR-20260803-072955-3132`), plus the PWA documentation
+correction (`UMR-20260803-073010-fcaf`) filed against OCID-034's doc and this file's own OCID-034
+amendment above.
+
+**Status, real and current:**
+
+| OCID | UMR | Section (this file) | Status |
+|---|---|---|---|
+| OCID-038 | `UMR-20260803-072810-a3c1` | Real platform discovery + honest E2E verification | **Discovery + real testing complete this pass; real implementation explicitly deferred pending OCID-020 unlock** |
+| OCID-039 | `UMR-20260803-072825-3706` (this task's own dispatch title) | Real end-user production certification discovery | **Discovery + real testing complete this pass (functionally the same real work as OCID-038 above, per this task's own combined SPEC); real production certification explicitly deferred pending OCID-020 unlock** |
+| OCID-040 | `UMR-20260803-072840-52dd` | Final certification + platform freeze | **NOT performed — explicitly locked pending OCID-020 unlock, then OCID-038 implementation, then OCID-039 certification, in that order** |
+
+Canonical artifact: `ai-os/VERIDIAN_OCID_038_039_040_REAL_DISCOVERY_AND_END_USER_VERIFICATION_2026-08-03.md`
+(new), this file (this amendment), `ai-os/OS.yaml` (new index entry + OCID-034 correction),
+`ai-os/MASTER-TRACKER.yaml` (3 new gap entries), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim entry) — not
+rewritten, not duplicated.
 ## Amendment (2026-08-03): OCID-20260803-027 — VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0
 
 Real, Owner-directed, tier 1 directive, documentation only — no implementation. Parented to
