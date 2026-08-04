@@ -2567,6 +2567,47 @@ open_items:
         Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
         bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
+    - id: GAP-OCID058-DISPATCH-PREMISE-UMR-MISCHARACTERIZED
+      name: "This OCID-058 registration task's own dispatch prompt asserted a 'zero duplication' finding and a specific predecessor UMR for OCID-057 that a direct live query shows are false/mischaracterized -- the same recurring dispatch-hygiene defect class OCID-057's own task (PR #866, open) separately found and flagged for a different symptom (a fabricated OCID-053..056 parent chain)"
+      old_ids: []
+      detail: |
+        Real, live finding, `ai-os/VERIDIAN_OCID_058_UMR_PREDECESSOR_REGISTRATION_2026-08-04.md` (this
+        task's own registration document). Two of the three factual premises in this task's own dispatch
+        prompt do not hold as stated: (1) "Zero duplication independently confirmed... exact query
+        against the real umr_tasks database... returned zero matches" -- `gh pr list --search "ocid-057"`
+        / `"ocid-058"` (state: all) show real, open, unmerged PRs already exist for both (#866, #875),
+        each with substantial real content; querying `umr_tasks` (a systemctl-dispatch table) says
+        nothing about GitHub PR history. (2) "OCID-057's own real UMR is UMR-20260804-053248-0e0f,
+        already minted and confirmed present" -- that row is real (independently re-verified live against
+        `/opt/veridian/ai-os/memory/superboss-register.sqlite` via `resource_governor.py --query-umr`,
+        not trusted from the prompt alone) but its own `status` field reads `rejected_duplicate` -- one
+        of seven identical resume-retry rejections for the same `task_identity`, all citing the real
+        canonical `status=running` row, `UMR-20260804-042343-572b`, as already queued. Separately, PR
+        #875's own citation of OCID-057's parent (`UMR-20260804-035943-3c38`) was also checked live and
+        found to be a raw `owner_dispatch_gateway` row with no confirmed textual link to "OCID-057" --
+        likely inferred from chronological adjacency, not a verified identity match.
+
+        This is the same defect class `GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES` (registered by PR
+        #866, OCID-057's own task, still open/unmerged as of this writing -- not yet on `main`) already
+        names for a related but distinct symptom (a wholesale-fabricated OCID-053..056 parent chain with
+        four UMR IDs that do not exist anywhere). This entry's own symptom is narrower and arguably harder
+        to catch: the cited UMR is real and does exist, but its status/identity is materially
+        mischaracterized rather than absent -- a false positive of a different shape than a flat
+        nonexistent reference.
+      size: "XS -- this entry itself is the fix (a permanent, citable record); no code change involved"
+      recommendation: |
+        Once PR #866 merges and `GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES` lands on `main`, broaden
+        that entry (or cross-link this one under it) to cover both symptom shapes: (a) a cited
+        OCID/UMR reference that does not exist at all, and (b) a cited reference that exists but is
+        mischaracterized (wrong status, unconfirmed identity mapping). Future dispatch-prompt-generation
+        sessions should query `umr_tasks` directly (`resource_governor.py --query-umr`) and read the
+        `status`/`task_identity` fields of any UMR they intend to cite as a "real, confirmed" predecessor,
+        rather than treating existence-in-the-database alone as sufficient confirmation.
+      status: "open (owner_blocked in effect -- same standing, recurring dispatch-hygiene issue
+        GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES already names; not something a single session can
+        close, flagged to the Owner per that entry's own precedent)"
+      first_raised: "OCID-058, 2026-08-04 (this document)"
+
     - id: GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED
       name: "The real, tested 5-tier browser execution system (src/lib/browser-execution/) is built but its actual model-inference engines are not wired into VeriComposer.tsx's live send path -- only tier selection/telemetry is live today"
       old_ids: []
