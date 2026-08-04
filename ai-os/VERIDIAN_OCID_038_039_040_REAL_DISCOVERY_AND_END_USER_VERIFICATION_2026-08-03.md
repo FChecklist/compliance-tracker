@@ -227,6 +227,19 @@ unlock (§1). None of these are fixed by this document.
 
 ---
 
+## 4a. Real follow-up discovery, 2026-08-04 (`UMR-20260804-194407-6148`, discovery/testing only per SEC-07)
+
+Real, honest continuation of §3.11's disclosed miss ("real search command palette: `Cmd+K`/`Ctrl+K` did not open a dialog in this session's probe... not chased further"). This session has no live-browser/click-automation tool available (confirmed by checking the current toolset before starting), so this pass is a real, code-level discovery investigation, not a repeat live-browser reproduction -- disclosed as such, not presented as a live re-test.
+
+**What was checked, and the real result:**
+- `src/components/search-command.tsx` (`SearchDialog`/`SearchTrigger`): the `Cmd+K`/`Ctrl+K` keydown listener (`document.addEventListener("keydown", handleKeyDown)`, line 129) is registered unconditionally whenever `SearchDialog` is mounted -- it is not gated behind the visible search button's own `hidden sm:flex` viewport class (that class only hides the clickable button + `⌘K` hint below the `sm` breakpoint, not the listener).
+- An initial hypothesis -- that `SearchTrigger` (and therefore the listener) might only be mounted on a subset of pages -- was formed from an incomplete first grep (`src/app` page files only found direct imports in `home/page.tsx` and `users/page.tsx`) and was **wrong**: `src/components/AppShell.tsx` is the real, single mount point, imported by `src/app/(app)/layout.tsx` and therefore wrapping all 51 authenticated routes under `(app)/`. `AppShell` renders `<AppTopbar />` (which itself renders `<SearchTrigger />`) unconditionally in **both** of its real render branches -- the `veriChatV2Enabled` branch (line 155) and the legacy branch (line 202) -- so the keybinding is genuinely wired app-wide, not page-scoped, contradicting the initial hypothesis before it was published anywhere.
+- **Real, honest result: no code-level bug was found.** The keybinding, its global mount point, and its handler all look correct on inspection. This document does not assert a root cause for the original "did not open a dialog" observation -- confirming or refuting it further requires live browser interaction (real keyboard-event dispatch, devtools inspection of what actually receives the keydown, checking for a browser-level or OS-level shortcut collision) that this session's toolset cannot perform.
+
+**Per SEC-07/Hard Rule 7:** this is discovery/testing only. No code was changed. No gap is being closed. No certification is issued for search, or for anything else in this chain. The original §3.11 miss remains open and untested end-to-end; this entry narrows (does not close) the hypothesis space and honestly discloses the limit of what a browser-less session could verify.
+
+---
+
 ## 5. Explicit non-certifications (per this OCID's own directive)
 
 This document does **not** certify, and explicitly states as not yet true:
