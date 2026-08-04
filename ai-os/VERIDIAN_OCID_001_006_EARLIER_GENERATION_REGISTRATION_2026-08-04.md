@@ -29,17 +29,38 @@ real" version of this document to retract, since none was ever published.
 
 ## 2. Independent corroboration performed in this session
 
-This session does not have direct query access to the real `umr_tasks` store referenced above (a
-prior, separate finding this same session: the local `/opt/veridian/ai-os/umr_tasks.db` file
-exists but contains zero tables, and no Postgres table matching `%umr%` exists in the live
-production database this session has `DATABASE_URL` access to — that store lives somewhere this
-session cannot directly reach). The PM's exact-field-match finding is therefore cited on the PM's
-own authority, not independently re-run against the source database.
+**Correction (post-merge addendum, same session):** this document originally stated this session
+had no direct query access to the real `umr_tasks` store, and cited the PM's exact-field-match
+finding on the PM's own authority alone. That was itself a real error, caught and corrected in this
+same session shortly after this document merged, during an unrelated OCID-068 governance-script
+discovery pass: `/opt/veridian/ai-os/umr_tasks.db` (empty, zero tables) is a dead, unreferenced
+artifact with a confusingly UMR-suggestive name — the real, live, actively-written `umr_tasks`
+**table** lives inside `/opt/veridian/ai-os/memory/superboss-register.sqlite` (a real 1.03GB
+SQLite file, 2,227 real rows at time of this correction, rows timestamped as recently as the same
+day this correction was written). This session does have direct read access to that file.
 
-As a partial independent check, this repo's own real git history (`git log --all --grep`) and
-`ai-os/boss/ACTIVE-CLAIMS.yaml` were searched for each of the six UMR strings. Three of six were
-found cited as real, legitimate references in real commits/claims predating this session's own
-OCID numbering convention:
+Using that real access, all six UMRs below were independently, directly re-verified via a
+read-only query (`SELECT umr_id, task_identity, status, ts_submitted FROM umr_tasks WHERE umr_id =
+?`) against the live table, not merely cited on the PM's authority:
+
+| UMR | Real row found | `task_identity` | `status` | `ts_submitted` |
+|---|---|---|---|---|
+| `UMR-20260802-034545-3388` | yes, exactly 1 row | `owner-task-20260802-034542-1608924` | `rejected_duplicate` | `2026-08-02T03:45:45.889923+00:00` |
+| `UMR-20260802-040056-5319` | yes, exactly 1 row | `owner-task-20260802-040054-1672871` | `completed` | `2026-08-02T04:00:56.288741+00:00` |
+| `UMR-20260802-054239-4251` | yes, exactly 1 row | `owner-task-20260802-054235-2032530` | `completed` | `2026-08-02T05:42:39.627776+00:00` |
+| `UMR-20260802-104058-25ba` | yes, exactly 1 row | `owner-task-20260802-104056-3017000` | `running` | `2026-08-02T10:40:58.062740+00:00` |
+| `UMR-20260802-105532-775a` | yes, exactly 1 row | `owner-task-20260802-105531-3067222` | `running` | `2026-08-02T10:55:32.250614+00:00` |
+| `UMR-20260802-111028-67b9` | yes, exactly 1 row | `owner-task-20260802-111027-3120117` | `rejected_duplicate` | `2026-08-02T11:10:28.421691+00:00` |
+
+All six are now fully, independently, directly confirmed by this session's own query against the
+real source table — not cited on the PM's authority alone as the original version of this document
+stated. The §2 repo-history corroboration below, performed before this correction, stands as
+additional (now redundant but still accurate) supporting evidence.
+
+As a partial independent check performed before the correction above, this repo's own real git
+history (`git log --all --grep`) and `ai-os/boss/ACTIVE-CLAIMS.yaml` were searched for each of the
+six UMR strings. Three of six were found cited as real, legitimate references in real
+commits/claims predating this session's own OCID numbering convention:
 
 - `UMR-20260802-034545-3388` — cited as a real "master directive" in `ACTIVE-CLAIMS.yaml`
   (`task-20260802-040131-parallel-job--collate-existing-module-en` entry) and appears in real
@@ -65,12 +86,12 @@ convention itself.
 
 | OCID | Real UMR | Status |
 |---|---|---|
-| OCID-001 | `UMR-20260802-034545-3388` | Real, pre-existing, confirmed by exact `umr_id` field match. Independently corroborated in this repo's own history (§2). Superseded, non-active, historical only. |
-| OCID-002 | `UMR-20260802-040056-5319` | Real, pre-existing, confirmed by exact `umr_id` field match (PM authority; not independently corroborated in this repo's own history). Superseded, non-active, historical only. |
-| OCID-003 | `UMR-20260802-054239-4251` | Real, pre-existing, confirmed by exact `umr_id` field match. Independently corroborated in this repo's own history (§2). Superseded, non-active, historical only. |
-| OCID-004 | `UMR-20260802-104058-25ba` | Real, pre-existing, confirmed by exact `umr_id` field match. Independently corroborated in this repo's own history (§2). Superseded, non-active, historical only. |
-| OCID-005 | `UMR-20260802-105532-775a` | Real, pre-existing, confirmed by exact `umr_id` field match (PM authority; not independently corroborated in this repo's own history). Superseded, non-active, historical only. |
-| OCID-006 | `UMR-20260802-111028-67b9` | Real, pre-existing, confirmed by exact `umr_id` field match (PM authority; not independently corroborated in this repo's own history). Superseded, non-active, historical only. |
+| OCID-001 | `UMR-20260802-034545-3388` | Real, pre-existing. Independently re-verified by this session's own direct query against `umr_tasks` (§2) and corroborated in this repo's own history (§2). Superseded, non-active, historical only. |
+| OCID-002 | `UMR-20260802-040056-5319` | Real, pre-existing. Independently re-verified by this session's own direct query against `umr_tasks` (§2). Superseded, non-active, historical only. |
+| OCID-003 | `UMR-20260802-054239-4251` | Real, pre-existing. Independently re-verified by this session's own direct query against `umr_tasks` (§2) and corroborated in this repo's own history (§2). Superseded, non-active, historical only. |
+| OCID-004 | `UMR-20260802-104058-25ba` | Real, pre-existing. Independently re-verified by this session's own direct query against `umr_tasks` (§2) and corroborated in this repo's own history (§2). Superseded, non-active, historical only. |
+| OCID-005 | `UMR-20260802-105532-775a` | Real, pre-existing. Independently re-verified by this session's own direct query against `umr_tasks` (§2). Superseded, non-active, historical only. |
+| OCID-006 | `UMR-20260802-111028-67b9` | Real, pre-existing. Independently re-verified by this session's own direct query against `umr_tasks` (§2). Superseded, non-active, historical only. |
 
 ## 4. Status and scope
 
