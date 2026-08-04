@@ -2179,6 +2179,14 @@ open_items:
       status: open
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
 
+    - id: GAP-PROGRESS-MD-TRUNCATED-210700-SECTION
+      name: "PROGRESS.md's task-20260802-210700 section is genuinely truncated mid-sentence on origin/main"
+      detail: "Discovered while resolving an independent-audit finding on PR #854 (a real, correct rejection: this PR's own diff had dropped that section entirely). Confirmed directly against a fresh clone (not this branch's own history): `git show origin/main:PROGRESS.md` is exactly 31 lines and ends mid-sentence, '... more files changed' -- not a real closing line, almost certainly truncated AI tool-output committed verbatim by an earlier session. Predates this PR; not caused by it. Restored verbatim (including the real truncation) into this PR's own PROGRESS.md rather than fabricating a plausible-looking ending."
+      size: S
+      recommendation: "Whoever next touches PROGRESS.md's task-20260802-210700 section should check git history/that task's own task.yaml checkpoints for the real remainder of what 'this file to reflect ... more files changed' was meant to say, and complete the sentence -- or, if the real content is unrecoverable, replace the dangling fragment with an explicit note that it was truncated, rather than leaving it silently mid-sentence."
+      status: open
+      first_raised: "PR #854 review-response, 2026-08-04 (this document)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
