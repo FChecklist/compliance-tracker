@@ -475,8 +475,8 @@ cooldown; (3) redirect freed capacity to real, useful work.
       failure-injection console output, not a real failure). All 4 governance checks pass.
 
 ## Remaining
-- [ ] Open PR, confirm CI green, hand off for independent audit per Rule 10 -- not
-      self-certified here.
+- [x] Open PR: https://github.com/FChecklist/compliance-tracker/pull/896
+- [ ] Confirm CI green, hand off for independent audit per Rule 10 -- not self-certified here.
 - [ ] Real post-merge step (out of this task's own scope): re-run a real authenticated
       session against `/veri-todo` and the composer's "discuss" submit to independently
       re-verify both fixes live, then flip `GAP-VERI-TODO-STUCK-LOADING-NOT-READY` to a closed
