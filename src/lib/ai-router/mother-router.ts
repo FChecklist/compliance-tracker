@@ -521,12 +521,13 @@ export async function getOrgAiPackage(orgId: string): Promise<string | null> {
     db.query.subscriptionPlans.findMany({
       // GAP-OCID-049 live-reverify fix (UMR-20260804-221844-c915): the real
       // subscription_plans table also carries 4 pre-existing legacy rows
-      // (Trial/Starter/Growth/Scale, seeded 2026-07-01, 18 days before this
-      // Basic/Standard/Professional/Enterprise scheme's own 2026-07-19
-      // migration) that were never meant to participate in this fallback --
-      // this file's own header comment already names `features.aiPackage`
-      // as the deliberate discriminator for that scheme; filter on it here
-      // too so a legacy row can never win the band-fit `find()` below.
+      // (Trial/Starter/Growth/Scale) seeded well before this task's own
+      // Basic/Standard/Professional/Enterprise scheme's migration -- see
+      // that migration's own file header for the real timeline -- that were
+      // never meant to participate in this fallback. This file's own header
+      // comment already names `features.aiPackage` as the deliberate
+      // discriminator for that scheme; filter on it here too so a legacy
+      // row can never win the band-fit `find()` below.
       where: and(eq(subscriptionPlans.isActive, true), sql`${subscriptionPlans.features} ->> 'aiPackage' IS NOT NULL`),
       orderBy: (t, { asc }) => asc(t.userPackSize),
     }),

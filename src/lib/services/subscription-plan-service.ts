@@ -26,9 +26,10 @@ export async function resolveSubscriptionPlan(orgId: string): Promise<ResolvedSu
     db.query.subscriptionPlans.findMany({
       // Real, live bug found during Group F re-verification (UMR-20260804-221844-c915):
       // the real subscription_plans table also carries 4 pre-existing legacy rows
-      // (Trial/Starter/Growth/Scale, seeded 2026-07-01, 18 days before this
-      // Basic/Standard/Professional/Enterprise scheme's own 2026-07-19 migration)
-      // that were never meant to participate in this fallback -- confirmed live: a
+      // (Trial/Starter/Growth/Scale) seeded well before this task's own
+      // Basic/Standard/Professional/Enterprise scheme's migration -- see that
+      // migration's own file header for the real timeline -- that were never
+      // meant to participate in this fallback. Confirmed live: a
       // fresh 1-user org resolved to "Trial" (cap 5) instead of "Basic" (cap 3), and
       // an existing 48-user org resolved to "Scale" (cap 5) instead of "Professional"
       // (cap 8), since both tie at userPackSize=50 and Scale sorted first. Filtering
