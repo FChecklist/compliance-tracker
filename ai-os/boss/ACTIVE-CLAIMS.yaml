@@ -6564,6 +6564,19 @@ recently_completed:
       scope. No production data touched -- all writes (the one real Web Share Target message) went
       through real, live, self-service test accounts, isolated from any real customer org.
 
+    umr_disambiguation_note_2026-08-04T04:00Z: |
+      OCID-053 UMR Integrity Report flagged this entry's own claim text as genuinely ambiguous:
+      "citing UMR-20260802-165606-4413/OCID-020 and this OCID's own UMR-20260803-115558-170e):
+      OCID-050 confirmed genuinely complete via PR #843 ..." places "this OCID's own [170e]"
+      directly before the OCID-050-completion clause, readable as attributing 170e to OCID-050.
+      Independently re-verified against 3 canonical sources (batch planning doc line 195, the
+      dedicated OCID-051 planning doc's own header, ai-os/OS.yaml line 218): `170e` genuinely
+      belongs to OCID-051 -- "this OCID" in the original sentence correctly refers to this entry's
+      own subject, OCID-051 (the session_label's real subject), not the OCID-050 mentioned in the
+      following clause. OCID-050's real UMR is `UMR-20260803-115534-af31`. No new UMR minted --
+      neither OCID lacked one. Full analysis: `ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`
+      §4a. This note corrects the ambiguity going forward without rewriting the original entry.
+
   - session_label: "claude-code (docs/ocid050-full-115x3-sweep-and-large-data-org) -- OCID-050 full 115-page x 3-state sweep + real large-data org, 345/345 [DONE]"
     claimed_at: "2026-08-03T19:00Z (this session, closed same session)"
     claim: |

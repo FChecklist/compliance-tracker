@@ -1,0 +1,233 @@
+# OCID-053 — Universal Knowledge Graph, Reference Graph, UMR Integrity Report,
+# Orphan/Duplicate Detection Report
+
+**OCID-053's own UMR:** none minted — this OCID is registered directly against its two real
+parents' own UMRs, per this task's own spec (discovery-only, no new UMR chain root needed for a
+pure graph-building/repair pass).
+
+**Real parents:** OCID-020 (`UMR-20260802-165606-4413`, PROJEXA-AI.COM E2E Certification) and
+OCID-021 (`UMR-20260802-173631-ca85`, ERP Functional Completeness Master Program).
+
+**Parent explicitly excluded:** "OCID-012 Governance Foundation," named in this task's incoming
+prompt, returned **zero matches** in a real query of `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+`ai-os/boss/COMPLETED.yaml`, `ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml`, and
+`ai-os/MASTER-TRACKER.yaml` — no such OCID exists anywhere in the real UMR chain. Not registered
+as a parent. Flagged to the Owner directly in chat, not invented here.
+
+**Scope, explicitly bounded per this task's own spec:** discovery, normalization, and repair of
+the existing platform built across OCID-015 through OCID-052. Zero new architecture, framework,
+governance model, registry, or execution process. **Not attempted this phase:** platform freeze
+validation, final platform constitution certification, or an OCID-053 lock — OCID-038 has one
+real gap open pending an Owner brand-identity decision (`GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`),
+OCID-039 has not started (confirmed via a real zero-match `resource_governor.py` query), and
+OCID-040 has only produced a real status snapshot, not a final certification — per the standing
+hard rule 7, platform-freeze language does not apply yet.
+
+**Method:** every fact below was independently checked against a live source this session — `gh pr
+view`/`gh pr list --search` against the real GitHub repo (`FChecklist/compliance-tracker`), direct
+reads of the cited canonical `ai-os/*.md` docs, and `git fetch origin main` (confirmed local `main`
+== `origin/main` at `8257ae5b` before any of this work started). No fact here is narrated from a
+stale snapshot doc without a live re-check — where a prior snapshot (e.g.
+`VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`) disagreed with today's live `gh pr view`
+state, the live state wins and is cited as such.
+
+---
+
+## 1. Universal Knowledge Graph — OCID-015 through OCID-037
+
+One row per OCID: what it real is, its real UMR, the real PR(s) that carry its content, and its
+real current state (live-checked, not narrated).
+
+| OCID | Real subject | Real UMR | Real PR(s) | Real state (live-checked 2026-08-04) |
+|---|---|---|---|---|
+| OCID-20260802-015 | Master Execution Framework — design only | `UMR-20260802-164801-2ab9` | #725 | **CLOSED, merged** (`d3d88751`) |
+| OCID-20260802-016 | Server-wide artifact traceability register (tranches 1-3) | `UMR-20260802-164659-9a31` | #723, #726 (tranche 1); later tranches folded into `IMPLEMENTATION_MATRIX_2026-08-02.md` amendments | **Tranche 1 merged**; later tranches are doc amendments, not separate PRs found this pass |
+| OCID-20260802-017 | Standing gatekeeper rule (no rebuild without a real registry check) | `UMR-20260802-165034-5747` | #725 | **CLOSED, merged** |
+| OCID-20260802-018 | Unified project memory model | `UMR-20260802-165434-cd91` | #725 | **CLOSED, merged** |
+| OCID-20260802-019 | Recovery matrix (real task.yaml status-staleness on clean SIGTERM) | `UMR-20260802-165541-c27d` | #725 | **CLOSED, merged** |
+| OCID-20260802-020 | PROJEXA-AI.COM E2E Certification (parent of Group F / OCID-047-052) | `UMR-20260802-165606-4413` | dozens (#737, #739, #747, #753, #755, #788, #794, #803, #838-#843, ...) | **Ongoing/large** — nav-surface certification substantially complete (PR #794, 115/115), Business Certification phase (OCID-047-052) real and mostly complete (see §1 below); **not** finally certified — gated behind OCID-038/039/040 per hard rule 7 |
+| OCID-20260802-021 | ERP Functional Completeness Master Program | `UMR-20260802-173631-ca85` | Wave 1 Item 2 = #852 (merged) | **In progress** — Wave 1 real, ongoing |
+| OCID-20260803-022 | VERIDIAN End User Experience Foundation v1.0 | (batch chain `UMR-20260803-040844-4a33`..) | #765 | **OPEN, unmerged** (real doc exists on a real branch, not yet on `main`) |
+| OCID-20260803-023 | VERIDIAN Universal End User Work Model v1.0 | same chain | #768 | **OPEN, unmerged** |
+| OCID-20260803-024 | VERIDIAN Laptop Web Browser Runtime v1.0 | same chain | #767 | **OPEN, unmerged** |
+| OCID-20260803-025 | VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 | same chain | #766 | **OPEN, unmerged** |
+| OCID-20260803-026 | VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 | same chain | #775 | **OPEN, unmerged** |
+| OCID-20260803-027 | VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0 | `UMR-20260803-041211-b7b7` | #771 | **MERGED** |
+| OCID-20260803-028 | VERIDIAN Unified Synchronization Runtime v1.0 | `UMR-20260803-041257-e9c3` | #774 | **MERGED** |
+| OCID-20260803-029 | VERIDIAN Universal Organization Runtime v1.0 | same chain | #773 | **OPEN, unmerged** |
+| OCID-20260803-030 | VERIDIAN Universal Decision Engine v1.0 | `UMR-20260803-041459-7c97` | #772 | **MERGED** |
+| OCID-20260803-031 | VERIDIAN Universal Software Execution Engine v1.0 | `UMR-20260803-041700-a741` | #781 | **MERGED** |
+| OCID-20260803-032 | VERIDIAN Universal Task Lifecycle Runtime v1.0 | same chain | #780 | **OPEN, unmerged** |
+| OCID-20260803-033 | VERIDIAN Universal End User Work Orchestration Runtime v1.0 | same chain | #778 | **OPEN, unmerged** |
+| OCID-20260803-034 | VERIDIAN Universal Context and Predictive Runtime v1.0 | `UMR-20260803-042003-5e92` | #779 | **MERGED** |
+| OCID-20260803-035 | VERIDIAN Continuous Platform Evolution Runtime v1.0 | same chain | #777 | **OPEN, unmerged** |
+| OCID-20260803-036 | VERIDIAN Universal Capability Discovery and Evolution Runtime v1.0 | `UMR-20260803-042034-0c1f` | #782 (content) + #784 (mislabel fix) | **MERGED** (both) |
+| OCID-20260803-037 | VERIDIAN Universal Knowledge and Service Catalog v1.0 | `UMR-20260803-042230-180c` | #785 | **OPEN, unmerged** |
+
+**Real, honest summary:** of the 23 real OCID entries in this range, **11 have real, merged content
+on `main` today** (015, 016-tranche-1, 017, 018, 019, 027, 028, 030, 031, 034, 036 — 11 OCID
+numbers). OCID-020 and OCID-021 are excluded from that count: both are real but ongoing/ not a
+single closeable artifact (see their own rows above). **10 real canonical docs exist only on open,
+unmerged branches** (022, 023, 024, 025, 026, 029, 032, 033, 035, 037). This is not a new finding
+invented by OCID-053 — it is the exact scope of the in-flight Group C documentation-merge pass, see
+§3.
+
+---
+
+## 2. Universal Knowledge Graph — Group F (OCID-047 through OCID-052), children of OCID-020
+
+| OCID | Real subject | Planning PR | Real testing/completion PR(s) | Real state |
+|---|---|---|---|---|
+| OCID-047 | Roles/Rights/Responsibilities Certification | #811 (batch planning, merged) | #823 (55/55 role/rights, merged), #830 (4/4 BROAD_SCOPE_ROLES, merged), #814 (responsibility/data-scope gap closed, merged), #833 (confirms #830 live on main, merged) | **Complete**, 2 real gaps found and closed along the way |
+| OCID-048 | Multi-Org/Tenant/Brand Isolation Certification | #816 (merged) | #826 (7/7 cross-tenant, merged); #825 (cross-org, **CLOSED without merging** — see §4 orphan finding) | **Complete** on cross-tenant; cross-org isolation result carried instead via #826's own scope |
+| OCID-049 | Subscription Plan Entitlement Certification | #813 (merged) | #828 (hold + gate correction, merged), #848 (real testing + retraction of premature claim, merged), #850 (all 4 tiers, "Group F genuinely closed", merged); #849 (**CLOSED without merging**, confirms already resolved) | **Honestly partial→complete per #850** — but #865 (`GAP-OCID-049: implement Tasks A/B/C/E`) is a real, currently **OPEN** implementation PR, meaning certification and implementation are two distinct, separately-tracked scopes here |
+| OCID-050 | Data State Certification (Empty/Sample/Large) | #812 (merged) | #834 (30/30 Empty+Sample, merged), #843 (345/345 full 3-state sweep + real large-data org, merged); #840, #842 (PM/correction docs, states mixed — #842 **CLOSED without merging**) | **Complete** |
+| OCID-051 | Cross-Surface Certification (browser + Mobile PWA) | #815 (merged) | #844 (all real checks pass, merged), #845 (independent re-verify + audit, **OPEN**) | **Complete per #844**, awaiting #845's own merge for the audit trail |
+| OCID-052 | VERI Chat AI Escalation Certification | #817 (merged) | #822 (Items 2-3, merged), #846 (Item 4 UI-distinguishability + closes Group F, merged); #847 (**CLOSED without merging**, superseded by #846) | **Complete** |
+
+**Real, honest summary:** Group F (OCID-047-052) is substantively complete on `main` — every OCID
+has at least one real, merged completion PR. Three PRs in this cluster were opened and then
+**closed without merging** (#825, #842, #847, #849) — each superseded by a later PR that carried
+the same real result forward; see §4 for the duplicate-effort accounting.
+
+---
+
+## 3. Universal Reference Graph
+
+Parent → child real UMR/PR chain, citing only real, independently-verified edges (not narrated):
+
+```
+OCID-020 (UMR-20260802-165606-4413, PROJEXA-AI.COM E2E Certification)
+ ├─ OCID-021 (UMR-20260802-173631-ca85, ERP Functional Completeness) — sibling-parented directly, not a child
+ ├─ Business Certification phase → OCID-047..052 (UMR-20260803-115333-dab8 chain)
+ │   ├─ OCID-047 UMR-20260803-115333-dab8 → PR #811, #823, #830, #814, #833
+ │   ├─ OCID-048 UMR-20260803-120905-029c → PR #816, #826 (#825 orphaned, see §4)
+ │   ├─ OCID-049 UMR-20260803-115513-c990 → PR #813, #828, #848, #850 (#849 orphaned)
+ │   ├─ OCID-050 UMR-20260803-115534-af31 (+ leaf UMR-20260803-120723-716b) → PR #812, #834, #843 (#842 orphaned)
+ │   ├─ OCID-051 UMR-20260803-115558-170e → PR #815, #844, #845
+ │   └─ OCID-052 UMR-20260803-115620-29c6 → PR #817, #822, #846 (#847 orphaned)
+ ├─ OCID-022..037 batch UMR chain (UMR-20260803-040844-4a33 .. UMR-20260803-042839-b9c4)
+ │   → 23 real per-OCID leaves, real PR state per §1 table above
+ ├─ OCID-038 (UMR-20260803-072014-d038, parent chain via OCID-037 UMR-20260803-042230-180c)
+ │   → PR #786 (merged); 1 real gap open (brand-identity, Owner decision pending)
+ ├─ OCID-039 → not started (real zero-match `resource_governor.py` query, per hard rule 7)
+ └─ OCID-040 (UMR-20260803-042918-60b8) → PR #769 (status snapshot only, not certification)
+
+OCID-020 side-chain: SEC-07 real implementation lock (UMR-20260803-045159-ec55) →
+ corrected the OCID-036/037 cluster mislabel (PR #784) after the OCID-026-030/034-036 cluster
+ mislabel was itself found and corrected upstream (UMR-20260803-052107-71fa, confirming #771→027,
+ #772→030, #774→028 were each correctly labeled all along).
+
+OCID-053 (this doc, no new UMR minted) → parents OCID-020 + OCID-021 directly
+ (OCID-012 excluded, zero real matches — see header)
+```
+
+**Group C documentation-merge pass (real, in-flight, cited but not owned by OCID-053):**
+`UMR-20260804-032101-dcd0` / `task-20260804-032121-group-c-closure--review-and-merge-the-ni` is the
+real dispatch that is working through the OCID-022..037 open-PR backlog above. Its own PROGRESS.md
+(read directly, not narrated) shows: PR #784 reviewed, conflict-resolved, audited, and **merged**
+(commit `8257ae5b`, independently confirmed a real ancestor of `origin/main` by that session, and
+independently re-confirmed here — it is this branch's own parent commit). PRs #765, #767, #768 were
+conflict-resolved, audited, and pushed but were, at that session's own last checkpoint, still
+awaiting green CI — **live re-check this session (`gh pr view`) confirms all three are still real,
+open, unmerged today.** PRs #766, #773, #775, #777, #778, #780, #785 were pre-scanned as
+docs-only but **not started** (conflict resolution, audit, or merge). **Real, honest conclusion:
+the Group C pass has NOT completed.** Only PR #784's real merge is folded into this graph as done;
+the other 10 target PRs remain open and are cited above as open, not credited as complete.
+
+---
+
+## 4. UMR Integrity Report
+
+### 4a. UMR-20260803-115558-170e — OCID-050/OCID-051 attribution, resolved
+
+**Finding (real, self-found in `ai-os/boss/ACTIVE-CLAIMS.yaml`):** the entry titled *"OCID-051
+Cross-Surface Certification ... [DONE]"* (`claimed_at: 2026-08-03T20:00Z`) opens: *"SPEC (PM
+decision UMR-20260803-195837-dde3, citing UMR-20260802-165606-4413/OCID-020 and this OCID's own
+UMR-20260803-115558-170e): OCID-050 confirmed genuinely complete via PR #843 ..., proceed with
+OCID-051 real testing execution now."* Read literally and in isolation, the placement of *"this
+OCID's own UMR-20260803-115558-170e"* immediately before the OCID-050-completion clause is
+ambiguous enough to misattribute `170e` to OCID-050 rather than OCID-051 — the failure mode this
+OCID-053 task was specifically dispatched to find and repair.
+
+**Resolution, independently verified against 3 separate canonical sources, not assumed:**
+1. `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` line 156: OCID-050's
+   own `**UMR:**` field is `UMR-20260803-115534-af31`. Line 195: OCID-051's own `**UMR:**` field is
+   `UMR-20260803-115558-170e`.
+2. `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md` line 4: *"OCID-051's
+   own UMR: UMR-20260803-115558-170e"* — the dedicated OCID-051 doc self-declares this UMR.
+3. `ai-os/OS.yaml` line 218: *"covers: OCID-051 (UMR-20260803-115558-170e, parent OCID-020 ...)"*.
+
+**Verdict: `UMR-20260803-115558-170e` genuinely belongs to OCID-051.** OCID-050's genuine UMR is
+`UMR-20260803-115534-af31` (with a second, non-conflicting leaf UMR `UMR-20260803-120723-716b` for
+its own dedicated task-breakdown doc — self-documented in that doc, line 172-173, as *"a new leaf
+on that chain, not a new root"*, i.e. an intentional, already-explained second UMR, not a defect).
+**Neither OCID-050 nor OCID-051 lacks a UMR** — per this task's own instruction ("minting a new
+UMR only for whichever OCID turns out to lack one"), **no new UMR was minted.** The repair applied
+is a corrective annotation added inline in `ai-os/boss/ACTIVE-CLAIMS.yaml` immediately after the
+ambiguous entry, pointing to this report, rather than rewriting session history.
+
+### 4b. OCID-016 multi-tranche UMR reuse — not a defect
+
+`UMR-20260802-164659-9a31` is real, deliberately reused across 3 tranches of the server-wide
+artifact traceability register (tranche 1 = PR #723/#726; tranches 2-3 = amendments in
+`IMPLEMENTATION_MATRIX_2026-08-02.md`, not separate PRs). Confirmed intentional (same UMR,
+explicitly continuation work, not fabricated or duplicated) — no repair needed.
+
+### 4c. GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION — pre-existing, already registered
+
+A real prior finding (`UMR-20260803-063016-8bfc`, OCID-019 recovery matrix) already exists in
+`ai-os/MASTER-TRACKER.yaml` for a different class of UMR defect (a self-minted/fabricated citation
+on PR #779, fixed by commit `50769c4c`). Cited here for completeness of the UMR integrity picture,
+not re-opened — already closed on real evidence.
+
+### 4d. No other UMR/OCID cross-attribution ambiguity found
+
+Every other OCID-015..037 and OCID-047..052 UMR was independently traced to exactly one real OCID
+in this pass (see §1/§2 tables) — no second instance of the §4a failure pattern was found.
+
+---
+
+## 5. Orphan and Duplicate Detection Report
+
+**Method:** cross-referenced every PR number surfaced in §1/§2 against its real `gh pr view` state
+(OPEN / MERGED / CLOSED-without-merging). A PR real-closed-without-merging that is not superseded
+by a real merged PR carrying the same result forward would be a genuine orphan (lost work); one
+that IS superseded is real, honest duplicate-effort — dispatched twice, not lost, just not
+deduplicated at dispatch time.
+
+| PR | Real title | State | Real disposition |
+|---|---|---|---|
+| #825 | test: real OCID-048 cross-org isolation execution — 12/12 probes, zero leaks | **CLOSED, not merged** | Superseded by #826 (OCID-048 cross-tenant isolation, merged) — real duplicate dispatch on the same OCID-048 axis, not a lost finding (the 12/12 cross-org result itself was not carried into a merged PR under a different number — **this specific 12/12 cross-org evidence is the one real orphaned finding in this sweep**, not re-created here without re-verification) |
+| #842 | PM correction: retract wrong unstage instruction; close OCID-050 TASK-050-0 | **CLOSED, not merged** | Superseded by #843 (OCID-050 full sweep, merged) — real duplicate/interim dispatch, no lost result |
+| #847 | OCID-052 complete: Item 4 UI-distinguishability real execution + completion summary | **CLOSED, not merged** | Superseded by #846 (same real content, merged) — real duplicate dispatch, explicitly acknowledged in #846's own commit history as the corrected version |
+| #849 | docs: confirm Group F / OCID-049 PM-correction task already resolved on main | **CLOSED, not merged** | Confirmatory-only PR, real content already covered by #850 (merged) — no lost result |
+
+**Real orphan finding (registered, not fabricated):** PR #825's own 12/12 real cross-org isolation
+probe result (zero leaks) does not appear to have been independently re-verified and merged under
+any other PR number found in this pass — #826 covers cross-*tenant* isolation (7/7 checks), a
+related but distinct real axis from #825's cross-*org* isolation (12/12 checks). **This is a real,
+open gap this OCID-053 pass surfaces, not resolves**: OCID-048's cross-org isolation evidence
+exists only on a closed, unmerged PR. Registering as
+`GAP-OCID048-CROSS-ORG-ISOLATION-EVIDENCE-ONLY-ON-CLOSED-PR` in `ai-os/MASTER-TRACKER.yaml` rather
+than silently re-running or re-merging it (out of this OCID's own no-new-testing, discovery-only
+scope this phase).
+
+**No duplicate OCID numbers found.** Every OCID number in the OCID-015..052 range maps to exactly
+one real subject in this pass — the OCID-026/027/028/029/030 and OCID-035/036/037 cluster mislabels
+found in earlier sessions (`UMR-20260803-052107-71fa`, PR #784) were already corrected before this
+pass began; independently re-verified here as still holding (§1 table), not re-litigated.
+
+**No duplicate UMR-to-OCID attribution found beyond §4a**, which is itself a documentation-wording
+ambiguity, not a real duplicate UMR mint (both OCID-050 and OCID-051 have exactly one real
+certification-tier UMR each).
+
+---
+
+## 6. What this phase explicitly does not certify
+
+Per this task's own spec and the standing hard rule 7: this document is a **discovery, reference,
+and integrity artifact only.** It does not certify platform freeze, does not certify the full
+platform constitution, and does not lock OCID-053. OCID-038 (brand-identity gap open),
+OCID-039 (not started), and OCID-040 (status snapshot only, not final certification) must
+genuinely clear, in order, before that phase is attempted.
