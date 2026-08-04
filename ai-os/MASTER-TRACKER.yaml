@@ -2141,7 +2141,8 @@ open_items:
       size: M -- Task A/B/C are each small (reuse existing ServiceError/ModuleNotEnabledCard/`/api/me`
         patterns, no new architecture); Task E is a real but separate admin-settings addition; Task D is a
         business decision, not code.
-      recommendation: "Planning only this cycle, per this OCID's own dispatch text and SEC-07. Do not
+      recommendation: |
+        Planning only this cycle, per this OCID's own dispatch text and SEC-07. Do not
         implement/test/certify until the Owner explicitly opens implementation for this OCID (same
         discipline SEC-07 already applies to the OCID-038/039/040 chain) -- this entry exists so the real
         task breakdown is findable and not re-derived from scratch by whichever session picks it up next.
@@ -2157,10 +2158,51 @@ open_items:
         infrastructure constraint, not an app-code gap. Full write-up:
         ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md's own amendment.
         Still not implemented (Tasks A-E remain undone, per the standing OCID-021 lock) and not fully
-        certified (1 of 4 tiers has real evidence)."
-      status: "open (real testing complete for all 4 tiers, see 2nd amendment -- Tasks A-E
-        implementation remains unbuilt per the OCID-021 lock; this entry stays open until that
-        implementation ships, the testing certification itself is done)"
+        certified (1 of 4 tiers has real evidence).
+
+        **Amendment (2026-08-04, real implementation, PM decision citing this OCID's own standing
+        auto-proceed authorization):** Tasks A/B/C/E shipped real code -- `src/lib/services/subscription-plan-service.ts`
+        (new: `resolveSubscriptionPlan()`, mirroring `getOrgAiPackage()`'s exact resolution order but
+        returning the full plan row; `provisionAiAssistantsForUser()`; `getSubscriptionPlanStatus()`;
+        `setSubscriptionPlanForOrg()`; `listActiveSubscriptionPlans()`). **Task A:** the real enforcement
+        chokepoint turned out to be broader than this doc's own original text named -- `git grep` found
+        SIX real `aiAssistants` bulk-insert call sites hardcoding `Array.from({length: 5}...)`, not just
+        `POST /api/users` (also `stage0-service.ts` x2, `invite-link-service.ts`, `auth-guard.ts`'s
+        `autoProvisionUser`, `org-join-code-service.ts`) -- all six now call
+        `provisionAiAssistantsForUser()`, which resolves the org's real tier and provisions exactly that
+        many rows. There is no separate "create one more assistant" UI/API anywhere in this codebase
+        (confirmed via grep: `GET /api/assistants` only lists/renames what's provisioned at these six
+        sites), so capping provisioning quantity at the resolved limit IS the real fix, not a gate on a
+        nonexistent creation flow. **Task B:** `/api/me` now returns `subscriptionPlanId`,
+        `subscriptionPlanName`, `assistantsPerUserLimit`, `assistantsUsedByCurrentUser`. **Task C:**
+        `AiAssistantsSection.tsx` (Settings -> AI Assistants) now shows real "`N` of `limit` assistants
+        used (`Plan` plan)" with a real explanation line when over cap, reading the Task B fields --
+        no create-flow existed to gate, so this is the tier-aware explanation surface the OCID's own
+        directive asked for, applied to the real UI that exists. **Task E:**
+        `SubscriptionPlanSection.tsx` + `GET/PATCH /api/settings/subscription-plan` (new Settings ->
+        Subscription Plan tab, admin-only, same load/save shape as `OrgLimitsSection.tsx`) lets an admin
+        assign or clear an org's real `organisations.subscriptionPlanId`; clearing reverts to the
+        existing live-user-count band-fit fallback. **Task D held, not decided here** (seeding a real
+        `preferredModelByPackage` policy is a business decision per this OCID's own text and this PM
+        decision's explicit instruction -- flagged back to the Owner/PM, not decided unilaterally).
+        Verified: cgroup-unconstrained `bunx tsc --noEmit` clean (default in-cgroup heap OOMs on this
+        host regardless of these changes -- same pre-existing environment constraint as the credit-
+        accountant build-gate finding this PM decision also resolved this cycle, not a regression these
+        changes introduced), `bunx eslint` clean on every changed/new file, all 4 directly-relevant
+        existing test suites green with zero regressions (`org-join-code-service.test.ts`,
+        `stage0-service.test.ts`, `invite-link-service.test.ts`, `auth-guard.test.ts` -- 74/74 pass, 136
+        expect() calls). No new test file for `subscription-plan-service.ts` itself -- every exported
+        function is DB-context-dependent (same class of internal call site
+        GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED's own resolution above already established this
+        codebase's practice for: type-correctness + full-suite-no-regression, not a live-DB unit test,
+        since a live tenant DB context is needed to exercise it directly). Live browser confirmation
+        against the real deployed site (the 4-tier test path this doc's own "Real test path per tier"
+        section describes) not yet run this cycle -- real code, not yet independently re-verified live;
+        flagged as the real remaining step for whoever audits or continues this.
+      status: "open (real testing complete for all 4 tiers; Tasks A/B/C/E now implemented, 2026-08-04 --
+        see 3rd amendment for evidence. Task D deliberately held, a business decision not code. Live
+        browser re-confirmation against the real deployed site per the 4-tier test path is the real
+        remaining step before this closes to resolved)"
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
