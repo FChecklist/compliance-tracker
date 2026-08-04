@@ -40,6 +40,27 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-235321-independently-re-verify-group-f-ocid-047) -- OCID-020 Group F: independently re-verify OCID-047, OCID-048, OCID-050, OCID-051, OCID-052 from scratch (real live browser/API against projexa-ai.com), per UMR-20260802-165606-4413 -- commit 11a5de5e (OCID-049 'genuinely closed' claim) was demonstrably wrong about OCID-049 itself (legacy subscription_plans rows bug, PR #924), so its claim about these other 5 is not accepted at face value"
+    claimed_at: "2026-08-04T23:56Z (this session)"
+    claim: |
+      SPEC (real PM decision, UMR-20260802-165606-4413, this task's own dispatch text): commit
+      11a5de5e claimed all of OCID-047/048/049/050/051/052 genuinely closed, but was independently
+      found wrong about OCID-049 (legacy subscription_plans rows winning tier resolution, only
+      caught by live re-verification, fixed via merged PR #924). Do not accept its claim about the
+      other five OCIDs at face value -- independently re-verify each from scratch, real live
+      browser/API reproduction against live projexa-ai.com, same evidentiary standard that caught
+      the OCID-049 bug, not a re-read of the same commit message. Do not certify OCID-020 complete
+      based on 11a5de5e's own prior claim.
+      Scope: read-only re-verification + honest reporting, docs-only (ai-os/, PROGRESS.md). No
+      src/schema changes planned; if a new live gap is found it is registered in
+      MASTER-TRACKER.yaml, not fixed in this task (consistent with the standing OCID-021 lock and
+      the discovery-only precedent set by the OCID-052 GAP-API-ME-500 finding in the prior claim
+      entry below).
+    scope_note: >-
+      File scope: ai-os/MASTER-TRACKER.yaml (additive only, new gap entries if found),
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md. Live testing environment: a
+      dedicated git worktree at /tmp/ocid047-052-verify (detached at origin/main), not any other
+      session's shared checkout -- avoids the shared-worktree stash-risk class of collision.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
