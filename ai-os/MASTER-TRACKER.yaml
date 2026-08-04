@@ -2362,6 +2362,69 @@ open_items:
         Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
         bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
+    - id: GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES
+      name: "Dispatch prompts have repeatedly asserted OCID/UMR parent references that do not exist anywhere in the repository, with no permanent record of the negative finding until now"
+      old_ids: []
+      detail: |
+        Real, live finding, OCID-057 (`ai-os/VERIDIAN_OCID_057_UNIVERSAL_KNOWLEDGE_GRAPH_2026-08-04.md`).
+        This task's own dispatch prompt asserted "real confirmed parent" OCID-056
+        (`UMR-20260804-035904-142e`) <- OCID-055 (`UMR-20260804-035817-6300`) <- OCID-054
+        (`UMR-20260804-035759-1eb2`) <- OCID-053 (`UMR-20260804-033853-2a17`). Independently verified:
+        `git grep` for all four UMR IDs across the full working tree, `git grep -l "OCID-053\|OCID-054\|
+        OCID-055\|OCID-056"` across the full repo, `git branch -a`, and `gh pr list --search` for the
+        same terms (open+closed) all returned **zero matches**. `git log origin/main` matched local HEAD
+        exactly (no unfetched commits hiding them). Highest real OCID found anywhere in `ai-os/`:
+        OCID-052.
+
+        The same dispatch prompt separately (and correctly) flags OCID-012 as a fake reference that
+        "keeps appearing" and has been checked "multiple times this session" -- re-verified in this pass
+        (`git grep -rn "OCID-012"`, zero matches, consistent with every prior check) -- but that
+        repeated negative finding had never actually been written down anywhere in this repo's own
+        governance files before now. Every session was re-deriving the same zero-match result from
+        scratch instead of citing a prior real finding.
+      size: "XS -- this entry itself is the fix (a permanent, citable record); no code change involved"
+      recommendation: |
+        Future sessions: before treating any OCID/UMR reference in a dispatch prompt as a "real
+        confirmed" ancestor, `git grep` for it first (across the full repo, not just `ai-os/`) the same
+        way this pass did, and check this entry for OCID-012 / OCID-053-056 specifically rather than
+        re-deriving the negative result. If a dispatch prompt's own framing turns out to assert a
+        fabricated reference chain, flag it to the Owner the same way this entry does -- do not silently
+        proceed as if the chain were real, and do not silently drop the task either; the underlying
+        authorized work (this case: real knowledge-register/graph discovery) is usually still legitimate
+        even when its narrated parent-chain framing is not.
+      status: "open (owner_blocked in effect -- this is a standing, recurring dispatch-hygiene issue
+        across sessions/agents generating these prompts, not something a single session can close;
+        flagged to the Owner per this same entry)"
+      first_raised: "OCID-057, 2026-08-04 (this document); OCID-012 specifically had been re-verified
+        as fake by multiple unrecorded prior sessions before this entry made it permanent"
+
+    - id: GAP-KNOWLEDGE-NO-REPORT-BUSINESS-RULE-CATALOG
+      name: "No dedicated report catalog or business-rule catalog exists, and the screen/UX inventory is hand-maintained prose, not a queryable register -- named as an honest gap by OCID-027 but never formally tracked until now"
+      old_ids: []
+      detail: |
+        Real finding, originally named in `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`
+        (OCID-027, `UMR-20260803-041257-e9c3` / `UMR-20260803-045159-ec55` -- see OCID-057's own
+        Deduplication Report re: which UMR is canonical for that doc, unresolved) but never turned into a
+        formal `GAP-` entry in this tracker -- it existed only as prose inside one narrative doc, an
+        orphan finding with no tracked owner or status. Confirmed still true this pass (2026-08-04): no
+        `REPORT_CATALOG.json`/`BUSINESS_RULE_CATALOG.json`-equivalent file exists alongside the real
+        `ai-os/DATABASE_CATALOG.json` / `ai-os/FUNCTION_CATALOG.json` / `ai-os/AI_ROSTER_CATALOG.json`.
+        Report definitions live in `report-catalog-service.ts` / the `report_definitions`-class DB tables
+        (per OCID-029's own inventory) but are not mechanically catalogued the same way functions/tables
+        are; business rules are similarly scattered (guardrail-engine.ts, policy-enforcement-engine.ts,
+        per-domain workflow services) with no single register.
+      size: "M -- would need a mechanical catalog-generation script analogous to whatever produced
+        DATABASE_CATALOG.json/FUNCTION_CATALOG.json, scoped to report_definitions rows and the real
+        business-rule call sites named above; out of scope for a documentation-only OCID pass"
+      recommendation: |
+        A future OCID should build `REPORT_CATALOG.json` and `BUSINESS_RULE_CATALOG.json` the same
+        mechanical way `DATABASE_CATALOG.json`/`FUNCTION_CATALOG.json` were built (cross-reference
+        `ai-os/MASTER_INDEX.yaml`'s own generation approach before writing a new one from scratch), then
+        add both to `ai-os/OS.yaml`'s index. Lower priority than code-level gaps in this tracker --
+        documentation/discoverability debt, not a product defect.
+      status: open
+      first_raised: "OCID-027, 2026-08-03 (named in prose only); formally tracked OCID-057, 2026-08-04"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
