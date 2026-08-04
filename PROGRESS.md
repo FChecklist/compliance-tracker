@@ -2383,3 +2383,35 @@ decision, PR #851, confirmed merged before this session started via `git merge-b
       against a `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` branch -- check
       `ai-os/boss/ACTIVE-CLAIMS.yaml` for a live claim on that gap before picking it up, to avoid
       duplicate work.
+
+# PROGRESS -- task-20260804-015845-pm-decision--proceed-with-the-mechanical
+Cites: `UMR-20260803-042801-ec4b` (OCID-038). SPEC asked this session to proceed with
+`GAP-OCID038-PROJEXA-OWN-SCHEMA`'s 3 real next steps (§9.2 of the discovery brief) --
+discovery/documentation only -- and to hold `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` exactly as
+written pending direct Owner escalation.
+
+## Completed
+- [x] **Verified this is already done.** This branch forked from current `main` at `cabdb212` (PR #860,
+      merged), which already contains commit `3afc2100` -- "docs: complete GAP-OCID038-PROJEXA-OWN-SCHEMA's
+      3 real next steps + correct a real grep miscount", citing PM decision `UMR-20260804-014117-915e`.
+      Confirmed by direct read of `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`
+      §9.2 (not just the commit message): all 3 steps this spec names are done there --
+      (1) 15-of-195 real call-site spot check, zero shadow local writes for construction-domain data
+      (structural: only 12 local tables exist, none construction-domain); (2) `requireAuth()` read in
+      full, confirmed no VERIDIAN session-token forwarding, only a static per-org API key crosses the
+      boundary; (3) `middleware.ts` read in full, confirmed zero pre-login VERIDIAN-org context for
+      anonymous visitors -- genuinely post-login only on both sides. `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`
+      (§9.1) is already held exactly as this spec instructs, `ai-os/boss/ACTIVE-CLAIMS.yaml`'s
+      `recently_completed` log already records this exact claim under the same UMR.
+- [x] No new investigation, code, or doc change performed -- doing so would duplicate already-merged
+      work. This task's only action is this verification record, so a later session (or the PM) can
+      see the request was checked against real repo state, not silently dropped.
+- [x] Fixed a workspace-scaffolding hazard found in the process: this task's `PROGRESS.md` had been
+      reset to a 2-line per-task stub despite the branch forking from `main` at a commit where
+      `PROGRESS.md` already carries the full 2380+ line cumulative history. Committing the stub as-is
+      would have deleted that history on merge. Restored via `git checkout -- PROGRESS.md` before
+      appending this section.
+
+## Remaining
+- [ ] None for this task. If the Owner's real answer on `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`
+      (§9.1) comes back, that is a separate, new PM decision/dispatch, not a continuation of this one.
