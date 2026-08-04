@@ -2473,3 +2473,103 @@ independent audit respectively -- not touched by this branch).
       retest/PR per the PM's own explicit sequencing. Note `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
       is a genuinely harder, root-cause-not-yet-found investigation (recommends a live serverless
       diagnostic route, not a straightforward code fix) -- larger scope than the other Wave 1 items.
+
+---
+
+# PROGRESS -- task-20260803-041115-ocid-025-veridian-mobile-pwa-and-veri-ch
+
+OCID-025: VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 (documentation only).
+
+## Completed
+- [x] Read governance chain: CLAUDE.md, AGENTS.md, ai-os/CONSTITUTION.yaml pointers.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` (full protocol) -- no collision found for this
+      scope. Found OCID-022/023/024 sibling sessions are genuinely concurrent and
+      `in_progress`, OCID-024's doc does not exist yet despite the spec citing it as
+      "just registered" -- disclosed, not blocking (documentation content here is
+      grounded in real production code independently of sibling docs' text, same
+      precedent OCID-022/023 already established).
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`; committed and
+      pushed immediately (commit `19d2f9a6`), ahead of the real work.
+- [x] Read `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (1042 lines) -- this is the real,
+      live UMR chain this task must extend (per OCID-022's own already-confirmed finding).
+
+- [x] Discovery pass (direct research + one background Explore agent, 39 tool calls):
+      PWA (real `src/app/manifest.ts` share-target manifest, zero service worker in this
+      repo), VERI Chat (`VeriComposer.tsx`, `chat-service.ts`, full `api/veri-chat/*`
+      surface), VERI Assistant (`llm-routing-gate.ts` -> `ai-reply-gate.ts` software-first
+      gate, `mother-router.ts`'s self-documented 35 unmigrated call sites), mode pills /
+      Chain Selector (`capability-tree-service.ts`, `dynamic_chains` table), deterministic
+      task model (`tasks.resolvedWorkerAgentId`/`dynamicChainId`), offline/cache/sync
+      (`browser-intent-cache.ts` real IndexedDB cache; `sync-engine.ts` real tested but
+      unwired conflict-resolution/delta-sync primitives; sibling `projexa` repo's real
+      hand-rolled service worker + IndexedDB offline work-progress queue), push
+      notifications (does not exist -- zero hits), session recovery (does not exist),
+      mobile-specific UI (`sidebar.tsx`'s `useIsMobile()`, real but with 4 disclosed open
+      gaps per `ai-os/REVIEW_FRAMEWORK_V2-8_MOBILE_UX_CROSSREF_2026-07-20.md`).
+- [x] Drafted `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` v1.0 -- 36
+      sections, one per mandated topic, every claim grounded in a real file/line citation
+      from the discovery pass above; every gap stated honestly (`NOT_YET_BUILT`/"does not
+      exist") rather than glossed over.
+- [x] Amended `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` in place with an
+      OCID-20260803-025 section (parent UMR + full citation chain, canonical artifact
+      pointer, status table row).
+- [x] Registered the new artifact in `ai-os/MASTER_INDEX.yaml` (`veridian_mobile_pwa_and_veri_chat_runtime_1_0`)
+      and `ai-os/OS.yaml` (index entry), matching the pattern the sibling OCID-020/022/023
+      docs already use. Verified both files remain valid YAML after the edit
+      (`python3 -c "import yaml; yaml.safe_load(...)"`).
+- [x] Verified `ai-os/boss/ACTIVE-CLAIMS.yaml`'s pre-existing YAML-parse error predates
+      this session's edit (confirmed via `git cat-file -p <parent-commit>` -- broken before
+      this task started, a real pre-existing issue in a large, heavily concurrently-edited
+      file, out of this task's documentation-only scope to fix).
+- [ ] Commit + push, open PR, confirm CI.
+- [ ] Move ACTIVE-CLAIMS entry from `active:` to `recently_completed:` once merged.
+- [ ] Report: real document location, real updated UMR, OCID-026 handoff confirmation.
+
+# PROGRESS -- task-20260804-064835-pm-decision--continue-monitoring-pr-19-a
+
+Task: PM decision under OCID-021 (`UMR-20260802-173631-ca85`) and OCID-063
+(`UMR-20260804-060832-9fdf`) -- continue monitoring PR #19 in `FChecklist/veridian-scripts`
+and PR #789 (round 3 review) in `FChecklist/compliance-tracker` until their real verdicts
+land, without self-certifying either, then independently verify the real merge commits are
+ancestors of their respective repos' real `main` before touching `MASTER-TRACKER.yaml`. No
+new decision requested -- continue the already-stated plan.
+
+## Completed
+- [x] Checked PR #19 (`FChecklist/veridian-scripts`) via `gh api repos/FChecklist/veridian-scripts/pulls/19`
+      (not `gh pr view --json`, which silently truncates in this environment -- see this
+      repo's own `MASTER-TRACKER.yaml`/CI-check-script precedent): `state: closed`,
+      `merged: true`, `merged_at: 2026-08-04T06:51:36Z`,
+      `merge_commit_sha: 81931136046ccac56a65956ef581c48b62fcb872`.
+- [x] Independently verified that merge commit is a real ancestor of `veridian-scripts`'
+      actual `main` -- `gh api repos/FChecklist/veridian-scripts/compare/main...8193113...`
+      returned `status: identical`, `ahead_by: 0`, `behind_by: 0`, and
+      `gh api repos/FChecklist/veridian-scripts/commits/main --jq .sha` independently
+      returned the same SHA. PR #19's verdict has landed and is verified -- not self-certified,
+      confirmed via two independent GitHub API calls against the live repo.
+- [x] Checked PR #789 (`FChecklist/compliance-tracker`) via `gh api repos/FChecklist/compliance-tracker/pulls/789`:
+      still `state: open`, `merged: false`, `mergeable_state: dirty` (real merge conflict
+      against `main`, not a CI failure -- CI itself is green: Lint/Type Check/Build/Unit
+      Tests/E2E/Guardrail Presence/Terminology Guardrail/audit-check all `pass`; only
+      `Vercel` preview deploy is failing, and that's a Vercel free-tier build-rate-limit
+      error, not a real check failure).
+- [x] Read PR #789's issue comments directly via `gh api repos/FChecklist/compliance-tracker/issues/789/comments`
+      (again avoiding `gh pr view --json`'s truncation): three structured `AUDIT:` comments
+      exist against the PR's own head branch
+      (`worker/task-20260803-071119-ocid-039-veridian-real-end-user-producti`) -- round 1
+      `AUDIT: FAIL` (2026-08-04T05:39:19Z), round 2 `AUDIT: PASS` (2026-08-04T06:27:30Z),
+      round 3 `AUDIT: PASS` (2026-08-04T06:48:14Z, matches this task's "round 3 review"
+      reference). The audit verdict has landed and is PASS, but the PR itself is not yet
+      mergeable (real conflict, `mergeable_state: dirty`) -- so per this task's own
+      instruction ("independently verify the real merge commits are ancestors... before
+      updating MASTER-TRACKER.yaml"), PR #789's real merge verdict has NOT landed yet and
+      `MASTER-TRACKER.yaml` must not be touched for it in this invocation.
+
+## Remaining
+- [ ] Continue monitoring PR #789 in a future invocation until it actually merges (its
+      `worker/task-20260803-071119-*` branch owner needs to resolve the real merge conflict
+      with `main` first -- out of scope for this monitoring task to fix directly).
+- [ ] Once PR #789 merges, independently verify its merge commit is a real ancestor of
+      `compliance-tracker`'s `main` the same way PR #19 was verified above (`gh api .../compare/main...<sha>`
+      returning `identical`/`ahead_by: 0`, not just trusting the merge event).
+- [ ] Only then update `MASTER-TRACKER.yaml` to record both PR #19 and PR #789 as
+      independently-verified-merged under OCID-021/OCID-063.
