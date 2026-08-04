@@ -40,7 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
+  - session_label: "claude-code (task-20260804-045447-register-ocid-060--veridian-platform-con) -- OCID-060 PM decision: honest gap-analysis/final-platform-audit-report ONLY (no certification, no freeze)"
+    claimed_at: "2026-08-04T05:00Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own UMR, real confirmed parent chain OCID-059
+      `UMR-20260804-040122-2b4b` back through OCID-053 `UMR-20260804-033853-2a17`, OCID-020
+      `UMR-20260802-165606-4413`, OCID-021 `UMR-20260802-173631-ca85`): OCID-012, again present in the
+      incoming prompt's reference chain, is NOT registered as real -- re-checked this session
+      (`git grep -in "ocid-012"` across `ai-os/`, zero matches in the real UMR chain, consistent with
+      every prior session's identical check) and flagged back to the Owner again, not treated as real.
+      Per `ai-os/CONSTITUTION.yaml` SEC-07 / rule at line 653, OCID-038 -> OCID-039 -> OCID-040 must
+      genuinely complete in that deterministic order before any platform-freeze language applies
+      anywhere. Confirmed still unmet this session: OCID-038 has one real gap open pending the Owner's
+      brand-identity decision, OCID-039 has not started (confirmed zero-match resource-governor query),
+      OCID-040 has only produced a real status snapshot (`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`),
+      not a final certification. OCID-060 as written (its own lock field: "platform constitution
+      freeze"; its own post-completion section: platform engineering declared complete once it
+      finishes) is explicitly NOT authorized to proceed as a real freeze this phase -- this session is
+      NOT dispatching it as one. Only authorized work: an honest, item-by-item final platform audit
+      report covering OCID-012 through OCID-059 (real evidence, real PR numbers, real UMR status per
+      item), explicitly re-stating OCID-038/039/040 as the blocking gate. No certificate issued, no
+      freeze declared, no "platform engineering complete" declaration. Decision on whether to actually
+      dispatch a real freeze returns to the PM once 038-040 genuinely clear in order, and even then
+      requires a fresh explicit Owner confirmation in chat given how consequential/hard-to-reverse a
+      platform-freeze declaration is.
+    scope_note: >-
+      File scope: new audit report doc under `ai-os/` (read-only synthesis of existing real evidence --
+      `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/COMPLETED.yaml`, `ai-os/CONSTITUTION.yaml`,
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`,
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`, real `gh pr list`
+      queries), `ai-os/MASTER-TRACKER.yaml` (status-tracking update only, no gap-closure edits),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No application code, no certification/freeze
+      artifact of any kind.block task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
       SPEC (PM decision `UMR-20260802-165606-4413` OCID-020 / `UMR-20260802-173631-ca85` OCID-021,
