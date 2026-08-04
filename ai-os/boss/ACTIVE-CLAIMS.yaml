@@ -40,6 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-054220-register-ocid-061--universal-determinist) -- OCID-061 Universal Determinist Input Runtime: real discovery/mapping of intake surfaces (mode pill/option chain, free chat, speech-to-text, API/webhook entry points) [IN PROGRESS]"
+    claimed_at: "2026-08-04T05:42Z (this session)"
+    claim: |
+      SPEC: incoming prompt for OCID-061 was truncated -- ends after the "universal input runtime"
+      heading with no deliverables/success-criteria/PR/commit/worker/review/merge/lock fields, and
+      names no explicit parent OCID/UMR the way OCID-053..060's prompts did. Registering under the
+      natural real parent OCID-021 (`UMR-20260802-173631-ca85`) and OCID-020 (`UMR-20260802-165606-4413`),
+      consistent with every other registration this session.
+
+      Independently confirmed before starting (per standing rule, never trust a prompt's framing
+      unverified): a DIFFERENT concurrent session already registered this exact same OCID-061 with the
+      identical provisional parent pairing (OCID-021, OCID-020) under its own UMR
+      (`UMR-20260804-044535-7214`), in the OCID-053 cross-reference table §7
+      (`docs/.../UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`, commit `3556813b`, branch
+      `worker/task-20260804-040750-register-ocid-053--universal-knowledge-g`, PR not yet merged to
+      `origin/main` as of this check). That table states OCID-061 status as "No worker dispatched yet,
+      no PR, no findings -- registered only, real discovery has not started" -- confirming no other
+      session has yet done the real discovery/mapping work itself, only the registration entry. This
+      session is doing the real discovery/mapping this dispatch actually authorizes (four intake
+      surfaces: mode pill/option chain UI, free chat path, speech-to-text integration, API/webhook
+      entry points; plus a search for any existing "canonical intent object" / shared intent-resolution
+      layer), not re-registering the OCID id itself.
+
+      Dispatch explicitly authorizes discovery/design-mapping only -- no runtime build or modification
+      this phase. A fresh PM decision is required before any implementation, once the full prompt and
+      its real success criteria arrive.
+    scope_note: >-
+      File scope (planned): a new discovery/mapping doc under `ai-os/` (or PROGRESS.md if the finding
+      is small enough not to need a separate doc), `ai-os/MASTER-TRACKER.yaml` (if a new gap is
+      identified), `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. Read-only investigation of
+      `src/components/veri-chat/*`, `src/app/api/**` (webhook/integration routes), any speech-to-text
+      code. No runtime/mechanism build or modification.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
