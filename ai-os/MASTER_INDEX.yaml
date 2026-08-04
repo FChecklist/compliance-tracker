@@ -1619,6 +1619,81 @@ registries:
     stale as real work lands -- re-verify rather than trust on a future pass.'
   status: live
   query_command: cat ai-os/VERIDIAN_UNIVERSAL_ORGANIZATION_RUNTIME_2026-08-03.md
+- id: veridian_mobile_pwa_and_veri_chat_runtime_1_0
+  type: end_user_experience_spec
+  path: ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md
+  scope: 'OCID-20260803-025, documentation only. 36-section real inventory of the mobile PWA
+    (src/app/manifest.ts, installable share-target PWA), VERI Chat (VeriComposer.tsx,
+    chat-service.ts, api/veri-chat/* surface), VERI the assistant, mode pills / Chain Selector
+    (capability-tree-service.ts, dynamic_chains table), the software-first AI escalation gate
+    (llm-routing-gate.ts -> ai-reply-gate.ts), the deterministic task model, and offline/cache/
+    sync/push/session-recovery -- each area graded honestly against real code (real IndexedDB
+    composer-history cache and conflict-resolution primitives exist and are largely unwired;
+    push notifications and session recovery do not exist at all; one working offline
+    photo-capture/sync flow exists but lives in the sibling projexa repo, not here). Amends
+    ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md in place (new OCID-20260803-025 section) rather
+    than duplicating it. No implementation performed.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md
+- id: veridian_universal_end_user_work_model_v1_0
+  type: point_in_time_synthesis_doc
+  path: ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md
+  scope: 'OCID-20260803-023 (UMR-20260803-042019-844f, dispatch UMR-20260803-040929-9713, parent
+    UMR-20260803-040844-4a33, master program UMR-20260802-173631-ca85): documentation-only v1.0
+    of the first canonical VERIDIAN Universal End User Work Model. Defines, each grounded in real,
+    live tables/services (not invented): what is work, what is a task, task uniqueness/identifier,
+    state model, ownership, assignment, delegation, transfer, approval, escalation, completion,
+    reopen, auditability, history, timeline, attachments, chat, decisions, artifacts, reports,
+    analysis, notifications, search, permissions, visibility, retention, synchronization, recovery,
+    and a lifecycle summary. Real prior art found and built on rather than duplicated:
+    UNIVERSAL_TASK_WRAPPER_DESIGN.md (repo root, 2026-07-11) and CONSTITUTION.yaml''s task_lifecycle
+    (TASK-01..05) -- confirmed via direct grep that activity_log/TASK-04''s own Phase 1 is wired for
+    the ai_team_dispatch activity type only; customer_task/orchestra_call (the types that would cover
+    real end-user tasks) have zero real call sites, a materially more precise finding than TASK-04''s
+    own gap field states. Mandatory input `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`
+    (OCID-022, a concurrent sibling task) was read in full before writing, per this task''s own
+    mandate. Every named gap (task reopen, task transfer, task decisions, tickets/pmsIssues search
+    coverage, task reporting/retention/recovery) maps to a real existing mechanism a future
+    implementation OCID would extend -- none require new architecture. Point-in-time; will go stale
+    as real work lands -- re-verify rather than trust on a future pass.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md
+- id: veridian_end_user_experience_foundation_v1
+  type: point_in_time_audit_doc
+  path: ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md
+  scope: 'OCID-20260803-022 (UMR-20260803-041653-9de5), parented to UMR-20260802-173631-ca85
+    (ERP Functional Completeness Master Program). The first canonical end-user-experience
+    foundation document: a real, evidence-based inventory of what an end user actually sees
+    today across the nav shell (AppSidebar.tsx/AppTopbar.tsx), Dynamic Mode Pills + Chain
+    Selector (CONSTITUTION.yaml section 6), VERI Chat / VERI (the assistant, CONSTITUTION.yaml
+    section 7), the high-impact-action approval UX (CONSTITUTION.yaml section 4), multi-tenant
+    isolation, multi-brand/white-label reality, and PROJEXA as the first brand -- plus a
+    catalogue of already-documented gaps (task-level chat has no AI reply, silent 403s for
+    unenabled modules, 6 unbuilt composer UX items, chip-gated composer, zero brand-field
+    adoption) and one newly-named gap (nav-level module visibility is gated by org type, not
+    end-user role). Documentation only -- no code, DB, UI, or UX change. Point-in-time; will go
+    stale as real work lands, same disclaimer class as implementation_matrix_2026_08_02.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md
+- id: veridian_global_knowledge_discovery_and_reuse_runtime_1_0
+  type: knowledge_discovery_and_reuse_spec
+  path: ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md
+  scope: 'OCID-20260803-027 (dispatched under a task labeled "ocid-027" -- real numbering discrepancy
+    flagged in the document itself, same class as the already-corrected OCID-036/037 swap), documentation
+    only. 36-section discovery-and-reuse operating model grounded in real, already-existing
+    infrastructure: the 4-layer search order already live in this file (protocol field, system_index
+    check-duplicate, knowledge_engine query-knowledge, wiring_registry call-graph), the mechanical
+    DATABASE_CATALOG.json (444 tables, 124 enums) and FUNCTION_CATALOG.json (5,019 functions) catalogs
+    reused unmodified across compliance-tracker/projexa/veda-advisors, the 247-entry VCEL engine
+    registry, the 195-role AI_ROSTER_CATALOG.json, and the versioned/lifecycle-managed prompt registry
+    (compliance.promptVersions + prompt-os-service.ts). States reuse/enhancement/standardization/
+    certification criteria and names two real, honest gaps: no dedicated mechanical catalog yet for
+    reports or business rules as a distinct class, and screen/UX discovery remains hand-maintained
+    narrative (system-tree/13-compliance-tracker-ui.yaml), not mechanically regenerated. Amends
+    ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md in place (new OCID-20260803-027 section) rather than
+    duplicating it. No implementation performed.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md
 tree_lineage:
   tree1_audit_tree:
     path: /opt/veridian/repos/compliance-tracker/ai-os/audit-tree/

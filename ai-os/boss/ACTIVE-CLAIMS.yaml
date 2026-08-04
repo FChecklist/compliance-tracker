@@ -58,6 +58,690 @@ active:
       content, none of which covers the organization/role/rights model this
       OCID is scoped to. File scope: the new doc, `PROGRESS.md`, this entry.
       No src/, schema, or CI changes.
+  - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [IN PROGRESS]"
+    claimed_at: "2026-08-04T06:08Z (this session)"
+    claim: |
+      SPEC (PM directive `UMR-20260804-060832-9fdf`, real parent OCID-021
+      `UMR-20260802-173631-ca85` / OCID-020 `UMR-20260802-165606-4413`, governed by the
+      Mandatory Governance Directive `UMR-20260804-051521-7099`, OCID-017
+      `UMR-20260802-165034-5747`): compare a proposed mechanical handoff envelope (a call log
+      of real tool invocations with real status codes, a mechanically-filtered rejected-paths
+      list, a one-sentence conclusion, a capped unknowns list, with strict validation) against
+      5 real existing platform mechanisms -- `task.yaml`'s checkpoint structure, `ACTIVE-CLAIMS.yaml`'s
+      claim registration, `resource_governor.py`'s `reuse_check_result`, `credit-accountant.py`'s
+      deterministic JSON verdict, and the `AUDIT: PASS`/`FAIL` comment convention -- honestly,
+      citing real file paths and field names. Discovery/comparison only, per the Mandatory
+      Governance Directive's own required sequence (discover -> verify -> reuse -> enhance ->
+      standardize -> update UMR -> update UTR -> update canonical artifact -> implement) and its
+      explicit prohibition on building a new execution/governance model when an existing one can
+      be enhanced. No new code, no new middleware, no new schema -- design proposal only, held for
+      a fresh PM decision before real implementation.
+    scope_note: >-
+      File scope: one new canonical artifact under `ai-os/` (the OCID-063 discovery doc),
+      `ai-os/OS.yaml` (index entry), `ai-os/MASTER-TRACKER.yaml` (design-proposal entry),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes.
+  - session_label: "claude-code (task-20260803-071119-ocid-039-veridian-real-end-user-producti) -- register OCID-038/039/040, discovery + real end-user live testing only, implementation/certification/freeze LOCKED [PUSHED, PR #789 OPEN]"
+    claimed_at: "2026-08-03T07:20Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, tier 1, parented to `UMR-20260803-042801-ec4b` the
+      real OCID-038 directive already registered, citing `UMR-20260803-040844-4a33` through
+      `UMR-20260803-042801-ec4b` (OCID-022 through OCID-038 in order), `UMR-20260802-173631-ca85`
+      (ERP Functional Completeness Master Program), and `UMR-20260802-165606-4413` (OCID-020)):
+      real Owner decision confirmed keeping the OCID-020 implementation lock (formally `SEC-07`,
+      `ai-os/CONSTITUTION.yaml`) strict. Explicit instruction: register OCID-038, OCID-039, and
+      OCID-040 immediately; perform discovery, verification, traceability, documentation,
+      dependency mapping, and gap identification immediately; perform REAL end-user testing
+      (real signup/login/org/mode-pills/option-chain/chat/attachments/voice/tasks/reports/
+      search/mobile-PWA/sync/logout-login/network-recovery) with real evidence, not narration;
+      do NOT perform implementation, gap closure, production changes, completion certification,
+      or platform freeze under these OCIDs until OCID-020 is independently verified complete.
+
+      **Real numbering note, same class as prior corrections in this chain**: this task's own
+      `task.yaml` title says "OCID-039," but this task's own SPEC text asks it to register all
+      three (038/039/040) in one dispatch and to perform the discovery+live-testing scope the
+      2026-08-03 status snapshot (`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`,
+      row for OCID-20260803-038) had already described as OCID-038's own mission ("real platform
+      discovery + honest E2E verification, do not implement") and explicitly recorded as "not yet
+      dispatched as its own worker task" prior to this one. Documenting this honestly rather than
+      silently resolving it: this dispatch is the real vehicle registering OCID-038, OCID-039, and
+      OCID-040 together, with only the discovery/testing/documentation slice of that combined scope
+      performed now, per its own explicit instruction.
+
+      Real testing target: `https://projexa-ai.com` (the real end-user production surface this
+      OCID chain and OCID-020 both certify), using `playwright-core` borrowed read-only from
+      `/opt/veridian/repos/compliance-tracker/node_modules` (this task's own workspace has no
+      `node_modules`) plus the already-fixed `~/.local/chrome-system-libs` `LD_LIBRARY_PATH`
+      workaround from an earlier session (no `sudo`, no repo mutation of that sibling checkout).
+    scope_note: >-
+      File scope: one new canonical artifact under `ai-os/` documenting real discovery + real
+      end-user test evidence for OCID-038/039/040, `ai-os/OS.yaml` (index entry),
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment), `ai-os/MASTER-TRACKER.yaml` (new
+      gap entries for real findings only), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, or CI changes -- discovery/documentation/testing only, per SEC-07's lock. No writes
+      to the sibling `/opt/veridian/repos/compliance-tracker` checkout (read-only `node_modules`
+      borrow for a local Playwright script only). Real test-account artifacts created on the live
+      `projexa-ai.com` app (Supabase signup + Admin-API email-confirm bypass) are real production
+      test data, not a schema/code change to this repo.
+  - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 MERGED -- merge commit f11d04ff33f75fc7d27ddc991b1adb7f38b03a52, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Corrected during this branch's own conflict resolution: previously said 'open pending independent audit', stale as of the real 3-round review this session -- round 3 posted a real independent AUDIT: PASS and it auto-merged.]"
+  - session_label: "claude-code (task-20260803-050452-ocid-026-veridian-deterministic-executio) -- OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 (UMR-20260803-041047-03ee, documentation only)"
+    claimed_at: "2026-08-03T05:05Z (this session)"
+    claim: |
+      SPEC (real Owner directive, tier 1, this task's own prompt.txt):
+      documentation-only mission to create exactly one new canonical
+      artifact, `ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md`,
+      defining how VERIDIAN software decides, when AI is invoked, and when
+      AI shall never be invoked -- grounded in mandatory discovery of the
+      real, already-existing AI runtime, prompt engine, mode pills, option
+      chain, VERI Chat, VERI Assistant, function/report/analysis libraries,
+      and rule/decision engine. No implementation; no browser/PWA/database/
+      security design (those belong to other OCIDs). Per the real,
+      independently-verified status snapshot
+      (`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`, section
+      1), no task/branch/PR existed for OCID-026 as of 2026-08-03 --
+      confirmed fresh again at claim time via this file and `gh pr list`.
+      Note: that same snapshot's own OCID-026 title guess ("Global
+      Knowledge Discovery and Reuse Runtime") does not match this task's
+      real directive title ("Deterministic Execution and AI Escalation
+      Runtime") -- proceeding on this task's own literal SPEC text as the
+      authoritative directive, flagging the discrepancy in the artifact
+      itself rather than silently picking one.
+    scope_note: >-
+      File scope: one new file,
+      `ai-os/VERIDIAN_DETERMINISTIC_EXECUTION_AND_AI_ESCALATION_RUNTIME_2026-08-03.md`,
+      plus `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment, existing
+      UMR chain), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`.
+      No src/, schema, CI, or implementation changes of any kind.
+  - session_label: "claude-code (task-20260803-041115-ocid-025-veridian-mobile-pwa-and-veri-ch) -- OCID-025 VERIDIAN Mobile PWA and VERI Chat Runtime v1.0, documentation only"
+    claimed_at: "2026-08-03T04:15Z"
+    claim: |
+      SPEC (this task's own prompt.txt, tier 1 Owner directive, parented to
+      UMR-20260803-041000-70ae, citing UMR-20260803-040929-9713 OCID-023,
+      UMR-20260803-040844-4a33 OCID-022, UMR-20260802-173631-ca85 the ERP
+      Functional Completeness Master Program, UMR-20260802-165606-4413
+      OCID-020, UMR-20260802-164659-9a31 the traceability audit,
+      UMR-20260802-165034-5747 the gatekeeper rule, UMR-20260802-165434-cd91
+      the unified project memory, and UMR-20260802-165541-c27d the recovery
+      framework). Documentation only -- create exactly one canonical
+      artifact, `VERIDIAN Mobile PWA and VERI Chat Runtime` v1.0, grounded in
+      real, already-existing mobile PWA / VERI Chat / VERI Assistant / mode
+      pill / option chain / sync / cache / offline mechanisms. No
+      implementation, no new PWA, no new chat system.
+
+      Real, disclosed concurrency note (same class as OCID-022/023's own
+      disclosed findings): sibling sessions for OCID-022
+      (`task-20260803-040852-...`), OCID-023 (`task-20260803-041002-...`),
+      and OCID-024 (`task-20260803-041006-...`) are genuinely concurrent,
+      still `in_progress` at claim time (checked their real `task.yaml`
+      directly) -- OCID-024's own document does not exist yet despite this
+      task's spec citing it as "just registered" (UMR-20260803-041000-70ae).
+      Per OCID-022/023's own already-disclosed precedent, this task's
+      content does not have a hard read-dependency on sibling OCID docs'
+      text (each OCID document is grounded independently in real production
+      code, not in a prior sibling's narrative) -- proceeding with
+      independent discovery now rather than blocking, consistent with the
+      OCID-021 implementation lock (real citation: UMR-20260802-165606-4413,
+      OCID-020's own gating condition -- no real implementation until OCID-020
+      is independently verified complete; documentation-only work is
+      explicitly permitted under that lock).
+    scope_note: >-
+      File scope: new file `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md`,
+      amendment to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (append-only, new
+      OCID-20260803-025 section), registration in `ai-os/MASTER_INDEX.yaml` /
+      `ai-os/OS.yaml` if their coverage-check scripts require it, this
+      ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes.
+      Read-only discovery across `src/lib/browser-execution/`, `VeriComposer.tsx`,
+      `ChainSelector.tsx`, chat/messages API routes, PWA manifest/service-worker
+      files, push-notification and offline/sync code.
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
+    claimed_at: "2026-08-03T21:55Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): OCID-020 declared complete, OCID-021 real
+      implementation authorized, scoped to the honestly registered gap backlog from Group F testing,
+      one gap per dispatch, real branch/fix/retest/PR/merge, citing the gap id closed each time.
+
+      Verified before starting (per standing rule, never trust a PM spec's framing unverified):
+      `git merge-base --is-ancestor` confirmed this task's starting HEAD was already an ancestor of
+      `origin/main` (5 commits behind, incl. PR #786) -- fast-forwarded first. Confirmed via
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed` + `PROGRESS.md`'s own tail that Item 1
+      (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`) was already done by a prior session under this exact
+      same PM decision ID (PR #851, merged, confirmed ancestor of the fast-forwarded `origin/main`) --
+      not re-doing it. Picking up Item 2 of the same 6-item backlog, next in the PM's own listed order:
+      `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API` (MASTER-TRACKER.yaml status:
+      open, confirmed via direct read, not assumed from the SPEC's framing).
+    scope_note: >-
+      File scope (planned): new `src/app/api/erp/enablement/route.ts`,
+      `src/app/api/crm/enablement/route.ts`, `src/app/api/construction/enablement/route.ts` (mirroring
+      the existing `src/app/api/pms/enablement/route.ts` / `src/app/api/the-firm/enablement/route.ts`
+      pattern -- the service-layer functions `enableErpForOrg`/`enableSalesForOrg`/
+      `enableConstructionForOrg` already exist and are fully implemented, this only wires a real
+      authenticated route to each), `ai-os/MASTER-TRACKER.yaml` (gap status update),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration changes.
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-veri-chat-no-visible-ai-signal) -- OCID-021 Wave 1: real fix for GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL [DONE, PR opened]"
+    claimed_at: "2026-08-03T23:10Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): continuing the same OCID-021 Wave 1 backlog
+      this task's own prior invocation started (Item 1 `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`,
+      PR #851, merged; Item 2 `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
+      PR #852, open pending independent audit -- not touched further by this entry).
+
+      On resume, found this task's own workspace had real, uncommitted, working (tsc-clean) code for
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` sitting directly on top of PR #852's own
+      branch (`fix/gap-erp-sales-construction-self-service-enablement`) -- a prior invocation had
+      started the next backlog item without switching to its own branch first, which would have mixed
+      two unrelated gaps into one PR/audit unit. Verified the in-progress diff was real and correct
+      (not narrated): `bunx tsc --noEmit` clean, matches `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`'s
+      own `recommendation` in `ai-os/MASTER-TRACKER.yaml`, and the `confidenceLabel` field it reads
+      already exists on the real `getMessages()` API response (`chat-service.ts:394`), confirmed by
+      direct read, not assumed. Relocated it to its own isolated worktree/branch (`git worktree add`
+      off `origin/main`, not the shared main workspace, to respect
+      [[veridian-shared-worktree-stash-risk]]) rather than commit it onto PR #852's branch, added a
+      real regression test (`HomeThreadSlot.test.ts`, 4 tests/6 assertions, matching this repo's
+      established pure-function-test pattern), reran `bunx tsc --noEmit` and `bun test` clean in the
+      new worktree itself (not just the original workspace) before committing.
+    scope_note: >-
+      File scope: `src/components/veri-chat/HomeThreadSlot.tsx` (message-mapping change only, no new
+      mechanism), new `src/components/veri-chat/HomeThreadSlot.test.ts`, `ai-os/MASTER-TRACKER.yaml`
+      (gap status update), `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration/API
+      changes -- `confidenceLabel` was already returned by the real backend, this only reads it.
+  - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260802-165606-4413` OCID-020, `UMR-20260803-115513-c990` OCID-049):
+      do NOT start OCID-049 real testing execution yet. Gate: wait for PR #825 (real OCID-048
+      cross-org isolation results) to genuinely merge, independently confirm that merge the same way
+      every other real merge this session has been confirmed, then proceed with OCID-049 real
+      testing execution only after that AND only if real swap pressure has eased (SPEC cited
+      3.9/4.0Gi swap used at dispatch time, near the 2026-07-26 OOM-incident pressure class).
+
+      Real, material correction to the SPEC's own premise found this session, via `gh pr view
+      825 --json state,mergedAt` (not trusted from the SPEC's framing): PR #825 is **CLOSED, not
+      merged** (closed 2026-08-03T15:44:25Z, `mergedAt: null`) -- it will never satisfy the SPEC's
+      literal "wait for PR 825 to merge" gate. Full reason found via `gh api .../issues/825/comments`:
+      a second-pass audit (`AUDIT: FAIL`) found PR #825 collided on the same 3 files with
+      concurrently-open PR #826 and that the two asserted contradictory OCID-048 findings (#825:
+      Playwright/DOM parts still blocked on `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`; #826: a
+      real no-sudo Chromium workaround already resolves that gap) -- #825 was closed in favor of
+      #826 as the more complete, independently-re-verified-accurate successor.
+
+      Re-applied the gate's real intent to its real current carrier, PR #826
+      (`worker/task-20260803-151937-pm-decision--proceed-with-ocid-048-real`): confirmed via `gh pr
+      view 826 --json mergeable` (`CONFLICTING`) and `gh pr checks 826` (`audit-check: fail`, no
+      audit verdict posted yet) that it is also not yet merged. Confirmed via `git merge-base
+      --is-ancestor <sha> origin/main` (not just trusting PR metadata) that neither #825's nor #826's
+      commits are ancestors of `origin/main` -- the real OCID-048 cross-org/cross-tenant isolation
+      work has not landed on `main` under any PR yet. Checked real swap via `free -h`: 2.5Gi/4.0Gi
+      used (62.5%), improved from the SPEC's cited 97.5% but not the controlling factor here.
+
+      Decision: continue to hold OCID-049 real testing execution. Did not start it. Registering this
+      correction here so a future session re-reading the original "wait for PR 825" language re-checks
+      PR #826 (or whatever next carries this result) instead of waiting on a PR that will never merge.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS.yaml entry. No src/, schema, planning-doc, or
+      MASTER-TRACKER.yaml changes -- the existing `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` entry
+      already correctly states "do not implement/test/certify until the Owner explicitly opens
+      implementation," so no update was needed there. Decision/verification only, no testing or
+      implementation performed against OCID-048 or OCID-049.
+  - session_label: "claude-code (task-20260803-094100-pm-priority-reorder--complete-ocid-020-f) -- OCID-020: PR #794 status re-verify + real fix for Finding 1 (GAP-ERP-REPORTS-CLIENT-CRASH-ON-403) [FIX PUSHED, PR #803 OPEN]"
+    claimed_at: "2026-08-03T09:41Z (this session)"
+    claim: |
+      SPEC (PM decision, this task's own prompt.txt): Owner-set top priority to finish
+      OCID-020 (`UMR-20260802-165606-4413`) first and fast, ahead of the OCID-041..046
+      discovery chain. PM's spec asked to move PR #794 to pending review (bypassing a
+      retry of an unrelated auto-fix failure, per the PR #755 precedent), then fix +
+      reverify Finding 1 (the high-severity `/erp/reports` client crash), then separately
+      re-test the 3 timed-out pages (`/orchestra`, `/prompt-eval`, `/sales-hq`) in
+      isolation under low host load.
+
+      Independently re-verified before acting (never act on an unverified claim,
+      including the PM's own, per standing rule): `gh pr view 794` showed
+      `state: MERGED`, `mergedAt: 2026-08-03T08:59:13Z` -- PR #794 had **already merged**
+      before this session started (tip of `main` is `b47b9caf`, the literal merge commit).
+      The spec's premise that it was still blocked/pending-review is stale by the time
+      this session read it -- no action taken on "moving it to pending review" since
+      there was nothing left to move.
+
+      Real root-cause investigation of Finding 1 (`GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`,
+      `src/app/(app)/erp/reports/page.tsx`): read the actual component. The Trial Balance
+      tab's footer guard (`tb && tb.accounts.length > 0`) assumes any truthy `tb` has an
+      `.accounts` array, but a 403 response body (`{ error: "..." }`, no `accounts` field)
+      is itself truthy -- `tb.accounts` is `undefined`, and `.length` on it throws exactly
+      the evidenced `TypeError: Cannot read properties of undefined (reading 'length')`.
+      This is the default-active tab (`Tabs defaultValue="tb"`), so it fires on first
+      render -- matches the sweep's fully-blank-page screenshot. Separately checked the
+      Cash Flow tab's `cf?.operating.receivableChange`-style chains: confirmed these are
+      **not** a bug -- `?.` short-circuits the *entire* remaining chain (not just the
+      first hop), so `cf.operating` is only read when `cf` is non-null, at which point
+      `.operating` is guaranteed present by the state's own type. Did not "fix" this --
+      it was never broken; noted here so a future session doesn't re-flag it.
+
+      Fix shipped: extracted `hasTrialBalanceFooterRows()` as a generic type-predicate
+      guard (preserves `tb`'s non-null narrowing for the sibling `tb.isBalanced`/
+      `tb.totalDebit`/`tb.totalCredit` reads in the same JSX block -- a plain boolean
+      helper would have silently broken that narrowing, caught via a full `bunx tsc
+      --noEmit` run before pushing) to `src/lib/erp-reports-guards.ts`, with a regression
+      test that independently reproduces the exact `TypeError` against the pre-fix logic
+      and passes against the fix. Verified `bun test` (4/4 new, 2479/2479 full suite),
+      `bunx tsc --noEmit` (clean, full repo), `bunx eslint` (clean). PR #803 opened.
+
+      Real mistake caught and fixed within this same session, noted honestly: an early
+      commit on this branch replaced main's real 769-line `PROGRESS.md` with a fresh
+      per-task stub instead of appending to it, because `git show HEAD~1:PROGRESS.md |
+      wc -l` silently truncated its output in this sandbox (a known class of bug) and
+      showed 31 lines instead of 769, masking the real file size before the Write.
+      Caught via `git cat-file -p` (untruncated) before the PR was opened; fixed with a
+      follow-up commit restoring the full history and appending this task's section.
+
+      Timeout re-test (`GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) explicitly NOT
+      attempted this session: host load re-checked at hand-off time was `13.62, 9.25,
+      8.58` -- worse than the `10.23` load that triggered the prior deferral in this
+      same OCID-020 chain, not the "low host load" condition the spec itself required
+      before this specific re-test could produce a trustworthy result. Deferring rather
+      than risking a 3rd invalidated attempt, per the standing circuit-breaker rule and
+      the same precedent already used twice in this chain.
+    scope_note: >-
+      File scope: `src/app/(app)/erp/reports/page.tsx` (the one-line guard fix),
+      new `src/lib/erp-reports-guards.ts` + `src/lib/erp-reports-guards.test.ts`
+      (extracted pure predicate + regression test, matching this repo's established
+      test-pure-logic convention since there's no component-render test harness
+      here), `ai-os/MASTER-TRACKER.yaml` (GAP status update), this ACTIVE-CLAIMS entry,
+      `PROGRESS.md`. No schema/CI changes.
+  - session_label: "claude-code (task-20260803-151937-pm-decision--proceed-with-ocid-048-real, UMR-20260803-115452-a35d) -- OCID-048 real API-level cross-tenant isolation test execution [DONE, closed same session]"
+    claimed_at: "2026-08-03T15:20Z (this session; claim recorded after work completed, verified first via `git fetch origin main` that no other session had claimed OCID-048 real execution -- only the prior planning/task-breakdown entry existed)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-115452-a35d`, child of `UMR-20260802-165606-4413` OCID-020):
+      proceed with real testing execution for OCID-048, focused on API-level-testable parts, real
+      cross-tenant data isolation checks across at least two real organizations using the same
+      session-cookie + direct-API-call pattern already proven for OCID-047/OCID-052. Genuinely
+      browser-DOM-dependent sub-parts to be honestly flagged as blocked, not skipped or faked.
+
+      Zero-duplication check: `git fetch origin main` confirmed no new commits since this branch
+      forked, and `ai-os/boss/ACTIVE-CLAIMS.yaml` had no other real-execution claim for OCID-048 --
+      only the already-merged planning/task-breakdown entry (this file, further down).
+
+      Real, live results: provisioned 2 fresh real orgs via the proven Admin-API +
+      hand-constructed-session-cookie method; ran 6 real cross-tenant isolation probes across 4
+      independent route families (departments list+by-id, tasks, clients, products, users) --
+      **7/7 PASS**, zero leakage found. Also ran a real brand-as-configuration check
+      (`PATCH`/`GET /api/settings/branding`) -- Org A's custom branding persisted to Org A only, Org
+      B unaffected. Discovered and confirmed (not assumed) that the browser-DOM half of the brand
+      check was NOT actually blocked by `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` -- a real,
+      already-durable no-sudo fix from an earlier session
+      (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`) makes headless Chromium launch
+      cleanly; ran a real cookie-injected headless browser session confirming the live-rendered
+      Branding UI shows the exact values set via the API. Narrowed (not closed) the shared gap entry
+      in `MASTER-TRACKER.yaml` accordingly, since this pass only confirmed
+      cookie-injected-navigation/DOM-read/screenshot, not full interactive-flow/device-emulation
+      coverage other OCIDs (050/051/052) still need.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`
+      (amended in place, new §8), `ai-os/MASTER-TRACKER.yaml` (`GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`
+      entry narrowed), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No `src/`, schema, or CI changes --
+      real test execution against the existing, already-built tenant-isolation and branding mechanisms,
+      no code modified. Test scripts and screenshot are ephemeral (`/tmp`), not committed, consistent
+      with the OCID-047/052 sessions' own convention.
+  - session_label: "claude-code (task-20260803-150821-pm-decision--proceed-with-ocid-047-real) -- OCID-047 RESPONSIBILITY/data-scope axis, real API-level execution [DONE, all 4 named mechanisms tested: classification.ts 18/18, risk-register-service.ts 4/4]"
+    claimed_at: "2026-08-03T15:15Z (this session, closed 2026-08-03T16:20Z)"
+    claim: |
+      SPEC (PM decision, `UMR-20260803-115333-dab8`, `UMR-20260802-165606-4413` OCID-020): proceed with
+      real testing execution for OCID-047 Roles/Rights/Responsibilities Certification, real API-level
+      checks per role (no browser needed), and confirm `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` is
+      registered honestly citing what it blocks (OCID-050, OCID-051, OCID-052 items 4-5).
+
+      Real duplicate-dispatch collision found via this session's own mandatory `git fetch`/read-first
+      step (this file's own protocol): `origin/main` had already advanced to `066cad5f` (PR #823,
+      `test/ocid047-role-matrix-real-execution`, commit `7338db31`) -- a genuinely parallel session
+      under a DIFFERENT PM decision UMR (`UMR-20260803-145921-c0c4`, same parent OCID-020) had, minutes
+      earlier, already executed exactly this SPEC's RIGHTS-axis half: 55 real HTTP calls (11 roles x 5
+      real routes spanning member/manager/admin/veridian_admin) against live `projexa-ai.com`, 55/55
+      matched `ROLE_RANK` prediction for 10/11 roles, found+registered a real `stage_0`-missing-from-
+      `ROLE_RANK` bug (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`), AND already amended
+      `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS` to name OCID-050/051/052 items 4-5 exactly as this
+      SPEC separately asked. Independently re-verified via `git cat-file -p` diff against the real blobs
+      (not trusted from the commit message alone) before concluding this, per this file's own honesty
+      standard -- both halves of this SPEC are genuinely done, merged, real.
+
+      Did NOT redo that work. Merged `origin/main` into this branch first. Real, substantive, non-
+      duplicate scope found instead, named explicitly in that merged PR's own "Remaining" list: the
+      RESPONSIBILITY/data-scope axis (separate from the RIGHTS/rank axis just tested) --
+      `home-service.ts`'s rank-based dashboard rollup, `client-access-service.ts`'s
+      `FULL_CLIENT_ACCESS_ROLE` client-list visibility gate, `risk-register-service.ts`'s
+      `BROAD_SCOPE_ROLES` risk-visibility gate, `classification.ts`'s `ROLE_CLEARANCE` ceiling -- and
+      specifically the 3 real same-rank/different-clearance divergences the original OCID-047 planning
+      amendment (PR #814) named but never tested: `external_auditor` vs `member`, `senior_professional`
+      vs `manager`, `team_member` vs `member`. This session executes real, live API-level tests against
+      that axis instead.
+    scope_note: >-
+      File scope: reuses the existing OCID-047 canonical planning doc (amend in place, no new doc),
+      `ai-os/MASTER-TRACKER.yaml` (any new gap found), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No
+      src/ code changes -- real test execution only, against the existing responsibility model.
+  - session_label: "claude-code (task-20260803-125054-register-ocid-052-veri-chat-ai-escalatio) -- OCID-052 dedicated deepening, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:51Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, citing UMR-20260802-165606-4413/OCID-020): register OCID-052
+      (VERI Chat AI Escalation and Deterministic Software Execution Certification) as a real child of
+      OCID-020, planning only, reusing the existing VERI Chat surface + gateway.py/OWNER_ENGINE layered
+      router + existing worker/dispatch infra, no new chat engine or routing architecture.
+
+      Zero-duplication check performed first, per directive: `resource_governor.py --query-umr --search`
+      for "OCID-052" and the real child UMR both returned `count: 0`. Found the real prior artifact via
+      `ai-os/OS.yaml`/`git log` instead (the dispatch-DB query only covers queued task_specs, not doc
+      content): the merged OCID-047-052 batch doc (PR #811, this exact UMR chain) already has an OCID-052
+      section, itself already correctly ruling out gateway.py/OWNER_ENGINE as the real target -- so this
+      task's own SPEC repeats a "gateway.py under OWNER_ENGINE" premise that a prior session already
+      investigated and corrected inside that same merged section, not a fresh finding.
+
+      Real, substantive correction found and NOT silently repeated: the merged section's own placeholder
+      named `mother-router.ts` as the real target but had not yet read it (its own task breakdown item 1
+      said so explicitly). Read it directly this session -- it is a real AI model/provider registry across
+      3 scopes, not a deterministic-vs-AI decision gate. Found the real mechanism instead via direct file
+      reads: `chat-service.ts`'s `generateAiReply()` -> `tryDeterministicRoute()` (`llm-routing-gate.ts`,
+      2 of 5 `intent-engine.ts` intents have zero-LLM handlers) -> `runDialogueScriptTurn()`
+      (`dialogue-script-executor.ts`) -> only then `resolveModelConfig()`/`callLLM()`. Also found and
+      registered a real, honest gap: `ThreadView.tsx` renders every AI-thread reply identically regardless
+      of deterministic/scripted/AI origin; the only real distinguishing signal is the incidental
+      presence/absence of the `confidenceLabel` confidence badge (designed as an AI-confidence heuristic,
+      not a deterministic-vs-AI indicator) -- no explicit end-user-facing label exists today, named as this
+      OCID's own real certification-blocking finding rather than assumed solved.
+
+      Deepened the existing artifact in place (new dedicated file, same convention as OCID-051's own
+      dedicated deepening doc) rather than re-registering a duplicate UMR or overwriting the merged batch
+      doc's own OCID-047/048/049/050/051 sections, which this task's scope does not touch.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (new file), `ai-os/OS.yaml` (index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema,
+      or CI changes -- planning only, no testing or implementation performed against OCID-052's own
+      definition of done.
+  - session_label: "claude-code (task-20260803-120302-register-ocid-047-roles-rights-responsib, UMR-20260803-115333-dab8) -- OCID-047 responsibility-model amendment, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, citing the same real UMR `UMR-20260803-115333-dab8` and the same
+      parent `UMR-20260802-165606-4413`/OCID-020): register OCID-047 (Roles/Rights/Responsibilities
+      Certification), enumerating every real role, mapping each to real rights AND responsibilities,
+      defining a real per-role test path reusing the existing browser harness. Planning only.
+
+      Real duplicate-dispatch collision found and handled per this file's own protocol (not silently
+      worked around): `git fetch`/`git merge origin/main`, this session's own mandatory first step,
+      found `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` (PR #811)
+      already merged minutes earlier, citing the exact same UMR this task was dispatched under -- a
+      real race between two invocations of the same directive, not a different task. Did not
+      re-author a duplicate document.
+
+      Independently re-verified the existing OCID-047 section's own numbers directly against live code
+      before amending anything: `ERP_ACTION_ROLES` (55) + `PROMPT_ACTION_ROLES` (9) = 64, exact match;
+      51 real `requireRole(` call sites under `src/app/api`, exact match. Both confirmed accurate, no
+      correction needed to the rights-model half.
+
+      Found and closed a real, substantive gap instead: the existing section covers RIGHTS (the 64
+      centrally-registered actions + 51 inline sites) but never names the separate, real, already-built
+      RESPONSIBILITY/data-scope layer this OCID's own SPEC explicitly asks for -- `home-service.ts`'s
+      rank-based dashboard scope (individual/team/org), `client-access-service.ts`'s
+      `FULL_CLIENT_ACCESS_ROLE` client-list visibility gate, `risk-register-service.ts`'s
+      `BROAD_SCOPE_ROLES` risk-visibility gate, and `classification.ts`'s `ROLE_CLEARANCE` ceiling -- a
+      genuinely separate axis from `ROLE_RANK` with 3 real same-rank/different-clearance divergences
+      (`external_auditor` vs `member`, `senior_professional` vs `manager`, `team_member` vs `member`)
+      a rank-only test plan would miss. Also found and named a real provisioning-path gap: both real,
+      live user-creation mechanisms (`invite-link-service.ts`'s `INVITE_ROLES`,
+      `POST /api/users`'s `VALID_ROLES`) only assign the original 4 roles -- 6 of the 11 real DB roles
+      (`veridian_admin`/`branch_manager`/`senior_professional`/`team_member`/`client_viewer`/
+      `external_auditor`) have no real product-level onboarding path found this pass, DB-seed only.
+
+      Amended the existing canonical artifact in place with a full per-role rights+responsibility+
+      provisioning-path table (11 rows) and a Definition-of-Done addendum, rather than creating a
+      second, parallel document.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md` (amended,
+      in place -- not rewritten, not duplicated), `ai-os/OS.yaml` (covers-line update), this
+      ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, or CI changes -- planning only, per this
+      OCID's own explicit prohibition on testing/implementation this cycle.
+  - session_label: "claude-code (interactive, task-20260803-120639, UMR-20260803-115558-170e reused) -- OCID-051 Cross-Surface Certification, dedicated planning deepening, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:06Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM directive, instruction INS-20260803-115557-0ec8, auto-logged in the
+      superboss register): register OCID-051 (Cross-Surface Certification: desktop browser
+      completeness + Mobile PWA) as a real child of OCID-020 (UMR-20260802-165606-4413), with its
+      own dedicated, deterministic task breakdown -- planning only, no testing, no implementation,
+      no certification this cycle. Reuse only the existing browser test harness and existing Mobile
+      PWA infrastructure; no new framework, no new architecture.
+
+      Zero-duplication check performed before starting, per directive: `resource_governor.py
+      --query-umr --search` for "UMR-20260803-115558-170e", "OCID-051", and "Cross-Surface" each
+      returned `count: 0` -- no sub-task already dispatched for this OCID in the umr_tasks
+      registry. The one real prior artifact is the OCID-047-052 batch doc's own one-paragraph
+      OCID-051 section (same UMR) -- deepened here, not duplicated.
+
+      Real correction found and recorded, not assumed either way (this is the substantive output
+      of this pass): the batch doc's own OCID-051 section had flagged its "no PWA infrastructure
+      exists at all" finding as needing live re-confirmation. Re-checked directly against this
+      branch: `src/app/manifest.ts` (merged PR #435, real, on main, not an unmerged branch) provides
+      a real, installable manifest with a working Web Share Target
+      (`/api/veri-chat/share-target` -> `importSharedContent()` -> redirect into a real
+      conversation). Zero service worker exists anywhere in `src` (confirmed via git grep --
+      matches only in documentation, never in code or package.json). Net: the prior "no PWA at
+      all" finding was out of date; real, narrow PWA infrastructure (install + share-target) exists
+      and must be tested, while offline/service-worker behavior is genuinely absent and must be
+      recorded as such, not silently assumed unchanged from the earlier check.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`
+      (new file, the dedicated canonical artifact for this OCID), a cross-link correction added to
+      `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md`'s own OCID-051
+      section, `ai-os/OS.yaml` (new index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No
+      src/, schema, or CI changes -- planning only, no testing or implementation performed against
+      either of OCID-051's two real definitions of done.
+  - session_label: "claude-code (interactive, UMR-20260803-115333-dab8 through -115620-29c6) -- OCID-047 through OCID-052, Business Certification phase planning, docs-only [DONE, docs-only]"
+    claimed_at: "2026-08-03T11:53Z (this session, closed same session)"
+    claim: |
+      SPEC (6 real, back-to-back PM decisions, all explicitly planning-only,
+      no testing/implementation this cycle): produce real, deterministic
+      task breakdowns for OCID-047 (Roles/Rights/Responsibilities
+      Certification), OCID-048 (Multi-Org/Tenant/Brand Isolation
+      Certification), OCID-049 (Subscription Plan Entitlement
+      Certification), OCID-050 (Data State Certification), OCID-051
+      (Cross-Surface Certification: desktop + Mobile PWA), OCID-052 (VERI
+      Chat AI Escalation Certification) -- each reusing only real,
+      already-existing VERIDIAN mechanisms, no new architecture.
+
+      Zero-duplication check performed per directive, before starting:
+      `resource_governor.py --query-umr --search` for each real OCID
+      number/name, all returned `count: 0`.
+
+      Real discovery performed for each, not narrated: userRoleEnum's real
+      11 roles + ROLE_RANK (auth-guard.ts) + permission-service.ts's real
+      73 centrally-registered actions (OCID-047); the real, already-merged
+      cross-tenant isolation test + this session's own standing pending
+      task-list item, explicitly reused not duplicated (OCID-048); a real,
+      live query against `platform.product_branches` (not
+      `compliance.product_branches`, a real schema-targeting mistake
+      caught and corrected mid-investigation) found 27 real active product
+      branches, plus an honest gap -- no real plan-tier-to-branch mapping
+      located yet, stated as the real open first task rather than assumed
+      (OCID-049); real candidate empty/sample orgs identified, "large
+      data volume" org honestly left open (OCID-050); a real, direct
+      re-check confirming the earlier "no PWA exists" finding needs
+      reconfirmation, not silent assumption either way (OCID-051); a real,
+      important correction -- `gateway.py`/OWNER_ENGINE is this
+      orchestration session's own server-ops tooling for Owner-dispatch
+      messages, not the product's real end-user VERI Chat router (that's
+      `mother-router.ts`) -- caught before a test plan got built against
+      the wrong system (OCID-052).
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_047_052_BUSINESS_CERTIFICATION_PLANNING_2026-08-03.md`
+      (new file, the one canonical artifact for all six), `ai-os/OS.yaml`
+      (index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, or CI changes -- planning only, no testing or implementation
+      performed against any of the six real definitions of done, per every
+      directive's own explicit instruction.
+  - session_label: "claude-code (task-20260803-120314-register-ocid-050-data-state-certificati) -- OCID-050 Data State Certification: planning-only task breakdown, child of OCID-020 [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:07Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, `UMR-20260802-165606-4413` OCID-020 as parent, Business
+      Certification phase): register OCID-050, "Data State Certification," covering Empty/Sample/Large
+      data states, as a real child of OCID-020. Explicitly planning only this cycle -- no testing, no
+      fixing, no new org creation. Mission was to reuse the existing real 115-item nav-surface list from
+      PR #794 (no new discovery pass) and produce a deterministic task breakdown for re-running it
+      against three real data states, checking pagination, empty-state messaging, and performance under
+      load.
+
+      Zero-duplication check performed first, per this task's own instruction to check
+      `resource_governor` before creating any sub-task: `python3 scripts/resource_governor.py
+      --query-umr --search "OCID-050"` returned zero matches; `ACTIVE-CLAIMS.yaml` read in full, zero
+      prior OCID-050 entries. No sub-task was created (planning-only artifact, nothing to dispatch yet).
+
+      Independently re-verified the reused inputs rather than trusting the spec's own claims: `gh pr
+      view 794` confirms real, merged (115/115 nav coverage); `/tmp/ocid020-continue/nav-hrefs-v2.json`
+      opened directly, confirmed a real 115-item array. Confirmed State A (Empty = "OCID-020 Continue
+      Org A") and State B (Sample Data = `demo_org`, real ERP transactional usage since the 2026-07-06
+      seed) both already exist and require no new creation. Independently checked State C (Large Data
+      volume org) and found, honestly, that **no such org has been confirmed to exist yet** -- flagged
+      as a real open prerequisite (TASK-050-1) in the new artifact rather than assumed or fabricated.
+
+      Deliverable: one new canonical artifact,
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`, with a
+      real deterministic breakdown (TASK-050-0 through -6: durable-fixture prerequisite, large-data-org
+      prerequisite, acceptance-criteria prerequisite, then 3 independent per-state passes reusing the
+      PR #794 batched-browser harness, then synthesis/registration) and an explicit Definition of Done
+      (a real completed pass of the 115-item list under all 3 states, findings registered the same
+      honest way as Finding 1/2/3 from the original sweep). No browser automation run, no org created,
+      no findings registered this cycle -- planning only, per this task's own explicit scope.
+    scope_note: >-
+      File scope: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      (new file, the one canonical artifact), `ai-os/OS.yaml` (new index entry), this ACTIVE-CLAIMS
+      entry, `PROGRESS.md`. No src/, schema, CI, or `.github/` changes. No implementation, no testing,
+      no new organization created -- consistent with this task's own explicit planning-only scope.
+  - session_label: "claude-code (interactive, UMR-20260803-073007-06a1) -- OCID-020 resume: PR #755 stale-state correction + host-load-based deferral of the nav sweep [DONE, docs-only]"
+    claimed_at: "2026-08-03T07:31Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision, UMR-20260803-073007-06a1): PM reported task-20260802-231454's
+      task.yaml recorded PR #755 as blocked/merge-failed and asked this session to
+      independently verify, then resume the OCID-020 nav-surface sweep against live
+      projexa-ai.com.
+
+      Independently re-verified before acting on the PM's own claim (per standing rule --
+      never self-certify, never act on an unverified claim including the PM's own):
+      `gh pr view 755` confirms real `state: MERGED`, `mergedAt: 2026-08-03T01:21:42Z`,
+      merge commit `db5d531b026f0d90665cd9508c367bae7cf0160f`, independently confirmed a real
+      ancestor of `origin/main` via `git merge-base --is-ancestor`. Task-20260802-231454's
+      stale checkpoint (01:05:42Z) simply predates the real merge (01:21:42Z) by 16 minutes --
+      a real race, not a real merge failure. No re-merge attempted. Did not edit
+      task-20260802-231454's own task.yaml directly (owned by its own worker/systemd
+      lifecycle, same established convention as the prior continuation entry) -- correction
+      recorded in a new doc instead.
+
+      Real, measured host-load check performed before resuming the heavy Playwright sweep,
+      per the prior continuation doc's own explicit recommendation ("checked for host load
+      first") after two consecutive real sweep failures under host contention: `uptime`
+      showed load average 10.23 on an 8-core box (~1.28/core), `free -h` showed 3.7Gi/4Gi
+      swap in use, only 259Mi free -- real, current resource pressure, caused by 5
+      concurrently-running legitimate dispatched workers (OCID-037/038/039/040 + this PM
+      decision's own sibling dispatch). Decision: defer the heavy multi-navigation sweep
+      rather than risk a 3rd invalidated run under the same failure class already documented
+      twice; wrote a concrete handoff (per-batch browser health-check/restart, ~10-15
+      navigations per instance) for whoever resumes it once load allows.
+    scope_note: >-
+      File scope: `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_RESUME_2026-08-03.md` (new file),
+      `ai-os/OS.yaml` (index registration), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, or CI changes. Did not run any new browser automation this pass (deliberate,
+      load-based deferral, documented above).
+  - session_label: "claude-code (task-20260803-055106-ocid-031-veridian-universal-software-exe) -- VERIDIAN Universal Software Execution Engine v1.0, documentation only [PUSHED, PR #781 OPEN]"
+    claimed_at: "2026-08-03T05:5xZ (this session, PR opened same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, tier 1): mission is to create exactly one
+      document, "VERIDIAN Universal Software Execution Engine v1.0", real UMR
+      `UMR-20260803-041700-a741` (OCID-031, per real PM decision
+      `UMR-20260803-063016-8bfc`), citing the full OCID-022..030 chain, the ERP
+      Functional Completeness Master Program, OCID-020, the traceability audit,
+      the gatekeeper rule, and the unified project memory. Documentation only,
+      consistent with SEC-07 (`ai-os/CONSTITUTION.yaml`) -- discovery/
+      documentation stays permitted while implementation stays locked behind
+      OCID-020.
+
+      **Real numbering error found and resolved by a real PM decision**: this
+      task's own directory was labeled `ocid-031`, and that label was correct
+      all along. This task's own SPEC had mistakenly cited
+      `UMR-20260803-041459-7c97` -- OCID-030's own real UMR ("VERIDIAN Universal
+      Decision Engine," PR #772) -- as if it were this task's own parent. Real PM
+      decision `UMR-20260803-063016-8bfc` independently verified this task's real
+      content is OCID-031, citing the real, correct parent UMR
+      `UMR-20260803-041700-a741`. Not a genuine dispute between documents: PR
+      #772 is, and always was, the real OCID-030 (separately confirmed by
+      `UMR-20260803-052107-71fa`); this task is the real OCID-031. Same class of
+      citation error as the "OCID-021" and OCID-026/027/028/029/030 corrections
+      already resolved in this same chain.
+
+      Cross-referenced (not duplicated) adjacent open PRs found during discovery:
+      PR #772 (Decision Engine -- what to decide), PR #775 (Deterministic
+      Execution and AI Escalation Runtime -- input runtime/mode-pills/when AI is
+      invoked), PR #773 (Universal Organization Runtime -- org/role model), PR
+      #774 (Unified Synchronization Runtime -- state sync). This document's own
+      scope is the execution LIFECYCLE mechanics once work is already decided:
+      task/function/workflow/report/analysis/background/scheduled execution,
+      queueing/priority/dependency/parallel/sequential ordering,
+      validation/confirmation/logging/traceability/audit,
+      retry/recovery/rollback/timeout, monitoring/performance,
+      reuse/standardization/certification, multi-tenant/multi-brand/role-based
+      execution, zero-duplication, and governance -- grounded in real, existing
+      infrastructure (task-execution-engine.ts, engines/engine-invocation.ts,
+      report-engine-service.ts, worker-entrypoint.sh/dispatch_core.py/systemd
+      timers, guardrail-engine.ts, audit.ts, withTenantContext,
+      model-tier-eligibility.ts), independently verified via a dedicated
+      discovery pass, not designed here.
+    scope_note: >-
+      File scope: one new canonical artifact (the Software Execution Engine
+      doc), `ai-os/OS.yaml` (index entry), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (amendment to the existing UMR chain, not a new one), this
+      ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes --
+      documentation only, per this OCID's own explicit prohibition on
+      implementation.
+  - session_label: "claude-code (task-20260803-055118-ocid-034-veridian-universal-context-and) -- OCID-034 VERIDIAN Universal Context and Predictive Runtime v1.0, documentation only [DONE, docs-only]"
+    claimed_at: "2026-08-03T06:00Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260803-041851-085a` real OCID-033 as parent, and
+      the full OCID-022 through 032 chain): created exactly one canonical artifact,
+      `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md`, defining how VERIDIAN
+      maintains, discovers, reuses, and predicts end user context, and how software knows what the user
+      is doing before AI is invoked. Documentation only -- no code, no database objects, no new
+      architecture.
+
+      Mandatory discovery performed first, per this task's own directive (real, cited, not narrated):
+      confirmed the real existing context mechanisms already in the product --
+      `withTenantContext()` (`src/lib/db/tenant-scoped.ts:65`), `VeriChatContext`
+      (`veri-chat-service.ts:19`), `AssembledContext`/`RelevanceScorer`/`ContextWindow`
+      (`prompt-compiler/context-assembly.ts:1-9`), `MotherRouterContext` (`mother-router.ts:594`),
+      mode-pill capability-key derivation (`capability-learning-service.ts:27-31`, `ChainSelector.tsx`),
+      Dynamic Chains (`api/dynamic-chains/route.ts`, `dynamic-chain-directory-service.ts` -- the real,
+      existing analogue to the directive's "option chain," no literal match found), report registries
+      (`report-engine-service.ts:208,1379,1735`), and the real L0 (browser intent cache/mode pills) and
+      L5 (context-cache, partial) layers in `ai-os/AI_CACHE_AND_TRIAGE_ARCHITECTURE.md`. Also confirmed
+      real, honest absences rather than guessing: no shared request-scoped context carrier across
+      auth/chat/session/browser/task/AI-prep; no runtime function or analysis registry; no PWA
+      (zero `manifest.json`/service-worker matches); VERI Chat not wired to Mother Router; no
+      next-best-action/predictive-navigation/predictive-form-population mechanism.
+
+      Zero-duplication check performed per the binding PM decision (`UMR-20260803-045159-ec55`):
+      `gh pr list` confirmed OCID-022 through 030's PRs (#765-768, #771-775) are all still open/unmerged
+      at writing time; read OCID-023's real 739-line document directly from its branch and confirmed it
+      is a task-lifecycle model, a distinct (not duplicate) subject from context reuse and prediction.
+
+      **Real numbering correction found and stated, not silently worked around**: this task's own live
+      dispatch row (`umr_tasks`, queried directly) is genuinely titled "OCID-034," and its cited parent
+      UMR is genuinely "OCID-033" (Work Orchestration Runtime) -- this differs by one slot from the
+      earlier OCID-022-039 status snapshot's own table (which had labeled this same Context/Predictive
+      mission "OCID-033"), the same off-by-one drift class that snapshot's own table already needed a
+      correction for one row further down (036/037). Documented in the new artifact's own header and in
+      the `IMPLEMENTATION_MATRIX_2026-08-02.md` amendment rather than silently picking one label.
+
+      Updated the existing UMR chain, not a new one: `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (new
+      amendment section), `ai-os/OS.yaml` (new index entry, required by `scripts/check-metadata-index-
+      coverage.mjs`), this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md` (new file, the
+      one canonical artifact), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amended),
+      `ai-os/OS.yaml` (amended), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, CI, or
+      `.github/` changes. No implementation -- consistent with `SEC-07`
+      (`ai-os/CONSTITUTION.yaml`), which locks implementation/gap-closure behind OCID-020's independent
+      verification while explicitly still permitting documentation and discovery.
+
   - session_label: "claude-code (task-20260803-005948-pm-decision-on-blocked-cert-sweep-qualit) -- PM decision: OCID-020 continuation blocker (task-20260802-231454, UMR-20260802-223152-0b6a), quality-gate/credit-accountant rejection [live-reverified, gap closed post migration-0264]"
     claimed_at: "2026-08-03T01:00Z (this session, closed same session)"
     claim: |
@@ -4677,7 +5361,858 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
 recently_completed:
+  - session_label: "claude-code (task-20260803-041006-ocid-024-veridian-laptop-web-browser-run) -- OCID-024: VERIDIAN Laptop Web Browser Runtime v1.0 (documentation only) [PUSHED, PR #767 OPEN]"
+    claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner directive, tier 1, parented to `UMR-20260803-040929-9713`
+      OCID-023, citing `UMR-20260803-040844-4a33` OCID-022,
+      `UMR-20260802-173631-ca85` ERP Functional Completeness Master Program,
+      `UMR-20260802-165606-4413` OCID-020, `UMR-20260802-164659-9a31` server
+      artifact traceability audit, `UMR-20260802-165034-5747` gatekeeper
+      rule, `UMR-20260802-165434-cd91` unified project memory, and
+      `UMR-20260802-165541-c27d` recovery framework): created exactly one new
+      document, `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`
+      (real UMR `UMR-20260803-041000-70ae`, confirmed via
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks`
+      table -- no new UMR chain minted, this task's own row was already
+      registered by the dispatch gateway), documentation only -- no code,
+      DB, UI, or UX change. Two parallel Explore-agent discovery passes +
+      direct reads confirmed no duplicate document exists anywhere in
+      `ai-os/`, grounded all 38 sections in real file:line citations (VERI
+      Chat composer/chain-selector/mode pills, prompt-compiler pipeline,
+      browser-execution tiers, capability tree, permission/role system, 99
+      real app modules), and explicitly labeled every mandated topic with
+      no real built counterpart as `NOT_YET_BUILT`/`POLICY_ONLY`/real gap
+      rather than inventing one. Carried forward OCID-022's own honest
+      disclosure (`ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`,
+      PR #765) that the "OCID-021 implementation lock" language in these
+      task prompts actually refers to the unrelated, already-closed SEC-06
+      governance split. PR #767 opened; not self-merged (Rule 6 PR/CI gate).
+    scope_note: >-
+      File scope: this repo's new `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/,
+      schema, or CI changes. Read-only discovery over src/components/veri-chat,
+      src/lib/prompt-compiler, src/lib/services, ai-os/BROWSER_EXECUTION_TIERS*,
+      ai-os/audit-tree/04-veri-chat.yaml.
+  - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-028, real PM decision UMR-20260803-052107-71fa)"
+    claimed_at: "2026-08-03T05:05Z (this session)"
+    claim: |
+      SPEC (this task's own prompt, parented to UMR-20260803-041211-b7b7,
+      citing UMR-20260803-041122-b22d/041047-03ee/041000-70ae/040929-9713/
+      040844-4a33 [OCID-026 through 022], UMR-20260802-173631-ca85 [ERP
+      Functional Completeness Master Program], UMR-20260802-165606-4413
+      [OCID-020], and the SEC-07 implementation lock which permits
+      discovery/documentation to continue): create exactly one document,
+      "VERIDIAN Unified Synchronization Runtime v1.0" -- documentation only,
+      no implementation, no new sync architecture. Real, pre-existing sync/
+      cache/task/chat/browser/PWA/server systems must be discovered first
+      and the document grounded in what's actually built, not greenfield.
+      Note on numbering, resolved by a real PM decision: this task's own
+      folder/branch name said "ocid-028," and that label was correct all
+      along. Real PM decision `UMR-20260803-052107-71fa` (citing
+      `UMR-20260803-041257-e9c3`) independently verified this task's real
+      content (Unified Synchronization Runtime) is OCID-028, correcting an
+      earlier draft of
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status
+      table that had mislabeled it as row OCID-20260803-027. Same
+      mislabeling class as the OCID-036/037 correction
+      (`UMR-20260803-045159-ec55`, a separate, unrelated citation).
+    scope_note: >-
+      File scope: one new doc under `ai-os/` (VERIDIAN Unified
+      Synchronization Runtime v1.0), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      or `ai-os/OS.yaml` (index registration, if warranted), this
+      ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, migration,
+      or CI changes -- documentation only per SPEC's explicit prohibition.
+  - session_label: "claude-code (task-20260803-050508-ocid-030-veridian-universal-decision-eng) -- OCID-029/030 VERIDIAN Universal Decision Engine v1.0, documentation only"
+    claimed_at: "2026-08-03T (this session)"
+    claim: |
+      SPEC (real Owner directive, tier 1, parented to `UMR-20260803-041351-0278`
+      -- the real OCID-029 directive -- and citing the OCID-022 through 028
+      chain, the ERP Functional Completeness Master Program
+      `UMR-20260802-173631-ca85`, OCID-020 `UMR-20260802-165606-4413`, the
+      server artifact traceability audit `UMR-20260802-164659-9a31`, the
+      gatekeeper rule `UMR-20260802-165034-5747`, and the unified project
+      memory `UMR-20260802-165434-cd91`): documentation only, one canonical
+      artifact, "VERIDIAN Universal Decision Engine v1.0" -- how VERIDIAN
+      decides what to do next (software-first, deterministic vs predictive,
+      search-before-build, decision traceability/audit/reuse). Explicitly
+      consistent with the real OCID-020 implementation lock (SEC-07 in
+      `ai-os/CONSTITUTION.yaml`) which permits discovery/documentation to
+      continue -- no implementation, no code, no DB objects.
+      Note on task naming, resolved by a real PM decision: this task's own
+      directory is labeled "ocid-030," and that label was correct all along.
+      Real PM decision `UMR-20260803-052107-71fa` (citing
+      `UMR-20260803-041459-7c97`) independently verified this task's real
+      content ("Universal Decision Engine") is OCID-030, correcting an
+      earlier draft of
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s status
+      table that had mislabeled it as row OCID-20260803-029. Same
+      mislabeling class as the OCID-036/037 correction.
+      Discovery in progress: searching the full server for the existing
+      decision engine, rule engine, function/report/analysis/prompt
+      libraries, task engine, VERI Chat, mode pills, and option chain before
+      writing anything, per the spec's own mandatory-discovery requirement.
+    scope_note: >-
+      File scope (expected): one new canonical artifact
+      `ai-os/VERIDIAN_UNIVERSAL_DECISION_ENGINE_2026-08-03.md` (or similarly
+      dated name), `ai-os/OS.yaml` and/or `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, migration, or CI changes -- documentation only per the spec's
+      explicit prohibition.
+  - session_label: "claude-code (task-20260803-041002-ocid-023-veridian-universal-end-user-wor) -- OCID-023: VERIDIAN Universal End User Work Model v1.0, documentation only [DONE, PR pending merge]"
+    claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, parented to UMR-20260803-040844-4a33
+      "the real OCID-022 directive just registered", citing
+      UMR-20260802-173631-ca85 ERP Functional Completeness Master Program,
+      UMR-20260802-165606-4413 OCID-020, UMR-20260802-164659-9a31 the server
+      artifact traceability audit, UMR-20260802-165034-5747 the gatekeeper
+      rule, UMR-20260802-165434-cd91 the unified project memory, and
+      UMR-20260802-165541-c27d the recovery framework): create exactly one
+      new document, `VERIDIAN Universal End User Work Model` v1.0 --
+      documentation only, no implementation, no UI/DB/AI/VERI Chat design.
+
+      **Real hard dependency found at claim time, honored not skipped**: the
+      spec's own mandatory inputs require reading "the complete real document
+      produced under OCID-022 once it exists." Independently verified via
+      `systemctl --user status` and that task's own `task.yaml`:
+      task-20260803-040852-ocid-022 was genuinely `active (running)` at claim
+      time, its document not yet written. This session did all
+      OCID-022-independent discovery in parallel (full schema/service
+      inventory of `tasks`/`tickets`/`pmsIssues`/`comments`/
+      `taskChatMessages`/`documents`/`notifications`/`auditLogs`/
+      `scopedDelegations`/`approvalRequests`, plus `CONSTITUTION.yaml`'s
+      `task_lifecycle`/`guardrail_protocols`/`audit_organization` sections),
+      set a background Monitor watching OCID-022's own workspace, and read
+      its real 323-line document in full the moment it existed, before
+      writing this document's own content -- not fabricated or guessed.
+
+      **Real pre-existing prior art found via `git log --all --name-only`**
+      (absent from `ai-os/` itself, hence missed by a naive directory
+      listing): `UNIVERSAL_TASK_WRAPPER_DESIGN.md` (repo root, 2026-07-11) --
+      the exact "universal work envelope" design this task's own mission
+      needed, already reviewed and partially shipped as `activity_log`/
+      `CONSTITUTION.yaml`'s `TASK-04`. Direct grep of every real
+      `recordActivity()` call site found a materially more precise gap than
+      TASK-04's own `gap` field states: Phase 1 is wired for the
+      `ai_team_dispatch` activity type only -- `customer_task`/
+      `orchestra_call` (the types that would cover real end-user tasks) have
+      zero real call sites anywhere in `src/`. This finding is now recorded
+      in the new artifact itself (§1.1) and in this session's
+      `IMPLEMENTATION_MATRIX_2026-08-02.md` amendment.
+
+      **Resolved the "OCID-021 implementation lock" citation** (inherited
+      the same finding OCID-022's own document independently made, re-
+      verified rather than blindly trusted): no literal OCID-021 document
+      exists; real OCID-021 is the Category A/B production-DB governance
+      split (`SEC-06`), closed/merged, topically unrelated to end-user work
+      modeling. The real gate is `UMR-20260802-165606-4413` (OCID-020's own
+      certification directive), confirmed via `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      not yet independently verified complete -- documentation-only work was
+      never blocked by it regardless.
+
+      **Output**: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md`
+      -- all 29 mandated sections (what is work, what is a task, every end
+      user input becomes one task, uniqueness/identifier, state model,
+      ownership, assignment, delegation, transfer, approval, escalation,
+      completion, reopen, auditability, history, timeline, attachments,
+      chat, decisions, artifacts, reports, analysis, notifications, search,
+      permissions, visibility, retention, synchronization, recovery,
+      lifecycle summary), each grounded in real file:line evidence or an
+      honestly-named existing gap -- no UI/DB/AI/VERI Chat design attempted,
+      per the spec's own prohibition. Registered in `ai-os/OS.yaml` and
+      `ai-os/MASTER_INDEX.yaml` (both validated to parse as real YAML), and
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` amended with an
+      OCID-20260803-023 entry.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md`
+      (new), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amended),
+      `ai-os/OS.yaml` (new index entry), `ai-os/MASTER_INDEX.yaml` (new
+      registry entry), this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry,
+      `PROGRESS.md`. No src/, schema, UI, or CI changes -- documentation
+      only per spec, confirmed by `git status` before commit.
+  - session_label: "claude-code (task-20260803-071339-pm-decision-register-the-real-implementa) -- PM decision on OCID-021 lock registration + overlap-resolution: ALREADY DONE, real inconsistency found+fixed [DONE, PR pending]"
+    claimed_at: "2026-08-03T07:1xZ (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260803-045159-ec55`, citing `UMR-20260803-042918-60b8`
+      the OCID-040 status snapshot, `UMR-20260802-173631-ca85` the ERP Functional
+      Completeness Master Program, and `UMR-20260802-165606-4413` OCID-020 the real
+      gate): register the "OCID-021 implementation lock" as a real CONSTITUTION.yaml
+      entry, and record the OCID-023/031 + OCID-029/030/032/034/035/036 overlap-
+      resolution process decision.
+
+      **Independently verified before doing any real work (not narrated)**: both asks
+      were already done. `SEC-07` already exists in `ai-os/CONSTITUTION.yaml`
+      (`git log` confirms commit `c9dbbef5`, merged to `main` via PR #770, merge
+      commit `42bdb408`, independently reconfirmed via `git merge-base --is-ancestor
+      42bdb408 HEAD` against this session's own checkout). The overlap-resolution
+      decision and the OCID-037-not-yet-picked-up correction both already exist in
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §1a and row 37,
+      same `UMR-20260803-045159-ec55`. This task's own dispatch is a duplicate/re-
+      issue of a PM decision a prior session already completed and merged -- not
+      redone here, per [[veridian-task-prompt-false-premise-pattern]]-class
+      diligence (verify before assuming a re-ask means real new work).
+
+      **One real, genuine defect found during this verification, fixed here**: §1a
+      of the already-merged snapshot doc (lines 65/75) stated the overlap cluster as
+      "OCID-029/030/032/034/035/**037**" -- internally inconsistent with the same
+      document's own §1 row 34 and §4 dependency map, both of which correctly say
+      "...**036**" (matching this task's own spec verbatim), and inconsistent with
+      OCID-037 being a distinct, separate document (Universal Knowledge and Service
+      Catalog) rather than a member of that runtime-overlap cluster. Root cause: the
+      036/037 mislabel-correction pass (same UMR) touched §1a's cluster reference by
+      mistake, substituting the corrected catalog number where the original cluster
+      slot number belonged. Fixed: §1a now reads 036, with an inline note explaining
+      the correction and pointing to §1/row 34 and §4 as the rows that were correct
+      all along. Also added one clarifying line to row 37 noting OCID-037 is simply
+      queued behind the real 5-worker concurrency cap, same as 026-036, not missing.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`
+      (3 small in-place text fixes, no new sections -- SEC-07 and §1a/1b/row-37
+      already existed), this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No
+      `CONSTITUTION.yaml` change (SEC-07 already correct, nothing to amend). No
+      src/, schema, or CI changes.
+  - session_label: "claude-code (docs/gap-product-branches-schema-rootcause) -- real root cause found + fixed for GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY: wrong Postgres schema queried, real migration 0245 moved both tables to `platform` [DONE, PR pending]"
+    claimed_at: "2026-08-04T03:12Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-030715-b004`, citing `UMR-20260802-165606-4413` OCID-020 and
+      `UMR-20260802-173631-ca85` OCID-021): find the real root cause of the tracked live-vs-direct-read
+      discrepancy and fix it with real evidence, not narration.
+
+      Found: `productBranches`/`aiRoutingAuditLog` are defined via `pgSchema('platform')` in
+      `schema.ts`; `drizzle/0245_create_platform_schema_compartment.sql` (2026-07-19, real
+      hand-authored migration) moved both (+20 other tables) from `compliance` to `platform` via
+      `ALTER TABLE ... SET SCHEMA`. Every direct psql/PostgREST read this session performed against
+      these two tables (including this gap's own two tracked occurrences) queried the wrong,
+      pre-migration schema. Live-reconfirmed correctly: `platform.product_branches` has 27 real rows
+      (erp, projexa, all 25 others); `platform.ai_routing_audit_log` has 3 real rows matching known
+      OCID-049 testing timestamps. No code fix needed -- every real call site already resolves the
+      correct schema via Drizzle; the live app was never broken. Found and flagged a separate, real,
+      minor finding (an orphaned `compliance.product_branches`, 1 row, unreferenced by any code --
+      not deleted unilaterally). Corrected a directly-related false claim already merged into the
+      OCID-038 discovery doc §9.1 (same wrong-schema mistake, this session's own earlier work).
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (gap marked resolved with full evidence),
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md` (§9.1 correction),
+      `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/ or schema changes -- documentation-only fix,
+      since the real fix was correcting the verification methodology, not the application.
+  - session_label: "claude-code (chore/active-claims-cleanup-stale-projexa-schema-claim) -- housekeeping: removed stale active: entry (claimed 2026-08-03T21:53Z, past this file's own 4hr-abandonment threshold), superseded by real completed work [DONE, docs only]"
+    claimed_at: "2026-08-04T02:08Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-020819-3a5f`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038): real housekeeping, docs only. An independent audit on
+      PR #860 correctly flagged that the `active:` entry claimed at `2026-08-03T21:53Z` (originally
+      for "OCID-038 real implementation: closing GAP-OCID038-OCID035-DUPLICATE-PRS... real gap-by-gap")
+      was stale, past this file's own >4hr-abandonment rule, and had never been moved to
+      `recently_completed:` despite all 4 gaps it named being resolved by later, real, separate work:
+      `GAP-OCID038-OCID035-DUPLICATE-PRS` (PR #782 fix, merged), `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`
+      (PR #856, merged, `622db105`), `GAP-OCID038-PROJEXA-OWN-SCHEMA` (PR #859 + PR #860, merged,
+      `dc10b0bf`/`cabdb212`), `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` (explicitly held per PM
+      instruction, escalated to the Owner directly, not this session's to decide). Removed the stale
+      entry from `active:` and recorded this note in its place, rather than silently deleting it with
+      no trace.
+  - session_label: "claude-code (docs/ocid038-projexa-schema-investigation-3-steps) -- OCID-038: real 3-step schema investigation for GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation; DOMAIN-BRAND-MISMATCH held, escalated to Owner by PM [DONE, PR #860 merged]"
+    claimed_at: "2026-08-04T01:45Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-014117-915e`, citing `UMR-20260803-042801-ec4b` OCID-038): the
+      3 real mechanical next steps PR #859's own discovery brief (§9.2) named for
+      `GAP-OCID038-PROJEXA-OWN-SCHEMA` are authorized -- discovery/documentation only, no
+      implementation, no schema change. `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` held exactly as
+      written, the PM is escalating that question directly to the real Owner in chat.
+
+      Spot-checked 15 real call sites (financial/CRM/HR/procurement/recruitment/construction domains):
+      zero import the local DB client, all follow requireAuth()->callVeridian() proxy shape, one
+      legitimate local side effect found (notifications write, a known non-construction table). Read
+      requireAuth() and middleware.ts in full: confirmed precisely no VERIDIAN session-token
+      forwarding, and zero pre-login VERIDIAN-org context for anonymous visitors.
+
+      Real, unplanned finding: this session's shell shadows `grep` with a `ugrep --ignore-files`
+      wrapper that silently undercounts AND strips real path prefixes -- the "51 real files" figure
+      already merged via PR #859 was wrong, real count is 195 (confirmed via 3 independent methods:
+      `\grep`, raw Python subprocess, direct `ls` checks). Corrected everywhere it appeared in
+      already-merged governance docs (OCID-038 canonical doc §9.2, MASTER-TRACKER.yaml) rather than
+      leaving it wrong. `find` showed the same unreliability class separately. Same tooling-discipline
+      pattern as the earlier `git show` truncation correction this session.
+  - session_label: "claude-code (docs/ocid038-projexa-domain-and-schema-discovery-brief) -- OCID-038: real discovery brief for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH + GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation [DONE, PR #859 merged]"
+    claimed_at: "2026-08-04T01:20Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-011851-676b`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038): PM correctly declined to authorize implementation on
+      either remaining OCID-038 gap since neither had a real written discovery brief. Write one for
+      both, into `PROGRESS.md` and the OCID-038 canonical doc -- discovery/documentation only, no
+      code, routing, or schema change.
+
+      Live-verified today, not carried forward unverified: `vercel domains inspect` confirms
+      `projexa-ai.com`/`www.projexa-ai.com` are on Vercel project `veridian-compliance-ai`, and this
+      is the Owner's own explicit, re-confirmed `WAVE-10-REDO` decision (`UMR-20260802-134939-145d`,
+      2026-08-02), not accidental drift -- found and read the real 3-step history
+      (`ai-os/boss/completed-work/wave10-dns-cutover.md`). Root-caused the branding symptom to
+      `resolveBranding()`'s deliberate org-scoped/post-login design (already independently documented
+      across 3 prior waves as a known, deferred gap). Checked live data: `customDomain` set for
+      exactly 1 org platform-wide (a test fixture, zero real PROJEXA orgs); flagged a
+      `product_branches` discrepancy as a likely 3rd occurrence of the already-tracked
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` rather than fresh standalone proof.
+      Precisely named the real open product question (single canonical PROJEXA identity vs. the
+      Owner's brand-merge framing possibly meaning today's state already is intended) rather than
+      re-asserting "fix the domain."
+
+      Separately: fresh clone + direct `grep` (not GitHub's own code search, which the original
+      finding's own text already flagged non-exhaustive) finds `veridian-client.ts` (240 lines, real,
+      live) and 51 real call sites across genuine construction-domain routes -- substantially updates
+      the original "not a thin client" verdict for the application-data layer specifically, while
+      separately, precisely naming what is NOT unified (auth/session -- PROJEXA's own separate
+      Supabase Auth, no user-level SSO).
+
+      Full brief: OCID-038 canonical doc's new §9. Both `MASTER-TRACKER.yaml` gap entries amended
+      with a `discovery_brief` cross-reference field, `status` left `open` for both. No implementation.
+  - session_label: "claude-code (fix/gap-ocid038-taskengine-motherrouter-unwired) -- OCID-038: real fix for GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED [DONE, PR #856 merged]"
+    claimed_at: "2026-08-04T00:58Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-005752-fcb1`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038, authorizing this gap after PR #854's independently-confirmed
+      merge): proceed with the next real OCID-038 gap, same audited standard.
+
+      Read both `mother-router.ts` (666 lines) and `task-execution-engine.ts` (2567 lines) in full
+      before deciding, per the gap's own "real architectural call, not a mechanical wiring fix"
+      caveat. Rejected the naive fix (wiring `orchestrate/route.ts` to call
+      `task-execution-engine.ts`'s executor directly) as a real, unsafe behavior change -- that route
+      only ever suggests actions for a compliance event, never executes them; auto-executing on its
+      own output would silently bypass the Policy Enforcement Engine / RATIFIED-03's
+      always_approve/always_reject model. Found the real, safe fix instead: migrated
+      `task-execution-engine.ts`'s 2 "task_oa"-layer direct `resolveModelConfig()` call sites
+      (`executePackageDispatch()`, `executeTask()`) to resolve through mother-router.ts's
+      `resolveModel({scope: "end_user_org", ...}).resolvedConfig` -- the exact incremental-migration
+      pattern `orchestrate/route.ts` already proved out for the same layer, and the exact "handful of
+      files at a time" approach mother-router.ts's own header already recommended over the 35-file
+      mass-migration it explicitly rejected as too risky. Behavior-preserving for BYO orgs (verified by
+      reading `computeEndUserOrgResolution()` directly), additive real audit-log coverage for the rest,
+      zero circular import (checked). `bunx tsc --noEmit` clean, `bunx eslint` clean, full `bun test`
+      2481/2481 pass (same baseline, no dedicated unit coverage exists for either call site --
+      DB-context-dependent, same class as other internal call sites in this file). Full writeup in
+      `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` entry. PR not yet
+      opened/merged as of this claim -- updating once real.
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR #852 merged]"
+    claimed_at: "2026-08-03T21:55Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): OCID-020 declared complete, OCID-021 real
+      implementation authorized, scoped to the honestly registered gap backlog from Group F testing,
+      one gap per dispatch, real branch/fix/retest/PR/merge, citing the gap id closed each time.
+      Added 3 real, authenticated self-service enablement routes (ERP/Sales/Construction) mirroring
+      the existing PMS/THE FIRM pattern verbatim. `bunx tsc --noEmit`/`eslint`/`bun test` all clean.
+      Independently audited (per AGENTS.md Rule 7c, no self-certification) before certifying: diffed
+      the actual PR against `origin/main`, confirmed structural match to the pre-existing sibling
+      routes and that imported service functions predate this PR. Posted the required 8-field
+      `AUDIT: PASS` verdict comment on PR #852 (severity: low). Hit and worked around the known
+      `issue_comment`-triggered audit-check-reports-against-main's-SHA bug via `gh run rerun
+      <original-run-id> --failed`. Merged via `gh api .../pulls/852/merge` (squash) once all 7
+      required status checks were green (`Vercel` failing only on an unrelated build-rate-limit, not
+      a required context). Remote branch deleted. Full live end-to-end confirmation against the real
+      deployed site remains a tracked follow-up (local `.env.local` DB credential drift blocked full
+      persistence verification this pass, independently confirmed pre-existing and unrelated to this
+      change -- see `MASTER-TRACKER.yaml`'s `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`
+      entry for the full writeup).
+  - session_label: "claude-code (task-20260803-071115-ocid-038-veridian-unified-platform-integ) -- OCID-038 real platform discovery + honest E2E integration certification merged; 2 of its 6 gaps found stale on re-verification during merge [DONE, PR #786 merged]"
+    claimed_at: "2026-08-03T21:45Z (this session, resolved a real merge conflict + honestly re-verified this document's own gaps before merging)"
+    claim: |
+      Real, honest platform-wide discovery and gap analysis (compliance-tracker/PROJEXA/every
+      FChecklist repo as one backend? projexa-ai.com a real PROJEXA thin client? full browser->PWA->
+      server->VERI Chat->engines->sync/cache/audit chain as one system?) -- all three answered "NO,
+      not yet" with real, cited evidence. 6 gaps registered (`GAP-OCID038-*`). This PR sat open,
+      unmerged, `CONFLICTING`, since 2026-08-03T07:xx while OCID-020 stayed open.
+
+      Picked up per PM decision `UMR-20260803-213741-34dd` (OCID-020 now independently verified
+      complete, real OCID-038 implementation authorized). Resolved this PR's real merge conflict
+      (`PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` -- both pure-union cases, `MASTER-TRACKER.yaml`/
+      `OS.yaml` merged cleanly on their own).
+
+      Before trusting this document's own 6-gap list as still-accurate (its own §8 explicitly warned
+      "state on this server has been observed to drift within minutes"), independently re-verified
+      each gap against current `origin/main` rather than assuming it. Found 2 of 6 genuinely stale:
+      `GAP-OCID038-NO-PWA` (overtaken -- `src/app/manifest.ts` now real and live, independently
+      confirmed by this same session's own OCID-051 execution, merged PR #844) and
+      `GAP-OCID038-VERICHAT-NOT-DISPATCH-WIRED` (a real methodology error -- the original discovery
+      grepped `veri-chat-service.ts`, a file whose own header comment says it only extends
+      `chat-service.ts`'s conversation/message CRUD; the real AI-thread reply path lives in
+      `chat-service.ts`, confirmed wired to Mother Router via `resolveModelConfig()`, and confirmed
+      working end-to-end live by this session's own OCID-049/052 real test execution, merged PR
+      #846/#850). Both marked `resolved` in `ai-os/MASTER-TRACKER.yaml` with the real re-verification
+      evidence, not silently dropped. The remaining 4 gaps
+      (`GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`, `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`,
+      `GAP-OCID038-OCID035-DUPLICATE-PRS`, `GAP-OCID038-PROJEXA-OWN-SCHEMA`) were independently
+      spot-checked where feasible and remain open/real.
+    scope_note: >-
+      File scope: merge-conflict resolution only (`PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`),
+      plus 2 gap-status amendments in `ai-os/MASTER-TRACKER.yaml` (no gap IDs added or removed). No
+      src/, schema, or CI changes. The discovery document itself (`ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`)
+      is unchanged from its original PR #786 content.
+
+  - session_label: "claude-code (fix/gap-stage0-role-missing-from-role-rank) -- OCID-021 Wave 1 Item 1: real fix for GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK, plus a 2nd independent instance found via tsc [DONE]"
+    claimed_at: "2026-08-03T21:25Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-212402-1922: OCID-020 declared complete, real proof-artifact audit
+      confirmed for all findings; OCID-021 real implementation authorized, scoped to the honestly
+      registered gap backlog from Group F testing, one gap per dispatch, citing the gap id closed).
+      First item: `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`.
+
+      Real fix: added `'stage_0'` to `UserRole` and `ROLE_RANK: 1` (`src/lib/supabase/auth-guard.ts`) --
+      the exact rank `schema.ts`'s own `userRoleEnum` comment already specified for this value
+      ("Ranks 1 in ROLE_RANK... same tier as viewer/client_viewer/external_auditor"), never wired in
+      until now.
+
+      Real, additional finding: widening the `UserRole` type surfaced a second, independent instance of
+      this exact bug class via `bunx tsc --noEmit` -- `src/lib/classification.ts`'s own separate
+      `Record<UserRole, Classification>` map (`ROLE_CLEARANCE`) was also missing `stage_0`. Fixed with
+      `"public"`, the same floor clearance already given to `viewer` (stage_0 is an even more
+      restricted, non-full-org-member role).
+
+      Added the gap's own recommended regression test: 2 new tests in `auth-guard.test.ts` asserting
+      every real `userRoleEnum` value has an explicit, positive `ROLE_RANK` entry (and no stray extra
+      keys), so this drift class cannot silently recur a third time. Independently verified this is a
+      real regression test, not a tautology: temporarily reverted just the source fix (kept the test),
+      confirmed it fails with the exact expected message, restored the fix, confirmed it passes again.
+
+      Full verification re-run after the classification.ts fix, not assumed still valid from the
+      auth-guard.ts fix alone: `bunx tsc --noEmit` clean, `bunx eslint` clean on all 3 changed files,
+      `bun test` 2481/2481 pass (2 more than the prior 2479 baseline, matching the 2 new tests).
+    scope_note: >-
+      File scope: `src/lib/supabase/auth-guard.ts`, `src/lib/supabase/auth-guard.test.ts`,
+      `src/lib/classification.ts`, `ai-os/MASTER-TRACKER.yaml` (1 gap marked resolved, no new gap IDs),
+      `PROGRESS.md`, this ACTIVE-CLAIMS entry. Real, minimal, targeted code change -- no new
+      architecture, exactly the scope the PM's dispatch specified. No other role-keyed maps found
+      needing the same fix (confirmed via a clean `tsc --noEmit` after both fixes).
+
+  - session_label: "claude-code (docs/ocid049-all-4-tiers-complete-group-f-closed) -- OCID-049 real testing complete, all 4 tiers, real rate-limit-safe path found -- Group F Business Certification genuinely closed [DONE]"
+    claimed_at: "2026-08-03T21:10Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-210004-c6c0, citing UMR-20260802-165606-4413/OCID-020 and
+      UMR-20260803-115513-c990/OCID-049): pursue a real, rate-limit-safe path to finish the remaining
+      3 tiers rather than leaving OCID-049 partial. Do not retry the same rate-limited invite path, do
+      not attempt a direct DB write workaround. Reuse the real self-service signup flow already proven
+      for OCID-050 State C to create the additional real test orgs needed. Only once all 4 tiers have
+      real evidence should OCID-049 be described as complete.
+
+      Found the real mechanism: `autoProvisionUser()` (`auth-guard.ts`) has a real `orgJoinCode` branch
+      -- a manually-typed join code, redeemed via `redeemJoinCodeAndProvisionUser()`, that sends zero
+      email (no `inviteUserByEmail` call anywhere in this path, structurally different from the
+      already-rate-limited invite endpoint). Combined this with the proven no-email Admin-API
+      `createUser` pattern (same as OCID-050 State C): mint a real join code via `POST /api/join-codes`
+      as the org's real admin, thread it into each new signup's `user_metadata.orgJoinCode`. Verified
+      its own rate limit (`checkJoinCodeRateLimit`) only counts *failed* redemption attempts before
+      relying on it -- every redemption used a real, valid, freshly-minted code, so it was never at
+      risk of tripping regardless of volume.
+
+      Validated end-to-end on a small real test (2 users) before scaling. Then, real, live:
+      - Org B scaled 1 -> 12 real users (9 redemptions, 0 failures) -- Standard band.
+      - Fresh Org C created, scaled to 30 real users (29 redemptions, 0 failures) -- Professional band.
+      - Fresh Org D created, scaled to 55 real users (54 redemptions, 0 failures) -- Enterprise band,
+        deliberately past the 50-user ceiling so the tier-fallback's own ceiling logic is genuinely
+        exercised.
+
+      Real AI message + real 201 confirmed for all 4 orgs (Basic/Standard/Professional/Enterprise).
+      Real `GET /api/me` confirms `erpEnabled`/`salesEnabled` false for all 4, independent of tier --
+      strongest form yet of the plan-tier-to-branch-independence finding. Refined the
+      `assistants_per_user` finding with real per-tier precision: Basic over-delivered (5 vs cap 3),
+      Standard coincidentally matches (5 vs cap 5), Professional/Enterprise under-delivered (5 vs caps
+      8/15) -- visible only once all 4 tiers had real data. Also corrected an imprecision in the prior
+      pass: `GET /api/assistants` is per-user/RLS-scoped, not org-wide (re-verified live against Org
+      B's 12 users, still returns 5, not 60).
+
+      **OCID-049's real testing scope is now complete** -- all 4 tiers have real, live evidence. Tasks
+      A-E (actual implementation) remain unbuilt, per the standing OCID-021 lock -- this closes the
+      testing certification, not the underlying product gap, which stays open and tracked in
+      `ai-os/MASTER-TRACKER.yaml`. Per the PM's own explicit condition, this now legitimately closes
+      the full Group F Business Certification scope under OCID-020 (OCID-047 through OCID-052).
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`
+      (completion amendment, already-indexed doc), `ai-os/MASTER-TRACKER.yaml` (1 amended gap status,
+      no new gap ID), `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/, schema, or migration changes --
+      pure testing/documentation, per this dispatch's own scope and the standing OCID-021 lock. No
+      production data touched -- all real writes (4 test orgs, ~97 real user rows via real join-code
+      redemption, 3 real chat messages) went through real, live, self-service test accounts, isolated
+      from any real customer org.
+
+  - session_label: "claude-code (docs/ocid049-real-testing-and-group-f-retraction-fix) -- OCID-049 real testing execution (1/4 tiers, real infra blocker on rest) + retracted PR #846/#847's premature 'closes Group F' claim [DONE]"
+    claimed_at: "2026-08-03T20:40Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-203925-1a38, citing UMR-20260802-165606-4413/OCID-020 and
+      UMR-20260803-115513-c990/OCID-049): PR #846/#847's "closes Group F" framing retracted --
+      PROGRESS.md/ACTIVE-CLAIMS.yaml checked directly showed OCID-049 never had real testing
+      execution. Find and confirm the real plan-tier-to-branch mapping (the honestly-registered open
+      item), run real live test cases confirming entitlement enforcement matches, document real
+      findings honestly, only then describe Group F as closed.
+
+      Closed a genuine duplicate first: PR #847 (a duplicate worker's own version of the just-merged
+      #846) independently reached the same real finding and also correctly flagged OCID-049 as the
+      real outstanding item -- closed with a credit-preserving comment, nothing lost.
+
+      Plan-tier-to-branch mapping: confirmed live, via 2 fresh real test orgs, that no such mapping
+      exists -- both show `erpEnabled`/`salesEnabled: false` via real `GET /api/me`, independent of
+      any resolved tier. Resolves the PM's own named open item: the answer is "confirmed genuinely
+      absent," not "found."
+
+      `assistants_per_user` cap: confirmed live as unenforced with concrete numbers. A real 1-user org
+      (which resolves to Basic tier per `getOrgAiPackage()`'s real, re-verified counting logic, whose
+      real cap is 3) already has **5** real `GET /api/assistants` rows -- live, numeric confirmation of
+      this OCID's own earlier code-read finding, not a repeat of the same claim without new evidence.
+
+      Attempted a real tier-boundary-crossing test (scale a real org past the Basic/Standard 10-user
+      threshold via `POST /api/users`) -- hit a real, hard Supabase email-rate-limit on the
+      `inviteUserByEmail` code path this endpoint uses (2 "invalid email" + 9 "rate limit exceeded").
+      Registered honestly as a real infrastructure constraint, not retried past the point of
+      diminishing returns, not worked around with a direct DB insert (this session has independently
+      established that channel carries its own real, unresolved trust risk -- see next finding).
+
+      New finding: `platform.ai_routing_audit_log` (every real `end_user_org`/`software_team` AI
+      resolution writes to it, per `mother-router.ts`'s own code) is unreadable via any safe channel --
+      PostgREST doesn't expose the `platform` schema (`Accept-Profile: platform` -> `PGRST106`), no API
+      route or UI page reads it (confirmed via `git grep`), and a direct read-only `psql` query returned
+      **zero rows total** despite this session's own confirmed-real routing activity (2 real
+      `end_user_org` AI messages, both got real on-topic LLM replies). Amended
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` (broadened its title/scope rather than
+      duplicating it) to record this second, independent occurrence in a structurally different
+      schema/table -- rules out "isolated to product_branches" as an explanation.
+
+      Corrected the retracted claim directly in both the already-merged OCID-052 doc and PROGRESS.md's
+      own earlier section, citing this PM decision rather than silently editing history.
+
+      **OCID-049 is honestly NOT fully certified**: 1 of 4 tiers (Basic) has real, live evidence; 3
+      remain blocked on the real rate-limit constraint, not an app-code gap. Per the PM's own
+      instruction, Group F as a whole is correspondingly NOT described as closed by this entry --
+      OCID-049's own real, partial-completion status is the accurate description.
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`
+      (completion amendment, already-indexed doc), `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (correction to its own already-merged "closes Group F" claim), `ai-os/MASTER-TRACKER.yaml` (2
+      amended gap entries, no new gap IDs -- broadened an existing one), `PROGRESS.md`, this
+      ACTIVE-CLAIMS entry. No src/, schema, or migration changes -- pure testing/documentation, per
+      this dispatch's own scope and the standing OCID-021 implementation lock. No production data
+      touched -- all real writes (2 test orgs, 2 chat messages, 0 successful additional user invites)
+      went through real, live, self-service test accounts, isolated from any real customer org.
+
+  - session_label: "claude-code (docs/ocid052-item4-ui-distinguishability-complete) -- OCID-052 complete, real UI-distinguishability finding, closes Group F Business Certification [DONE]"
+    claimed_at: "2026-08-03T20:20Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-201840-af59, citing UMR-20260802-165606-4413/OCID-020,
+      UMR-20260803-115558-170e/OCID-051 confirmed complete via PR #844, and this OCID's own
+      UMR-20260803-115620-29c6): Items 2/3 already executed with real evidence earlier this session;
+      complete the remaining Item 4 (read real VERI Chat rendering code, confirm or honestly find
+      absent a real visible way an end user can tell a deterministic result apart from an AI-escalated
+      one), then write the honest completion summary, closing the full Group F Business Certification
+      scope (OCID-047 through OCID-052) under OCID-020.
+
+      Independently re-verified the PM's claim about Items 2/3 before proceeding -- confirmed directly
+      by reading the existing OCID-052 planning doc's own "Real test execution results" section
+      (real signup/login/message-send evidence for both, matching the PM's description).
+
+      Item 4 executed live: sent a real deterministic-trigger message ("what's the status" -> real
+      reply "No tasks yet", confidence_label: null) and a real AI-escalating message ("Can you create
+      a task for renewing our fire safety certificate next month?" -> real reply "Sure thing, Boss...",
+      confidence_label: "high", real ~6s LLM round-trip) into one real AI thread. First navigation
+      attempt (/chat?conversation=<id>) found a real negative result: that page's own code explicitly
+      filters !c.isAiThread, so the AI thread cannot render there. Corrected navigation to /home
+      (VERI Chat's real primary surface per HomeThreadSlot.tsx's own header comment). Real screenshot
+      confirms both messages rendering as visually identical plain bubbles -- zero badge, zero label,
+      zero distinguishing marker.
+
+      Root-caused directly, stronger finding than the planning doc's own prediction: HomeThreadSlot.tsx's
+      message mapping never reads/passes through confidenceLabel at all; the one component with real
+      confidence-badge logic (src/components/chat/ThreadView.tsx) is wired only to an unrelated
+      support-ticket thread and to /chat -- which itself excludes the AI thread. The badge is real, live
+      code, but genuinely unreachable for the one thread type this OCID cares about, not just an
+      unintentional signal as originally hypothesized.
+
+      Registered `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` in `ai-os/MASTER-TRACKER.yaml`
+      with full real evidence. Also amended `GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS`'s status:
+      mobile device-emulation is now confirmed working (per OCID-051's own execution), not just headless
+      navigation -- narrowing what remains genuinely unconfirmed to a full interactive login-form flow.
+
+      **OCID-052 is complete**, with real evidence for every item (2-5): items 2-3 pass on routing
+      correctness (with 2 real, separately-registered gaps on reply quality/labeling found along the
+      way), item 4 finds a real, honest, certification-blocking UI gap, item 5 remains deferred (no
+      active dialogue-script package confirmed for testing). This closes the full Group F Business
+      Certification scope (OCID-047 through OCID-052) under OCID-020.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`
+      (completion amendment, in place, already-indexed doc), `ai-os/MASTER-TRACKER.yaml` (1 new gap
+      entry, 1 amended gap status), `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/, schema, or
+      migration changes -- pure testing/documentation, per this dispatch's own scope and the standing
+      OCID-021 implementation lock. No production data touched -- all writes (2 real chat messages)
+      went through a real, live, self-service test account, isolated from any real customer org.
+
+  - session_label: "claude-code (docs/ocid051-cross-surface-certification-complete) -- OCID-051 Cross-Surface Certification (browser + Mobile PWA), all real checks passed [DONE]"
+    claimed_at: "2026-08-03T20:00Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision UMR-20260803-195837-dde3, citing UMR-20260802-165606-4413/OCID-020 and this
+      OCID's own UMR-20260803-115558-170e): OCID-050 confirmed genuinely complete via PR #843
+      (independently verified merge commit 8b7d03c8, ancestor of origin/main), proceed with OCID-051
+      real testing execution now -- cross-surface certification covering browser completeness and
+      mobile PWA, reusing existing infrastructure, no new architecture, honest findings, register
+      (don't sudo-workaround) the known Chromium missing-libs blocker if it affects anything.
+
+      Part 1 (desktop nav-surface gap check): real `document.querySelectorAll('a[href]')` re-run from
+      an authenticated `/home` against the live site's current state. Result: 115 distinct hrefs,
+      byte-identical set-equality against the existing baseline (`nav-hrefs-v2.json`) -- zero delta.
+      The 115-page surface remains complete and clean, a real positive certification result.
+
+      Part 2a (PWA install flow): real `GET /manifest.webmanifest` from a Pixel-7-emulated Playwright
+      context confirmed the full manifest contract live -- name/short_name "VERIDIAN AI",
+      `start_url: "/home"`, `display: "standalone"`, correct theme/background colors, one icon
+      (`/logo-mark.svg`, independently confirmed resolving `200`/`image/svg+xml`), and the real wired
+      `share_target` contract. Real mobile-viewport screenshot of `/home` captured, clean render, no
+      crash, no horizontal overflow.
+
+      Part 2b (Web Share Target): real `multipart/form-data POST` to `/api/veri-chat/share-target`
+      with a unique marker string, as a real authenticated user. Got a real `303` redirect to
+      `/chat?conversation=<id>`. Independently confirmed via a follow-up authenticated
+      `GET /api/conversations/<id>/messages` that the real content genuinely landed in the real
+      conversation -- full end-to-end real evidence, not just a status-code check.
+
+      Part 2c (offline/service-worker absence): real, live, deterministic checks --
+      `navigator.serviceWorker.controller` is `null` and `getRegistrations()` returns empty on both
+      `/home` and `/dashboard`; `context.setOffline(true)` + reload produced a real
+      `net::ERR_INTERNET_DISCONNECTED` (the browser's own native offline behavior, not an app-shell
+      fallback) -- deterministic proof no service worker intercepts navigation. Registered as the
+      real, honest Part 2c finding: no offline/service-worker behavior exists to test, confirmed live
+      rather than assumed from a code search alone.
+
+      Part 2d (mobile-viewport nav sweep): full 115-item nav list re-run with Pixel-7 device
+      emulation, same anomaly heuristics as Part 1 plus a new per-page horizontal-scroll check.
+      **115/115 real page-checks passed** -- zero crashes, zero page errors, zero `Application error`
+      matches, zero pages with horizontal overflow at the emulated viewport width. Real load-time
+      distribution: min 452ms / max 3,841ms / avg 1,059ms.
+
+      Infra note: the existing no-sudo Chromium fix (`LD_LIBRARY_PATH=/home/rajat/.local/chrome-system-libs`)
+      worked without issue for every real test in this pass, including mobile device-emulation
+      contexts (not previously explicitly confirmed working under emulation). Nothing in this pass hit
+      the known missing-system-libs blocker; no sudo change was needed or attempted.
+
+      **OCID-051 is complete.** Zero new gaps registered this pass -- every real check passed against
+      this OCID's own pre-written acceptance criteria (its planning doc's Definition of Done).
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_051_CROSS_SURFACE_CERTIFICATION_PLANNING_2026-08-03.md`
+      (completion amendment, in place, already-indexed doc), `PROGRESS.md`, this ACTIVE-CLAIMS entry.
+      No src/, schema, or migration changes -- pure testing/documentation, per this dispatch's own
+      scope. No production data touched -- all writes (the one real Web Share Target message) went
+      through real, live, self-service test accounts, isolated from any real customer org.
+
+  - session_label: "claude-code (docs/ocid050-full-115x3-sweep-and-large-data-org) -- OCID-050 full 115-page x 3-state sweep + real large-data org, 345/345 [DONE]"
+    claimed_at: "2026-08-03T19:00Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision chain UMR-20260803-192841-b433/UMR-20260803-185714-89c6, citing
+      UMR-20260802-165606-4413 OCID-020): finish OCID-050 fully -- the remaining full 115-page sweep
+      across all 3 real data states, plus State C (Large Data) org creation and testing -- before
+      starting OCID-051, per the Owner's reinforced "completion over breadth" priority.
+
+      TASK-050-0: committed the existing 115-item nav-href fixture
+      (`ai-os/fixtures/ocid020-nav-surface-115.json`), diff-matched before commit.
+
+      TASK-050-1 (State C org): found a real, hard blocker during preparation -- no self-service API
+      route lets a regular org admin enable ERP/Sales/Construction/PMS for their own org
+      (`enableErpForOrg()`/`enableSalesForOrg()`/`enableConstructionForOrg()` have zero real callers
+      outside internal scripts and a bearer-key-gated platform endpoint this session doesn't hold).
+      Separately found a real, reproducible, unresolved contradiction: direct DB reads (`psql` via
+      `.env.local`'s `DATABASE_URL`, and PostgREST with `SUPABASE_SERVICE_ROLE_KEY`, both independently
+      verified against the real live project) show `compliance.product_branches` has only 1 row, yet
+      live app behavior proves branch resolution genuinely works for orgs like `demo_co_1_sharma`. Both
+      registered honestly in `ai-os/MASTER-TRACKER.yaml`
+      (`GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`), root cause not chased further -- direct
+      SQL writes were ruled unsafe given the unresolved read discrepancy. Built the large-data org
+      entirely through the live app's own self-service API instead: real signup, 5 real departments,
+      1,500 real compliance items via 1,500 individual authenticated `POST /api/compliance` calls (0
+      failures). Independently verified via `GET /api/compliance?limit=5` (`"total": 1500`) and `GET
+      /api/me` (erp/sales/pms/firm honestly `false`, not claimed enabled).
+
+      TASK-050-2: wrote explicit acceptance criteria (pagination correctness, empty-state messaging, an
+      8s first-pass performance-under-load budget for State C) into the breakdown doc.
+
+      TASK-050-3/4/5: ran the full 115-item nav list for real against all 3 states (own harness, reusing
+      the proven Supabase-Admin-API-login + session-cookie + no-sudo-Chrome pattern from this session's
+      earlier 15-page pass, extended to the full fixture and to capture per-page load latency).
+      **345/345 real page-checks passed** (State A 115/115, State B 115/115, State C 115/115) -- zero
+      crashes, zero page errors, zero `Application error` matches, zero nav failures. State C's real
+      load-time distribution (min 489ms / max 1,388ms / avg 751ms across 1,500-row-backed pages) showed
+      no volume-driven degradation, comfortably inside the 8s budget.
+
+      TASK-050-6: cross-state comparison found no page behaving differently across states in a way that
+      produced a real finding. Wrote the closing amendment in the OCID-050 breakdown doc itself.
+
+      Honestly scoped, not oversold: "large data volume" this pass means real, large-volume GRC-core
+      data (compliance items) -- the entity actually self-service-reachable. ERP/Sales/Construction/
+      PMS-specific large-volume data was not built (blocked by the enablement gap above); those pages
+      were still swept for real against State C (correctly rendering their gated disabled-module state),
+      just without module-specific large backing data. Named explicitly in the completion amendment
+      rather than silently absorbed into a "fully done" claim.
+    scope_note: >-
+      File scope: `ai-os/fixtures/ocid020-nav-surface-115.json` (new), `ai-os/MASTER-TRACKER.yaml` (2
+      new gap entries), `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`
+      (acceptance-criteria + completion amendments), `PROGRESS.md`, this ACTIVE-CLAIMS entry. No src/,
+      schema, or migration changes -- pure testing/discovery/documentation, per this dispatch's own
+      scope and the standing OCID-021 implementation lock. No production data touched -- all writes
+      (departments, compliance items) went through real, live, self-service org accounts created for
+      this test, isolated from any real customer org.
+
+  - session_label: "claude-code (task-20260803-161032-pm-decision--resolve-pr-826-merge-confli) -- PR #826 merge-conflict resolution, docs-only [DONE]"
+    claimed_at: "2026-08-03T16:10Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, citing UMR-20260802-165606-4413/OCID-020 and UMR-20260803-115452-a35d/OCID-048):
+      PR #826 (real OCID-048 cross-org/tenant isolation execution, 7/7 checks) showed a genuine rebase
+      conflict against `main` (`mergeStateStatus: DIRTY` at task start). The responsible worker task
+      (task-20260803-151937) independently ended in real `blocked` status because the deterministic
+      credit accountant rejected a second paid auto-fix attempt (same precedent as PR #755). PM decision:
+      do not queue another paid auto-fix retry; resolve directly in the interactive session instead (same
+      approach as PR #795).
+
+      Real finding: by the time this session checked out PR #826's branch, the conflict had ALREADY been
+      resolved -- a merge commit (`6116cd5d`, authored ~1 minute after this session's own claim-
+      registration push) already merged `main`'s tip cleanly into the PR, correctly incorporating both
+      sides' real additions to `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` (verified via `git diff
+      --stat` against both parents -- zero content dropped from either side; no leftover conflict
+      markers). Live concurrent-session drift, not this session's own resolution work -- did not redo it,
+      confirmed it instead. Independently verified via `git merge-base --is-ancestor origin/main HEAD`
+      (clean) and `gh pr view` (`mergeable: MERGEABLE`, was `CONFLICTING`).
+
+      Honestly flagged, not silently declared fully done: `mergeStateStatus` is still `BLOCKED`, but for
+      an unrelated pre-existing reason outside this task's scope -- the mandatory `audit-check` (Rule 10)
+      has no structured verdict comment yet, and `Build`/`Vercel` were still pending at last check.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry and this task's own `PROGRESS.md` only. No src/ changes; the
+      actual conflict-resolution content in `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml` on PR #826's own
+      branch was produced by a different concurrent session/process, not this one -- verified, not
+      authored, here.
+  - session_label: "claude-code (task-20260803-120306-register-ocid-048-multi-organization-mul) -- Register OCID-048 Multi Organization/Tenant/Brand Isolation Certification, planning only, child of OCID-020 [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, tier not given -- treated as planning-only
+      per its own explicit text): register OCID-048 as a real child of OCID-020
+      (`UMR-20260802-165606-4413`), part of a newly-opened "Business
+      Certification" phase for OCID-020. Planning only this cycle -- no
+      implementation, no test execution, no certification. Produce a real
+      deterministic task breakdown, using only the existing organization/
+      tenant/brand model already built, defining the exact real test path for
+      (1) data isolation across >= 2 real distinct organizations, (2) a real
+      brand (e.g. projexa-ai.com) confirmed as a configuration of the one
+      shared platform rather than separate software, (3) no cross-tenant data
+      leakage. Explicit instruction: reuse the existing pending item for
+      creating a separate Tenant B demo org rather than duplicate it.
+
+      Duplication check performed before any of this was written: full read
+      of this file's own `active:`/`recently_completed:` sections (grep for
+      "tenant"/"isolat"/"multi.org"/"multi.brand"/"rls"/"048"/"business.cert"
+      -- zero collisions found beyond an unrelated closed RLS-gap fix);
+      `python3 /opt/veridian/scripts/resource_governor.py --query-umr
+      --search "OCID-048"` and `--search "Tenant B"` (zero real matches for
+      the former; the latter's 8 hits are all unrelated historical-backfill
+      rows, none about a demo org); grep across
+      `ai-os/MASTER-TRACKER.yaml`/`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`/
+      `ai-os/STANDING_DIRECTIVE.yaml`/`ai-os/boss/COMPLETED.yaml` for a
+      literal "create Tenant B demo org" item -- none exists verbatim
+      anywhere; the real, closest, already-open item is
+      `IMPLEMENTATION_MATRIX_2026-08-02.md`'s Stream D ("Multi-tenant RLS
+      table-by-table verification") plus the explicit "Still open, not yet
+      tested" note in
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_CONTINUATION_2026-08-02.md`
+      (extend the real Org A/Org B `/api/departments` cross-org probe, PR
+      #747, to every other tenant-scoped route) -- reused and cited by name
+      in the new artifact, not duplicated. Also confirmed OCID-046
+      ("Universal Multi-Brand Multi-Tenant Platform Runtime",
+      `IMPLEMENTATION_MATRIX_2026-08-02.md`'s 2026-08-03 amendment) is
+      adjacent but distinct scope -- a locked, not-yet-started future-runtime
+      design parented through the separate OCID-041-045 external-execution
+      chain, not a certification-of-what-already-exists task -- and said so
+      explicitly in the new artifact rather than silently overlapping it.
+
+      STATUS: canonical artifact written
+      (`ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`,
+      real 6-task breakdown T1-T6 + Definition of Done mapping), registered in
+      `ai-os/OS.yaml`, cross-referenced in place (not duplicated) from
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s Stream D row + a new
+      2026-08-03 amendment section. PR opened same session -- will confirm
+      merge separately; no further ACTIVE-CLAIMS update needed once merged
+      since this entry already reflects the real, closed scope of this task.
+    scope_note: >-
+      File scope: one new canonical artifact
+      `ai-os/VERIDIAN_OCID_048_MULTI_ORG_TENANT_BRAND_ISOLATION_CERTIFICATION_TASK_BREAKDOWN_2026-08-03.md`,
+      `ai-os/OS.yaml` (index registration), a small in-place cross-reference
+      amendment to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (Stream D),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration,
+      or CI changes -- planning/documentation only per SPEC's explicit
+      prohibition on implementation and certification this cycle.
+  - session_label: "claude-code (task-20260803-120310-register-ocid-049-subscription-plan-enti) -- OCID-049 Subscription Plan Entitlement Certification, planning only, child of OCID-020 Business Certification [DONE, docs-only]"
+    claimed_at: "2026-08-03T12:03Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing UMR-20260802-165606-4413, OCID-020): register OCID-049 as
+      a real child of OCID-020's newly-opened Business Certification phase (first registration of that
+      phase name anywhere in this repo -- confirmed via grep). Planning only, per SEC-07 -- no
+      implementation, no testing, no certification performed.
+
+      Zero-duplication check performed first, per this task's own instruction ("check resource_governor
+      before creating any sub-task"): `resource_governor.py --query-umr --search` for "OCID-049",
+      "entitlement", and this task's own identity ("register-ocid-049") each returned 0 matches; a direct
+      sqlite query against `superboss-register.sqlite`'s `umr_tasks` table for any row in this task's own
+      creation minute also returned 0 rows -- this task's own dispatch has no resource_governor-tracked
+      UMR (an honest, stated limitation, not fabricated). `grep -rn "OCID-049"` / `"Business
+      Certification"` across `ai-os/` also returned 0 prior matches.
+
+      Real discovery performed (not assumed): identified the real, existing `compliance.subscription_plans`
+      model this OCID is scoped to (4 seeded tiers -- Basic/Standard/Professional/Enterprise --
+      `drizzle/0231_ai_router_mother_router.sql`) and explicitly disambiguated it from 3 real but distinct
+      adjacent mechanisms already in this codebase (`organisations.plan` trial flag, `licensedSeats`
+      manual seat cap, product-branch module enablement -- the last of which is where this same session's
+      `ModuleNotEnabledCard`/`ServiceError` 403 explanation pattern, GAP-ERP-CRM-403-NO-UX-EXPLANATION PR
+      #809, actually lives). Honestly mapped what's really wired today (`features.aiPackage` ->
+      `mother-router.ts`'s `getOrgAiPackage()` -> `ai_routing_policies.preferredModelByPackage`, real but
+      dormant -- zero seeded policy rows exercise it) vs. schema-only (`assistants_per_user`, confirmed via
+      `git grep` to have zero consumers anywhere in `src/`). Produced a 5-task deterministic breakdown
+      (A-E) and a per-tier test path reusing the existing explanation pattern, as this OCID's own mission
+      required -- no new plan model, no new billing architecture, no code/schema/DB changes.
+
+      Canonical artifact: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md`.
+      Registered in `ai-os/OS.yaml` (index entry) and `ai-os/MASTER-TRACKER.yaml`
+      (`real_gaps_not_yet_built.GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT`, `status: open`, pending
+      Owner unlock of implementation for this OCID).
+    scope_note: >-
+      File scope: `ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md` (new file),
+      `ai-os/OS.yaml` (amended), `ai-os/MASTER-TRACKER.yaml` (amended), this ACTIVE-CLAIMS.yaml entry,
+      `PROGRESS.md`. No `src/`, schema, migration, or CI changes -- documentation/planning only, per
+      SEC-07 and this task's own explicit "do not test, do not fix" instruction. Could not run
+      `scripts/check-metadata-index-coverage.mjs` locally (this workspace has no installed
+      `node_modules`/`bun` binary) -- registered the new file in `OS.yaml` by hand, matching the existing
+      entry format exactly; CI's own run of that check is the real verification.
+  - session_label: "claude-code (task-20260803-050456-ocid-027-veridian-global-knowledge-disco) -- VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0, documentation only [DONE]"
+    claimed_at: "2026-08-03T05:05Z (this session, closed same session)"
+    claim: |
+      SPEC (real Owner directive, tier 1, parented to `UMR-20260803-041122-b22d`,
+      citing `UMR-20260803-041047-03ee` OCID-025, `UMR-20260803-041000-70ae`
+      OCID-024, `UMR-20260803-040929-9713` OCID-023, `UMR-20260803-040844-4a33`
+      OCID-022, `UMR-20260802-173631-ca85` ERP Functional Completeness Master
+      Program, `UMR-20260802-165606-4413` OCID-020, plus the traceability
+      audit/gatekeeper/unified-memory/recovery-framework UMRs). Documentation
+      only, no implementation -- consistent with the real OCID-020 lock
+      (`SEC-07`, `ai-os/CONSTITUTION.yaml`), which permits discovery/matrix
+      work to continue. **Real numbering discrepancy found and flagged, later
+      corrected by a real PM decision:** this task's own directory/branch
+      label says "ocid-027," and that was independently verified correct --
+      real PM decision `UMR-20260803-045159-ec55` confirmed this task's real
+      content ("VERIDIAN Global Knowledge Discovery and Reuse Runtime") is
+      OCID-027, correcting a mislabel in an earlier draft of
+      `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s own status
+      table that had placed this content at row `OCID-20260803-026`. OCID-028
+      is "VERIDIAN Unified Synchronization Runtime." Re-confirmed via
+      `gh pr list` + this file: no open PR or active claim exists anywhere for
+      OCID-027's content as of this claim, so proceeding on the literal,
+      detailed spec content actually given (Knowledge Discovery and Reuse) is
+      not a duplicate of any in-flight work -- same class of mislabeling as
+      the real OCID-036/037 correction already recorded under
+      `UMR-20260803-045159-ec55` in that same status-snapshot document.
+      File scope: one new canonical artifact
+      (`ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`),
+      amendments to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`,
+      `ai-os/MASTER_INDEX.yaml`, `ai-os/OS.yaml` (registration only, existing
+      UMR chain), this file, `PROGRESS.md`. No src/, schema, or CI changes.
   - session_label: "claude-code (task-20260803-011611-pm-confirmation-continue-watching-pr-bac) -- PM confirmation: continue watching the 6-PR backlog for real merges, no change of course [DONE]"
     claimed_at: "2026-08-03T01:16Z (this session)"
     claim: |
@@ -7229,47 +8764,6 @@ recently_completed:
       CI-trigger anomaly flagged as its own separate open item.
 
 # ── claim registered 2026-07-19 ~17:30 UTC ──────────────────────────────
-- session_label: >-
-    claude-code (this session, CLI)
-    task-20260719-171130-reevaluate-2045-row-veridian-framework-r
-    -- SUPERBOSS v2: reevaluate all 2045 Review-Framework rows against
-    everything actually shipped + close every genuinely-closable gap
-  claimed_at: 2026-07-19T17:30:00Z (this session)
-  claim: >-
-    Owner-directed REEVALUATE-2045-FRAMEWORK-AND-PLAN task
-    (SUPERBOSS_IMPLEMENTATION_PLAN v2). Scope: read the authoritative
-    claude-control/VERIDIAN_Review_Framework_evaluated_2045rows.csv fresh,
-    re-score every one of its 2045 rows against what has ACTUALLY shipped
-    since 2026-07-16 (Mother Router Phase 1 #433, Software Team L0-L5
-    #483, GLM-5.2/OpenRouter routing, AI_TEAM_LOG_SECRET fix, the full
-    9-workstream Wave B already present server-side: Fixed Assets /
-    CRM Accounts+Contacts / HR Attendance / Payment Entries approval /
-    Training LMS / BYOB white-label branding, plus prior Priority 10-22
-    waves and PLATFORM-01/DOMAIN-01/02), produce a real current gap count
-    + a 111-row decision log for the previously-deferred set + an
-    extended implementation plan (SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md)
-    sized into task-shaped units tagged L1-L4 for Mother Router routing,
-    register in both repos' ACTIVE-CLAIMS.yaml, open a tier1 docs-only PR.
-    THIS SESSION'S OWN DECISION (Owner pre-authorized, applying it):
-    treat the 9-workstream laptop worktree work as superseded/abandoned
-    per the task's explicit OWNER-AUTHORIZED DECISION -- and, per live
-    evidence gathered this session, that work is in fact ALREADY
-    superseded by complete server-side implementations in this repo
-    (schema + service + API routes + UI pages + tests all present for
-    Fixed Assets, CRM Accounts, HR Attendance, Payment Entries, Training
-    LMS, BYOB white-label). So no re-do is needed for those; the v2 plan
-    records this plainly rather than scheduling duplicate builds. The
-    genuinely-remaining gaps (e.g. CRM Contacts list-route+page, BYOB
-    bring-your-own-AI-model wiring, the 111 deferred rows re-examined
-    under granted decision authority) ARE scheduled. Docs-only PR; no
-    code/schema changes from this task itself.
-  scope_note: >-
-    File scope this task writes: ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md
-    (new), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md.
-    Read-mostly against claude-control CSV + CONTROLLER + this repo's
-    schema/src to ground the gap count. No collision: the v2 plan is a
-    fresh doc; the v1 plan (ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md,
-    PR #485) is already merged and is being EXTENDED, not duplicated.
   - session_label: >-
       claude-code (this session, CLI)
       task-20260719-171130-reevaluate-2045-row-veridian-framework-r
@@ -7619,3 +9113,154 @@ recently_completed:
       this repo, under `/opt/veridian/ai-os/tasks/`), `ps aux`, and the
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
+
+  - session_label: "claude-code (task-20260803-040852-ocid-022-veridian-end-user-experience-fo) -- OCID-20260803-022: VERIDIAN End User Experience Foundation v1.0, documentation only"
+    claimed_at: "2026-08-03T (this session)"
+    claim: |
+      Real Owner directive, tier 1, parented to `UMR-20260802-173631-ca85` (ERP
+      Functional Completeness Master Program), citing `UMR-20260802-165606-4413`
+      (OCID-020 certification directive), `UMR-20260802-164659-9a31` (server
+      artifact traceability audit), `UMR-20260802-165034-5747` (gatekeeper rule),
+      `UMR-20260802-165434-cd91` (unified project memory), and
+      `UMR-20260802-165541-c27d` (recovery framework). Extends the existing
+      master program, no new audit. Documentation only: no code, no DB, no UI,
+      no UX changes -- producing exactly one canonical artifact, "VERIDIAN End
+      User Experience Foundation v1.0".
+
+      Gatekeeper check run before starting, per the standing rule
+      (`UMR-20260802-165034-5747`): grepped this repo's `ai-os/` tree and this
+      file for "End User Experience Foundation" / "OCID-022" / "OCID-20260803-022"
+      -- no prior artifact or claim found; not a duplicate.
+
+      Honest discrepancy found during discovery, disclosed rather than silently
+      resolved: this task's own prompt cites an "OCID-021 implementation lock ...
+      UMR-20260802-165606-4413 gating real implementation until OCID-020 is
+      independently verified complete." Real OCID-021
+      (`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`, amendment dated 2026-08-03)
+      is actually the Category A/B production-DB governance split
+      (`UMR-20260803-025317-0c64`/`UMR-20260803-025414-8274`, SEC-06) -- already
+      CLOSED/merged, topically unrelated to end-user UX and not an "implementation
+      lock." `UMR-20260802-165606-4413` is the real UMR for OCID-020 itself, not
+      OCID-021. No artifact named "OCID-021 implementation lock" exists anywhere
+      in `ai-os/`. Separately confirmed OCID-020 itself is NOT yet independently
+      verified complete (this repo's own current `PROGRESS.md`, inherited from
+      task-20260802-210700, states the ERP master program "stays locked until
+      this fix AND the rest of the real certification sweep are independently
+      verified complete"; `ai-os/boss/ACTIVE-CLAIMS.yaml`'s own most recent
+      OCID-020 entries show the certification sweep `blocked`, not closed).
+      Practical effect: none for this task -- the directive is explicitly
+      documentation-only regardless of which lock is cited, so this
+      discrepancy does not block the real work here; recorded for the Owner's
+      awareness, not silently corrected into the directive's own text.
+    scope_note: >-
+      File scope: this repo's own new canonical artifact
+      (`ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`),
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment in place, OCID-022
+      section), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry),
+      `ai-os/MASTER_INDEX.yaml` / `ai-os/OS.yaml` (registry entry for the new
+      artifact, if their own coverage-check scripts require it), `PROGRESS.md`.
+      No src/, schema, migration, or UI component changes -- this task does not
+      touch `src/`, `drizzle/`, or any `.tsx`/`.ts` application file.
+  - session_label: "claude-code (task-20260803-171457-resolve-pr-803-conflict--merge--and-inde) -- PR #803 conflict resolution, docs-only reconciliation [DONE, premise found stale]"
+    claimed_at: "2026-08-03T17:15Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, citing UMR-20260802-165606-4413/OCID-020 and the PR #794 nav sweep chain):
+      independent verification "just confirmed" PR #803 (OCID-020 Finding 1, GAP-ERP-REPORTS-CLIENT-
+      CRASH-ON-403) is still `OPEN` with `mergeable: CONFLICTING`, directing this session to rebase and
+      merge it, independently retest Finding 1 live against `projexa-ai.com` with a real screenshot, then
+      cascade the same rebase/merge treatment to PR #828, #829, #830, then proceed to OCID-050 real
+      testing execution.
+
+      Independently re-verified the premise before acting rather than trusting it, per standing practice
+      on this repo (server runs live concurrent worker/supervisor loops; PM-decision state can go stale
+      within seconds -- see prior sessions' same finding on PR #826/828/829/830). Found the premise
+      **stale, not current**: `gh pr view 803 --json state,mergedAt,mergeCommit` shows `MERGED` at
+      `2026-08-03T16:36:19Z`, merge commit `e6e5a156b331ca817f33c3ad561ab755a6b7cd77`, independently
+      confirmed a real ancestor of `origin/main` via `git merge-base --is-ancestor`. A separate PR #831
+      (`docs/close-finding1-real-live-retest-confirmed`, merged 2026-08-03T16:43:27Z, citing a newer PM
+      decision `UMR-20260803-162547-b968`) had already done the rebase-merge AND the independent live
+      retest this spec asked for. Re-verified PR #831's own claim rather than trusting its commit message:
+      the screenshot it cites, `/opt/veridian/browser/screenshots/finding1-retest-post-pr803.png`, is a
+      real 102KB PNG (viewed directly) showing `/erp/reports` rendering its normal Financial Reports UI,
+      not the original "Application error" crash. `ai-os/MASTER-TRACKER.yaml` confirms
+      `GAP-ERP-REPORTS-CLIENT-CRASH-ON-403` at `status: resolved`. Also confirmed PR #828, #829, #830 are
+      all already `MERGED` (16:51:36Z / 16:57:59Z / 17:07:43Z, all after PR #831, all real ancestors of
+      current `origin/main` HEAD `a3706d3e`) -- no conflicting PRs remain open anywhere in this chain.
+
+      Also found and fixed a new instance of the recurring PROGRESS.md wholesale-replace regression
+      (same class as PR #828/829's own fixes): this task's workspace `PROGRESS.md` had been scaffolded as
+      a 2-line stub silently replacing 1580 lines of real prior history. Restored from `HEAD` before
+      appending this task's own section.
+
+      Did NOT proceed to OCID-050 real testing execution despite the spec's sequencing instruction: a
+      separate session (`task-20260803-120314-register-ocid-050-data-state-certificati`) already owns a
+      registered planning-only breakdown for it
+      (`ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_OCID050_DATA_STATE_TASK_BREAKDOWN_2026-08-03.md`) with a
+      real, unmet prerequisite flagged (no confirmed "Large Data volume" org yet). Executing it for real
+      is a multi-hour undertaking well beyond this task's own conflict-resolution scope; reaching into it
+      here would duplicate that session's ownership, exactly what this registry exists to prevent
+      (AGENTS.md Rule 11).
+    scope_note: >-
+      File scope: `PROGRESS.md` (restored from wholesale-replace regression + this task's own section),
+      this ACTIVE-CLAIMS entry. No src/, schema, migration, or CI changes -- the real code fix already
+      landed via PR #803 before this session started; nothing left to merge or fix in this cycle.
+  - session_label: "claude-agent (docs/ocid062-server-authority-mini-veridian-architecture) -- OCID-062 Server Authority and Mini VERIDIAN Execution Architecture [DONE, closed same session]"
+    claimed_at: "2026-08-04 (this session, closed same session)"
+    claim: |
+      SPEC (PM-authorized documentation-only dispatch, parent chain OCID-021
+      `UMR-20260802-173631-ca85` -> OCID-020 `UMR-20260802-165606-4413`, same documentation-only
+      pattern as OCID-022 through OCID-037): produce one real canonical architecture document
+      describing authoritative server responsibilities, "Mini VERIDIAN" (a new term this dispatch
+      introduces, not a pre-existing component) primary client-execution responsibilities, and a
+      proposed local-vs-server execution handoff sequence, with real citations to actual browser and
+      server runtime code, honestly distinguishing what exists from what is proposed. Explicitly
+      documentation-only -- no browser/PWA execution code, no service worker, no manifest changes.
+
+      Independently re-verified this dispatch's 5 named dependencies via `gh pr view` before writing
+      rather than trusting the prompt's own snapshot: OCID-024 (PR #767) and OCID-025 (PR #766) both
+      real, `OPEN`, not merged (read directly from their branches via `gh pr diff`); OCID-031 (PR #781)
+      and OCID-034 (PR #779) both real, `MERGED` 2026-08-03; OCID-061 (universal input runtime
+      mapping) confirmed not started -- no worker dispatched, zero findings anywhere in the repo,
+      not fabricated here. Independently confirmed the next-free OCID number live (`gh pr list`
+      showed OCID-058 through OCID-060 already claimed by open PRs #866-875; OCID-061/062 both
+      confirmed zero hits in `ACTIVE-CLAIMS.yaml`/`MASTER-TRACKER.yaml`/`OS.yaml` on `origin/main` at
+      write time) rather than assuming the PM's own example number (062) was still free.
+
+      Did a dedicated discovery pass, not a restatement of the two merged/two open dependency docs:
+      read `src/lib/supabase/auth-guard.ts`, `src/lib/db/tenant-scoped.ts`,
+      `src/lib/ai-router/mother-router.ts`, `src/lib/llm-routing-gate.ts`,
+      `src/app/api/prompt-compiler/execute/route.ts`, and all 15 files under
+      `src/lib/browser-execution/` directly. Real finding, independently confirmed, not just cited
+      from the open OCID-024 draft: none of the tier system's actual model-inference engines
+      (webllm-engine.ts/transformers-engine.ts/npu-engine.ts) are wired into VeriComposer.tsx's live
+      send path -- `grep -n "browser-execution" src/components/veri-chat/VeriComposer.tsx` finds
+      exactly one import (`client-compile.ts`'s `compileInBrowser`), which uses tier-orchestrator.ts
+      for tier selection/telemetry only, never invoking any tier's real inference. Also found and
+      flagged a real stale claim in `ai-os/CONSTITUTION.yaml` (line 759, "Zero indexedDB... usage
+      anywhere," dated 2026-07-14): real IndexedDB usage now exists via `browser-intent-cache.ts` and
+      `model-cache.ts` (both post-dating that claim) -- named as drift, not corrected in that file
+      (out of this dispatch's scope). Re-confirmed, independently, the real absence of any service
+      worker (`git grep -niE "serviceWorker|service-worker|sw\.js|next-pwa|workbox"`, zero hits) and
+      the real presence of the installable `src/app/manifest.ts` (PR #435) -- matching
+      OCID-051/OCID-034's own prior findings, not contradicting them.
+
+      Did not self-mint a dispatch UMR for OCID-062: this task's working environment (a scratch
+      clone) has no access to `/opt/veridian/ai-os/memory/superboss-register.sqlite`, so this
+      document's own dispatch-row identity was not independently queried -- disclosed explicitly in
+      the document itself rather than inventing a UMR the way `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`
+      (this file's own recorded prior finding) already flagged as a real anti-pattern in this repo's
+      history.
+
+      Registered `ai-os/OS.yaml` index entry and a new `ai-os/MASTER-TRACKER.yaml` gap/planning
+      entry (`GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED`, matching this file's own real, independently
+      confirmed finding above) for this document. Appended to `PROGRESS.md` without touching or
+      truncating any existing content (per this session's own recorded prior incident where a bad
+      merge truncated `PROGRESS.md` from 2403 to 120 lines) -- verified `wc -l` before and after.
+      Validated every YAML file touched parses clean via `python3 -c "import yaml; yaml.safe_load(...)"`
+      before committing.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      (new), `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this
+      entry), `PROGRESS.md`. No src/, schema, migration, CI, service-worker, manifest, or any other
+      application-code changes -- documentation and governance bookkeeping only, per this dispatch's
+      own hard constraint.
