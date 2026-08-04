@@ -52,8 +52,10 @@
       `python3 -c "import yaml..."` (count went from 94 silently-truncated
       to 97, then 98 after adding this task's own entry).
 
+- [x] Committed (`b8e1074f`), pushed, opened PR #878
+
 ## Remaining
-- [ ] Commit, push, open PR
+- [ ] Independent audit (Rule 7(c)/Rule 10) before merge
 - [ ] No implementation performed or authorized this cycle -- a fresh PM
       decision is required before building any shared intent-resolution
       layer, once OCID-061's full (currently truncated) prompt arrives.
