@@ -2141,7 +2141,8 @@ open_items:
       size: M -- Task A/B/C are each small (reuse existing ServiceError/ModuleNotEnabledCard/`/api/me`
         patterns, no new architecture); Task E is a real but separate admin-settings addition; Task D is a
         business decision, not code.
-      recommendation: "Planning only this cycle, per this OCID's own dispatch text and SEC-07. Do not
+      recommendation: |
+        Planning only this cycle, per this OCID's own dispatch text and SEC-07. Do not
         implement/test/certify until the Owner explicitly opens implementation for this OCID (same
         discipline SEC-07 already applies to the OCID-038/039/040 chain) -- this entry exists so the real
         task breakdown is findable and not re-derived from scratch by whichever session picks it up next.
@@ -2157,7 +2158,7 @@ open_items:
         infrastructure constraint, not an app-code gap. Full write-up:
         ai-os/OCID_049_SUBSCRIPTION_PLAN_ENTITLEMENT_CERTIFICATION_2026-08-03.md's own amendment.
         Still not implemented (Tasks A-E remain undone, per the standing OCID-021 lock) and not fully
-        certified (1 of 4 tiers has real evidence)."
+        certified (1 of 4 tiers has real evidence).
 
         **Amendment (2026-08-04, real implementation, PM decision citing this OCID's own standing
         auto-proceed authorization):** Tasks A/B/C/E shipped real code -- `src/lib/services/subscription-plan-service.ts`
@@ -2197,7 +2198,7 @@ open_items:
         since a live tenant DB context is needed to exercise it directly). Live browser confirmation
         against the real deployed site (the 4-tier test path this doc's own "Real test path per tier"
         section describes) not yet run this cycle -- real code, not yet independently re-verified live;
-        flagged as the real remaining step for whoever audits or continues this."
+        flagged as the real remaining step for whoever audits or continues this.
       status: "open (real testing complete for all 4 tiers; Tasks A/B/C/E now implemented, 2026-08-04 --
         see 3rd amendment for evidence. Task D deliberately held, a business decision not code. Live
         browser re-confirmation against the real deployed site per the 4-tier test path is the real
