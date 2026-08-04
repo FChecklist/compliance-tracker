@@ -2387,10 +2387,44 @@ open_items:
         against the real deployed site (the 4-tier test path this doc's own "Real test path per tier"
         section describes) not yet run this cycle -- real code, not yet independently re-verified live;
         flagged as the real remaining step for whoever audits or continues this.
-      status: "open (real testing complete for all 4 tiers; Tasks A/B/C/E now implemented, 2026-08-04 --
-        see 3rd amendment for evidence. Task D deliberately held, a business decision not code. Live
-        browser re-confirmation against the real deployed site per the 4-tier test path is the real
-        remaining step before this closes to resolved)"
+
+        **Amendment (2026-08-04, real live re-verification + real bug found and fixed, `UMR-20260804-221844-c915`,
+        checkpoint refresh of `UMR-20260802-165606-4413`):** performed the exact remaining step above --
+        real, live `GET /api/me` calls against `https://projexa-ai.com` (Admin-API-provisioned sessions,
+        same rate-limit-safe pattern as this doc's own prior real testing), zero mocks, zero narration.
+        Found the deployed code IS genuinely live (confirmed `2cb73100` is a real ancestor of `origin/main`,
+        no separate deploy-sync gap this time) but the real result was wrong: a fresh 1-user org resolved to
+        `subscriptionPlanName: "Trial"` / `assistantsPerUserLimit: 5` instead of the expected `"Basic"` / `3`,
+        and the existing real 48-user scaled org (this doc's own prior test org) resolved to `"Scale"` / `5`
+        instead of the expected `"Professional"` / `8`. Root-caused via a direct, real, read-only `psql`
+        query against `compliance.subscription_plans`: the table carries 4 real, pre-existing legacy rows
+        (`Trial` user_pack_size=1, `Starter`=5, `Growth`=15, `Scale`=50 -- `created_at` `2026-07-01`, 18 days
+        before this task's own `Basic`/`Standard`/`Professional`/`Enterprise` seed, `2026-07-19`) that
+        `resolveSubscriptionPlan()`'s (and `mother-router.ts`'s `getOrgAiPackage()`'s, same fallback shape)
+        `plans.find(p => userCount <= p.userPackSize)` never excluded -- `Trial`'s `userPackSize=1` always
+        wins for a brand-new org, and `Scale` ties `Professional` at `userPackSize=50` with no deterministic
+        tiebreak, so a large org's real resolved tier depended on undefined row order. Real, narrow fix
+        (both functions, same real chokepoint pattern, not a new parallel system): filter the fallback query
+        to `features ->> 'aiPackage' IS NOT NULL` -- this migration's own documented discriminator (see
+        `drizzle/0231_ai_router_mother_router.sql`'s own comment: "features.aiPackage is the key
+        mother-router.ts's getOrgAiPackage() reads") -- so the 4 legacy rows can never win the band-fit
+        `find()` again. Independently re-verified via a direct `psql` simulation of the new filtered query:
+        1-user fit -> Basic/3, 48-user fit -> Professional/8, both correct. `bunx tsc --noEmit` clean (full
+        repo), `bunx eslint` clean on both changed files, full suite 2490/2490 pass (0 fail, 4991 expect()
+        calls) -- no new DB-mocked unit test added for either function, matching this repo's own established,
+        already-disclosed practice (`mother-router.test.ts`'s own header: DB-backed wrappers including
+        `getOrgAiPackage()` are deliberately not exercised in CI, real Postgres not available there) --
+        verification here is type-correctness + full-suite-no-regression + a direct real `psql` simulation
+        of the fixed query, not a live-DB unit test. Live re-verification against the deployed site AFTER
+        this fix merges and deploys is the new, real remaining step (same "route/DB-logic change requires a
+        real deploy before live re-confirmation" discipline this doc's own `GAP-VERI-CHAT-NO-VISIBLE-...`
+        resolution and the separate `GAP-API-ME-500` migration fix both already established).
+      status: "open (real testing complete for all 4 tiers via the original band-fit design; Tasks A/B/C/E
+        implemented, 2026-08-04. Live re-verification against the deployed site (the real remaining step
+        from the prior amendment) found a real, live legacy-row tier-resolution bug, root-caused and fixed,
+        2026-08-04 -- see latest amendment. Task D still deliberately held, a business decision not code.
+        Real remaining step: live re-verification against the deployed site AFTER this fix's own PR merges
+        and deploys, before this closes to resolved)"
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
