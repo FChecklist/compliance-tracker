@@ -5255,6 +5255,40 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+recently_completed:
+  - session_label: "claude-code (task-20260803-041006-ocid-024-veridian-laptop-web-browser-run) -- OCID-024: VERIDIAN Laptop Web Browser Runtime v1.0 (documentation only) [PUSHED, PR #767 OPEN]"
+    claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner directive, tier 1, parented to `UMR-20260803-040929-9713`
+      OCID-023, citing `UMR-20260803-040844-4a33` OCID-022,
+      `UMR-20260802-173631-ca85` ERP Functional Completeness Master Program,
+      `UMR-20260802-165606-4413` OCID-020, `UMR-20260802-164659-9a31` server
+      artifact traceability audit, `UMR-20260802-165034-5747` gatekeeper
+      rule, `UMR-20260802-165434-cd91` unified project memory, and
+      `UMR-20260802-165541-c27d` recovery framework): created exactly one new
+      document, `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`
+      (real UMR `UMR-20260803-041000-70ae`, confirmed via
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks`
+      table -- no new UMR chain minted, this task's own row was already
+      registered by the dispatch gateway), documentation only -- no code,
+      DB, UI, or UX change. Two parallel Explore-agent discovery passes +
+      direct reads confirmed no duplicate document exists anywhere in
+      `ai-os/`, grounded all 38 sections in real file:line citations (VERI
+      Chat composer/chain-selector/mode pills, prompt-compiler pipeline,
+      browser-execution tiers, capability tree, permission/role system, 99
+      real app modules), and explicitly labeled every mandated topic with
+      no real built counterpart as `NOT_YET_BUILT`/`POLICY_ONLY`/real gap
+      rather than inventing one. Carried forward OCID-022's own honest
+      disclosure (`ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`,
+      PR #765) that the "OCID-021 implementation lock" language in these
+      task prompts actually refers to the unrelated, already-closed SEC-06
+      governance split. PR #767 opened; not self-merged (Rule 6 PR/CI gate).
+    scope_note: >-
+      File scope: this repo's new `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/,
+      schema, or CI changes. Read-only discovery over src/components/veri-chat,
+      src/lib/prompt-compiler, src/lib/services, ai-os/BROWSER_EXECUTION_TIERS*,
+      ai-os/audit-tree/04-veri-chat.yaml.
   - session_label: "claude-code (task-20260803-050500-ocid-028-veridian-unified-synchronizatio) -- VERIDIAN Unified Synchronization Runtime v1.0, documentation only (OCID-028, real PM decision UMR-20260803-052107-71fa)"
     claimed_at: "2026-08-03T05:05Z (this session)"
     claim: |
