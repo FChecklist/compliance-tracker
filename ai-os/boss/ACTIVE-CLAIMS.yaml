@@ -5355,6 +5355,78 @@ recently_completed:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260803-041002-ocid-023-veridian-universal-end-user-wor) -- OCID-023: VERIDIAN Universal End User Work Model v1.0, documentation only [DONE, PR pending merge]"
+    claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, parented to UMR-20260803-040844-4a33
+      "the real OCID-022 directive just registered", citing
+      UMR-20260802-173631-ca85 ERP Functional Completeness Master Program,
+      UMR-20260802-165606-4413 OCID-020, UMR-20260802-164659-9a31 the server
+      artifact traceability audit, UMR-20260802-165034-5747 the gatekeeper
+      rule, UMR-20260802-165434-cd91 the unified project memory, and
+      UMR-20260802-165541-c27d the recovery framework): create exactly one
+      new document, `VERIDIAN Universal End User Work Model` v1.0 --
+      documentation only, no implementation, no UI/DB/AI/VERI Chat design.
+
+      **Real hard dependency found at claim time, honored not skipped**: the
+      spec's own mandatory inputs require reading "the complete real document
+      produced under OCID-022 once it exists." Independently verified via
+      `systemctl --user status` and that task's own `task.yaml`:
+      task-20260803-040852-ocid-022 was genuinely `active (running)` at claim
+      time, its document not yet written. This session did all
+      OCID-022-independent discovery in parallel (full schema/service
+      inventory of `tasks`/`tickets`/`pmsIssues`/`comments`/
+      `taskChatMessages`/`documents`/`notifications`/`auditLogs`/
+      `scopedDelegations`/`approvalRequests`, plus `CONSTITUTION.yaml`'s
+      `task_lifecycle`/`guardrail_protocols`/`audit_organization` sections),
+      set a background Monitor watching OCID-022's own workspace, and read
+      its real 323-line document in full the moment it existed, before
+      writing this document's own content -- not fabricated or guessed.
+
+      **Real pre-existing prior art found via `git log --all --name-only`**
+      (absent from `ai-os/` itself, hence missed by a naive directory
+      listing): `UNIVERSAL_TASK_WRAPPER_DESIGN.md` (repo root, 2026-07-11) --
+      the exact "universal work envelope" design this task's own mission
+      needed, already reviewed and partially shipped as `activity_log`/
+      `CONSTITUTION.yaml`'s `TASK-04`. Direct grep of every real
+      `recordActivity()` call site found a materially more precise gap than
+      TASK-04's own `gap` field states: Phase 1 is wired for the
+      `ai_team_dispatch` activity type only -- `customer_task`/
+      `orchestra_call` (the types that would cover real end-user tasks) have
+      zero real call sites anywhere in `src/`. This finding is now recorded
+      in the new artifact itself (§1.1) and in this session's
+      `IMPLEMENTATION_MATRIX_2026-08-02.md` amendment.
+
+      **Resolved the "OCID-021 implementation lock" citation** (inherited
+      the same finding OCID-022's own document independently made, re-
+      verified rather than blindly trusted): no literal OCID-021 document
+      exists; real OCID-021 is the Category A/B production-DB governance
+      split (`SEC-06`), closed/merged, topically unrelated to end-user work
+      modeling. The real gate is `UMR-20260802-165606-4413` (OCID-020's own
+      certification directive), confirmed via `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      not yet independently verified complete -- documentation-only work was
+      never blocked by it regardless.
+
+      **Output**: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md`
+      -- all 29 mandated sections (what is work, what is a task, every end
+      user input becomes one task, uniqueness/identifier, state model,
+      ownership, assignment, delegation, transfer, approval, escalation,
+      completion, reopen, auditability, history, timeline, attachments,
+      chat, decisions, artifacts, reports, analysis, notifications, search,
+      permissions, visibility, retention, synchronization, recovery,
+      lifecycle summary), each grounded in real file:line evidence or an
+      honestly-named existing gap -- no UI/DB/AI/VERI Chat design attempted,
+      per the spec's own prohibition. Registered in `ai-os/OS.yaml` and
+      `ai-os/MASTER_INDEX.yaml` (both validated to parse as real YAML), and
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` amended with an
+      OCID-20260803-023 entry.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md`
+      (new), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amended),
+      `ai-os/OS.yaml` (new index entry), `ai-os/MASTER_INDEX.yaml` (new
+      registry entry), this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry,
+      `PROGRESS.md`. No src/, schema, UI, or CI changes -- documentation
+      only per spec, confirmed by `git status` before commit.
   - session_label: "claude-code (task-20260803-071339-pm-decision-register-the-real-implementa) -- PM decision on OCID-021 lock registration + overlap-resolution: ALREADY DONE, real inconsistency found+fixed [DONE, PR pending]"
     claimed_at: "2026-08-03T07:1xZ (this session, closed same session)"
     claim: |

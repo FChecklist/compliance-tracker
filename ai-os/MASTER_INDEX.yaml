@@ -1599,6 +1599,29 @@ registries:
     disclaimer warned about.'
   status: live
   query_command: cat ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
+- id: veridian_universal_end_user_work_model_v1_0
+  type: point_in_time_synthesis_doc
+  path: ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md
+  scope: 'OCID-20260803-023 (UMR-20260803-042019-844f, dispatch UMR-20260803-040929-9713, parent
+    UMR-20260803-040844-4a33, master program UMR-20260802-173631-ca85): documentation-only v1.0
+    of the first canonical VERIDIAN Universal End User Work Model. Defines, each grounded in real,
+    live tables/services (not invented): what is work, what is a task, task uniqueness/identifier,
+    state model, ownership, assignment, delegation, transfer, approval, escalation, completion,
+    reopen, auditability, history, timeline, attachments, chat, decisions, artifacts, reports,
+    analysis, notifications, search, permissions, visibility, retention, synchronization, recovery,
+    and a lifecycle summary. Real prior art found and built on rather than duplicated:
+    UNIVERSAL_TASK_WRAPPER_DESIGN.md (repo root, 2026-07-11) and CONSTITUTION.yaml''s task_lifecycle
+    (TASK-01..05) -- confirmed via direct grep that activity_log/TASK-04''s own Phase 1 is wired for
+    the ai_team_dispatch activity type only; customer_task/orchestra_call (the types that would cover
+    real end-user tasks) have zero real call sites, a materially more precise finding than TASK-04''s
+    own gap field states. Mandatory input `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`
+    (OCID-022, a concurrent sibling task) was read in full before writing, per this task''s own
+    mandate. Every named gap (task reopen, task transfer, task decisions, tickets/pmsIssues search
+    coverage, task reporting/retention/recovery) maps to a real existing mechanism a future
+    implementation OCID would extend -- none require new architecture. Point-in-time; will go stale
+    as real work lands -- re-verify rather than trust on a future pass.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md
 - id: veridian_end_user_experience_foundation_v1
   type: point_in_time_audit_doc
   path: ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md
