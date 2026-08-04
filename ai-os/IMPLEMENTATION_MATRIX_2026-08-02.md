@@ -1163,6 +1163,86 @@ Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPS
 
 ---
 
+## Amendment (2026-08-03): VERIDIAN Universal Task Lifecycle Runtime v1.0 (`UMR-20260803-041743-d271`, real OCID-20260803-032)
+
+Real Owner directive, tier 1, documentation only, parented to `UMR-20260803-041700-a741` (real OCID-031,
+Universal Software Execution Engine) and citing the full OCID-022..030 chain plus the ERP Functional
+Completeness Master Program (`UMR-20260802-173631-ca85`) and OCID-020 (`UMR-20260802-165606-4413`).
+Grounds the complete task lifecycle — definition, creation, identifier, classification, priority,
+context, owner, assignee, delegation, transfer, splitting, merging, dependencies, the status model,
+approvals, escalation, AI escalation, software execution, monitoring, heartbeat, timeout, recovery,
+resumption, completion, verification, audit, traceability, reuse, analytics, the dashboard,
+notification, synchronization, history, certification, and the zero-lost-task target — entirely in
+what already exists (`activity_log`, `TASK-01..05`, `GP-01..30`, `AUDIT-01..04`, `escalation-ladder.ts`,
+`monitor-protocol.ts`, `approval-workflow-service.ts`, `exception-taxonomy.ts`,
+`qa-precompletion-gate.ts`, `veri-todo-service.ts`). No code, schema, or UI change.
+
+**Real numbering correction found and applied**: the live `umr_tasks` registry
+(`superboss-register.sqlite`, queried directly, not narrated) confirms this task's own dispatch unit is
+`task-...-ocid-032-veridian-universal-task-lifecyc.service` and its cited parent
+(`UMR-20260803-041700-a741`) is `task-...-ocid-031-veridian-universal-software-exe.service` — i.e. this
+document is real OCID-032, not OCID-031 as `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s
+table had it (that table already carried one self-corrected numbering error, the 036/037 row, per
+`UMR-20260803-045159-ec55`; this is a second, independent one). The same live-query method
+independently confirmed real OCID-20260803-033 = "Universal End User Work Orchestration Runtime" and
+real OCID-20260803-030 = "Universal Decision Engine" (matching PR #772's own title).
+
+**Overlap check performed** (per the standing PM decision, `UMR-20260803-045159-ec55`): OCID-023
+(Universal End User Work Model, PR #768) has not merged, and its own committed document is truncated
+mid-sentence at line 31 — has not yet reached task-status/delegation/escalation content. This document
+therefore proceeds as its own artifact rather than folding into an unmerged, incomplete sibling.
+
+**Real, honest gaps named, not glossed over**: no task transfer/reassignment function exists anywhere
+in `src/lib`; no task splitting or merging exists for the `tasks` table; no generic per-task heartbeat
+or resumption mechanism exists at the application layer (the real analogs found live one layer up, at
+the AI-OS orchestration layer — `umr_tasks.last_heartbeat`, systemd-unit re-invocation); notifications
+are inserted ad hoc across 12+ call sites with no shared service; `src/app/(app)/tasks/page.tsx` renders
+compliance items, not tasks, despite its route name; "zero lost task" is real in the sense that no
+activity type is invisible (Phase 1 of `UNIVERSAL_TASK_WRAPPER_DESIGN.md` shipped) but not yet real in
+the sense of "every task visible through one query" (Phase 2/3 remain open, per `TASK-04`'s own gap
+field). Also corrects `RES-02`'s own description of VERI To Do as "a query-time UNION view" — direct
+read of `veri-todo-service.ts` found it is three separate Drizzle queries merged in application code,
+not a SQL `UNION`/DB view.
+
+Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md`. Amends the
+existing UMR chain (this file, `ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml`) — does not start a new one.
+
+---
+
+## Amendment (2026-08-03): VERIDIAN Universal Organization Runtime v1.0 (OCID-20260803-029)
+
+Real Owner directive, tier 1, parented to `UMR-20260803-041257-e9c3` (OCID-028), citing the
+OCID-022 through 027 chain and `UMR-20260802-173631-ca85` (ERP Functional Completeness Master
+Program). Documentation only — implements nothing, changes no schema, changes no code. Per
+SEC-07 (`ai-os/CONSTITUTION.yaml`), the real implementation lock gates implementation/gap-
+closure/production-changes/certification/freeze, not documentation, so this deliverable
+proceeds unaffected.
+
+**What it is**: one canonical, cited inventory of how organizations already operate inside
+VERIDIAN — organization/multi-brand/multi-tenant/legal-entity/department/project structure
+(`organisations`, `clientEntities`, `erpCompanies`, `departments`, `projects`, `committees`),
+the people model (`users`, employee=associate equivalence, `stage_0` level-zero users), the
+`ROLE_RANK` + deny-only-`abacPolicies` rights model, the deterministic Approval Workflow Engine
++ `delegationOfAuthority` limits + `scopedDelegations` transfer/delegation/succession
+mechanism, `leaveRequests`, shared-link/guest level-zero access
+(`conversationShareLinks`/`conversationGuestAccess`/`stage0Sources`), and audit/data/work
+visibility (`auditLogs`/`userClientAccess`). Every claim cites a real `schema.ts` file:line.
+
+**Real gaps named, not fixed**: no Owner row/flag on `organisations` (admin authority is real
+and role-based, but no structurally distinct, irreplaceable "Owner" concept exists); no
+`locations` table; no `teams` table; two unreconciled legal-entity tables (`clientEntities` vs
+`erpCompanies`); no single guided exit/offboarding workflow (composable today from access
+revocation + delegation + reassignment); no uniform work-item "private vs. shared" visibility
+column across all work-item types.
+
+**Cluster-overlap check** (per PM decision `UMR-20260803-045159-ec55`): confirmed via `gh pr
+list` at write time that no open PR or merged `main` content exists yet for the sibling
+OCID-026/027/028/030/032/034/035/037 cluster covering this ground — no duplication found.
+
+Canonical artifact updated: this file, `ai-os/VERIDIAN_UNIVERSAL_ORGANIZATION_RUNTIME_2026-08-03.md` (new), `ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml` — not rewritten, not duplicated.
+
+---
+
 ## Amendment (2026-08-03): OCID-026, VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 (`UMR-20260803-041047-03ee`)
 
 Documentation-only artifact, consistent with `SEC-07`'s implementation lock (`ai-os/CONSTITUTION.yaml:652-656`),
