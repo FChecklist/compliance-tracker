@@ -600,6 +600,10 @@ credential/deletion/archival/visibility action (boundary from original dispatche
       class of bug on this exact file (see the `docs/ocid063-...` and `task-20260804-144006-...`
       sections above).
 
+- [x] Committed, pushed, opened docs-only PR #916 to land this finding via the required PR/CI gate
+      (Rule 6): https://github.com/FChecklist/compliance-tracker/pull/916 -- and closed out the
+      corresponding `ai-os/boss/ACTIVE-CLAIMS.yaml` entry with the PR link.
+
 ## Remaining
 - [ ] None on the original dispatch scope. No real conflicts existed to resolve; no rebase/force-
       push/merge was needed or performed on any of the 12 open OCID-053..060 PRs.
@@ -607,3 +611,4 @@ credential/deletion/archival/visibility action (boundary from original dispatche
       duplicates across the two dispatch waves, independent of any conflict), that is a distinct,
       separate real PM decision -- not the "resolve real conflicts" scope this task was given --
       and should be dispatched as such.
+- [ ] Confirm CI green on PR #916, hand off for independent audit -- not self-certified here.
