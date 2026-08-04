@@ -1975,3 +1975,66 @@ Cites: `UMR-20260802-173631-ca85` (OCID-021, real implementation, authorized by 
       product_branches live-vs-direct-read discrepancy, assistants_per_user enforcement, plan-tier-to-
       branch mapping absence, VERI Chat visible-signal gap) remain open, each its own real branch/fix/
       retest/PR per the PM's own explicit sequencing.
+
+---
+
+# PROGRESS -- fix/gap-erp-sales-construction-self-service-enablement
+
+Cites: `UMR-20260802-173631-ca85` (OCID-021, real implementation, authorized by PM decision
+`UMR-20260803-212402-1922` after OCID-020 was declared complete), fixing
+`GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API` (OCID-021 Wave 1 Item 2 -- Item 1,
+`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`, was already closed by a prior session under this same PM
+decision, PR #851, confirmed merged before this session started via `git merge-base --is-ancestor`).
+
+## Completed
+- [x] Verified this task's starting state before picking work: fast-forwarded from a stale starting
+      HEAD (5 commits behind `origin/main`, including PR #786) to real `origin/main`; confirmed via
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` + this file's own tail that Item 1 was already done, avoiding
+      duplicate work.
+- [x] Registered a real claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` for Item 2 before starting real work,
+      per that file's own protocol; pushed it as its own fast commit ahead of the real fix.
+- [x] Added 3 real, authenticated self-service enablement routes, mirroring the existing
+      `src/app/api/pms/enablement/route.ts` / `src/app/api/the-firm/enablement/route.ts` pattern
+      verbatim (no new mechanism): `src/app/api/erp/enablement/route.ts`,
+      `src/app/api/crm/enablement/route.ts` (branchKey `sales`, routed under `/api/crm/` per that
+      service file's own comment on which API surface it gates), `src/app/api/construction/enablement/route.ts`.
+      Each wires real `GET`/`POST`/`DELETE` handlers to the already-fully-implemented
+      `get*Enablement()`/`enable*ForOrg()`/`disable*ForOrg()` service functions -- the admin-role gate
+      already existed inside `enableProductBranchForOrg()` and needed no change.
+- [x] `bunx tsc --noEmit` clean (full repo, after a `bun install` -- `node_modules` was missing at task
+      start), `bunx eslint` clean on all 3 new files, `bun test` 2481/2481 pass (unchanged baseline, no
+      new tests -- matches the established convention that PMS/THE FIRM's own enablement routes carry
+      zero route-level tests).
+- [x] Ran a real, live functional test: started a local dev server (`bun run dev`) pointed at the real
+      production Supabase project via a copied `.env.local`, created a real admin user via the Supabase
+      Admin API, did a real password-grant login, hand-built a real `@supabase/ssr` v0.12.3 session
+      cookie (same established methodology as OCID-047/048/052), and called all 3 new routes over real
+      HTTP. Confirmed via the dev server's own request log that all 3 routes correctly pass
+      `requireAuth()` and reach the real DB-layer service call (not a 401/404 -- the routing/auth wiring
+      is real and correct).
+- [x] Found and honestly diagnosed a real blocker to full local persistence verification, and ruled out
+      that it was caused by this change before writing it off: `APP_RUNTIME_DATABASE_URL` in the local
+      `.env.local` snapshot returns a genuine `28P01 password authentication failed` error for the
+      `app_runtime` role, reproduced identically via a direct `psql` connection (outside the app
+      entirely) and via the completely unrelated `GET /api/me` route -- confirms this is a pre-existing
+      local-environment credential-drift issue, not a defect in this fix. The adjacent `DATABASE_URL`
+      (`postgres` role) connects fine with the same file, ruling out a full outage. Not filed as a new
+      MASTER-TRACKER gap since it's a local env-snapshot issue, not a live product defect (other
+      sessions completed real live testing against `projexa-ai.com` minutes before this pass).
+- [x] Cleaned up all test artifacts before committing: removed the copied `.env.local` (real secrets,
+      never committed -- also gitignored), `dev.log`, and the throwaway test script from disk; killed
+      the local dev server.
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`: `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`
+      marked `resolved`, with the full honest verification writeup including the local-env limitation
+      and the tracked post-merge live-reverification follow-up (same discipline already established by
+      `GAP-403-VS-500-CLM-HR-PERFORMANCE`'s PR #806/#809 for the same class of deploy-gated fix).
+
+## Remaining
+- [ ] Full live end-to-end confirmation against the real deployed site (real enable -> real persisted
+      `org_product_branch_enablements` row -> real 200 from a downstream ERP/Sales/Construction API)
+      is a tracked follow-up for once this PR merges and deploys -- not done in this pass, per the
+      honest limitation above.
+- [ ] This closes `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API` only -- 4 gaps from
+      the PM's OCID-021 Wave 1 scope remain open (product_branches live-vs-direct-read discrepancy,
+      assistants_per_user enforcement, plan-tier-to-branch mapping absence, VERI Chat visible-signal
+      gap), each its own real branch/fix/retest/PR per the PM's own explicit sequencing.
