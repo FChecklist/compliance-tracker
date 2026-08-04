@@ -40,6 +40,44 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-161621-ocid-054-registration-and-discovery-only) -- OCID-054 registration + discovery reconciliation only, real UMR UMR-20260804-162201-bc4e [DONE, PR pending]"
+    claimed_at: "2026-08-04T16:22Z (this session)"
+    claim: |
+      SPEC (real Owner directive, registration + read-only discovery/inventory only, hard
+      boundary against rotation/deletion/cleanup/merge/retirement): full text and metadata in
+      ai-os/OCID_054_UNIVERSAL_REPOSITORY_RECONCILIATION_REGISTRATION_2026-08-04.md.
+
+      **Conflicting-claim discovery, reported per this file's own protocol item 4, not silently
+      worked around**: this exact OCID-054 discovery/inventory work was already performed ~12
+      hours earlier by PR #869 (`worker/task-20260804-040754-register-ocid-054--universal-
+      repository`, opened 2026-08-04T04:19:20Z), still open/unmerged, CI failing. Also found: a
+      whole cluster of sibling OCID-053..061 registration PRs from the same ~04:07-05:05Z window
+      (#866-870, #873-875, #878), all still open; the Owner's own account closed a fresh
+      OCID-053 redo (PR #901) 3 minutes before this dispatch started, explicitly recommending
+      existing-PR reconciliation over further fresh registration documents for this cluster; and
+      a sibling task (`task-20260804-161617-ocid-053-registration-only-universal-kno`, 4 seconds
+      apart in the same dispatch batch) is redoing the identical OCID-053 registration
+      concurrently with this one (PR #903).
+
+      Given that guidance, this dispatch's own deliverable deliberately does NOT re-derive PR
+      #869's full census -- it registers OCID-054 with the freshly-minted UMR as instructed,
+      live-re-verifies the highest-risk facts (repo count unchanged at 15; veda-advisors still 22
+      open publicly-leaked google_api_key alerts, unchanged), and adds one new, more urgent
+      finding PR #869 doesn't have: its own commit quoted a raw leaked secret value verbatim in
+      its own discovery doc + MASTER-TRACKER.yaml, creating a fresh, live, publicly-reachable
+      secret-scanning alert (#1) on compliance-tracker itself (a public repo) -- see
+      GAP-COMPLIANCE-TRACKER-PR869-SECRET-REEXPOSURE in ai-os/MASTER-TRACKER.yaml. No credential
+      rotation, repository deletion/archival/visibility change, or PR cleanup/merge/retirement
+      performed -- PR #869/#867/#903 were read-only inspected via the GitHub API, never edited,
+      closed, or merged. Reconciliation implementation itself stays LOCKED behind the same
+      OCID-020 through OCID-040 gate governing OCID-053.
+    scope_note: >-
+      File scope: one new file (ai-os/OCID_054_UNIVERSAL_REPOSITORY_RECONCILIATION_REGISTRATION_
+      2026-08-04.md), ai-os/MASTER-TRACKER.yaml (two new needs_owner_decision entries), ai-os/
+      OS.yaml (index entry), this ACTIVE-CLAIMS entry, PROGRESS.md. No src/, schema,
+      credential, or repository-state changes of any kind; no edits to any other session's
+      branch or PR.
+
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
