@@ -239,3 +239,171 @@ snapshot as still current after any meaningful delay.
 **Canonical artifact created:** this file. Amends the existing UMR chain (cites but does not replace
 `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` and
 `ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md`); does not start a new one.
+
+---
+
+## 9. Discovery brief addendum (2026-08-04): real briefs for the two remaining held gaps
+
+**Governing decision.** This task's SPEC (citing `UMR-20260802-173631-ca85` OCID-021 and
+`UMR-20260803-042801-ec4b` OCID-038) confirms `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED` (§6 item 1)
+closed via PR #856 (merged, commit `622db105`, independently confirmed a real ancestor of `origin/main`).
+It explicitly declines to approve proceeding on the two remaining gaps —
+`GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` and `GAP-OCID038-PROJEXA-OWN-SCHEMA` — because neither has a
+real written discovery brief, only the short §6 narration above. **This section is that brief.** Every
+finding below is read-only investigation (live `curl`, direct file reads in both `compliance-tracker` and
+the separate `projexa` repo's local checkout at `/opt/veridian/repos/projexa`) performed 2026-08-04. **No
+implementation, routing change, or schema change is made in this session** — the real PM call is made
+after reading this, per the SPEC's own explicit instruction.
+
+### 9.1 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH — discovery brief
+
+**What the mismatch concretely is.** `projexa-ai.com` is a real, live, working Vercel deployment — but
+it serves compliance-tracker's own generic shell, not any PROJEXA-branded experience. Freshly re-verified
+live this session (2026-08-04T01:21Z, not reused from 2026-08-03):
+
+```
+$ curl -sI https://projexa-ai.com           -> HTTP/2 200
+$ grep -io "veridian\|projexa" <page html>  -> 33 "VERIDIAN" matches, 0 "projexa" matches
+$ curl -sI https://projexa-smoky.vercel.app -> HTTP/2 200 (a separate, genuinely live deployment)
+$ grep -io "veridian\|projexa" <page html>  -> 42 "PROJEXA" matches, 5 "VERIDIAN" matches (footer attribution)
+```
+
+§3's 2026-08-03 finding is confirmed still current, one day later, not stale: `projexa-ai.com`'s `<title>`
+still reads "VERIDIAN COGNITIVE AI OS," and the real PROJEXA-branded frontend (the separate `projexa`
+repo) is live only at the unrelated-looking `projexa-smoky.vercel.app` URL.
+
+**What routing today actually does.** Direct code read of compliance-tracker this session, not assumed:
+- No `middleware.ts` exists anywhere in this repo (`find . -maxdepth 1 -iname middleware.ts` and
+  `src/middleware.ts` both confirmed absent).
+- `next.config.ts` (39 lines, read in full) has no `rewrites`, `redirects`, or any hostname-conditional
+  logic — its only customizations are `transpilePackages` (veridian-ui-kit), `serverExternalPackages`
+  (`@memvid/sdk`), `next-intl` (locale from a cookie, not the URL/host), and Sentry.
+- No PROJEXA-brand-detection code exists anywhere in `src/` — a repo-wide grep for
+  `NEXT_PUBLIC_BRAND`/tenant-brand-switch/`PROJEXA` returns only compliance-tracker's own
+  `src/app/api/v1/projexa/*` directory (51 subdirectories) — a **backend API namespace** for a
+  construction-ERP domain, not any UI-facing brand switch. No `src/app/**/projexa` **page** directory
+  exists in compliance-tracker at all — only the API surface.
+- The domain binding itself is pure DNS/Vercel-alias, not application code: `projexa-ai.com` and
+  `www.projexa-ai.com` are bound directly to the `veridian-compliance-ai` Vercel project (confirmed via
+  `ai-os/boss/completed-work/wave10-dns-cutover.md`'s runbook and the real, quoted Owner directive in
+  `task-20260802-141942-owner-decision--revert-projexa-ai-com-to`'s prompt: *"revert projexa-ai.com and
+  www.projexa-ai.com back to the Wave 10 merge state, i.e. served by veridian-compliance-ai... vercel
+  domains add projexa-ai.com veridian-compliance-ai --force"*).
+
+So today's entire "routing" story is: an alias-level DNS/Vercel binding pointing the domain at
+compliance-tracker's own deployment, with **zero code, anywhere in that deployment, aware of which
+hostname a request arrived on.** A request to `projexa-ai.com/` and a request to compliance-tracker's own
+primary domain hit byte-for-byte the same rendered output.
+
+**What it would need to do differently.** Two structurally different paths exist (an Owner-level product
+decision per the existing §6 recommendation, not decided here):
+1. **Re-point the alias** at the separate `projexa` repo's own deployment (make `projexa-ai.com` an alias
+   of the project currently only reachable at `projexa-smoky.vercel.app`) — pure infra/DNS, no app code
+   change in either repo, but a genuine identity switch: today the domain authenticates against
+   compliance-tracker's own Supabase project (`pcrjmlpuqsbocqfwoxod`, confirmed via the prior session's
+   real signup+login test cited in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed` history);
+   re-pointing would switch it to whichever Supabase project `projexa`'s own production env targets
+   instead — anyone with an account through today's binding would be affected.
+2. **Add real hostname-aware branding inside compliance-tracker** (e.g. a new `middleware.ts` reading
+   `req.headers.get('host')` to swap logo/copy/theme when host === `projexa-ai.com`), keeping the domain
+   bound to compliance-tracker's own backend. This requires genuinely new code (no such file exists
+   today) and a decision about which UI the branded experience should actually be — compliance-tracker's
+   own `/api/v1/projexa/*`-backed data with a new UI layer that doesn't exist yet, or a proxy/embed of the
+   separate `projexa` repo's UI. Neither is a small mechanical change.
+
+**What real evidence shows about which behavior is correct or wrong.** Neither "correct" nor "wrong" is
+the right frame absent a stated intent — which is exactly why this needed a written brief rather than an
+implementation guess. The *domain-to-compliance-tracker binding itself* is a deliberate, Owner-directed,
+already-executed decision (quoted above) — not an accident, not a stale leftover from an earlier
+reversal. What was **not** part of that directive, and has no recorded intent anywhere in this repo's
+governance trail (the wave10 runbook, the owner-decision task prompt, or
+`ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` item 12 "Go Live") is *branding on top of that binding*. The
+Owner decision and its runbook are both scoped to which backend/Supabase project the domain authenticates
+against — never to what the served HTML should visually be. So the honest, evidenced state is: the
+routing decision was made and is working exactly as directed; the branding question was simply never
+posed to the Owner and has no recorded answer either way. That is a materially narrower, and more
+actionable, finding than "this is a bug" — it is an open product question, not a defect.
+
+### 9.2 GAP-OCID038-PROJEXA-OWN-SCHEMA — discovery brief
+
+**What the investigation needed to check, and what it found.** The existing §6 gap's own recommendation
+said: "read the projexa repo directly (not GitHub code search only) to determine whether it genuinely
+calls a shared VERIDIAN API anywhere." This session did exactly that — read
+`/opt/veridian/repos/projexa`'s real local checkout directly, not GitHub's code-search index — and the
+prior "0 hits" GitHub code-search finding (§1) turns out to be a **false negative**, not a true absence:
+
+- `projexa/src/lib/veridian-client.ts` (241 lines, read in full) is a real, actively-used API client.
+  Its base URL: `VERIDIAN_API_BASE = process.env.VERIDIAN_API_BASE_URL ?? "https://veridian-compliance-ai.vercel.app/api/v1/projexa"`
+  (line 19) — a string a search for "compliance-tracker" (a plausible but wrong guess at the search term)
+  would never match, since the live hostname is `veridian-compliance-ai`, not "compliance-tracker."
+- 51 files under `projexa/src/app/api/**` call `callVeridian()` / `callVeridianRaw()` /
+  `callVeridianBinary()` / `callVeridianUpload()` from that client (confirmed by direct `grep -rl` file
+  count) — matching, 1:1 in count, compliance-tracker's own 51 subdirectories under
+  `src/app/api/v1/projexa/` (confirmed by direct `find` count on both sides). A real, wired, symmetric API
+  surface, not a naming coincidence.
+- A real per-tenant credential/provisioning contract exists between the repos: `projexa`'s own
+  `veridian_credentials` table (`schema.ts` line 43, one row per PROJEXA org: `veridian_org_id` +
+  `veridian_api_key`) is populated by `provisionVeridianOrg()` (`veridian-client.ts` line 200), which
+  calls `POST {VERIDIAN_API_ROOT}/platform/provision-org` — and compliance-tracker genuinely has that
+  exact endpoint (`src/app/api/v1/platform/provision-org/route.ts`, confirmed present, live-read).
+- Every other table in the local schema has a documented, non-duplicative rationale, confirmed by reading
+  each table's own in-code comment directly, not inferred:
+  - `organizations` / `memberships` — the local tenant/auth model, required because the VERIDIAN
+    credential lookup needs a local org id to key off.
+  - `profiles` / `notifications` / `todos` — local session/collaboration data; `notifications`'s own
+    comment explicitly says it deliberately does not reuse compliance-tracker's differently-scoped
+    role/RLS model, since PROJEXA's multi-tenancy and RLS convention genuinely differ.
+  - `assistantQueries` / `conversations` / `conversationParticipants` / `messages` — explicitly documented
+    in-code as "stand[ing] in for VERIDIAN's real async Tasks system," because VERIDIAN's `createTask()`
+    requires a real user session that the server-to-server API-key path doesn't have — a documented
+    workaround for a real integration gap, not silent duplication.
+  - `workProgressPhotos` — explicitly documented as "Deliberately NOT a duplicate of VERIDIAN's real
+    constructionWorkProgressEntries row... duplicating them here would let the two drift"; the one column
+    it owns (a photo attachment) genuinely has no home in VERIDIAN today (no photo column, no reachable
+    upload API).
+  - `contactRequests` — anonymous marketing-site lead capture, mirroring compliance-tracker's own
+    equivalent local table for the identical reason (visitor rows, not tenant data).
+
+**Correction, immaterial to the finding, flagged for accuracy:** the existing gap detail (§6 item 6) cites
+an "11-table schema"; a direct count of `pgTable(` calls in `projexa/src/lib/db/schema.ts` this session
+found **12** (`organizations, memberships, veridianCredentials, assistantQueries, conversations,
+conversationParticipants, messages, profiles, notifications, todos, workProgressPhotos,
+contactRequests`) — off by one from the earlier spot-check, does not change the analysis above.
+
+**Why this matters for OCID-038 platform integration certification.** This materially refines, not merely
+confirms, §6 item 6 and — more significantly — updates §1/§2's own negative "zero-hit API-call search"
+finding above, which was working from an incomplete signal (GitHub code search, not a direct repo read).
+The `projexa` repo is a genuine, wired, real thin client of compliance-tracker's `/api/v1/projexa/*` and
+`/api/v1/platform/*` surfaces, with its local schema limited to tenant/auth plumbing, a documented
+Tasks-API workaround, one explicitly non-duplicative attachment table, and unrelated marketing-site data —
+exactly the minimal local footprint a well-built thin client should have, not architectural drift from the
+repo's own stated design intent. This is a stronger, more positive data point for §2's "does
+compliance-tracker + PROJEXA operate as one backend" certification question than the original discovery
+credited; it does not by itself flip §2's overall "NO, not as a fully unified backend" verdict (§2's other
+findings — `veda-advisors` unrelated, no shared API gateway/auth token/session model spanning all
+FChecklist repos, `projexa-ai.com`'s own brand mismatch per §9.1 above — still stand), but it removes one
+specific piece of evidence (§1's "zero-hit search," "may be real architectural drift") that had been
+counted against unification.
+
+**What remains genuinely unverified — real follow-up, not done in this brief:**
+1. This was a static/code-read investigation, not a live runtime trace. No request was actually sent
+   through `projexa-smoky.vercel.app` and observed hitting compliance-tracker's `/api/v1/projexa/*` in
+   real time this session (unlike §9.1's domain/brand finding, which *was* freshly live-curled). A real
+   end-to-end trace — trigger one real PROJEXA action, confirm a corresponding request lands in
+   compliance-tracker's own logs/DB — is the natural next verification step; not performed here, since it
+   edges toward live-system probing beyond a documentation-only brief.
+2. Whether `VERIDIAN_API_BASE_URL` / `VERIDIAN_PLATFORM_APPLICATION_KEY` / `DATABASE_URL` etc. actually
+   hold real values in `projexa`'s **production** Vercel environment was not checked — only that a local
+   `.env.local` file exists in the checkout (its contents were deliberately not read; local env files can
+   hold live secrets, and reading them wasn't necessary to answer the architecture question).
+3. The "51 vs 51" route-count match confirms the counts align and the provisioning endpoint was
+   spot-checked by name; it does not confirm all 51 path strings pair up 1:1 with no orphans on either
+   side — a full diff of both route lists was not performed.
+
+### 9.3 What this addendum does not do
+
+Per the SPEC's explicit instruction, this addendum makes **no implementation, routing, or schema change**
+of any kind — not to compliance-tracker, not to the `projexa` repo, not to DNS/Vercel domain bindings.
+`GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` and `GAP-OCID038-PROJEXA-OWN-SCHEMA` remain `status: open` in
+`ai-os/MASTER-TRACKER.yaml`, unchanged by this session. The real PM call on both — informed by §9.1 and
+§9.2 above — is made separately, by the Owner, not by this task.

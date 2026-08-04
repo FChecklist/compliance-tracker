@@ -5284,6 +5284,43 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260804-011908-pm-decision--hold-on-the-two-remaining-o) -- discovery brief ONLY for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH and GAP-OCID038-PROJEXA-OWN-SCHEMA, no implementation [DONE]"
+    claimed_at: "2026-08-04T01:1xZ (this session, closed same session)"
+    claim: |
+      SPEC (PM decision citing `UMR-20260802-173631-ca85` OCID-021 and `UMR-20260803-042801-ec4b`
+      OCID-038): independent verification confirmed PR #856 genuinely merged (`622db105`, confirmed
+      ancestor of `origin/main`), closing `GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED`. The PM
+      explicitly declined to approve an unsubmitted "proceed" suggestion on the two remaining gaps
+      (`GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`, `GAP-OCID038-PROJEXA-OWN-SCHEMA`) because neither
+      has a real written discovery brief, only short narration in the existing canonical doc. This
+      session's scope is strictly discovery + documentation: write a real brief for both gaps into
+      `PROGRESS.md` and `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`
+      covering the concrete domain/brand mismatch, what routing today does vs. would need to do, real
+      evidence either way, and what the projexa schema investigation needs to check and why it matters.
+      Explicitly NOT implementing, NOT changing routing, NOT changing schema -- the PM makes the real
+      call after reading this brief.
+
+      **Both briefs written.** Domain/brand mismatch brief found today's "routing" is pure DNS/Vercel-
+      alias binding with zero hostname-aware code anywhere in compliance-tracker (no middleware.ts, no
+      host logic in next.config.ts), and that the binding itself was a deliberate Owner directive while
+      branding-on-top was never posed to the Owner -- an open product question, not a defect. Own-schema
+      brief read the separate `projexa` repo's real local checkout directly (per the gap's own
+      recommendation) and found the prior "0 hits" GitHub code-search finding was a false negative:
+      `projexa/src/lib/veridian-client.ts` is a real, wired API client calling compliance-tracker's own
+      `/api/v1/projexa/*` (51/51 route match) and `/api/v1/platform/provision-org` (confirmed present on
+      both sides); the local schema is tenant/auth plumbing + a documented Tasks-API workaround + one
+      explicitly non-duplicative attachment table, not architectural drift. Full text:
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md` §9 and this repo's
+      `PROGRESS.md`. No implementation/routing/schema change made -- both gaps remain `status: open` in
+      `ai-os/MASTER-TRACKER.yaml`, unchanged, pending the real PM call.
+    scope_note: >-
+      File scope (read-only investigation, write-only to docs): `PROGRESS.md`,
+      `ai-os/VERIDIAN_OCID_038_UNIFIED_PLATFORM_INTEGRATION_DISCOVERY_2026-08-03.md`, this
+      ACTIVE-CLAIMS.yaml entry. Read (not written) directly: `/opt/veridian/repos/projexa` (separate
+      repo, local checkout on this server), this repo's `next.config.ts`, `src/app/api/v1/projexa/**`,
+      `src/app/api/v1/platform/provision-org/route.ts`, live `curl` against `projexa-ai.com` and
+      `projexa-smoky.vercel.app`. No src/, schema, migration, DNS/Vercel config, or CI changes of any
+      kind this session.
   - session_label: "claude-code (fix/gap-ocid038-taskengine-motherrouter-unwired) -- OCID-038: real fix for GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED [DONE, PR pending]"
     claimed_at: "2026-08-04T00:58Z (this session)"
     claim: |
