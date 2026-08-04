@@ -29,6 +29,11 @@ discovery documentation only.
       in this repo's `ai-os/` tree -- consistent with the prior dispatch's own flag, not
       re-investigated from scratch.
 
+- [x] Committed + pushed documentation changes.
+- [x] Opened PR #902 (`FChecklist/compliance-tracker`,
+      https://github.com/FChecklist/compliance-tracker/pull/902) -- discovery documentation only,
+      zero repository state changes. CI running at time of this checkpoint.
+
 ## Remaining
-- [ ] Commit + push documentation changes.
-- [ ] Open PR containing only discovery documentation, zero repository state changes.
+- [ ] Confirm PR #902 CI goes green (or triage any real failure, not the pre-existing Vercel
+      rate-limit / `audit-check` "no AUDIT comment yet" class of failure already seen on PR #868).
