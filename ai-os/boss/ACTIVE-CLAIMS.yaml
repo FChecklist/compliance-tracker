@@ -40,6 +40,72 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-054228-register-ocid-062--mini-veridian-runtime) -- OCID-062 dispatch: found already independently completed as PR #876, verified + audited it instead of duplicating [AUDIT: PASS posted, CI unblock pushed, DONE]"
+    claimed_at: "2026-08-04T05:42Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, parent chain OCID-021 `UMR-20260802-173631-ca85` ->
+      OCID-020 `UMR-20260802-165606-4413`): PM-authorized documentation-only dispatch to produce a
+      canonical architecture document covering authoritative server responsibilities, "Mini
+      VERIDIAN" primary client execution responsibilities, and local-vs-server execution order,
+      citing this dispatch's five named dependencies at their real current state (OCID-024 PR #767,
+      OCID-025 PR #766 -- both cited by the SPEC as still open; OCID-031 PR #781, OCID-034 PR #779
+      -- both cited as genuinely merged; OCID-061 -- cited as not yet started).
+
+      Before starting real work, per standing protocol: `git log --oneline --all -- PROGRESS.md`
+      surfaced a commit already in this repo's history, not yet on `origin/main`, titled exactly
+      "docs: OCID-062 Server Authority and Mini VERIDIAN Execution Architecture"
+      (`origin/docs/ocid062-server-authority-mini-veridian-architecture`, PR #876, opened
+      2026-08-04T05:22:36Z -- ~20 minutes before this task's own dispatch timestamp). Read the PR's
+      real diff and its full artifact directly (`git cat-file -p`, not the Bash tool's `git show`,
+      after that command's own known truncation bug -- see [[veridian-shell-large-output-truncation-bug]]
+      -- silently reported 31 lines for what `git cat-file -p` confirmed is a real 443-line document).
+      Confirmed it targets the identical five dependencies at the identical real states this task's
+      own SPEC names, with real, independently-verifiable file:line citations.
+
+      **Decision: did not duplicate it.** Instead, spot-verified a wide sample of its citations
+      directly against `origin/main` (`requireAuth()` auth-guard.ts:270, `withTenantContext()`
+      tenant-scoped.ts:65, `resolveModel()` mother-router.ts:594, `withSourceTypeLabel()`
+      HomeThreadSlot.tsx:38, `runBrowserFirstPass()` VeriComposer.tsx:243, the `client-compile.ts`
+      Owner-directive header quote, the `execute/route.ts` "ONLY as non-authoritative telemetry"
+      quote, all 15 `src/lib/browser-execution/` files, `browser-intent-cache.ts`, `manifest.ts`,
+      zero-service-worker via the same `git grep`, the stale `CONSTITUTION.yaml:759` "zero indexedDB"
+      claim, and PR #781/#779/#766's real states) -- all confirmed accurate. Found one real,
+      non-blocking staleness: OCID-024's PR #767 has since **merged** (now `main`'s own tip, commit
+      `9051b010`) after PR #876 was opened -- both this task's own SPEC text and PR #876's own §1
+      table still describe it as open. Posted this as a disclosed, non-blocking finding rather than
+      silently correcting someone else's PR.
+
+      Acted as PR #876's independent auditor (not self-certifying -- did not author it) per this
+      repo's standing "whichever agent did not implement is the mandatory auditor" norm (AGENTS.md
+      Rule 7c) and its own unchecked test-plan item requiring an `AUDIT: PASS`/`FAIL` comment. First
+      posted a bare `AUDIT: PASS` comment, then discovered (by reading `.github/workflows/mandatory-audit-check.yml`
+      and `src/lib/audit-protocol.ts` directly) that the real, current gate requires the full
+      8-field `AuditProtocolFields` structure, not the bare legacy line -- posted a corrected,
+      structured `AUDIT: PASS` comment with all 8 fields
+      (https://github.com/FChecklist/compliance-tracker/pull/876#issuecomment-5175109296).
+
+      Hit the known `issue_comment`-vs-real-head-SHA bug documented in
+      [[veridian-audit-check-issue-comment-sha-bug]]: the audit-check run triggered by the comment
+      validated against `main`'s tip SHA, not PR #876's real head SHA, so it never actually showed as
+      passing on the PR itself. Applied that memory's confirmed workaround: cloned the PR branch,
+      merged `origin/main` into it (clean auto-merge, two files, zero conflicts:
+      `ai-os/OS.yaml`/`ai-os/boss/ACTIVE-CLAIMS.yaml`), and pushed
+      (`114910b6..44ac8d63`) to force a real `pull_request: synchronize` event, which correctly
+      re-validates against the PR's actual head SHA and re-fetches all posted comments (including the
+      structured audit one) via the API.
+
+      Not this session's own architecture doc, deliberately -- registering this claim, not the
+      alternative pattern of a competing document, to avoid the exact wasted-cycle duplication this
+      registry exists to prevent.
+    scope_note: >-
+      File scope: this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md` (this task's own
+      workspace, restored from HEAD's real 2475-line history after finding this task's scaffolded
+      workspace copy had been truncated to 6 lines -- see [[veridian-shared-worktree-stash-risk]]/
+      prior-incident class). One real merge commit pushed to PR #876's own branch
+      (`docs/ocid062-server-authority-mini-veridian-architecture`, `44ac8d63`) -- a `git merge
+      origin/main` only, zero content edits to that PR's own files, done solely to unblock its stuck
+      CI check per the documented workaround. No new architecture document created by this session;
+      no application/src/schema/workflow files touched by this session at all.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
