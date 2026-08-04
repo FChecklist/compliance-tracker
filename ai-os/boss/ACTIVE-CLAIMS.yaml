@@ -5577,6 +5577,37 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-161612-ocid-020-authorize-applying-already-merg) -- OCID-020: real PM decision authorizing applying already-merged migration 0312 (host_domain column) to production, closing GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS [DONE, PR TBD -- see PROGRESS.md]"
+    claimed_at: "2026-08-04T16:26Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision, UMR-20260802-165606-4413 OCID-020, following the root-cause
+      investigation UMR-20260804-153900-ea69): authorize applying migration 0312 (already
+      reviewed and merged, purely additive `host_domain` column on `platform.product_branches`)
+      to production, independently confirming it is purely additive first, then independently
+      re-verifying the original `GET /api/me` 500 is genuinely gone.
+
+      Real work performed: independently confirmed migration 0312 is purely additive by reading
+      the file directly (ADD COLUMN IF NOT EXISTS + partial unique index + one scoped UPDATE, no
+      destructive alter/drop/rename). Found this exact fix had already been applied to production
+      by a concurrent session (branch `fix/ocid020-api-me-500-host-domain-migration`, commit
+      `0975eb68`, under a separate parallel PM authorization `UMR-20260804-155457-a16d`) before
+      this task started, with no PR opened yet -- documented honestly as a duplicate-authorization
+      instance, not re-litigated. Independently verified the live production schema directly via
+      `psql` (14 columns incl. nullable `host_domain`, 27 rows, exactly 1 set to
+      `projexa-ai.com`), then re-ran migration 0312's own 3 statements directly against production
+      as this task's own literal "apply" step -- Postgres confirmed genuinely idempotent
+      (`NOTICE: ... already exists, skipping` on both IF-NOT-EXISTS statements, UPDATE affected
+      exactly 1 row). Independently re-verified live, not narrated: 4 fresh Admin-API-provisioned
+      real users all got real `200`s from `GET /api/me` (previously `500` empty-body, 10/10) and
+      the real `/` -> `/home` redirect chain. Updated `ai-os/MASTER-TRACKER.yaml`'s
+      `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` entry to `status: closed` with full evidence,
+      citing `UMR-20260804-153900-ea69`, `UMR-20260802-165606-4413`, and
+      `UMR-20260804-155457-a16d`. Real evidence (`/tmp/verify-ocid020-fix.mjs`, raw psql output)
+      left on this server, ephemeral, not committed.
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (gap closure), this ACTIVE-CLAIMS.yaml entry,
+      `PROGRESS.md`. One real production DB write (idempotent no-op re-application of already-live
+      migration 0312) -- no src/ or schema.ts change, no new migration file.
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |

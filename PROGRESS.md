@@ -1,3 +1,94 @@
+# PROGRESS -- task-20260804-161612-ocid-020-authorize-applying-already-merg
+
+Real PM decision for OCID-020 (`UMR-20260802-165606-4413`), following the root-cause
+investigation `UMR-20260804-153900-ea69` (PR #899, still open/discovery-only as of this
+task's start): production `platform.product_branches` was missing the `host_domain`
+column that migration `drizzle/0312_stage1_preauth_brand_host_lookup.sql` (commit
+`d45dbd3b`, OCID-038, already reviewed and merged to `origin/main`) added to the repo but
+was never actually applied to the live database -- causing the real, live `GET /api/me`
+500 this OCID-020 cycle first found. Spec explicitly authorized applying that single,
+already-merged, already-reviewed migration as a mechanical deployment step (not new
+implementation, not covered by the OCID-021 standing implementation lock), conditioned on
+independently confirming it is purely additive before touching production.
+
+## Completed
+- [x] **Restored this file's local working copy from a bootstrap-truncation** (same known
+      pattern documented elsewhere in this file's own history, e.g. `13df222b`): the task
+      workspace started with a 6-line stub overwriting the real 543-line accumulated
+      history. Confirmed via `git cat-file -p HEAD:PROGRESS.md` (bypasses the known
+      Bash-tool large-output display-truncation bug) that `origin/main`'s real content was
+      intact; restored it below and appended this section rather than repeating the
+      overwrite.
+- [x] **Independently confirmed migration 0312 is purely additive** by reading
+      `drizzle/0312_stage1_preauth_brand_host_lookup.sql` directly: `ALTER TABLE
+      platform.product_branches ADD COLUMN IF NOT EXISTS host_domain text` (nullable, no
+      default), a `CREATE UNIQUE INDEX IF NOT EXISTS ... WHERE host_domain IS NOT NULL`
+      partial index, and one `UPDATE ... WHERE id = '5fceebcd-...'` scoped to a single row
+      by primary key. No destructive `ALTER`/`DROP`/`RENAME` of any kind.
+- [x] **Found this exact fix had already been applied to production by a concurrent
+      session** before this task started: branch `fix/ocid020-api-me-500-host-domain-migration`
+      (commit `0975eb68`, based directly on this same `fa3ffbb8` `main` tip) documents
+      applying migration 0312 live with its own before/after schema snapshots and live
+      re-verification, citing a separate, earlier PM fix-authorization UMR
+      (`UMR-20260804-155457-a16d`) than this task's own dispatch. That branch had **not**
+      opened a PR yet. Documented honestly as a duplicate-PM-authorization instance (two
+      separate PM decisions dispatched close together authorized the identical fix) --
+      not re-litigated; the underlying production write only happened once, and this
+      task's own re-application (below) is independently confirmed idempotent, not a
+      second real write.
+- [x] **Independently verified the live production schema directly via `psql`**
+      (`DATABASE_URL` from `/opt/veridian/repos/compliance-tracker/.env.local`, the
+      canonical live checkout): `platform.product_branches` already has 14 columns
+      including `host_domain text` (nullable) and the
+      `product_branches_host_domain_key` partial unique index; 27 total rows, exactly 1
+      (`branch_key='projexa'`, id `5fceebcd-0a7a-4448-ae2b-a72637124f13`) has
+      `host_domain = 'projexa-ai.com'`, all other 26 rows correctly `NULL` -- matching the
+      prior session's own claimed after-state exactly.
+- [x] **Applied the migration directly, first-hand, as this task's own literal "apply"
+      step** -- re-ran all 3 statements from `drizzle/0312_stage1_preauth_brand_host_lookup.sql`
+      against production myself via `psql`. Confirmed genuinely idempotent, not a
+      no-op-by-luck: Postgres returned `NOTICE: column "host_domain" ... already exists,
+      skipping` and `NOTICE: relation "product_branches_host_domain_key" already exists,
+      skipping` for the two `IF NOT EXISTS` statements, and the `UPDATE` affected exactly
+      1 row (re-setting the same existing value) -- real proof the fix was already live
+      and that re-applying it changes nothing.
+- [x] **Independently re-verified the original reproduction is genuinely gone**, not
+      narrated as fixed: wrote `/tmp/verify-ocid020-fix.mjs`, used the real
+      `SUPABASE_SERVICE_ROLE_KEY` Admin API to provision 4 fresh real users (same
+      methodology the original finding and prior fix session both used -- the specific
+      throwaway accounts from earlier cycles were not persisted/reusable), real
+      password-grant login for each, hand-constructed real `@supabase/ssr` session
+      cookies, and made real direct HTTPS requests to live `projexa-ai.com`. Result:
+      **4/4 `GET /api/me` -> real `200`** with a real 742-byte JSON body (previously
+      `500` with an empty body, 10/10, per the original finding), and **4/4 `GET /` ->
+      real `200`** resolving to `https://projexa-ai.com/home` with ~114KB of real
+      rendered app-shell HTML. All 4 test users deleted after verification.
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`'s existing `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS`
+      entry to `status: closed`, with the real root cause, the fix, and both this
+      session's and the prior session's independent verification evidence, citing
+      `UMR-20260804-153900-ea69`, `UMR-20260802-165606-4413`, and
+      `UMR-20260804-155457-a16d`.
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` and moved it to
+      `recently_completed:` (closed same session).
+- [x] Commit + push this cycle's work; open a PR (no PR existed yet for the already-applied
+      fix) citing both UMRs per this task's own explicit instruction.
+
+## Remaining
+- [ ] Confirm CI green, hand off for independent audit per Rule 7(c)/10 -- not
+      self-certified here.
+- [ ] Separate, out of this task's narrow scope: PR #899 (the discovery-only root-cause
+      artifact) is still open and unmerged as of this task's end -- left as-is, not
+      touched here.
+- [ ] Separate, out of this task's narrow scope, noted honestly by the prior fix session
+      and not re-attempted here: migration 0312 is still absent from
+      `drizzle/meta/_journal.json` / `drizzle.__drizzle_migrations` (it was applied via
+      direct `psql`, not `drizzle-kit migrate`) -- a real owner may want to regenerate it
+      through `drizzle-kit generate` so future `db:push` runs don't attempt to reapply it
+      from a different source of truth. Also separate: `/api/me/route.ts`'s 5 unguarded
+      `isXEnabledForOrg` calls have no try/catch, so any future missing-column drift would
+      reproduce this same class of 500 -- not fixed here, per this task's narrow "apply
+      the already-merged migration" scope.
+
 # PROGRESS -- task-20260804-125247-ocid-020-concrete-redirect-stop-open-end
 
 Real PM decision for OCID-020 (`UMR-20260802-165606-4413`): the prior interactive session had

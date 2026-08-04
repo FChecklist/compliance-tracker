@@ -619,15 +619,62 @@ open_items:
         the crash cause, noted honestly as an open question for whoever picks this up.
       size: M
       recommendation: |
-        Needs a real owner to read the actual Vercel function logs for `/api/me` (this task had no
-        access to production runtime logs, only black-box HTTP behavior + local read-only DB
-        checks) to get the real stack trace before attempting a fix -- do not guess-fix based on
-        the circumstantial link above alone. Once root-caused, the fix is very likely narrow (one
-        of the two new calls in `2cb73100`'s diff to `src/app/api/me/route.ts`), but this entry
-        deliberately stops at discovery per the standing OCID-021 implementation lock and this
-        task's own explicit "discovery/testing only, no fixing" instruction.
-      status: open
+        CLOSED. Root cause found and fixed in production.
+
+        Real production log access (`VERCEL_ACCESS_TOKEN`) traced the live 500 to `getBranchId()`
+        in `src/lib/services/product-branch-service.ts`, the shared chokepoint for all 5 of
+        `/api/me/route.ts`'s unguarded `isXEnabledForOrg` calls: `Failed query: select ...
+        "host_domain" ... from "platform"."product_branches" ...` -- a real Postgres `42703`
+        (`column "host_domain" does not exist`), unrelated to the previously-suspected `2cb73100`/
+        `subscription-plan-service.ts` circumstantial link above, which this cycle's direct
+        empirical testing (every real production org/user, zero throws) separately refuted.
+        `host_domain` was added by `drizzle/0312_stage1_preauth_brand_host_lookup.sql` (commit
+        `d45dbd3b`, OCID-038, already reviewed and merged to `origin/main`) but never actually
+        applied to the live database. Full root-cause investigation: `UMR-20260804-153900-ea69`
+        (PR #899).
+
+        Fix authorized as a genuine PM decision (this OCID-020 gate itself, not one of the items
+        the standing OCID-021 implementation lock covers -- completing an already-reviewed,
+        already-merged, purely additive migration is a mechanical deployment step, not new
+        implementation): migration 0312 independently re-confirmed purely additive (`ADD COLUMN IF
+        NOT EXISTS host_domain text`, a partial `CREATE UNIQUE INDEX IF NOT EXISTS`, one `UPDATE`
+        scoped by primary key -- no destructive alter/drop/rename) directly from the migration file
+        itself, before touching production.
+
+        Two independent PM authorizations for this identical fix were dispatched close together --
+        `UMR-20260804-155457-a16d` (which a concurrent session, branch
+        `fix/ocid020-api-me-500-host-domain-migration`, acted on first: applied the migration live
+        with its own real before/after schema snapshots, but had not yet opened a PR) and this
+        entry's own `UMR-20260802-165606-4413` OCID-020 dispatch. Documented honestly as a
+        duplicate-authorization instance, not re-litigated -- the underlying production write only
+        happened once. Independently re-confirmed via direct `psql` against the live production
+        `DATABASE_URL`: `platform.product_branches` has 14 columns including nullable `host_domain
+        text` and the `product_branches_host_domain_key` partial unique index; 27 total rows,
+        exactly 1 (`branch_key='projexa'`, id `5fceebcd-0a7a-4448-ae2b-a72637124f13`) has
+        `host_domain = 'projexa-ai.com'`, all other 26 rows correctly `NULL`. Re-ran migration
+        0312's 3 statements directly against production as this session's own first-hand "apply"
+        step: Postgres returned `NOTICE: ... already exists, skipping` for both `IF NOT EXISTS`
+        statements and the `UPDATE` affected exactly 1 row (re-setting the same value) -- real
+        proof the fix was already live and that re-applying it is a genuine no-op, not a second
+        write.
+
+        Independently re-verified live, not narrated as fixed: 4 fresh, real, Admin-API-provisioned
+        users (real password-grant login, real `@supabase/ssr` session cookies, real direct HTTPS
+        requests to `projexa-ai.com`, same reproducible methodology as the original finding) all
+        got a real `200` with a real JSON body from `GET /api/me` (previously `500` with an empty
+        body, 10/10), and the real `/` -> `/home` redirect chain resolved to a real `200` with
+        ~114KB of rendered app-shell HTML.
+
+        Not fixed here, left for a real owner (out of this task's narrow "apply the already-merged
+        migration" scope): migration 0312 is still absent from `drizzle/meta/_journal.json` /
+        `drizzle.__drizzle_migrations` (applied via direct `psql`, not `drizzle-kit migrate`) --
+        worth regenerating through `drizzle-kit generate` so a future `db:push` doesn't attempt to
+        reapply it from a different source of truth. `/api/me/route.ts`'s 5 unguarded
+        `isXEnabledForOrg` calls still have no try/catch, so any future missing-column drift would
+        reproduce this same class of 500.
+      status: closed
       first_raised: "OCID-020 Group F / OCID-052 re-verification, 2026-08-04 (UMR-20260802-165606-4413)"
+      closed_by: "UMR-20260804-153900-ea69 (root-cause investigation, PR #899) + UMR-20260802-165606-4413 (this OCID-020 PM decision authorizing the fix), production DB migration 0312 applied and independently re-verified live 2026-08-04. Prior parallel authorization UMR-20260804-155457-a16d (branch fix/ocid020-api-me-500-host-domain-migration) executed the same underlying production write first; documented above, not duplicated."
 
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
