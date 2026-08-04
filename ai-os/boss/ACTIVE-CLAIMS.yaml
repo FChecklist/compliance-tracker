@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-115640-ocid-038-investigate-stalled-sub-agent-v) -- confirmed sub-agent NOT stalled + persisted real root cause for GAP-VERI-TODO-STUCK-LOADING-NOT-READY [DOCS ONLY, PR pending]"
+    claimed_at: "2026-08-04T12:10Z (this session)"
+    claim: |
+      PM decision (real, UMR-20260803-042801-ec4b/OCID-038): a tmux-pane
+      sub-agent labeled "Root-cause VERI To Do stuck loading" (dispatched by
+      the sibling `task-20260804-111301-pm-decision--authorize-real-
+      implementati`'s interactive executor session) showed identical
+      elapsed-time/token-count across 3 checks ~2min apart while its sibling
+      mobile-viewport sub-agent kept advancing -- a real stall signal per the
+      PM's own comparison. Investigated directly: confirmed genuinely NOT
+      stalled -- that sub-agent had already finished before this concern was
+      raised (corroborated by `task-20260804-111301-...`'s own 11:54Z
+      checkpoint note: "2 live-testing investigations both completed with
+      real findings (composer root cause found, mobile-viewport genuinely
+      rate-limited)"). Its actual findings were never persisted anywhere in
+      git, only summarized informally in that other task's checkpoint note --
+      no PR, no ACTIVE-CLAIMS entry, no MASTER-TRACKER.yaml update existed
+      for the real root cause itself. Per this task's own instruction
+      ("complete the root cause analysis yourself directly" if capture isn't
+      possible -- there is no tmux/interactive-session access from this
+      worker), independently root-caused both halves via direct source read
+      and persisted the finding into `GAP-VERI-TODO-STUCK-LOADING-NOT-READY`'s
+      `root_cause_found` field: (1) composer toast is a real client-side race
+      -- `aiThreadId`/`activeAiThreadId` start null and only populate via an
+      un-gated async fetch in `veri-chat-context.tsx`; (2)
+      `/veri-todo`'s slow load is 6 sequential (non-`Promise.all`) DB
+      round-trips in `veri-todo-service.ts`'s `listVeriTodos()`. No fix
+      applied -- implementation is separately authorized under OCID-038's
+      real implementation phase (`task-20260804-111301-...`); this claim is
+      root-cause documentation only, to stop it going missing a second time.
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (one new `root_cause_found`
+      field on the existing GAP-VERI-TODO-STUCK-LOADING-NOT-READY entry, no
+      other content changed), this ACTIVE-CLAIMS entry, PROGRESS.md. No
+      src/, schema, or CI changes -- read-only investigation of
+      VeriComposer.tsx / veri-chat-context.tsx / veri-todo-service.ts.
   - session_label: "claude-code (interactive, docs/ocid067-vedtocp-digital-twin-program-registration) -- OCID-067 VEDTOCP registration/planning only, LOCKED pending full OCID-015..066 completion [PUSHED, PR pending]"
     claimed_at: "2026-08-04T11:15Z (this session)"
     claim: |

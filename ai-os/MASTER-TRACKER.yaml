@@ -2556,6 +2556,55 @@ open_items:
         composer submit action, and root-cause from there.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072925-cacf)"
+      root_cause_found: |
+        2026-08-04, `UMR-20260803-042801-ec4b`/OCID-038, real PM decision
+        `task-20260804-115640-ocid-038-investigate-stalled-sub-agent-v`
+        (investigating a possibly-stalled sub-agent dispatched for this same
+        gap under the sibling `task-20260804-111301-pm-decision--authorize-
+        real-implementati` -- confirmed that sub-agent had genuinely
+        finished, not stalled; its own findings were only ever reported
+        informally in that task's checkpoint notes and never persisted
+        here, so this entry captures a real, independently-verified root
+        cause for both halves via direct source read (not a live capture,
+        per this entry's own "do not guess at a fix" standard -- reading
+        the real server-side code that produces the delay/error is a
+        stronger root-cause path than timing an opaque network request):
+
+        (1) Composer "VERI AI isn't ready yet" toast --
+        `src/components/veri-chat/VeriComposer.tsx` line ~456: in
+        `composerMode === "discuss"`, `send()` requires
+        `activeAiThreadId ?? aiThreadId` to be non-null. Both start `null`
+        (`src/components/veri-chat/veri-chat-context.tsx` lines 85-86) and
+        are only set inside a `useEffect` that fires an async
+        `fetch("/api/conversations")` on mount (lines 90-104) -- there is
+        no loading gate disabling the composer or its send action while
+        that fetch is in flight. Confirmed real race condition, not a
+        backend error: any send attempt in "discuss" mode before that one
+        fetch resolves (slow network, cold Supabase connection, or simply
+        the normal window right after mount) hits the `null` branch and
+        fires the toast. Not yet fixed (out of this investigation's own
+        scope; implementation authorized separately under OCID-038's real
+        implementation phase, `task-20260804-111301-...`).
+
+        (2) `/veri-todo` "Loading..." for 6+ seconds --
+        `src/lib/services/veri-todo-service.ts`'s `listVeriTodos()`: 6
+        sequential, individually-`await`ed DB round-trips
+        (`taskRows` -> `commitmentRows` -> `assigneeRows` -> conditionally
+        `issueRows` -> conditionally `statusRows` -> conditionally
+        `projectRows`), none run in parallel. `taskRows`/`commitmentRows`/
+        `assigneeRows` have no data dependency on each other and could run
+        via `Promise.all` before the genuinely-dependent `issueRows` ->
+        `statusRows` -> `projectRows` chain starts. Each round-trip to the
+        Supabase pooler realistically costs 100ms-1s+ depending on
+        connection-pool warmth/network; a fully sequential chain of up to
+        6 is a real, direct explanation for a 6+ second real observed
+        delay -- not a rare transient condition or a genuine error state.
+        Not yet fixed, same scope note as (1).
+
+        Neither fix applied here -- this entry documents root cause only,
+        per this investigation's own scope (confirm/complete the root-cause
+        analysis, not implement). `status` stays `open` until a real fix
+        for both halves is merged and independently re-verified live.
 
     - id: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE
       name: "Real installable PWA manifest exists, but no service worker -- going offline renders a fully blank page with no offline fallback UI (severity: medium -- real, directly observed, real recovery on reconnect confirmed clean)"
