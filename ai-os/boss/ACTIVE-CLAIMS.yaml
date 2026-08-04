@@ -5577,7 +5577,7 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
-  - session_label: "claude-code (task-20260804-161612-ocid-020-authorize-applying-already-merg) -- OCID-020: real PM decision authorizing applying already-merged migration 0312 (host_domain column) to production, closing GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS [DONE, PR TBD -- see PROGRESS.md]"
+  - session_label: "claude-code (task-20260804-161612-ocid-020-authorize-applying-already-merg) -- OCID-020: real PM decision authorizing applying already-merged migration 0312 (host_domain column) to production, closing GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS [DONE -- PR #904 opened by this task, but confirmed a duplicate of PR #900 (same gap, same fix, opened by the concurrent session named below); #900 merged first (fully CI-green + independently audited, commit c520d4b4), so #904 was closed unmerged rather than double-applying the same MASTER-TRACKER.yaml edit. This task's real, distinct contribution: a 2nd invocation's fresh independent re-verification (own psql query + own live curl/cookie-session GET /api/me and GET /home against production, both 200) plus commissioning a genuinely independent subagent audit (AUDIT: PASS, posted on #904) -- see PROGRESS.md.]"
     claimed_at: "2026-08-04T16:26Z (this session, closed same session)"
     claim: |
       SPEC (real PM decision, UMR-20260802-165606-4413 OCID-020, following the root-cause

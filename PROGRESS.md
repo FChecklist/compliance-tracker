@@ -632,3 +632,75 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
   every-page-shared org/user resolution, both appeared the same day as `2cb73100`) -- plausible,
   not independently confirmed (the root page's error digest was never cross-checked against a
   server-side stack trace), folded into the one gap entry above rather than registered twice.
+
+---
+
+# PROGRESS -- task-20260804-161612-ocid-020-authorize-applying-already-merg
+
+SPEC: Real PM decision, OCID-020 (`UMR-20260802-165606-4413`), following the root-cause
+investigation `UMR-20260804-153900-ea69`. Authorizes applying already-merged migration 0312
+(purely additive `host_domain` column on `platform.product_branches`) to production as a
+mechanical deployment step (not new implementation, since OCID-020 itself is the gate). Requires:
+independently confirm the migration is purely additive first; take real before/after schema
+snapshots; apply it; then independently re-verify the original `/api/me`/home-page 500
+reproduction is genuinely gone, not narrated as fixed.
+
+## Invocation 1 (2026-08-04, ~16:26-17:06Z)
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` per protocol.
+- [x] Independently confirmed migration 0312 purely additive by reading the file directly.
+- [x] Found the identical fix had already been applied to production by a concurrent session
+      (branch `fix/ocid020-api-me-500-host-domain-migration`, commit `0975eb68`, PM authorization
+      `UMR-20260804-155457-a16d`) -- documented honestly as a duplicate-authorization instance.
+- [x] Independently re-confirmed live schema via direct `psql` (host_domain column + unique index
+      present, correct row set), then re-ran migration 0312's own 3 statements against production
+      as this task's own first-hand "apply" step -- confirmed genuinely idempotent no-op.
+- [x] Independently re-verified live: 4 fresh Admin-API-provisioned users all got real `200`s from
+      `GET /api/me` (previously `500` empty-body, 10/10).
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`'s `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` to `closed`.
+- [x] Committed, pushed, opened PR #904.
+
+## Invocation 2 (2026-08-04, ~17:06Z onward, this resume)
+- [x] Confirmed PR #904 was `BEHIND` origin/main -- merged origin/main in cleanly (6 commits,
+      no conflicts), pushed.
+- [x] Spawned a genuinely independent subagent (no implementation context, per AGENTS.md Rule 7c
+      "no self-certification") to redo every verification claim from scratch against production
+      and post a structured `AUDIT: PASS` verdict comment on PR #904 (own `psql` query, own fresh
+      live curl+cookie-session checks against `/api/me` and `/home`, own read of the migration
+      file, own CI review). Verdict: PASS.
+- [x] Ran my own additional fresh, first-hand live re-verification independently of both the
+      subagent and invocation 1: created a new Admin-API-provisioned test user, hand-built the
+      real `@supabase/ssr` session cookie, hit live `projexa-ai.com` directly -- `GET /api/me` ->
+      real `200` with a 752-byte JSON body, `GET /home` -> real `200` with 114,475 bytes of
+      rendered HTML. (Cleanup: deleting the test Auth user 500'd with a pre-existing, out-of-scope
+      `compliance.users` FK-cascade gap -- noted, not chased, test user left orphaned in
+      `auth.users`.)
+- [x] **Discovered, before merging anything, that PR #904 was itself a duplicate**: PR #900
+      (opened by the same concurrent session named in invocation 1's notes, branch
+      `fix/ocid020-api-me-500-host-domain-migration`) was open for the identical gap closure, was
+      simpler (2-file diff), was already fully CI-green, and already had an `AUDIT: PASS` posted.
+      Merged PR #900 (`c520d4b4`) rather than merging both and risking a real conflict on the
+      shared `MASTER-TRACKER.yaml` edit. Posted an explanatory comment on PR #904 documenting the
+      3-independent-passes-of-re-verification evidence, then closed #904 unmerged.
+- [x] Merged origin/main (now including #900) back into this branch; resolved the resulting real
+      `MASTER-TRACKER.yaml` conflict by keeping #900's more detailed root-cause narrative (it had
+      genuinely new detail -- exact stack trace, `route.ts:19`, `compliance.application_errors`
+      discovery path -- that invocation 1's own version didn't have) and appending an honest
+      addendum documenting this task's own extra re-verification passes rather than discarding
+      either side's real content.
+- [x] Updated this task's own `ai-os/boss/ACTIVE-CLAIMS.yaml` claim entry with the real final
+      outcome (PR closed as duplicate, not merged; real contribution documented).
+
+## Remaining
+- [ ] None for this task's own narrow scope -- the real production outcome (migration 0312 live,
+      `/api/me` and `/home` confirmed `200`) was independently re-confirmed 3 separate times
+      across 2 sessions before this task closed. `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` is
+      closed in `ai-os/MASTER-TRACKER.yaml`.
+- [ ] Out of scope, left for a real owner (per `ai-os/MASTER-TRACKER.yaml`'s own recommendation):
+      migration 0312 is still absent from `drizzle/meta/_journal.json` / the real
+      `drizzle.__drizzle_migrations` table (applied via direct `psql`, not `drizzle-kit migrate`);
+      `/api/me/route.ts`'s 5 unguarded `isXEnabledForOrg` calls still have no try/catch.
+- [ ] OCID-052's own original planned re-verification of
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` is now unblocked (the `/api/me` 500
+      that stopped it is fixed) but genuinely not yet re-attempted -- open for whoever picks it up
+      next.
+
