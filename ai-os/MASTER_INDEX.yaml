@@ -1599,6 +1599,23 @@ registries:
     disclaimer warned about.'
   status: live
   query_command: cat ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md
+- id: veridian_end_user_experience_foundation_v1
+  type: point_in_time_audit_doc
+  path: ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md
+  scope: 'OCID-20260803-022 (UMR-20260803-041653-9de5), parented to UMR-20260802-173631-ca85
+    (ERP Functional Completeness Master Program). The first canonical end-user-experience
+    foundation document: a real, evidence-based inventory of what an end user actually sees
+    today across the nav shell (AppSidebar.tsx/AppTopbar.tsx), Dynamic Mode Pills + Chain
+    Selector (CONSTITUTION.yaml section 6), VERI Chat / VERI (the assistant, CONSTITUTION.yaml
+    section 7), the high-impact-action approval UX (CONSTITUTION.yaml section 4), multi-tenant
+    isolation, multi-brand/white-label reality, and PROJEXA as the first brand -- plus a
+    catalogue of already-documented gaps (task-level chat has no AI reply, silent 403s for
+    unenabled modules, 6 unbuilt composer UX items, chip-gated composer, zero brand-field
+    adoption) and one newly-named gap (nav-level module visibility is gated by org type, not
+    end-user role). Documentation only -- no code, DB, UI, or UX change. Point-in-time; will go
+    stale as real work lands, same disclaimer class as implementation_matrix_2026_08_02.'
+  status: live
+  query_command: cat ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md
 - id: veridian_global_knowledge_discovery_and_reuse_runtime_1_0
   type: knowledge_discovery_and_reuse_spec
   path: ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md
