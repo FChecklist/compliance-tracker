@@ -40,6 +40,41 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-045439-register-ocid-058--universal-task-regist) -- OCID-058: real UTR/execution-architecture discovery+verification, no new architecture [IN PROGRESS]"
+    claimed_at: "2026-08-04T05:00Z (this session)"
+    claim: |
+      SPEC (parent chain: OCID-057 `UMR-20260804-035943-3c38`, OCID-056 `UMR-20260804-035904-142e`,
+      OCID-055 `UMR-20260804-035817-6300`, OCID-054 `UMR-20260804-035759-1eb2`, OCID-053
+      `UMR-20260804-033853-2a17`, OCID-020 `UMR-20260802-165606-4413`, OCID-021
+      `UMR-20260802-173631-ca85` -- all 7 independently confirmed as real, live rows in
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks` table, status=running,
+      source_trigger=owner_dispatch_gateway, via direct sqlite3 query, not trusted from the SPEC text
+      alone). OCID-012, again cited in the incoming dispatch-prompt template as a reference, again
+      returns zero real matches anywhere in this repo or the real UMR chain (`git grep -n "OCID-012"`
+      repo-wide: zero hits) -- flagged back to the Owner again per the SPEC's own instruction, not
+      registered as real.
+
+      This OCID is explicitly discovery/verification ONLY (SPEC: "shall not redesign execution and
+      shall only certify the existing execution architecture"). Real scope: inspect every real
+      execution path (interactive Super Boss dispatch, headless `veridian-worker@` tasks, the 21
+      `veridian-cron-*`/`veridian-dispatch-tick`/`veridian-task-watchdog` systemd --user timers, and
+      API/integration paths: `/api/internal/ops-task-sync`, `/api/ai/team/dispatch`, GitHub
+      `repository_dispatch` `zai-task`/`claude-task`), confirm what real task-tracking record (if any)
+      each one produces, whether it references a real UMR id, and produce three honest findings
+      documents: a real UTR registry (what task-record types actually exist today, per path), an
+      execution architecture report, and an execution traceability report -- including an honest
+      report of whether a true multi-actor UTR structure (separately-named actor/identity/governance
+      context fields) exists in the live schema (per direct code read of
+      `/opt/veridian/scripts/superboss-register.py`'s `umr_tasks`/`work_items`/`instructions` schemas
+      and this repo's own `src/lib/db/schema.ts`: it does not -- confirmed gap, held for a PM decision,
+      not built here).
+    scope_note: >-
+      File scope: new discovery/report documents only under `ai-os/` (no code/schema/migration
+      changes anywhere), `ai-os/MASTER-TRACKER.yaml` (registering the real gap found), `PROGRESS.md`,
+      this file. Read-only investigation against `/opt/veridian/scripts/*.py`, `/opt/veridian/ai-os/`,
+      `~/.config/systemd/user/*`, `/opt/veridian/ai-os/memory/superboss-register.sqlite` (SELECT
+      queries only, no writes), and this repo's `src/app/api/`, `src/lib/db/schema.ts`,
+      `.github/workflows/*.yml`.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
