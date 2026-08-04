@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-073455-register-ocid-064--local-deterministic-l) -- OCID-064 dispatch: PM refuses to register a third parallel initiative, comparison-only this phase [IN PROGRESS]"
+  - session_label: "claude-code (task-20260804-073455-register-ocid-064--local-deterministic-l) -- OCID-064 dispatch: PM refuses to register a third parallel initiative, comparison-only this phase [PUSHED, PR #881 OPEN]"
     claimed_at: "2026-08-04T07:35Z (this session)"
     claim: |
       SPEC (this task's own prompt, citing `UMR-20260802-173631-ca85` OCID-021,

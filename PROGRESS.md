@@ -2648,9 +2648,11 @@ OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
 - [x] No code, no database object, no new registry/table/schema created this phase -- respected the
       PM's explicit prohibition on a fourth-registry-shaped envelope.
 
+- [x] Committed + pushed; opened PR #881 (FChecklist/compliance-tracker).
+
 ## Remaining
-- [ ] Commit + push this PR; report the comparison + fold recommendation back to PM for a fresh
-      implementation decision.
+- [ ] Report the comparison + fold recommendation back to PM for a fresh implementation decision.
 - [ ] (out of scope for this dispatch, disclosed not fixed) OCID-061's own branch (PR #878) appears
       to replace rather than append several unrelated `MASTER-TRACKER.yaml`/`OS.yaml` entries versus
       current `origin/main` -- worth a look by whoever reviews that PR for merge.
+- [ ] (post-merge, separate step) move this ACTIVE-CLAIMS.yaml entry from active to recently_completed.
