@@ -5256,6 +5256,53 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-054224-pm-decision--ocid-012-confirmed-by-the-o) -- PM decision: OCID-012 confirmed by Owner as never-real; cleanup search across OCID-053..061's real files for live parent/dependency registrations [DONE, no fix needed]"
+    claimed_at: "2026-08-04T05:42Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision under OCID-020 `UMR-20260802-165606-4413` / OCID-021
+      `UMR-20260802-173631-ca85`, covering every registration made this session
+      under OCID-053 `UMR-20260804-033853-2a17` through OCID-061
+      `UMR-20260804-044535-7214`): the Owner directly confirmed in chat that
+      OCID-012 was a mistake and does not exist, ending the ambiguity flagged
+      every cycle since. This PM had already independently made this same call
+      every time OCID-012 appeared (never linked as a real parent, OCID-020/
+      OCID-021 registered as the real parent chain instead) -- this decision
+      confirms and finalizes that existing judgment, it does not change it.
+
+      Real cleanup performed: `git grep -n "OCID-012"` (plus a broader
+      case/separator-insensitive pass and a structured-field pass for
+      `parent`/`dependency`/`depends_on`/`chain` within ~15 chars of
+      `OCID-012`) across every real file touched under all nine OCIDs' actual
+      worker branches (`worker/task-20260804-040750-...-053` through
+      `worker/task-20260804-054220-...-061`, since those branches' own PRs are
+      still open/unmerged -- the merged `main`/this-branch tree alone already
+      returned zero matches and would have under-covered the real scope),
+      plus this branch's own `ai-os/MASTER-TRACKER.yaml` and
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`. Result: every real `OCID-012` match
+      found (~40 lines across PROGRESS.md, each OCID's own canonical doc,
+      `ai-os/OS.yaml`'s `covers` fields,
+      `ai-os/MASTER-TRACKER.yaml`'s `GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES`
+      entry, and `ai-os/boss/ACTIVE-CLAIMS.yaml`) is the honest explanatory
+      narration already on record ("OCID-012 ... zero matches / excluded /
+      flagged / not real / re-confirmed still fake"). Zero instances
+      registered OCID-012 as a live parent, dependency, or reference-chain
+      entry anywhere -- confirmed both by the structured-field grep returning
+      zero hits and by OCID-053's own real parent/UMR/dependency
+      cross-reference table
+      (`ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`
+      §7) listing only OCID-020/OCID-021/OCID-052..060 as real parents for
+      OCID-053..062, never OCID-012. This is a re-run/extension of that same
+      doc's own prior cleanup pass (`UMR-20260804-044802-0fd1`), which covered
+      OCID-053..057 and explicitly noted OCID-058..061 had no real files yet
+      to search -- this pass closes that gap now that OCID-058..061 do have
+      real files. As expected, nothing needed correcting; no
+      MASTER-TRACKER.yaml correction entry required.
+    scope_note: >-
+      Read-only verification across all nine OCID worker branches (053-061)
+      plus this branch's ai-os/MASTER-TRACKER.yaml and
+      ai-os/boss/ACTIVE-CLAIMS.yaml. No src/, schema, or CI changes. This
+      entry + PROGRESS.md are the only file changes on this branch.
+
   - session_label: "claude-code (task-20260803-041006-ocid-024-veridian-laptop-web-browser-run) -- OCID-024: VERIDIAN Laptop Web Browser Runtime v1.0 (documentation only) [PUSHED, PR #767 OPEN]"
     claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
     claim: |
