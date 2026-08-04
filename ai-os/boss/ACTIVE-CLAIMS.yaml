@@ -40,59 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-040801-register-ocid-056--platform-security-rec) -- OCID-056 platform security discovery/audit (credential register + exposure report + permission audit + environment security report) [IN PROGRESS]"
-    claimed_at: "2026-08-04T04:08Z (this session)"
-    claim: |
-      SPEC (PM registration of OCID-056, parent chain OCID-055/054/053/020/021):
-      Owner-directed platform-wide credential discovery and audit ONLY -- explicitly
-      NOT authorizing any real rotation of any credential, anywhere, without a fresh,
-      separate, provider-by-provider real-time Owner decision in chat. Scope: real
-      credential register, real credential exposure report (file paths + commit
-      hashes), real permission audit report, real environment security report
-      (dev/staging/prod shared-credential comparison). OCID-012 again referenced in
-      the incoming prompt chain and again found to have zero matches in the real UMR
-      chain -- not registered as real, flagged back to Owner again (consistent with
-      every prior check this session type has run).
-
-      Discovery method (real, not narrated): `gitleaks detect --source . --log-opts="--all"`
-      across full git history (2702 commits scanned) plus targeted pickaxe searches
-      for common key-prefix patterns (sk-ant-, sk-proj-, sk-or-v1-, ghp_, github_pat_,
-      AIza, xox[bp]-, postgres://postgres, SendGrid, PEM private keys) not covered by
-      gitleaks' default ruleset -- zero hits on any of those. gitleaks itself found
-      403 raw matches; triaged all 11 unique files by hand. One CONFIRMED real, urgent
-      finding: a Supabase **service_role** JWT (full RLS-bypass DB admin) for project
-      ref `jusqumifsmtcaujqyjuy` committed in plaintext to `CLAUDE-HANDOFF.md` across 3
-      commits in this repo, which is PUBLIC (`gh repo view --json isPrivate` confirmed
-      `false`). That project is not decommissioned -- `orchestra_changes.md`'s own
-      documented history confirms it is MeetTrack's live production database (real
-      `users`/`meetings`/`user_api_keys` tables), only its `compliance`/
-      `compliance_tracker` schemas were dropped as dead artifacts. Reported to Owner
-      as urgent per this task's own PM instruction; did NOT test/use the leaked key
-      against live Supabase (would exceed the discovery-only authorization) and did
-      NOT rotate it. All other gitleaks hits confirmed false positive (Composio
-      authConfigId values are public config identifiers not secrets; Next.js internal
-      build-time encryption keys from a since-abandoned `apps/web/` monorepo
-      structure, regenerated per build; test-fixture fake secrets in
-      `*.test.ts`/`scripts-scratch/*`).
-
-      Also cross-referenced: `gh secret list` (51 real GitHub Actions secrets w/ real
-      `updated` timestamps used as rotation-age proxy), `git grep process\.env\.` (55
-      unique env vars the app code actually reads), `.github/workflows/*.yml` (all
-      secret refs use `${{ secrets.X }}`, zero hardcoded values), branch protection
-      config (1 collaborator, enforce_admins on, required checks incl. audit-check +
-      Guardrail Presence Check), and a requireAuth() coverage pass across all 994
-      `route.ts` files (930 direct; the other 64 spot-checked by category -- re-export
-      shims to already-gated handlers, CRON_SECRET-gated `/internal/*` cron routes,
-      alternate Bearer-token auth for `/mcp` and support-session impersonation, and a
-      handful of intentionally-public routes -- no raw open door found in the sample).
-    scope_note: >-
-      File scope: new `ai-os/OCID-056-CREDENTIAL-REGISTER.md`,
-      `ai-os/OCID-056-CREDENTIAL-EXPOSURE-REPORT.md`,
-      `ai-os/OCID-056-PERMISSION-AUDIT-REPORT.md`,
-      `ai-os/OCID-056-ENVIRONMENT-SECURITY-REPORT.md`, `PROGRESS.md`,
-      `ai-os/boss/ACTIVE-CLAIMS.yaml`. No src/ code changes, no credential rotation,
-      no schema/migration changes -- discovery and reporting only, per explicit PM
-      scope limit.
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
@@ -5329,6 +5276,59 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
+  - session_label: "claude-code (task-20260804-040801-register-ocid-056--platform-security-rec) -- OCID-056 platform security discovery/audit (credential register + exposure report + permission audit + environment security report) [DONE, reports committed]"
+    claimed_at: "2026-08-04T04:08Z (this session)"
+    claim: |
+      SPEC (PM registration of OCID-056, parent chain OCID-055/054/053/020/021):
+      Owner-directed platform-wide credential discovery and audit ONLY -- explicitly
+      NOT authorizing any real rotation of any credential, anywhere, without a fresh,
+      separate, provider-by-provider real-time Owner decision in chat. Scope: real
+      credential register, real credential exposure report (file paths + commit
+      hashes), real permission audit report, real environment security report
+      (dev/staging/prod shared-credential comparison). OCID-012 again referenced in
+      the incoming prompt chain and again found to have zero matches in the real UMR
+      chain -- not registered as real, flagged back to Owner again (consistent with
+      every prior check this session type has run).
+
+      Discovery method (real, not narrated): `gitleaks detect --source . --log-opts="--all"`
+      across full git history (2702 commits scanned) plus targeted pickaxe searches
+      for common key-prefix patterns (sk-ant-, sk-proj-, sk-or-v1-, ghp_, github_pat_,
+      AIza, xox[bp]-, postgres://postgres, SendGrid, PEM private keys) not covered by
+      gitleaks' default ruleset -- zero hits on any of those. gitleaks itself found
+      403 raw matches; triaged all 11 unique files by hand. One CONFIRMED real, urgent
+      finding: a Supabase **service_role** JWT (full RLS-bypass DB admin) for project
+      ref `jusqumifsmtcaujqyjuy` committed in plaintext to `CLAUDE-HANDOFF.md` across 3
+      commits in this repo, which is PUBLIC (`gh repo view --json isPrivate` confirmed
+      `false`). That project is not decommissioned -- `orchestra_changes.md`'s own
+      documented history confirms it is MeetTrack's live production database (real
+      `users`/`meetings`/`user_api_keys` tables), only its `compliance`/
+      `compliance_tracker` schemas were dropped as dead artifacts. Reported to Owner
+      as urgent per this task's own PM instruction; did NOT test/use the leaked key
+      against live Supabase (would exceed the discovery-only authorization) and did
+      NOT rotate it. All other gitleaks hits confirmed false positive (Composio
+      authConfigId values are public config identifiers not secrets; Next.js internal
+      build-time encryption keys from a since-abandoned `apps/web/` monorepo
+      structure, regenerated per build; test-fixture fake secrets in
+      `*.test.ts`/`scripts-scratch/*`).
+
+      Also cross-referenced: `gh secret list` (51 real GitHub Actions secrets w/ real
+      `updated` timestamps used as rotation-age proxy), `git grep process\.env\.` (55
+      unique env vars the app code actually reads), `.github/workflows/*.yml` (all
+      secret refs use `${{ secrets.X }}`, zero hardcoded values), branch protection
+      config (1 collaborator, enforce_admins on, required checks incl. audit-check +
+      Guardrail Presence Check), and a requireAuth() coverage pass across all 994
+      `route.ts` files (930 direct; the other 64 spot-checked by category -- re-export
+      shims to already-gated handlers, CRON_SECRET-gated `/internal/*` cron routes,
+      alternate Bearer-token auth for `/mcp` and support-session impersonation, and a
+      handful of intentionally-public routes -- no raw open door found in the sample).
+    scope_note: >-
+      File scope: new `ai-os/OCID-056-CREDENTIAL-REGISTER.md`,
+      `ai-os/OCID-056-CREDENTIAL-EXPOSURE-REPORT.md`,
+      `ai-os/OCID-056-PERMISSION-AUDIT-REPORT.md`,
+      `ai-os/OCID-056-ENVIRONMENT-SECURITY-REPORT.md`, `PROGRESS.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`. No src/ code changes, no credential rotation,
+      no schema/migration changes -- discovery and reporting only, per explicit PM
+      scope limit.
   - session_label: "claude-code (task-20260803-071339-pm-decision-register-the-real-implementa) -- PM decision on OCID-021 lock registration + overlap-resolution: ALREADY DONE, real inconsistency found+fixed [DONE, PR pending]"
     claimed_at: "2026-08-03T07:1xZ (this session, closed same session)"
     claim: |
