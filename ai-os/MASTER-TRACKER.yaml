@@ -2199,9 +2199,35 @@ open_items:
         against the real deployed site (the 4-tier test path this doc's own "Real test path per tier"
         section describes) not yet run this cycle -- real code, not yet independently re-verified live;
         flagged as the real remaining step for whoever audits or continues this.
-      status: "open (real testing complete for all 4 tiers; Tasks A/B/C/E now implemented, 2026-08-04 --
-        see 3rd amendment for evidence. Task D deliberately held, a business decision not code. Live
-        browser re-confirmation against the real deployed site per the 4-tier test path is the real
+
+        **Amendment (2026-08-04, PR #865 merged + independent re-verification, PM decision citing
+        `UMR-20260802-173631-ca85` OCID-021 and `UMR-20260803-115513-c990` OCID-049):** PR #865 (the
+        3rd amendment's Tasks A/B/C/E) is now real, confirmed **MERGED** -- `gh pr view 865` shows
+        `mergedAt: 2026-08-04T04:50:01Z`; `git merge-base --is-ancestor f11d04ff origin/main`
+        independently confirms the real merge commit is a genuine ancestor of `origin/main`, not just
+        trusted from PR metadata. The PR's own Terminology Guardrail Check failure (fixed by commit
+        `1142f050`) was independently re-run locally against the PR's real 11 changed `.ts`/`.tsx`
+        files (`node scripts/check-terminology-guardrail.mjs --file-list <list>`) and passed clean --
+        "no new hardcoded-example findings" -- matching CI's own passing result rather than just
+        trusting it.
+
+        This session's own dispatch asked for MASTER-TRACKER to record "all five" Wave 1 tasks (A-E)
+        as "now genuinely complete." Declining that specific instruction as written: Tasks A/B/C/E are
+        genuinely complete and merged (above), but **Task D remains genuinely unimplemented** --
+        `git log --all` and a direct grep of `drizzle/` + `src/lib/db/schema.ts` confirm zero code
+        anywhere seeds a real `preferredModelByPackage` policy row. Task D was deliberately left
+        undone by the session that shipped A/B/C/E, on this same OCID's own explicit instruction that
+        it is "a business decision... flagged back to the Owner/PM, not decided unilaterally" (which
+        package/tier gets which model policy is a product call, not a mechanical fix). Recording it as
+        "complete" here without that decision having actually been made would itself be exactly the
+        unilateral call that instruction forbids, and would leave a false record behind. Flagging back
+        instead of fabricating: Task D needs an explicit Owner/PM decision on the real
+        `preferredModelByPackage` values to seed before it can close.
+      status: "open (real testing complete for all 4 tiers; Tasks A/B/C/E implemented AND merged --
+        PR #865, commit f11d04ff, confirmed ancestor of origin/main, 2026-08-04. Task D still
+        deliberately held pending an explicit Owner/PM business decision on real
+        `preferredModelByPackage` seed values -- not code-ready, not decided unilaterally. Live browser
+        re-confirmation against the real deployed site per the 4-tier test path is the other real
         remaining step before this closes to resolved)"
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
