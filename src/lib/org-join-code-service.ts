@@ -86,13 +86,14 @@
 //     the invite link -- this mechanism only decides which ORG an
 //     already-authenticating identity lands in, never authenticates by
 //     itself.
-import { db, organisations, orgJoinCodes, orgJoinCodeAttempts, users, aiAssistants } from "@/lib/db"
+import { db, organisations, orgJoinCodes, orgJoinCodeAttempts, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, desc, and, gte, sql } from "drizzle-orm"
 import { randomBytes } from "crypto"
 import { hashSHA256 } from "@/lib/api-keys"
 import { canAssignSeat } from "@/lib/org-license-service"
 import { INVITE_ROLES, isInviteRole, type InviteRole } from "@/lib/invite-link-service"
+import { provisionAiAssistantsForUser } from "@/lib/services/subscription-plan-service"
 // ROLE_RANK/UserRole: auth-guard.ts imports redeemJoinCodeAndProvisionUser
 // from THIS file, so this is a circular import. Safe in practice because
 // ROLE_RANK is only ever read inside function bodies below (requesterRank,
@@ -468,15 +469,10 @@ export async function redeemJoinCodeAndProvisionUser(
     isActive: true, // seat check already gated this -- no separate accept step left after this point
   }).returning()
 
-  // Wave 2 parity: every user gets 5 numbered AI Assistants, same as
-  // direct-add, the invite link, and normal signup.
-  await db.insert(aiAssistants).values(
-    Array.from({ length: 5 }, (_, i) => ({
-      userId: newUser.id,
-      assistantNumber: i + 1,
-      label: `Assistant ${i + 1}`,
-    }))
-  )
+  // Wave 2 parity: every user gets AI Assistants provisioned at the org's
+  // real resolved subscription-plan tier, same as direct-add, the invite
+  // link, and normal signup.
+  await provisionAiAssistantsForUser(newUser.id, row.orgId)
 
   return { ok: true, user: newUser }
 }
