@@ -40,6 +40,31 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (interactive, docs/ocid067-vedtocp-digital-twin-program-registration) -- OCID-067 VEDTOCP registration/planning only, LOCKED pending full OCID-015..066 completion [PUSHED, PR pending]"
+    claimed_at: "2026-08-04T11:15Z (this session)"
+    claim: |
+      SPEC (real Owner directive, UMR-20260804-111532-3612, reaffirmed UMR-20260804-111547-0be3):
+      registration and planning only for a proposed 90-day, 50-real-browser-agent Enterprise
+      Digital Twin certification program against the live projexa-ai.com application. Explicit,
+      real prohibition: do not begin any real implementation, infrastructure, browser agent, or
+      simulation until every OCID in the range OCID-015 through OCID-066 independently reaches a
+      real completed status. Wrote the full canonical planning document preserving the real
+      directive content supplied (fifty-person simulated org for AL EMARAT CONSTRUCTION AND
+      INTERIOR DESIGN LLC, 2h-real/24h-virtual time compression, 20/40/40 variance logic, tmux +
+      Claude Code CLI browser isolation, foolproofing directives, UAE domain fidelity, chaos
+      engineering, live hotfixing, invisible-PM/strict-portal directive), honestly disclosed which
+      named template/framework sections (daily task/report/analysis templates, org chart, 90-day
+      milestones) were not supplied and are not fabricated, and honestly disclosed that the
+      Owner's own "current five-value status vocabulary" phrase could not be independently
+      confirmed against real, current repo content. Registered a real dependency-gate entry
+      (OCID-015 through OCID-066) in MASTER-TRACKER.yaml, `status: LOCKED`. Confirmed explicitly:
+      no code, no infrastructure, no browser agent, and no interaction of any kind (read or write)
+      with projexa-ai.com was performed under this dispatch.
+    scope_note: >-
+      File scope: one new file (ai-os/OCID_067_VEDTOCP_DIGITAL_TWIN_PROGRAM_2026-08-04.md),
+      ai-os/MASTER-TRACKER.yaml (new LOCKED entry, gate condition), ai-os/OS.yaml (index entry),
+      this ACTIVE-CLAIMS entry, PROGRESS.md. No src/, schema, browser-automation, systemd-unit, or
+      network/firewall changes of any kind.
   - session_label: "claude-code (interactive, fix/ocid038-stage1-preauth-domain-brand-resolution) -- OCID-038 real gap closure: GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 pre-authentication domain-based brand resolution [PUSHED, PR pending]"
     claimed_at: "2026-08-04T09:10Z (this session)"
     claim: |
