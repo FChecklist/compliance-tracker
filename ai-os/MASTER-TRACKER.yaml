@@ -2404,6 +2404,53 @@ open_items:
         Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
         bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
+    - id: GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED
+      name: "The real, tested 5-tier browser execution system (src/lib/browser-execution/) is built but its actual model-inference engines are not wired into VeriComposer.tsx's live send path -- only tier selection/telemetry is live today"
+      old_ids: []
+      detail: |
+        Real, live finding, `UMR-20260802-173631-ca85` (OCID-021), `UMR-20260802-165606-4413`
+        (OCID-020), found during OCID-062's own discovery pass
+        (`ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`),
+        independently re-confirming and generalizing `ai-os/BROWSER_EXECUTION_TIERS_INCREMENT_2_STATUS_2026-07-27.md`'s
+        own "left open" section rather than restating it.
+
+        `src/lib/browser-execution/` is a real, tested (58 tests, per the status doc above) 5-tier
+        client compute system: `tier-detection.ts`/`tier-orchestrator.ts` (real availability
+        detection + selection), `webllm-engine.ts` (real WebGPU-gated `Qwen2.5-0.5B-Instruct` install),
+        `transformers-engine.ts` (real `Xenova/all-MiniLM-L6-v2` embeddings), `npu-engine.ts` (real
+        WebNN path), `worker-pool.ts`, `cross-tier-storage.ts`/`model-cache.ts`, `sync-engine.ts`,
+        `tool-calling.ts`. Independently confirmed by direct read, not assumed: `VeriComposer.tsx`'s
+        own imports (`grep -n "browser-execution" src/components/veri-chat/VeriComposer.tsx`) show
+        exactly one integration point, `client-compile.ts`'s `compileInBrowser()`, which calls
+        `tier-orchestrator.ts::planExecution()` for tier *selection and telemetry only* -- it runs
+        `analyzeLightweight()` (deterministic JS, not a model) and reports which tier *would* run, but
+        never actually invokes `webllm-engine.ts`/`transformers-engine.ts`/`npu-engine.ts`'s real
+        inference. The server correctly never trusts this telemetry for anything authoritative
+        (`src/app/api/prompt-compiler/execute/route.ts`'s own header states this explicitly), so this
+        is not a correctness or security gap -- it is a real, disclosed "installed and tested but
+        largely unwired" state for otherwise-real, working local-inference infrastructure.
+      size: "M -- wiring one or more of the 3 real, already-tested inference engines into a specific,
+        narrow, low-stakes moment in VeriComposer.tsx's send path (not the whole composer) per
+        OCID-062's own proposed, not-yet-implemented handoff sequence (§5 of that document). Real
+        product/UX decision needed first on which narrow use case (composer draft assist, local
+        intent recall ranking, tool-selection suggestion) is worth wiring first -- this finding is
+        discovery/architecture, not a prescribed implementation."
+      recommendation: |
+        Real implementation stays locked behind `SEC-07`/OCID-020 exactly like every other
+        implementation item in this chain. When unlocked: (a) pick one narrow, pre-approved low-stakes
+        use case per OCID-062 §4.5/§5 (never anything touching auth/tenant-writes/engine computation/
+        Mother-Router model resolution/audit/billing, per that document's own §3 reasoning); (b) wire
+        the corresponding real engine's inference call into `client-compile.ts`'s `compileInBrowser()`
+        or an equivalent narrow extension point, gated by the real `shouldAttemptWebLlm()`/
+        `shouldAttemptNpu()`/`shouldAttemptBuiltinAi()` functions `tier-orchestrator.ts` already
+        exports; (c) label any resulting local output honestly as a local, unverified suggestion (per
+        `ai-reply-gate.ts`'s existing `detectFalseActionClaim()` discipline), never as a completed or
+        authoritative action; (d) the server SECOND pass keeps recomputing and deciding everything
+        authoritative, unchanged. Does not require or propose a service worker, PWA manifest change,
+        or any new architecture -- reuses existing, tested engines only.
+      status: open
+      first_raised: "This session, 2026-08-04, OCID-062 discovery pass (UMR-20260802-173631-ca85 OCID-021, UMR-20260802-165606-4413 OCID-020)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.

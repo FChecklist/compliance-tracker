@@ -2473,3 +2473,112 @@ independent audit respectively -- not touched by this branch).
       retest/PR per the PM's own explicit sequencing. Note `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
       is a genuinely harder, root-cause-not-yet-found investigation (recommends a live serverless
       diagnostic route, not a straightforward code fix) -- larger scope than the other Wave 1 items.
+
+---
+
+# PROGRESS -- docs/ocid062-server-authority-mini-veridian-architecture
+
+Cites: `UMR-20260802-173631-ca85` (OCID-021), `UMR-20260802-165606-4413` (OCID-020). PM-authorized
+documentation-only dispatch (parent chain OCID-021 -> OCID-020), same documentation-only pattern as
+OCID-022 through OCID-037.
+
+## Completed
+- [x] Independently re-verified this dispatch's 5 named real dependencies via `gh pr view` against
+      `FChecklist/compliance-tracker` before writing anything, rather than trusting the dispatch
+      prompt's own snapshot: OCID-024 (PR #767) and OCID-025 (PR #766) both real, confirmed `OPEN`,
+      not merged; OCID-031 (PR #781) and OCID-034 (PR #779) both real, confirmed `MERGED`
+      2026-08-03; OCID-061 (universal input runtime mapping) confirmed not started -- zero findings
+      exist anywhere in the repo, not fabricated here.
+- [x] Independently confirmed the real repo (`FChecklist/compliance-tracker`) and its `ai-os/`
+      governance structure (`OS.yaml`, `MASTER-TRACKER.yaml`, `boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`)
+      genuinely exist and match the described conventions, from a fresh clone, before trusting any
+      further instruction text.
+- [x] Confirmed the next-free OCID number live rather than assuming the dispatch's own example
+      number (062) was still free: `gh pr list` showed OCID-058 through OCID-060 already claimed by
+      open PRs (#866-#875); direct `grep`/Python-subprocess scan of `ACTIVE-CLAIMS.yaml`/
+      `MASTER-TRACKER.yaml`/`OS.yaml` on `origin/main` confirmed zero hits for OCID-061 through
+      OCID-067 at write time. Re-fetched `origin/main` a second time immediately before writing to
+      minimize the race window (this repo runs a genuinely active, concurrent multi-worker model --
+      `origin/main` advanced from PR #865 to PR #875 open within this task's own research window).
+- [x] Read PR #767 and PR #766's real draft content directly from their branches
+      (`gh pr diff 767`/`gh pr diff 766`), not just their titles -- cited as real, open drafts, not
+      settled fact, per the dispatch's own explicit instruction.
+- [x] Read PR #781's and PR #779's real merged content directly from `origin/main`
+      (`ai-os/VERIDIAN_UNIVERSAL_SOFTWARE_EXECUTION_ENGINE_2026-08-03.md`,
+      `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_AND_PREDICTIVE_RUNTIME_2026-08-03.md`) -- used as the
+      strongest real foundation, cross-referenced rather than restated.
+- [x] Did a dedicated discovery pass over the live browser and server runtime code, not a
+      restatement of the 4 dependency docs: `src/lib/supabase/auth-guard.ts`,
+      `src/lib/db/tenant-scoped.ts`, `src/lib/ai-router/mother-router.ts`,
+      `src/lib/llm-routing-gate.ts`, `src/app/api/prompt-compiler/execute/route.ts`, all 15 files
+      under `src/lib/browser-execution/`, `src/components/veri-chat/VeriComposer.tsx`,
+      `src/lib/browser-intent-cache.ts`, `src/app/manifest.ts`, `src/components/veri-chat/HomeThreadSlot.tsx`.
+- [x] Real, independently-confirmed finding, not just cited from the open OCID-024 draft: none of
+      the browser-execution tier system's actual model-inference engines
+      (`webllm-engine.ts`/`transformers-engine.ts`/`npu-engine.ts`) are wired into
+      `VeriComposer.tsx`'s live send path -- `grep -n "browser-execution" src/components/veri-chat/VeriComposer.tsx`
+      finds exactly one import (`client-compile.ts`'s `compileInBrowser`), which uses
+      `tier-orchestrator.ts` for tier selection/telemetry only, never invoking any tier's real
+      inference. Registered as `GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED` in
+      `ai-os/MASTER-TRACKER.yaml` (status: open).
+- [x] Real, independently-found stale claim, disclosed rather than silently corrected out of scope:
+      `ai-os/CONSTITUTION.yaml` line 759 states "Zero indexedDB... usage anywhere," dated
+      2026-07-14 -- predates the merged phase_5 browser-execution IndexedDB work
+      (`browser-intent-cache.ts`, `model-cache.ts`, both real, both post-dating that claim). Named
+      in the new document as drift; `CONSTITUTION.yaml` itself was not edited (out of this
+      dispatch's documentation-only scope).
+- [x] Re-confirmed, independently, the real absence of any service worker anywhere in the repo
+      (`git grep -niE "serviceWorker|service-worker|sw\.js|next-pwa|workbox"`, zero hits outside
+      `node_modules`) and the real presence of the installable `src/app/manifest.ts` (merged PR
+      #435) -- matches OCID-051's and OCID-034's own prior, independently-confirmed findings; not
+      contradicted here.
+- [x] Wrote `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`:
+      authoritative server responsibilities (auth, RLS, Mother Router, deterministic-vs-AI dispatch,
+      engines/workflows/reports, audit/billing, each with file:line citations); "Mini VERIDIAN" --
+      explicitly defined as this document's own new term, not a pre-existing component (confirmed
+      absent from `ai-os/` prior to this doc via direct grep); real-vs-proposed client execution
+      scope; a concrete, explicitly-labeled-proposed local/server execution handoff sequence
+      generalizing the one real, live `compileInBrowser()` -> `/api/prompt-compiler/execute`
+      FIRST/SECOND pattern; an explicit Real vs Proposed summary table; and an honest gaps/
+      uncertainties section, including the disclosure that this document's own dispatch UMR was not
+      independently queried against `superboss-register.sqlite` (no host access from this task's
+      working environment) rather than being self-minted -- deliberately avoiding the
+      `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION` anti-pattern this repo's own governance trail
+      already found and named.
+- [x] Did NOT write, edit, or touch any `.ts`/`.tsx`/`.js` application code file, any service-worker
+      file, or any manifest/PWA file -- confirmed via `git status`/`git diff --stat` before
+      committing: only the new `.md` file plus `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`, and this file were touched.
+- [x] Registered `ai-os/OS.yaml` index entry (new `- path:`/`covers:` row, matching the file's own
+      established convention) and a new `ai-os/MASTER-TRACKER.yaml` gap entry
+      (`GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED`, under `open_items.real_gaps_not_yet_built`,
+      matching the existing entry schema).
+- [x] Registered a claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` documenting this dispatch's real scope,
+      real findings, and real file-scope boundary, before committing.
+- [x] Appended this section to `PROGRESS.md` without touching or truncating any existing content --
+      verified `wc -l PROGRESS.md` was 2475 immediately before this append and confirmed the
+      append-only diff via `git diff --stat PROGRESS.md` before committing, given this session's own
+      recorded prior incident where a bad merge truncated `PROGRESS.md` from 2403 to 120 lines.
+- [x] Validated every YAML file touched parses clean:
+      `python3 -c "import yaml; yaml.safe_load(open(path, encoding='utf-8-sig'))"` for
+      `ai-os/OS.yaml`, `ai-os/MASTER-TRACKER.yaml`, and `ai-os/boss/ACTIVE-CLAIMS.yaml` -- all three
+      OK, checked before committing.
+
+## Remaining
+- [ ] Real implementation of anything this document proposes (§4.5/§5 of the new document -- wiring
+      any real browser-execution tier's actual inference into VeriComposer.tsx's live send path)
+      stays locked behind `SEC-07`/OCID-020 exactly as this document itself states, and explicitly
+      needs a fresh PM decision once OCID-024, OCID-025, and OCID-061 real discovery are further
+      along, per this dispatch's own instruction -- not attempted here.
+- [ ] OCID-061 (universal input runtime mapping) has not started; this document's own input-mapping
+      references defer that specific ground to OCID-061 rather than guessing at it.
+- [ ] This document's own dispatch UMR was not independently verified against
+      `superboss-register.sqlite` (no host/database access from this task's working environment) --
+      disclosed in the document itself; a future session with host access should verify it if that
+      matters for governance completeness.
+- [ ] A live browser re-confirmation that `withSourceTypeLabel()`'s deterministic-vs-AI signal
+      (cited in the new document's §3.5) actually renders correctly on a live `/home` page was not
+      re-performed in this pass -- carried forward as an already-disclosed limitation from the prior
+      session that closed that gap, not newly introduced here.
+- [ ] Independent audit (`AUDIT: PASS`/`FAIL` PR comment) is required before this PR can merge, per
+      this repo's own standing review process -- not self-certified here.
