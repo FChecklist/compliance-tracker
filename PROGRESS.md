@@ -27,46 +27,98 @@ per [[veridian-shared-worktree-stash-risk]].
       merge base rather than trusting the naive marker layout. Audit comments posted, pushed,
       CI running/passing.
 
+## Completed (this invocation, 2026-08-04 resume)
+- [x] Found real root cause of PR #767's CI failure: its new doc
+      (`ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`) was never registered in
+      `ai-os/OS.yaml`'s index, failing `scripts/check-metadata-index-coverage.mjs`. Fixed by
+      adding the missing entry directly on PR #767's branch, re-synced against advancing
+      `origin/main` (main moved 11 commits during this session, including PR #865), verified
+      clean (0 conflict markers, valid YAML, coverage check passes), pushed, CI went fully
+      green, merged via `gh pr merge --squash`. **Independently verified merge commit
+      `9051b010` is a real ancestor of `origin/main`.**
+- [x] PR #765 (OCID-022) and #768 (OCID-023): re-synced against the new `origin/main` tip
+      (post-#767), zero conflicts, CI fully green, merged via `gh pr merge --squash`.
+      **Independently verify their merge commits are ancestors of `origin/main` before this
+      task is marked done** (not yet re-confirmed after the last sync in this invocation --
+      do this first on resume).
+- [x] PR #766 (OCID-025): re-synced against `origin/main` (5 real conflicts: `PROGRESS.md`,
+      `ai-os/MASTER_INDEX.yaml`, `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`). Audit comment posted (`AUDIT: PASS`,
+      validated via `/tmp/audit_validate.py` first). **Hit and worked around the known
+      audit-check `issue_comment`-vs-`main`-SHA bug** ([[veridian-audit-check-issue-comment-sha-bug]]):
+      the comment-triggered re-run reports `headBranch: main`/main's SHA, not the PR's real
+      head, so it never clears the required check for the actual head commit. Fix applied:
+      pushed a real follow-up commit (`git commit --allow-empty -m "chore: trigger CI resync
+      after audit verdict"`) to force a genuine `synchronize` event on the PR's own head --
+      this new run was in flight when budget ran out. **Next session: check
+      `gh pr checks 766`, confirm audit-check is green against the real head SHA (not main's),
+      then merge + verify ancestor.**
+- [x] PR #775 (OCID-026): re-synced against `origin/main` (4 conflicts, same categories as
+      above, resolved the same way -- no interleave issue this time since OCID-026's own
+      amendment has no `**Status:**` table to collide with). Audit comment posted, validated.
+      **CI not yet checked this invocation -- check `gh pr checks 775` on resume; if
+      audit-check shows the same main-SHA bug, apply the same empty-commit resync fix before
+      merging.**
+
 ## Remaining
-- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop)**:
-      PR #765, #768, #767 are re-synced against post-#784 `origin/main` (clean, docs-only,
-      confirmed via `git diff origin/main --stat` on each -- see commit log on
-      `/home/rajat/work/group-c-merge`), audited (structured `AUDIT: PASS` comments posted),
-      pushed, and CI was still running (not yet green) at last check. **Next session: check
-      `gh pr checks 765/768/767`, and once green, `gh pr merge <n> --squash`, then
-      independently verify via `git merge-base --is-ancestor <merge-commit> origin/main`
-      before crediting.**
-- [ ] Review + resolve conflicts + merge PR #766 (OCID-025), #775 (OCID-026), #773 (OCID-029),
-      #780 (OCID-032), #778 (OCID-033), #777 (OCID-035), #785 (OCID-037; review after #784's
-      fix, per spec) -- **not started yet**. All 6 diffs were pre-scanned in this session
-      (see /tmp/pr{766,775,773,780,778,777,785}.diff if still present) and look genuinely
-      docs-only by the same pattern as #765/#768/#767/#784 (new `ai-os/*.md` canonical
-      artifact + index registration, zero code-fence/export/import/SQL hits on a grep sweep) --
-      but each still needs the same conflict-resolution-against-current-main +
-      audit-comment + CI-wait + merge + ancestor-verify treatment before being credited.
-      Reuse `/tmp/audit_validate.py` (local pre-check for validate-audit-verdict.ts's
-      ambiguous-phrase list and severity/verdict enum requirements) before posting any more
-      audit comments -- it would have caught both mistakes made on PR #784's first two
-      attempts.
-- [ ] **Merge-conflict resolution notes for next session**: PROGRESS.md conflicts -> always
-      take `origin/main`'s side (this repo resets PROGRESS.md per task, doesn't accumulate).
-      ACTIVE-CLAIMS.yaml / IMPLEMENTATION_MATRIX.md / MASTER_INDEX.yaml / OS.yaml conflicts are
-      normally pure both-sides-additive appends -- safe to auto-resolve by stripping only the
-      `<<<<<<</=======/>>>>>>>` marker lines (see the inline python one-liner used repeatedly
-      in this session's bash history) -- **except**: IMPLEMENTATION_MATRIX.md's conflict for
-      PR #768 was a false-positive interleave from git's diff heuristic matching repeated
-      "Status, real and current" table boilerplate across separate amendments. If a matrix
-      conflict looks interleaved/confusing rather than a clean single append block, don't
-      trust the marker layout -- find the true 3-way merge base
-      (`git merge-base <branch> origin/main`), diff base/head/main directly, and manually
-      reconstruct (main's full content + head's unique tail lines).
+- [ ] **STOPPED HERE (budget-constrained checkpoint, not a circuit-breaker failure stop).**
+      Immediate next steps in order: (1) re-verify #767/#765/#768 merge commits are ancestors
+      of `origin/main`; (2) resolve PR #766's audit-check main-SHA issue (see above) and merge;
+      (3) check/merge PR #775; (4) each merge advances `origin/main` further, so **every
+      subsequent PR needs a fresh `git merge origin/main` sync immediately before its own CI
+      run** -- do not batch syncs, `origin/main` moves multiple times per hour on this repo
+      (other concurrent sessions are also merging).
+- [ ] Review + resolve conflicts + merge PR #773 (OCID-029), #780 (OCID-032), #778 (OCID-033),
+      #777 (OCID-035), #785 (OCID-037; review after #784's fix, per spec, already merged) --
+      **not started yet this invocation**. PR #773 was `git checkout`'d and diff-stat'd only
+      (6 files changed, same docs-only shape) -- no conflict resolution done yet. All are in
+      local branches `pr773x`/`pr780x`/`pr778x`/`pr777x`/`pr785x` in
+      `/home/rajat/work/group-c-merge` already (fetched from their real remote head branches),
+      ready to resume from. Each still needs: check for a missing `ai-os/OS.yaml` registration
+      (a real, confirmed gap class this session found on PR #767's original head -- always
+      grep the new doc's filename in `ai-os/OS.yaml` before trusting the PR's own claim that
+      it registered itself), conflict resolution against current `origin/main`, local
+      `node scripts/check-metadata-index-coverage.mjs` re-check, audit comment (validate via
+      `/tmp/audit_validate.py` first), push, CI wait, merge, ancestor-verify.
+- [ ] **Merge-conflict resolution notes, corrected this invocation** (the prior note "always
+      take origin/main's side for PROGRESS.md" was incomplete/risky -- silently drops the
+      branch's own unique task section since it hasn't been folded into main's yet on these
+      still-open PRs): for `PROGRESS.md` conflicts on these Group-C branches, extract the
+      branch's own unique section via `git cat-file -p <branch>:PROGRESS.md` (it's a short,
+      single-task file on these old branches, not the accumulated multi-thousand-line history
+      `origin/main`'s copy has), confirm via `grep` that section isn't already present in
+      `origin/main`'s copy, then append it to the end of `origin/main`'s full copy with a
+      `\n\n---\n\n` separator (matching this repo's real append-only convention) rather than
+      just taking one side wholesale. `ai-os/boss/ACTIVE-CLAIMS.yaml` / `MASTER_INDEX.yaml` /
+      `ai-os/OS.yaml` conflicts remain pure both-sides-additive appends -- safe to
+      auto-resolve by stripping only the `<<<<<<</=======/>>>>>>>` marker lines (inline python
+      one-liner used repeatedly this session, see bash history). `IMPLEMENTATION_MATRIX.md`
+      needs manual reconstruction, not marker-stripping -- if the two sides' amendment
+      sections both end in a `**Status:**` table, git's diff heuristic false-positive-
+      interleaves the two different OCIDs' table rows into what looks like one shared block
+      (real, confirmed pattern on #766 and previously #768) -- give each side's amendment its
+      own complete, intact `**Status:**` table rather than trusting the marker layout.
+- [ ] **Real, confirmed bug this invocation**: `.github/workflows/mandatory-audit-check.yml`'s
+      `issue_comment`-triggered re-run (the one meant to clear a stale FAIL after posting the
+      audit verdict) checks out and reports against `main`'s current SHA, not the PR's actual
+      head SHA -- confirmed via `gh run view <id> --json headSha,headBranch` showing
+      `headBranch: "main"`. This means posting the audit comment alone never actually clears
+      the required check on the PR's real head; a genuine follow-up `synchronize` event
+      (an actual new commit, e.g. `git commit --allow-empty`) is required after the comment
+      to get a `pull_request`-triggered run that both sees the comment (via the GH API by PR
+      number) AND reports against the correct head SHA. Apply this on every remaining PR in
+      this batch -- do not assume the comment alone was sufficient. Logged as
+      [[veridian-audit-check-issue-comment-sha-bug]] in memory already; this is the second
+      independent confirmation of the same root cause.
 - [ ] After each merge: independently verify the real commit hash is an ancestor of
       `origin/main` via `git merge-base --is-ancestor` before updating MASTER-TRACKER.yaml /
       ACTIVE-CLAIMS.yaml.
 - [ ] Update `ai-os/MASTER-TRACKER.yaml` and `ai-os/boss/ACTIVE-CLAIMS.yaml` (register this
-      session's claim + move to `recently_completed` once done).
+      session's claim + move to `recently_completed` once done) -- not yet done this
+      invocation; still needs a claim entry for this task in `ACTIVE-CLAIMS.yaml`.
 - [ ] Final report: real PR numbers merged, any with a genuine content problem that could not
-      simply be merged.
+      simply be merged. So far, all 5 reviewed (784, 767, 765, 768, 766) were genuinely
+      docs-only with no content problems -- only mechanical CI/registration gaps, all fixed.
 
 ---
 
