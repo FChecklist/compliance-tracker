@@ -9538,3 +9538,43 @@ recently_completed:
       entry), `PROGRESS.md`. No src/, schema, migration, CI, service-worker, manifest, or any other
       application-code changes -- documentation and governance bookkeeping only, per this dispatch's
       own hard constraint.
+  - session_label: "claude-code (task-20260804-115419-ocid-037-resolve-real-merge-conflict-on) -- OCID-037 PR #785 merge-conflict resolution [DONE, no action needed, closed same session]"
+    claimed_at: "2026-08-04 (this session, closed same session)"
+    claim: |
+      SPEC (UMR-20260803-042230-180c, this task's own prompt.txt, tier 1): rebase PR #785's branch
+      onto current `origin/main` and resolve a real merge conflict, preserving both the already-merged
+      main content and this PR's own canonical OCID-037 (Universal Knowledge and Service Catalog)
+      content without deleting either, then push and confirm `mergeable: true` -- explicitly not
+      merging it.
+
+      Real finding, verified before doing anything else (`gh api repos/FChecklist/compliance-tracker/pulls/785`,
+      not trusted from the prompt): PR #785 was **already `merged: true`** at `merged_at:
+      2026-08-04T11:43:44Z`, `state: closed` -- minutes/moments before this session picked up the
+      task. The spec's "confirmed real OPEN / DIRTY / CONFLICTING" state was accurate when written but
+      went stale before dispatch, per [[veridian-live-concurrent-state-drift]] /
+      [[veridian-task-prompt-false-premise-pattern]]. A concurrent session on branch
+      `worker/task-20260803-071111-ocid-037-veridian-universal-knowledge-an` (commit `d25c9314`,
+      "docs: rebase OCID-037 onto origin/main, resolve real conflicts") had already performed exactly
+      the rebase + conflict resolution this task describes, and it merged cleanly via `8d8e1dba`.
+
+      Independently re-verified rather than taking the merge status at face value: `git fetch origin
+      main` then `git merge-base --is-ancestor 8d8e1dba origin/main` -> yes; `origin/main` HEAD *is*
+      `8d8e1dba`. This task's own workspace branch (`worker/task-20260804-115419-ocid-037-resolve-real-
+      merge-conflict-on`) already sat at that exact commit (`git log origin/main..HEAD` and
+      `HEAD..origin/main` both empty). Searched the merged tree for leftover conflict markers
+      (`git grep -n "^<<<<<<<\|^=======$\|^>>>>>>>" origin/main`) -- zero hits. Confirmed via
+      `git show 8d8e1dba --stat` that the merge was a clean 5-file, 653-insertion/0-deletion additive
+      merge (new OCID-037 catalog doc + `ai-os/OS.yaml` index entry + `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      + `ai-os/boss/ACTIVE-CLAIMS.yaml` + `PROGRESS.md`), i.e. both sides already preserved without
+      deletion -- exactly the outcome the spec asked this session to produce, already done.
+
+      Real PM decision: no rebase, no conflict resolution, no push needed. Did not touch PR #785 itself
+      (already closed/merged, not "leave it for review" territory -- nothing left to review). Logged
+      this finding here so a fifth OCID-037-adjacent dispatch doesn't redo this same closed loop, matching
+      this file's own prior recorded pattern of duplicate OCID-037 task dispatches (see the
+      `task-20260803-*-ocid-037-*` entry above, same false-premise class).
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry). No src/, schema,
+      migration, CI, or application-code changes -- and no changes to PR #785 or any other PR/branch;
+      this session performed verification only, since the real work it was dispatched to do had
+      already landed on `origin/main` before it started.
