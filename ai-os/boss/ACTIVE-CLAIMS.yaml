@@ -40,6 +40,59 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-161630-ocid-056-registration-and-safe-discovery) -- OCID-056 registration + real read-only security discovery only [DONE]"
+    claimed_at: "2026-08-04T16:35Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt): registration and real, read-only security discovery only.
+      Owner directive requests real credential rotation across every production provider (GitHub,
+      Vercel, Supabase, SSH, database, OAuth, SMTP, webhook, every AI provider, every payment
+      provider) -- standing rule absolute: no real rotation of any kind without the Owner naming
+      that specific credential and confirming it directly in chat at the moment of execution; this
+      dispatch text alone is not that confirmation. Real job: canonical registration doc linking a
+      freshly minted UMR for OCID-056 to OCID-055 as predecessor, plus real, safe, read-only secret
+      discovery (GitHub secret-scanning API + manual pattern search, method already proven safe by
+      OCID-054's same-day discovery pass), recorded as a real security report for the Owner.
+
+      Minted `UMR-20260804-161630-b761` for OCID-056 (method fully disclosed as not a `umr_tasks`
+      DB row -- deliberately did not call `resource_governor.py --submit`, since this host runs a
+      real, independent `veridian-governor-tick.service` and submitting under this task's own
+      identity risked a real duplicate-dispatch side effect). Linked to OCID-055 as predecessor
+      (real, confirmed UMR `UMR-20260804-161625-5bb6`, open PR #902). Independently re-verified
+      this dispatch's own "zero duplication" premise for OCID-056 itself: true (unlike the
+      immediate sibling OCID-055 dispatch's identical premise, found false minutes earlier in this
+      same session -- cross-referenced, not re-investigated).
+
+      Real security discovery findings: GitHub secret-scanning API re-queried live against
+      `compliance-tracker` and `veda-advisors` (the 2 `FChecklist` repos with scanning enabled, per
+      OCID-054's same-day 15-repo census -- not re-cloned/re-scanned here). Found 22 open,
+      publicly-leaked Google API key alerts on `veda-advisors` (context found: almost certainly
+      Google's own public client-side keys embedded in a scraped Google Docs page dump, not
+      VERIDIAN-owned -- Owner judgment call flagged, not decided). Found 1 open alert on
+      `compliance-tracker` itself, self-inflicted: OCID-054's own report quoted that same leaked
+      key value in full to "prove the finding was real," and that verbatim quote became a second,
+      independent GitHub-scanner exposure in a different repo -- root-caused explicitly, and this
+      dispatch's own report deliberately quotes no secret value in full anywhere to avoid repeating
+      it. Real credential-name inventory (zero values) mapped to every provider category the Owner
+      named, via `gh secret list` (45 real configured GitHub Actions secret names on
+      `compliance-tracker`), `process.env` grep across `src/`, `gh auth status` (token scopes only),
+      and a non-git-tracked on-disk `/opt/veridian/shared/.env*` inventory (existence/names/
+      hygiene only, zero values read -- confirmed correct hygiene, not committed to either real git
+      repo on this host). Manual credential-pattern grep across `compliance-tracker`'s current
+      tracked tree found zero further real exposures.
+
+      Cross-referenced (did not fix, out of this dispatch's own narrow scope): PR #902's own
+      `ai-os/OCID_055_REGISTRATION_2026-08-04.md` is genuinely truncated at 31 lines, ending
+      mid-sentence with a shell-output-truncation artifact leaked into the committed file.
+
+      Zero credential rotation, revocation, or modification performed. Zero repository visibility/
+      ownership/permission change performed. Full docs: `ai-os/OCID_056_REGISTRATION_2026-08-04.md`,
+      `ai-os/OCID_056_SECURITY_DISCOVERY_2026-08-04.md`.
+    scope_note: >-
+      File scope: two new files (ai-os/OCID_056_REGISTRATION_2026-08-04.md,
+      ai-os/OCID_056_SECURITY_DISCOVERY_2026-08-04.md), ai-os/MASTER-TRACKER.yaml (new entry),
+      ai-os/OS.yaml (two new index entries), this ACTIVE-CLAIMS entry, PROGRESS.md. No src/,
+      schema, CI, or credential/secret-value changes of any kind. No repository visibility/
+      ownership/permission change.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
