@@ -40,14 +40,19 @@ Real continuation of this same task's own PR #915 (state-7 gate re-check). At in
 - [x] Force-pushed (`--force-with-lease`) the rebased branch; PR #915 confirmed `MERGEABLE`
       (was `CONFLICTING`), CI re-triggered on the new head SHA.
 
+- [x] Registered the recurring pattern as `GAP-PROGRESS-MD-RECURRING-TRUNCATION-ON-MAIN` in
+      `ai-os/MASTER-TRACKER.yaml`'s `real_gaps_not_yet_built` section (both confirmed
+      `origin/main`-level instances cited, concrete cheap CI-check recommendation included) rather
+      than leaving the finding only inline in `PROGRESS.md` prose where a future session would
+      have to rediscover it from scratch. Re-ran all 4 governance checks
+      (`check-metadata-index-coverage.mjs`, `check-doc-cross-references.mjs`,
+      `check-guardrail-presence.mjs`, `check-terminology-guardrail.mjs --diff-only`) -- all pass.
+      Committed and pushed.
+
 ## Remaining
-- [ ] Confirm CI green on PR #915's rebased head, hand off for independent audit (Rule 10,
+- [ ] Confirm CI green on PR #915's latest head, hand off for independent audit (Rule 10,
       `audit-check` requires a real `AUDIT: PASS`/`FAIL` comment from a different agent/session) --
       not self-certified here.
-- [ ] Report the second `origin/main`-level `PROGRESS.md` truncation instance to the PM/Owner as a
-      recurring, real, unresolved governance-integrity issue (this is now 2 independent
-      occurrences reaching `origin/main` directly, beyond the many individual-branch instances) --
-      out of this task's own scope to fix at the root.
 - [ ] No implementation work performed or proposed this invocation, per this addendum's own
       state-7 gate (OCID-020 not verified) -- unchanged from the prior invocation.
 
