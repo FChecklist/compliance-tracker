@@ -83,6 +83,56 @@ active:
       OCID-022/024/025 PRs registered their own new documents. No src/,
       schema, or CI changes -- documentation only, per this task's own
       explicit prohibition on implementation.
+  - session_label: "claude-code (task-20260804-094409-register-ocid-066--continuous-project-go) -- OCID-066, continuous project governance + PM reporting discipline formalization -- registered as a lightweight record only this cycle, real implementation HELD [DONE, closed same session]"
+    claimed_at: "2026-08-04T~10:29Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, PM registration): real parent OCID-061
+      `UMR-20260804-044535-7214`, itself parented by OCID-021 `UMR-20260802-173631-ca85`
+      and OCID-020 `UMR-20260802-165606-4413`, governed by the Mandatory Governance
+      Directive `UMR-20260804-051521-7099`. The PM's own prompt records a self-correction:
+      this is OCID-066, not OCID-064 (already real -- the Ollama finding closed into
+      OCID-062) and not OCID-065 (already registered last cycle as the real completeness
+      audit) -- both independently confirmed absent from this file/MASTER-TRACKER.yaml
+      under any other meaning before writing this entry.
+
+      Mission as stated: formalize the continuous project governance and PM reporting
+      discipline this session has already been running by hand -- incremental
+      verification of only changed/suspect items rather than a full rescan every cycle,
+      stall detection against real UMR/UTR/heartbeat/tmux/git state, deterministic
+      decisions traced to real evidence with a decision identifier linked to its real
+      UMR/UTR/OCID/PR/commit, and the existing Reporting Contract V2 structure
+      (cycle/implementation state/governance state/infrastructure state/PM summary) kept
+      exactly as-is with only its content discipline strengthened to evidence-only. PM
+      explicit: not authorizing a new PM system, database, table, or reporting engine --
+      this is an enhancement of the existing `resource_governor.py`,
+      `dispatch-owner-task.sh`, `MASTER-TRACKER.yaml`, and this file, already in real use.
+
+      **This cycle's real scope, per the PM's own explicit hold**: register OCID-066 as a
+      lightweight record only. Do NOT start heavy discovery, build, or test work under it
+      this cycle; hold real implementation until a future cycle confirms swap has
+      genuinely recovered, consistent with OCID-020/OCID-021 (including the in-progress
+      OCID-038 build) taking precedence over new lower-priority initiatives under real
+      resource pressure. Honored exactly as instructed -- no design doc, no code, no
+      schema, no enhancement to any of the 4 named mechanisms attempted this cycle.
+
+      Independently re-verified the PM's own cited infra finding rather than restating it
+      blind: `free -h` at registration time shows 2.7Gi/4.0Gi swap used, 1.3Gi free (PM's
+      own snapshot at dispatch time was 25Mi free/4Gi, the tightest reading of the
+      session) -- real improvement, but a single later reading is not itself "a future
+      cycle confirms swap has genuinely recovered," so this does not change this cycle's
+      hold. `ps aux` at registration time shows no running OCID-038 (or any other) build
+      process -- consistent with the PM's finding that the one legitimate build already
+      identified as the real cause has since completed, not with any duplicate/runaway
+      process. `uptime` load average 2.36 (1-min) on an 8-core box. Recorded as real
+      evidence for whichever future cycle makes the resume decision -- not acted on here.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry, `ai-os/MASTER-TRACKER.yaml` (new
+      `needs_owner_decision` entry `OCID-066-CONTINUOUS-PROJECT-GOVERNANCE`, registered
+      and held, not resolved), `PROGRESS.md`. No new doc, no src/, schema, CI, or any of
+      the 4 named existing-mechanism files (`resource_governor.py`,
+      `dispatch-owner-task.sh` themselves) touched -- registration only, per this OCID's
+      own explicit no-heavy-work constraint. Not marked complete, per the PM's own
+      explicit instruction: real implementation and real verification have not happened.
   - session_label: "claude-code (task-20260803-055110-ocid-032-veridian-universal-task-lifecyc) -- OCID-20260803-032, VERIDIAN Universal Task Lifecycle Runtime v1.0 (UMR-20260803-041743-d271, parent UMR-20260803-041700-a741)"
     claimed_at: "2026-08-03T~05:55Z (this session)"
     claim: |

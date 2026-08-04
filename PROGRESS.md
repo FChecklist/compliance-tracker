@@ -28,28 +28,46 @@ Mandatory Governance Directive `UMR-20260804-051521-7099` (OCID-017
 # PROGRESS -- task-20260803-071119-ocid-039-veridian-real-end-user-producti
 Registers OCID-038, OCID-039, OCID-040 under `SEC-07`'s implementation lock
 (`ai-os/CONSTITUTION.yaml`, gated on `UMR-20260802-165606-4413` / OCID-020,
-... more files changed
+
+# PROGRESS -- task-20260804-094409-register-ocid-066--continuous-project-go
+Cites: PM registration of OCID-066, real parent OCID-061 `UMR-20260804-044535-7214`,
+itself parented by OCID-021 `UMR-20260802-173631-ca85` / OCID-020
+`UMR-20260802-165606-4413`, governed by the Mandatory Governance Directive
+`UMR-20260804-051521-7099`. PM self-correction on record: OCID-066, not OCID-064
+(real, already closed into OCID-062's Ollama finding) or OCID-065 (real, registered
+last cycle as the completeness audit).
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting; confirmed OCID-064/065/066
+      had no conflicting registration, then registered this session's own claim there.
+- [x] Independently re-verified the PM's own cited infra finding rather than restating
+      it blind: `free -h` at registration time -- 2.7Gi/4.0Gi swap used, 1.3Gi free (PM's
+      dispatch-time snapshot was 25Mi free/4Gi). `ps aux` shows no OCID-038 (or any)
+      build process currently running. `uptime` load average 2.36 (1-min, 8-core box).
+      Real improvement recorded as evidence for a future cycle's resume decision --
+      NOT acted on as authorization to start real work this cycle.
+- [x] Registered OCID-066 as a lightweight record only, per the PM's explicit
+      instruction: `ai-os/MASTER-TRACKER.yaml`'s `needs_owner_decision` section
+      (`OCID-066-CONTINUOUS-PROJECT-GOVERNANCE`) and `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+      No new design doc, no code, no enhancement to any of the 4 named existing
+      mechanisms (`resource_governor.py`, `dispatch-owner-task.sh`,
+      `MASTER-TRACKER.yaml`, `ACTIVE-CLAIMS.yaml`) attempted this cycle -- that is real
+      future-cycle implementation work, correctly held per the PM's own directive.
+- [x] Validated both touched YAML files parse clean via
+      `python3 -c "import yaml; yaml.safe_load(...)"` before committing.
+## Remaining
+- [ ] Open PR, confirm CI green.
+- [ ] Real implementation of the continuous-governance/PM-reporting-discipline
+      enhancement itself is explicit future-cycle work, gated on a future cycle
+      independently re-confirming swap has genuinely recovered (a single improved
+      reading this cycle is not that confirmation) and on OCID-020/OCID-021 precedence
+      (including the in-progress OCID-038 build) continuing to be honored.
+- [ ] Do NOT mark OCID-066 complete -- no real implementation or verification has
+      happened yet, per the PM's own explicit instruction.
 
 ---
 
-# PROGRESS -- task-20260803-055110-ocid-032-veridian-universal-task-lifecyc
-
-## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance chain, ACTIVE-CLAIMS.yaml protocol
-- [x] Discovery: OCID-022..040 status snapshot, CONSTITUTION.yaml task_lifecycle/guardrail_protocols/audit_organization/resilience_and_monitoring, UNIVERSAL_TASK_WRAPPER_DESIGN.md, PR #768 (OCID-023) real state (open, unmerged, truncated doc)
-- [x] Confirmed real numbering via superboss-register.sqlite umr_tasks: this task is real OCID-032 (Universal Task Lifecycle Runtime), parent UMR-20260803-041700-a741 is real OCID-031 (Universal Software Execution Engine) -- corrects the earlier OCID-040 snapshot doc's off-by-one table
-- [x] Discovery agent: task engine internals (schema.ts real tables/enums, task-service.ts, task-execution-engine.ts, escalation-ladder.ts, approval-workflow-service.ts, monitor-protocol.ts + 6 real monitors, exception-taxonomy.ts, qa-precompletion-gate.ts, handover-protocol.ts, veri-todo-service.ts, ChainSelector.tsx, audit_logs)
-- [x] Registered ACTIVE-CLAIMS.yaml entry
-
-- [x] Wrote ai-os/VERIDIAN_UNIVERSAL_TASK_LIFECYCLE_RUNTIME_2026-08-03.md (36 sections, all grounded, gaps named honestly)
-- [x] Updated ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (amendment section)
-- [x] Updated ai-os/OS.yaml (index entry)
-- [x] Updated ai-os/MASTER_INDEX.yaml (registry entry) -- validated YAML parses (OS.yaml/MASTER_INDEX.yaml both OK; pre-existing unrelated YAML parse issue in ACTIVE-CLAIMS.yaml confirmed present on origin/main before this task touched it, not introduced here, out of scope)
-
-- [x] Committed, pushed, opened PR #780: https://github.com/FChecklist/compliance-tracker/pull/780
-- [x] Reported doc location + updated UMR + OCID-033 readiness confirmation to Owner
-
-## Remaining
+# PROGRESS -- docs/ocid033-universal-end-user-work-orchestration (from origin/main)
+## Remaining (as of merge)
 - [ ] None -- watch PR #780's CI, merge once green (no code changes, low risk)
 
 ---
