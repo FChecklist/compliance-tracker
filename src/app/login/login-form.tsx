@@ -13,7 +13,16 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
 
-export function LoginForm() {
+// Stage 1 brand override, resolved server-side (pre-auth, host-header-based)
+// by the page above -- undefined means the host didn't match any org's
+// customDomain, so this renders the default VERIDIAN identity, unchanged
+// from before this wave.
+interface LoginFormBrand {
+  name: string;
+  logoUrl: string | null;
+}
+
+export function LoginForm({ brand }: { brand?: LoginFormBrand }) {
   const t = useTranslations("Login");
   const tAuth = useTranslations("Auth");
   const router = useRouter();
@@ -193,9 +202,9 @@ export function LoginForm() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
-              <img src="/logo-mark.svg" alt="VERIDIAN AI" className="size-11 rounded-xl" />
+              <img src={brand?.logoUrl || "/logo-mark.svg"} alt={brand?.name || "VERIDIAN AI"} className="size-11 rounded-xl" />
               <span className="font-heading text-2xl text-white">
-                VERIDIAN AI
+                {brand?.name || "VERIDIAN AI"}
               </span>
             </div>
             <p className="text-white/60 text-sm">

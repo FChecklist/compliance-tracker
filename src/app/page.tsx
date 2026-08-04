@@ -21,8 +21,10 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { headers } from "next/headers";
 import { ArrowRight, ArrowUpRight } from "lucide-react";
 import { VisitorIntelligence } from "@/components/VisitorIntelligence";
+import { resolveBrandingByHost } from "@/lib/services/org-branding-service";
 
 // Wave 113: the Research nav item on every product page links here with
 // ?from=<slug>. A visitor mid-purchase-journey who detours to the lab page
@@ -101,16 +103,27 @@ export default async function CognitiveRootPage({
   const { from } = await searchParams;
   const returnTo = from ? RETURN_MAP[from] : undefined;
 
+  // Stage 1 (pre-authentication, host-header-based) brand resolution --
+  // GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, 2026-08-04. A host with no
+  // matching organisations.customDomain (e.g. the base VERIDIAN domain)
+  // resolves to null and this page renders exactly as before this wave.
+  const host = (await headers()).get("host");
+  const branding = await resolveBrandingByHost(host);
+
   return (
     <main className="min-h-screen bg-[#F4F1E8] text-[#1a1a17] antialiased">
       {/* nav — spare, editorial */}
       <nav className="border-b border-[#1a1a17]/10">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
-            <Image src="/logo-mark.svg" alt="VERIDIAN" width={28} height={28} priority />
-            <span>
-              VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
-            </span>
+            <Image src={branding?.logoUrl || "/logo-mark.svg"} alt={branding?.brandName || "VERIDIAN"} width={28} height={28} priority />
+            {branding ? (
+              <span>{branding.brandName}</span>
+            ) : (
+              <span>
+                VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+              </span>
+            )}
           </Link>
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
             <a href="#research" className="hover:text-[#1a1a17]">Research</a>
@@ -130,7 +143,7 @@ export default async function CognitiveRootPage({
       {/* hero — one oversized statement, nothing competing with it */}
       <section className="mx-auto max-w-6xl px-6 pt-24 pb-20 md:pt-32 md:pb-28">
         <div className="text-xs font-semibold uppercase tracking-[0.28em] text-[#1a1a17]/50">
-          AI Cognitive Research
+          {branding ? `${branding.brandName} — built on VERIDIAN` : "AI Cognitive Research"}
         </div>
         <h1 className="mt-8 max-w-4xl font-heading text-5xl leading-[1.06] sm:text-6xl md:text-7xl">
           We research how a business thinks.

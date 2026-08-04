@@ -55,6 +55,7 @@ describe("resolveBranding (never a broken/blank UI for an unconfigured org)", ()
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { resolveBranding, DEFAULT_BRAND_PRIMARY_COLOR, DEFAULT_BRAND_ACCENT_COLOR } = await import("./org-branding-service")
     const result = await resolveBranding("org-1")
@@ -71,6 +72,7 @@ describe("resolveBranding (never a broken/blank UI for an unconfigured org)", ()
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow({ logo: "org-1/logo-abc.png" })) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { resolveBranding } = await import("./org-branding-service")
     const result = await resolveBranding("org-1")
@@ -83,6 +85,7 @@ describe("resolveBranding (never a broken/blank UI for an unconfigured org)", ()
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow({ brandAccentColor: "#00FF00" })) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { resolveBranding } = await import("./org-branding-service")
     const result = await resolveBranding("org-1")
@@ -96,6 +99,7 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { primaryColor: "not-a-color" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -105,6 +109,7 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { accentColor: "#FFF" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -114,6 +119,7 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { customDomain: "https://reports.acme.com" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -132,6 +138,7 @@ describe("updateBranding validation", () => {
         update: mockDbUpdateChain(),
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { customDomain: "reports.acme.com" })).rejects.toBeInstanceOf(OrgBrandingValidationError)
@@ -155,6 +162,7 @@ describe("updateBranding validation", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding } = await import("./org-branding-service")
     const result = await updateBranding("org-1", {
@@ -178,6 +186,7 @@ describe("updateBranding validation", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, DEFAULT_BRAND_PRIMARY_COLOR } = await import("./org-branding-service")
     const result = await updateBranding("org-1", { primaryColor: "" })
@@ -188,9 +197,105 @@ describe("updateBranding validation", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow()) } }, update: mockDbUpdateChain() },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBranding, OrgBrandingValidationError } = await import("./org-branding-service")
     await expect(updateBranding("org-1", { emailSenderName: "x".repeat(101) })).rejects.toBeInstanceOf(OrgBrandingValidationError)
+  })
+})
+
+describe("resolveBrandingByHost (Stage 1, pre-auth, host-header-based resolution)", () => {
+  test("a host matching a real org's customDomain resolves that org's real branding (e.g. PROJEXA) -- reuses resolveBranding(), no separate engine", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          organisations: {
+            // First call: the host->org lookup by customDomain. Second call:
+            // resolveBranding(org.id)'s own read.
+            findFirst: mock(async (opts: unknown) => {
+              const columns = (opts as { columns?: Record<string, boolean> })?.columns
+              if (columns && columns.id && Object.keys(columns).length === 1) {
+                return { id: "org-projexa" }
+              }
+              return orgRow({ id: "org-projexa", primaryProductBranchId: "branch-pms" })
+            }),
+          },
+          productBranches: {
+            findFirst: mock(async () => ({ displayName: "PROJEXA" })),
+          },
+        },
+      },
+      organisations: {},
+      productBranches: {},
+    }))
+    const { resolveBrandingByHost } = await import("./org-branding-service")
+    const result = await resolveBrandingByHost("projexa-ai.com")
+    expect(result).not.toBeNull()
+    expect(result?.brandName).toBe("PROJEXA")
+  })
+
+  test("the base VERIDIAN domain (no matching customDomain row) resolves to null, not PROJEXA or any other org's branding", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          organisations: { findFirst: mock(async () => undefined) },
+        },
+      },
+      organisations: {},
+      productBranches: {},
+    }))
+    const { resolveBrandingByHost } = await import("./org-branding-service")
+    const result = await resolveBrandingByHost("veridian-ai-os.vercel.app")
+    expect(result).toBeNull()
+  })
+
+  test("a null/undefined/empty host (no Host header) resolves to null without querying the DB", async () => {
+    const findFirst = mock(async () => undefined)
+    mock.module("@/lib/db", () => ({
+      db: { query: { organisations: { findFirst } } },
+      organisations: {},
+      productBranches: {},
+    }))
+    const { resolveBrandingByHost } = await import("./org-branding-service")
+    expect(await resolveBrandingByHost(null)).toBeNull()
+    expect(await resolveBrandingByHost(undefined)).toBeNull()
+    expect(await resolveBrandingByHost("")).toBeNull()
+    expect(findFirst).not.toHaveBeenCalled()
+  })
+
+  test("a host with a port (local dev, e.g. localhost:3000) is normalized before lookup", async () => {
+    const findFirst = mock(async (opts: unknown) => {
+      const where = (opts as { where?: unknown })?.where
+      // Drizzle's `eq()` builder result isn't easily introspected here, so
+      // this asserts on the call happening at all -- the real normalization
+      // (host.split(":")[0]) is exercised by this call reaching findFirst
+      // rather than short-circuiting on DOMAIN_RE like a raw "host:port"
+      // string would (DOMAIN_RE rejects a bare "localhost" with no dot, so
+      // this also confirms the port is stripped BEFORE the regex check).
+      void where
+      return undefined
+    })
+    mock.module("@/lib/db", () => ({
+      db: { query: { organisations: { findFirst } } },
+      organisations: {},
+      productBranches: {},
+    }))
+    const { resolveBrandingByHost } = await import("./org-branding-service")
+    const result = await resolveBrandingByHost("reports.acme.com:3000")
+    expect(result).toBeNull() // no fixture row for this domain
+    expect(findFirst).toHaveBeenCalled() // but it DID reach the DB query, proving normalization ran
+  })
+
+  test("a malformed host (not a bare domain) resolves to null without querying the DB", async () => {
+    const findFirst = mock(async () => undefined)
+    mock.module("@/lib/db", () => ({
+      db: { query: { organisations: { findFirst } } },
+      organisations: {},
+      productBranches: {},
+    }))
+    const { resolveBrandingByHost } = await import("./org-branding-service")
+    expect(await resolveBrandingByHost("localhost")).toBeNull() // no dot -- not a real routable custom domain
+    expect(findFirst).not.toHaveBeenCalled()
   })
 })
 
@@ -204,6 +309,7 @@ describe("updateBrandingAsset / getBrandingAssetPath", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBrandingAsset } = await import("./org-branding-service")
     const result = await updateBrandingAsset("org-1", "logo", "org-1/logo-new.png")
@@ -219,6 +325,7 @@ describe("updateBrandingAsset / getBrandingAssetPath", () => {
         update: updateMock,
       },
       organisations: {},
+      productBranches: {},
     }))
     const { updateBrandingAsset } = await import("./org-branding-service")
     const result = await updateBrandingAsset("org-1", "favicon", null)
@@ -229,6 +336,7 @@ describe("updateBrandingAsset / getBrandingAssetPath", () => {
     mock.module("@/lib/db", () => ({
       db: { query: { organisations: { findFirst: mock(async () => orgRow({ logo: "org-1/logo-old.png" })) } } },
       organisations: {},
+      productBranches: {},
     }))
     const { getBrandingAssetPath } = await import("./org-branding-service")
     const path = await getBrandingAssetPath("org-1", "logo")

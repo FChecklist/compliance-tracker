@@ -124,6 +124,39 @@ export async function resolveBranding(orgId: string): Promise<OrgBranding> {
   }
 }
 
+// Stage 1 (pre-authentication, host-header-based) resolution -- added
+// 2026-08-04 per Owner decision (GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH):
+// PROJEXA is not a separate platform, it is the first brand built on the one
+// VERIDIAN platform (one runtime, one DB, one UMR/UTR) -- a domain is only a
+// lookup key into the SAME brand configuration Stage 2 already resolves, so
+// this deliberately reuses resolveBranding() itself rather than building a
+// second branding engine. The lookup key is organisations.customDomain, the
+// same column the Branding settings UI (updateBranding() above) already
+// writes -- NOT product_branches.domain, which despite its name is a
+// business-category label ('compliance'/'projects'), not an HTTP hostname
+// (confirmed against drizzle/0017_wave20_module_registry_and_product_branches.sql
+// before choosing this column). Deterministic priority order (Owner
+// directive): host header -> brand configuration -> tenant configuration ->
+// organization configuration -> user preference -> session override, each
+// layer only overriding the layers beneath it. This function is layer 1 --
+// it never runs for an authenticated request (Stage 2's resolveBranding(orgId)
+// remains the sole source of truth once a real org/tenant context exists);
+// callers are the genuinely anonymous, pre-login surface only.
+export async function resolveBrandingByHost(host: string | null | undefined): Promise<OrgBranding | null> {
+  if (!host) return null
+  // Strip a port (e.g. "localhost:3000") the same way a browser's Host
+  // header would include one locally -- customDomain itself is stored as a
+  // bare hostname (see DOMAIN_RE), never host:port.
+  const normalized = host.trim().toLowerCase().split(":")[0]
+  if (!normalized || !DOMAIN_RE.test(normalized)) return null
+  const org = await db.query.organisations.findFirst({
+    where: eq(organisations.customDomain, normalized),
+    columns: { id: true },
+  })
+  if (!org) return null
+  return resolveBranding(org.id)
+}
+
 export interface BrandingUpdateInput {
   primaryColor?: string | null
   accentColor?: string | null

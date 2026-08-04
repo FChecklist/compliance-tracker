@@ -47,21 +47,68 @@ exactly as-is.
 
 ## Completed
 
-- [ ] `resolveBrandingByHost(host)` added to `org-branding-service.ts`
-- [ ] Root `layout.tsx` brand-aware `generateMetadata()`
-- [ ] `page.tsx` (root landing) nav wordmark/logo swap
-- [ ] `login/page.tsx` + `login-form.tsx` brand-aware
-- [ ] Real tests proving projexa-ai.com resolves PROJEXA pre-login, base domain does not
-- [ ] `bunx tsc --noEmit` clean
-- [ ] `bun test` clean
-- [ ] Commit + push, ACTIVE-CLAIMS.yaml claim registered
+- [x] `resolveBrandingByHost(host)` added to `org-branding-service.ts` -- reuses
+      `resolveBranding()` itself, keys off `organisations.customDomain`, zero
+      new table/registry.
+- [x] Root `layout.tsx` brand-aware `generateMetadata()` (was static `metadata`)
+      -- document `<title>`/favicon/OG/twitter card resolve per-host, default
+      VERIDIAN metadata unchanged when no host match.
+- [x] `page.tsx` (root landing) nav wordmark/logo + hero micro-label swap when
+      a brand resolves; unchanged fallback otherwise.
+- [x] `login/page.tsx` converted from a client to a server component reading
+      `await headers()`; `login-form.tsx` accepts an optional `brand` prop
+      (logo/name), default VERIDIAN branding when `undefined`.
+- [x] Real tests added to `org-branding-service.test.ts` (5 new, `describe("resolveBrandingByHost...")`):
+      a fixture org with `customDomain: "projexa-ai.com"` resolves
+      `brandName: "PROJEXA"`; a host with no matching row (base VERIDIAN
+      domain) resolves `null`; null/undefined/empty host short-circuits
+      without a DB call; a host:port is normalized before lookup; a malformed
+      host short-circuits without a DB call.
+- [x] **Real pre-existing, unrelated bug found and fixed while making the test
+      file runnable**: every one of the file's 13 original `mock.module("@/lib/db", ...)`
+      calls omitted `productBranches` from the mocked module object, even
+      though `org-branding-service.ts` has statically imported
+      `{ db, organisations, productBranches }` since before this wave --
+      confirmed via `git stash` that this failure (`SyntaxError: Export named
+      'productBranches' not found`) reproduces identically on the file's
+      original, unmodified content (0/13 pass), so it predates this task and
+      isn't something introduced here. Fixed by adding `productBranches: {}`
+      alongside each existing `organisations: {},` stub (mechanical,
+      minimal -- Bun's ESM module-mock requires every statically-imported
+      named binding to be present in the mock object). All 18 tests
+      (13 original + 5 new) now pass.
+- [x] `bunx tsc --noEmit` clean (`NODE_OPTIONS=--max-old-space-size=8192` --
+      this repo's full `tsc` OOMs at the default Node heap size regardless of
+      this change, a pre-existing environment constraint, not something this
+      task introduced or needs to fix).
+- [x] `bunx eslint` clean on every changed file.
+- [x] Full `bun test` (matches CI's `unit-tests` job, `.github/workflows/ci.yml`
+      line 53): 2490 pass, 0 fail, across 219 files -- no regressions anywhere
+      else in the codebase.
+- [ ] Commit + push (claim already pushed; real implementation commit next)
 - [ ] PR opened, independent review/audit (not self-certified)
 - [ ] Merge commit independently verified as ancestor of `origin/main`
 - [ ] `ai-os/MASTER-TRACKER.yaml` updated to close the gap
 - [ ] Report OCID-038 closure back to PM
 
+## Known, honestly-disclosed follow-up (data precondition, not a code gap)
+
+Zero real PROJEXA org has `organisations.customDomain` set to `projexa-ai.com`
+today (confirmed via the gap's own discovery_brief -- only 1 synthetic
+test-fixture org platform-wide has any `customDomain` set at all). This PR
+ships the real, tested mechanism; making `https://projexa-ai.com` actually
+render PROJEXA branding in production additionally requires an Owner/admin
+data action -- setting `customDomain = 'projexa-ai.com'` on whichever real
+PROJEXA org is the intended canonical identity for that anonymous-visitor
+domain (a product decision about which of the 6+ real PROJEXA orgs, if any,
+that domain represents -- not something this code change can or should
+decide unilaterally). Flagging this explicitly rather than fabricating a
+production data assignment as part of this PR.
+
 ## Remaining
-- [ ] All items above not yet checked off
+- [ ] Commit + push the real implementation
+- [ ] PR + independent review/audit + merge-ancestor verification
+- [ ] MASTER-TRACKER.yaml gap closure + PM report
 
 ---
 

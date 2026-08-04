@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
@@ -7,9 +8,10 @@ import QueryProvider from "@/components/providers/QueryProvider";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { veridianHeadingFont, veridianSansFont } from "@fchecklist/veridian-ui-kit/tokens/fonts";
+import { resolveBrandingByHost } from "@/lib/services/org-branding-service";
 import "./globals.css";
 
-export const metadata: Metadata = {
+const DEFAULT_METADATA: Metadata = {
   // Repositioned 2026-07-07 (Wave 112): the site root is now VERIDIAN
   // COGNITIVE AI OS — the research-lab identity above the whole product
   // family. The complete-business-system selling metadata moved with its
@@ -45,6 +47,37 @@ export const metadata: Metadata = {
       "AI cognitive research that becomes advanced, working products — systems that perceive, decide, act, and account for themselves.",
   },
 };
+
+// Stage 1 (pre-authentication, host-header-based) brand resolution --
+// GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, 2026-08-04. This is the
+// document-level identity (browser tab title, favicon, link previews) for
+// the whole domain -- it has no post-login override today (Stage 2's
+// resolveBranding(orgId), unchanged, governs the in-app chrome rendered by
+// AppShell.tsx, not this metadata), so it correctly stays host-resolved on
+// every route under a branded domain, matching the Owner's deterministic
+// priority order (host header is the base layer; nothing more specific
+// overrides the document title/favicon yet). A host with no matching
+// organisations.customDomain (e.g. the base VERIDIAN domain) falls back to
+// DEFAULT_METADATA, unchanged from before this wave.
+export async function generateMetadata(): Promise<Metadata> {
+  const host = (await headers()).get("host");
+  const branding = await resolveBrandingByHost(host);
+  if (!branding) return DEFAULT_METADATA;
+  return {
+    ...DEFAULT_METADATA,
+    title: `${branding.brandName} — powered by VERIDIAN`,
+    icons: branding.faviconUrl ? { icon: branding.faviconUrl } : DEFAULT_METADATA.icons,
+    openGraph: {
+      ...DEFAULT_METADATA.openGraph,
+      title: branding.brandName,
+      siteName: branding.brandName,
+    },
+    twitter: {
+      ...DEFAULT_METADATA.twitter,
+      title: branding.brandName,
+    },
+  };
+}
 
 export default async function RootLayout({
   children,
