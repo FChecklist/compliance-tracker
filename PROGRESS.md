@@ -88,3 +88,37 @@ and auto-merge.
 ## Remaining
 - [ ] Open PR, confirm CI green, hand off for independent audit per this repo's own standing
       review process -- not self-certified here.
+
+---
+
+# PROGRESS -- task-20260804-091301-pm-decision--continue-monitoring-the-rem
+
+SPEC (`UMR-20260802-173631-ca85` OCID-021 PM decision): PR #773 (OCID-029) already
+independently verified merged (commit `8e90dc35`). Continue monitoring the remaining
+4 real Group C PRs -- #780, #778, #777, #785 -- resolving any real blocker as it surfaces.
+No new decision needed.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting; no other active session
+      currently claims PRs #780/#778/#777/#785.
+- [x] Restored `PROGRESS.md` from `HEAD` before appending (workspace copy had been
+      scaffolded as a 6-line stub silently truncating the real history above) -- same
+      recurring regression class prior sessions flagged.
+- [x] Independently checked live state of all 4 PRs via `gh pr view`/`gh pr checks`
+      rather than trusting the spec's snapshot:
+      - PR #780: `mergeStateStatus: UNSTABLE`, `mergeable: MERGEABLE`. All 7 required
+        checks (Lint/Type Check/Build/audit-check/Guardrail Presence/Asset Registry
+        Coverage/Unit Tests) pass. UNSTABLE was only a non-required `Vercel` check
+        failing (`Deployment rate limited`, not in branch protection's required
+        contexts) -- not a real blocker.
+      - PR #778, #777, #785: `mergeStateStatus: DIRTY`, `mergeable: CONFLICTING` --
+        real merge conflicts against `main`, need rebase.
+- [x] Merged PR #780 (squash), no blocker was real. Merge commit `e06786c3`,
+      confirmed `state: MERGED` at `2026-08-04T09:14:40Z`.
+
+## Remaining
+- [ ] Rebase/resolve real merge conflicts on PR #778, then re-check CI, then merge.
+- [ ] Rebase/resolve real merge conflicts on PR #777, then re-check CI, then merge.
+- [ ] Rebase/resolve real merge conflicts on PR #785, then re-check CI, then merge.
+- [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry to `recently_completed:` once
+      all 4 PRs are resolved.

@@ -40,24 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only) [PUSHED, PR OPEN]"
-    claimed_at: "2026-08-03T (this session, closed same session)"
+  - session_label: "claude-code (task-20260804-091301-pm-decision--continue-monitoring-the-rem) -- monitor remaining Group C PRs #780/#778/#777/#785, resolve real blockers [IN PROGRESS]"
+    claimed_at: "2026-08-04T09:13Z (this session)"
     claim: |
-      SPEC citing UMR-20260803-041257-e9c3 (parent OCID-028 directive) and the
-      OCID-022 through 028 chain. Documentation-only deliverable: one new
-      canonical doc, `ai-os/VERIDIAN_UNIVERSAL_ORGANIZATION_RUNTIME_2026-08-03.md`,
-      covering the organization/multi-brand/multi-tenant/legal-entity/role/
-      rights/approval/delegation/visibility model as it already exists in this
-      repo -- reuse-and-standardize, zero new schema/code. Consistent with
-      SEC-07 (ai-os/CONSTITUTION.yaml): SEC-07 locks *implementation,* not
-      documentation, and this task performs no implementation. Per PM decision
-      `UMR-20260803-045159-ec55`, checked for cluster overlap before writing:
-      as of this claim, `gh pr list` shows no open PR and no merged content for
-      OCID-026/027/028/030/032/034/035/037 (the sibling "search-first,
-      reuse-first" cluster) -- only OCID-022/023/024/025 have real draft/open
-      content, none of which covers the organization/role/rights model this
-      OCID is scoped to. File scope: the new doc, `PROGRESS.md`, this entry.
-      No src/, schema, or CI changes.
+      SPEC (PM decision, `UMR-20260802-173631-ca85` OCID-021): PR #773 (OCID-029)
+      already independently verified merged (commit `8e90dc35`). Continue monitoring
+      the remaining 4 real Group C PRs -- #780, #778, #777, #785 -- resolving any
+      real blocker as it surfaces. No new decision needed.
+
+      Independently re-checked live state of all 4 PRs rather than trusting the
+      spec's snapshot: PR #780 was `mergeStateStatus: UNSTABLE` / `mergeable:
+      MERGEABLE`, all 7 required checks passing -- the only failing check was the
+      non-required `Vercel` preview deployment (rate-limited), not a real blocker.
+      Merged PR #780 (squash), merge commit `e06786c3`. PR #778, #777, #785 are
+      real `DIRTY`/`CONFLICTING` -- genuine merge conflicts against `main`, working
+      through rebase/resolve for each next.
+    scope_note: >-
+      File scope: PR #778/#777/#785 branches (conflict resolution only, no new
+      feature work), `PROGRESS.md`, this entry. No unrelated src/ changes.
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [IN PROGRESS]"
     claimed_at: "2026-08-04T06:08Z (this session)"
   - session_label: "claude-code (docs/ocid039-active-claims-completion-correction) -- housekeeping: correct stale 'PR #789 OPEN' label in this file's own active: section to reflect PR #789's real, independently-verified merge (commit 4284570af7d5d7ff2a4e6f1c32676794d3001ff9) [PUSHED]"
@@ -5316,6 +5316,24 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260803-050504-ocid-029-veridian-universal-organization) -- OCID-20260803-029: VERIDIAN Universal Organization Runtime v1.0 (documentation only) [DONE, PR #773 MERGED -- merge commit 8e90dc35, confirmed via `git log`, 2026-08-04.]"
+    claimed_at: "2026-08-03T (this session, closed same session)"
+    claim: |
+      SPEC citing UMR-20260803-041257-e9c3 (parent OCID-028 directive) and the
+      OCID-022 through 028 chain. Documentation-only deliverable: one new
+      canonical doc, `ai-os/VERIDIAN_UNIVERSAL_ORGANIZATION_RUNTIME_2026-08-03.md`,
+      covering the organization/multi-brand/multi-tenant/legal-entity/role/
+      rights/approval/delegation/visibility model as it already exists in this
+      repo -- reuse-and-standardize, zero new schema/code. Consistent with
+      SEC-07 (ai-os/CONSTITUTION.yaml): SEC-07 locks *implementation,* not
+      documentation, and this task performs no implementation. Per PM decision
+      `UMR-20260803-045159-ec55`, checked for cluster overlap before writing:
+      as of this claim, `gh pr list` shows no open PR and no merged content for
+      OCID-026/027/028/030/032/034/035/037 (the sibling "search-first,
+      reuse-first" cluster) -- only OCID-022/023/024/025 have real draft/open
+      content, none of which covers the organization/role/rights model this
+      OCID is scoped to. File scope: the new doc, `PROGRESS.md`, this entry.
+      No src/, schema, or CI changes.
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |
