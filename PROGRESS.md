@@ -2630,13 +2630,27 @@ OCID-026: VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0
 - [x] Recovered `PROGRESS.md` from the same per-task-stub-checkout issue documented in that same
       memory (local working tree had a fresh 6-line stub; restored the real 2617-line
       `origin/main` history before appending this section).
+- [x] Produced `ai-os/VERIDIAN_OCID_064_COMPARISON_AND_FOLD_RECOMMENDATION_2026-08-04.md`: honest,
+      section-cited comparison of the new prompt's four claimed elements (local browser LLM tool
+      calling, context injection against ID hallucination, deterministic confidence calculation,
+      brand/org/task identity envelope) against OCID-061's and OCID-062's real, current
+      discovery/design output (both read in full from their own open-PR branch heads, #878/#876).
+      Finding: all four are restatements of already-covered ground -- no new tooling choice or
+      mechanism found.
+- [x] Recommended folding the identity-envelope element into OCID-061's own
+      `GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT` and the tool-calling/context-injection elements into
+      OCID-062 §4.5, rather than building OCID-064 as a separate deliverable. Explicitly did not
+      register OCID-064 as its own initiative, per PM instruction.
+- [x] Added `ai-os/OS.yaml` index entry for the new comparison document (validated via
+      `python3 -c "import yaml; yaml.safe_load(...)"` -- `check-metadata-index-coverage.mjs` could
+      not run locally, missing `node_modules`/`js-yaml`, an environment issue unrelated to this
+      change; CI will run the real check on the PR).
+- [x] No code, no database object, no new registry/table/schema created this phase -- respected the
+      PM's explicit prohibition on a fourth-registry-shaped envelope.
 
 ## Remaining
-- [ ] Produce the honest comparison document: what the OCID-064 prompt's four claimed elements
-      (local browser LLM tool calling, context injection against ID hallucination, deterministic
-      confidence calculation, and an identity envelope) add versus what OCID-061/OCID-062 already
-      cover.
-- [ ] Propose folding any genuinely new value into OCID-061 or OCID-062's own deliverables,
-      citing exact sections, rather than building OCID-064 as a separate initiative.
-- [ ] Commit + push; report back to PM for a fresh decision. No implementation, no new
-      table/registry/schema this phase per explicit instruction.
+- [ ] Commit + push this PR; report the comparison + fold recommendation back to PM for a fresh
+      implementation decision.
+- [ ] (out of scope for this dispatch, disclosed not fixed) OCID-061's own branch (PR #878) appears
+      to replace rather than append several unrelated `MASTER-TRACKER.yaml`/`OS.yaml` entries versus
+      current `origin/main` -- worth a look by whoever reviews that PR for merge.
