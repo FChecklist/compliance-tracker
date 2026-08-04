@@ -40,7 +40,8 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-161621-ocid-054-registration-and-discovery-only) -- OCID-054 registration + discovery reconciliation only, real UMR UMR-20260804-162201-bc4e [DONE, PR pending]"
+  - session_label: "claude-code (task-20260804-161621-ocid-054-registration-and-discovery-only) -- OCID-054 registration + discovery reconciliation only, real UMR UMR-20260804-162201-bc4e [DONE, PR #905 open]"
+    pr: "compliance-tracker PR #905 (open)"
     claimed_at: "2026-08-04T16:22Z (this session)"
     claim: |
       SPEC (real Owner directive, registration + read-only discovery/inventory only, hard
