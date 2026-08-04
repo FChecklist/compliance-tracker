@@ -509,6 +509,44 @@ active:
       Read-only discovery across `src/lib/browser-execution/`, `VeriComposer.tsx`,
       `ChainSelector.tsx`, chat/messages API routes, PWA manifest/service-worker
       files, push-notification and offline/sync code.
+  - session_label: "claude-code (task-20260804-040750-register-ocid-053--universal-knowledge-g, worker/task-20260804-040750-register-ocid-053--universal-knowledge-g) -- OCID-053: Universal Knowledge Graph + Reference Graph + UMR Integrity Report + Orphan/Duplicate Detection Report, discovery/normalization only, no new architecture [IN PROGRESS]"
+    claimed_at: "2026-08-04T04:10Z (this session)"
+    claim: |
+      SPEC (PM directive, this task's own prompt): register OCID-053 as a real child of OCID-020
+      (`UMR-20260802-165606-4413`) and OCID-021 (`UMR-20260802-173631-ca85`). A third named parent,
+      "OCID-012 Governance Foundation," returned zero matches on every real registry this session
+      queried (ACTIVE-CLAIMS.yaml, COMPLETED.yaml, OS.yaml, MASTER_INDEX.yaml, MASTER-TRACKER.yaml)
+      -- not registered as a parent, flagged back to the Owner directly rather than invented.
+
+      Discovery/normalization/repair only, reusing existing UMR/UTR/workers/evidence/reports across
+      OCID-015 through OCID-037 and OCID-047 through OCID-052 -- zero new architecture, framework,
+      registry, or execution engine. Producing 4 real deliverables in one canonical doc: Universal
+      Knowledge Graph, Universal Reference Graph, UMR Integrity Report, and Orphan/Duplicate
+      Detection Report. Explicitly NOT attempting platform freeze validation or final constitution
+      certification this phase (OCID-038/039/040 have not genuinely cleared per the standing hard
+      rule 7).
+
+      Two real integrity repairs in scope: (a) resolve the UMR-20260803-115558-170e OCID-050/OCID-051
+      attribution ambiguity found in this file's own prose (one entry's sentence structure could be
+      misread as attributing this UMR to OCID-050); (b) verify completion state of the Group C
+      documentation-merge pass dispatched under UMR-20260804-032101-dcd0
+      (`task-20260804-032121-group-c-closure--review-and-merge-the-ni`,
+      `worker/task-20260804-032121-group-c-closure--review-and-merge-the-ni`) and fold its real
+      merged PR numbers in.
+
+      Collision check performed before starting (per this file's own protocol): grepped this file
+      for "OCID-053" (zero matches) before registering. Confirmed via `git fetch origin main` that
+      local `main` matches `origin/main` (both at `8257ae5b`) before reading this file, so this read
+      is current. Not starting a parallel worker -- the Group C closure task's own worker directory
+      (`task-20260804-032121-...`) already exists and is reused read-only for its own real PR/UMR
+      state, not re-dispatched.
+    scope_note: >-
+      File scope: one new canonical `ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`
+      artifact, `ai-os/OS.yaml` (new index entry), `ai-os/MASTER-TRACKER.yaml` (integrity-repair
+      findings if any survive verification), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry + the
+      170e disambiguation), `PROGRESS.md`. No src/, schema, or CI changes -- pure discovery/
+      documentation, per this OCID's own explicit no-new-architecture scope.
+
   - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
     claimed_at: "2026-08-03T21:55Z (this session)"
     claim: |
