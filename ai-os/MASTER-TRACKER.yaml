@@ -663,6 +663,28 @@ open_items:
       status: closed
       first_raised: "OCID-020 Group F / OCID-052 re-verification, 2026-08-04 (UMR-20260802-165606-4413)"
       closed_by: "UMR-20260804-155457-a16d, 2026-08-04 -- production DB migration 0312 applied, independently re-verified live"
+      reverification_2026_08_04_1846: |
+        Second, independent re-verification pass (task-20260804-183824, dispatched as an "urgent
+        correction" against a real but by-then-stale premise -- cites UMR-20260804-155457-a16d,
+        UMR-20260804-153900-ea69). At dispatch time the dispatching PM had independently checked PR
+        #900 and found it genuinely OPEN/mergedAt null/BEHIND -- an accurate observation at the
+        moment it was made. By the time this task started real work, a separate, real autonomous
+        supervisor cycle (task-20260804-160451, adopted pre-existing branch) had already rebased and
+        merged PR #900 for real (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`) and a follow-on
+        duplicate PR (#914, same branch content) was correctly rejected as a stale no-op by an
+        independent Superboss review agent and auto-closed. This is a live-concurrent-state-drift
+        case, not a false-claim case: re-confirmed independently, not trusted from the merged
+        commit's own prose --
+        (1) direct `psql` query against the real production DB: `platform.product_branches` has a
+        real `host_domain` column, a real partial unique index on it, and the PROJEXA row
+        (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) has `host_domain = 'projexa-ai.com'` -- migration
+        0312 genuinely applied, not just claimed;
+        (2) 10 fresh, independent, Admin-API-provisioned real users (not retries on one user) each
+        got a real `200` with full JSON from `GET /api/me` on live `projexa-ai.com` -- **10/10**,
+        strictly more coverage than the original closure's own 4/4, zero non-200 responses, zero
+        setup errors. Conclusion: the fix is genuinely merged and genuinely live-verified as of this
+        pass -- no further correction to this entry's `status: closed` was needed, and none was made
+        that would misrepresent a real fix as still-broken.
 
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
