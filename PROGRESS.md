@@ -1,3 +1,53 @@
+# PROGRESS -- fix/ocid038-offline-service-worker
+
+Real gap closure: `GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE`, per real PM directive
+`UMR-20260804-105822-a267` (parent OCID-038 `UMR-20260803-042801-ec4b` / OCID-021
+`UMR-20260802-173631-ca85`). Real implementation authorized after the honest final-sweep
+finding that this gap (and two siblings) remained genuinely open under OCID-038's own
+completion scope.
+
+## Completed
+- [x] Real discovery before writing anything: confirmed zero existing service-worker
+      infrastructure anywhere in the codebase (`git grep` for `serviceWorker`/`service-worker`/
+      `sw.js`/`next-pwa`/`workbox`, zero hits outside `node_modules`), confirmed no PWA-related
+      dependency already installed (`next-pwa`/`serwist`/`workbox`, none in `package.json`),
+      confirmed the real, existing manifest (`src/app/manifest.ts`, `start_url: "/home"`).
+- [x] Real, minimal implementation, matching the gap's own explicit "minimal app-shell" scope
+      (not full offline-first, since this app is almost entirely dynamic/authenticated):
+      `public/sw.js` (network-first for navigation requests only; falls back to a cached offline
+      page on genuine network failure; every other request type -- API calls, data fetches,
+      static assets -- passes straight through, untouched, never intercepted or cached) and
+      `public/offline.html` (a plain, self-contained static fallback page, deliberately not a
+      Next.js route, to avoid any JS-hydration-cache complexity).
+- [x] Registered inside `src/components/AppShell.tsx` -- the exact real mount point the original
+      gap was directly observed inside (an already-authenticated session going offline).
+- [x] Real local verification: `bunx tsc --noEmit` clean, `bunx eslint .` clean (matches the
+      pre-existing baseline warnings exactly, zero new ones), `node --check public/sw.js`
+      confirms valid JS syntax (this file isn't run through the Next.js/eslint bundler, so
+      checked directly), real unconstrained `bun run build`
+      (`BUILD_MAX_OLD_SPACE_MB=8192`, `systemd-run --user --scope` w/ unlimited memory,
+      `flock`-serialized) -- clean, full route manifest.
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`'s `GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE` entry with
+      a real `implementation_note` -- `status` deliberately left `open`, not flipped to
+      `resolved`: this gap's own recommendation explicitly requires "re-run this same real
+      offline test... against a real live session," and a service worker's real offline behavior
+      cannot be honestly claimed working before it is actually deployed (Vercel auto-deploys on
+      merge to `main`) -- the live re-test is a genuine, disclosed post-merge step, not skipped or
+      silently claimed done.
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
+- [x] Ran all 4 governance checks (`check-metadata-index-coverage.mjs`,
+      `check-doc-cross-references.mjs`, `check-guardrail-presence.mjs`,
+      `check-terminology-guardrail.mjs --diff-only`) -- all pass.
+
+## Remaining
+- [ ] Open PR, real independent review before merge -- not self-certified here.
+- [ ] Real post-merge step (cannot be done before deployment): re-run the same real offline test
+      (`browserContext.setOffline(true)` + reload against an authenticated live session) to
+      confirm a graceful offline fallback instead of a blank page, then flip this gap's `status`
+      to `resolved` in `MASTER-TRACKER.yaml` with that real evidence.
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
