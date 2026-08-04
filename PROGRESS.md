@@ -24,8 +24,12 @@
       history of repeat duplicate dispatches) so a future session doesn't re-attempt this same
       already-closed conflict resolution.
 
+- [x] Pushed this task's branch and opened PR #892
+      (https://github.com/FChecklist/compliance-tracker/pull/892) carrying only this verification
+      record, per Rule 6 (PR/CI gate, no exceptions even for a "no functional change" doc-only task).
+
 ## Remaining
 - [ ] None. Real PM decision: **no code/doc action required** -- PR #785 is merged, conflict-free, on
       `origin/main`. Nothing to rebase, resolve, or re-push. Leaving PR #785 alone per instructions
       (it's already closed/merged, not something to merge "myself" -- that ship sailed before this
-      session started).
+      session started). This task's own closeout is PR #892 (verification record only).
