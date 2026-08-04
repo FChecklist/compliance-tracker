@@ -5284,7 +5284,39 @@ active:
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
 recently_completed:
-  - session_label: "claude-code (fix/gap-ocid038-taskengine-motherrouter-unwired) -- OCID-038: real fix for GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED [DONE, PR pending]"
+  - session_label: "claude-code (docs/ocid038-projexa-domain-and-schema-discovery-brief) -- OCID-038: real discovery brief for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH + GAP-OCID038-PROJEXA-OWN-SCHEMA, docs only, no implementation [DONE, PR pending]"
+    claimed_at: "2026-08-04T01:20Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260804-011851-676b`, citing `UMR-20260802-173631-ca85` OCID-021 and
+      `UMR-20260803-042801-ec4b` OCID-038): PM correctly declined to authorize implementation on
+      either remaining OCID-038 gap since neither had a real written discovery brief. Write one for
+      both, into `PROGRESS.md` and the OCID-038 canonical doc -- discovery/documentation only, no
+      code, routing, or schema change.
+
+      Live-verified today, not carried forward unverified: `vercel domains inspect` confirms
+      `projexa-ai.com`/`www.projexa-ai.com` are on Vercel project `veridian-compliance-ai`, and this
+      is the Owner's own explicit, re-confirmed `WAVE-10-REDO` decision (`UMR-20260802-134939-145d`,
+      2026-08-02), not accidental drift -- found and read the real 3-step history
+      (`ai-os/boss/completed-work/wave10-dns-cutover.md`). Root-caused the branding symptom to
+      `resolveBranding()`'s deliberate org-scoped/post-login design (already independently documented
+      across 3 prior waves as a known, deferred gap). Checked live data: `customDomain` set for
+      exactly 1 org platform-wide (a test fixture, zero real PROJEXA orgs); flagged a
+      `product_branches` discrepancy as a likely 3rd occurrence of the already-tracked
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` rather than fresh standalone proof.
+      Precisely named the real open product question (single canonical PROJEXA identity vs. the
+      Owner's brand-merge framing possibly meaning today's state already is intended) rather than
+      re-asserting "fix the domain."
+
+      Separately: fresh clone + direct `grep` (not GitHub's own code search, which the original
+      finding's own text already flagged non-exhaustive) finds `veridian-client.ts` (240 lines, real,
+      live) and 51 real call sites across genuine construction-domain routes -- substantially updates
+      the original "not a thin client" verdict for the application-data layer specifically, while
+      separately, precisely naming what is NOT unified (auth/session -- PROJEXA's own separate
+      Supabase Auth, no user-level SSO).
+
+      Full brief: OCID-038 canonical doc's new §9. Both `MASTER-TRACKER.yaml` gap entries amended
+      with a `discovery_brief` cross-reference field, `status` left `open` for both. No implementation.
+  - session_label: "claude-code (fix/gap-ocid038-taskengine-motherrouter-unwired) -- OCID-038: real fix for GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED [DONE, PR #856 merged]"
     claimed_at: "2026-08-04T00:58Z (this session)"
     claim: |
       SPEC (PM decision `UMR-20260804-005752-fcb1`, citing `UMR-20260802-173631-ca85` OCID-021 and
