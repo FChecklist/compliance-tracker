@@ -2556,6 +2556,35 @@ open_items:
         composer submit action, and root-cause from there.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072925-cacf)"
+      reverification_2026_08_04: |
+        Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
+        also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
+        own UMR): fresh, real, live Playwright session against
+        `https://projexa-ai.com` this session, real Admin-API-created user (not
+        the public `/signup` form -- that hit a genuine Supabase
+        `over_email_send_rate_limit` 429 mid-session, the same real production
+        control the original OCID-038/039/040 session hit; used
+        `POST /auth/v1/admin/users` with `email_confirm: true` instead, which
+        sends no email and isn't subject to that limiter -- `autoProvisionUser()`
+        in `auth-guard.ts` fires lazily off `user_metadata.full_name`/
+        `organisation` on first authenticated `requireAuth()` call regardless of
+        which path created the user row, so this remains a faithful real-login
+        provisioning path, not a shortcut around it), real login reaching
+        `/home` authenticated, real navigation to `/veri-todo`. **Result: NOT
+        reproduced.** No "Loading..." text present at an immediate check or a
+        real 10-second-later re-check (longer than the original 6s window);
+        real screenshot shows the task list resolved cleanly to "Nothing
+        pending. You're all caught up." Honest caveat: this was a brand-new org
+        with zero real task data, unlike whatever data state backed the
+        original observation -- this re-check confirms the list does not hang
+        indefinitely on an empty-data path, it does not independently confirm
+        the composer's separate "VERI AI isn't ready yet" toast is also
+        resolved (not re-tested this session), nor rule out a real
+        data-volume-dependent slow path on a populated org. Screenshots:
+        `/tmp/ocid020-verify/screenshots/02-veri-todo-immediate.png`,
+        `03-veri-todo-after-10s.png`, `06-veri-todo-fullpage.png` (this
+        server, not committed -- same ephemeral-evidence convention as the
+        original finding's own screenshots).
 
     - id: GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE
       name: "Real installable PWA manifest exists, but no service worker -- going offline renders a fully blank page with no offline fallback UI (severity: medium -- real, directly observed, real recovery on reconnect confirmed clean)"
@@ -2619,6 +2648,29 @@ open_items:
         checked against it), or specific to this single observation.
       status: open
       first_raised: "OCID-038/039/040 real end-user testing, 2026-08-03 (UMR-20260803-072955-3132)"
+      reverification_2026_08_04: |
+        Real re-verification, `UMR-20260802-165606-4413` OCID-020 (parent chain
+        also citing `UMR-20260803-042801-ec4b` OCID-038, the original finding's
+        own UMR): same real live session described in
+        `GAP-VERI-TODO-STUCK-LOADING-NOT-READY`'s reverification entry above --
+        real Admin-API-created + authenticated session, real navigation to
+        `/home` at desktop width, real `setViewportSize({width:390,
+        height:844})` + real reload + a real 2-second wait (matching the
+        original test's own methodology). **Result: NOT reproduced.** Real
+        screenshot shows genuine visible content at the 390x844 viewport -- a
+        "VERI TREASURE / 0 points" card and the real VERI Chat panel
+        (Discuss/Chats/To Do tabs, task-selector, composer) fully rendered, not
+        blank; `document.querySelector('main').innerText` measured 573
+        characters of real content (vs. the original's fully blank main area).
+        Honest caveat: this is a fresh org with different data/state than
+        whatever backed the original single observation, and this is still
+        only a second single observation, not a broad regression sweep across
+        routes/orgs -- but it is a direct, real contradiction of the original
+        blank-content report on the same route/viewport/methodology, not
+        merely an absence of re-reproduction. Screenshot:
+        `/tmp/ocid020-verify/screenshots/05-mobile-home.png` (this server, not
+        committed -- same ephemeral-evidence convention as the original
+        finding's own screenshots).
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without

@@ -40,6 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-125247-ocid-020-concrete-redirect-stop-open-end) -- OCID-020 concrete redirect: real live re-verification of GAP-VERI-TODO-STUCK-LOADING-NOT-READY and the mobile-viewport-blank-content gap against live projexa-ai.com [DONE, PR pending]"
+    claimed_at: "2026-08-04T13:03Z (this session)"
+    claim: |
+      SPEC (real PM decision, UMR-20260802-165606-4413 OCID-020): a prior interactive session had
+      correctly finished both underlying investigations but stalled deliberating on where to
+      redirect freed capacity instead of committing to a concrete next action. This dispatch's own
+      concrete redirect: one bounded real action, not a continuation of the OCID-047 work already
+      running under task-20260803-150821-pm-decision--proceed-with-ocid-047-real (explicitly not
+      duplicated here). Real fresh Playwright session against https://projexa-ai.com (Admin-API-
+      created user, real login, real navigation): GAP-VERI-TODO-STUCK-LOADING-NOT-READY NOT
+      reproduced (task list resolved cleanly after 10s, vs. the original 6s hang); the mobile-
+      viewport-blank-content gap NOT reproduced (573 chars of real rendered main content at
+      390x844, vs. the original's blank main area). Both honestly caveated (fresh org, zero/low
+      real data, single re-observation) rather than declared definitively fixed. Recorded as
+      additive `reverification_2026_08_04` fields on both existing MASTER-TRACKER.yaml entries,
+      citing this OCID-020 UMR alongside UMR-20260803-042801-ec4b (OCID-038, the original
+      finding's own UMR). Real evidence (screenshots, results.json) left at
+      /tmp/ocid020-verify/ on this server, ephemeral, not committed.
+    scope_note: >-
+      File scope: ai-os/MASTER-TRACKER.yaml (two additive reverification fields, no existing
+      content changed), PROGRESS.md (new section, restored this branch's own accidentally-
+      truncated prior history rather than leaving it overwritten), this ACTIVE-CLAIMS entry. No
+      src/, schema, or infrastructure changes -- read-only live verification against the deployed
+      site, zero code changes.
   - session_label: "claude-code (interactive, docs/ocid067-vedtocp-digital-twin-program-registration) -- OCID-067 VEDTOCP registration/planning only, LOCKED pending full OCID-015..066 completion [PUSHED, PR pending]"
     claimed_at: "2026-08-04T11:15Z (this session)"
     claim: |
