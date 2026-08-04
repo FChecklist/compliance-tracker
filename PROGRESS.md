@@ -1,47 +1,62 @@
-# PROGRESS -- task-20260804-183824-ocid-020-urgent-correction-real-merge-fa
+# PROGRESS -- task-20260804-230831-fix-real-failing-ci-checks-on-pr-924--gr
 
-SPEC: Real PM decision, urgent correction. Dispatched on the accurate-at-the-time finding that
-PR #900 was OPEN/mergedAt null/mergeStateStatus BEHIND, and the earlier docs claim that
-"production migration 0312 applied, live-verified" was false since the fix had never actually
-merged. Instructed to rebase PR #900, resolve conflicts, merge for real, then independently
-re-verify 10 real reproduction attempts against live `/api/me`. Cites `UMR-20260804-155457-a16d`
-and `UMR-20260804-153900-ea69`.
+SPEC: PM decision, `UMR-20260804-221844-c915` + `UMR-20260802-165606-4413`. Real evidence via
+`gh pr checks 924`: a passive wait monitor had been running 30+ min on PR #924 while 2 real CI
+checks (Terminology Guardrail Check, audit-check) had already completed and failed in <30s each.
+Diagnose each failure from the real GitHub Actions logs, fix for real, confirm `mergeStateStatus`
+reports CLEAN.
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting.
-- [x] Re-checked PR #900 live (`gh pr view`, `git log origin/main`): found the dispatch's own
-      premise had been overtaken by real events since it was written -- PR #900 is now
-      **MERGED** (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`), via a separate real
-      autonomous supervisor cycle (`task-20260804-160451-adopted-ocid-020--close-gap-api-me-500----produc`)
-      that rebased and merged it before this task's own dispatch time (18:38Z). A duplicate
-      follow-on PR (#914, identical branch content) was independently reviewed by a Superboss
-      agent, correctly found to be a stale no-op re-review of already-merged content, rejected,
-      and auto-closed -- no action needed there.
-- [x] Did **not** re-attempt an already-completed rebase/merge, and did **not** falsely mark the
-      real, now-fixed state as still "blocked" just to match the dispatch's own now-superseded
-      framing -- the honest finding is that the original PM's observation was correct when made,
-      but stale by execution time (live-concurrent-state-drift, not a false-claim case).
-- [x] Independently re-verified the real production fix from scratch, trusting neither the
-      merged commit's own prose nor the dispatch's premise:
-      - Direct `psql` query against the real production DB (`platform.product_branches`):
-        confirmed `host_domain` column genuinely exists, its partial unique index genuinely
-        exists, and the PROJEXA row (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) genuinely has
-        `host_domain = 'projexa-ai.com'`. Migration 0312 is genuinely applied to production, not
-        just claimed.
-      - 10 fresh, independent, Admin-API-provisioned real users (not retries on one user, to
-        match the original 10/10-failure finding's own methodology), each a real password-grant
-        login + hand-constructed `@supabase/ssr` session cookie, each a real `GET /api/me`
-        against live `projexa-ai.com`: **10/10 returned a real 200 with full JSON**, 0/10
-        non-200, 0/10 setup errors. Strictly exceeds the original closure's own claimed 4/4.
-        Script + raw output: `/tmp/verify-apime-ocid020-20260804-1846.mjs`.
-- [x] Added an additive `reverification_2026_08_04_1846` field to
-      `ai-os/MASTER-TRACKER.yaml`'s existing `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` entry
-      recording this second independent pass and its evidence, citing both UMRs. Did not change
-      `status: closed` since the closure is genuinely correct -- validated the YAML still parses.
-- [x] Added a `recently_completed` entry to `ai-os/boss/ACTIVE-CLAIMS.yaml` documenting this
-      finding honestly, per that file's own protocol.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting (no existing claim found for PR #924).
+- [x] Pulled real failure logs directly from both cited run URLs via `gh api .../actions/jobs/<id>/logs`
+      (job-level fetch -- run-level `--log`/`--log-failed` silently truncated to ~30 lines in this
+      sandbox, same class as the documented shell-truncation bug).
+  - **Terminology Guardrail Check** (run 30956803205): real failure --
+    `check-terminology-guardrail.mjs --diff-only` found 4 new (unexempted) `hardcoded_iso_date`
+    findings across `mother-router.ts` (2) and `subscription-plan-service.ts` (2) -- literal
+    `2026-07-01`/`2026-07-19` dates in explanatory comments added by this PR's own prior commit
+    (`9695bfb1`), exceeding the files' recorded exemption baselines.
+  - **audit-check** (run 30956803207): real failure -- `validate-audit-verdict.ts` reported
+    "No structured audit verdict found." Confirmed via `gh api .../issues/924/comments`: genuinely
+    zero `AUDIT: PASS`/`FAIL` comments existed on PR #924 at all -- **not** the known
+    wrong-commit-evaluation bug (that bug fires only *after* a comment exists).
+- [x] **Found a concurrent session had already pushed a real fix** for the terminology failure
+      (commit `80b0c27b`, same UMR chain, pushed mid-investigation) while I was diagnosing --
+      live-concurrent-state-drift, not a duplicate-dispatch collision (see memory
+      `veridian-live-concurrent-state-drift`). Did not re-do it; independently verified it instead:
+  - Pulled real file blobs via `git cat-file -p <blob-sha>` (not `git show`/`diff`, which
+    truncated large files in this sandbox -- same documented flaky-truncation bug) and diffed
+    before/after by hand: the fix only reworded the 2 flagged literal dates in each file to
+    relational language ("see that migration's own file header"), with zero change to the actual
+    `where:` filter logic already merged in `9695bfb1`.
+  - Re-ran `node scripts/check-terminology-guardrail.mjs --diff-only` locally in a fresh
+    `git worktree` at `80b0c27b`: **"Terminology Guardrail Check passed -- 2 file(s) scanned, no
+    new hardcoded-example findings."** -- matches CI's own live pass on this commit.
+  - Independently verified the underlying functional fix (`and(eq(isActive,true),
+    sql`features->>'aiPackage' IS NOT NULL`)`) against `drizzle/0231_ai_router_mother_router.sql`'s
+    own seed comment naming `aiPackage` as the deliberate discriminator the 4 legacy
+    Trial/Starter/Growth/Scale rows lack -- logic is correct, minimal, and matches the PR's stated
+    root cause.
+  - `bunx eslint` on both changed files: clean. CI's own Type Check/Unit Tests/Lint/Build all
+    passed live on `80b0c27b`.
+- [x] For audit-check: since I did not implement either fix, I qualify as the Rule 7c
+      non-self-certifying auditor. Posted a real structured `AUDIT: PASS` comment (8 required
+      fields, `scripts/validate-audit-verdict.ts`'s exact contract) on PR #924 documenting the
+      independent review above.
+- [x] Applied the known real fix pattern for the audit-check SHA-mismatch class of bug (per this
+      session's own prior occurrence, cited in the SPEC): pushed a real empty `synchronize` commit
+      (`1b190ab0`) after the comment, since `issue_comment`-triggered runs of
+      `mandatory-audit-check.yml` check out `main`, not the PR head, and never actually clear the
+      head commit's required-check status on their own.
+- [x] Confirmed live: `audit-check` now **pass** (19s, run `30959329167`), all other checks pass,
+      `gh pr view 924 --json mergeStateStatus,mergeable` reports **`{"mergeStateStatus":"CLEAN",
+      "mergeable":"MERGEABLE"}`**.
+- [x] Cleaned up the temporary audit worktree (`/tmp/pr924-audit`).
 
 ## Remaining
-- [ ] None outstanding for this task. No code change was needed (the real fix was already merged
-      and is independently confirmed live); no new PR (nothing left to merge). Commit + push this
-      doc-only correction, citing both UMRs.
+- [ ] None for this task's own scope. PR #924 is CLEAN and ready to merge -- merging itself is a
+      separate real step for whoever is driving that PR (not this task's own SPEC, which was
+      scoped to fixing the 2 real failing checks).
+- [ ] (Carried, not this task's scope) PR #924's own body already discloses: live re-verification
+      of the tier-resolution fix against the deployed site is the real remaining step *after*
+      this PR merges and deploys.
