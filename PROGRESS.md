@@ -2302,3 +2302,63 @@ decision, PR #851, confirmed merged before this session started via `git merge-b
       against a `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` branch -- check
       `ai-os/boss/ACTIVE-CLAIMS.yaml` for a live claim on that gap before picking it up, to avoid
       duplicate work.
+
+---
+
+# PROGRESS -- fix/gap-veri-chat-no-visible-ai-signal
+
+Cites: `UMR-20260802-173631-ca85` (OCID-021, real implementation, authorized by PM decision
+`UMR-20260803-212402-1922` after OCID-020 was declared complete), fixing
+`GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` (OCID-021 Wave 1 backlog item -- Items 1 and 2,
+`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK` and `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
+were already handled by this same task's prior invocations, PR #851 merged and PR #852 open pending
+independent audit respectively -- not touched by this branch).
+
+## Completed
+- [x] On resume, found this task's own workspace had real, uncommitted, working code for this exact
+      gap sitting directly on top of PR #852's own branch -- a prior invocation had started the next
+      backlog item without first switching to its own branch, which would have mixed two unrelated
+      gaps into one PR/audit unit. Verified the in-progress diff first rather than discarding or
+      blindly trusting it: read `HomeThreadSlot.tsx`'s new `RawMessage.confidenceLabel` field and
+      `withSourceTypeLabel()` helper against `ai-os/MASTER-TRACKER.yaml`'s own
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` recommendation -- matches exactly (presence/
+      absence of `confidenceLabel` only, not its high/medium/low value, deliberately not reusing the
+      confidence badge for refusal detection). Confirmed the backend already emits this field for real
+      (`chat-service.ts:394`'s `getMessages()` mapping), so this is a real, grounded fix, not a broken
+      assumption.
+- [x] Relocated the in-progress change to its own isolated branch rather than commit it onto PR #852:
+      `git worktree add /tmp/pr-fixes/veri-chat-signal -b fix/gap-veri-chat-no-visible-ai-signal
+      origin/main` (a scratch worktree, not the shared main task workspace, per
+      [[veridian-shared-worktree-stash-risk]] -- `git stash` is repo-wide across this repo's many
+      concurrent task worktrees and was avoided entirely; files were copied out and back in instead).
+      `node_modules` symlinked from the main workspace rather than reinstalled (identical `bun.lock`/
+      `package.json`, confirmed via `diff` before symlinking, to avoid an unnecessary multi-minute
+      `bun install` on an already memory-pressured host).
+- [x] `bunx tsc --noEmit` clean in the new worktree itself (not just trusted from the original
+      workspace) -- ran slowly (host under real memory/swap pressure from concurrent sessions, swap
+      100% used, tsc took ~25 real minutes single-run under that contention) but completed with exit
+      code 0, zero errors.
+- [x] `bun test src/components/veri-chat/HomeThreadSlot.test.ts` in the new worktree: 4 pass / 0 fail /
+      6 expect() calls. The regression test (already written by the prior invocation) covers
+      `withSourceTypeLabel()` directly -- the pure function `HomeThreadSlot.tsx` delegates to, matching
+      this repo's established pattern of testing the pure derivation function rather than rendering the
+      component (the component's own render target, `ThreadView`, is an external
+      `@fchecklist/veridian-ui-kit/panel` package component, not under test here).
+- [x] Updated `ai-os/MASTER-TRACKER.yaml`: `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` marked
+      `resolved` with a full writeup, including the honest limitation that this pass verified the
+      derivation logic directly via unit tests, not a full live browser re-render of `/home` (that real
+      live re-confirmation is a tracked follow-up for once this PR merges and deploys, same discipline
+      as `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`'s own fix).
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before committing.
+
+## Remaining
+- [ ] Live browser re-confirmation against the real deployed site (real deterministic reply + real
+      AI-escalated reply on `/home`, screenshot showing the "✨ AI-generated reply" marker on the AI one
+      only) is a tracked follow-up for once this PR merges and deploys -- not done in this pass, per the
+      honest limitation above.
+- [ ] This closes `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` only -- the remaining OCID-021
+      Wave 1 backlog items (`GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`, assistants_per_user
+      enforcement, plan-tier-to-branch mapping absence) remain open, each its own real branch/fix/
+      retest/PR per the PM's own explicit sequencing. Note `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY`
+      is a genuinely harder, root-cause-not-yet-found investigation (recommends a live serverless
+      diagnostic route, not a straightforward code fix) -- larger scope than the other Wave 1 items.
