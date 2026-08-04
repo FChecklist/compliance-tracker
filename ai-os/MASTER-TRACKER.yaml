@@ -628,6 +628,78 @@ open_items:
         task's own explicit "discovery/testing only, no fixing" instruction.
       status: open
       first_raised: "OCID-020 Group F / OCID-052 re-verification, 2026-08-04 (UMR-20260802-165606-4413)"
+      root_cause_2026_08_04: |
+        Real production Vercel runtime logs obtained this cycle (`vercel logs --project
+        veridian-compliance-ai --environment production --status-code 500 --expand`,
+        VERCEL_ACCESS_TOKEN present in this session's env, no prior session had this access) --
+        this SUPERSEDES the prior entry's circumstantial link to `2cb73100`
+        (subscription-plan-service.ts) with a different, log-confirmed root cause.
+
+        Real log line, `14:54:04.30 projexa-ai.com error GET /api/me`:
+        `Error: Failed query: select "id", "branch_key", "display_name", "domain", "description",
+        "is_active", "tagline", "icon", "status", "launch_order", "parent_domain", "build_tier",
+        "created_at", "host_domain" from "platform"."product_branches" "productBranches" where
+        "productBranches"."branch_key" = ...` (message truncated by the Vercel CLI's own ~300-char
+        display cap in both --json and text/--expand modes -- confirmed this is a real CLI product
+        limitation, not a tool-display artifact, by checking the raw redirected-to-file byte count;
+        the underlying Postgres error text past "params: ..." was not recoverable this cycle).
+
+        This exact query shape (select every `productBranches` column incl. `host_domain`, filtered
+        by `branch_key`) is `getBranchId()` in `src/lib/services/product-branch-service.ts:26-30`
+        (`db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, branchKey) })`
+        -- a Drizzle relational query, which selects every schema-declared column by default). This
+        is the one real chokepoint all 5 of `/api/me/route.ts`'s unconditional, unguarded
+        `isXEnabledForOrg` calls (pms/veriChatV2/firm/erp/sales, none wrapped in try/catch in that
+        route) resolve through.
+
+        `host_domain` was added to `productBranches` by `drizzle/0312_stage1_preauth_brand_host_lookup.sql`,
+        part of commit `d45dbd3b` (2026-08-04T09:24:34Z, OCID-038
+        GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, real Owner decision
+        UMR-20260804-090421-c647) -- landed ~5.5h before this GAP's own original discovery. That
+        commit's message does not mention running `db:push`/`db:migrate` against the live DB
+        (unlike some other commits in this repo's history that explicitly confirm that step), and
+        `drizzle/0312_...sql` is the LATEST migration on disk but is absent from
+        `drizzle/meta/_journal.json` (last entry is idx 281, tag `0311_content_search_view`) --
+        meaning it was hand-authored rather than produced via the standard `drizzle-kit generate`
+        flow. Together this is strong (not proven-with-certainty) evidence the `host_domain` column
+        never actually landed on the live production Supabase DB, even though `schema.ts` and every
+        `db.query.productBranches.*` call site now expects it to exist.
+
+        Corroborating evidence of blast radius broader than `/api/me` alone: the SAME query pattern
+        (both the `branch_key`-filtered and a separate `host_domain`-filtered variant used by Stage
+        1 pre-auth brand resolution in `org-branding-service.ts`) appears failing in the live logs
+        across `GET /` (all 3 known domains: projexa-ai.com, www.projexa-ai.com,
+        veridian-aios.com), `GET /api/conversations` and `GET /api/veri-reward` (both catch it and
+        log a "non-fatal" warning instead of 500ing, e.g. "VERI Treasure auto-enablement failed
+        (non-fatal)") -- consistent with one single shared root cause hit from many call sites, not
+        something specific to `/api/me` or to `2cb73100`'s subscription-plan code. `/api/me` alone
+        surfaces it as a hard 500 because its 5 `isXEnabledForOrg` calls are the only call site of
+        this pattern with no surrounding try/catch.
+
+        NOT independently confirmed this cycle: direct live-DB schema inspection (this task's
+        `SUPABASE_ACCESS_TOKEN` returned HTTP 401 on the Management API's `/v1/projects` endpoint --
+        insufficient scope for this session; no `DATABASE_URL`/`.env.local` present in this
+        workspace either, unlike the prior session's psql check). Stated as strong log+code-derived
+        evidence, not a certainty, per this task's own discovery-only, no-fixing scope.
+      recommendation_2026_08_04: |
+        Real owner action needed (still no code fix attempted this cycle, per the standing lock):
+        (1) confirm directly whether `platform.product_branches` on the live production DB actually
+        has a `host_domain` column (`\d platform.product_branches` via Supabase SQL editor, or an
+        MCP/psql session with real `DATABASE_URL` access, none of which this task had) -- if
+        missing, running `bun run db:push` (or a targeted `ALTER TABLE ... ADD COLUMN IF NOT EXISTS
+        host_domain text` matching drizzle/0312's own idempotent SQL) against production should
+        resolve this class of failure network-wide, not just `/api/me`; (2) separately, regardless
+        of whether that's the true cause here, `drizzle/0312_stage1_preauth_brand_host_lookup.sql`
+        being absent from `drizzle/meta/_journal.json` is itself a real process gap worth its own
+        fix (re-running `drizzle-kit generate` against the current schema.ts state to regenerate a
+        journal-registered migration, or documenting why this repo's migrations are meant to bypass
+        the journal) -- independent follow-up, not blocking (1); (3) `/api/me/route.ts`'s 5
+        `isXEnabledForOrg` calls being fully unguarded (unlike the try/catch'd call sites in
+        `/api/conversations`/`/api/veri-reward`) is a second, independent, real defensive-coding gap
+        worth closing on its own merits regardless of root cause -- a transient DB hiccup on ANY one
+        of those 5 checks currently 500s the entire `/api/me` response instead of degrading one flag
+        to `false`, same pattern the other two routes already use correctly.
+      status_update_2026_08_04: "Root-cause discovery pass only (this task) -- status remains open, no fix applied, per OCID-021 lock."
 
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
