@@ -35,8 +35,30 @@
   `session_label` -- re-verified `active:`/`recently_completed:` entry counts and label alignment via
   `python3 -c "import yaml; ..."` before committing the fix).
 
+## Completed (invocation 2)
+- [x] Re-checked PR #909 on resume: `mergeStateStatus` was `CONFLICTING`/`DIRTY` (main had advanced via
+  PRs #900/#912/#913 since #909 opened), and CI showed a real `Metadata Index Coverage Check` failure
+  (`audit-check` also failed, but that's Rule 10's expected pending-audit state, not a real defect).
+- [x] Root-caused the coverage failure: it was **pre-existing on `main` itself**, not introduced by this
+  branch -- `ai-os/VERIDIAN_OCID_001_006_EARLIER_GENERATION_REGISTRATION_2026-08-04.md` merged via PR
+  #912 without a real `ai-os/OS.yaml` index entry. Confirmed via `git show origin/main:ai-os/OS.yaml`
+  (no entry) + `git ls-tree origin/main` (file present on main). It only surfaced on our PR because our
+  CI run checks out the PR/main merge.
+- [x] Merged `origin/main` into this branch (`git merge origin/main --no-commit --no-ff`); one real
+  conflict in `ai-os/OS.yaml` (both branches appended list entries at the same spot) -- resolved by
+  keeping both this PR's OCID-058 entry and main's OCID-001-006/OCID-068 entries. `MASTER-TRACKER.yaml`
+  and `ACTIVE-CLAIMS.yaml` auto-merged cleanly; re-verified via `python3 -c yaml.safe_load` on all three
+  files plus a targeted check that this session's own `ACTIVE-CLAIMS.yaml` `recently_completed` entry
+  survived intact.
+- [x] Ran `node scripts/check-metadata-index-coverage.mjs` locally post-merge (node was available even
+  though `bun`/`node_modules` weren't fully set up) -- confirmed **passing**: "all 153 governance items
+  accounted for (150 indexed, 7 exempted)".
+- [x] Committed the merge + pushed. PR #909 is now `mergeable: MERGEABLE` (was `CONFLICTING`).
+
 ## Remaining
-- [ ] Watch PR #909's CI (Lint/Type Check/Build/Unit Tests/Metadata Index Coverage/Guardrail Presence);
-  `check-metadata-index-coverage.mjs` could not be run locally (no `node_modules` in this workspace).
-- [ ] Per Rule 10, PR #909 needs an `AUDIT: PASS`/`AUDIT: FAIL` comment from a different session before
-  merge (this session authored it, so cannot self-certify).
+- [ ] Watch PR #909's CI re-run on the merge commit (expect Metadata Index Coverage to now pass; Lint/
+  Type Check/Build/Unit Tests were already green pre-merge and shouldn't be affected by a docs-only
+  merge).
+- [ ] Per Rule 10, PR #909 needs an `AUDIT: PASS`/`AUDIT: FAIL` comment from a **different** session
+  before merge (this session authored it, so cannot self-certify) -- `mergeStateStatus: BLOCKED` reflects
+  this, not a defect.
