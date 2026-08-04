@@ -40,6 +40,29 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-221848-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F checkpoint refresh: finish the interrupted OCID-052 re-verification now that GAP-API-ME-500 is fixed"
+    claimed_at: "2026-08-04T22:20Z (this session)"
+    claim: |
+      SPEC (PM decision, checkpoint refresh, `UMR-20260802-165606-4413` OCID-020, Group F children
+      OCID-047 through OCID-052): reviewed real current status of all six on `origin/main`.
+      OCID-047/048/049/050/051 each already carry broad, multi-part, independently-verifiable real
+      evidence (unchanged since the task-20260804-144006 session's own review). OCID-052 itself is
+      marked complete (`ai-os/VERIDIAN_OCID_052_VERI_CHAT_AI_ESCALATION_CERTIFICATION_PLANNING_2026-08-03.md`,
+      Items 1-4 real-executed, Item 5 honestly deferred as N/A -- no scripted dialogue-script
+      package exists to test). The one genuinely open thread: the task-20260804-144006 session's
+      own attempted re-verification of `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` never
+      completed -- it was interrupted by discovering `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` (a
+      live regression that blanked the whole VERI Chat panel). That regression is now closed and
+      independently re-verified twice (PR #900/#904, then PR #917, both confirming real `200`s from
+      `GET /api/me` for fresh users). Real next step: finish the interrupted re-verification -- fresh
+      admin-provisioned user, real login, real Playwright session against live `projexa-ai.com`,
+      confirm `/api/me` now works end-to-end and check whether the missing-distinguishing-signal
+      finding still reproduces now that the panel actually renders.
+    scope_note: >-
+      File scope: ai-os/MASTER-TRACKER.yaml (additive re-verification field on the existing gap
+      entry), ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md. No src/ or schema changes
+      expected (discovery-only, per the standing OCID-021 implementation lock) unless findings
+      dictate otherwise.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
