@@ -395,3 +395,14 @@ reaches a real completed status.
 ## Remaining
 - [ ] Independent audit (`AUDIT: PASS`/`FAIL` comment, Rule 10) -- not this session, requires a different agent
 - [ ] Merge once CI + audit pass
+
+## Update (2026-08-04, real PM decision `UMR-20260804-113132-327c`)
+Real rebase performed against `origin/main` to resolve a real `DIRTY`/`CONFLICTING` merge state
+(`UMR-20260803-042230-180c`, OCID-037). Real conflicts in `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+`PROGRESS.md`, `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (2 conflicts, including a real,
+previously-documented false-positive interleaved-conflict class this file is known to produce),
+and `ai-os/OS.yaml` -- resolved by preserving both this PR's own real OCID-037 content and every
+real, distinct entry already merged into `origin/main`, discarding only genuinely stale/duplicate
+copies of content already correctly present, per direct comparison, not guessed. All 4 governance
+checks re-verified passing post-rebase. Not merged by this action -- left for the existing real
+review/merge process, per explicit instruction.
