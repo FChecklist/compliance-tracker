@@ -541,3 +541,74 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
   every-page-shared org/user resolution, both appeared the same day as `2cb73100`) -- plausible,
   not independently confirmed (the root page's error digest was never cross-checked against a
   server-side stack trace), folded into the one gap entry above rather than registered twice.
+
+---
+
+# PROGRESS -- task-20260804-164230-pm-decision-proceed-with-real-conflict-r
+
+## Task
+SPEC (real PM decision): rebase 8 existing OCID-053..060 registration PRs onto current
+`origin/main`, resolve real merge conflicts caused by opening them in rapid succession against a
+fast-moving main branch, preserve both already-merged main content and each PR's own registration
+content, push, confirm mergeable afterward -- citing `UMR-20260804-160456-41b3`, `-160559-cf7b`,
+`-160846-6fd8`, `-160949-2f48`, `-161219-de16`, `-161257-68d0`, `-161339-d586`. No merging, no
+credential/deletion/archival/visibility action (boundary from original dispatches applies in full).
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no other session currently claims OCID-053..060 work.
+- [x] Enumerated every real open PR for OCID-053 through OCID-060 (two waves: `#866-#875` from the
+      040750-045447Z dispatch, and `#902/#903/#905/#906` from the 161617-161630Z dispatch; `#901`,
+      an earlier OCID-053 attempt, is closed/unmerged/superseded).
+- [x] Checked live `mergeable`/`mergeStateStatus` via `gh pr view` on every one of those PRs, right
+      now: **all show `MERGEABLE` / `BEHIND`. None show `CONFLICTING`/`DIRTY`.** "BEHIND" means
+      main has advanced since the branch was cut -- not a git conflict, no manual rebase needed.
+      Cross-checked against unrelated open PRs in this same repo right now (`#897`, `#896`, `#894`,
+      `#893`, `#892`, `#889`, `#887`, `#885`, `#884`, `#882`, `#881`, `#880`, `#878`, `#877`,
+      `#872`, `#871`) which genuinely do show `CONFLICTING`/`DIRTY` -- confirms the field is being
+      read correctly and the signal is real, not a misread.
+- [x] Grepped every file added by both waves' PR diffs (vs. `origin/main`) for all 7 cited UMR IDs.
+      Only `UMR-20260804-160456-41b3` appears anywhere -- as a cross-reference inside `#903`/`#905`
+      -- and it is in fact PR `#901`'s own minted UMR; `#901` is closed, unmerged, and explicitly
+      superseded (`#903` documents a live-reverified "duplicate dispatch" finding for OCID-053: a
+      real query against the UMR ledger found no new-registration need, so no new UMR was minted).
+      The other 6 cited UMR IDs do not appear in any branch tip diff against `origin/main` at all.
+- [x] **PM decision: the dispatch's premise is stale and does not match live repo state.** There
+      are no real git conflicts on any current OCID-053..060 registration PR to resolve. Per the
+      dispatch's own boundary ("no new scope, no repository state change"), forcing unneeded
+      rebases/force-pushes on PRs GitHub already reports as cleanly mergeable would itself be an
+      out-of-scope repository-state change -- so none were performed. No PR branch was touched, no
+      rebase/force-push/merge was made anywhere in this session.
+- [x] Registered this finding in `ai-os/boss/ACTIVE-CLAIMS.yaml` (full detail there) for Owner/PM
+      visibility, per Rule 11.
+- [x] Verified independently: a brand-new sibling registration branch for OCID-059
+      (`worker/task-20260804-164222-ocid-059-registration-only-universal-bro`) was created by
+      another concurrent session at essentially the same moment this task started (16:42:22Z) --
+      consistent with this being a live, fast-moving, multi-session repo where a dispatch's stated
+      state can go stale within seconds/minutes, per this session's own established pattern.
+- [x] **Real, disclosed self-correction, caught within this same session:** this branch's own base
+      (`origin/main` at `fa3ffbb8`) carried the real, full 543-line accumulated `PROGRESS.md`
+      history -- an initial `git show fa3ffbb8:PROGRESS.md | wc -l` returned a flaky, wrong `31`
+      (this sandbox's known large-output truncation bug, this time nondeterministically corrupting
+      a piped `git show`, not just Bash-tool display or `grep`/`find`), which was trusted without
+      cross-checking and led to a first commit that wholesale-overwrote the real history with only
+      this task's own section. Caught immediately by noticing the commit's own diffstat claimed 543
+      deletions against what should have been a 31-line file -- a numerical impossibility that
+      forced re-verification. Re-read via `git cat-file -p` on the real blob SHA with an independent
+      byte-count cross-check (`git cat-file -s`, 40109 bytes, 543 lines, reproduced identically 3
+      times), confirmed reliable, and restored the full real history below unchanged before
+      re-appending this section -- same fix pattern as the two prior sessions that hit this same
+      class of bug on this exact file (see the `docs/ocid063-...` and `task-20260804-144006-...`
+      sections above).
+
+- [x] Committed, pushed, opened docs-only PR #916 to land this finding via the required PR/CI gate
+      (Rule 6): https://github.com/FChecklist/compliance-tracker/pull/916 -- and closed out the
+      corresponding `ai-os/boss/ACTIVE-CLAIMS.yaml` entry with the PR link.
+
+## Remaining
+- [ ] None on the original dispatch scope. No real conflicts existed to resolve; no rebase/force-
+      push/merge was needed or performed on any of the 12 open OCID-053..060 PRs.
+      If the Owner/PM still wants those 12 open PRs consolidated (several appear to be superseded
+      duplicates across the two dispatch waves, independent of any conflict), that is a distinct,
+      separate real PM decision -- not the "resolve real conflicts" scope this task was given --
+      and should be dispatched as such.
+- [ ] Confirm CI green on PR #916, hand off for independent audit -- not self-certified here.
