@@ -5917,6 +5917,43 @@ recently_completed:
       this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No src/, schema, or infrastructure changes --
       read-only DB query plus read-only live HTTP checks against the deployed site, zero code
       changes, zero new PR (nothing left to merge).
+  - session_label: "claude-code (task-20260804-164310-ocid-061-registration-only-universal-det) -- OCID-061 registration-only: Universal Deterministic Input Runtime and Intent Resolution Certification [DONE, PR open, awaiting CI]"
+    claimed_at: "2026-08-04T16:43Z (this session, closed same session)"
+    claim: |
+      SPEC (registration-only dispatch, real parent OCID-060 PR #874 open): independently re-confirmed
+      zero pre-existing OCID-061 registration via a direct read-only query against the real umr_tasks
+      table in superboss-register.sqlite (zero rows for task_identity matching '%ocid-061%' or this
+      task's own folder timestamp), matching the dispatch prompt's own claim rather than merely trusting
+      it. Wrote `ai-os/VERIDIAN_OCID_061_UNIVERSAL_DETERMINISTIC_INPUT_RUNTIME_REGISTRATION_2026-08-04.md`:
+      captures the Owner's full real directive text verbatim and its explicit 7-OCID dependency list
+      (OCID-024/025/027/031/033/034/058), each independently re-verified live via `gh pr view` against
+      its own real current PR state rather than trusted from OCID-060's own same-day snapshot --
+      OCID-024/025/033 had all merged (PRs #767/#766/#778) since OCID-060 was written hours earlier, a
+      live instance of this repo's own already-flagged concurrent-state-drift pattern. Also flagged,
+      not silently resolved: OCID-058's own self-cited UMR (`UMR-20260804-035943-3c38`, per its own
+      `ai-os/OS.yaml` entry) collides with the same UMR value cited elsewhere for OCID-057 -- a further
+      instance of the already-tracked `GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES` chain-integrity
+      anomaly, not introduced here and not re-litigated here (out of this document's own scope).
+
+      This document's own UMR is honestly disclosed as not self-minted rather than fabricated: this
+      task's own `task.yaml` carries no `umr_id`, and a fresh `umr_tasks` query (re-run at the end of
+      this session, after all other research) still returned zero rows for this task's own identity --
+      `umr_tasks` rows are written by this server's own background dispatch-sync pipeline, not by an
+      interactive documentation task, and self-inserting a row directly into a live, write-lock-protected
+      production database would be a real overreach beyond this dispatch's own explicit registration-only
+      scope. Same disclosure pattern `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      already established for OCID-062's own UMR.
+
+      No runtime code implemented, no browser/PWA/server execution path touched, no mode-pill or
+      option-chain logic touched -- explicitly out of scope per this task's own dispatch instruction.
+      Explicitly re-confirms real implementation/certification for OCID-061 stays locked behind the same
+      OCID-038 -> OCID-039 -> OCID-040 gate (SEC-07) as every other OCID in this chain, re-citing (not
+      re-deriving) OCID-060's own fresh evidence that gate remains genuinely open.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_061_UNIVERSAL_DETERMINISTIC_INPUT_RUNTIME_REGISTRATION_2026-08-04.md`
+      (new), `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/,
+      schema, migration, or CI changes -- registration documentation only, zero code changes, per this
+      dispatch's own explicit instruction.
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |
