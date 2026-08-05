@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [OCID-047 DONE PR #926, OCID-050 IN PROGRESS]"
+    claimed_at: "2026-08-05T00:50Z (this session -- registered mid-session, after the OCID-047 fix was already committed; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
+    claim: |
+      SPEC (PM decision, checkpoint refresh, `UMR-20260804-234032-146e`, parent
+      `UMR-20260802-165606-4413`): this task's own prior invocation stalled with zero real
+      progress (`files_modified: [PROGRESS.md]` only, `remaining_steps: [Not started]` --
+      confirmed via three consecutive sentinel cycles of byte-for-byte-unchanged pane text and
+      ~10s real CPU time across the last 10 real minutes). Continuing now: finish root-causing
+      and fixing OCID-047 and OCID-050's real live-found gaps from the independent Group F
+      re-verification (`task-20260804-235321-independently-re-verify-group-f-ocid-047`, commits
+      `1b0aeb5c`/`84552aa2`, pushed to a branch whose PR was never opened), one at a time, same
+      discipline as OCID-049 (root cause, narrow fix, real tests, PR, independent review, merge).
+
+      Found OCID-047's third gap (`POST /api/users` role check) and OCID-049's gap had already
+      been independently fixed and merged by sibling tasks (PR #925, PR #924) before this task
+      did any real work -- did not redo them. Fixed OCID-047's remaining 2 gaps
+      (`GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`, `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`): PR #926,
+      real tests (4/4 pass for the API-route gap; the UI-only gap has no `.test.tsx` added since
+      this repo has zero `.test.tsx` files and no DOM-testing dependency anywhere -- disclosed in
+      the PR rather than inventing a new test harness for a one-line fix). Now starting OCID-050's
+      `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING`.
+    scope_note: >-
+      File scope: `src/app/api/clients/route.ts`, `src/app/api/clients/route.test.ts` (new),
+      `src/app/(app)/risks/page.tsx`, `ai-os/MASTER-TRACKER.yaml` (2 gap entries, registered +
+      closed), this ACTIVE-CLAIMS entry, `PROGRESS.md` -- all via PR #926 (OCID-047). OCID-050's
+      fix (in progress) will touch `src/app/(app)/settings/page.tsx` and/or
+      `SubscriptionPlanSection.tsx`/`subscription-plan-service.ts` per the finding's own
+      recommendation, in a separate PR.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
