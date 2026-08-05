@@ -252,4 +252,18 @@ already-completed work.
       independent re-confirmation + duplicate-work standdown in `PROGRESS.md` (no
       `ai-os/MASTER-TRACKER.yaml` delta -- it already matches `origin/main`).
 - [x] Posted the required 8-field `AUDIT: PASS` verdict comment (AGENTS.md Rule 10).
-- [ ] Waiting on CI (all required checks) to go green, then merge.
+- [x] CI green, PR #941 merged (`5f0c2796`).
+- [x] Opened + merged PR #944 (`84c9297a`): closed out this session's own `ACTIVE-CLAIMS.yaml`
+      entry, marking both gaps DONE with the real citations above.
+
+## Task complete
+All real work for this task is done and merged to `main`:
+1. OCID-047's two live-found gaps (`GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`,
+   `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`) -- fixed, tested, reviewed, merged (commit `b937dc25`).
+2. OCID-050's live-found gap (`GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING`) -- independently
+   re-verified live against production; found already closed by a genuinely concurrent session's
+   real merged PR #930 (better root cause + real test coverage than this session would have
+   produced); stood down rather than duplicate it (PR #941).
+3. `ai-os/boss/ACTIVE-CLAIMS.yaml` closed out (PR #944).
+
+No further action needed from this task.
