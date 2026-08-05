@@ -3262,6 +3262,110 @@ open_items:
         committed -- same ephemeral-evidence convention as the original
         finding's own screenshots).
 
+    - id: GAP-VEDA-ADVISORS-EXPOSED-GOOGLE-API-KEYS
+      name: "veda-advisors: 22 real, publicly-leaked Google API keys sitting unresolved in GitHub secret-scanning alerts (git history), file already removed from main's HEAD but still reachable via history on this public repo"
+      detail: |
+        Found during OCID-054's real org-wide security discovery pass (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md` §8). `gh api repos/FChecklist/veda-advisors/secret-scanning/alerts`
+        returns 22 real alerts (numbers 1-22), all `secret_type: google_api_key`, all
+        `publicly_leaked: true`, all `state: open`, all in the same committed file
+        `tool-results/read_1782309955766_3e29539f7948.txt` (an accidentally-committed AI-tool
+        session output). Alert #22 retrieved directly and confirmed real: `AIzaSyDU****...****CEA`
+        (raw value never committed to this repo's history -- redacted before this entry was first
+        written, 2026-08-05, after an earlier draft's literal paste of the same value became this
+        repo's own secret-scanning alert #1,
+        github.com/FChecklist/compliance-tracker/security/secret-scanning/1; independently
+        re-verifiable any time via `gh api repos/FChecklist/veda-advisors/secret-scanning/alerts/22`
+        without needing the raw value on file here). First introduced in the repo's own `Initial
+        commit` (`f7d2af1`) and `124fa30`. Confirmed via `git ls-tree origin/main` that the file is
+        NOT in the current tree -- it was removed from HEAD at some point -- but `veda-advisors` is
+        a PUBLIC repo, so the history containing it remains fetchable by anyone, which is exactly
+        why GitHub's own scanner still reports these as unresolved/open rather than closed.
+      size: S (rotation) + S (history purge) -- both mechanically small, but the rotation is a
+        real, live-infrastructure action.
+      recommendation: "Rotate the exposed Google API key(s) at the source (Google Cloud Console),
+        then purge them from git history (git filter-repo or GitHub's own secret-removal tooling),
+        then close the 22 GitHub secret-scanning alerts. NOT actioned by OCID-054 -- credential
+        rotation and any repository history rewrite were explicitly withheld from that task's PM
+        authorization pending a fresh, real-time Owner decision. This entry exists so the concrete
+        finding survives past that session and isn't rediscovered from scratch."
+      status: "open, awaiting explicit Owner decision on rotation + history purge"
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide security discovery)"
+
+    - id: GAP-VEDA-ADVISORS-DUPLICATE-ENV-UNTRACK-PRS
+      name: "veda-advisors: two open, unmerged, duplicate-intent PRs (#13, #14) both untrack the same .env file; neither has merged so .env is still tracked on main today"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §3/§8). PR #13 (`security/untrack-env-file`, opened 2026-07-04) and PR #14
+        (`fix/untrack-env`, opened 2026-07-04) both remove the same tracked `.env` file from
+        `veda-advisors`. Confirmed via `git show origin/main:.env` that the file is still tracked
+        today and its content is a local-sqlite placeholder
+        (`DATABASE_URL=file:/home/z/my-project/db/custom.db`), not a live credential -- low
+        severity, but a real, currently-live governance gap (2 competing unmerged fixes for the
+        same real issue).
+      size: XS -- merge one, close the other as duplicate.
+      recommendation: "Review and merge whichever of PR #13/#14 is more complete, close the other
+        as a duplicate. Not a destructive/credential-rotation action -- safe to action without the
+        Owner authorization OCID-054 was withholding, whenever someone picks up veda-advisors PR
+        hygiene."
+      status: open
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-12-REPOS-SECRET-SCANNING-DISABLED
+      name: "12 of the 15 real FChecklist repos have GitHub secret scanning disabled -- no automated commit-history credential coverage on any of them"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §2/§8). Live `gh api .../secret-scanning/alerts` call against all 15 real repos: only
+        `compliance-tracker`, `zai-independent-audit-2026-07-30`, and `veda-advisors` have it
+        enabled (confirmed by real API responses, not assumed) -- the other 12
+        (`claude-control`, `projexa`, `veridian-scripts`, `veridian-ai-os`, `zai-sap-reports-queue`,
+        `infisuite-reverse-engineering`, `odoo-reverse-engineering`, `zoho-reverse-engineering`,
+        `veridian-ui-kit`, `global-revenue-engine`, `veridian-brain`, `sumeet-spec`) return a 404
+        "Secret scanning is disabled on this repository". A manual current-HEAD-tree pattern grep
+        (sk-ant-, sk-proj-, AKIA*, ghp_*, github_pat_, AIzaSy*, xox[baprs]-, PEM headers,
+        embedded-password postgres URIs) found no real matches on any of them -- but that is a
+        spot-check of the current tree only, not commit-history coverage the way GitHub's own
+        scanner gives `veda-advisors` (whose real finding, GAP-VEDA-ADVISORS-EXPOSED-GOOGLE-API-KEYS
+        above, was found exactly because that repo has scanning enabled).
+      size: XS -- a repo setting toggle, no code change, per repo.
+      recommendation: "Enable GitHub secret scanning (Settings -> Code security -> Secret scanning)
+        on all 12 repos currently missing it. Non-destructive, does not require the credential-
+        rotation/deletion authorization OCID-054 withheld -- safe to action independently."
+      status: open
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-GLOBAL-REVENUE-ENGINE-EMPTY-ORPHAN
+      name: "global-revenue-engine repo is genuinely empty (0 branches, 0 size, no commits) -- real orphan/archival candidate"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §1/§4). `gh api repos/FChecklist/global-revenue-engine` shows `size: 0`; `git grep` against
+        it errors with "ambiguous argument HEAD: unknown revision" (no commits exist at all). No
+        content would be lost by deleting or archiving it.
+      size: trivial
+      recommendation: "Candidate for deletion/archival once the Owner explicitly authorizes
+        repository disposition changes -- OCID-054 withheld that authorization this phase per PM
+        instruction, so this was flagged, not actioned."
+      status: "open, awaiting explicit Owner decision on disposition"
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-COMPLIANCE-TRACKER-STALE-CONFLICTING-PR-BACKLOG
+      name: "compliance-tracker: 24 of 30 open PRs are CONFLICTING (oldest ~22h stale at scan time), including a 10-PR near-duplicate cluster of OCID-041..046 discovery docs"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §3/§4). `gh pr list --state open --json mergeable` against `compliance-tracker` shows 24 of
+        30 open PRs at `mergeable: CONFLICTING`, oldest #778 (`worker/task-20260803-055110-...`,
+        opened 2026-08-03T06:05Z). Ten of these are docs-only "register OCID-0NN discovery" PRs
+        (#785, #787, #789, #796, #797, #798, #799, #800, #801, #802) covering a numerically adjacent
+        OCID-041..046 run, several self-describing as re-confirmations of each other. Which of these
+        is authoritative vs. superseded was not adjudicated in this pass.
+      size: M -- real rebase/reconciliation work across 24 branches, not mechanical.
+      recommendation: "Dedicated PR-backlog reconciliation pass: rebase-and-merge or close-as-
+        superseded each of the 24 CONFLICTING PRs, starting with the 10-PR OCID-04x docs cluster
+        (read each, determine which is canonical, close the rest as superseded with a citation).
+        Not actioned by OCID-054 (discovery-only scope)."
+      status: open
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
