@@ -1,0 +1,83 @@
+# PENDING MANUAL APPLICATION -- this file is NOT yet a real, active GitHub Actions
+# workflow. Real, confirmed platform constraint (documented independently, before this
+# PR existed, in claude-control's SUPERBOSS_DISPATCH_PROMPT.md's own "Hard rule: never
+# modify .github/workflows/** directly in a worker task", and hit again for real,
+# building the earlier scripts/check-sec07-ocid-lock.mjs gate -- see
+# ai-os/registry/PENDING-MANUAL-APPLICATION-sec07-ocid-lock-check.yml.txt): the GitHub
+# token available to this session lacks the `workflow` OAuth scope, so GitHub itself
+# rejects any push that creates or updates a real .github/workflows/*.yml file
+# ("refusing to allow an OAuth App to create or update workflow ... without workflow
+# scope"). This is not a guess or a one-off failure -- it is the same real, structural
+# constraint, hit again.
+#
+# Real, honest disclosure, not glossed over: this PR ships everything else UMR-
+# 20260805-091629-d8e3 asked for as real, working, merged code -- the reviewer/author
+# identity-mismatch gate script (scripts/check-reviewer-not-author.mjs) and its real
+# tests (scripts/check-reviewer-not-author.test.ts) -- but the workflow file itself,
+# the piece that makes the check actually REQUIRED and RUN on every PR/review event,
+# cannot be pushed by this session. It is committed here, at this non-`.github` path,
+# verbatim and ready to use, so the Owner (or a future session with a PAT that has
+# `workflow` scope) can apply it with a single real action:
+#
+#   git mv ai-os/registry/PENDING-MANUAL-APPLICATION-reviewer-not-author-check.yml.txt .github/workflows/reviewer-not-author-check.yml
+#
+# then commit and push that single rename through a real, sanctioned channel (a PAT
+# with `workflow` scope, or the GitHub web UI directly). Until that real step happens,
+# this gate is REAL and TESTED but NOT YET ACTIVE -- it does not yet block any real PR.
+#
+# Also real and honest, separately: this gate's own check (reviewer != author) cannot
+# meaningfully FIRE yet in this repo's real current state either way, because the only
+# real GitHub identity with write access to this repo is the `FChecklist` account --
+# there is no second real reviewer identity to ever produce a same-account APPROVED
+# review from a distinct token/session. See
+# ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md for the real, structural
+# finding and the precise recommended Owner action (a GitHub App) that would give this
+# gate a real second identity to actually guard. This workflow is still worth staging
+# now, ready to activate the moment that identity exists, exactly like the SEC-07 gate
+# above was staged ahead of its own manual-apply step.
+#
+# Real content below is the exact, complete, ready-to-use workflow file.
+
+name: Reviewer Not Author Check
+
+# Real, automated identity-mismatch guard (UMR-20260805-091629-d8e3, Owner directive,
+# supporting the branch-protection hardening in UMR-20260805-034917-33a9 while
+# UMR-20260805-091648-6793's real, temporary, bounded exception on
+# required_approving_review_count is active). Fails CI (not a warning) if any APPROVED
+# review on a PR was submitted by the same GitHub account (case-insensitive) as the
+# PR's own author. Defense-in-depth: GitHub's own API already refuses a literal self-
+# approval, so this exists to catch it anyway if something upstream goes wrong once a
+# real distinct reviewer identity is wired in.
+#
+# See scripts/check-reviewer-not-author.mjs for the real gate logic and
+# ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md for the real identity-
+# provisioning gap this exists ahead of.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  reviewer-not-author-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Run the gate's own real regression tests first
+        run: bun test ./scripts/check-reviewer-not-author.test.ts
+
+      - name: Evaluate reviewer != author identity for this PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/check-reviewer-not-author.mjs "${{ github.event.pull_request.number }}"
