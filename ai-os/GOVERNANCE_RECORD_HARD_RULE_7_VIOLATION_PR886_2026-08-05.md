@@ -41,10 +41,34 @@ This document is the permanent governance record of the real, final disposition 
 
 Per this decision: **future violations of Hard Rule 7 must be blocked before merge, not only detected and recorded after the fact**, the way this one was. This record does not itself build that enforcement mechanism — implementing a real, dispatch-time or CI-time technical gate for SEC-07 (the same class of enforcement `SEC-06`'s `ddl_authorization_check.py` already provides for live production DDL) is real, separate follow-up work, not undertaken here. Until that enforcement exists, every dispatch under the OCID-038/039/040 chain must continue to explicitly self-report this lock and either confirm OCID-020 is independently verified complete or cite a real, explicit Owner override — exactly as `UMR-20260804-172011-b839` correctly did and `UMR-20260804-090421-c647` did not.
 
+## Addendum (2026-08-05, same-day follow-up, `UMR-20260805-025349-a6b8` / `OD-20260805-001`)
+
+The "standing future rule" above is no longer purely aspirational text. Real, deterministic
+pre-merge enforcement now exists: `scripts/check-sec07-ocid-lock.mjs` (merged PR #933,
+follow-up #934), which fails a PR's own CI when its diff and/or title/body touches locked
+OCID-038/039/040/041-046 scope while `ai-os/MASTER-TRACKER.yaml`'s own `ocid_020_status`
+block reads anything other than a literal `VERIFIED`, unless a real, explicit,
+PR-number-scoped override exists in `ai-os/registry/sec07-overrides.yaml`. 12/12 tests
+pass (independently re-run this session after a fresh `bun install`).
+
+**One real piece remains open, honestly disclosed, not glossed over:** the workflow file
+that makes this an actual GitHub-enforced *required* check is not yet live — it is staged
+at `ai-os/registry/PENDING-MANUAL-APPLICATION-sec07-ocid-lock-check.yml.txt`, blocked by
+the same missing `workflow` OAuth scope tracked at
+`GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE` (`ai-os/MASTER-TRACKER.yaml`).
+Independently re-confirmed still blocking, by two separate methods, this session
+(2026-08-05): a real `git push` of the workflow file, and the GitHub Contents API
+directly — both rejected. Until the Owner (or any `workflow`-scoped credential) completes
+the one real step documented in that staged file's own header, this gate is real, tested,
+and merged, but does not yet technically block a real PR the way SEC-06's DDL gate does.
+See SEC-07's own updated `mechanism`/`gap` fields in `ai-os/CONSTITUTION.yaml` for the
+current, live status.
+
 ## Real citations
 
 - SEC-07 lock text: `ai-os/CONSTITUTION.yaml`, rule id `SEC-07`
 - Governance violation finding: `GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886`, `ai-os/MASTER-TRACKER.yaml`
 - Technical incident and its closure: `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS`, `ai-os/MASTER-TRACKER.yaml`, closed by `UMR-20260804-155457-a16d`
 - PR #886: merge commit `95f82ed83d6c5f42b853a74527fbea2bf2957758`, mergedAt `2026-08-04T10:41:41Z`
+- Real pre-merge enforcement gate: `scripts/check-sec07-ocid-lock.mjs`, PR #933/#934, workflow activation blocked by `GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE`
 - Real dispatch instruction directing this disposition: `UMR-20260805-025349-a6b8`, citing `UMR-20260804-194323-0bc5` and `UMR-20260802-165606-4413`
