@@ -18,9 +18,18 @@
 - [x] Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` and `ai-os/boss/COMPLETED.yaml` for this UMR/OCID -- no
       active claim conflicts with this finding; no COMPLETED.yaml closure entry existed yet for the
       merge, so this document is that record.
+- [x] Opened PR #952 (closure documentation only) and got a real independent audit (a fresh subagent
+      that did not implement this closure, per AGENTS.md Rule 10) to re-verify every claim from scratch
+      and post a structured `AUDIT: PASS` comment. The auditor independently flagged that
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`'s original OCID-053 entry was still sitting under `active:`
+      annotated "move to recently_completed once merged" -- fixed by moving it to `recently_completed:`
+      with a real completion note citing PR #867's merge.
+- [x] All CI checks green except the pre-existing unrelated `Vercel` infra rate limit (same as PR #867
+      itself); `audit-check` passed once the auditor's structured comment landed.
 
 ## Remaining
-- [ ] None -- this is a duplicate/stale-premise dispatch. The SPEC's premise ("PR 867 real open,
+- [ ] Merge PR #952 once `audit-check` (and any other required check) is green.
+- [ ] This is a duplicate/stale-premise dispatch overall. The SPEC's premise ("PR 867 real open,
       blocked by a real merge conflict and a real failing check") was accurate at some earlier point in
       this repo's live, concurrently-worked history, but had already been resolved and merged by another
       session before this task started (see [[veridian-live-concurrent-state-drift]] pattern). No code
