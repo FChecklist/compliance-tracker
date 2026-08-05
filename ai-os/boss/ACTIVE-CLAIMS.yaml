@@ -40,6 +40,58 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-040754-register-ocid-054--universal-repository) -- OCID-054 real discovery/inventory of every repo, branch, PR, worker, queue, job, task, doc, config across the FChecklist org + real security/exposed-credential scan [read-only, DONE, PR #869 rebuilt 2026-08-05 with a history that never contains the raw leaked secret]"
+    claimed_at: "2026-08-04T04:07Z (this session; re-registered 2026-08-05 after PR #869's original branch history -- which briefly contained a real secret's raw value at commit 03f60ffd -- was rebuilt as a single clean commit off current main so that value is never reachable from any commit on this branch)"
+    claim: |
+      SPEC (PM decision, real confirmed parent `UMR-20260804-033853-2a17` / OCID-053, itself parented
+      by `UMR-20260802-165606-4413`/OCID-020 and `UMR-20260802-173631-ca85`/OCID-021): register and
+      execute OCID-054 -- a real, read-only, org-wide discovery/inventory pass producing the
+      repository reconciliation register, repository governance register, duplicate resolution
+      report, orphan resolution report, UMR reconciliation report, UTR reconciliation report,
+      repository dependency report, and platform security report (exposed credential scan). The
+      SPEC's own re-cited "OCID-012" reference was independently re-checked a third time this
+      session (`git grep -n "OCID-012"` across this entire workspace, zero matches, same null result
+      as the two prior checks it references) -- still not treated as real, flagged back to the Owner
+      in this session's chat response rather than silently accepted or silently dropped.
+
+      PM has explicitly withheld authorization this phase for every destructive/live-infra action
+      (credential rotation of any kind, repository deletion/archival/retirement/disposition change)
+      -- this claim covers discovery and reporting only; no such action will be taken without a
+      fresh, explicit, real-time Owner decision.
+
+      2026-08-05 real remediation (`UMR-20260805-084058-261d`, reusing this same UMR/OCID-054, per PM
+      directive -- not a new UMR mint): this task's own report doc had quoted a real,
+      already-publicly-leaked `veda-advisors` Google API key's raw value verbatim as evidence,
+      which became this repo's own live GitHub secret-scanning alert #1 (independently corroborated
+      by sibling task `task-20260804-161630-ocid-056`, see its own entry below). Not
+      compliance-tracker's own credential -- external rotation (Google Cloud Console) is out of this
+      repo's control and remains a real, unresolved item for the Owner
+      (`GAP-VEDA-ADVISORS-EXPOSED-GOOGLE-API-KEYS`). Fixed within this repo's own control: redacted
+      the raw value from every file that quoted it, AND rebuilt PR #869's branch as a single fresh
+      commit on top of current `main` (rather than merge commits carrying the original raw-secret
+      commit forward) so the raw value is not reachable from any commit in this branch's history
+      either -- a real independent review (`supervisor-entrypoint.sh`) correctly flagged that a
+      tip-only redaction on top of the old history was insufficient, since the old commit remained a
+      real ancestor that would have reached `main` on merge.
+    scope_note: >-
+      File scope (read-only discovery phase, plus the 2026-08-05 redaction/history-rebuild fix): new
+      report file(s) under `ai-os/` documenting the real findings, `ai-os/MASTER-TRACKER.yaml` (if
+      new gaps found), `ai-os/OS.yaml` (index entry), this ACTIVE-CLAIMS entry. No src/, schema, CI,
+      credential-value, or repository-disposition changes.
+    result: >-
+      Real, evidence-based discovery complete:
+      `ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md` (all 8 requested
+      registers/reports). 5 new gap entries added to `ai-os/MASTER-TRACKER.yaml` `open_items`, the
+      most material being `GAP-VEDA-ADVISORS-EXPOSED-GOOGLE-API-KEYS` (22 real, publicly-leaked
+      Google API keys, `state: open` per GitHub's own secret-scanning API, unresolved -- external to
+      this repo, rotation not actionable from here). Confirmed via `gh repo list` a real 15-repo
+      FChecklist universe (4 other names referenced in this repo's own docs do not resolve). No
+      destructive/credential-rotation/repository-disposition action taken -- withheld per PM
+      instruction, findings presented to the Owner in chat instead. 2026-08-05: this repo's own
+      resulting secret-scanning alert #1 remediated by redaction + a clean-history rebuild of PR
+      #869 (raw secret value never committed in the new history); the underlying `veda-advisors`
+      credential itself remains genuinely unrotated, disclosed as an open Owner-actionable item, not
+      claimed as resolved.
   - session_label: "claude-code (task-20260804-161630-ocid-056-registration-and-safe-discovery) -- OCID-056 registration + real read-only security discovery only [DONE]"
     claimed_at: "2026-08-04T16:35Z (this session, closed same session)"
     claim: |
