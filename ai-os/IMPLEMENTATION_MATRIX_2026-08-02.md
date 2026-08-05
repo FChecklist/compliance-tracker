@@ -1077,7 +1077,7 @@ content has no hard read-dependency on those siblings' text.
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-041653-9de5`, OCID-20260803-022)
+## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-040844-4a33`, OCID-022, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`)
 
 Real Owner directive, tier 1, parented to `UMR-20260802-173631-ca85` (this same ERP Functional
 Completeness Master Program). Extends the existing master program — no new program, no new
@@ -1719,7 +1719,7 @@ BREAKDOWN_2026-08-03.md` (new file), this amendment, `ai-os/OS.yaml` (registrati
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-042019-844f`, dispatch `UMR-20260803-040929-9713`, OCID-20260803-023)
+## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-040929-9713`, OCID-023, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`; this document originally also self-minted a fabricated "artifact UMR", `UMR-20260803-042019-844f`, never really registered anywhere)
 
 Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-040844-4a33` (the real
 `owner_dispatch_gateway` UMR that created sibling task `task-20260803-040852-ocid-022`, independently
@@ -1765,7 +1765,7 @@ partial exception being `pmsIssues.isArchived`, a bare flag with no retention/di
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-20260803-023 | `UMR-20260803-042019-844f` (artifact) / `UMR-20260803-040929-9713` (dispatch) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
+| OCID-20260803-023 | `UMR-20260803-040929-9713` (real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`; the "artifact" UMR `UMR-20260803-042019-844f` previously listed here was fabricated, never really registered) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
 
 Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md` (new, not a
 duplicate — confirmed via `git log --all --name-only` finding `UNIVERSAL_TASK_WRAPPER_DESIGN.md` as
