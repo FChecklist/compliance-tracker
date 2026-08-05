@@ -93,6 +93,41 @@ active:
       ai-os/OS.yaml (two new index entries), this ACTIVE-CLAIMS entry, PROGRESS.md. No src/,
       schema, CI, or credential/secret-value changes of any kind. No repository visibility/
       ownership/permission change.
+  - session_label: "claude-code (UMR-20260805-091629-d8e3) -- build the automated reviewer != author identity check ONLY (identity provisioning itself is a real, structural Owner-only gap, not attempted) [DONE, PR pending]"
+    claimed_at: "2026-08-05T09:30Z (this session -- registered mid-session, after the real code/tests/doc were already written locally; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
+    claim: |
+      SPEC (Owner directive `UMR-20260805-091629-d8e3`, supporting branch-protection
+      hardening `UMR-20260805-034917-33a9` while `UMR-20260805-091648-6793`'s real,
+      temporary, bounded `required_approving_review_count: 0` exception is active):
+      Owner wants a real, separate GitHub identity that can review PRs but never
+      author/push code, wired into the pipeline, plus an automated check confirming
+      reviewer and author are never the same account on any PR. Independently
+      confirmed the identity-provisioning half cannot be done by this or any
+      automated session in this environment: only real GitHub identity anywhere is
+      the `FChecklist` account, token scopes `gist`/`read:org`/`repo` only (no
+      `admin:org`, no App-management scope), `gh api orgs/FChecklist/members` returns
+      404, GitHub App creation needs the interactive manifest flow or scopes this
+      token lacks. Scope narrowed to the one real, buildable, independently useful
+      piece: `scripts/check-reviewer-not-author.mjs` (pure `evaluate()` + `main()`
+      CLI reading `gh pr view --json author,reviews`), real tests
+      (`scripts/check-reviewer-not-author.test.ts`, 9/9 pass), staged workflow
+      (`ai-os/registry/PENDING-MANUAL-APPLICATION-reviewer-not-author-check.yml.txt`,
+      same non-`.github`-path staging as the SEC-07 gate, same real `workflow`-scope
+      constraint), registered in `ai-os/OS.yaml`'s covers index (metadata coverage
+      check passes), and an honest gap/recommendation doc
+      (`ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`) recommending the
+      Owner create a GitHub App (`Pull requests: Read & write` + `Contents: Read`
+      only) as the one real remaining action.
+    scope_note: >-
+      File scope: `scripts/check-reviewer-not-author.mjs` (new),
+      `scripts/check-reviewer-not-author.test.ts` (new),
+      `ai-os/registry/PENDING-MANUAL-APPLICATION-reviewer-not-author-check.yml.txt`
+      (new), `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` (new),
+      `ai-os/OS.yaml` (2 new index entries), this ACTIVE-CLAIMS entry -- all via one
+      PR, built in an isolated worktree
+      (`fix/reviewer-not-author-check-umr20260805091629`) off `origin/main` so as not
+      to disturb other sessions' in-flight uncommitted work in the shared
+      `repos/compliance-tracker` checkout.
   - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [OCID-047 DONE PR #926, OCID-050 IN PROGRESS]"
     claimed_at: "2026-08-05T00:50Z (this session -- registered mid-session, after the OCID-047 fix was already committed; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
     claim: |
