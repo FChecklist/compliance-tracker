@@ -5857,6 +5857,50 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
+    claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
+    claim: |
+      SPEC (`UMR-20260804-073906-3dd0`, OCID-064, reusing this same UMR per explicit instruction --
+      no new UMR minted): claimed OCID-064's real status was "closed as fold-in duplicate of
+      OCID-062" but that its own real closure PR (#881 or #882) was "still open and unmerged," and
+      asked this session to resolve whichever is correct, close the other as a duplicate, and get
+      the correct one merged through independent review.
+
+      **Independently re-verified against live GitHub state before acting on the SPEC's premise
+      (not trusted as-is):** both PR #881 and PR #882 were already `CLOSED` (not merged) --
+      #881 at 2026-08-05T09:35:12Z, #882 at 2026-08-05T10:13:50Z, both by a separate prior session
+      earlier the same day, several hours before this task was dispatched. That prior session's own
+      closing comments (read in full via `gh api .../issues/{881,882}/comments`, not the
+      truncated `gh pr view` text) already did exactly the reconciliation this SPEC asked for, and
+      reached a materially different, correct conclusion: the real §3.8 "Ollama" fold-in this SPEC
+      believes is still pending was **already merged to `main` a day earlier**, as part of PR #876
+      (OCID-062's own document, merged 2026-08-04T08:11:15Z) -- that PR's branch history contains
+      commit `76e3682b` ("...add real §3.8 Ollama documentation (closes OCID-064)"), written by a
+      separate concurrent worker while resolving PR #876's own merge conflict. Confirmed directly:
+      `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      §3.8 on `main` right now opens with "Real, targeted addition — closes OCID-064
+      (`UMR-20260804-072532-a02d`, `UMR-20260804-073906-3dd0`)" -- citing this exact UMR. So neither
+      #881 (a superseded comparison-only checkpoint) nor #882 (a duplicate re-derivation of the same
+      Ollama finding under a different UMR, `UMR-20260804-050857-d33f`, staged for insertion into a
+      doc that had already received the equivalent section by the time #882's own audit ran) is the
+      "real correct PR to merge" -- merging either would put stale/duplicate content on `main` net to
+      a fold-in that already landed. This is not a case of "pick the right one of two open PRs"; it's
+      a case of the SPEC's premise (open/unmerged) being stale by several hours. No PR reopened, no
+      PR merged -- doing so would contradict the prior session's own correct, well-evidenced decision.
+
+      **Real remaining gap this task actually closed:** the prior session's own final closing comment
+      on #881 explicitly flagged one honest gap it left open -- "neither `ACTIVE-CLAIMS.yaml` nor
+      `MASTER-TRACKER.yaml`/`OS.yaml` on `main` currently carries a `recently_completed`/tracker entry
+      recording this closure (only the document content itself does)." Independently confirmed that
+      gap still existed as of this session (`git grep -n "OCID-064"` against `ACTIVE-CLAIMS.yaml`,
+      `MASTER-TRACKER.yaml`, and `OS.yaml` on current `main`: zero hits in all three). This entry is
+      that small, accurate follow-up bookkeeping record -- reusing this task's own UMR
+      (`UMR-20260804-073906-3dd0`) per the SPEC's explicit instruction, not minting a new one.
+    scope_note: >-
+      File scope: this file only (`ai-os/boss/ACTIVE-CLAIMS.yaml`) plus `PROGRESS.md`. No source
+      code, schema, PR state, or `.github/workflows/**` touched. PR #881 and PR #882 left exactly as
+      the prior session left them (`CLOSED`, unmerged) -- confirmed that state is correct, did not
+      reopen or merge either.
   - session_label: "claude-code (task-20260804-045439-register-ocid-058--universal-task-regist) -- OCID-058: real UTR/execution-architecture discovery+verification, no new architecture [DONE, PR opened]"
     claimed_at: "2026-08-04T05:00Z (this session, closed same session)"
     claim: |
