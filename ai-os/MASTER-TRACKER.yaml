@@ -60,6 +60,43 @@ meta:
       why: "Tree 1 -- 'what actually exists in code' reference, not a gap/pending list."
 
 # ============================================================================
+# OCID-020 REAL CURRENT STATUS -- read by the real SEC-07 pre-merge gate
+# ============================================================================
+# UMR-20260805-025554-46f9 (Owner corrective action): the real, deterministic
+# scripts/check-sec07-ocid-lock.mjs pre-merge gate reads THIS block, and only this
+# block, as the authoritative real current status of OCID-020 (UMR-20260802-165606-4413,
+# the PROJEXA end-user certification sweep SEC-07 gates on). A GitHub-hosted CI runner
+# cannot reach the live umr_tasks table in /opt/veridian/ai-os/memory/superboss-register.sqlite
+# (a private, non-internet-exposed file on this server) -- that alternative source named in
+# UMR-20260805-025554-46f9's own text is real but not reachable from stateless GitHub
+# Actions without new, separate infrastructure (a real sync job or a real exposed API),
+# which was not built here; this repo-committed block is the one real source the gate can
+# actually, deterministically read today. If/when a real sync mechanism is built, this
+# block should be kept in lockstep with the DB, or the gate extended to check both.
+#
+# Only a literal `status: "VERIFIED"` unlocks the gate. The real, live umr_tasks row for
+# UMR-20260802-165606-4413 currently reads `status: "running"`, `ts_completed: null` (a
+# separate, unresolved dispatch-bookkeeping gap, not corrected here -- correcting it is a
+# real, standing product-certification claim requiring its own explicit Owner/PM decision,
+# not something to infer or self-authorize while merely building the enforcement
+# mechanism this UMR asked for). Until that real decision is made and this block is
+# updated accordingly, the gate correctly, safely fails closed for any PR touching locked
+# OCID-038/039/040/041-046 scope.
+ocid_020_status:
+  status: "NOT_VERIFIED"
+  detail: |
+    Real, live umr_tasks row (superboss-register.sqlite) for UMR-20260802-165606-4413
+    currently reads status="running", ts_completed=null -- this dispatch-bookkeeping row
+    has not itself been marked complete, independent of any separate real evidence of
+    OCID-020 functional progress elsewhere in this repo's own history. This block
+    deliberately does not resolve that discrepancy -- it reports the real, current,
+    literal state of the authoritative bookkeeping row, fail-closed, per SEC-07's own
+    text ("independently verified complete... not narrated, not assumed from a UMR/task
+    status label alone").
+  last_checked: "2026-08-05T02:53:07Z (UMR-20260805-025554-46f9)"
+  source: "Real umr_tasks row, UMR-20260802-165606-4413, superboss-register.sqlite -- to update this block, a real, explicit Owner/PM decision must independently verify OCID-020 complete and cite that decision's own UMR here."
+
+# ============================================================================
 # OPEN ITEMS -- everything actually pending right now, as of 2026-07-12
 # ============================================================================
 open_items:
