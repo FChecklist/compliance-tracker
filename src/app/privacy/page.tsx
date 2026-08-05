@@ -1,14 +1,27 @@
+import { headers } from "next/headers";
 import type { Metadata } from "next";
 import { LegalShell, COMPANY } from "@/components/LegalShell";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy — VERIDIAN AI OS",
-  description: "How VERIDIAN AI OS collects, uses, and protects personal data.",
-};
+// GAP-PROJEXA-MARKETING-PAGES-HARDCODED-VERIDIAN (OCID-020 addendum,
+// 2026-08-05): same root-cause class as GAP-OCID038-PROJEXA-DOMAIN-BRAND-
+// MISMATCH already fixed on /login -- only the title's brand mention
+// resolves per-host; the description below stays as-is, since it describes
+// the real legal controller/product bundle, not the visiting host's brand.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  return {
+    title: `Privacy Policy — ${brand?.brandName ?? "VERIDIAN AI OS"}`,
+    description: "How VERIDIAN AI OS collects, uses, and protects personal data.",
+  };
+}
 
-export default function PrivacyPage() {
+export default async function PrivacyPage() {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
   return (
-    <LegalShell title="Privacy Policy" updated="7 July 2026">
+    <LegalShell title="Privacy Policy" updated="7 July 2026" brand={brand}>
       <section>
         <h2>1. Controller</h2>
         <p>

@@ -16,19 +16,36 @@ copy pass per PR #954's own commit message).
       (unused) -- no new migration needed, just needs selecting +
       exposing on `PreAuthBrand`
 
-## Remaining
-- [ ] Extend `PreAuthBrand` interface + `resolvePreAuthBrandByHost()`
-      (org-branding-service.ts) with `tagline`
-- [ ] Update org-branding-service.test.ts for the new field
-- [ ] Fix /pricing (split into async Server Component + client component,
-      wordmark, hero subtitle via tagline, FAQ answer, CTA banner, footer)
-- [ ] Fix /contact (wordmark, generateMetadata title, footer)
-- [ ] Fix /terms + /privacy via shared LegalShell (wordmark, generateMetadata
-      title, footer attribution line) -- leave substantive legal body prose
-      unchanged (names the real legal entity/product bundle, not host-brand
-      dependent)
-- [ ] Bonus (near-zero extra cost since LegalShell becomes brand-aware
-      anyway): wire /data-policy through the same optional `brand` prop for
-      consistency with /terms + /privacy
-- [ ] `bunx tsc --noEmit` clean, `bun run lint` clean, `bun test` green
+- [x] Extended `PreAuthBrand` interface + `resolvePreAuthBrandByHost()`
+      (org-branding-service.ts) with `tagline: string | null` (backed by the
+      pre-existing, previously-unused `product_branches.tagline` column --
+      no migration needed)
+- [x] Updated org-branding-service.test.ts: fixture + 2 new tests
+      (tagline passthrough when set, `null` not `undefined` when unset)
+- [x] Fixed /pricing: split into async Server Component (page.tsx) + client
+      component (pricing-client.tsx, unchanged behavior otherwise) --
+      wordmark, hero subtitle (`brand.tagline` when set), FAQ
+      "Is my data secure on ..." question+answer (built as a function of
+      the resolved brand label, not a static const), bottom CTA banner
+      sentence, footer copyright
+- [x] Fixed /contact: added headers()+resolvePreAuthBrandByHost() (already
+      an async Server Component), generateMetadata() title, wordmark
+      (nav + footer, single brand-name form when resolved -- no
+      "COGNITIVE AI OS" subtitle fabricated for a non-VERIDIAN brand),
+      footer copyright
+- [x] Fixed /terms + /privacy via shared LegalShell (now takes an optional
+      `brand` prop): wordmark, generateMetadata() title, footer attribution
+      line ("{brand} is owned and operated by {legalName}..."). Left every
+      substantive legal-body paragraph unchanged -- those name the real
+      legal entity/product bundle, not the visiting host's brand
+- [x] Bonus (near-zero extra cost since LegalShell became brand-aware
+      anyway, and it's the same shared component one click away from
+      /terms + /privacy): wired /data-policy through the same optional
+      `brand` prop for consistency -- not itself named in this gap's scope
+- [x] `bun install` (fresh node_modules), `NODE_OPTIONS=--max-old-space-size=4096
+      bunx tsc --noEmit` clean (pre-existing scripts/*.ts + sentry.*.ts
+      env-type noise, unrelated to any file this change touches), `bun run
+      lint` 0 errors (3 pre-existing warnings, unrelated files), `bun test`
+      2514 pass / 0 fail across 223 files (fresh run, whole suite green --
+      no pre-existing-failure baseline needed)
 - [ ] Commit + push, open PR, update ACTIVE-CLAIMS to recently_completed
