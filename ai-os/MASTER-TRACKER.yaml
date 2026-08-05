@@ -3290,6 +3290,25 @@ open_items:
         finding survives past that session and isn't rediscovered from scratch."
       status: "open, awaiting explicit Owner decision on rotation + history purge"
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide security discovery)"
+      update_2026_08_05: >-
+        `task-20260805-134822-fix-real-ci-failure-and-address-real-sec`
+        (reusing UMR-20260804-035759-1eb2/OCID-054, per SPEC -- no new UMR
+        minted): compliance-tracker's OWN self-inflicted alert #1 (the
+        second-order exposure this entry's own `detail` describes -- this
+        report quoting the value in full, which became a new alert in a
+        different repo) is now resolved: `gh api PATCH
+        .../compliance-tracker/secret-scanning/alerts/1` with `state:
+        resolved`, `resolution: wont_fix` (real secret, not a false
+        positive; not `revoked` since we did not/cannot rotate the
+        underlying veda-advisors credential). Independently re-verified
+        first: `git grep` for the raw value across `origin/main` -> zero
+        hits, and the introducing commit (`03f60ffd`, from PR #869's
+        original history) is confirmed NOT an ancestor of `origin/main`
+        (PR #869 was rebuilt as a single clean commit and merged as
+        `65cd77fd` on 2026-08-05, prior to this task). This does NOT touch
+        the 22 external `veda-advisors` alerts described above -- those
+        remain open, unrotated, and Owner-actionable exactly as before;
+        this update only closes compliance-tracker's own derivative alert.
 
     - id: GAP-VEDA-ADVISORS-DUPLICATE-ENV-UNTRACK-PRS
       name: "veda-advisors: two open, unmerged, duplicate-intent PRs (#13, #14) both untrack the same .env file; neither has merged so .env is still tracked on main today"

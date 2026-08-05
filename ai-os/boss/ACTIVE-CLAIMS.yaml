@@ -40,6 +40,47 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-134822-fix-real-ci-failure-and-address-real-sec) -- reused UMR-20260804-035759-1eb2/OCID-054: PR #869's 'real CI failing' premise was stale (already merged, CI green), real remaining action was resolving compliance-tracker's still-open secret-scanning alert #1 [DONE]"
+    claimed_at: "2026-08-05T13:50Z (this session, closed same session)"
+    claim: |
+      SPEC (reusing UMR-20260804-035759-1eb2/OCID-054, no new UMR minted): "PR 869 is real open
+      with real CI failing" plus a live secret-scanning-alert finding needing real remediation.
+      Independently verified both halves live rather than trusting the SPEC. PR #869 is already
+      MERGED (2026-08-05T10:25:13Z, merge commit `65cd77fd`) by the prior same-UMR session
+      (`task-20260804-040754-register-ocid-054--universal-repository`, entry below) -- every real
+      CI check on it is `SUCCESS` (Lint/Type Check/Build/Unit/E2E/Secret Scanning/audit-check/
+      Guardrail Presence/etc.); the only non-green item is `Vercel` failing on build-rate-limit, a
+      hosting quota issue on a closed PR, not a code/CI defect. `main`'s own CI status is
+      `success`. The "real CI failing" premise was true before the prior session's 2026-08-05
+      remediation and false by the time this task started -- documented as stale rather than
+      fabricating a new fix for an already-fixed problem.
+
+      The secret-scanning half was real and still open: compliance-tracker's own alert #1
+      (`google_api_key`, `publicly_leaked: true`) remained `state: open` via the GitHub API even
+      though the prior session had already redacted the raw value and rebuilt PR #869's history so
+      the introducing commit (`03f60ffd`) is unreachable from `main` -- GitHub's scanner doesn't
+      auto-close an alert just because its commit becomes unreachable via history rewrite.
+      Independently re-verified before acting: `git grep` for the raw value across `origin/main` ->
+      zero hits; `git merge-base --is-ancestor 03f60ffd origin/main` -> not an ancestor. Confirmed
+      this is not compliance-tracker's own credential -- an external, already-publicly-leaked
+      `veda-advisors` Google API key (that repo's own alert #22), rotation of which remains
+      Owner-actionable and untouched (`GAP-VEDA-ADVISORS-EXPOSED-GOOGLE-API-KEYS`,
+      `ai-os/MASTER-TRACKER.yaml`, unchanged by this task). Resolved compliance-tracker's alert #1
+      via `PATCH .../secret-scanning/alerts/1` (`state: resolved`, `resolution: wont_fix` -- real
+      secret so not `false_positive`, not rotated by this repo so not `revoked`), with a
+      resolution_comment citing the redaction, the history rebuild, and this UMR. A real,
+      documented action, not a silent dismissal.
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/MASTER-TRACKER.yaml` (one gap-entry update, no new gap),
+      this ACTIVE-CLAIMS entry -- all docs, via one PR. Plus one real, non-code GitHub API action
+      (resolving compliance-tracker's own secret-scanning alert #1) outside git entirely. No src/,
+      schema, or CI-workflow changes; no credential rotation of any external/live-infra value.
+    result: >-
+      PR #869's CI-failure premise: stale, already fixed by a prior session -- no new fix needed,
+      documented honestly. Secret-scanning alert #1: real finding, real remediation -- resolved via
+      GitHub API with full justification recorded here and in MASTER-TRACKER.yaml. External
+      `veda-advisors` credential rotation remains open and Owner-actionable, not claimed as
+      resolved by this task.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
