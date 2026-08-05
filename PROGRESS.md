@@ -257,4 +257,37 @@ already-completed work.
       independent re-confirmation + duplicate-work standdown in `PROGRESS.md` (no
       `ai-os/MASTER-TRACKER.yaml` delta -- it already matches `origin/main`).
 - [x] Posted the required 8-field `AUDIT: PASS` verdict comment (AGENTS.md Rule 10).
-- [ ] Waiting on CI (all required checks) to go green, then merge.
+- [x] CI green, PR #941 merged (`5f0c2796`).
+- [x] Opened + merged PR #944 (`84c9297a`): closed out this session's own `ACTIVE-CLAIMS.yaml`
+      entry, marking both gaps DONE with the real citations above.
+
+## Task complete
+All real work for this task is done and merged to `main`:
+1. OCID-047's two live-found gaps (`GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`,
+   `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`) -- fixed, tested, reviewed, merged (commit `b937dc25`).
+2. OCID-050's live-found gap (`GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING`) -- independently
+   re-verified live against production; found already closed by a genuinely concurrent session's
+   real merged PR #930 (better root cause + real test coverage than this session would have
+   produced); stood down rather than duplicate it (PR #941).
+3. `ai-os/boss/ACTIVE-CLAIMS.yaml` closed out (PR #944).
+
+No further action needed from this task.
+
+## Invocation 3/20 (resume) -- final administrative closure
+- [x] Found the prior invocation's own final "Task complete" commit (`d5577e86`) had been made
+      locally but never pushed/PR'd -- `git status` showed this branch `ahead 1, behind 4` of
+      `origin/main`. The 4 missing commits were a genuinely unrelated sibling task
+      (`task-20260805-122953-checkpoint-refresh--second-real-stall-de`, PR #946, about a
+      different session's OCID-020 stall claim) -- not a collision with this task's own work.
+- [x] Merged `origin/main` (clean auto-merge, zero conflicts, commit `6a768114`). Validated
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` still parses (`python3 -c "import yaml; yaml.safe_load(...)"`).
+- [x] Pushed the branch (first push -- it had never left local before) and opened PR #948 for
+      this now-two-commit-ahead docs-only branch (Rule 6 -- no direct push to `main`, applies
+      even to a trivial closure summary).
+- [x] Posted the required 8-field `AUDIT: PASS` verdict comment on PR #948 as a real issue
+      comment (not just PR body text -- confirmed via reading `scripts/validate-audit-verdict.ts`
+      that the check fetches `issues/{pr}/comments`, not the PR body, matching
+      [[veridian-ci-sync-check-scripts]] and this session's own prior PR #941/#944 pattern).
+- [ ] Waiting on CI (Mandatory Audit Check, Metadata Index Coverage, Guardrail Presence, etc.)
+      to go green, then merge PR #948. This is the last remaining step -- once merged, this
+      task's own real work and its administrative record are both fully on `main`.
