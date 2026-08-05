@@ -3089,3 +3089,38 @@ entries:
         or the new gate. This does not retroactively unwind the original authorization (already
         APPROVED above, action already complete and stable); it demonstrates the new gate working
         as designed against real evidence.
+
+  - id: OCID-053-PR867-MERGE-CONFLICT-DISPATCH-STALE
+    title: "Dispatch to resolve PR #867's (OCID-053, UMR-20260804-033853-2a17) merge conflict + failing
+      check and get it merged found the PR already merged -- state drift, no code change needed"
+    doer:
+      agent: "claude-code (task-20260805-134817-resolve-real-merge-conflict-and-failing)"
+      date: "2026-08-05"
+      pr: "none -- closure documentation only, PR #867 was already merged before this task started"
+      summary: >
+        SPEC (this task's own dispatch prompt) asserted PR #867 was "real open... blocked from merging
+        by a real merge conflict and a real failing check," directing resolution against current main
+        and a real independent-review merge, reusing UMR-20260804-033853-2a17. Live verification found
+        this stale: `gh api repos/FChecklist/compliance-tracker/pulls/867` shows `state: closed,
+        merged: true, merged_at: 2026-08-05T10:17:02Z`, merge commit `612022a93fb85f2c7eec48652a65db2eeb3af418`,
+        confirmed a real ancestor of local `main` via `git merge-base --is-ancestor`. The PR's own
+        commit history shows both problems named in the dispatch were already fixed by a prior session
+        before merge: `f956343e "fix: reconcile OCID-053's own-UMR self-contradiction, flagged by
+        independent review"` lands immediately before the merge commit (the resolved conflict), and the
+        one failing check visible on the PR (`Vercel` -- "Deployment rate limited... build-rate-limit")
+        is a third-party infra rate limit unrelated to repo code, not a required gate -- every required
+        CI check (Lint, Type Check, Build, Unit Tests, E2E Tests, Guardrail Presence Check, audit-check,
+        etc.) shows `pass`. A real `AUDIT: PASS` comment from `FChecklist` is present on the PR and
+        carried through to the merge. This matches the recurring live-concurrent-state-drift pattern
+        (server runs autonomous worker/supervisor loops continuously; a dispatch prompt's snapshot of PR
+        state can go stale within minutes/hours of being written) documented in prior closures for
+        OCID-047/052 and elsewhere in this file. No new UMR minted per instruction; no code change made
+        since none was possible or needed against an already-merged, closed PR.
+      verification: >
+        `gh api repos/FChecklist/compliance-tracker/pulls/867 --jq '{state,merged,merged_at,mergeable,
+        mergeable_state}'`; `git merge-base --is-ancestor 612022a93fb85f2c7eec48652a65db2eeb3af418 main`;
+        `git fetch origin main` matched local HEAD; `gh pr checks 867` (all required checks pass, sole
+        failure is the unrelated Vercel infra rate limit); `gh pr view 867 --json comments` (real
+        AUDIT: PASS present); checked `ai-os/boss/ACTIVE-CLAIMS.yaml` and this file for a prior
+        collision or closure record -- none existed, so this entry is that record.
+      status: "CLOSED -- duplicate/stale-premise dispatch, no action possible or required"
