@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-143620-investigate-and-merge-real-open-pr-866) -- SPEC premise re-verified false: PR #866 already MERGED, not open -- no work performed [DONE, closed same session]"
+    claimed_at: "2026-08-05T14:36Z (this session, closed same session)"
+    claim: |
+      SPEC (cites `UMR-20260804-042343-572b`, OCID-057): "PR 866 is real open and unmerged, real
+      specific blocker not yet diagnosed -- check CI status/mergeability, diagnose the blocker, fix
+      it, and get it merged through real independent review, reusing this same UMR."
+
+      Independently re-checked live before doing any real work: `gh pr view 866` shows
+      `state: MERGED`, `mergedAt: 2026-08-05T10:10:06Z`, merge commit `6d6acc2441ad`, which is a
+      confirmed ancestor of local `main` and matches `origin/main` exactly (`git fetch` reported no
+      new changes). A follow-up correction commit (`c66f797f`, "fix: correct PR #866's stale
+      OCID-053-056 fabrication claim, real Superboss review rejection") is already merged into main
+      immediately after it. So PR #866 was merged roughly 4.5 hours before this task's own dispatch
+      time -- the SPEC's "open and unmerged" premise did not hold at dispatch time, or was already
+      stale live-concurrent-state-drift by the time this session started.
+
+      Separately, the cited `UMR-20260804-042343-572b` does not appear anywhere in the repo
+      (`git grep` zero matches across the full tree). The real UMR on record for OCID-057 in
+      `ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`'s own table is
+      `UMR-20260804-035943-3c38`, not the one cited in this dispatch -- flagging the mismatch rather
+      than silently substituting one for the other or minting a new UMR (SPEC explicitly said reuse,
+      not mint).
+
+      No fix, merge, or review action performed -- there was nothing left to do. Per instruction, did
+      not mint a new UMR for this non-finding.
+    scope_note: >-
+      File scope: this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. Read-only investigation only
+      (`gh pr view`, `git log`, `git grep`, `git fetch`) -- zero code/doc/schema changes, zero PR.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
