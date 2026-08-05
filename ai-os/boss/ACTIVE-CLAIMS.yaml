@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-122939-investigate-why-pr-932-and-pr-933-merged) -- discovery-only investigation of why PR #932/#933 merged with Metadata Index Coverage Check FAILURE and zero real GitHub reviews [DONE, PR pending]"
+    claimed_at: "2026-08-05T12:29Z (this session)"
+    claim: |
+      SPEC (this task's own prompt): citing UMR-20260805-025349-a6b8, UMR-20260805-025554-46f9,
+      and the standing Hard Rule 7 lock UMR-20260802-165606-4413. Investigate, discovery only,
+      whether real GitHub branch protection listed Metadata Index Coverage Check + a review
+      requirement as required, whether the merging account held a real admin bypass, and the
+      real exact mechanism -- do not fix branch protection, report honestly for a fresh Owner
+      decision.
+
+      Real findings (independently verified against live GitHub data, not narrated): both PRs'
+      statusCheckRollup show Metadata Index Coverage Check: FAILURE at merge (root cause: each
+      PR added new ai-os/ governance files without registering them in ai-os/OS.yaml's index --
+      fixed only afterward, reactively, by PR #934). Both show reviewDecision: "" and zero native
+      reviews -- only self-posted AUDIT: PASS/FAIL comments from the single FChecklist identity
+      (same account as author/merger). FChecklist holds real repo-admin permission
+      (collaborators/FChecklist/permission -> "admin"). Cross-referenced the already-merged
+      ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md, which states
+      UMR-20260805-034917-33a9 added enforce_admins:true + required_approving_review_count:1
+      ~25-29 minutes *after* both merges, explicitly as corrective action for this exact
+      incident -- implying neither was enforcing at merge time. Root mechanism:
+      ai-os/scripts/supervisor-entrypoint.sh fires a plain `gh pr merge --merge` (no --admin
+      flag); its readiness poll only guards mergeStateStatus BLOCKED/BEHIND, and GitHub reports
+      UNSTABLE (not BLOCKED) for an admin who can bypass a failing required check when
+      enforce_admins is off -- no explicit override action was needed by anyone.
+
+      Also flagged, not resolved: a materially conflicting concurrent PM-decision task
+      (task-20260805-122949-pm-decision--harden-compliance-tracker-branch-protection, citing
+      UMR-20260805-033159-4f47) whose own premise ("Metadata Index Coverage Check... never
+      added to the real required status checks list") contradicts what this investigation
+      independently found live and contradicts the already-merged governance record above;
+      UMR-20260805-033159-4f47 itself is not found anywhere else in this repository's history.
+      Recommended the Owner reconcile the two accounts before further branch-protection changes
+      are made on separate, possibly-inconsistent premises.
+
+      Full record: ai-os/GOVERNANCE_RECORD_PR932_PR933_MERGE_BYPASS_INVESTIGATION_2026-08-05.md.
+      No branch-protection setting changed by this task; no disposition rendered (out of scope
+      by explicit instruction).
+    scope_note: >-
+      File scope: `ai-os/GOVERNANCE_RECORD_PR932_PR933_MERGE_BYPASS_INVESTIGATION_2026-08-05.md`
+      (new), `ai-os/OS.yaml` (1 new index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No
+      src/, schema, CI, or branch-protection/repo-settings changes of any kind.
   - session_label: "claude-code (task-20260804-040754-register-ocid-054--universal-repository) -- OCID-054 real discovery/inventory of every repo, branch, PR, worker, queue, job, task, doc, config across the FChecklist org + real security/exposed-credential scan [read-only, DONE, PR #869 rebuilt 2026-08-05 with a history that never contains the raw leaked secret]"
     claimed_at: "2026-08-04T04:07Z (this session; re-registered 2026-08-05 after PR #869's original branch history -- which briefly contained a real secret's raw value at commit 03f60ffd -- was rebuilt as a single clean commit off current main so that value is never reachable from any commit on this branch)"
     claim: |
