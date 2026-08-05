@@ -8,6 +8,10 @@ real live browser/API reproduction against live projexa-ai.com, not a re-read of
 message. Report each honestly. Do not certify OCID-020 complete based on 11a5de5e's own claim.
 
 ## Completed
+- [x] OCID-047 re-verified: **NEW GAP FOUND** (2 real gaps, `GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`
+      + `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`) -- previously live-found by unmerged/conflicting
+      PR #827, never registered in MASTER-TRACKER.yaml, independently reproduced live today on a
+      fresh org. 11a5de5e's "genuinely closed" claim was wrong about OCID-047 too. Registered.
 - [x] Read governance docs, registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
 - [x] Set up independent live-testing environment: dedicated worktree `/tmp/ocid047-052-verify`
       (detached at `origin/main` 649d2583), `.env.local` + `node_modules` from the live
@@ -15,7 +19,6 @@ message. Report each honestly. Do not certify OCID-020 complete based on 11a5de5
       known chrome-system-libs workaround) -- confirmed reaches live projexa-ai.com
 
 ## Remaining
-- [ ] OCID-047 (Rights/Responsibility/Scope role matrix) -- independent live re-verification
 - [ ] OCID-048 (Multi-Org/Tenant/Brand isolation) -- independent live re-verification
 - [ ] OCID-050 (Data State Certification) -- independent live re-verification
 - [ ] OCID-051 (Cross-Surface: browser + Mobile PWA) -- independent live re-verification

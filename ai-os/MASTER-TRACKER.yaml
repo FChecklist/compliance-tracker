@@ -572,6 +572,55 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT
+      name: "GET /api/clients returns ALL org clients to every role incl. viewer, ignoring resolveAccessibleClientIds() -- severity: high, real cross-role data-exposure gap, confirmed live"
+      old_ids: []
+      detail: |
+        Independent re-verification of OCID-047 (`UMR-20260802-165606-4413`, this task
+        `task-20260804-235321-independently-re-verify-group-f-ocid-047`), triggered because commit
+        `11a5de5e`'s "Group F Business Certification genuinely closed" claim was proven wrong about
+        OCID-049 (PR #924) and so was not taken at face value for OCID-047/048/050/051/052 either.
+
+        This gap was ALREADY live-found once before, by commit `925f3204` ("test: real OCID-047 role
+        testing execution -- 4 roles, 2 real gaps found"), but that commit lives only on branch
+        `worker/task-20260803-150816-pm-decision--defer-the-ci-guardrail-work`, whose PR #827 is
+        still OPEN (`mergeable: CONFLICTING`, `mergedAt: null`) -- it never merged, so the gap was
+        never registered here, and the 11a5de5e rollup closed Group F without it.
+
+        Re-confirmed live and independently today (fresh org `n4eoz7irp6d8ff9r9l0cnf9y`, created
+        post-PR#924, never used by any prior session): admin created 2 real clients (`POST
+        /api/clients`, both 201). A real viewer-role user in the SAME org, with zero
+        `user_client_access` grant rows (confirmed via direct read-only DB query), issued a real
+        `GET /api/clients` and received `200` with `count: 2` -- identical to the admin's own view.
+        Root cause confirmed by source read of current `main`: `src/app/api/clients/route.ts`'s GET
+        handler queries `where: eq(clients.orgId, orgId)` with no per-caller scoping call;
+        `resolveAccessibleClientIds()` (`src/lib/services/client-access-service.ts`) exists and is
+        correct but has zero callers under `src/app/api/clients/*`.
+      size: S
+      recommendation: |
+        OPEN. Wire `resolveAccessibleClientIds()` into `GET /api/clients`' handler the same way it
+        is presumably already used elsewhere, gated by caller role (viewer/branch_manager should not
+        see clients outside their own scope/ownership). PR #827 (branch
+        `worker/task-20260803-150816-pm-decision--defer-the-ci-guardrail-work`) already contains a
+        real fix attempt from the original finder -- resolve its merge conflict and re-review rather
+        than starting from scratch, or supersede it if its approach is stale.
+    - id: GAP-RISK-CREATE-403-SILENT-DENIAL-UX
+      name: "Risk-creation form silently swallows a 403 (or any error) -- closes the dialog and reloads as if it succeeded, no user-facing explanation"
+      old_ids: []
+      detail: |
+        Same re-verification pass as GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT above (OCID-047,
+        `UMR-20260802-165606-4413`). Originally found by the same never-merged commit `925f3204`
+        (PR #827, open/conflicting) and confirmed still present today by a static-code read of
+        current `main`: `src/app/(app)/risks/page.tsx`'s `create()` handler `await fetch(...)`s the
+        POST and unconditionally calls `setShowForm(false); load();` regardless of response status
+        -- never checks `.ok` or surfaces the error body to the user. A denied/failed risk creation
+        looks identical in the UI to a successful one.
+      size: S
+      recommendation: |
+        OPEN. Check `response.ok` in `create()`; on failure, keep the form open and show the real
+        error message (reuse whatever toast/inline-error pattern other forms in this codebase
+        already use for failed mutations) instead of silently closing and reloading. Same PR #827
+        note as above applies -- check it for an existing fix attempt before starting fresh.
     - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
       name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
       old_ids: []
