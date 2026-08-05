@@ -8,7 +8,7 @@
 // count) but returns the full plan row, not just features.aiPackage --
 // callers here need assistantsPerUser/name, not the AI-routing string.
 import { db, organisations, subscriptionPlans, users, aiAssistants } from "@/lib/db"
-import { eq, count } from "drizzle-orm"
+import { and, eq, count, sql } from "drizzle-orm"
 
 export type ResolvedSubscriptionPlan = typeof subscriptionPlans.$inferSelect
 
@@ -24,7 +24,19 @@ export async function resolveSubscriptionPlan(orgId: string): Promise<ResolvedSu
   const [[{ value: userCount }], plans] = await Promise.all([
     db.select({ value: count() }).from(users).where(eq(users.orgId, orgId)),
     db.query.subscriptionPlans.findMany({
-      where: eq(subscriptionPlans.isActive, true),
+      // Real, live bug found during Group F re-verification (UMR-20260804-221844-c915):
+      // the real subscription_plans table also carries 4 pre-existing legacy rows
+      // (Trial/Starter/Growth/Scale) seeded well before this task's own
+      // Basic/Standard/Professional/Enterprise scheme's migration -- see that
+      // migration's own file header for the real timeline -- that were never
+      // meant to participate in this fallback. Confirmed live: a
+      // fresh 1-user org resolved to "Trial" (cap 5) instead of "Basic" (cap 3), and
+      // an existing 48-user org resolved to "Scale" (cap 5) instead of "Professional"
+      // (cap 8), since both tie at userPackSize=50 and Scale sorted first. Filtering
+      // on `features.aiPackage` (this migration's own documented discriminator, see
+      // drizzle/0231_ai_router_mother_router.sql and mother-router.ts's matching fix)
+      // excludes the legacy rows without touching them.
+      where: and(eq(subscriptionPlans.isActive, true), sql`${subscriptionPlans.features} ->> 'aiPackage' IS NOT NULL`),
       orderBy: (t, { asc }) => asc(t.userPackSize),
     }),
   ])

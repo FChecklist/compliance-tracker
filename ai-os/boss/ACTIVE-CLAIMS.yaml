@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [OCID-047 DONE PR #926, OCID-050 IN PROGRESS]"
+    claimed_at: "2026-08-05T00:50Z (this session -- registered mid-session, after the OCID-047 fix was already committed; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
+    claim: |
+      SPEC (PM decision, checkpoint refresh, `UMR-20260804-234032-146e`, parent
+      `UMR-20260802-165606-4413`): this task's own prior invocation stalled with zero real
+      progress (`files_modified: [PROGRESS.md]` only, `remaining_steps: [Not started]` --
+      confirmed via three consecutive sentinel cycles of byte-for-byte-unchanged pane text and
+      ~10s real CPU time across the last 10 real minutes). Continuing now: finish root-causing
+      and fixing OCID-047 and OCID-050's real live-found gaps from the independent Group F
+      re-verification (`task-20260804-235321-independently-re-verify-group-f-ocid-047`, commits
+      `1b0aeb5c`/`84552aa2`, pushed to a branch whose PR was never opened), one at a time, same
+      discipline as OCID-049 (root cause, narrow fix, real tests, PR, independent review, merge).
+
+      Found OCID-047's third gap (`POST /api/users` role check) and OCID-049's gap had already
+      been independently fixed and merged by sibling tasks (PR #925, PR #924) before this task
+      did any real work -- did not redo them. Fixed OCID-047's remaining 2 gaps
+      (`GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`, `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`): PR #926,
+      real tests (4/4 pass for the API-route gap; the UI-only gap has no `.test.tsx` added since
+      this repo has zero `.test.tsx` files and no DOM-testing dependency anywhere -- disclosed in
+      the PR rather than inventing a new test harness for a one-line fix). Now starting OCID-050's
+      `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING`.
+    scope_note: >-
+      File scope: `src/app/api/clients/route.ts`, `src/app/api/clients/route.test.ts` (new),
+      `src/app/(app)/risks/page.tsx`, `ai-os/MASTER-TRACKER.yaml` (2 gap entries, registered +
+      closed), this ACTIVE-CLAIMS entry, `PROGRESS.md` -- all via PR #926 (OCID-047). OCID-050's
+      fix (in progress) will touch `src/app/(app)/settings/page.tsx` and/or
+      `SubscriptionPlanSection.tsx`/`subscription-plan-service.ts` per the finding's own
+      recommendation, in a separate PR.
   - session_label: "claude-code (task-20260804-144006-ocid-020-group-f-real-business-certifica) -- OCID-020 Group F: picked OCID-052 as least-tested child, real browser test found a new live regression instead (GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS) [DONE]"
     claimed_at: "2026-08-04T14:50Z (this session, closed same session)"
     claim: |
@@ -5610,6 +5638,37 @@ recently_completed:
       GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES, GAP-KNOWLEDGE-NO-REPORT-BUSINESS-RULE-CATALOG),
       `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. Documentation/registry only -- no code, schema, DB,
       or UMR rename/merge/archive performed.
+  - session_label: "claude-code (task-20260804-183824-ocid-020-urgent-correction-real-merge-fa) -- OCID-020 GAP-API-ME-500: urgent-correction dispatch found its own premise stale (real merge already happened via a separate autonomous cycle before this task started), independently re-verified the real production fix instead of re-doing already-done work [DONE, no new PR -- additive doc corroboration only]"
+    claimed_at: "2026-08-04T18:38Z (this session)"
+    claim: |
+      SPEC (real PM decision, urgent correction, cites `UMR-20260804-155457-a16d` and
+      `UMR-20260804-153900-ea69`): dispatched on the accurate-at-the-time observation that PR #900
+      was OPEN/mergedAt null/BEHIND and the underlying migration-0312/`/api/me` fix had not
+      actually merged despite an earlier docs claim that it had. Independently re-checked live at
+      the start of this task and found the premise had been overtaken by real events in the
+      interim: a separate, real autonomous supervisor cycle
+      (`task-20260804-160451-adopted-ocid-020--close-gap-api-me-500----produc`) had already
+      rebased and genuinely merged PR #900 (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`,
+      confirmed via `gh pr view 900` and `git log origin/main`) before this task's own dispatch
+      time, and a duplicate follow-on PR (#914, identical branch content) was correctly rejected as
+      a stale no-op by an independent Superboss review agent and auto-closed. Did NOT re-attempt an
+      already-completed rebase/merge, and did NOT falsely mark the real, now-fixed state as still
+      "blocked" just to match the dispatch's own now-superseded framing -- instead independently
+      re-verified the live production result from scratch, trusting neither the merged commit's own
+      prose nor the dispatch's stale premise: (1) direct `psql` query against the real production
+      DB confirms `platform.product_branches.host_domain` genuinely exists with its unique index and
+      the PROJEXA row is genuinely set to `projexa-ai.com`; (2) 10 fresh, independent, Admin-API-
+      provisioned real users each got a real `200` from `GET /api/me` on live `projexa-ai.com` --
+      **10/10**, zero non-200, exceeding the original closure's own 4/4 coverage. Added an additive
+      `reverification_2026_08_04_1846` field to `ai-os/MASTER-TRACKER.yaml`'s existing
+      `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` entry recording this; made no change to that entry's
+      `status: closed` since the closure is genuinely correct. Reported the live-concurrent-state-
+      drift finding honestly rather than silently absorbing it.
+    scope_note: >-
+      File scope: `ai-os/MASTER-TRACKER.yaml` (one additive field, no existing content changed),
+      this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No src/, schema, or infrastructure changes --
+      read-only DB query plus read-only live HTTP checks against the deployed site, zero code
+      changes, zero new PR (nothing left to merge).
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |
