@@ -8,6 +8,7 @@
 // build time.
 import Link from "next/link";
 import Image from "next/image";
+import type { PreAuthBrand } from "@/lib/services/org-branding-service";
 
 export const COMPANY = {
   legalName: "SHOBHA KAMAL SOLUTIONS PRIVATE LIMITED",
@@ -17,14 +18,26 @@ export const COMPANY = {
   contactEmail: "raajat.agarwal@gmail.com", // swap for a branded legal/compliance inbox when available
 };
 
-export function LegalShell({ title, updated, children }: { title: string; updated: string; children: React.ReactNode }) {
+// OCID-020 child UMR-20260805-142629-8087 ("broader pre-auth brand
+// mismatch"): `brand`, optional, resolved server-side by each page's own
+// async Server Component (real HTTP Host header -> product_branches
+// lookup, same resolvePreAuthBrandByHost() mechanism as login/pricing/
+// contact). Deliberately swaps ONLY the nav wordmark below (which brand
+// site am I on) -- never COMPANY.brand or the legal-disclosure footer/body
+// text further down, which intentionally names the actual legal entity/
+// umbrella brand that owns every product (PROJEXA included) regardless of
+// which domain a visitor arrived on. Rewriting that disclosure to say
+// "PROJEXA is owned and operated by..." would be a legal-content decision,
+// not a branding-wordmark bug, and is out of this fix's scope -- see the
+// PR body for the full reasoning.
+export function LegalShell({ title, updated, brand, children }: { title: string; updated: string; brand?: PreAuthBrand | null; children: React.ReactNode }) {
   return (
     <main className="min-h-screen bg-[#F4F1E8] text-[#1a1a17] antialiased">
       <nav className="border-b border-[#1a1a17]/10">
         <div className="mx-auto flex h-16 max-w-4xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
-            <Image src="/logo-mark.svg" alt="VERIDIAN" width={24} height={24} />
-            <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+            <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={24} height={24} />
+            <span>{brand ? brand.brandName : (<>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></>)}</span>
           </Link>
           <div className="flex gap-5 text-sm text-[#1a1a17]/60">
             <Link href="/terms" className="hover:text-[#1a1a17]">Terms</Link>

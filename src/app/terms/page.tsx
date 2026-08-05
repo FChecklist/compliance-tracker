@@ -1,14 +1,29 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import { LegalShell, COMPANY } from "@/components/LegalShell";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
-export const metadata: Metadata = {
-  title: "Terms & Conditions — VERIDIAN AI OS",
-  description: "Terms and Conditions governing the use of VERIDIAN AI OS and all its products.",
-};
+// OCID-020 child UMR-20260805-142629-8087 ("broader pre-auth brand
+// mismatch"): only the page <title>/nav wordmark are brand-resolved here
+// (via LegalShell's own `brand` prop) -- the legal body text below
+// intentionally stays the full corporate/product-family disclosure
+// regardless of which domain a visitor arrived on; see LegalShell.tsx's
+// own comment for why.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  return {
+    title: `Terms & Conditions — ${brand?.brandName ?? "VERIDIAN AI OS"}`,
+    description: "Terms and Conditions governing the use of VERIDIAN AI OS and all its products.",
+  };
+}
 
-export default function TermsPage() {
+export default async function TermsPage() {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+
   return (
-    <LegalShell title="Terms & Conditions" updated="7 July 2026">
+    <LegalShell title="Terms & Conditions" updated="7 July 2026" brand={brand}>
       <section>
         <h2>1. Who we are</h2>
         <p>

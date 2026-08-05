@@ -208,7 +208,12 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
               </span>
             </div>
             <p className="text-white/60 text-sm">
-              {tAuth("tagline")}
+              {/* OCID-020 child UMR-20260805-142629-8087: PreAuthBrand now
+                  carries real per-branch tagline copy (closing the gap PR
+                  #954 disclosed -- this line was never brand-resolved
+                  before). `null` (no real PROJEXA tagline configured yet)
+                  falls back to the exact existing default, unchanged. */}
+              {brand?.tagline ?? tAuth("tagline")}
             </p>
           </div>
 
@@ -392,7 +397,10 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
 
           {/* Footer */}
           <p className="text-center text-xs text-white/40 mt-6">
-            {tAuth("footer")}
+            {/* OCID-020 child UMR-20260805-142629-8087: same as the tagline
+                above -- real per-branch footer copy, null-falls-back to the
+                existing default unchanged. */}
+            {brand?.footer ?? tAuth("footer")}
           </p>
           <div className="mt-3 flex justify-center">
             <LanguageSwitcher className="text-[11px] bg-white/10 border border-white/20 rounded-md px-1.5 py-0.5 text-white/70" />
