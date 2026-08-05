@@ -40,6 +40,27 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-143630-investigate-and-merge-real-open-pr-873) -- diagnose real blocker on PR #873 (OCID-059, UMR-20260804-040122-2b4b), fix it, merge through real independent review"
+    claimed_at: "2026-08-05T14:36Z (this session)"
+    claim: |
+      SPEC (this task's own UMR, reused, not re-minted -- UMR-20260804-040122-2b4b/OCID-059):
+      PR #873 ("docs: OCID-059 Universal Browser, PWA, and Offline Synchronization Runtime
+      Certification") is real, open, unmerged. Independently checked live CI + mergeability
+      before touching anything: all required checks pass (Lint, Type Check, Build, Unit Tests,
+      E2E, Guardrail Presence, audit-check, etc.) -- CI is not the blocker. Real blocker is
+      `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY`: the branch
+      (`worker/task-20260804-045443-register-ocid-059--universal-browser--pw`) is 7 commits
+      behind `origin/main`, which is 9 commits ahead of their merge-base -- a stale docs-only
+      branch that has already been re-synced with main multiple times before (visible in its own
+      history: `b51e7269`, `eefcd27c`, `f4545884`, `e138d38b`, `3a355710` are all prior
+      merge-from-main commits on this same branch) and has simply drifted again since the last
+      sync. Fixing by merging current `origin/main` into the branch in an isolated worktree,
+      resolving the real conflicts (all in shared governance-tracker files: `PROGRESS.md`,
+      `ai-os/MASTER-TRACKER.yaml`, `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`), pushing, and
+      confirming CI + merge once green.
+    scope_note: >-
+      File scope: PR #873's branch only (governance/docs files listed above -- no src/, schema,
+      or infrastructure changes), plus this ACTIVE-CLAIMS entry and this task's own PROGRESS.md.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
