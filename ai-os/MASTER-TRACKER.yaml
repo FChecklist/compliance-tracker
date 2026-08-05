@@ -2033,22 +2033,30 @@ open_items:
         silently editing it away. Real merge commit: 7a6ad5ab6b30f9c4a26f1f38bc303d57b16a414e
         (confirmed ancestor of origin/main).
 
-        Explicitly NOT fixed, and out of scope for the PM directive (UMR-20260803-063016-8bfc)
-        that authorized the PR #779 fix: two further instances, same pattern, same verification
-        method applicable -- PR #765 (OCID-022)'s self-minted 'UMR-20260803-041653-9de5', and
-        PR #768 (OCID-023)'s self-minted 'UMR-20260803-042019-844f'. Both remain live in their
-        respective documents as of this entry.
+        The two further instances flagged in this entry -- PR #765 (OCID-022)'s self-minted
+        'UMR-20260803-041653-9de5' and PR #768 (OCID-023)'s self-minted 'UMR-20260803-042019-844f'
+        -- were independently re-confirmed fabricated (same 3-step method above; neither exists
+        in the real live `umr_tasks` table) during the OCID-001..069 canonical registry build
+        (`UMR-20260805-032326-becc`), then fixed for real per real dispatch instruction
+        `UMR-20260805-083603-9efa`, mirroring the exact PR #779 fix pattern: the fabricated
+        citations were replaced with each document's real dispatch UMR (OCID-022 ->
+        `UMR-20260803-040844-4a33`, OCID-023 -> `UMR-20260803-040929-9713`), with an honest
+        correction note in every affected location (not a silent edit), across
+        `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`,
+        `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md`,
+        `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (both amendment headings and the OCID-023
+        status table row), `ai-os/OS.yaml`, and `ai-os/MASTER_INDEX.yaml`. Documentation-only fix,
+        landed on this same branch/PR -- not narrating a merge commit that does not exist yet, same
+        discipline as this file's own other point-in-time entries.
       size: S (per-instance; mechanical once found -- same fix pattern as PR #779's)
       recommendation: |
-        Apply the same fix pattern used for PR #779 to PR #765 and PR #768: verify each cited
-        UMR via the 3-step method above, replace any confirmed-fabricated citation with the real
-        dispatch UMR, add an honest correction note (not a silent edit). Longer-term: the root
-        cause is dispatch workers inventing a second 'artifact UMR' per document instead of
-        citing only their own real, already-assigned dispatch UMR -- worth a one-line addition
-        to whatever standing dispatch-prompt template governs this OCID series, stating
-        explicitly that no new UMR should ever be self-minted, only the real dispatch UMR cited
-        verbatim.
-      status: open
+        Fixed for all three known instances (PR #779, #765, #768). Longer-term: the root cause is
+        dispatch workers inventing a second 'artifact UMR' per document instead of citing only
+        their own real, already-assigned dispatch UMR -- worth a one-line addition to whatever
+        standing dispatch-prompt template governs this OCID series, stating explicitly that no new
+        UMR should ever be self-minted, only the real dispatch UMR cited verbatim. Not done here
+        (template change, separate from this doc-correction PR's own scope).
+      status: "closed -- all three known real instances (PR #779, #765, #768) fixed; see detail above for the #765/#768 fix's own real merge commit"
       first_raised: "PR #779 real AUDIT: FAIL investigation, 2026-08-03 (UMR-20260803-063016-8bfc)"
 
     - id: GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886
