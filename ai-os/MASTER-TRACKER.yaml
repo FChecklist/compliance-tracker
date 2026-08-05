@@ -572,6 +572,51 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING
+      name: "/settings page's Subscription Plan tab appeared not to render after real login -- root cause: GET /api/me ~5-9s from 9 sequential awaits -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED (this task, task-20260805-003832-real-stall-recovery--continue-ocid-047-a, UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Independent re-verification of OCID-050 (`UMR-20260802-165606-4413`, task
+        `task-20260804-235321-independently-re-verify-group-f-ocid-047`), triggered because
+        commit `11a5de5e`'s "Group F Business Certification genuinely closed" claim was proven
+        wrong about OCID-049 (PR #924). OCID-050's original 345/345 sweep only checked HTTP 200 +
+        absence of "Application error" text, never real interaction -- this class of bug is
+        invisible to that methodology. That finding's own registration (commit `84552aa2`) never
+        reached `main` -- it lives only on branch
+        `worker/task-20260804-235321-independently-re-verify-group-f-ocid-047`, whose PR was never
+        opened. This entry supersedes it, carried onto `main` for the first time here.
+
+        Root cause isolated by direct reproduction against live `projexa-ai.com` (not guesswork):
+        real Playwright session against a real, pre-existing 50-user legacy org
+        (`demo_co_1_sharma`), same real login as the original finding. `GET /api/me` consistently
+        took ~5-9s (4 repeated direct calls: 5.0-5.4s each, ruling out a one-off cold start) --
+        confirmed by source read that it ran 9 independent org/user lookups (org row, 5
+        product-branch enablement checks, branding, subscription plan status, assistants-used) as
+        9 sequential `await`s, each opening its own `withTenantContext` transaction, though none
+        depends on another's result. A polling reproduction confirmed the actual user-facing
+        symptom: while that request is in flight, `settings/page.tsx`'s `isAdmin` stays at its
+        default (`false`), so a real admin who opens an admin-gated tab (Subscription Plan,
+        Organisation, Seats & AI Spend, Branding, Adoption Dashboard) inside that multi-second
+        window sees a false "Only admins can view..." message that looks like a real permissions
+        bug -- and even a few hundred ms after the fetch resolves, React hadn't always applied the
+        state yet either (confirmed: clicking 300ms after `/api/me`'s network response still
+        showed the false-negative message; waiting the full ~6s rendered the real section
+        correctly). Not a click-handler bug and not org-size-dependent (`/api/me`'s slowness comes
+        from the fixed count of 9 sequential round trips, not from user-count-scaled query cost).
+      size: S
+      recommendation: |
+        CLOSED. Two real fixes, both needed since the frontend race is real even once the backend
+        is fast: (1) `src/app/api/me/route.ts` now runs the 9 lookups concurrently via
+        `Promise.all` -- they are genuinely independent. (2) `src/app/(app)/settings/page.tsx`
+        gates every admin-only section on a new `profileLoaded` state (a real loading skeleton)
+        instead of asserting "not admin" before the `/api/me` fetch has had a chance to say so.
+        Real tests: `src/app/api/me/route.test.ts` (new), 3/3 pass -- a real timing assertion
+        proves the 9 lookups run concurrently (fails if this ever regresses to sequential
+        awaits), plus response-shape and no-org-id coverage. No `.test.tsx` for the
+        `settings/page.tsx` change -- same zero-`.test.tsx`-files, no-DOM-testing-dependency
+        situation as OCID-047's `risks/page.tsx` fix. `tsc --noEmit` clean, `eslint` clean, full
+        suite (2504 tests) 0 fail.
     - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
       name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
       old_ids: []

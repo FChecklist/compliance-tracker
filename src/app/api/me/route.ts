@@ -15,27 +15,45 @@ export async function GET() {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
 
-  const org = orgId
-    ? await withTenantContext({ orgId }, (db) => db.query.organisations.findFirst({ where: eq(organisations.id, orgId) }))
-    : null
-  const pmsEnabled = orgId ? await isPmsEnabledForOrg(orgId) : false
-  const veriChatV2Enabled = orgId ? await isVeriChatV2EnabledForOrg(orgId) : false
-  const firmEnabled = orgId ? await isFirmEnabledForOrg(orgId) : false
-  const erpEnabled = orgId ? await isErpEnabledForOrg(orgId) : false
-  const salesEnabled = orgId ? await isSalesEnabledForOrg(orgId) : false
-  // Wave B (BYOB white-label branding): resolved here (not raw org columns)
-  // so every consumer (AppShell for the sidebar logo/CSS vars, the Branding
-  // settings section itself) gets the SAME already-defaulted values -- an
-  // org that has never configured branding gets the real default VERIDIAN
-  // AI colors/null-logo back, never a raw null a client would have to
-  // remember to fall back on itself. See org-branding-service.ts's own
-  // resolveBranding() header for why this is the only sanctioned read path.
-  const branding = orgId ? await resolveBranding(orgId) : null
-  // GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Task B: resolved tier + real
-  // limits, same "resolve server-side once, let every client read one flat
-  // field" shape as erpEnabled/salesEnabled above -- no new endpoint.
-  const subscriptionPlanStatus = orgId ? await getSubscriptionPlanStatus(orgId) : null
-  const assistantsUsedByCurrentUser = dbUser?.id ? await getAssistantsUsedByUser(dbUser.id) : 0
+  // Gap closure, real live-found bug (GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-
+  // RENDERING, OCID-050 independent re-verification, UMR-20260802-165606-4413):
+  // these 9 lookups used to run as 9 sequential `await`s, each opening its
+  // own withTenantContext transaction -- live-measured at ~5s total for this
+  // route alone (confirmed via 4 repeated direct calls, ~5.0-5.4s each,
+  // ruling out a one-off cold start). Every one of them depends only on
+  // `orgId` (or `dbUser.id` for the last one), never on another lookup's
+  // result, so there is no real ordering requirement -- run them concurrently
+  // instead. This is the actual root cause of the reported symptom: while
+  // this request is in flight, every client of /api/me (settings/page.tsx's
+  // `isAdmin`, its Profile inputs, AppShell's branding/nav) is stuck on its
+  // pre-fetch default, so an admin who interacts with the page in that
+  // multi-second window sees a false "not admin"/placeholder state that
+  // looks broken. settings/page.tsx's own residual client-side race (a
+  // click landing in the narrow gap between "response received" and "React
+  // state applied") is closed separately, in that file.
+  const [org, pmsEnabled, veriChatV2Enabled, firmEnabled, erpEnabled, salesEnabled, branding, subscriptionPlanStatus, assistantsUsedByCurrentUser] = await Promise.all([
+    orgId ? withTenantContext({ orgId }, (db) => db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })) : Promise.resolve(null),
+    orgId ? isPmsEnabledForOrg(orgId) : Promise.resolve(false),
+    orgId ? isVeriChatV2EnabledForOrg(orgId) : Promise.resolve(false),
+    orgId ? isFirmEnabledForOrg(orgId) : Promise.resolve(false),
+    orgId ? isErpEnabledForOrg(orgId) : Promise.resolve(false),
+    orgId ? isSalesEnabledForOrg(orgId) : Promise.resolve(false),
+    // Wave B (BYOB white-label branding): resolved here (not raw org
+    // columns) so every consumer (AppShell for the sidebar logo/CSS vars,
+    // the Branding settings section itself) gets the SAME already-defaulted
+    // values -- an org that has never configured branding gets the real
+    // default VERIDIAN AI colors/null-logo back, never a raw null a client
+    // would have to remember to fall back on itself. See
+    // org-branding-service.ts's own resolveBranding() header for why this is
+    // the only sanctioned read path.
+    orgId ? resolveBranding(orgId) : Promise.resolve(null),
+    // GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Task B: resolved tier +
+    // real limits, same "resolve server-side once, let every client read
+    // one flat field" shape as erpEnabled/salesEnabled above -- no new
+    // endpoint.
+    orgId ? getSubscriptionPlanStatus(orgId) : Promise.resolve(null),
+    dbUser?.id ? getAssistantsUsedByUser(dbUser.id) : Promise.resolve(0),
+  ])
 
   return NextResponse.json({
     id: dbUser?.id ?? null,
