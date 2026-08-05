@@ -509,7 +509,7 @@ active:
       Read-only discovery across `src/lib/browser-execution/`, `VeriComposer.tsx`,
       `ChainSelector.tsx`, chat/messages API routes, PWA manifest/service-worker
       files, push-notification and offline/sync code.
-  - session_label: "claude-code (task-20260804-040750-register-ocid-053--universal-knowledge-g, worker/task-20260804-040750-register-ocid-053--universal-knowledge-g) -- OCID-053: Universal Knowledge Graph + Reference Graph + UMR Integrity Report + Orphan/Duplicate Detection Report, discovery/normalization only, no new architecture [IN PROGRESS]"
+  - session_label: "claude-code (task-20260804-040750-register-ocid-053--universal-knowledge-g, worker/task-20260804-040750-register-ocid-053--universal-knowledge-g) -- OCID-053: Universal Knowledge Graph + Reference Graph + UMR Integrity Report + Orphan/Duplicate Detection Report, discovery/normalization only, no new architecture [DELIVERABLE COMPLETE, PR #867 -- move to recently_completed once merged]"
     claimed_at: "2026-08-04T04:10Z (this session)"
     claim: |
       SPEC (PM directive, this task's own prompt): register OCID-053 as a real child of OCID-020

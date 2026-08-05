@@ -1,9 +1,16 @@
 # OCID-053 — Universal Knowledge Graph, Reference Graph, UMR Integrity Report,
 # Orphan/Duplicate Detection Report
 
-**OCID-053's own UMR:** none minted — this OCID is registered directly against its two real
-parents' own UMRs, per this task's own spec (discovery-only, no new UMR chain root needed for a
-pure graph-building/repair pass).
+**OCID-053's own UMR:** `UMR-20260804-033853-2a17` — the real dispatch UMR this OCID was
+registered and dispatched under (independently confirmed live against `umr_tasks` in
+`superboss-register.sqlite`), same convention used throughout this document for every other OCID
+(e.g. OCID-020 = `UMR-20260802-165606-4413`, OCID-021 = `UMR-20260802-173631-ca85`). Corrected
+2026-08-05 during independent review: an earlier draft of this section said "none minted,"
+intending only that no *separate, second* UMR chain root was created beyond this one dispatch UMR
+for a discovery-only, no-new-architecture pass — but that phrasing read as (and was corrected
+because it would otherwise contradict) §3's and §7's own citation of this same real UMR as
+OCID-053's UMR. No new UMR was minted beyond this one; the dispatch UMR is real and is OCID-053's
+own UMR, matching every other OCID's convention.
 
 **Real parents:** OCID-020 (`UMR-20260802-165606-4413`, PROJEXA-AI.COM E2E Certification) and
 OCID-021 (`UMR-20260802-173631-ca85`, ERP Functional Completeness Master Program).
@@ -118,7 +125,7 @@ OCID-020 side-chain: SEC-07 real implementation lock (UMR-20260803-045159-ec55) 
  mislabel was itself found and corrected upstream (UMR-20260803-052107-71fa, confirming #771→027,
  #772→030, #774→028 were each correctly labeled all along).
 
-OCID-053 (this doc, no new UMR minted) → parents OCID-020 + OCID-021 directly
+OCID-053 (this doc, own UMR `UMR-20260804-033853-2a17`) → parents OCID-020 + OCID-021 directly
  (OCID-012 excluded, zero real matches — see header)
 ```
 
