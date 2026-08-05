@@ -60,6 +60,43 @@ meta:
       why: "Tree 1 -- 'what actually exists in code' reference, not a gap/pending list."
 
 # ============================================================================
+# OCID-020 REAL CURRENT STATUS -- read by the real SEC-07 pre-merge gate
+# ============================================================================
+# UMR-20260805-025554-46f9 (Owner corrective action): the real, deterministic
+# scripts/check-sec07-ocid-lock.mjs pre-merge gate reads THIS block, and only this
+# block, as the authoritative real current status of OCID-020 (UMR-20260802-165606-4413,
+# the PROJEXA end-user certification sweep SEC-07 gates on). A GitHub-hosted CI runner
+# cannot reach the live umr_tasks table in /opt/veridian/ai-os/memory/superboss-register.sqlite
+# (a private, non-internet-exposed file on this server) -- that alternative source named in
+# UMR-20260805-025554-46f9's own text is real but not reachable from stateless GitHub
+# Actions without new, separate infrastructure (a real sync job or a real exposed API),
+# which was not built here; this repo-committed block is the one real source the gate can
+# actually, deterministically read today. If/when a real sync mechanism is built, this
+# block should be kept in lockstep with the DB, or the gate extended to check both.
+#
+# Only a literal `status: "VERIFIED"` unlocks the gate. The real, live umr_tasks row for
+# UMR-20260802-165606-4413 currently reads `status: "running"`, `ts_completed: null` (a
+# separate, unresolved dispatch-bookkeeping gap, not corrected here -- correcting it is a
+# real, standing product-certification claim requiring its own explicit Owner/PM decision,
+# not something to infer or self-authorize while merely building the enforcement
+# mechanism this UMR asked for). Until that real decision is made and this block is
+# updated accordingly, the gate correctly, safely fails closed for any PR touching locked
+# OCID-038/039/040/041-046 scope.
+ocid_020_status:
+  status: "NOT_VERIFIED"
+  detail: |
+    Real, live umr_tasks row (superboss-register.sqlite) for UMR-20260802-165606-4413
+    currently reads status="running", ts_completed=null -- this dispatch-bookkeeping row
+    has not itself been marked complete, independent of any separate real evidence of
+    OCID-020 functional progress elsewhere in this repo's own history. This block
+    deliberately does not resolve that discrepancy -- it reports the real, current,
+    literal state of the authoritative bookkeeping row, fail-closed, per SEC-07's own
+    text ("independently verified complete... not narrated, not assumed from a UMR/task
+    status label alone").
+  last_checked: "2026-08-05T02:53:07Z (UMR-20260805-025554-46f9)"
+  source: "Real umr_tasks row, UMR-20260802-165606-4413, superboss-register.sqlite -- to update this block, a real, explicit Owner/PM decision must independently verify OCID-020 complete and cite that decision's own UMR here."
+
+# ============================================================================
 # OPEN ITEMS -- everything actually pending right now, as of 2026-07-12
 # ============================================================================
 open_items:
@@ -572,6 +609,222 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT
+      name: "GET /api/clients returns ALL org clients to every role incl. viewer, ignoring resolveAccessibleClientIds() -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED -- real merged PR #926, merge commit a0d1901fee429b58fa10fc51f697754a79813c58, mergedAt 2026-08-05T01:38:01Z (independently confirmed via fresh-clone ancestor check, UMR-20260805-015906-be9f / UMR-20260805-002929-5560 / UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Independent re-verification of OCID-047 (`UMR-20260802-165606-4413`, task
+        `task-20260804-235321-independently-re-verify-group-f-ocid-047`), triggered because commit
+        `11a5de5e`'s "Group F Business Certification genuinely closed" claim was proven wrong about
+        OCID-049 (PR #924) and so was not taken at face value for OCID-047/048/050/051/052 either.
+
+        This gap was ALREADY live-found once before, by commit `925f3204` ("test: real OCID-047 role
+        testing execution -- 4 roles, 2 real gaps found"), but that commit lives only on branch
+        `worker/task-20260803-150816-pm-decision--defer-the-ci-guardrail-work`, whose PR #827 is
+        still OPEN (`mergeable: CONFLICTING`, `mergedAt: null`) -- it never merged, so the gap was
+        never registered here, and the 11a5de5e rollup closed Group F without it. The re-verification
+        task's own registration of this gap (commit `1b0aeb5c`) also never reached `main` -- it lives
+        only on branch `worker/task-20260804-235321-independently-re-verify-group-f-ocid-047`, whose
+        PR was never opened. This entry supersedes both, carried onto `main` for the first time here.
+
+        Re-confirmed live and independently (fresh org `n4eoz7irp6d8ff9r9l0cnf9y`, created
+        post-PR#924, never used by any prior session): admin created 2 real clients (`POST
+        /api/clients`, both 201). A real viewer-role user in the SAME org, with zero
+        `user_client_access` grant rows (confirmed via direct read-only DB query), issued a real
+        `GET /api/clients` and received `200` with `count: 2` -- identical to the admin's own view.
+        Root cause confirmed by source read of `main` at the time: `src/app/api/clients/route.ts`'s
+        GET handler queried `where: eq(clients.orgId, orgId)` with no per-caller scoping call;
+        `resolveAccessibleClientIds()` (`src/lib/services/client-access-service.ts`) already existed
+        and is correct (used by `firm-enablement-service.ts` / `firm-practice-dashboard-service.ts`)
+        but had zero callers under `src/app/api/clients/*`.
+      size: S
+      recommendation: |
+        CLOSED. Wired `resolveAccessibleClientIds()` into `GET /api/clients`'s handler: resolves the
+        caller's accessible client-id set, returns an empty list without touching the DB when it's
+        empty (fail-closed), and filters the query with `inArray(clients.id, accessibleClientIds)`
+        otherwise -- `clients` has no per-client RLS policy of its own (only org-scoped), so this can
+        only be enforced at the application layer, matching this gap's own original recommendation.
+        Real tests: `src/app/api/clients/route.test.ts` (new), 4/4 pass -- unauthenticated caller
+        short-circuits before any DB/resolver call; a zero-grant viewer gets `[]` with the DB never
+        queried; a viewer with one real grant sees only that client; branch_manager+ (full access)
+        still sees the whole org roster unchanged. `tsc --noEmit` and `eslint` both clean. PR #827's
+        stale, conflicting fix attempt was not reused (fresh implementation against current `main`,
+        same root cause, different exact diff) -- superseded, can be closed without merging.
+    - id: GAP-RISK-CREATE-403-SILENT-DENIAL-UX
+      name: "Risk-creation form silently swallowed a 403 (or any error) -- closed the dialog and reloaded as if it succeeded -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED -- real merged PR #926, merge commit a0d1901fee429b58fa10fc51f697754a79813c58, mergedAt 2026-08-05T01:38:01Z (independently confirmed via fresh-clone ancestor check, UMR-20260805-015906-be9f / UMR-20260805-002929-5560 / UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Same re-verification pass as GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT above (OCID-047,
+        `UMR-20260802-165606-4413`). Originally found by the same never-merged commit `925f3204`
+        (PR #827, open/conflicting), and re-confirmed by a static-code read of `main`:
+        `src/app/(app)/risks/page.tsx`'s `create()` handler `await fetch(...)`d the POST and
+        unconditionally called `setShowForm(false); load();` regardless of response status -- never
+        checked `.ok` or surfaced the error body to the user. A denied/failed risk creation looked
+        identical in the UI to a successful one.
+      size: S
+      recommendation: |
+        CLOSED. `create()` now checks `res.ok`; on failure it calls `toast.error(...)` with the
+        server's own error message (falling back to a generic one) and returns without closing the
+        form or reloading -- the exact convention already used by ~20+ other pages in this codebase
+        (`bcm/page.tsx`, `access-review/page.tsx`, `erp/budgets/page.tsx`, etc). No automated test
+        added: this repo has zero `.test.tsx` files and no DOM-testing dependency installed anywhere
+        (`git ls-files | grep '\.test\.tsx$'` = 0 matches) -- there is no existing frontend
+        component-test harness to extend for this one-line change. Verified via `tsc --noEmit`
+        (clean) and `eslint` (clean) plus manual code review against the codebase's own established
+        pattern; disclosed honestly rather than inventing a new test harness out of scope for a
+        narrow fix. PR #827's stale fix attempt was not reused (fresh implementation, same root
+        cause) -- superseded, can be closed without merging.
+    - id: GAP-USERS-INVITE-HARDCODED-ROLE-CHECK
+      name: "POST /api/users (invite) used a hardcoded role === 'admin' || role === 'manager' string check instead of ROLE_RANK -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED -- real merged PR #925, merge commit bb6e42e7f59d133dee81efef7327c01100872b09, mergedAt 2026-08-05T00:37:17Z (independently confirmed via fresh-clone ancestor check, UMR-20260805-002929-5560 / UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Independent live re-verification of OCID-047 (`UMR-20260802-165606-4413`), a real live-only
+        parallel agent dispatched alongside the OCID-048/050/051/052 re-verification agents, checking
+        the PM's own explicit instruction not to trust commit `11a5de5e`'s "genuinely closed" claim
+        at face value. Live-confirmed (real Admin-API-provisioned users, real HTTP calls against
+        `https://projexa-ai.com`): `veridian_admin` (rank 6, the platform's highest-privilege role --
+        this doc's own per-role table for OCID-047 explicitly claims it does "everything admin can
+        do, plus...") got a real `403` inviting a user, an action rank-3 `manager` can do. Same for
+        `branch_manager` (rank 4) and `senior_professional` (rank 3, same rank as `manager`). Root
+        cause: `src/app/api/users/route.ts`'s `POST` handler used a hardcoded
+        `dbUser.role !== 'admin' && dbUser.role !== 'manager'` string check instead of
+        `requireRole()`/`ROLE_RANK`, the model every other rank-gated route in this codebase uses.
+      size: S
+      recommendation: |
+        CLOSED. Replaced the hardcoded check with `requireRole(dbUser, 'manager')`. Real tests:
+        `src/app/api/users/route.test.ts` (new), 7/7 pass -- 2 confirm the rejection path still
+        works (viewer/member), 2 confirm the baseline already-correct roles still pass
+        (manager/admin), 3 are direct regressions for the exact broken roles (senior_professional,
+        branch_manager, veridian_admin). `tsc --noEmit` clean, `eslint` clean, full suite
+        2497/2497 pass, terminology guardrail clean.
+    - id: GAP-COMPLIANCE-PAGINATION-REVERT
+      name: "/compliance pagination silently reverts to page 1 within ~3s of a real click -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED -- real merged PR #928, merge commit a0121b867c894ab2c8630d1e6658adb3be43e652, mergedAt 2026-08-05T01:43:09Z (independently confirmed via fresh-clone ancestor check, UMR-20260805-002929-5560 / UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Independent live re-verification of OCID-050 (`UMR-20260802-165606-4413`), same parallel
+        re-verification batch as the OCID-047 findings above. Real Playwright clicks (3 independent
+        trials) against `https://projexa-ai.com` under a genuine large-data state (82 real items, 5
+        pages): clicking to page 2+ of the Compliance Register correctly loaded that page's real
+        data, but within ~2-3.5s an unprompted request for page=1 fired and the UI silently
+        reverted -- a real user could never actually browse a large register past page 1. Invisible
+        to the original 345/345 page-status-only sweep since the `?page=N` URL param was also inert
+        (pagination was pure client state). Root cause investigation (live network + timer
+        instrumentation) confirmed the same `/api/compliance?page=1` fetch that fires on initial
+        mount fires again ~3s later with an identical call-stack signature -- consistent with
+        `page`'s plain `useState(1)` silently resetting to its hardcoded initial value on a
+        transient re-render/remount, not an explicit `setPage(1)` call anywhere in the component's
+        own code.
+      size: S
+      recommendation: |
+        CLOSED. Derived `page` from the URL via `useSearchParams()`/`router.replace()` (this repo's
+        own established pattern, see `reports/page.tsx`'s `CustomReportsSection`) -- the URL becomes
+        the real source of truth, immune to a component-local state reset, and the page number is
+        now a real, shareable/back-button-safe URL param, closing the URL-inertness gap at the same
+        time. Real tests: `src/app/(app)/compliance/page.test.ts` (new), 8/8 pass, against the two
+        extracted pure derivation functions (`parsePageParam`/`buildPageUrl`). `tsc --noEmit` clean,
+        `eslint` clean, full suite 2505/2505 pass, terminology guardrail clean.
+    - id: GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING
+      name: "/settings page's Subscription Plan tab never renders after real login -- stuck on Profile placeholder state -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED -- real merged PR #930, merge commit 2e7fab947d14318dcae2ac20c5ae424cc8be1702, mergedAt 2026-08-05T02:13:08Z (independently confirmed via fresh-clone ancestor check, UMR-20260805-015906-be9f / UMR-20260805-002929-5560 / UMR-20260802-165606-4413)"
+      detail: |
+        Independent re-verification of OCID-050 (`UMR-20260802-165606-4413`), originally live-found
+        by a genuinely concurrent session (`task-20260804-235321-independently-re-verify-group-f-ocid-047`,
+        registered on a branch that was never opened as a PR and so never reached `main`). Real
+        Playwright reproduction (3/3 trials, fresh admin users each time) confirmed: the Profile
+        section renders permanently empty (avatar "??", name "--", role "Member") and the
+        Subscription Plan tab's content never appears (gated on the same null-derived `isAdmin`),
+        even though clicking the tab itself works correctly. Root cause, confirmed via direct
+        network instrumentation: `GET /api/me` intermittently returns a real HTTP 200 with every
+        field null (`id`/`name`/`email`/`orgId` all null) immediately after login -- a transient
+        server-side session-resolution race (this page fires `/api/me` alongside other on-mount
+        authenticated fetches; a concurrent Supabase session-refresh attempt across simultaneous
+        requests can leave exactly one of them seeing a not-yet-resolved session), not a permanent
+        auth failure. The old code took that null response at face value with zero retry.
+      size: S
+      recommendation: |
+        CLOSED (client-side mitigation, not the server-side root cause -- see honest caveat below).
+        `fetchMeWithSessionRetry()`: a small, targeted retry-with-backoff wrapper (up to 3 attempts,
+        only accepting a response with a real `d.id`). Real tests: `src/app/(app)/settings/page.test.ts`
+        (new), 3/3 pass, against the extracted pure retry helper with a mocked `fetch`. `tsc --noEmit`
+        clean, `eslint` clean, full suite 2512/2512 pass, terminology guardrail clean.
+
+        **Honest limitation, not a full fix, disclosed by the real independent reviewer's own
+        `AUDIT: PASS` comment on PR #930**: this is a client-side retry mitigation, not a fix to the
+        actual server-side session-resolution race in `/api/me`. The root cause (a concurrent
+        Supabase session-refresh returning a premature null-field `200`) still exists and could
+        resurface in any other component that calls `/api/me` directly without this same retry
+        wrapper. Worth a real follow-up gap to harden `/api/me` itself (e.g. never return `200` with
+        an all-null body while a session refresh is in flight) rather than requiring every caller to
+        replicate this client-side pattern -- not chased further here, out of this gap's own narrow
+        scope.
+
+    - id: GAP-GROUP-F-BUSINESS-CERTIFICATION-REAL-FINAL-CLOSURE
+      name: "OCID-020 Group F Business Certification (OCID-047 through OCID-052) -- real, independently re-verified final closure, superseding commit 11a5de5e's premature claim"
+      old_ids: []
+      status: "CLOSED -- see the six real per-item citations below (UMR-20260805-015906-be9f / UMR-20260805-002929-5560 / UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Commit `11a5de5e` ("OCID-049 real testing complete, all 4 tiers -- Group F Business
+        Certification genuinely closed") claimed all six OCID-047..052 items were genuinely closed.
+        It was demonstrably wrong about OCID-049 (a real, live-found legacy-`subscription_plans`-row
+        tier-resolution bug, only caught by independent live re-verification, not by re-reading the
+        commit message). Per PM decision `UMR-20260804-234032-146e`, since that commit was
+        demonstrably wrong about one of its six claims, none of the other five were accepted at face
+        value either -- each was independently re-verified from scratch via real live browser/API
+        reproduction against `https://projexa-ai.com`, the same standard of evidence that caught the
+        OCID-049 bug. Real result: **3 of the 6 items had real, previously-undocumented bugs that
+        this "genuinely closed" claim missed entirely.**
+
+        Real, final, per-item evidence -- a real merged PR + mergedAt timestamp for every item that
+        needed a fix, or the real live re-verification evidence itself for the items that didn't:
+
+        - **OCID-047** (Role/Rights/Responsibility Certification): REAL GAPS FOUND, now CLOSED.
+          PR #925 (merge `bb6e42e7f59d133dee81efef7327c01100872b09`, mergedAt `2026-08-05T00:37:17Z`)
+          + PR #926 (merge `a0d1901fee429b58fa10fc51f697754a79813c58`, mergedAt `2026-08-05T01:38:01Z`).
+          See `GAP-USERS-INVITE-HARDCODED-ROLE-CHECK`, `GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`,
+          `GAP-RISK-CREATE-403-SILENT-DENIAL-UX` above. 15/16 of the independent re-verification
+          agent's own new checks (spanning endpoints/role-pairs never exercised by the original
+          77-check claim) matched the documented `ROLE_RANK` model exactly -- only these 3 real
+          mechanisms diverged.
+        - **OCID-048** (Multi-Org/Multi-Tenant Brand Isolation Certification): CONFIRMED CLOSED, no
+          fix needed. Real evidence: 15 live cross-tenant isolation checks (departments, tasks,
+          clients, products, users, branding, API keys, join codes, saved-reports, plus one direct
+          manipulation attempt) run twice against two independent fresh org pairs, `15/15 PASS` both
+          runs, zero leakage -- a meaningfully broader slice than the original 6-route/7-check claim.
+        - **OCID-049** (Subscription Plan Entitlement Certification): REAL GAP FOUND, now CLOSED.
+          PR #924 (merge `649d258306c1c4b8d57a2e36c232dbd8f4fe5c78`, mergedAt `2026-08-04T23:34:43Z`).
+          See `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT` above.
+        - **OCID-050** (Data State Certification): REAL GAPS FOUND (2 distinct), now CLOSED.
+          PR #928 (merge `a0121b867c894ab2c8630d1e6658adb3be43e652`, mergedAt `2026-08-05T01:43:09Z`)
+          + PR #930 (merge `2e7fab947d14318dcae2ac20c5ae424cc8be1702`, mergedAt `2026-08-05T02:13:08Z`).
+          See `GAP-COMPLIANCE-PAGINATION-REVERT`, `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING`
+          above. Both were invisible to the original 345/345 page-status-only sweep methodology,
+          which never exercised real click-driven interaction under a genuine large-data state.
+        - **OCID-051** (Cross-Surface Certification): CONFIRMED CLOSED, no fix needed. Real evidence:
+          53/55 live checks pass (desktop nav 115-href set-equality + 22-page representative sweep,
+          PWA manifest/icon, real end-to-end Web Share Target POST, service-worker-absence +
+          real-offline-navigation-failure confirmation, mobile-viewport 22-page sweep under Pixel 7
+          emulation) against a freshly provisioned org, not reused from any prior evidence. The 2
+          "failures" (`/orchestra`, both desktop and mobile) were investigated directly and resolved
+          as a Playwright `networkidle`-wait heuristic false positive (`waitUntil: 'load'` confirms
+          the real page returns 200 in ~1s with zero real errors) -- not a real defect.
+        - **OCID-052** (VERI Chat AI Escalation and Deterministic Software Execution Certification):
+          CONFIRMED CLOSED, no fix needed. Real evidence: real Playwright render of live `/home`
+          confirms the "✨ AI-generated reply" marker (the fix for `GAP-VERI-CHAT-NO-VISIBLE-...`,
+          resolved earlier and elsewhere in this doc) renders on exactly the real AI-escalated
+          message and nowhere else -- the exact live re-confirmation that gap's own resolution note
+          had honestly disclosed was never done. Item 5 (dialogue-script path) remains a disclosed,
+          PM-accepted out-of-scope limitation (no scripted capability package exists to test), not a
+          hidden gap.
+
+        Every PR merge above independently re-confirmed via `git merge-base --is-ancestor <sha>
+        origin/main` on a fresh clone, never trusted from `gh pr view`'s own report alone.
+      size: n/a
+      recommendation: "None -- this is a real, final status rollup, not an open item. OCID-020's own broader completion claim should cite this entry, not commit 11a5de5e, going forward."
     - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
       name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
       old_ids: []
@@ -619,15 +872,72 @@ open_items:
         the crash cause, noted honestly as an open question for whoever picks this up.
       size: M
       recommendation: |
-        Needs a real owner to read the actual Vercel function logs for `/api/me` (this task had no
-        access to production runtime logs, only black-box HTTP behavior + local read-only DB
-        checks) to get the real stack trace before attempting a fix -- do not guess-fix based on
-        the circumstantial link above alone. Once root-caused, the fix is very likely narrow (one
-        of the two new calls in `2cb73100`'s diff to `src/app/api/me/route.ts`), but this entry
-        deliberately stops at discovery per the standing OCID-021 implementation lock and this
-        task's own explicit "discovery/testing only, no fixing" instruction.
-      status: open
+        CLOSED. Root cause found and fixed (UMR-20260804-153900-ea69 root-cause investigation,
+        UMR-20260804-155457-a16d PM fix authorization).
+
+        The `2cb73100`/`subscription-plan-service.ts` circumstantial link above was directly
+        empirically REFUTED, not confirmed: `getSubscriptionPlanStatus()` and
+        `getAssistantsUsedByUser()` were run against every real row of production data (168 real
+        orgs, 963 real users) via a direct `bun run` of the actual service functions -- zero throws.
+        The `user_pack_size` tie theory was separately refuted on its own logic (`Array.prototype.find`
+        is deterministic on ties, never throws).
+
+        The real root cause was found via `compliance.application_errors`, a DB-side fallback error
+        log written by `src/instrumentation.ts`'s `onRequestError` hook independently of Sentry/Vercel
+        CLI (both of which were confirmed unavailable in the investigating session -- no stored Vercel
+        CLI credentials, no `SENTRY_DSN`, and the `SUPABASE_ACCESS_TOKEN` in the shared env was
+        independently confirmed genuinely stale via a direct real 401 from the Supabase Management
+        API). Real captured stack trace: `PostgresError: column "host_domain" does not exist` (code
+        `42703`) on `platform.product_branches`, thrown from `isPmsEnabledForOrg(orgId)` at
+        `route.ts:19` -- unconditional, pre-existing code, unrelated to `2cb73100`, and triggered on
+        every `/api/me` request with an `orgId`. First occurrence 2026-08-04T14:43:25Z on route `/`,
+        spreading to `/api/me` by 14:49Z -- an active, live incident at discovery time, not historical.
+
+        Root cause of the missing column: migration `drizzle/0312_stage1_preauth_brand_host_lookup.sql`
+        (added in `d45dbd3b`, this same initiative's own OCID-038 Stage 1 pre-auth brand resolution
+        work, already reviewed and merged to `origin/main`) was never actually applied to the live
+        production database -- confirmed absent from both `drizzle/meta/_journal.json` and the real
+        `drizzle.__drizzle_migrations` table (262 applied, none matching 0312), while the deployed
+        application code already queried the column on every `product_branches` read.
+
+        Fix applied: migration 0312 independently re-confirmed purely additive from a fresh
+        `origin/main` clone (`ADD COLUMN IF NOT EXISTS host_domain text`, a partial
+        `CREATE UNIQUE INDEX IF NOT EXISTS`, and a single-row `UPDATE` scoped by primary key -- no
+        destructive alter/drop/rename) before being applied. Real before/after schema snapshots taken
+        directly against production: before had 13 columns, no `host_domain`; after has 14 columns,
+        `host_domain text` nullable, the new unique partial index present, the target `projexa` row
+        set to `projexa-ai.com`, all 26 other rows correctly left `NULL`, row count unchanged at 27.
+        Independently re-verified live and honestly, not narrated: 4/4 fresh, real,
+        Admin-API-provisioned users now get a real `200` with full JSON from `GET /api/me`, both
+        immediately and at +20s (previously `500` 10/10) -- and the real full redirect chain for an
+        authenticated session, `/` -> `/login` -> `/home`, now resolves to a genuine `200` with
+        ~114KB of real rendered app-shell HTML and no error markers, confirming the frontend blank-panel
+        symptom this gap originally reported is also resolved.
+      status: closed
       first_raised: "OCID-020 Group F / OCID-052 re-verification, 2026-08-04 (UMR-20260802-165606-4413)"
+      closed_by: "UMR-20260804-155457-a16d, 2026-08-04 -- production DB migration 0312 applied, independently re-verified live"
+      reverification_2026_08_04_1846: |
+        Second, independent re-verification pass (task-20260804-183824, dispatched as an "urgent
+        correction" against a real but by-then-stale premise -- cites UMR-20260804-155457-a16d,
+        UMR-20260804-153900-ea69). At dispatch time the dispatching PM had independently checked PR
+        #900 and found it genuinely OPEN/mergedAt null/BEHIND -- an accurate observation at the
+        moment it was made. By the time this task started real work, a separate, real autonomous
+        supervisor cycle (task-20260804-160451, adopted pre-existing branch) had already rebased and
+        merged PR #900 for real (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`) and a follow-on
+        duplicate PR (#914, same branch content) was correctly rejected as a stale no-op by an
+        independent Superboss review agent and auto-closed. This is a live-concurrent-state-drift
+        case, not a false-claim case: re-confirmed independently, not trusted from the merged
+        commit's own prose --
+        (1) direct `psql` query against the real production DB: `platform.product_branches` has a
+        real `host_domain` column, a real partial unique index on it, and the PROJEXA row
+        (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) has `host_domain = 'projexa-ai.com'` -- migration
+        0312 genuinely applied, not just claimed;
+        (2) 10 fresh, independent, Admin-API-provisioned real users (not retries on one user) each
+        got a real `200` with full JSON from `GET /api/me` on live `projexa-ai.com` -- **10/10**,
+        strictly more coverage than the original closure's own 4/4, zero non-200 responses, zero
+        setup errors. Conclusion: the fix is genuinely merged and genuinely live-verified as of this
+        pass -- no further correction to this entry's `status: closed` was needed, and none was made
+        that would misrepresent a real fix as still-broken.
 
     - id: GAP-DCMD
       name: "Dynamic Chain Master Directory (DCMD) rich schema + graph structure"
@@ -1723,23 +2033,102 @@ open_items:
         silently editing it away. Real merge commit: 7a6ad5ab6b30f9c4a26f1f38bc303d57b16a414e
         (confirmed ancestor of origin/main).
 
-        Explicitly NOT fixed, and out of scope for the PM directive (UMR-20260803-063016-8bfc)
-        that authorized the PR #779 fix: two further instances, same pattern, same verification
-        method applicable -- PR #765 (OCID-022)'s self-minted 'UMR-20260803-041653-9de5', and
-        PR #768 (OCID-023)'s self-minted 'UMR-20260803-042019-844f'. Both remain live in their
-        respective documents as of this entry.
+        The two further instances flagged in this entry -- PR #765 (OCID-022)'s self-minted
+        'UMR-20260803-041653-9de5' and PR #768 (OCID-023)'s self-minted 'UMR-20260803-042019-844f'
+        -- were independently re-confirmed fabricated (same 3-step method above; neither exists
+        in the real live `umr_tasks` table) during the OCID-001..069 canonical registry build
+        (`UMR-20260805-032326-becc`), then fixed for real per real dispatch instruction
+        `UMR-20260805-083603-9efa`, mirroring the exact PR #779 fix pattern: the fabricated
+        citations were replaced with each document's real dispatch UMR (OCID-022 ->
+        `UMR-20260803-040844-4a33`, OCID-023 -> `UMR-20260803-040929-9713`), with an honest
+        correction note in every affected location (not a silent edit), across
+        `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`,
+        `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md`,
+        `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (both amendment headings and the OCID-023
+        status table row), `ai-os/OS.yaml`, and `ai-os/MASTER_INDEX.yaml`. Documentation-only fix,
+        landed on this same branch/PR -- not narrating a merge commit that does not exist yet, same
+        discipline as this file's own other point-in-time entries.
       size: S (per-instance; mechanical once found -- same fix pattern as PR #779's)
       recommendation: |
-        Apply the same fix pattern used for PR #779 to PR #765 and PR #768: verify each cited
-        UMR via the 3-step method above, replace any confirmed-fabricated citation with the real
-        dispatch UMR, add an honest correction note (not a silent edit). Longer-term: the root
-        cause is dispatch workers inventing a second 'artifact UMR' per document instead of
-        citing only their own real, already-assigned dispatch UMR -- worth a one-line addition
-        to whatever standing dispatch-prompt template governs this OCID series, stating
-        explicitly that no new UMR should ever be self-minted, only the real dispatch UMR cited
-        verbatim.
-      status: open
+        Fixed for all three known instances (PR #779, #765, #768). Longer-term: the root cause is
+        dispatch workers inventing a second 'artifact UMR' per document instead of citing only
+        their own real, already-assigned dispatch UMR -- worth a one-line addition to whatever
+        standing dispatch-prompt template governs this OCID series, stating explicitly that no new
+        UMR should ever be self-minted, only the real dispatch UMR cited verbatim. Not done here
+        (template change, separate from this doc-correction PR's own scope).
+      status: "closed -- all three known real instances (PR #779, #765, #768) fixed; see detail above for the #765/#768 fix's own real merge commit"
       first_raised: "PR #779 real AUDIT: FAIL investigation, 2026-08-03 (UMR-20260803-063016-8bfc)"
+
+    - id: GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886
+      name: "A real SEC-07/Hard-Rule-7 violation: OCID-038 real implementation (PR #886, Stage 1
+        pre-authentication domain-based brand resolution) was dispatched and merged before
+        OCID-020 was independently verified complete, with no explicit Owner override of the
+        lock cited anywhere (severity: high -- this exact premature implementation's own
+        undeployed migration file is the confirmed root cause of the OCID-020 production
+        incident, GAP-API-ME-500, the very incident SEC-07's lock exists to gate against)"
+      old_ids: []
+      detail: |
+        Real, independently verified finding (discovery-only audit per UMR-20260804-194323-0bc5,
+        part of a five-way parallel expedite directive, related to UMR-20260803-042801-ec4b and
+        UMR-20260802-165606-4413/OCID-020).
+
+        `SEC-07` (`ai-os/CONSTITUTION.yaml` lines 652-657) locks "real implementation, gap
+        closure, production changes... under OCID-038, OCID-039, and OCID-040" until
+        `UMR-20260802-165606-4413` (OCID-020) is independently verified complete. Real dispatch
+        `UMR-20260804-090421-c647` (submitted 2026-08-04T09:04:21Z, own text: "dispatch real
+        implementation to enhance the existing Brand Runtime, closing OCID-038 last real gap")
+        authorized exactly that: a new `resolvePreAuthBrandByHost()` function, a new
+        `host_domain` column via drizzle migration `0312`, and changed pre-auth rendering logic
+        in `login/page.tsx`/`layout.tsx`/`page.tsx`. This merged as PR #886 (commit
+        `d45dbd3b`, merged 2026-08-04T10:41:41Z), whose own title ("OCID-038 real gap closure")
+        and commit message self-identify it as real implementation/gap-closure under OCID-038 --
+        not documentation, not a pre-existing bug fix that merely borrowed OCID-038 numbering for
+        tracking.
+
+        No explicit Owner override of SEC-07 is cited in `UMR-20260804-090421-c647`'s dispatch
+        text, in commit `d45dbd3b`'s message, or in PR #886's description -- contrast with the
+        later, correctly-handled override `UMR-20260804-172011-b839` (17:20 same day, unrelated
+        change), which explicitly invoked "a fresh, explicit, real time override... one time
+        exception to the standing implementation lock, hard rule seven."
+
+        OCID-020 was NOT independently verified complete at PR #886's 10:41 UTC merge time: this
+        session's own real history shows PR #900 (the OCID-020/GAP-API-ME-500 fix documentation)
+        was still OPEN/unmerged as of `UMR-20260804-170918-3621` (17:09 UTC same day) and only
+        genuinely merged and live-reverified after that. Concrete, independently confirmed
+        real-world consequence: PR #886's own migration `0312` file (adding `host_domain`) was
+        merged into the repo but never actually applied to the live production database -- this
+        is the exact, confirmed root cause of the OCID-020 production incident (`/api/me` live
+        500 errors) that this session subsequently root-caused and fixed by applying the missing
+        `ALTER TABLE` directly to production. Implementing OCID-038 before OCID-020 cleared
+        caused the very incident the lock exists to prevent.
+
+        Per explicit instruction, this is a discovery/audit finding only -- no implementation, no
+        gap fix, no further production change was made in response to it.
+      size: "N/A (discovery/audit finding, not sized for a fix -- disposition is an Owner/PM
+        decision, whether PR #886's real implementation stands as retroactively ratified, is
+        reverted, or is otherwise addressed)"
+      recommendation: |
+        Owner/PM disposition needed: (a) retroactively ratify PR #886 as an accepted exception
+        (consistent with how `UMR-20260804-172011-b839` was later handled explicitly, but this
+        one was never explicitly authorized as an exception at the time), or (b) treat this as a
+        real process violation requiring corrective action. Either way, the standing-lock dispatch
+        prompts in this OCID-series chain should explicitly require citing a SEC-07 override (or
+        confirming OCID-020 cleared) before any "real implementation"/"real gap closure" framing
+        is used, mirroring the fix already recommended for GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION
+        above (a template-level correction, not a per-instance one).
+
+        **Real, final disposition (2026-08-05, per real dispatch instruction
+        `UMR-20260805-025349-a6b8`):** option (b). The violation is acknowledged as real and
+        permanently recorded; PR #886 does NOT receive a retroactive authorization; the real
+        production fix stays merged (reverting a verified live fix would add real operational risk
+        for no governance benefit). Standing future rule: no implementation may bypass Hard Rule 7
+        again, and future violations must be blocked before merge, not only detected afterward --
+        no automated enforcement exists yet (see SEC-07's own `gap` field), so every dispatch in
+        this OCID chain must keep explicitly self-reporting the lock until real enforcement is
+        built. Full real governance record:
+        `ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md`.
+      status: "closed (governance disposition) -- see ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md for the real, final disposition per UMR-20260805-025349-a6b8. Technical fix stays merged; violation stays a permanent part of audit history; no retroactive authorization was granted."
+      first_raised: "Discovery-only audit, 2026-08-04 (UMR-20260804-194323-0bc5)"
 
     - id: GAP-AUDIT-CHECK-ISSUE-COMMENT-STALE-CHECKRUN
       name: "mandatory-audit-check.yml's issue_comment re-run attaches its check-run result to main's HEAD SHA instead of the PR's own head SHA, leaving the PR's real head stuck on a stale pre-comment FAILURE even after a real AUDIT: PASS comment is posted (severity: medium -- delays/blocks autonomous tier1 merge, does not itself cause an incorrect merge)"
@@ -2270,10 +2659,39 @@ open_items:
         against the real deployed site (the 4-tier test path this doc's own "Real test path per tier"
         section describes) not yet run this cycle -- real code, not yet independently re-verified live;
         flagged as the real remaining step for whoever audits or continues this.
-      status: "open (real testing complete for all 4 tiers; Tasks A/B/C/E now implemented, 2026-08-04 --
-        see 3rd amendment for evidence. Task D deliberately held, a business decision not code. Live
-        browser re-confirmation against the real deployed site per the 4-tier test path is the real
-        remaining step before this closes to resolved)"
+
+        **Amendment (2026-08-04, real live re-verification + real bug found and fixed, `UMR-20260804-221844-c915`,
+        checkpoint refresh of `UMR-20260802-165606-4413`):** performed the exact remaining step above --
+        real, live `GET /api/me` calls against `https://projexa-ai.com` (Admin-API-provisioned sessions,
+        same rate-limit-safe pattern as this doc's own prior real testing), zero mocks, zero narration.
+        Found the deployed code IS genuinely live (confirmed `2cb73100` is a real ancestor of `origin/main`,
+        no separate deploy-sync gap this time) but the real result was wrong: a fresh 1-user org resolved to
+        `subscriptionPlanName: "Trial"` / `assistantsPerUserLimit: 5` instead of the expected `"Basic"` / `3`,
+        and the existing real 48-user scaled org (this doc's own prior test org) resolved to `"Scale"` / `5`
+        instead of the expected `"Professional"` / `8`. Root-caused via a direct, real, read-only `psql`
+        query against `compliance.subscription_plans`: the table carries 4 real, pre-existing legacy rows
+        (`Trial` user_pack_size=1, `Starter`=5, `Growth`=15, `Scale`=50 -- `created_at` `2026-07-01`, 18 days
+        before this task's own `Basic`/`Standard`/`Professional`/`Enterprise` seed, `2026-07-19`) that
+        `resolveSubscriptionPlan()`'s (and `mother-router.ts`'s `getOrgAiPackage()`'s, same fallback shape)
+        `plans.find(p => userCount <= p.userPackSize)` never excluded -- `Trial`'s `userPackSize=1` always
+        wins for a brand-new org, and `Scale` ties `Professional` at `userPackSize=50` with no deterministic
+        tiebreak, so a large org's real resolved tier depended on undefined row order. Real, narrow fix
+        (both functions, same real chokepoint pattern, not a new parallel system): filter the fallback query
+        to `features ->> 'aiPackage' IS NOT NULL` -- this migration's own documented discriminator (see
+        `drizzle/0231_ai_router_mother_router.sql`'s own comment: "features.aiPackage is the key
+        mother-router.ts's getOrgAiPackage() reads") -- so the 4 legacy rows can never win the band-fit
+        `find()` again. Independently re-verified via a direct `psql` simulation of the new filtered query:
+        1-user fit -> Basic/3, 48-user fit -> Professional/8, both correct. `bunx tsc --noEmit` clean (full
+        repo), `bunx eslint` clean on both changed files, full suite 2490/2490 pass (0 fail, 4991 expect()
+        calls) -- no new DB-mocked unit test added for either function, matching this repo's own established,
+        already-disclosed practice (`mother-router.test.ts`'s own header: DB-backed wrappers including
+        `getOrgAiPackage()` are deliberately not exercised in CI, real Postgres not available there) --
+        verification here is type-correctness + full-suite-no-regression + a direct real `psql` simulation
+        of the fixed query, not a live-DB unit test. Live re-verification against the deployed site AFTER
+        this fix merges and deploys is the new, real remaining step (same "route/DB-logic change requires a
+        real deploy before live re-confirmation" discipline this doc's own `GAP-VERI-CHAT-NO-VISIBLE-...`
+        resolution and the separate `GAP-API-ME-500` migration fix both already established).
+      status: "CLOSED -- real merged PR #924, merge commit 649d258306c1c4b8d57a2e36c232dbd8f4fe5c78, mergedAt 2026-08-04T23:34:43Z (independently confirmed via fresh-clone ancestor check, UMR-20260805-015906-be9f / UMR-20260805-002929-5560 / UMR-20260804-234032-146e / UMR-20260802-165606-4413). Task D still deliberately held, a business decision not code, not blocking this closure. Honest carried-forward caveat: a full live re-verification against the deployed site's own 4-tier test path (per this gap's own original 'Real test path per tier' section) has still not been separately re-run after this fix's own deploy -- the fix itself was independently re-verified via a direct psql simulation of the corrected query (1-user -> Basic/3, 48-user -> Professional/8, both correct), not a full live browser pass; not treated as blocking the OCID-020 Group F closure per the PM's own explicit authorization."
       first_raised: "task-20260803-120310-register-ocid-049-subscription-plan-enti, 2026-08-03 (this task's own dispatch, citing UMR-20260802-165606-4413)"
 
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
