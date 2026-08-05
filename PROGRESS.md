@@ -951,3 +951,53 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
   not independently confirmed (the root page's error digest was never cross-checked against a
   server-side stack trace), folded into the one gap entry above rather than registered twice.
 - [ ] Open PR and get it through independent review before merge.
+
+# PROGRESS -- OCID-020 GTM certification, compliance-tracker checkpoint (UMR-20260805-165254-a525)
+
+Owner Claude Code weekly usage at 98%, resets tomorrow 07:31 IST -- this section exists so a
+fresh session or `veridian-cron-dispatch-tick.timer` can pick up exactly where this one left off
+if the session stops mid-task with no warning. Parent: `UMR-20260802-165606-4413` (OCID-020).
+
+## Completed
+- [x] PR #954 (`fix/signup-brand-resolution-ocid020-addendum`): `/signup` now resolves real
+      per-host brand via the existing `resolvePreAuthBrandByHost()` pattern (same as `/login`)
+      instead of hardcoding VERIDIAN branding. Real, independently verified: `tsc`/`eslint` clean,
+      2515/2515 unit tests pass, CI `Unit Tests` green. Open, adopted into supervisor review, not
+      yet merged.
+- [x] PR #955 (`docs/deprecate-ocid-artifact-links-...`): marks the legacy `ocid_artifact_links`
+      table deprecated in `ai-os/MASTER_INDEX.yaml` (superseded by `ocid_canonical_registry`), 3
+      real historical rows left in place, not deleted. Open, adopted, not yet merged.
+- [x] PR #959 (`fix/broader-preauth-brand-tagline-footer-ocid020`): extends the same brand
+      resolution to `/pricing`, `/contact`, `/terms`, `/privacy` (wordmark only -- `/terms` and
+      `/privacy` deliberately left legally entity-neutral, not wordmark-swapped, confirmed as the
+      correct call, standing PM position). Real new migration `drizzle/0313_...` written but NOT
+      applied to production (no DB credentials in that build's sandbox). Real, honest disclosure:
+      no real PROJEXA tagline/footer copy exists anywhere in the repo -- a fallback was used,
+      nothing fabricated. `bun test`: 2531 pass, 0 fail. Open, adopted, not yet merged.
+- [x] PR #962 (`fix/next-postcss-cve-patch-umr20260805155838`): patches `next` 16.2.10->16.2.12
+      and `postcss` (via the existing `overrides.postcss` field) to >=8.5.23, fixing 13 real CVEs
+      (6 HIGH/7 MEDIUM) found by `gtm_check_security_audit.py` (veridian-scripts). Real, verified:
+      `bun run build` exit 0, `bun test` 2512 pass/0 fail. Real, honest disclosure: the identical
+      13 CVEs still show up in trivy afterward, traced conclusively to a vendored `bun.lock`
+      inside `node_modules/@fchecklist/veridian-ui-kit` (a sibling repo's git dependency, own
+      dev-only lockfile, `next`/`postcss` only its peerDependencies) -- NOT this repo's own
+      resolved tree, and NOT fixed by this PR. Open, adopted, not yet merged.
+
+## Remaining
+- [ ] All 4 PRs above need `supervisor-sweep.sh` to pick them up and a real independent audit
+      verdict before merge -- none self-certified.
+- [ ] PR #959's real tagline/footer copy for PROJEXA is a fallback -- real Owner-supplied
+      marketing copy would be a real, separate, worthwhile follow-up once merged.
+- [ ] PR #962's real remaining gap (vendored veridian-ui-kit CVEs) needs its own decision: fix in
+      the sibling `FChecklist/veridian-ui-kit` repo, or scope the trivy scan to exclude a
+      confirmed-inert vendored path -- neither decided nor attempted here.
+- [ ] Once PR #962 merges, re-run `gtm_check_security_audit.py` (veridian-scripts) and update
+      category 3 of `gtm_certification_categories` honestly based on the real new result.
+
+## Notes -- do NOT act on this without the Owner, see UMR-20260805-163026-14f1/UMR-20260805-165254-a525
+A real, confirmed, contained corruption exists in the live `/opt/veridian/ai-os/memory/
+superboss-register.sqlite` (1 of 88 tables, `file_inventory`, a non-load-bearing filesystem cache
+-- everything this session's work depends on reads/writes normally). Held per Hard Rule 8 for a
+real Owner recovery decision; `sqlite3` CLI installed and ready but not run against the live DB.
+This is unrelated to compliance-tracker's own code/PRs above, noted here only because the broader
+OCID-020 GTM certification program (category 19, backup and recovery testing) is blocked on it.
