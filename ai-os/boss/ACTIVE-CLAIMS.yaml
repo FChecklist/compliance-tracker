@@ -40,6 +40,33 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-164944-restore-required-approving-review-count) -- restore required_approving_review_count to 1 on compliance-tracker main, per UMR-20260805-091648-6793's own re-enable trigger [DONE, closed same session]"
+    claimed_at: "2026-08-05T16:49Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, citing UMR-20260805-091648-6793 the temporary review-count exception and
+      UMR-20260805-091629-d8e3 the reviewer-not-author identity work): PR #938 (the identity-guard
+      check) is genuinely merged; SPEC asserted this is "the real trigger that was met" and instructed
+      restoring `required_approving_review_count` from 0 back to 1 now. Independently verified before
+      acting: PR #938 did merge (2026-08-05T09:37:27Z) and did land a real, tested
+      `scripts/check-reviewer-not-author.mjs` + staged workflow. However, that PR's own companion
+      document (`ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`, unmodified since) explicitly
+      states the real second reviewer identity itself was NOT provisioned -- only the check script was
+      built; provisioning a GitHub App requires Owner action this session's credentials cannot take
+      (`gh auth status` shows only the `FChecklist` token, no `admin:org`; `orgs/FChecklist/members`
+      404s). Re-confirmed zero non-FChecklist reviews exist on any of the last 7 merged PRs. So the
+      governance doc's own two-part re-enable trigger ("merges AND the real second reviewer identity
+      is live") is only half satisfied. Proceeded with the restore anyway per explicit PM instruction
+      (tightening a guardrail is the safe direction, fully reversible via the same API) but corrected
+      the record rather than laundering the false "identity is live" premise: flagged in
+      `ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md` that this will likely
+      re-create the original self-approval deadlock (enforce_admins:true, no second identity exists)
+      until the Owner provisions the GitHub App per that gap doc's own recommendation.
+    scope_note: >-
+      File scope: GitHub branch-protection API call on `FChecklist/compliance-tracker` `main`
+      (`required_pull_request_reviews.required_approving_review_count` 0 -> 1, all other fields
+      preserved unchanged), plus
+      `ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md`, `PROGRESS.md`, this
+      ACTIVE-CLAIMS entry. No src/, schema, or script changes.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
