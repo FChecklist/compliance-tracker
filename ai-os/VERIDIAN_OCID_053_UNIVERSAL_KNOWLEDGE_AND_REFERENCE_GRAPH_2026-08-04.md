@@ -54,30 +54,34 @@ real current state (live-checked, not narrated).
 | OCID-20260802-019 | Recovery matrix (real task.yaml status-staleness on clean SIGTERM) | `UMR-20260802-165541-c27d` | #725 | **CLOSED, merged** |
 | OCID-20260802-020 | PROJEXA-AI.COM E2E Certification (parent of Group F / OCID-047-052) | `UMR-20260802-165606-4413` | dozens (#737, #739, #747, #753, #755, #788, #794, #803, #838-#843, ...) | **Ongoing/large** — nav-surface certification substantially complete (PR #794, 115/115), Business Certification phase (OCID-047-052) real and mostly complete (see §1 below); **not** finally certified — gated behind OCID-038/039/040 per hard rule 7 |
 | OCID-20260802-021 | ERP Functional Completeness Master Program | `UMR-20260802-173631-ca85` | Wave 1 Item 2 = #852 (merged) | **In progress** — Wave 1 real, ongoing |
-| OCID-20260803-022 | VERIDIAN End User Experience Foundation v1.0 | (batch chain `UMR-20260803-040844-4a33`..) | #765 | **OPEN, unmerged** (real doc exists on a real branch, not yet on `main`) |
-| OCID-20260803-023 | VERIDIAN Universal End User Work Model v1.0 | same chain | #768 | **OPEN, unmerged** |
-| OCID-20260803-024 | VERIDIAN Laptop Web Browser Runtime v1.0 | same chain | #767 | **OPEN, unmerged** |
-| OCID-20260803-025 | VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 | same chain | #766 | **OPEN, unmerged** |
-| OCID-20260803-026 | VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 | same chain | #775 | **OPEN, unmerged** |
+| OCID-20260803-022 | VERIDIAN End User Experience Foundation v1.0 | (batch chain `UMR-20260803-040844-4a33`..) | #765 | **MERGED** (`bc49b165`, 2026-08-04T06:36:16Z) |
+| OCID-20260803-023 | VERIDIAN Universal End User Work Model v1.0 | same chain | #768 | **MERGED** (`f23385d2`, 2026-08-04T06:43:35Z) |
+| OCID-20260803-024 | VERIDIAN Laptop Web Browser Runtime v1.0 | same chain | #767 | **MERGED** (`9051b010`, 2026-08-04T05:39:58Z) |
+| OCID-20260803-025 | VERIDIAN Mobile PWA and VERI Chat Runtime v1.0 | same chain | #766 | **MERGED** (`52b4cfc5`, 2026-08-04T06:50:45Z) |
+| OCID-20260803-026 | VERIDIAN Deterministic Execution and AI Escalation Runtime v1.0 | same chain | #775 | **MERGED** (`c72627f0`, 2026-08-04T07:02:38Z) |
 | OCID-20260803-027 | VERIDIAN Global Knowledge Discovery and Reuse Runtime v1.0 | `UMR-20260803-041211-b7b7` | #771 | **MERGED** |
 | OCID-20260803-028 | VERIDIAN Unified Synchronization Runtime v1.0 | `UMR-20260803-041257-e9c3` | #774 | **MERGED** |
-| OCID-20260803-029 | VERIDIAN Universal Organization Runtime v1.0 | same chain | #773 | **OPEN, unmerged** |
+| OCID-20260803-029 | VERIDIAN Universal Organization Runtime v1.0 | same chain | #773 | **MERGED** (`8e90dc35`, 2026-08-04T08:38:57Z) |
 | OCID-20260803-030 | VERIDIAN Universal Decision Engine v1.0 | `UMR-20260803-041459-7c97` | #772 | **MERGED** |
 | OCID-20260803-031 | VERIDIAN Universal Software Execution Engine v1.0 | `UMR-20260803-041700-a741` | #781 | **MERGED** |
-| OCID-20260803-032 | VERIDIAN Universal Task Lifecycle Runtime v1.0 | same chain | #780 | **OPEN, unmerged** |
-| OCID-20260803-033 | VERIDIAN Universal End User Work Orchestration Runtime v1.0 | same chain | #778 | **OPEN, unmerged** |
+| OCID-20260803-032 | VERIDIAN Universal Task Lifecycle Runtime v1.0 | same chain | #780 | **MERGED** (`e06786c3`, 2026-08-04T09:14:40Z) |
+| OCID-20260803-033 | VERIDIAN Universal End User Work Orchestration Runtime v1.0 | same chain | #778 | **MERGED** (`f10c757f`, 2026-08-04T09:44:47Z) |
 | OCID-20260803-034 | VERIDIAN Universal Context and Predictive Runtime v1.0 | `UMR-20260803-042003-5e92` | #779 | **MERGED** |
-| OCID-20260803-035 | VERIDIAN Continuous Platform Evolution Runtime v1.0 | same chain | #777 | **OPEN, unmerged** |
+| OCID-20260803-035 | VERIDIAN Continuous Platform Evolution Runtime v1.0 | same chain | #777 | **MERGED** (`cf2a6d26`, 2026-08-04T10:35:43Z) |
 | OCID-20260803-036 | VERIDIAN Universal Capability Discovery and Evolution Runtime v1.0 | `UMR-20260803-042034-0c1f` | #782 (content) + #784 (mislabel fix) | **MERGED** (both) |
-| OCID-20260803-037 | VERIDIAN Universal Knowledge and Service Catalog v1.0 | `UMR-20260803-042230-180c` | #785 | **OPEN, unmerged** |
+| OCID-20260803-037 | VERIDIAN Universal Knowledge and Service Catalog v1.0 | `UMR-20260803-042230-180c` | #785 | **MERGED** (`8d8e1dba`, 2026-08-04T11:43:44Z) |
 
-**Real, honest summary:** of the 23 real OCID entries in this range, **11 have real, merged content
-on `main` today** (015, 016-tranche-1, 017, 018, 019, 027, 028, 030, 031, 034, 036 — 11 OCID
-numbers). OCID-020 and OCID-021 are excluded from that count: both are real but ongoing/ not a
-single closeable artifact (see their own rows above). **10 real canonical docs exist only on open,
-unmerged branches** (022, 023, 024, 025, 026, 029, 032, 033, 035, 037). This is not a new finding
-invented by OCID-053 — it is the exact scope of the in-flight Group C documentation-merge pass, see
-§3.
+**Real, honest summary (re-verified live 2026-08-05, correcting this doc's own earlier
+2026-08-04 snapshot — flagged as stale by an independent review of this PR before merge):** of the
+23 real OCID entries in this range, **all 21 real, single-artifact OCID numbers now have real,
+merged content on `main`** (015, 016-tranche-1, 017, 018, 019, 022, 023, 024, 025, 026, 027, 028,
+029, 030, 031, 032, 033, 034, 035, 036, 037 — 21 OCID numbers, each merge commit independently
+confirmed a real ancestor of `origin/main` via `git merge-base --is-ancestor`, not narrated from
+`gh pr view`'s state field alone). OCID-020 and OCID-021 are excluded from that count: both are
+real but ongoing/not a single closeable artifact (see their own rows above). **Zero real canonical
+docs remain on open, unmerged branches in this range as of this re-check** — the Group C
+documentation-merge pass (§3) has, as of this re-verification, genuinely completed all 10 of its
+target merges plus its earlier #784 mislabel fix.
 
 ---
 
@@ -87,7 +91,7 @@ invented by OCID-053 — it is the exact scope of the in-flight Group C document
 |---|---|---|---|---|
 | OCID-047 | Roles/Rights/Responsibilities Certification | #811 (batch planning, merged) | #823 (55/55 role/rights, merged), #830 (4/4 BROAD_SCOPE_ROLES, merged), #814 (responsibility/data-scope gap closed, merged), #833 (confirms #830 live on main, merged) | **Complete**, 2 real gaps found and closed along the way |
 | OCID-048 | Multi-Org/Tenant/Brand Isolation Certification | #816 (merged) | #826 (7/7 cross-tenant, merged); #825 (cross-org, **CLOSED without merging** — see §4 orphan finding) | **Complete** on cross-tenant; cross-org isolation result carried instead via #826's own scope |
-| OCID-049 | Subscription Plan Entitlement Certification | #813 (merged) | #828 (hold + gate correction, merged), #848 (real testing + retraction of premature claim, merged), #850 (all 4 tiers, "Group F genuinely closed", merged); #849 (**CLOSED without merging**, confirms already resolved) | **Honestly partial→complete per #850** — but #865 (`GAP-OCID-049: implement Tasks A/B/C/E`) is a real, currently **OPEN** implementation PR, meaning certification and implementation are two distinct, separately-tracked scopes here |
+| OCID-049 | Subscription Plan Entitlement Certification | #813 (merged) | #828 (hold + gate correction, merged), #848 (real testing + retraction of premature claim, merged), #850 (all 4 tiers, "Group F genuinely closed", merged); #849 (**CLOSED without merging**, confirms already resolved) | **Complete** — #865 (`GAP-OCID-049: implement Tasks A/B/C/E`) is now real, **MERGED** (`f11d04ff`, 2026-08-04T04:50:01Z, independently confirmed a real ancestor of `origin/main`; re-verified live 2026-08-05, correcting this doc's own earlier 2026-08-04 "currently OPEN" snapshot, flagged stale by independent review before merge) — certification and implementation were two distinct, separately-tracked scopes here, both now closed |
 | OCID-050 | Data State Certification (Empty/Sample/Large) | #812 (merged) | #834 (30/30 Empty+Sample, merged), #843 (345/345 full 3-state sweep + real large-data org, merged); #840, #842 (PM/correction docs, states mixed — #842 **CLOSED without merging**) | **Complete** |
 | OCID-051 | Cross-Surface Certification (browser + Mobile PWA) | #815 (merged) | #844 (all real checks pass, merged), #845 (independent re-verify + audit, **OPEN**) | **Complete per #844**, awaiting #845's own merge for the audit trail |
 | OCID-052 | VERI Chat AI Escalation Certification | #817 (merged) | #822 (Items 2-3, merged), #846 (Item 4 UI-distinguishability + closes Group F, merged); #847 (**CLOSED without merging**, superseded by #846) | **Complete** |
@@ -129,18 +133,21 @@ OCID-053 (this doc, own UMR `UMR-20260804-033853-2a17`) → parents OCID-020 + O
  (OCID-012 excluded, zero real matches — see header)
 ```
 
-**Group C documentation-merge pass (real, in-flight, cited but not owned by OCID-053):**
-`UMR-20260804-032101-dcd0` / `task-20260804-032121-group-c-closure--review-and-merge-the-ni` is the
-real dispatch that is working through the OCID-022..037 open-PR backlog above. Its own PROGRESS.md
-(read directly, not narrated) shows: PR #784 reviewed, conflict-resolved, audited, and **merged**
-(commit `8257ae5b`, independently confirmed a real ancestor of `origin/main` by that session, and
-independently re-confirmed here — it is this branch's own parent commit). PRs #765, #767, #768 were
-conflict-resolved, audited, and pushed but were, at that session's own last checkpoint, still
-awaiting green CI — **live re-check this session (`gh pr view`) confirms all three are still real,
-open, unmerged today.** PRs #766, #773, #775, #777, #778, #780, #785 were pre-scanned as
-docs-only but **not started** (conflict resolution, audit, or merge). **Real, honest conclusion:
-the Group C pass has NOT completed.** Only PR #784's real merge is folded into this graph as done;
-the other 10 target PRs remain open and are cited above as open, not credited as complete.
+**Group C documentation-merge pass (real, cited but not owned by OCID-053) — UPDATE (2026-08-05,
+independent review before merge): now genuinely COMPLETE, correcting this section's own earlier
+2026-08-04 "has NOT completed" conclusion.** `UMR-20260804-032101-dcd0` /
+`task-20260804-032121-group-c-closure--review-and-merge-the-ni` was the real dispatch working
+through the OCID-022..037 open-PR backlog above. At this doc's original 2026-08-04 writing time,
+only PR #784 had merged (commit `8257ae5b`, independently confirmed a real ancestor of
+`origin/main`) and the other 10 target PRs (#765, #766, #767, #768, #773, #775, #777, #778, #780,
+#785) were still open, some awaiting CI, some not yet started. **Re-verified live on 2026-08-05**
+(an independent review of this PR flagged the 2026-08-04 snapshot as stale before merge, since all
+10 had in fact merged the same day this doc was written, mostly within a few hours of its original
+writing): every one of those 10 PRs is now confirmed **MERGED** — see the real merge-commit hashes
+and timestamps in the §1 table above, each independently re-confirmed a real ancestor of
+`origin/main` via `git merge-base --is-ancestor`, not narrated from `gh pr view`'s state field
+alone. **Real, honest, current conclusion: the Group C pass has completed — all 11 of its real
+target PRs (#784 + the 10 above) are merged**, and this graph's §1 table above reflects that.
 
 ---
 
