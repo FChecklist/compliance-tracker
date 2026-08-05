@@ -29,11 +29,14 @@ Verified immediately after the change: PR #936 (already `AUDIT: PASS`-reviewed, 
 
 ## Real re-enable record
 
-**Status: NOT YET RE-ENABLED as of this document's own merge.** `UMR-20260805-091629-d8e3` has not yet merged. This section will be updated with the real timestamp, the real commit that re-enabled `required_approving_review_count: 1`, and independent confirmation, the moment that real work lands — not narrated in advance.
+**Status: NOT YET RE-ENABLED — trigger condition still unmet.** Correcting this section (2026-08-05, later verification pass): `UMR-20260805-091629-d8e3` **has since merged**, as PR #938 ("fix: add automated reviewer != author check", merge commit visible on `origin/main` via merge commit `1ca153e9`, merged `2026-08-05T09:37:27Z`). That PR's own honest disclosure, and its companion doc `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`, both state plainly that **identity provisioning itself was not, and structurally could not be, completed by that or any automated session**: the only real GitHub identity anywhere in this system remains the `FChecklist` account (token scopes `gist`/`read:org`/`repo` only — no `admin:org`, no App-management scope; `gh api orgs/FChecklist/members` returns `404`). What merged was the automated `reviewer != author` check (`scripts/check-reviewer-not-author.mjs`, staged workflow) plus a precise recommendation for the Owner to create a GitHub App — real, useful, but **not** a live second reviewer identity.
+
+**This document's own trigger condition — "the real second reviewer identity is live" — is therefore still unmet**, despite `UMR-20260805-091629-d8e3` having merged. The two clauses of the original trigger are not both satisfied: merge, yes; identity live, no. `required_approving_review_count` correctly remains `0` (independently re-confirmed live via `gh api repos/FChecklist/compliance-tracker/branches/main/protection` on this later verification pass, all other fields — `enforce_admins: true`, the full 8-context `required_status_checks.contexts` list including `Metadata Index Coverage Check` — unchanged). **Do not re-enable `required_approving_review_count: 1` on the basis of PR #938 alone.** The real re-enable action still requires the Owner to actually provision the GitHub App per `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`'s recommendation; this section will be updated again, with the real timestamp and commit, only once that real identity is live and confirmed.
 
 ## Real citations
 
 - `UMR-20260805-091648-6793` (this exception's own real Owner decision)
 - `UMR-20260805-034917-33a9` (the real branch-protection hardening this temporarily relaxes)
-- `UMR-20260805-091629-d8e3` (the real second-reviewer-identity work that must merge to trigger re-enable)
+- `UMR-20260805-091629-d8e3` (the real second-reviewer-identity work; merged as PR #938 but did not establish a live identity — see re-enable record above)
 - PR #936 (first real PR merged under this exception, merge commit `118e1e8f89b7a72541963317b23e92cf0a966761`)
+- PR #938 (`UMR-20260805-091629-d8e3`'s real merged scope: automated reviewer != author check only, not identity provisioning), `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` (honest gap doc + Owner recommendation)

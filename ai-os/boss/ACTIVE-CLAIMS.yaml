@@ -174,41 +174,6 @@ active:
       ai-os/OS.yaml (two new index entries), this ACTIVE-CLAIMS entry, PROGRESS.md. No src/,
       schema, CI, or credential/secret-value changes of any kind. No repository visibility/
       ownership/permission change.
-  - session_label: "claude-code (UMR-20260805-091629-d8e3) -- build the automated reviewer != author identity check ONLY (identity provisioning itself is a real, structural Owner-only gap, not attempted) [DONE, PR pending]"
-    claimed_at: "2026-08-05T09:30Z (this session -- registered mid-session, after the real code/tests/doc were already written locally; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
-    claim: |
-      SPEC (Owner directive `UMR-20260805-091629-d8e3`, supporting branch-protection
-      hardening `UMR-20260805-034917-33a9` while `UMR-20260805-091648-6793`'s real,
-      temporary, bounded `required_approving_review_count: 0` exception is active):
-      Owner wants a real, separate GitHub identity that can review PRs but never
-      author/push code, wired into the pipeline, plus an automated check confirming
-      reviewer and author are never the same account on any PR. Independently
-      confirmed the identity-provisioning half cannot be done by this or any
-      automated session in this environment: only real GitHub identity anywhere is
-      the `FChecklist` account, token scopes `gist`/`read:org`/`repo` only (no
-      `admin:org`, no App-management scope), `gh api orgs/FChecklist/members` returns
-      404, GitHub App creation needs the interactive manifest flow or scopes this
-      token lacks. Scope narrowed to the one real, buildable, independently useful
-      piece: `scripts/check-reviewer-not-author.mjs` (pure `evaluate()` + `main()`
-      CLI reading `gh pr view --json author,reviews`), real tests
-      (`scripts/check-reviewer-not-author.test.ts`, 9/9 pass), staged workflow
-      (`ai-os/registry/PENDING-MANUAL-APPLICATION-reviewer-not-author-check.yml.txt`,
-      same non-`.github`-path staging as the SEC-07 gate, same real `workflow`-scope
-      constraint), registered in `ai-os/OS.yaml`'s covers index (metadata coverage
-      check passes), and an honest gap/recommendation doc
-      (`ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`) recommending the
-      Owner create a GitHub App (`Pull requests: Read & write` + `Contents: Read`
-      only) as the one real remaining action.
-    scope_note: >-
-      File scope: `scripts/check-reviewer-not-author.mjs` (new),
-      `scripts/check-reviewer-not-author.test.ts` (new),
-      `ai-os/registry/PENDING-MANUAL-APPLICATION-reviewer-not-author-check.yml.txt`
-      (new), `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` (new),
-      `ai-os/OS.yaml` (2 new index entries), this ACTIVE-CLAIMS entry -- all via one
-      PR, built in an isolated worktree
-      (`fix/reviewer-not-author-check-umr20260805091629`) off `origin/main` so as not
-      to disturb other sessions' in-flight uncommitted work in the shared
-      `repos/compliance-tracker` checkout.
   - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [DONE: OCID-047 gaps closed via own merged PR (commit b937dc25); OCID-050 gap found already closed by concurrent PR #930 during a routine rebase -- independently re-confirmed live, no duplicate fix added, PR #941]"
     claimed_at: "2026-08-05T00:50Z (this session -- registered mid-session, after the OCID-047 fix was already committed; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
     claim: |
@@ -5857,6 +5822,35 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260805-161111-pm-decision--temporary-bounded-revert-of) -- PM decision verification pass on the temporary required_approving_review_count:0 exception (UMR-20260805-091648-6793): governance record + review-count change already existed live from an earlier session (PR #937, live `gh api` re-confirmed 0). Corrected the record's own stale re-enable section instead of duplicating work [DONE, no code changes, docs-only, PR pending]"
+    claimed_at: "2026-08-05T16:11Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, UMR-20260805-091648-6793 / UMR-20260805-034917-33a9 /
+      UMR-20260805-091629-d8e3): re-verified live state before acting rather than
+      assuming the SPEC's framing was current. Found `required_approving_review_count`
+      already `0` live (`gh api repos/FChecklist/compliance-tracker/branches/main/protection`),
+      and `ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md` already
+      merged (PR #937, 2026-08-05T09:31:57Z) recording exactly the exception the SPEC asked
+      for. Also found `UMR-20260805-091629-d8e3` (the "just dispatched" second-reviewer-
+      identity work per the SPEC's own framing) had *already merged* as PR #938 by the time
+      this task started -- but confirmed, via that PR's own honest disclosure and its
+      companion `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`, that it built only
+      the automated reviewer!=author check, NOT a live second identity (identity provisioning
+      is a structural Owner-only gap, explicitly not attempted). The governance record's own
+      "Real re-enable record" section was therefore stale (claimed the UMR "has not yet
+      merged", which was no longer true) and, worse, silent on the fact that its trigger
+      condition ("second reviewer identity is live") remains genuinely unmet despite the
+      merge. Corrected that section in place rather than re-doing already-done work or
+      incorrectly re-enabling `required_approving_review_count: 1` on the false premise that
+      PR #938 alone satisfied the trigger. Also moved this same UMR's own stale ACTIVE-CLAIMS
+      entry (previously under `active:`, labeled "[DONE, PR pending]") here, corrected to
+      reflect the real merged state.
+    scope_note: >-
+      File scope: `ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md`
+      (re-enable section + citations corrected), `ai-os/boss/ACTIVE-CLAIMS.yaml` (moved one
+      stale entry from active to here, text corrected; this entry added), `PROGRESS.md`. No
+      src/, schema, CI, or branch-protection API changes -- the live `required_approving_review_count: 0`
+      setting was independently re-confirmed correct, not modified.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
