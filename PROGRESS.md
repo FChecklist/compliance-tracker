@@ -30,12 +30,12 @@ appending this task's own section on top -- no history lost.
       same session -- docs-only, no concurrency risk).
 - [x] Found and fixed the PROGRESS.md wholesale-replace regression described above -- full real
       history restored, not discarded.
+- [x] Committed, pushed, opened PR #967: https://github.com/FChecklist/compliance-tracker/pull/967
 
 ## Remaining
-- [ ] None for this task's own scope. PR #954's actual merge is a separate, already-queued task
-      (`UMR-20260805-181515-b18a`) -- not this document's job.
-- [ ] Open a PR containing this task's own doc-only changes and get it through CI/audit per
-      standing repo protocol.
+- [ ] Confirm CI green, hand off for independent audit -- not self-certified here.
+- [ ] Merging PR #954 itself is a separate, already-queued task (`UMR-20260805-181515-b18a`) --
+      not this document's job.
 
 ---
 
