@@ -1,11 +1,11 @@
 # Governance Record: Hard Rule 7 (SEC-07) Violation, PR #886
 
-**Decision ID:** OD-20260805-001 (Owner decision, real and final, no retroactive override)
-**Cites:** `UMR-20260805-025349-a6b8`, `UMR-20260802-165606-4413` (OCID-020), and the original discovery `UMR-20260804-194323-0bc5`
+**Real dispatch instruction:** `UMR-20260805-025349-a6b8`, "Owner decision, Owner directed, real and final, no retroactive override" (relayed to and executed by this Executor session via the standing live dispatch channel, citing `UMR-20260802-165606-4413`/OCID-020 and the original discovery `UMR-20260804-194323-0bc5`)
+**Executed under:** the standing full-autonomy delegation (`AGENTS.md`, Owner directive of 2026-07-31: *"the server and claude code cli will keep working even if laptop is switched off... Full autonomy, no exceptions"*) — this record is a real Executor disposition carrying out that live instruction, not a self-issued or independently-invented decision-ID artifact. No new decision-ID naming convention (e.g. "OD-") is introduced by this record; none exists elsewhere in this repository's own history, and inventing one here would overstate this document's own formal pedigree.
 **Related governance artifact:** `GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886` (`ai-os/MASTER-TRACKER.yaml`)
 **Related standing rule (not altered by this record):** SEC-07 / "Hard Rule 7" (`ai-os/CONSTITUTION.yaml`)
 
-This document is the permanent governance record of the Owner's real, final disposition of the SEC-07 violation on PR #886. It **does not alter, soften, or reinterpret** SEC-07's own lock text in `ai-os/CONSTITUTION.yaml` — that rule stands exactly as written. This record documents a decision made under it, not a change to it.
+This document is the permanent governance record of the real, final disposition of the SEC-07 violation on PR #886, as directed via `UMR-20260805-025349-a6b8`. It **does not alter, soften, or reinterpret** SEC-07's own lock text in `ai-os/CONSTITUTION.yaml` — that rule stands exactly as written. This record documents a decision made under it, not a change to it.
 
 ## Status block
 
@@ -28,7 +28,7 @@ This document is the permanent governance record of the Owner's real, final disp
 
 `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` (`ai-os/MASTER-TRACKER.yaml`) is recorded `status: closed`, closed by `UMR-20260804-155457-a16d`: migration `0312` was independently re-confirmed purely additive, applied directly to the live production database, and the fix was independently re-verified live in two separate passes — most recently 4/10 and then 10/10 fresh, real, Admin-API-provisioned users confirmed a real `200` from `GET /api/me`, zero non-200 responses. This is a real, closed, technical resolution, separate from the governance question this record addresses.
 
-## The Owner's real, final decision (OD-20260805-001)
+## The real, final disposition (per `UMR-20260805-025349-a6b8`)
 
 1. **The SEC-07 violation on PR #886 is acknowledged as a real governance violation** and is permanently recorded as part of this repository's audit history — not disputed, not minimized.
 2. **PR #886 does not receive a retroactive authorization.** No exception was ever granted for it, and none is granted now, retroactively or otherwise.
@@ -47,4 +47,4 @@ Per this decision: **future violations of Hard Rule 7 must be blocked before mer
 - Governance violation finding: `GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886`, `ai-os/MASTER-TRACKER.yaml`
 - Technical incident and its closure: `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS`, `ai-os/MASTER-TRACKER.yaml`, closed by `UMR-20260804-155457-a16d`
 - PR #886: merge commit `95f82ed83d6c5f42b853a74527fbea2bf2957758`, mergedAt `2026-08-04T10:41:41Z`
-- Owner decision: `OD-20260805-001`, `UMR-20260805-025349-a6b8`, citing `UMR-20260804-194323-0bc5` and `UMR-20260802-165606-4413`
+- Real dispatch instruction directing this disposition: `UMR-20260805-025349-a6b8`, citing `UMR-20260804-194323-0bc5` and `UMR-20260802-165606-4413`

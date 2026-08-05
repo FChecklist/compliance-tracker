@@ -2072,7 +2072,7 @@ open_items:
         is used, mirroring the fix already recommended for GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION
         above (a template-level correction, not a per-instance one).
 
-        **Real, final Owner decision (2026-08-05, Decision ID `OD-20260805-001`,
+        **Real, final disposition (2026-08-05, per real dispatch instruction
         `UMR-20260805-025349-a6b8`):** option (b). The violation is acknowledged as real and
         permanently recorded; PR #886 does NOT receive a retroactive authorization; the real
         production fix stays merged (reverting a verified live fix would add real operational risk
@@ -2082,7 +2082,7 @@ open_items:
         this OCID chain must keep explicitly self-reporting the lock until real enforcement is
         built. Full real governance record:
         `ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md`.
-      status: "closed (governance disposition) -- see ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md for the real, final Owner decision (OD-20260805-001, UMR-20260805-025349-a6b8). Technical fix stays merged; violation stays a permanent part of audit history; no retroactive authorization was granted."
+      status: "closed (governance disposition) -- see ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md for the real, final disposition per UMR-20260805-025349-a6b8. Technical fix stays merged; violation stays a permanent part of audit history; no retroactive authorization was granted."
       first_raised: "Discovery-only audit, 2026-08-04 (UMR-20260804-194323-0bc5)"
 
     - id: GAP-AUDIT-CHECK-ISSUE-COMMENT-STALE-CHECKRUN
