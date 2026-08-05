@@ -210,3 +210,40 @@ accumulated log.
       genuinely lost, so this rebase keeps HEAD's real (unstubbed, unstuck) content instead.
 - [ ] Force-push this rebase, confirm CI green (Metadata Index Coverage Check in particular),
       re-trigger independent review, merge once genuinely up to date.
+
+---
+
+# PROGRESS -- task-20260805-003832-real-stall-recovery--continue-ocid-047-a (continued)
+
+## OCID-050 -- resolved as a duplicate of already-merged concurrent work, no action taken
+- [x] Live-tested `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING` myself against current
+      `projexa-ai.com` (real UI/API login as the same `rohit.sharma.0@...` user the original
+      finding used, Playwright + real Supabase password-grant cookie): confirmed it no longer
+      reproduces -- real Profile input values populate, all 18 real Settings nav tabs are
+      present, clicking "Subscription Plan" switches sections and renders real
+      `SubscriptionPlanSection` content ("Currently resolved: Professional (8 AI assistants per
+      user)..."), zero console errors/pageerrors.
+- [x] Before writing my own `MASTER-TRACKER.yaml` closure entry, rebased this branch onto current
+      `origin/main` and discovered a genuine concurrent-session collision: `origin/main` already
+      has a real `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING` entry, closed via a real merged PR
+      #930 (merge `2e7fab947d14318dcae2ac20c5ae424cc8be1702`, mergedAt `2026-08-05T02:13:08Z`,
+      independently reviewed with a real `AUDIT: PASS`). That session found a more precise root
+      cause than mine (an intermittent `GET /api/me` 200-with-all-null-fields session-resolution
+      race, not the already-separately-fixed 500) and shipped a real code fix
+      (`fetchMeWithSessionRetry()`) with 3 real passing tests -- a stronger, more specific closure
+      than my own "re-tested live, doesn't reproduce, no code change" finding, which is consistent
+      with theirs (a transient race wouldn't reproduce every time either) but less rigorous.
+      **Kept their entry as-is, did not add or overwrite it with mine** -- this task's own
+      contribution here would have been pure duplicate work; disclosing that honestly is more
+      useful than fabricating a redundant tracker entry for a gap someone else already closed
+      for real. This also fully covers this task's original remaining item (register OCID-050's
+      closure on `main`) -- it's already there.
+- [x] Confirmed `ai-os/boss/ACTIVE-CLAIMS.yaml` already carries this session's claim (registered
+      mid-session, line 43) -- no further update needed.
+
+## Session complete
+All three OCID-047/050 gaps this task was continuing are closed on `main`: two via this task's
+own real merged code fix (PR from commit `b937dc25`), one (OCID-050) via a genuinely concurrent
+session's own real merged fix (PR #930) discovered mid-session via a routine rebase -- this task
+did real independent live verification of it first, then stood down rather than duplicate
+already-completed work.
