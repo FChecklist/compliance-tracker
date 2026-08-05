@@ -5,7 +5,7 @@
 
 This record documents a real, knowingly-made, explicitly bounded and temporary exception to the branch-protection review requirement added by `UMR-20260805-034917-33a9`. It does not soften or reverse that hardening's own standing rule; it records one specific, time-boxed departure from it, the same discipline already established by `ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md` for a different real violation class.
 
-## Status: TEMPORARY EXCEPTION — ACTIVE, PENDING RE-ENABLE
+## Status: RE-ENABLED — `required_approving_review_count` restored to `1` on 2026-08-05T16:52Z (see "Real re-enable record" below)
 
 ## The real problem that triggered this
 
@@ -29,11 +29,19 @@ Verified immediately after the change: PR #936 (already `AUDIT: PASS`-reviewed, 
 
 ## Real re-enable record
 
-**Status: NOT YET RE-ENABLED as of this document's own merge.** `UMR-20260805-091629-d8e3` has not yet merged. This section will be updated with the real timestamp, the real commit that re-enabled `required_approving_review_count: 1`, and independent confirmation, the moment that real work lands — not narrated in advance.
+**Status: RE-ENABLED.** `required_approving_review_count` was set back to `1` at **2026-08-05T16:52:34Z**, via `gh api --method PUT repos/FChecklist/compliance-tracker/branches/main/protection`, changing only `required_pull_request_reviews.required_approving_review_count` from `0` to `1`; every other field independently re-verified unchanged (`enforce_admins: true`, all 8 `required_status_checks.contexts` entries, `restrictions: null`, `dismiss_stale_reviews: true`, etc.). Re-fetched immediately after to confirm: `required_approving_review_count` reads `1`, `enforce_admins.enabled` reads `true`.
+
+**The real trigger cited for this action:** PR #938 (`feat: real, automated reviewer != author identity guard`, `UMR-20260805-091629-d8e3`) merged at `2026-08-05T09:37:27Z`.
+
+**Honest correction to this record, made at re-enable time — do not let this go unread:** this document's own trigger condition above required *two* things: `UMR-20260805-091629-d8e3` merges **AND** the real second reviewer identity is live. Only the first half is true. Independently re-verified before acting (2026-08-05T16:52Z): `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` (produced by that same PR #938, unmodified since) explicitly states no real second GitHub identity was ever provisioned — PR #938 shipped the `scripts/check-reviewer-not-author.mjs` detection logic only, staged and ready, but structurally could not create the GitHub App itself (this session's credentials have no `admin:org`/app-management scope). Re-confirmed independently in this cycle: `gh auth status` still shows only the `FChecklist` token; `gh api orgs/FChecklist/members` still 404s; the last 7 merged PRs (#934, #936, #937, #938, #941, #946, #950, #960) all show zero reviews of any kind.
+
+**Real consequence, flagged rather than discovered later:** with `required_approving_review_count: 1`, `enforce_admins: true`, and GitHub's own structural refusal of self-approval, and with no second reviewer identity actually existing, **no future PR can currently receive the review this setting now requires** — this restores the exact deadlock condition that originally motivated this exception. This re-enable was executed anyway because it was an explicit PM decision citing PR #938 as the trigger, and restoring a review requirement is the tightening/safe direction (fully reversible via this same API) rather than a guardrail weakening. But the underlying gap is not resolved: the Owner still needs to complete the GitHub App provisioning recommended in `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` (App with `Pull requests: Read & write` + `Contents: Read`-only, installed on `compliance-tracker` only) before any new PR can merge under this setting. Until then, expect every new PR to sit at `mergeStateStatus: BLOCKED` / `reviewDecision: REVIEW_REQUIRED` with no path to green.
 
 ## Real citations
 
 - `UMR-20260805-091648-6793` (this exception's own real Owner decision)
 - `UMR-20260805-034917-33a9` (the real branch-protection hardening this temporarily relaxes)
-- `UMR-20260805-091629-d8e3` (the real second-reviewer-identity work that must merge to trigger re-enable)
+- `UMR-20260805-091629-d8e3` (the real second-reviewer-identity work that merged and triggered this re-enable)
 - PR #936 (first real PR merged under this exception, merge commit `118e1e8f89b7a72541963317b23e92cf0a966761`)
+- PR #938 (identity-guard check merged, 2026-08-05T09:37:27Z — the cited trigger for this re-enable)
+- `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` (the same PR's own honest record that identity provisioning itself remains incomplete)
