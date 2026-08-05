@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+    claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
+    claim: |
+      SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
+      stall distinct from the one recovered last cycle (`task-20260805-003832-real-stall-recovery`),
+      citing byte-for-byte-identical tmux pane text across two consecutive 10-minute cycles and zero
+      CPU-time increase over a real minute. Independently re-sampled both signals live rather than
+      trusting the SPEC: found the opposite on both counts. Real process CPU time on PID 1836738
+      climbed steadily over 5 samples across ~90+ real seconds (04:37 -> 05:05 mm:ss, ~12% running
+      avg, not flat). The live tmux pane (`claude:0.0`) changed substantially across 5 captures in
+      the same window -- a `grep` on `superboss-register.py` finished, a new `timeout 30 python3`
+      sqlite3 query against `superboss-register.sqlite` (checking `UMR-20260805-025554-46f9` /
+      `UMR-20260805-032243-185e`) started and completed, new real narrative output printed (closing
+      out a self-corrected false corruption alarm), then idle at its own prompt with a normally
+      finished turn. Token counter climbed 6.8k -> 8.5k across captures. Conclusion: the session is
+      genuinely active, not stalled -- did **not** restart/resume it via `supervisor-entrypoint.sh`,
+      since doing so would have killed real in-progress work on a false premise. Noted but did not
+      touch: the shared `repos/compliance-tracker` checkout has a large uncommitted diff
+      (`ai-os/scripts/superboss-register.py` +5010/-83, ~20 other `ai-os/scripts/*` files) that
+      appears to be this same live session's own in-flight work, matching its on-screen SPEC (fix
+      `audit_ocid_canonical_registry.py` dry-run/apply-mode output ambiguity); spot-checked for
+      duplicate/corrupted content (`grep '^+def ' | sort | uniq -d` -> 0 hits), left untouched as it
+      belongs to the live session. Also cross-checked PR #941 (real, open, `mergeable: MERGEABLE`,
+      `mergeStateStatus: BLOCKED`, no required review yet) -- consistent with the live pane's own
+      stated in-progress next step.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry only. Read-only investigation (`ps`,
+      `tmux capture-pane`, `git log`/`git diff`/`gh pr view`) -- no src/, schema, script, or
+      infrastructure changes; no process was started, stopped, or restarted.
   - session_label: "claude-code (task-20260804-040754-register-ocid-054--universal-repository) -- OCID-054 real discovery/inventory of every repo, branch, PR, worker, queue, job, task, doc, config across the FChecklist org + real security/exposed-credential scan [read-only, DONE, PR #869 rebuilt 2026-08-05 with a history that never contains the raw leaked secret]"
     claimed_at: "2026-08-04T04:07Z (this session; re-registered 2026-08-05 after PR #869's original branch history -- which briefly contained a real secret's raw value at commit 03f60ffd -- was rebuilt as a single clean commit off current main so that value is never reachable from any commit on this branch)"
     claim: |
@@ -180,7 +209,7 @@ active:
       (`fix/reviewer-not-author-check-umr20260805091629`) off `origin/main` so as not
       to disturb other sessions' in-flight uncommitted work in the shared
       `repos/compliance-tracker` checkout.
-  - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [OCID-047 DONE PR #926, OCID-050 IN PROGRESS]"
+  - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [DONE: OCID-047 gaps closed via own merged PR (commit b937dc25); OCID-050 gap found already closed by concurrent PR #930 during a routine rebase -- independently re-confirmed live, no duplicate fix added, PR #941]"
     claimed_at: "2026-08-05T00:50Z (this session -- registered mid-session, after the OCID-047 fix was already committed; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
     claim: |
       SPEC (PM decision, checkpoint refresh, `UMR-20260804-234032-146e`, parent
