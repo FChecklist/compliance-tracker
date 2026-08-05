@@ -557,6 +557,16 @@ registries:
   query_cmd: python3 /opt/veridian/scripts/superboss-register.py search "<query>"
   doc: /opt/veridian/repos/compliance-tracker/ai-os/SUPERBOSS_REGISTER.md
   status: live
+- id: ocid_artifact_links_deprecated
+  type: sqlite_table
+  path: /opt/veridian/ai-os/memory/superboss-register.sqlite#ocid_artifact_links
+  scope: 'DEPRECATED (2026-08-05, UMR-20260805-142048-4edb, real independent verification): superseded
+    by ocid_canonical_registry''s own all_umr_ids_json/pr_number/commit_sha/file_path/evidence_json fields,
+    which cover the same real ocid_number<->umr_id<->PR evidence linkage with a fuller schema. 3 real
+    historical rows (OCID-777, OCID-069 x2) left in place, not deleted -- deletion needs a fresh real
+    Owner decision given this table''s own real historical evidence value; do not write new rows here,
+    use ocid_canonical_registry instead.'
+  status: deprecated
 - id: auto_conversation_log
   type: hook_pipeline
   scope: 'Root-cause fix for "you not logging every discussion" (Owner, 2026-07-20). Confirmed the gap
