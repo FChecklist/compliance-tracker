@@ -247,3 +247,9 @@ own real merged code fix (PR from commit `b937dc25`), one (OCID-050) via a genui
 session's own real merged fix (PR #930) discovered mid-session via a routine rebase -- this task
 did real independent live verification of it first, then stood down rather than duplicate
 already-completed work.
+
+- [x] Opened PR #941 (`docs/ocid050-live-reverify-no-repro-umr20260804234032`) documenting the
+      independent re-confirmation + duplicate-work standdown in `PROGRESS.md` (no
+      `ai-os/MASTER-TRACKER.yaml` delta -- it already matches `origin/main`).
+- [x] Posted the required 8-field `AUDIT: PASS` verdict comment (AGENTS.md Rule 10).
+- [ ] Waiting on CI (all required checks) to go green, then merge.
