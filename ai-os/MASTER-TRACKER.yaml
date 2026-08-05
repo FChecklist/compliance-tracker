@@ -2988,9 +2988,31 @@ open_items:
         even when its narrated parent-chain framing is not.
       status: "open (owner_blocked in effect -- this is a standing, recurring dispatch-hygiene issue
         across sessions/agents generating these prompts, not something a single session can close;
-        flagged to the Owner per this same entry)"
+        flagged to the Owner per this same entry). The OCID-053-056 portion specifically is SUPERSEDED,
+        see reverification_2026_08_05 below -- OCID-012 portion is unaffected by that reverification."
       first_raised: "OCID-057, 2026-08-04 (this document); OCID-012 specifically had been re-verified
         as fake by multiple unrecorded prior sessions before this entry made it permanent"
+      reverification_2026_08_05: |
+        Real independent Superboss review of PR #866 (real diff-based AI review, not a self-report)
+        rejected this entry's OCID-053-056 finding as stale/false: independently re-verified live that
+        OCID-053 (open PR #867, real UMR UMR-20260804-033853-2a17, corroborated by
+        ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md and
+        ai-os/OCID_056_REGISTRATION_2026-08-04.md's grandparent-chain table), OCID-054 (open PR #869,
+        real UMR UMR-20260804-035759-1eb2, same corroboration), OCID-055 (open PR #868), and OCID-056
+        (open PR #870, AND a separate already-MERGED registration ai-os/OCID_056_REGISTRATION_2026-08-04.md
+        via PR #906) all now have real, substantive content in this repository. The original finding was
+        accurate for the repo state at the time this document was first written (2026-08-04, early) --
+        overtaken by real events (two later dispatch waves populated real OCID-053-056 content) rather
+        than having been wrong when made. A separate, genuine complication -- two distinct dispatch waves
+        each minted their own UMR for OCID-055/056 (this entry's originally-cited UMR-20260804-035817-6300
+        / UMR-20260804-035904-142e from an early ~03:58 wave vs. UMR-20260804-161625-5bb6 /
+        UMR-20260804-161630-b761 cited by the later ~16:16 wave's merged registration doc) -- is real,
+        already independently flagged elsewhere (PR #902's own "false 'zero duplication' premise flagged
+        (PR #868)" finding), and is the explicit subject of a dedicated, still-open cross-PR
+        reconciliation effort (PR #916, "OCID-053..060 conflict-resolution dispatch") covering this exact
+        batch. Which UMR is canonically correct for OCID-055/056 is not adjudicated by this reverification
+        -- deferred to PR #916. The OCID-012 portion of this GAP entry is untouched by this reverification
+        (separately under correction via PR #939).
 
     - id: GAP-KNOWLEDGE-NO-REPORT-BUSINESS-RULE-CATALOG
       name: "No dedicated report catalog or business-rule catalog exists, and the screen/UX inventory is hand-maintained prose, not a queryable register -- named as an honest gap by OCID-027 but never formally tracked until now"

@@ -50,6 +50,44 @@ found and content checked, not assumed from the prompt's framing):
 This section is itself this pass's single most important Broken Reference Report finding; it is
 restated in section 4 for completeness.
 
+**CORRECTION (re-verified 2026-08-05, real independent Superboss review + merge-conflict-fix pass on
+this PR, not the original author):** the "do not exist anywhere in this system" finding directly above
+was accurate for the working tree and remote state *as it existed when this document was originally
+written* (2026-08-04, early), but has since been overtaken by real events and is now **stale/false**.
+Independently re-verified live against the current repo (not narrated): OCID-053, OCID-054, OCID-055,
+and OCID-056 all now have real, substantive content in this repository:
+- OCID-053: real open PR **#867**, branch `worker/task-20260804-040750-register-ocid-053--universal-knowledge-g`.
+  Its own UMR `UMR-20260804-033853-2a17` -- the exact UMR this document's original section 0 called
+  fabricated -- is independently corroborated by two other real documents already merged/present in
+  this tree: `ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md` (PR #867's
+  own doc) and `ai-os/OCID_056_REGISTRATION_2026-08-04.md` (merged to `main` via PR #906), whose
+  grandparent-chain table cites the identical UMR for OCID-053.
+- OCID-054: real open PR **#869**, branch `worker/task-20260804-040754-register-ocid-054--universal-repository`.
+  Its UMR `UMR-20260804-035759-1eb2` (also called fabricated by this document's original section 0) is
+  likewise independently corroborated by the same `OCID_056_REGISTRATION_2026-08-04.md` grandparent-chain
+  table.
+- OCID-055: real open PR **#868**, branch `worker/task-20260804-040758-register-ocid-055--universal-repository`.
+- OCID-056: real open PR **#870**, AND a separate, already-**MERGED** canonical registration,
+  `ai-os/OCID_056_REGISTRATION_2026-08-04.md` (PR #906, merged 2026-08-05), present on `main` right now.
+
+**A separate, genuine complication this correction explicitly does not resolve**: there appear to be
+*two* distinct dispatch waves that each minted their own UMR for OCID-055/OCID-056 (this document's
+originally-cited `UMR-20260804-035817-6300`/`UMR-20260804-035904-142e` from an early ~03:58 wave, versus
+`UMR-20260804-161625-5bb6`/`UMR-20260804-161630-b761` cited by the later ~16:16 wave's merged
+`OCID_056_REGISTRATION_2026-08-04.md`) -- a real duplicate-dispatch/UMR-proliferation issue, already
+independently flagged elsewhere (PR #902's own "false 'zero duplication' premise flagged (PR #868)"
+finding) and the explicit subject of a dedicated, still-open cross-PR reconciliation effort (PR **#916**,
+"OCID-053..060 conflict-resolution dispatch") covering this exact OCID-053..060 batch including this PR.
+Which UMR is canonically correct for OCID-055/056 is *not* adjudicated here -- deferred to that dedicated
+effort, consistent with this document's own stated policy of flagging rather than unilaterally resolving
+duplicate/ambiguous UMR attribution (see the OCID-027 dedup candidate in section 3).
+
+Net effect: OCID-053 through OCID-056 are **real, not fabricated**. The GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES
+entry in `ai-os/MASTER-TRACKER.yaml` has been corrected accordingly (additive `reverification_2026_08_05`
+field, original finding preserved not silently overwritten, per this codebase's own established
+correction convention). The OCID-012 portion of that same finding is untouched by this correction --
+out of scope here, and separately under correction via PR #939.
+
 ---
 
 ## 1. Universal Knowledge Register
@@ -168,10 +206,13 @@ OCID-027 case above.
 
 ## 4. Broken Reference Report
 
-1. **(Primary finding, restated from section 0)** OCID-053, OCID-054, OCID-055, OCID-056 and their four
-   specific UMR IDs, asserted as this task's own "real confirmed parent" chain, do not exist anywhere in
-   the git history, working tree, any branch, or any open/closed PR of this repository. Flagged to the
-   Owner. Same defect class, independently re-confirmed in this same pass, as:
+1. **(Primary finding, restated from section 0 -- SUPERSEDED, see section 0's 2026-08-05 CORRECTION)**
+   OCID-053, OCID-054, OCID-055, OCID-056 and their four specific UMR IDs, asserted as this task's own
+   "real confirmed parent" chain, were found not to exist anywhere in the git history, working tree, any
+   branch, or any open/closed PR of this repository *at the time this document was originally written*.
+   Since overtaken by real events: all four now have real content (open PRs #867-870, OCID-056 also
+   merged via #906) -- see section 0's correction for the full independent re-verification. The narrower
+   claim below, about OCID-012, is unaffected by this correction:
 2. OCID-012, repeatedly referenced across recent dispatch prompts as a real ancestor UMR/OCID, still
    returns zero matches anywhere in this repository (`git grep -rn "OCID-012"`). This is at least the
    fourth session (per this session's own prior memory of repeat checks) to re-verify this with the same
