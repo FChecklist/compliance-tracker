@@ -1,18 +1,27 @@
-# PROGRESS -- task-20260805-134730-reconcile-ocid-012-self-contradiction-be
+# PROGRESS -- task-20260805-143615-investigate-and-merge-real-open-pr-906
 
 ## Completed
-- [x] Verified the contradiction: `ai-os/OS.yaml` line 311 (the OCID-001..006 registration
-      entry's `covers:` field) stated "Real active work begins at OCID-012 per the Owner's
-      standing instruction," while commit `b4a09563` ("PM decision: OCID-012 confirmed by
-      Owner as never-real...") is the later, merged, authoritative record that OCID-012 was
-      never real -- the Owner-confirmed parent chain is OCID-020/OCID-021.
-- [x] Corrected `ai-os/OS.yaml`: replaced the OCID-012 claim with "Real active work begins at
-      OCID-020" (matching every other real reference in this same file) and added a short
-      cross-reference note pointing to commit `b4a09563` and `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      as the authoritative source. No other content in the file touched (1-line diff,
-      confirmed via `git diff --stat`).
-- [x] Validated `ai-os/OS.yaml` still parses as YAML after the edit.
-- [x] Committed and pushed the fix on a dedicated branch.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` per Rule 11 before starting.
+- [x] Checked real current CI status and mergeability of PR #906 (`gh pr view`, `gh pr checks`).
+- [x] Found PR #906 was **already merged** by a concurrent session at
+      `2026-08-05T09:45:19Z` (mergedBy `FChecklist`, merge commit `766831ef`) -- roughly 5 hours
+      before this task started. Confirmed `766831ef` is a real ancestor of current `origin/main`
+      HEAD via `git merge-base --is-ancestor`.
+- [x] Diagnosed the real blocker that prior session hit and fixed (for the record, not re-fixed
+      here): the `audit-check` issue-comment-vs-head-SHA gap ([[veridian-audit-check-issue-comment-sha-bug]])
+      -- an `AUDIT: PASS` comment re-triggers the check but against the wrong SHA until a
+      follow-up sync-merge produces a real `synchronize` event. Visible in PR #906's own commit
+      history: `387eccb6` + `2463525e`.
+- [x] Verified all 8 real required status checks (per branch protection
+      `required_status_checks.contexts`) show `pass`; the one real `fail` (`Vercel`, rate-limited
+      preview deploy) is not a required context and did not block merge.
+- [x] Verified `UMR-20260804-160949-2f48` (this task's cited UMR) is real in the live `umr_tasks`
+      table -- the `owner_dispatch_gateway` UMR that originated the OCID-056 cycle, distinct from
+      the worker-task UMR (`UMR-20260804-161630-b761`) that actually produced PR #906. Reused as
+      instructed, not re-minted; DB left untouched (no write access taken).
+- [x] Logged closure entry in `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed:` (no `active:`
+      entry needed -- investigation-only, no in-flight work to claim).
 
 ## Remaining
-- [ ] Open PR and get it through independent review before merge.
+- [ ] None. PR #906 needed no further fix, review, or merge action from this session -- closed as
+      already resolved by a concurrent session (matches [[veridian-live-concurrent-state-drift]]).

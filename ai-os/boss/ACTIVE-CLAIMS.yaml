@@ -5857,6 +5857,53 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260805-143615-investigate-and-merge-real-open-pr-906) -- verify/merge PR #906 [DONE, found already merged by concurrent session, no new action taken]"
+    claimed_at: "2026-08-05T14:36Z (this session, closed same session)"
+    claim: |
+      SPEC (UMR-20260804-160949-2f48, OCID-056): check the real current CI status and mergeability
+      of PR #906, diagnose whatever the real specific blocker is, fix it, and get it merged through
+      real independent review, reusing the same UMR.
+
+      Live-verified before doing any work (`gh pr view 906 --json state,closed,closedAt,mergedAt,
+      mergedBy,mergeCommit`): PR #906 was **already merged** by a concurrent session at
+      2026-08-05T09:45:19Z (`mergedBy: FChecklist`, merge commit `766831ef`), ~5 hours before this
+      dispatch started at 14:36Z -- confirmed `766831ef` is a real ancestor of current
+      `origin/main` HEAD via `git merge-base --is-ancestor`. This matches the established
+      [[veridian-live-concurrent-state-drift]] pattern: the SPEC's "real open and unmerged, real
+      specific blocker not yet diagnosed" premise was true when minted but stale by the time this
+      task ran.
+
+      The real blocker (for the record, already fixed by the prior session, visible in PR #906's
+      own commit history: `387eccb6` "resolved PR #906 audit-check CI gate (structured AUDIT:PASS
+      comment + sync merge to fix stale head-SHA check)" + `2463525e` "merge: sync with main to
+      trigger CI re-check for AUDIT verdict"): the same `audit-check` issue-comment-vs-head-SHA gap
+      already on file as [[veridian-audit-check-issue-comment-sha-bug]] -- an `AUDIT: PASS` comment
+      re-triggers the check but reports against the wrong SHA until a follow-up `synchronize` event
+      (a sync-merge commit) makes it report against the PR's real head. All 8 required status
+      checks (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset Registry
+      Coverage Check, Unit Tests, Metadata Index Coverage Check, per
+      `branches/main/protection.required_status_checks.contexts`) show `pass` on the merged PR;
+      the one `fail` (`Vercel`, "Deployment rate limited") is not a required context and did not
+      block the merge.
+
+      Cross-referenced this task's own cited UMR against the live `umr_tasks` table
+      (`/opt/veridian/ai-os/memory/superboss-register.sqlite`, read-only per
+      [[veridian-umr-tasks-live-query-and-self-mint-limits]]): `UMR-20260804-160949-2f48` is real
+      (`task_identity: owner-task-20260804-160948-1567503`, `source_trigger:
+      owner_dispatch_gateway`, `status: running`) -- the owner-dispatch-gateway UMR that appears to
+      have originated the whole OCID-056 registration cycle a few minutes before the worker task
+      (`task-20260804-161630-...`, UMR `UMR-20260804-161630-b761`) that actually produced PR #906
+      was created. Reused as instructed, not re-minted; its DB `status` field was left untouched
+      (no write access claimed or taken -- consistent with the same memory's established norm of
+      not self-writing to that live table from a docs-only session).
+
+      Zero code/doc changes needed or made to `compliance-tracker` itself beyond this closure entry
+      and `PROGRESS.md` -- PR #906 required no further fix, review, or merge action from this
+      session.
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) only. No src/,
+      schema, migration, CI, or other application-code changes. No repository/PR mutation
+      performed (PR #906 was already merged before this session read its state).
   - session_label: "claude-code (task-20260804-040805-register-ocid-057--universal-knowledge-g) -- OCID-057 real Universal Knowledge Register/Graph/Dedup/Broken-Reference/Orphan report [DONE, PR opened]"
     claimed_at: "2026-08-04T04:08Z (this session, closed same session)"
     claim: |
