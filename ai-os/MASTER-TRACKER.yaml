@@ -135,6 +135,12 @@ open_items:
       **Amendment (2026-08-04, real implementation, PM decision UMR-20260804-061827-e3c6):** implemented exactly as proposed below, no scope creep. New optional `--handoff-envelope <json-file>` flag on `veridian-task.py`'s existing `cmd_checkpoint`, plus three pure functions (`classify_call_status`, `compute_rejected_paths`, `validate_handoff_envelope`) in the `FChecklist/veridian-scripts` repo (real, separate control-plane repo from this one -- not compliance-tracker `src/`). A real independent review (PM decision UMR-20260804-062915-684a, a genuinely separate session with no authorship context) found a real defect on round 1 (`AUDIT: FAIL`: a syntactically valid but non-dict top-level JSON value crashed with an uncaught `AttributeError` instead of failing cleanly) -- fixed with an explicit `isinstance(dict)` check plus a new regression test, then a fresh independent reviewer posted a real `AUDIT: PASS` on round 2. Merged: real PR **#19** (`FChecklist/veridian-scripts`), merge commit `81931136046ccac56a65956ef581c48b62fcb872`, independently confirmed a real ancestor of that repo's `origin/main` via fresh clone. `gh pr merge` is correctly blocked from interactive sessions on this host (a real, pre-existing guardrail) -- the merge itself was completed by adopting the PR into the real dispatch pipeline (`veridian-task.py adopt` + its own `veridian-supervisor@` review), the first real use of that pipeline against a repo with no CI workflow, confirmed safe beforehand by reading `supervisor-entrypoint.sh`'s own explicit gated handling for repos without `mandatory-audit-check.yml`."
       recommendation: "Resolved. Design proposal only, per the Mandatory Governance Directive's own 'never build new when existing can be enhanced' rule -- extended `task.yaml`'s existing checkpoint schema rather than inventing a new schema/table, exactly as recommended. No further action needed unless real usage surfaces a gap (e.g. the `MAX_UNKNOWNS=10` cap proves wrong in practice, or a UMR-level `metadata_json.tool_call_log` mirror is wanted in addition to the per-task-workspace field now shipped)."
 
+    - id: OCID-056-CREDENTIAL-GOVERNANCE
+      name: "OCID-056 -- Platform Security Reconciliation and Credential Governance Certification, registration + real read-only discovery only"
+      detail: "Real dispatch (this task's own prompt.txt): registration and real, read-only security discovery only for OCID-056, child of OCID-055. Minted `UMR-20260804-161630-b761` for OCID-056 (method fully disclosed as not a `umr_tasks` DB row -- see ai-os/OCID_056_REGISTRATION_2026-08-04.md Section 1), linked to OCID-055 as predecessor (cited UMR `UMR-20260804-161625-5bb6`, real and confirmed to exist on open PR #902, not yet merged to `main`). Independently re-verified this dispatch's own 'zero duplication' premise for OCID-056 itself (true, unlike the immediate sibling OCID-055 dispatch's identical premise, which was found false) via `resource_governor.py --query-umr` (task-identity + 2 search terms, all zero matches) and `git grep`. Real security discovery: GitHub secret-scanning API re-queried live against `compliance-tracker` and `veda-advisors` (the 2 repos with scanning enabled, per OCID-054's same-day census), manual credential-pattern grep across `compliance-tracker`'s tracked tree, `gh secret list` (45 names, zero values), on-disk `/opt/veridian/shared/.env*` inventory (names/existence only). Found: 22 open publicly-leaked Google API key alerts on `veda-advisors` (likely Google's own public client keys, not VERIDIAN-owned -- Owner judgment flagged, not decided); 1 open alert on `compliance-tracker` itself, self-inflicted by OCID-054's own report quoting the same leaked key in full (documented root cause, adopted truncated-citation practice going forward to avoid repeating it). Full findings and Owner-facing summary table: ai-os/OCID_056_SECURITY_DISCOVERY_2026-08-04.md. Zero credential rotation, revocation, or modification performed; zero repository visibility/ownership/permission change performed."
+      recommendation: "Owner decision needed on Finding A/B's remediation (purge veda-advisors history + close as false-positive/third-party, vs. treat as VERIDIAN-owned and rotate) -- per the standing rule, no rotation or history rewrite proceeds without the Owner naming that specific credential/action and confirming it directly in chat at the moment of execution; once authorized, the actual change still stays locked behind the OCID-020 through OCID-040 gate. Also flags (not fixed, cross-referenced only): PR #902's own ai-os/OCID_055_REGISTRATION_2026-08-04.md is genuinely truncated at 31 lines with a shell-output-truncation artifact leaked into the committed file."
+      first_raised: "This dispatch, 2026-08-04 (UMR-20260804-161630-b761)"
+
     - id: OCID-067-VEDTOCP
       name: "VEDTOCP -- VERIDIAN Enterprise Digital Twin and 90-Day Operational Certification Program -- LOCKED, registration/planning only, gated on full OCID-015..066 completion"
       detail: "Real Owner directive (UMR-20260804-111532-3612, reaffirmed UMR-20260804-111547-0be3): a proposed 90-day operational certification program running 50 real, browser-controlled Claude Code CLI agents as a simulated 50-person organization (AL EMARAT CONSTRUCTION AND INTERIOR DESIGN LLC) against the real, live projexa-ai.com application, with 2h-real-to-24h-virtual time compression, a 20/40/40 cognitive-evolution/variance-logic directive, tmux + Claude Code CLI browser-isolated infrastructure, foolproofing/idiotproofing/failproofing directives, real UAE construction/tax/labor-law domain fidelity, chaos engineering/adversarial user injection, live hotfixing/rollback competency, and an invisible-project-manager/strict-portal directive. Full detail, honest gap disclosure (the real verbatim template content for daily task/report/analysis templates, task prompt templates, the 50-role org chart, and the 90-day milestone breakdown was not supplied in this dispatch's own relayed text and is NOT fabricated here), and a real reuse-check against existing platform capability: ai-os/OCID_067_VEDTOCP_DIGITAL_TWIN_PROGRAM_2026-08-04.md."
@@ -1603,6 +1609,31 @@ open_items:
       status: resolved
       first_raised: "OCID-050 State C preparation, 2026-08-03 (UMR-20260803-185714-89c6)"
 
+    - id: GAP-OCID048-CROSS-ORG-ISOLATION-EVIDENCE-ONLY-ON-CLOSED-PR
+      name: "OCID-048's real 12/12 cross-org isolation probe (zero leaks) exists only on PR #825, which was closed without merging -- the merged OCID-048 evidence trail (PR #826) covers a related but distinct axis (cross-tenant, 7/7), not cross-org"
+      old_ids: []
+      detail: |
+        Found during OCID-053's Orphan and Duplicate Detection pass, 2026-08-04, cross-referencing
+        every OCID-047..052 PR number against its live `gh pr view` state. PR #825 ("test: real
+        OCID-048 cross-org isolation execution -- 12/12 probes, zero leaks") is real,
+        content-complete, and **CLOSED without merging**. PR #826 ("test: real OCID-048
+        cross-tenant isolation execution -- 7/7 checks, real DOM confirmation") is the real, merged
+        PR that OCID-048 is credited complete on -- but its own title and content scope is
+        cross-*tenant* isolation, a related but distinct real axis from #825's cross-*org*
+        isolation. No other merged PR in the OCID-048 chain (`ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`
+        §2/§5) was found carrying #825's specific 12/12 cross-org result forward.
+      size: S
+      recommendation: |
+        Before treating OCID-048 as fully certified on both axes: either (a) re-run the real
+        cross-org isolation probe from #825 against current `main` and merge a fresh PR with that
+        evidence, independently re-verified rather than trusted from the closed PR's own
+        description, or (b) if #826's cross-tenant checks are judged to already cover the real
+        cross-org risk surface, say so explicitly and close this gap on that reasoning rather than
+        leaving the ambiguity implicit. Out of scope for OCID-053 itself (discovery-only, no new
+        testing this phase).
+      status: open
+      first_raised: "OCID-053 Orphan/Duplicate Detection pass, 2026-08-04 (UMR-20260802-165606-4413 OCID-020 chain)"
+
     - id: GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API
       name: "No authenticated self-service API route lets a regular org admin enable ERP/Sales/Construction for their own org (PMS has one, POST /api/pms/enablement; ERP/Sales/Construction do not) -- enableErpForOrg()/enableSalesForOrg()/enableConstructionForOrg() are fully implemented service functions with zero real callers outside internal migration/seed scripts and the platform-provisioning endpoint (bearer-key-gated, for the 'projexa' platform application only)"
       old_ids: []
@@ -2950,6 +2981,90 @@ open_items:
         Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
         bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
+    - id: GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES
+      name: "Dispatch prompts have repeatedly asserted OCID/UMR parent references that do not exist anywhere in the repository, with no permanent record of the negative finding until now"
+      old_ids: []
+      detail: |
+        Real, live finding, OCID-057 (`ai-os/VERIDIAN_OCID_057_UNIVERSAL_KNOWLEDGE_GRAPH_2026-08-04.md`).
+        This task's own dispatch prompt asserted "real confirmed parent" OCID-056
+        (`UMR-20260804-035904-142e`) <- OCID-055 (`UMR-20260804-035817-6300`) <- OCID-054
+        (`UMR-20260804-035759-1eb2`) <- OCID-053 (`UMR-20260804-033853-2a17`). Independently verified:
+        `git grep` for all four UMR IDs across the full working tree, `git grep -l "OCID-053\|OCID-054\|
+        OCID-055\|OCID-056"` across the full repo, `git branch -a`, and `gh pr list --search` for the
+        same terms (open+closed) all returned **zero matches**. `git log origin/main` matched local HEAD
+        exactly (no unfetched commits hiding them). Highest real OCID found anywhere in `ai-os/`:
+        OCID-052.
+
+        The same dispatch prompt separately (and correctly) flags OCID-012 as a fake reference that
+        "keeps appearing" and has been checked "multiple times this session" -- re-verified in this pass
+        (`git grep -rn "OCID-012"`, zero matches, consistent with every prior check) -- but that
+        repeated negative finding had never actually been written down anywhere in this repo's own
+        governance files before now. Every session was re-deriving the same zero-match result from
+        scratch instead of citing a prior real finding.
+      size: "XS -- this entry itself is the fix (a permanent, citable record); no code change involved"
+      recommendation: |
+        Future sessions: before treating any OCID/UMR reference in a dispatch prompt as a "real
+        confirmed" ancestor, `git grep` for it first (across the full repo, not just `ai-os/`) the same
+        way this pass did, and check this entry for OCID-012 / OCID-053-056 specifically rather than
+        re-deriving the negative result. If a dispatch prompt's own framing turns out to assert a
+        fabricated reference chain, flag it to the Owner the same way this entry does -- do not silently
+        proceed as if the chain were real, and do not silently drop the task either; the underlying
+        authorized work (this case: real knowledge-register/graph discovery) is usually still legitimate
+        even when its narrated parent-chain framing is not.
+      status: "open (owner_blocked in effect -- this is a standing, recurring dispatch-hygiene issue
+        across sessions/agents generating these prompts, not something a single session can close;
+        flagged to the Owner per this same entry). The OCID-053-056 portion specifically is SUPERSEDED,
+        see reverification_2026_08_05 below -- OCID-012 portion is unaffected by that reverification."
+      first_raised: "OCID-057, 2026-08-04 (this document); OCID-012 specifically had been re-verified
+        as fake by multiple unrecorded prior sessions before this entry made it permanent"
+      reverification_2026_08_05: |
+        Real independent Superboss review of PR #866 (real diff-based AI review, not a self-report)
+        rejected this entry's OCID-053-056 finding as stale/false: independently re-verified live that
+        OCID-053 (open PR #867, real UMR UMR-20260804-033853-2a17, corroborated by
+        ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md and
+        ai-os/OCID_056_REGISTRATION_2026-08-04.md's grandparent-chain table), OCID-054 (open PR #869,
+        real UMR UMR-20260804-035759-1eb2, same corroboration), OCID-055 (open PR #868), and OCID-056
+        (open PR #870, AND a separate already-MERGED registration ai-os/OCID_056_REGISTRATION_2026-08-04.md
+        via PR #906) all now have real, substantive content in this repository. The original finding was
+        accurate for the repo state at the time this document was first written (2026-08-04, early) --
+        overtaken by real events (two later dispatch waves populated real OCID-053-056 content) rather
+        than having been wrong when made. A separate, genuine complication -- two distinct dispatch waves
+        each minted their own UMR for OCID-055/056 (this entry's originally-cited UMR-20260804-035817-6300
+        / UMR-20260804-035904-142e from an early ~03:58 wave vs. UMR-20260804-161625-5bb6 /
+        UMR-20260804-161630-b761 cited by the later ~16:16 wave's merged registration doc) -- is real,
+        already independently flagged elsewhere (PR #902's own "false 'zero duplication' premise flagged
+        (PR #868)" finding), and is the explicit subject of a dedicated, still-open cross-PR
+        reconciliation effort (PR #916, "OCID-053..060 conflict-resolution dispatch") covering this exact
+        batch. Which UMR is canonically correct for OCID-055/056 is not adjudicated by this reverification
+        -- deferred to PR #916. The OCID-012 portion of this GAP entry is untouched by this reverification
+        (separately under correction via PR #939).
+
+    - id: GAP-KNOWLEDGE-NO-REPORT-BUSINESS-RULE-CATALOG
+      name: "No dedicated report catalog or business-rule catalog exists, and the screen/UX inventory is hand-maintained prose, not a queryable register -- named as an honest gap by OCID-027 but never formally tracked until now"
+      old_ids: []
+      detail: |
+        Real finding, originally named in `ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md`
+        (OCID-027, `UMR-20260803-041257-e9c3` / `UMR-20260803-045159-ec55` -- see OCID-057's own
+        Deduplication Report re: which UMR is canonical for that doc, unresolved) but never turned into a
+        formal `GAP-` entry in this tracker -- it existed only as prose inside one narrative doc, an
+        orphan finding with no tracked owner or status. Confirmed still true this pass (2026-08-04): no
+        `REPORT_CATALOG.json`/`BUSINESS_RULE_CATALOG.json`-equivalent file exists alongside the real
+        `ai-os/DATABASE_CATALOG.json` / `ai-os/FUNCTION_CATALOG.json` / `ai-os/AI_ROSTER_CATALOG.json`.
+        Report definitions live in `report-catalog-service.ts` / the `report_definitions`-class DB tables
+        (per OCID-029's own inventory) but are not mechanically catalogued the same way functions/tables
+        are; business rules are similarly scattered (guardrail-engine.ts, policy-enforcement-engine.ts,
+        per-domain workflow services) with no single register.
+      size: "M -- would need a mechanical catalog-generation script analogous to whatever produced
+        DATABASE_CATALOG.json/FUNCTION_CATALOG.json, scoped to report_definitions rows and the real
+        business-rule call sites named above; out of scope for a documentation-only OCID pass"
+      recommendation: |
+        A future OCID should build `REPORT_CATALOG.json` and `BUSINESS_RULE_CATALOG.json` the same
+        mechanical way `DATABASE_CATALOG.json`/`FUNCTION_CATALOG.json` were built (cross-reference
+        `ai-os/MASTER_INDEX.yaml`'s own generation approach before writing a new one from scratch), then
+        add both to `ai-os/OS.yaml`'s index. Lower priority than code-level gaps in this tracker --
+        documentation/discoverability debt, not a product defect.
+      status: open
+      first_raised: "OCID-027, 2026-08-03 (named in prose only); formally tracked OCID-057, 2026-08-04"
     - id: GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED
       name: "The real, tested 5-tier browser execution system (src/lib/browser-execution/) is built but its actual model-inference engines are not wired into VeriComposer.tsx's live send path -- only tier selection/telemetry is live today"
       old_ids: []
@@ -3146,6 +3261,110 @@ open_items:
         `/tmp/ocid020-verify/screenshots/05-mobile-home.png` (this server, not
         committed -- same ephemeral-evidence convention as the original
         finding's own screenshots).
+
+    - id: GAP-VEDA-ADVISORS-EXPOSED-GOOGLE-API-KEYS
+      name: "veda-advisors: 22 real, publicly-leaked Google API keys sitting unresolved in GitHub secret-scanning alerts (git history), file already removed from main's HEAD but still reachable via history on this public repo"
+      detail: |
+        Found during OCID-054's real org-wide security discovery pass (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md` §8). `gh api repos/FChecklist/veda-advisors/secret-scanning/alerts`
+        returns 22 real alerts (numbers 1-22), all `secret_type: google_api_key`, all
+        `publicly_leaked: true`, all `state: open`, all in the same committed file
+        `tool-results/read_1782309955766_3e29539f7948.txt` (an accidentally-committed AI-tool
+        session output). Alert #22 retrieved directly and confirmed real: `AIzaSyDU****...****CEA`
+        (raw value never committed to this repo's history -- redacted before this entry was first
+        written, 2026-08-05, after an earlier draft's literal paste of the same value became this
+        repo's own secret-scanning alert #1,
+        github.com/FChecklist/compliance-tracker/security/secret-scanning/1; independently
+        re-verifiable any time via `gh api repos/FChecklist/veda-advisors/secret-scanning/alerts/22`
+        without needing the raw value on file here). First introduced in the repo's own `Initial
+        commit` (`f7d2af1`) and `124fa30`. Confirmed via `git ls-tree origin/main` that the file is
+        NOT in the current tree -- it was removed from HEAD at some point -- but `veda-advisors` is
+        a PUBLIC repo, so the history containing it remains fetchable by anyone, which is exactly
+        why GitHub's own scanner still reports these as unresolved/open rather than closed.
+      size: S (rotation) + S (history purge) -- both mechanically small, but the rotation is a
+        real, live-infrastructure action.
+      recommendation: "Rotate the exposed Google API key(s) at the source (Google Cloud Console),
+        then purge them from git history (git filter-repo or GitHub's own secret-removal tooling),
+        then close the 22 GitHub secret-scanning alerts. NOT actioned by OCID-054 -- credential
+        rotation and any repository history rewrite were explicitly withheld from that task's PM
+        authorization pending a fresh, real-time Owner decision. This entry exists so the concrete
+        finding survives past that session and isn't rediscovered from scratch."
+      status: "open, awaiting explicit Owner decision on rotation + history purge"
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide security discovery)"
+
+    - id: GAP-VEDA-ADVISORS-DUPLICATE-ENV-UNTRACK-PRS
+      name: "veda-advisors: two open, unmerged, duplicate-intent PRs (#13, #14) both untrack the same .env file; neither has merged so .env is still tracked on main today"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §3/§8). PR #13 (`security/untrack-env-file`, opened 2026-07-04) and PR #14
+        (`fix/untrack-env`, opened 2026-07-04) both remove the same tracked `.env` file from
+        `veda-advisors`. Confirmed via `git show origin/main:.env` that the file is still tracked
+        today and its content is a local-sqlite placeholder
+        (`DATABASE_URL=file:/home/z/my-project/db/custom.db`), not a live credential -- low
+        severity, but a real, currently-live governance gap (2 competing unmerged fixes for the
+        same real issue).
+      size: XS -- merge one, close the other as duplicate.
+      recommendation: "Review and merge whichever of PR #13/#14 is more complete, close the other
+        as a duplicate. Not a destructive/credential-rotation action -- safe to action without the
+        Owner authorization OCID-054 was withholding, whenever someone picks up veda-advisors PR
+        hygiene."
+      status: open
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-12-REPOS-SECRET-SCANNING-DISABLED
+      name: "12 of the 15 real FChecklist repos have GitHub secret scanning disabled -- no automated commit-history credential coverage on any of them"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §2/§8). Live `gh api .../secret-scanning/alerts` call against all 15 real repos: only
+        `compliance-tracker`, `zai-independent-audit-2026-07-30`, and `veda-advisors` have it
+        enabled (confirmed by real API responses, not assumed) -- the other 12
+        (`claude-control`, `projexa`, `veridian-scripts`, `veridian-ai-os`, `zai-sap-reports-queue`,
+        `infisuite-reverse-engineering`, `odoo-reverse-engineering`, `zoho-reverse-engineering`,
+        `veridian-ui-kit`, `global-revenue-engine`, `veridian-brain`, `sumeet-spec`) return a 404
+        "Secret scanning is disabled on this repository". A manual current-HEAD-tree pattern grep
+        (sk-ant-, sk-proj-, AKIA*, ghp_*, github_pat_, AIzaSy*, xox[baprs]-, PEM headers,
+        embedded-password postgres URIs) found no real matches on any of them -- but that is a
+        spot-check of the current tree only, not commit-history coverage the way GitHub's own
+        scanner gives `veda-advisors` (whose real finding, GAP-VEDA-ADVISORS-EXPOSED-GOOGLE-API-KEYS
+        above, was found exactly because that repo has scanning enabled).
+      size: XS -- a repo setting toggle, no code change, per repo.
+      recommendation: "Enable GitHub secret scanning (Settings -> Code security -> Secret scanning)
+        on all 12 repos currently missing it. Non-destructive, does not require the credential-
+        rotation/deletion authorization OCID-054 withheld -- safe to action independently."
+      status: open
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-GLOBAL-REVENUE-ENGINE-EMPTY-ORPHAN
+      name: "global-revenue-engine repo is genuinely empty (0 branches, 0 size, no commits) -- real orphan/archival candidate"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §1/§4). `gh api repos/FChecklist/global-revenue-engine` shows `size: 0`; `git grep` against
+        it errors with "ambiguous argument HEAD: unknown revision" (no commits exist at all). No
+        content would be lost by deleting or archiving it.
+      size: trivial
+      recommendation: "Candidate for deletion/archival once the Owner explicitly authorizes
+        repository disposition changes -- OCID-054 withheld that authorization this phase per PM
+        instruction, so this was flagged, not actioned."
+      status: "open, awaiting explicit Owner decision on disposition"
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
+    - id: GAP-COMPLIANCE-TRACKER-STALE-CONFLICTING-PR-BACKLOG
+      name: "compliance-tracker: 24 of 30 open PRs are CONFLICTING (oldest ~22h stale at scan time), including a 10-PR near-duplicate cluster of OCID-041..046 discovery docs"
+      detail: |
+        Found during OCID-054 (`ai-os/VERIDIAN_OCID_054_UNIVERSAL_REPOSITORY_DISCOVERY_2026-08-04.md`
+        §3/§4). `gh pr list --state open --json mergeable` against `compliance-tracker` shows 24 of
+        30 open PRs at `mergeable: CONFLICTING`, oldest #778 (`worker/task-20260803-055110-...`,
+        opened 2026-08-03T06:05Z). Ten of these are docs-only "register OCID-0NN discovery" PRs
+        (#785, #787, #789, #796, #797, #798, #799, #800, #801, #802) covering a numerically adjacent
+        OCID-041..046 run, several self-describing as re-confirmations of each other. Which of these
+        is authoritative vs. superseded was not adjudicated in this pass.
+      size: M -- real rebase/reconciliation work across 24 branches, not mechanical.
+      recommendation: "Dedicated PR-backlog reconciliation pass: rebase-and-merge or close-as-
+        superseded each of the 24 CONFLICTING PRs, starting with the 10-PR OCID-04x docs cluster
+        (read each, determine which is canonical, close the rest as superseded with a citation).
+        Not actioned by OCID-054 (discovery-only scope)."
+      status: open
+      first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
+
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
