@@ -3022,6 +3022,13 @@ open_items:
         Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
         bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
+    - id: GAP-OCID059-BROWSER-TIER-SELECTION-NOT-EXECUTION
+      name: "Browser execution tier SELECTION is live-wired; actual per-tier local model EXECUTION is real, tested, and unwired -- a more precise, narrower framing than 'browser execution tiers exist'"
+      detail: "src/lib/browser-execution/client-compile.ts::compileInBrowser() (called live from src/components/veri-chat/VeriComposer.tsx:245) only calls tier-orchestrator.ts::planExecution() (tier selection) and prompt-compiler's analyzeLightweight() (deterministic JS classification) -- it never calls webllm-engine.ts::startLiteLlmSession(), npu-engine.ts, builtin-ai-engine.ts, or transformers-engine.ts's real inference functions. Confirmed via git grep: zero non-test callers anywhere in src/app or src/components for any of those 4 engine files, nor for worker-pool.ts, cross-tier-storage.ts, or model-cache.ts. The internal gate functions that would trigger them (shouldAttemptWebLlm/shouldAttemptNpu/shouldAttemptBuiltinAi in tier-orchestrator.ts) are only called from inside their own matching engine file as a self-guard, never from client-compile.ts. Real npm dependencies for this DO exist (@mlc-ai/web-llm ^0.2.84, @huggingface/transformers ^4.2.0, both in package.json), and all 4 engine files pass their own unit tests as part of the 108/108-passing browser-execution suite -- this is real, tested code, just not reachable from any live user action today."
+      size: M
+      recommendation: "Whoever picks up real browser-execution implementation work should wire client-compile.ts (or a new caller) to actually invoke the selected tier's real engine function when shouldAttemptWebLlm/Npu/BuiltinAi returns true, rather than only reporting which tier was selected -- reusing this existing, tested code rather than building a second version."
+      status: open
+      first_raised: "OCID-059 discovery, 2026-08-04 (ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md, discovery/verification only, no implementation authorized -- SEC-07 lock applies to any real fix)"
     - id: GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES
       name: "Dispatch prompts have repeatedly asserted OCID/UMR parent references that do not exist anywhere in the repository, with no permanent record of the negative finding until now"
       old_ids: []
