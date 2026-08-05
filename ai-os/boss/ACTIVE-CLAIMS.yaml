@@ -5904,6 +5904,49 @@ recently_completed:
       File scope: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) only. No src/,
       schema, migration, CI, or other application-code changes. No repository/PR mutation
       performed (PR #906 was already merged before this session read its state).
+  - session_label: "claude-code (task-20260804-045439-register-ocid-058--universal-task-regist) -- OCID-058: real UTR/execution-architecture discovery+verification, no new architecture [DONE, PR opened]"
+    claimed_at: "2026-08-04T05:00Z (this session, closed same session)"
+    claim: |
+      SPEC (parent chain: OCID-057 `UMR-20260804-035943-3c38`, OCID-056 `UMR-20260804-035904-142e`,
+      OCID-055 `UMR-20260804-035817-6300`, OCID-054 `UMR-20260804-035759-1eb2`, OCID-053
+      `UMR-20260804-033853-2a17`, OCID-020 `UMR-20260802-165606-4413`, OCID-021
+      `UMR-20260802-173631-ca85` -- all 7 independently confirmed as real, live rows in
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks` table, status=running,
+      source_trigger=owner_dispatch_gateway, via direct sqlite3 query, not trusted from the SPEC text
+      alone). OCID-012, again cited in the incoming dispatch-prompt template as a reference, again
+      returns zero real matches anywhere in this repo or the real UMR chain (`git grep -n "OCID-012"`
+      repo-wide: zero hits) -- flagged back to the Owner again per the SPEC's own instruction, not
+      registered as real.
+
+      This OCID is explicitly discovery/verification ONLY (SPEC: "shall not redesign execution and
+      shall only certify the existing execution architecture"). Real scope covered: inspected every
+      real execution path (interactive Super Boss dispatch via `dispatch-owner-task.sh`, headless
+      `veridian-worker@` tasks via `veridian-task.py cmd_create`, the 21
+      `veridian-cron-*`/`veridian-dispatch-tick`/`veridian-task-watchdog` systemd --user timers, and
+      API/integration paths: `/api/internal/ops-task-sync`, `/api/ai/team/dispatch`, GitHub
+      `repository_dispatch` `zai-task`/`claude-task`), confirmed what real task-tracking record each
+      one produces, and whether it references a real UMR id. Produced three honest findings
+      documents (`ai-os/VERIDIAN_OCID_058_UTR_REGISTRY_2026-08-04.md`,
+      `ai-os/VERIDIAN_OCID_058_EXECUTION_ARCHITECTURE_REPORT_2026-08-04.md`,
+      `ai-os/VERIDIAN_OCID_058_EXECUTION_TRACEABILITY_REPORT_2026-08-04.md`). Real, confirmed
+      finding: 5 independently-keyed real task-tracking record types exist today (`umr_tasks`;
+      `instructions`/`work_items`/`actions`; `task.yaml`; `platform.ops_dev_tasks`;
+      `platform.task_register`), none with separately-named actor/identity/governance-context
+      fields, and only ONE real, momentary cross-reference to a real UMR object exists anywhere
+      (`work_items.ai_task_id = umr_id`, at owner-dispatch instant only -- confirmed by direct read
+      of `dispatch-owner-task.sh:83` and this task's own real `task.yaml`, which itself carries no
+      `umr_id` field). GitHub `repository_dispatch`'s `zai-task`/`claude-task` workflow
+      (`.github/workflows/ai-dispatch.yml`) confirmed a real but fully inert 31-line echo-only stub.
+      Registered `GAP-OCID058-UTR-MULTI-ACTOR-STRUCTURE-MISSING` in `MASTER-TRACKER.yaml`, held for
+      a PM decision -- not built here, per this OCID's own explicit "no redesign" instruction.
+    scope_note: >-
+      File scope: 3 new discovery/report documents under `ai-os/`, `ai-os/OS.yaml` (index
+      registration), `ai-os/MASTER-TRACKER.yaml` (new gap registration), `PROGRESS.md`, this file.
+      No code/schema/migration changes anywhere -- verified `check-metadata-index-coverage.mjs` and
+      `check-guardrail-presence.mjs` both pass locally. Read-only investigation against
+      `/opt/veridian/scripts/*.py`, `/opt/veridian/ai-os/`, `~/.config/systemd/user/*`,
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite` (SELECT queries only, no writes), and
+      this repo's `src/app/api/`, `src/lib/db/schema.ts`, `.github/workflows/*.yml`.
   - session_label: "claude-code (task-20260804-040805-register-ocid-057--universal-knowledge-g) -- OCID-057 real Universal Knowledge Register/Graph/Dedup/Broken-Reference/Orphan report [DONE, PR opened]"
     claimed_at: "2026-08-04T04:08Z (this session, closed same session)"
     claim: |
