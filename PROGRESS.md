@@ -45,15 +45,27 @@ merge, then prove it with a real synthetic failing throwaway PR.
 - [x] Confirmed `Metadata Index Coverage Check` portion of the ask IS live,
       real, and enforced right now (independent of the review-count
       question) -- proceeded to prove it with a real synthetic test.
-- [ ] Real synthetic test: open a real throwaway PR off `main`, add one new
-      top-level file directly under `ai-os/` with no matching
-      `index`/`exempted` entry in `ai-os/OS.yaml`, confirm `Metadata Index
-      Coverage Check` fails and the merge button is genuinely blocked, then
-      close without merging.
-- [ ] Write permanent governance record documenting real before/after state
-      and the duplicate-dispatch / active-exception finding.
-- [ ] Register this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`.
-- [ ] Commit and push.
+- [x] Real synthetic test: opened real throwaway PR #942 off `main`, added
+      one new top-level file directly under `ai-os/`
+      (`ai-os/SYNTHETIC_METADATA_INDEX_COVERAGE_TEST_DELETE_ME.md`) with no
+      matching `index`/`exempted` entry in `ai-os/OS.yaml`. Confirmed via
+      `gh pr checks 942`: `Metadata Index Coverage Check: fail`. Confirmed
+      via `gh pr view 942 --json mergeStateStatus,mergeable`:
+      `mergeStateStatus: BLOCKED`, `mergeable: MERGEABLE` (blocked by the
+      required check, not a conflict). Closed PR #942 without merging,
+      deleted the throwaway branch. No change landed on `main` from this
+      test.
+- [x] Wrote permanent governance record:
+      `ai-os/GOVERNANCE_RECORD_METADATA_CHECK_HARDENING_VERIFICATION_2026-08-05.md`,
+      indexed it in `ai-os/OS.yaml`.
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      (`recently_completed`, since the work closed same-session).
+- [x] Ran `node scripts/check-metadata-index-coverage.mjs` locally --
+      passes with the new governance doc indexed.
+- [x] Committed and pushed this branch; opened real PR against `main` for
+      independent review/CI per Rule 6 (docs-only diff; no branch-protection
+      setting was actually changed by this task -- see governance record for
+      why).
 
 ## Remaining
-- [ ] Complete synthetic test + governance record + ACTIVE-CLAIMS entry above.
+- [ ] None. Task complete pending this PR's own CI + merge.
