@@ -19,11 +19,21 @@ UMR: UMR-20260804-040009-09bc, OCID-058 (reused, not re-minted)
       Coverage Check, Unit Tests, Metadata Index Coverage Check) against the
       new merge commit.
 
+- [x] `Build` finished passing; all 8 required status-check contexts green
+      (Lint, Type Check, Build, audit-check, Guardrail Presence Check, Asset
+      Registry Coverage Check, Unit Tests, Metadata Index Coverage Check).
+      `mergeable=MERGEABLE`, `mergeStateStatus=UNSTABLE` (only the
+      non-required `Vercel` preview-deploy check was red, due to a Vercel
+      build-rate-limit -- not in branch protection's required contexts list,
+      so it does not block merge).
+- [x] Merged PR #875 via `gh pr merge 875 --squash --delete-branch=false`.
+      Merge commit `7eb3a3de89f3294578d1e0884166cfc48a8c07bb`, merged at
+      2026-08-05T14:40:40Z.
+- [x] Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` for a matching `active:` entry
+      to move to `recently_completed:` -- none existed for this task (only
+      an unrelated historical mention of PR #875 inside a different entry),
+      so no claim-file edit was needed.
+
 ## Remaining
-- [ ] Wait for `Build` (last pending required check) to finish, confirm
-      `mergeStateStatus` flips to `CLEAN`/`UNSTABLE`->mergeable.
-- [ ] Merge PR #875 (squash, per repo norm) once unblocked.
-- [ ] Move this session's entry (if one was registered) from
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` `active:` to `recently_completed:`.
 - [ ] Final report to user confirming merge + real UMR reuse (no new UMR
-      minted).
+      minted). (this is the last step, closing out now)
