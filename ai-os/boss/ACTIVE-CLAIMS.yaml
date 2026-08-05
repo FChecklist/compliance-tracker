@@ -5592,7 +5592,12 @@ recently_completed:
       proceed as a real freeze this phase -- not dispatched as one. Delivered: an honest, item-by-item
       final platform audit report covering OCID-012 through OCID-059 (real PR numbers + UMR status per
       item, gathered via 3 parallel research passes), explicitly re-stating OCID-038/039/040 as the
-      blocking gate. Also newly flagged OCID-014 as unregistered (not previously named) and a real UMR
+      blocking gate. Also newly flagged OCID-014 as unregistered (not previously named), and OCID-013
+      as unregistered as a sequential OCID -- the report's first draft mislabeled
+      `IMPLEMENTATION_MATRIX_2026-08-02.md:123`'s citation of `UMR-20260802-163301-8416`
+      (`OCID-20260802-013`, a date-based Owner-directive ID, not sequential OCID-013) as COMPLETE
+      evidence for sequential OCID-013; corrected before merge so no false COMPLETE entry for
+      sequential OCID-013 is seeded into any canonical registry. Also flagged: a real UMR
       chain-integrity anomaly around OCID-053-057 (near-simultaneous concurrent dispatch produced
       conflicting UMR citations). No certificate issued, no freeze declared, no "platform engineering
       complete" declaration.

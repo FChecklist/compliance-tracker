@@ -16,6 +16,20 @@
 - [ ] Commit + push final report (this update)
 - [ ] Open PR for CI (Rule 6 -- no direct push to main)
 
+## Fix (2026-08-05, PR #874 review remediation, `UMR-20260805-084020-d3a5`)
+- [x] PR #874's own audit report table (§3, row `013`) mislabeled
+  `IMPLEMENTATION_MATRIX_2026-08-02.md:123` as COMPLETE evidence for sequential OCID-013. That line
+  actually cites `UMR-20260802-163301-8416` against `OCID-20260802-013` -- a date-based
+  Owner-directive ID, a different identifier scheme from this report's sequential OCID-NNN numbering.
+  No real sequential OCID-013 artifact exists anywhere (`git grep -in "ocid-013"` across origin/main:
+  zero hits after discounting this exact false-positive citation).
+- [x] Corrected: table row 013 now reads NOT REAL -- UNREGISTERED (matching OCID-012/014); added a
+  new §1 paragraph explaining the two ID schemes and the citation error; updated §5 bottom line and
+  the `ACTIVE-CLAIMS.yaml` claim narrative to match. This report no longer would seed a false
+  COMPLETE entry for sequential OCID-013 into any canonical registry if merged.
+- [x] PR title/body did not themselves assert OCID-013 completion (only the table did) -- no title
+  change needed; PR body updated to note this correction for reviewer visibility.
+
 ---
 
 # PROGRESS -- task-20260804-125247-ocid-020-concrete-redirect-stop-open-end

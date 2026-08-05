@@ -31,7 +31,7 @@ OCID-040 genuinely clear in the mandated order, the decision on whether to actua
 real freeze returns to the PM for a fresh decision, and even then requires a fresh, explicit Owner
 confirmation in chat, given how consequential and hard to reverse a platform-freeze declaration is.
 
-## 1. OCID-012 — flagged again, not real
+## 1. OCID-012, OCID-013, OCID-014 — flagged, not real
 
 **OCID-012 has zero real evidence anywhere in this repository.** Independently re-confirmed this
 session via `git grep -in "ocid-012"` across `ai-os/`: zero hits in `CONSTITUTION.yaml`,
@@ -44,6 +44,20 @@ finding: **OCID-012 is not being registered or treated as real.**
 A second, previously-uncalled-out case was found during this pass: **OCID-014** also returns zero
 matches anywhere in the repo. It is flagged here for the first time — not previously named by any
 prior session — for the Owner's awareness alongside OCID-012.
+
+A third, previously-uncalled-out case was found during this pass, and it is a citation error rather
+than a flat non-existence: **OCID-013** also has zero real evidence as a sequential OCID
+(`git grep -in "ocid-013"` across `ai-os/`: zero hits). The prior version of §3's table below
+mislabeled `IMPLEMENTATION_MATRIX_2026-08-02.md:123` as evidence for sequential OCID-013 and marked
+it COMPLETE on that basis. Reading that line directly: it reads "Per Owner directive
+`UMR-20260802-163301-8416` (OCID-20260802-013)" — `OCID-20260802-013` is a **date-based Owner-directive
+identifier** (the `OCID-YYYYMMDD-NNN` scheme used for individual dispatched directives), a
+completely different identifier scheme from this document's **sequential** `OCID-NNN` numbering
+(OCID-012, OCID-013, OCID-014, ...). The two happen to share the substring "013" and nothing else —
+`UMR-20260802-163301-8416` is real and that directive genuinely happened, but it is not evidence of
+any sequential-OCID-013 artifact, and none exists. §3's table has been corrected to **NOT REAL —
+UNREGISTERED**, matching OCID-012/014, so this report does not seed a false COMPLETE entry for
+sequential OCID-013 into any canonical registry.
 
 Separately, a real **chain-integrity anomaly** was found and is flagged here rather than silently
 smoothed over: OCID-053's own canonical document states no UMR was ever minted for OCID-053, while
@@ -106,7 +120,7 @@ Status vocabulary: **COMPLETE** (real, merged evidence) / **OPEN** (real work in
 | OCID | UMR id | Real PR(s) + state | Status | Evidence |
 |---|---|---|---|---|
 | 012 | NOT FOUND | none | **NOT REAL — UNREGISTERED** | `git grep -in "ocid-012"`: zero hits (repeat-confirmed) |
-| 013 | UMR-20260802-163301-8416 | #723 MERGED | COMPLETE (docs) | `IMPLEMENTATION_MATRIX_2026-08-02.md:123` |
+| 013 | NOT FOUND | none | **NOT REAL — UNREGISTERED** | `git grep -in "ocid-013"`: zero hits for the sequential OCID. `IMPLEMENTATION_MATRIX_2026-08-02.md:123` cites `UMR-20260802-163301-8416` against `OCID-20260802-013` — a date-based Owner-directive ID, not sequential OCID-013; see §1 |
 | 014 | NOT FOUND | none | **NOT REAL — UNREGISTERED** | `git grep`: zero hits (newly flagged this pass) |
 | 015 | UMR-20260802-164801-2ab9 | #725, #731 MERGED | COMPLETE (design-only scope, formally closed) | `IMPLEMENTATION_MATRIX_2026-08-02.md:172,582` |
 | 016 | UMR-20260802-164659-9a31 | #726, #731, #746 MERGED; #749 OPEN (tranche 4) | OPEN — never closed, discovery register still growing | `IMPLEMENTATION_MATRIX_2026-08-02.md:391,606,741` |
@@ -169,6 +183,10 @@ complete) — its real completions do not breach SEC-07 because they were never 
 ## 5. Bottom line for the PM
 
 - OCID-012 and OCID-014: not real, flagged to Owner, not registered.
+- OCID-013: not real as a sequential OCID either — the only citation previously offered for it
+  (`IMPLEMENTATION_MATRIX_2026-08-02.md:123`) is actually evidence for `OCID-20260802-013`, a
+  date-based Owner-directive ID, not this document's sequential OCID-013. Corrected in §1/§3 so this
+  report does not seed a false COMPLETE entry for sequential OCID-013 into any canonical registry.
 - A real UMR chain-integrity anomaly exists around OCID-053–057 (near-simultaneous concurrent
   dispatch); flagged, not silently resolved.
 - OCID-038/039/040 remain the blocking gate. OCID-038 has one real, Owner-decision-blocked gap;
