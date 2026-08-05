@@ -10016,3 +10016,36 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260805-134723-fix-ocid-022-and-ocid-023-fabricated-art) -- fix OCID-022/023 fabricated artifact UMR (closed as duplicate)"
+    claimed_at: "2026-08-05T13:47Z (this session, closed same session)"
+    claim: |
+      SPEC citing `UMR-20260803-040844-4a33` OCID-022, `UMR-20260803-040929-9713` OCID-023, and
+      the OCID-034/PR #779 precedent: remove the fabricated "artifact UMR" self-minted by PR #765
+      (OCID-022) and PR #768 (OCID-023), replace with the real dispatch UMR in both, close
+      `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION` in `ai-os/MASTER-TRACKER.yaml`, and open a PR.
+
+      Real finding before doing any of that work: it was already done. PR #936 ("fix: remove
+      fabricated artifact UMRs from OCID-022/023 (real AUDIT: FAIL precedent, PR #779)"),
+      commit `7a66a289` (merge `118e1e8f`), merged 2026-08-05T09:19:24Z -- roughly 4.5 hours
+      before this task's own dispatch timestamp -- already replaced
+      `UMR-20260803-041653-9de5` (OCID-022's fabricated UMR) and `UMR-20260803-042019-844f`
+      (OCID-023's) with the real dispatch UMRs cited in this task's own SPEC, across
+      `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`,
+      `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md`,
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`, `ai-os/OS.yaml`, `ai-os/MASTER_INDEX.yaml`,
+      each with an honest correction note (not a silent edit) -- same pattern as the OCID-034/
+      PR #779 fix this SPEC asks to mirror. `ai-os/MASTER-TRACKER.yaml`'s
+      `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION` entry already reads `status: "closed -- all
+      three known real instances (PR #779, #765, #768) fixed"`. Verified this session's own
+      branch HEAD is already an ancestor of `origin/main` and `git diff origin/main` on all
+      five affected files is empty.
+
+      No functional changes made -- opening a PR that duplicates an already-merged, already-
+      reviewed fix would either be a no-op diff or would re-litigate a closed gap. Updated only
+      this task's own `PROGRESS.md` and this `ACTIVE-CLAIMS.yaml` entry to record the
+      duplicate-dispatch finding, matching the discipline of this file's other recorded
+      duplicate-closure sessions (e.g. the OCID-047/050 stall-recovery entry, PR #944).
+    scope_note: >-
+      File scope: this task's own `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry
+      only). No changes to `ai-os/MASTER-TRACKER.yaml` or the five governance docs cited above
+      -- they already reflect the correct closed state as of PR #936. No new PR opened.
