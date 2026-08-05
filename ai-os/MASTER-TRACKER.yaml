@@ -621,6 +621,33 @@ open_items:
         error message (reuse whatever toast/inline-error pattern other forms in this codebase
         already use for failed mutations) instead of silently closing and reloading. Same PR #827
         note as above applies -- check it for an existing fix attempt before starting fresh.
+    - id: GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING
+      name: "/settings page's Subscription Plan tab never renders after real login -- stuck on Profile placeholder state, HTTP 200/no-crash so invisible to status-code-only checks"
+      old_ids: []
+      detail: |
+        Independent re-verification of OCID-050 (`UMR-20260802-165606-4413`, this task
+        `task-20260804-235321-independently-re-verify-group-f-ocid-047`), triggered because
+        commit `11a5de5e`'s "Group F Business Certification genuinely closed" claim was proven
+        wrong about OCID-049 (PR #924). OCID-050's original 345/345 sweep only checked HTTP
+        200 + absence of "Application error" text, never real interaction -- this class of bug is
+        invisible to that methodology.
+
+        Reproduced live TWICE independently (a hand-built session cookie AND a fully real UI
+        login typed into the actual `/login` form -- ruling out a test-harness artifact) against
+        a real, pre-existing 50-user legacy org (`demo_co_1_sharma`, created 2026-07-07). After
+        login, `/settings` renders the Profile section with empty inputs (`value: ""`) despite
+        `/api/me` correctly returning real server-side data, and clicking the "Subscription Plan"
+        tab does not switch the visible section -- it stays on the Profile placeholder
+        (`??`/`—`/`—`/`Member`). Page returns 200, no thrown error, no console `pageerror`.
+        Screenshots: `/tmp/ocid050-reverify/ocid050-real-login-settings-subplan.png`,
+        `/tmp/ocid050-reverify/ocid050-legacy-org-settings-render.png`.
+      size: S
+      recommendation: |
+        OPEN. Root cause not isolated within the finding session's budget -- candidates: a
+        client-side hydration/render race in `src/app/(app)/settings/page.tsx` (`isAdmin`/profile
+        state not reliably reflecting a completed `fetch('/api/me')`), or the tab-click handler
+        resolving to the wrong section. Start there; `SubscriptionPlanSection.tsx` and
+        `subscription-plan-service.ts` are the adjacent real files. Not yet fixed.
     - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
       name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
       old_ids: []
