@@ -40,6 +40,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-175253-pm-decision--proceed-with-curl-and-webfe) -- PM decision option 3: real curl/WebFetch systematic public-page sweep + root-cause fixes for OCID-020, screenshot gap explicitly flagged (parent UMR-20260805-130213-d627 / UMR-20260802-165606-4413 OCID-020)"
+    claimed_at: "2026-08-05T17:58Z (this session)"
+    claim: |
+      SPEC (PM decision, real dispatch, cites `UMR-20260805-130213-d627` -- the real OCID-020
+      browser-testing dispatch -- and its parent `UMR-20260802-165606-4413`/OCID-020): proceed now
+      with a real, systematic public-page sweep of https://projexa-ai.com and a real root-cause fix
+      pass, using real curl and real WebFetch evidence (HTTP status, headers, redirect chains,
+      extracted page content) since no screenshot-capable browser tool is available in *this*
+      session. The SPEC itself requires this gap be recorded honestly in OCID-020 evidence, not
+      silently omitted, since OCID-020's own standing definition calls for real screenshots
+      specifically -- treated here as a real, temporary, disclosed gap, not a permanent downgrade
+      of the evidence bar. The PM separately continues supplying screenshot-adjacent evidence from
+      its own browser session for specific pages, citing this dispatch.
+
+      COLLISION CHECK (done before starting real work, per this file's own protocol): found a live
+      sibling, `task-20260805-173250-real-comprehensive-end-to-end-browser-te` (dispatched from the
+      SAME parent `UMR-20260805-130213-d627`, ~20 min earlier, branch
+      `worker/task-20260805-173250-real-comprehensive-end-to-end-browser-te`, real open PR **#965**,
+      `mergeable: MERGEABLE`), which already root-caused and fixed the PM's original `/signup`
+      finding (real per-host brand/metadata mismatch, same `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`
+      class already fixed on `/login`) plus the same class on `/mfa-challenge`, via curl + source
+      read -- and whose own remaining steps include a real Playwright screenshot sweep once a no-sudo
+      chromium fix is applied. Its last checkpoint (17:53Z) is recent; not confirmed dead. To avoid
+      duplicating that work: this session will NOT re-fix `/signup`/`/mfa-challenge`, will cite PR
+      #965 rather than re-deriving its findings, and will scope its own real curl/WebFetch sweep to
+      (a) independently spot-checking PR #965's fix by reading its diff, (b) sweeping the *other*
+      real public, unauthenticated projexa-ai.com pages PR #965 did not cover, and (c) searching for
+      the same brand-mismatch pattern class across any other public pre-auth route not yet patched.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry, a new OCID-020 curl/WebFetch evidence doc
+      under `ai-os/`, plus any additional real per-host-brand/metadata fix found on a route PR #965
+      does not already touch. Will not touch `src/app/signup/*` or `src/app/mfa-challenge/*` (PR
+      #965's live scope) to avoid a merge collision.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
