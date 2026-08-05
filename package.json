@@ -87,7 +87,7 @@
     "lucide-react": "^1.24.0",
     "mathjs": "^15.2.0",
     "ml-regression-simple-linear": "^3.0.1",
-    "next": "^16.2.10",
+    "next": "16.2.12",
     "next-intl": "^4.9.2",
     "next-themes": "^0.4.6",
     "pdf-parse": "2.4.5",
@@ -130,7 +130,7 @@
   },
   "overrides": {
     "js-yaml": "^4.2.0",
-    "postcss": "^8.5.10",
+    "postcss": "^8.5.23",
     "prismjs": "^1.30.0",
     "esbuild": "^0.25.12",
     "@opentelemetry/core": "2.9.0",
