@@ -1,3 +1,46 @@
+# PROGRESS -- task-20260805-185156-ocid-020-gtm-cert-addendum--register-chi
+
+SPEC: real child-UMR registration for PR #954 (signup pre-auth brand fix) under OCID-020, per PM
+directive `UMR-20260805-142048-4edb` item 2.
+
+**Real, disclosed finding, out of this task's own scope, flagged not silently absorbed:** this
+task's own workspace `PROGRESS.md` had been scaffolded as a 7-line stub silently shadowing the
+real 953-line/70379-byte history at `HEAD` (blob `cb765edd`) -- the same recurring wholesale-
+replace regression class this repo's own history already names (OCID-055/060/061/OCID-038
+sessions each hit and fixed a fresh instance). Confirmed via `git cat-file -s HEAD:PROGRESS.md`
+after noticing `git show HEAD:PROGRESS.md | wc -l` reported a false `31` (this sandbox's own known
+Bash-tool large-output silent-truncation bug masking the real size). Restored the full real
+history below via `git cat-file -p` rather than the truncated `git show`/Bash-tool output, before
+appending this task's own section on top -- no history lost.
+
+## Completed
+- [x] Confirmed PR #954 real, OPEN, MERGEABLE (mergeStateStatus BLOCKED on stale branch, a separate
+      already-queued follow-up task's concern -- `UMR-20260805-181515-b18a`), with a real
+      `AUDIT: PASS` comment already present.
+- [x] Queried the live `umr_tasks` table read-only; found `UMR-20260805-142559-8cfe`
+      (`child-umr-ocid020-pr954-signup-brand-fix-registration`) and independently confirmed it is
+      this exact task's own row via `unit_name`/`outputs_json.new_task_id` field match -- not
+      self-minted, a real pipeline-issued UMR.
+- [x] Wrote `ai-os/VERIDIAN_OCID_020_PR954_CHILD_UMR_REGISTRATION_2026-08-05.md`: links
+      `UMR-20260805-142559-8cfe` to OCID-020 (`UMR-20260802-165606-4413`), captures the PM
+      directive's item 2 text verbatim, cross-references sibling PR #959's own separate child UMR
+      (`UMR-20260805-142629-8087`, item 6) without duplicating it.
+- [x] Added `ai-os/OS.yaml` index entry for the new doc.
+- [x] Added `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed` entry (claim opened and closed
+      same session -- docs-only, no concurrency risk).
+- [x] Found and fixed the PROGRESS.md wholesale-replace regression described above -- full real
+      history restored, not discarded.
+- [x] Committed, pushed, opened PR #967: https://github.com/FChecklist/compliance-tracker/pull/967
+
+## Remaining
+- [ ] Confirm CI green, hand off for independent audit -- not self-certified here.
+- [ ] Merging PR #954 itself is a separate, already-queued task (`UMR-20260805-181515-b18a`) --
+      not this document's job.
+
+---
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed

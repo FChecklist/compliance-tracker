@@ -5857,6 +5857,31 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260805-185156-ocid-020-gtm-cert-addendum--register-chi) -- real child-UMR registration for PR #954 (signup pre-auth brand fix) under OCID-020 [DONE, docs-only, no code touched]"
+    claimed_at: "2026-08-05T18:52Z (this session, closed same session)"
+    claim: |
+      SPEC (PM directive `UMR-20260805-142048-4edb` item 2, parent OCID-020 `UMR-20260802-165606-4413`):
+      give PR #954 (`fix/signup-brand-resolution-ocid020-addendum`, already-open, already
+      independently verified -- tsc/eslint clean, 2515/2515 unit tests pass) its own real child UMR.
+
+      Queried the live `umr_tasks` table (`superboss-register.sqlite`, read-only) rather than
+      self-minting: found `UMR-20260805-142559-8cfe`
+      (`task_identity=child-umr-ocid020-pr954-signup-brand-fix-registration`), and independently
+      confirmed it is genuinely this exact task's own row -- its `unit_name` and
+      `outputs_json.new_task_id` fields exactly match this task's own workspace directory name,
+      submitted 14:25:59Z and queued ~4.5h (matching this task's own dispatch prompt) until a real
+      worker slot opened at 18:52:00Z. Wrote
+      `ai-os/VERIDIAN_OCID_020_PR954_CHILD_UMR_REGISTRATION_2026-08-05.md` linking this UMR to
+      OCID-020 and capturing the PM directive's item 2 text verbatim. Cross-referenced (not
+      duplicated) the same directive's item 6 sibling fix (PR #959, own separate child UMR
+      `UMR-20260805-142629-8087`) and the already-queued follow-up merge task
+      (`UMR-20260805-181515-b18a`) that actually merges PR #954/#959 -- neither performed here.
+      Added `ai-os/OS.yaml` index entry for the new doc.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_020_PR954_CHILD_UMR_REGISTRATION_2026-08-05.md` (new),
+      `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/,
+      schema, migration, or CI changes -- PR #954's own code (`src/app/signup/page.tsx` and
+      siblings) was not touched or re-modified by this task.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
