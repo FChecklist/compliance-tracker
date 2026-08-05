@@ -163,3 +163,21 @@ accumulated log.
       genuinely lost, so this rebase keeps HEAD's real (unstubbed, unstuck) content instead.
 - [ ] Force-push this rebase, confirm CI green (Metadata Index Coverage Check in particular),
       re-trigger independent review, merge once genuinely up to date.
+
+# PROGRESS -- task-20260804-073932-pm-decision--confirming-ollama-is-real-a
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` and `AGENTS.md`/`CLAUDE.md` per standing protocol before starting.
+- [x] Located OCID-062's real canonical document (not yet on `main` -- lives on PR #876's branch, `docs/ocid062-server-authority-mini-veridian-architecture`); fetched and read it in full via `git cat-file -p` (avoids the known Bash-truncation bug on large file reads).
+- [x] Confirmed no OCID-064 artifact, PR, or issue exists anywhere in this repo -- this PM decision is the only real record of it.
+- [x] Confirmed via OCID-062's own §4.1 that no local server-side model runtime (Ollama or otherwise) is named in its existing browser-execution-tier inventory -- independently verifies the SPEC's premise that Ollama is genuinely new, not already covered.
+- [x] Recorded the PM decision closing OCID-064 (no separate deliverable) in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed:`, including the exact, verbatim §3.8 addition + §6 table row staged for direct insertion into OCID-062's document.
+- [x] Independently re-verified PR #876's real state: `OPEN`, CI-green, `mergeable: CONFLICTING` against current `main` (conflict resolution already assigned elsewhere per this task's own SPEC -- "Group C worker continuing the merge queue" -- not re-attempted here to avoid colliding with in-flight work on that branch).
+- [x] Monitored (not acted on, per SPEC): PR #789 independently reconfirmed `MERGED` (2026-08-04T07:33:11Z, matches SPEC's own claim); PR #879 (OCID-063) independently checked, `OPEN`/`CONFLICTING`, same merge-queue situation as #876.
+- [x] Caught and fixed, in this same session, a real instance of the recurring PROGRESS.md wholesale-replace regression: this task's workspace `PROGRESS.md` had been scaffolded as a 7-line stub silently overwriting 2617 lines of real prior history (`4284570a:PROGRESS.md`, confirmed via `git cat-file -p` after a misleading `git show | wc -l` undercounted it as 31 lines -- itself the known shell large-output-truncation issue). Restored the real history below before appending this section, in a follow-up commit rather than amending the flawed one (git history stays honest about the mistake).
+- [x] Pushed branch, opened PR #882. CI running (real checks passing as they complete: Guardrail Presence, Doc Quarantine Banner, Documentation Sentinel, Secret Scanning, Security Pattern, Migration Number Collision, Vercel Preview Comments; others still pending at last check). Awaiting the standing independent-audit requirement before merge, per this repo's own process (Rule 6/Rule 10) -- not self-merged.
+
+## Remaining
+- [ ] Independent audit (`AUDIT: PASS`/`FAIL` comment) on PR #882, then merge once CI is fully green.
+- [ ] Once PR #876 (OCID-062's document) merges to `main`: apply the staged §3.8 addition + §6 table row verbatim (see `ai-os/boss/ACTIVE-CLAIMS.yaml`'s new entry for this task) as a small, mechanical follow-up PR. Not done in this PR because the target file does not yet exist on `main`.
+- [ ] No further action on OCID-064 itself -- closed, no separate deliverable, per this PM decision.

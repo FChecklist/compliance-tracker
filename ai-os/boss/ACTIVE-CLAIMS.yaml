@@ -9851,3 +9851,105 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260804-073932-pm-decision--confirming-ollama-is-real-a) -- PM decision: OCID-064 closed into OCID-062, no separate deliverable [DONE, addition staged pending PR #876]"
+    claimed_at: "2026-08-04T07:39Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, `UMR-20260804-072532-a02d` OCID-064, `UMR-20260804-050857-d33f` this
+      decision's own UMR): confirms directly, since a prior executor honestly flagged it could not
+      verify this from what was relayed, that OCID-064's own original dispatch prompt does name
+      Ollama specifically -- a local, server-side process exposing a real REST API compatible with
+      the OpenAI SDK format, architecturally distinct from WebLLM (runs entirely inside the browser
+      via WebGPU/WebAssembly, no server process at all). Independently checked against this
+      document's own §4.1 browser-execution-tier inventory
+      (`ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`,
+      PR #876, read via `git fetch origin docs/ocid062-server-authority-mini-veridian-architecture` +
+      `git cat-file -p` per the known shell-truncation workaround): no local server-side model
+      runtime (Ollama or otherwise) is named anywhere in that document's real, already-built
+      inventory -- genuinely new, not already covered by OCID-062's own discovery. Per this PM
+      decision: OCID-064 is **closed with this single finding, no separate deliverable** -- the
+      executor's own honest comparison correctly found nothing else new survived. Do NOT build or
+      install anything (no Ollama process, dependency, or code exists anywhere in this repo as of
+      this writing) -- documentation only.
+
+      **Real next step, staged here rather than force-inserted:** the PM's own instruction is to add
+      a targeted addition to OCID-062's own architecture document, its §3 "Authoritative server
+      responsibilities" section, noting that if a self-hosted local model becomes part of the real
+      deterministic execution path, Ollama is the concrete real mechanism for that -- a real local
+      server process exposing an OpenAI-compatible endpoint, separate from and complementary to the
+      already-covered browser-side WebLLM/Transformers.js options (§4.1), and that function calling
+      or tool use, not free chat, is the real pattern that keeps such a model deterministic, matching
+      this whole session's own reuse discipline (§3.6's "engines compute, AI never invents a number";
+      §4.1's real `tool-calling.ts` client-side MCP-shaped dispatch precedent).
+
+      **Independently re-verified before acting, not assumed:** PR #876 (OCID-062's own canonical
+      document) is `OPEN`, CI-green (`gh pr checks 876`: all real checks pass, only `Vercel` failing
+      on an unrelated build-rate-limit), but `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING`
+      against current `origin/main` (its last main-merge predates PR #789/#865/#875 among others).
+      Per this task's own SPEC, that conflict is already assigned to a separate, concurrently-running
+      worker ("Group C worker continuing the merge queue") -- not re-attempted here, to avoid
+      colliding with in-flight conflict-resolution work on that exact branch (same class of risk as
+      [[veridian-live-concurrent-state-drift]]/[[veridian-shared-worktree-stash-risk]]). Recreating
+      the file independently on a fresh-`main`-based branch was considered and rejected: it would
+      create a real add/add conflict for whoever merges second, adding noise to the same queue this
+      task was told to only monitor.
+
+      **The exact addition, staged verbatim for direct insertion once PR #876 lands on `main`**
+      (insert as new `### 3.8` immediately after the existing `### 3.7 Audit and billing`, before the
+      `---` divider that opens §4; also add one new row to the existing §6 Real-vs-Proposed table):
+
+      ```markdown
+      ### 3.8 Self-hosted local models via Ollama (proposed, not built)
+
+      **Real, disclosed finding, closing OCID-064 (`UMR-20260804-072532-a02d`) with no separate
+      deliverable, per PM decision `UMR-20260804-050857-d33f`:** OCID-064's own dispatch prompt names
+      Ollama specifically -- a local, server-side process that exposes a real REST API compatible
+      with the OpenAI SDK format. This is architecturally distinct from every browser-side mechanism
+      §4.1 already catalogues (`webllm-engine.ts`, `transformers-engine.ts`, `npu-engine.ts`), which
+      run entirely inside the browser via WebGPU/WebAssembly/WebNN with no server process at all.
+      Independently confirmed genuinely new, not already covered by this document's own §4.1
+      discovery pass, so it belongs here in §3 (server-side) rather than in §4 (client-side).
+
+      **Proposed, not built:** if a self-hosted local model ever becomes part of VERIDIAN's real
+      deterministic execution path, Ollama (an existing open-source project, not a VERIDIAN-built
+      component) is the concrete real mechanism for that: a local server process, run on
+      infrastructure VERIDIAN controls, exposing an OpenAI-compatible endpoint the Mother Router
+      (§3.4) could call exactly like any other model provider it already resolves. This is separate
+      from, and complementary to, the already-covered browser-side WebLLM/Transformers.js options
+      (§4.1) -- Ollama would run server-side, under the same auth/tenant/audit boundary as everything
+      else in §3, not client-side under Mini VERIDIAN's boundary (§4).
+
+      **The pattern that keeps it deterministic, consistent with this document's own discipline:** per
+      §3.5/§3.6's reasoning ("engines compute, AI never invents a number") and §4.1's own
+      `tool-calling.ts` precedent (real, client-side MCP-shaped tool dispatch, zero free-form
+      generation trusted as fact), a self-hosted model reached via Ollama would need to be constrained
+      to function calling / tool use, not free chat, to stay inside this document's determinism
+      guarantees -- the model selects and invokes a defined tool/function with structured arguments
+      (auditable, replayable, checkable against §3.6's engines), rather than emitting free text
+      trusted as an authoritative answer. Free-chat output from a self-hosted model would carry the
+      same non-authoritative status as any other AI-escalated reply (§3.5) and would still need the
+      visible deterministic-vs-AI label (`withSourceTypeLabel()`).
+
+      **Not built, not installed, not wired.** No Ollama process, dependency, config, or code exists
+      anywhere in this repo as of this writing -- this is a proposed-mechanism entry only, added to
+      keep §3/§6's Real-vs-Proposed inventory honest and complete, per the PM decision that closed
+      OCID-064 into this document rather than opening a separate one.
+      ```
+
+      §6 table row to add:
+      `| Self-hosted local model via Ollama (OpenAI-compatible local server endpoint) | **No -- not
+      built, not installed, not wired anywhere in this repo** | If ever adopted, function-calling/
+      tool-use only (not free chat) keeps it deterministic; complementary to, not a replacement for,
+      §4.1's browser-side tiers (§3.8) |`
+
+      Also monitored, per this task's own SPEC, without acting (both already handled elsewhere):
+      PR #789 independently reconfirmed `MERGED` (`2026-08-04T07:33:11Z`, matches the SPEC's own
+      claim). PR #879 (OCID-063) independently checked: `OPEN`, same `DIRTY`/`CONFLICTING` state as
+      #876, part of the same merge queue.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry (PM decision record + staged addition text),
+      `PROGRESS.md`. No src/, schema, CI, or application-doc changes -- the staged §3.8 addition is
+      not mechanically inserted into
+      `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      itself in this PR, since that file does not yet exist on `main` (still PR #876, open,
+      conflicting) -- a future session should apply the verbatim block above once PR #876 merges,
+      rather than re-deriving it.
