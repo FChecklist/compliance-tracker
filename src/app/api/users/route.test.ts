@@ -41,7 +41,7 @@ function makeRequest(): Request {
   return new Request("http://localhost/api/users", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: "Test User", email: "test@example.com", role: "member" }),
+    body: JSON.stringify({ name: "Test User", email: "newuser@veridian-test.internal", role: "member" }),
   })
 }
 
