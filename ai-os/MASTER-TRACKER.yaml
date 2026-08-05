@@ -2158,7 +2158,21 @@ open_items:
         this OCID chain must keep explicitly self-reporting the lock until real enforcement is
         built. Full real governance record:
         `ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md`.
-      status: "closed (governance disposition) -- see ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md for the real, final disposition per UMR-20260805-025349-a6b8. Technical fix stays merged; violation stays a permanent part of audit history; no retroactive authorization was granted."
+      status: "closed (governance disposition) -- see ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md for the real, final disposition per UMR-20260805-025349-a6b8. Technical fix stays merged; violation stays a permanent part of audit history; no retroactive authorization was granted.
+
+        **Follow-up (2026-08-05, same UMR's own standing-future-rule instruction, real
+        PR #933/#934, cross-check via a fresh worker dispatch this same day):** the
+        real, deterministic pre-merge enforcement this record's own \"standing future
+        rule\" called for now exists and is merged -- see SEC-07's own updated
+        `mechanism`/`gap` fields in `ai-os/CONSTITUTION.yaml`. Independently
+        re-confirmed this session: `scripts/check-sec07-ocid-lock.mjs` is on `main`
+        (commit `119577a0`), its 12 tests pass fresh (`bun install` + `bun test`), and
+        two independent attempts to activate the actual required GitHub Actions check
+        (`git push` of `.github/workflows/sec07-ocid-lock-check.yml`; the GitHub
+        Contents API directly) both still fail on this server's `workflow`-scope-less
+        credential -- the workflow remains staged, not yet live, not yet in
+        `main`'s required status checks. Not redone here as duplicate work; disclosed
+        honestly instead."
       first_raised: "Discovery-only audit, 2026-08-04 (UMR-20260804-194323-0bc5)"
 
     - id: GAP-AUDIT-CHECK-ISSUE-COMMENT-STALE-CHECKRUN
@@ -2322,6 +2336,17 @@ open_items:
         `scripts/check-governance-yaml-parse.mjs`) and re-run the same real
         break/restore verification already proven locally, this time against a
         real GitHub Actions run, before merging.
+
+        **Second real instance, same constraint (2026-08-05, UMR-20260805-025349-a6b8):**
+        the SEC-07/Hard-Rule-7 pre-merge gate (`scripts/check-sec07-ocid-lock.mjs`,
+        merged PR #933/#934) hit this identical wall -- its ready-to-use workflow file
+        is staged at `ai-os/registry/PENDING-MANUAL-APPLICATION-sec07-ocid-lock-check.yml.txt`
+        for the same reason and needs the same one real manual step. Independently
+        re-confirmed the constraint still holds via two separate methods this session
+        (plain `git push`, and the GitHub Contents API directly -- both rejected).
+        Once a workflow-scoped credential exists, BOTH this item's own governance-yaml-parse
+        job AND the SEC-07 workflow file (`git mv ... .github/workflows/sec07-ocid-lock-check.yml`)
+        can be applied and pushed together.
       status: open
       first_raised: "This session, 2026-08-03, while executing PM decision UMR-20260803-142309-da1f (UMR-20260802-165606-4413, OCID-020)"
 

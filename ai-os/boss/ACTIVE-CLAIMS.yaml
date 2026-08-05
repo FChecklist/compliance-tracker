@@ -5827,6 +5827,58 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+  - session_label: "claude-code (task-20260805-114207-build-real-deterministic-pre-merge-gate) -- duplicate-dispatch finding: the real gate was already built and merged; this task's own contribution is a real governance-doc accuracy fix [DONE]"
+    claimed_at: "2026-08-05T11:42Z (this session -- registered after real verification, not before, since the finding itself is what determined the scope)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing `UMR-20260805-025349-a6b8` / `OD-20260805-001`,
+      `UMR-20260802-165606-4413`, `UMR-20260804-194323-0bc5`): build a real, deterministic
+      pre-merge gate blocking any PR touching locked OCID-038/039/040/041-046 scope while
+      OCID-020 is not VERIFIED, with a real Owner-override escape hatch and real tests proving
+      both the block and the allow case, merged only after real independent review.
+
+      **Real finding, independently verified before writing any new code (per
+      [[veridian-task-prompt-false-premise-pattern]]):** this exact gate already exists on
+      `main` -- `scripts/check-sec07-ocid-lock.mjs` + `scripts/check-sec07-ocid-lock.test.ts`
+      (12/12 tests, re-run fresh this session after `bun install`), `ai-os/registry/
+      ocid-locked-scope-manifest.yaml`, `ai-os/registry/sec07-overrides.yaml` (PR-number-scoped
+      override, empty by default), and `ai-os/MASTER-TRACKER.yaml`'s `ocid_020_status` block
+      (currently `NOT_VERIFIED`, fail-closed). Merged via real PR #933 (`AUDIT: PASS` posted,
+      merged) + follow-up #934 (metadata-index-coverage fix), commit `119577a0`, already an
+      ancestor of this session's own starting `HEAD` (confirmed `git merge-base --is-ancestor`).
+      Same UMRs cited, same commit message, same author. Did not rebuild it.
+
+      **One real gap remained, honestly disclosed by PR #933 itself:** the workflow file that
+      makes this an actual GitHub-enforced required check is staged, not live (`ai-os/registry/
+      PENDING-MANUAL-APPLICATION-sec07-ocid-lock-check.yml.txt`), blocked by this server's
+      `gh` token missing the `workflow` OAuth scope (see [[gh-token-lacks-workflow-scope]] and
+      `GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE`). Independently re-confirmed this
+      session, by two genuinely different methods (a real `git push` on a disposable probe
+      branch, and the GitHub Contents API directly) -- both still rejected. Per this task's own
+      2-strikes circuit breaker, did not attempt a third method. Live-reconfirmed via
+      `gh api repos/FChecklist/compliance-tracker/branches/main/protection`: the SEC-07 check is
+      genuinely not yet among the repo's required status checks.
+
+      Real contribution this task actually made: `ai-os/CONSTITUTION.yaml` SEC-07's own
+      `status`/`mechanism`/`gap` fields, the governance record
+      (`ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md`), and
+      `GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886`/
+      `GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE` in `ai-os/MASTER-TRACKER.yaml`
+      all still described the gate as unbuilt/organizational-only, which was stale as of PR #933.
+      Corrected all four to the real, current, cross-linked state (gate real+merged+tested;
+      only the required-check activation is the one remaining, Owner-actionable, real step).
+    scope_note: >-
+      File scope: `ai-os/CONSTITUTION.yaml` (SEC-07 entry only), `ai-os/MASTER-TRACKER.yaml`
+      (two existing gap entries' status text, addendum only, no new entry), `ai-os/
+      GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md` (addendum), this
+      ACTIVE-CLAIMS entry, PROGRESS.md. No src/, schema, or CI-workflow changes (the workflow
+      file itself remains genuinely blocked, per above -- not attempted a third way).
+    result: >-
+      PR opened for the doc-accuracy fix; real independent review requested before merge
+      (this gate's own governance record explicitly does not get to bypass review either).
+      No duplicate rebuild of the already-merged PR #933/#934 gate. The one real remaining gap
+      (workflow activation) is now clearly tracked in three cross-linked places for the next
+      session or the Owner to pick up with a `workflow`-scoped credential.
+
 recently_completed:
   - session_label: "claude-code (task-20260804-040805-register-ocid-057--universal-knowledge-g) -- OCID-057 real Universal Knowledge Register/Graph/Dedup/Broken-Reference/Orphan report [DONE, PR opened]"
     claimed_at: "2026-08-04T04:08Z (this session, closed same session)"
