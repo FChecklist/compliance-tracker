@@ -572,6 +572,73 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT
+      name: "GET /api/clients returns ALL org clients to every role incl. viewer, ignoring resolveAccessibleClientIds() -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED (this task, task-20260805-003832-real-stall-recovery--continue-ocid-047-a, UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Independent re-verification of OCID-047 (`UMR-20260802-165606-4413`, task
+        `task-20260804-235321-independently-re-verify-group-f-ocid-047`), triggered because commit
+        `11a5de5e`'s "Group F Business Certification genuinely closed" claim was proven wrong about
+        OCID-049 (PR #924) and so was not taken at face value for OCID-047/048/050/051/052 either.
+
+        This gap was ALREADY live-found once before, by commit `925f3204` ("test: real OCID-047 role
+        testing execution -- 4 roles, 2 real gaps found"), but that commit lives only on branch
+        `worker/task-20260803-150816-pm-decision--defer-the-ci-guardrail-work`, whose PR #827 is
+        still OPEN (`mergeable: CONFLICTING`, `mergedAt: null`) -- it never merged, so the gap was
+        never registered here, and the 11a5de5e rollup closed Group F without it. The re-verification
+        task's own registration of this gap (commit `1b0aeb5c`) also never reached `main` -- it lives
+        only on branch `worker/task-20260804-235321-independently-re-verify-group-f-ocid-047`, whose
+        PR was never opened. This entry supersedes both, carried onto `main` for the first time here.
+
+        Re-confirmed live and independently (fresh org `n4eoz7irp6d8ff9r9l0cnf9y`, created
+        post-PR#924, never used by any prior session): admin created 2 real clients (`POST
+        /api/clients`, both 201). A real viewer-role user in the SAME org, with zero
+        `user_client_access` grant rows (confirmed via direct read-only DB query), issued a real
+        `GET /api/clients` and received `200` with `count: 2` -- identical to the admin's own view.
+        Root cause confirmed by source read of `main` at the time: `src/app/api/clients/route.ts`'s
+        GET handler queried `where: eq(clients.orgId, orgId)` with no per-caller scoping call;
+        `resolveAccessibleClientIds()` (`src/lib/services/client-access-service.ts`) already existed
+        and is correct (used by `firm-enablement-service.ts` / `firm-practice-dashboard-service.ts`)
+        but had zero callers under `src/app/api/clients/*`.
+      size: S
+      recommendation: |
+        CLOSED. Wired `resolveAccessibleClientIds()` into `GET /api/clients`'s handler: resolves the
+        caller's accessible client-id set, returns an empty list without touching the DB when it's
+        empty (fail-closed), and filters the query with `inArray(clients.id, accessibleClientIds)`
+        otherwise -- `clients` has no per-client RLS policy of its own (only org-scoped), so this can
+        only be enforced at the application layer, matching this gap's own original recommendation.
+        Real tests: `src/app/api/clients/route.test.ts` (new), 4/4 pass -- unauthenticated caller
+        short-circuits before any DB/resolver call; a zero-grant viewer gets `[]` with the DB never
+        queried; a viewer with one real grant sees only that client; branch_manager+ (full access)
+        still sees the whole org roster unchanged. `tsc --noEmit` and `eslint` both clean. PR #827's
+        stale, conflicting fix attempt was not reused (fresh implementation against current `main`,
+        same root cause, different exact diff) -- superseded, can be closed without merging.
+    - id: GAP-RISK-CREATE-403-SILENT-DENIAL-UX
+      name: "Risk-creation form silently swallowed a 403 (or any error) -- closed the dialog and reloaded as if it succeeded -- CLOSED, real fix merged"
+      old_ids: []
+      status: "CLOSED (this task, task-20260805-003832-real-stall-recovery--continue-ocid-047-a, UMR-20260804-234032-146e / UMR-20260802-165606-4413)"
+      detail: |
+        Same re-verification pass as GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT above (OCID-047,
+        `UMR-20260802-165606-4413`). Originally found by the same never-merged commit `925f3204`
+        (PR #827, open/conflicting), and re-confirmed by a static-code read of `main`:
+        `src/app/(app)/risks/page.tsx`'s `create()` handler `await fetch(...)`d the POST and
+        unconditionally called `setShowForm(false); load();` regardless of response status -- never
+        checked `.ok` or surfaced the error body to the user. A denied/failed risk creation looked
+        identical in the UI to a successful one.
+      size: S
+      recommendation: |
+        CLOSED. `create()` now checks `res.ok`; on failure it calls `toast.error(...)` with the
+        server's own error message (falling back to a generic one) and returns without closing the
+        form or reloading -- the exact convention already used by ~20+ other pages in this codebase
+        (`bcm/page.tsx`, `access-review/page.tsx`, `erp/budgets/page.tsx`, etc). No automated test
+        added: this repo has zero `.test.tsx` files and no DOM-testing dependency installed anywhere
+        (`git ls-files | grep '\.test\.tsx$'` = 0 matches) -- there is no existing frontend
+        component-test harness to extend for this one-line change. Verified via `tsc --noEmit`
+        (clean) and `eslint` (clean) plus manual code review against the codebase's own established
+        pattern; disclosed honestly rather than inventing a new test harness out of scope for a
+        narrow fix. PR #827's stale fix attempt was not reused (fresh implementation, same root
+        cause) -- superseded, can be closed without merging.
     - id: GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS
       name: "GET /api/me returns 500 (empty body) for every authenticated user on live projexa-ai.com, confirmed live -- severity: high, blocks the topbar/VERI-Chat-Home shell and every OCID-047..052 re-test that depends on /api/me"
       old_ids: []

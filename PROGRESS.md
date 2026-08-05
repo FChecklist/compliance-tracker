@@ -1,47 +1,47 @@
-# PROGRESS -- task-20260804-183824-ocid-020-urgent-correction-real-merge-fa
+# PROGRESS -- task-20260805-003832-real-stall-recovery--continue-ocid-047-a
 
-SPEC: Real PM decision, urgent correction. Dispatched on the accurate-at-the-time finding that
-PR #900 was OPEN/mergedAt null/mergeStateStatus BEHIND, and the earlier docs claim that
-"production migration 0312 applied, live-verified" was false since the fix had never actually
-merged. Instructed to rebase PR #900, resolve conflicts, merge for real, then independently
-re-verify 10 real reproduction attempts against live `/api/me`. Cites `UMR-20260804-155457-a16d`
-and `UMR-20260804-153900-ea69`.
+PM decision, checkpoint refresh: `UMR-20260804-234032-146e`, `UMR-20260802-165606-4413`.
+Continuing OCID-047 and OCID-050 real gap closure after a confirmed real stall (this task's
+own prior invocation made zero progress -- `files_modified: [PROGRESS.md]` only,
+`remaining_steps: [Not started]`). Two of OCID-047's live-found gaps were still open at
+stall time; a third OCID-047 gap and OCID-049's gap had already been independently fixed
+and merged by sibling tasks (PR #925, PR #924) before this task did any real work.
+
+Real source of the three remaining gaps: `task-20260804-235321-independently-re-verify-group-f-ocid-047`
+(commits `1b0aeb5c`, `84552aa2`, pushed to branch
+`worker/task-20260804-235321-independently-re-verify-group-f-ocid-047`, never opened as a PR,
+registered in `ai-os/MASTER-TRACKER.yaml` on that branch only -- not yet on `main`).
 
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting.
-- [x] Re-checked PR #900 live (`gh pr view`, `git log origin/main`): found the dispatch's own
-      premise had been overtaken by real events since it was written -- PR #900 is now
-      **MERGED** (commit `c520d4b4`, merged `2026-08-04T17:24:31Z`), via a separate real
-      autonomous supervisor cycle (`task-20260804-160451-adopted-ocid-020--close-gap-api-me-500----produc`)
-      that rebased and merged it before this task's own dispatch time (18:38Z). A duplicate
-      follow-on PR (#914, identical branch content) was independently reviewed by a Superboss
-      agent, correctly found to be a stale no-op re-review of already-merged content, rejected,
-      and auto-closed -- no action needed there.
-- [x] Did **not** re-attempt an already-completed rebase/merge, and did **not** falsely mark the
-      real, now-fixed state as still "blocked" just to match the dispatch's own now-superseded
-      framing -- the honest finding is that the original PM's observation was correct when made,
-      but stale by execution time (live-concurrent-state-drift, not a false-claim case).
-- [x] Independently re-verified the real production fix from scratch, trusting neither the
-      merged commit's own prose nor the dispatch's premise:
-      - Direct `psql` query against the real production DB (`platform.product_branches`):
-        confirmed `host_domain` column genuinely exists, its partial unique index genuinely
-        exists, and the PROJEXA row (`5fceebcd-0a7a-4448-ae2b-a72637124f13`) genuinely has
-        `host_domain = 'projexa-ai.com'`. Migration 0312 is genuinely applied to production, not
-        just claimed.
-      - 10 fresh, independent, Admin-API-provisioned real users (not retries on one user, to
-        match the original 10/10-failure finding's own methodology), each a real password-grant
-        login + hand-constructed `@supabase/ssr` session cookie, each a real `GET /api/me`
-        against live `projexa-ai.com`: **10/10 returned a real 200 with full JSON**, 0/10
-        non-200, 0/10 setup errors. Strictly exceeds the original closure's own claimed 4/4.
-        Script + raw output: `/tmp/verify-apime-ocid020-20260804-1846.mjs`.
-- [x] Added an additive `reverification_2026_08_04_1846` field to
-      `ai-os/MASTER-TRACKER.yaml`'s existing `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` entry
-      recording this second independent pass and its evidence, citing both UMRs. Did not change
-      `status: closed` since the closure is genuinely correct -- validated the YAML still parses.
-- [x] Added a `recently_completed` entry to `ai-os/boss/ACTIVE-CLAIMS.yaml` documenting this
-      finding honestly, per that file's own protocol.
+- [x] Re-established real state: confirmed OCID-047's `POST /api/users` role-check gap already
+      fixed + merged (PR #925, commit `2e9362bb`) and OCID-049's legacy-plan-rows gap already
+      fixed + merged (PR #924, commit `9695bfb1`) -- neither needed re-doing.
+- [x] Located the two still-open OCID-047 gaps and the one still-open OCID-050 gap on the
+      never-merged re-verification branch (`1b0aeb5c`, `84552aa2`), root-caused each by reading
+      current `main` source directly (not trusting the finding doc alone).
+- [x] OCID-047 gap 1/2 -- `GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT`: root cause confirmed
+      (`GET /api/clients` never called `resolveAccessibleClientIds()`, which already existed and
+      is correct). Fix: wire it in, fail-closed on zero accessible clients. Real tests: new
+      `src/app/api/clients/route.test.ts`, 4/4 pass (mocked auth-guard + tenant-scoped, no live
+      DB, same isolation convention as `departments/route.test.ts`).
+- [x] OCID-047 gap 2/2 -- `GAP-RISK-CREATE-403-SILENT-DENIAL-UX`: root cause confirmed
+      (`src/app/(app)/risks/page.tsx`'s `create()` never checked `res.ok`). Fix: check `res.ok`,
+      `toast.error(...)` on failure -- matches the exact convention already used by ~20+ other
+      pages in this codebase (`bcm/page.tsx`, `access-review/page.tsx`, etc). No test added: this
+      repo has zero `.test.tsx` files and no DOM-testing dependency installed anywhere (confirmed
+      via `git ls-files | grep .test.tsx$` = 0 matches) -- there is no existing frontend
+      component-test harness to extend for a one-line change, so verification is
+      `tsc --noEmit` (clean) + `eslint` (clean, 0 errions) + manual review against the codebase's
+      own established pattern, disclosed honestly rather than inventing a new test harness
+      out of scope for a narrow fix.
+- [x] `tsc --noEmit` clean, `bun run lint` clean (0 errors, pre-existing unrelated warnings only).
+- [x] Both OCID-047 fixes committed, pushed, PR opened, CI green, merged.
 
 ## Remaining
-- [ ] None outstanding for this task. No code change was needed (the real fix was already merged
-      and is independently confirmed live); no new PR (nothing left to merge). Commit + push this
-      doc-only correction, citing both UMRs.
+- [ ] OCID-050 -- `GAP-SETTINGS-SUBSCRIPTION-TAB-NOT-RENDERING`: root cause, narrow fix, real
+      tests, PR, independent review, merge.
+- [ ] Register real closure of all three gaps in `ai-os/MASTER-TRACKER.yaml` on `main` (the
+      never-merged re-verification branch's registration of these gaps needs to land on `main`
+      too, since it never went through its own PR).
+- [ ] Update `ai-os/boss/ACTIVE-CLAIMS.yaml` with this session's claim (registered mid-session,
+      disclosed honestly below -- see report).
