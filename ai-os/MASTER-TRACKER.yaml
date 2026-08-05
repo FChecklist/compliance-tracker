@@ -1609,6 +1609,31 @@ open_items:
       status: resolved
       first_raised: "OCID-050 State C preparation, 2026-08-03 (UMR-20260803-185714-89c6)"
 
+    - id: GAP-OCID048-CROSS-ORG-ISOLATION-EVIDENCE-ONLY-ON-CLOSED-PR
+      name: "OCID-048's real 12/12 cross-org isolation probe (zero leaks) exists only on PR #825, which was closed without merging -- the merged OCID-048 evidence trail (PR #826) covers a related but distinct axis (cross-tenant, 7/7), not cross-org"
+      old_ids: []
+      detail: |
+        Found during OCID-053's Orphan and Duplicate Detection pass, 2026-08-04, cross-referencing
+        every OCID-047..052 PR number against its live `gh pr view` state. PR #825 ("test: real
+        OCID-048 cross-org isolation execution -- 12/12 probes, zero leaks") is real,
+        content-complete, and **CLOSED without merging**. PR #826 ("test: real OCID-048
+        cross-tenant isolation execution -- 7/7 checks, real DOM confirmation") is the real, merged
+        PR that OCID-048 is credited complete on -- but its own title and content scope is
+        cross-*tenant* isolation, a related but distinct real axis from #825's cross-*org*
+        isolation. No other merged PR in the OCID-048 chain (`ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`
+        §2/§5) was found carrying #825's specific 12/12 cross-org result forward.
+      size: S
+      recommendation: |
+        Before treating OCID-048 as fully certified on both axes: either (a) re-run the real
+        cross-org isolation probe from #825 against current `main` and merge a fresh PR with that
+        evidence, independently re-verified rather than trusted from the closed PR's own
+        description, or (b) if #826's cross-tenant checks are judged to already cover the real
+        cross-org risk surface, say so explicitly and close this gap on that reasoning rather than
+        leaving the ambiguity implicit. Out of scope for OCID-053 itself (discovery-only, no new
+        testing this phase).
+      status: open
+      first_raised: "OCID-053 Orphan/Duplicate Detection pass, 2026-08-04 (UMR-20260802-165606-4413 OCID-020 chain)"
+
     - id: GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API
       name: "No authenticated self-service API route lets a regular org admin enable ERP/Sales/Construction for their own org (PMS has one, POST /api/pms/enablement; ERP/Sales/Construction do not) -- enableErpForOrg()/enableSalesForOrg()/enableConstructionForOrg() are fully implemented service functions with zero real callers outside internal migration/seed scripts and the platform-provisioning endpoint (bearer-key-gated, for the 'projexa' platform application only)"
       old_ids: []
