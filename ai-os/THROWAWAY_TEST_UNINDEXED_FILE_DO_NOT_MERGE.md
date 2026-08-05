@@ -1,0 +1,1 @@
+# Real synthetic throwaway test file, intentionally not indexed in ai-os/OS.yaml, to verify the new required Metadata Index Coverage Check genuinely blocks merge (UMR-20260805-034917-33a9). Real, temporary -- this PR is closed without merging, never left open.
