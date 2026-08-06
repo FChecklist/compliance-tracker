@@ -5857,6 +5857,58 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-091305-pm-decision--owner-has-resolved-the-proj, feat/ocid038-projexa-stage1-domain-branding) -- OCID-038 real fix for GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH: found to be a duplicate of already-merged work, closed without merging [DONE, PR #885 closed unmerged, no code change]"
+    claimed_at: "2026-08-04T09:13Z (this session; corrected 2026-08-06 after resuming and re-verifying live state)"
+    claim: |
+      SPEC (PM decision citing `UMR-20260803-042801-ec4b` OCID-038 / `UMR-20260802-173631-ca85`
+      OCID-021, the Owner's direct decision that PROJEXA is the first brand on the one VERIDIAN
+      platform, never a separate platform): enhance `org-branding-service.ts`'s `resolveBranding`
+      with a new Stage 1 (pre-auth, host-header-based) resolution layer, keeping Stage 2 (post-auth,
+      org-based) exactly as-is. This session (prior invocations) implemented exactly that on branch
+      `feat/ocid038-projexa-stage1-domain-branding` (commit `77f46855`, 2026-08-04T09:26:00Z) and
+      opened PR #885, with full tests/typecheck/lint/full-suite passing.
+
+      **On resume (invocation 3), re-verified live state before pushing to merge, per this file's
+      own standing discipline, rather than trusting the last checkpoint's "commit+push, open PR"
+      plan as still current.** Found PR #885 already open but `mergeStateStatus: DIRTY` /
+      `mergeable: CONFLICTING` against `origin/main`. Investigated why: a **separate, independent
+      session** implemented the identical fix (same gap, same file set: `org-branding-service.ts`
+      + `layout.tsx`/`page.tsx`/`login/page.tsx`) on commit `d45dbd3b`, dispatched under a
+      different UMR (`UMR-20260804-090421-c647`) and merged to `main` via PR #886 at
+      2026-08-04T10:41:41Z -- **~75 seconds after** this session's own `77f46855` commit landed on
+      its branch. A genuine two-session collision on the same gap, same class as the pattern in
+      project memory `veridian-duplicate-pm-authorization-same-fix`.
+
+      Confirmed `main`'s version is the one that should stand: `ai-os/MASTER-TRACKER.yaml`'s
+      `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` entry already reads `status: resolved`, citing
+      PR #886/`d45dbd3b`'s implementation in full detail (same `resolvePreAuthBrandByHost()`
+      design, plus a `product_branches.host_domain` migration and root-landing-page redirect this
+      session's own PR #885 did not include). `main` has since received two additional independent
+      review rounds already merged on top of it (`10963630` case-insensitive host lookup +
+      page-level `generateMetadata`, `46d63222` LIKE-wildcard-injection fix + `React.cache()`
+      memoization) -- strictly more mature than PR #885's single, unreviewed commit. Merging #885
+      on top would have conflicted destructively with or regressed already-reviewed work for zero
+      net gain: the one incidental fix PR #885 also made (a pre-existing `productBranches`
+      test-mock omission in `org-branding-service.test.ts`, unrelated to this gap) was
+      independently found and fixed the same way in PR #886's own test-file changes, so nothing
+      unique is lost by not merging.
+
+      Posted a closing explanation comment on PR #885 (citing the exact commits/timestamps above)
+      and closed it unmerged -- did not attempt to resolve the merge conflicts, since doing so would
+      mean forcing a superseded implementation on top of an already-reviewed one. No functional
+      change was needed or made: the real gap is already closed on `main`.
+
+      Separately noted, out of scope for this closure: `ai-os/MASTER-TRACKER.yaml` already tracks a
+      distinct governance finding about PR #886 itself
+      (`GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886` -- a SEC-07 lock-timing question, whether
+      PR #886 merged before OCID-020 was independently verified complete, disposition pending
+      Owner/PM decision), and a live worktree (`docs/sec07-ocid038-violation-audit-pr886`) already
+      appears to be working that exact question -- left entirely untouched by this session.
+    scope_note: >-
+      File scope: `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. GitHub scope: closed
+      PR #885 with an explanatory comment, no merge. No `src/`, schema, or `.github/workflows/**`
+      change -- the real fix already lives on `main` via PR #886 and its two follow-up review
+      rounds.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
