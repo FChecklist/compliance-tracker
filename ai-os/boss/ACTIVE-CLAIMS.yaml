@@ -40,6 +40,20 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-151345-critical-real-disk-exhaustion-root-files) -- EMERGENCY: real / disk exhaustion, PM-reported free space fell 3.0G->680M in 18min, threatens OCID-020/UMR-20260806-071025-1d28 24h closure. Scope: bounded-du survey of /opt and /home, veridian-worker systemd units + their output paths, log/cache/tmp/stale-build reclamation only. Explicitly NOT touching superboss-register.sqlite, /opt/veridian/backups, any /opt/veridian/repos checkout, or any task.yaml."
+    claimed_at: "2026-08-06T15:20Z (this session, in progress)"
+    claim: |
+      SPEC (UMR-20260806-071025-1d28 child mint pending via superboss-register.py): PM's df -h on / at
+      08:16Z reported 301G size / 288G used / 680M avail / 100% and a fall from 3.0G to 680M free in 18
+      real minutes (~250MB/min active writer). By the time this session started live investigation at
+      15:14Z, live `df -h /` showed 301G/256G used/33G avail/89% -- materially different from the SPEC's
+      snapshot, consistent with [[veridian-live-concurrent-state-drift]] (state can go stale within
+      seconds on this box) or a prior session/cron cycle already having reclaimed space. Proceeding with
+      a real bounded investigation regardless (top consumer under /opt or /home, active veridian-worker
+      writer, safe-list reclamation) since the SPEC's underlying mandate (OCID-020/UMR-20260806-071025-1d28
+      24h closure) still stands and a live 89%-full 301G root is still a genuine risk even if not currently
+      in free-fall.
+
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
