@@ -5857,6 +5857,52 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260806-223210-urgent-platform-blocker--dispatch-queue) -- SPEC claimed a real platform-wide dispatch-queue starvation blocker (41 queued rows, zero workers running, UMR-20260729-112414-3269 permanently at rank one, veridian-directive-engine.service auto-restarting); independently re-verified live, found false/stale premise, no action taken [DONE, docs-only, no code/PR changes needed]"
+    claimed_at: "2026-08-06T22:32Z (this session, closed same session)"
+    claim: |
+      SPEC (citing UMR-20260806-071025-1d28 and UMR-20260806-090229-f2a7) claimed a real,
+      currently-active platform blocker: 41 real queued umr_tasks rows, zero veridian-worker
+      units running against CONCURRENCY_CAP=5, rank-one `UMR-20260729-112414-3269` permanently
+      occupying `next_queued_task()` due to a resubmission poison-pill, ~416 resubmissions of 8
+      dead task identities in a 15-minute window, a `directive_engine.sh` fail-open bug on
+      check-duplicate failure, and `veridian-directive-engine.service` self-restarting via a
+      live `default.target.wants` symlink after a prior stop did not hold.
+
+      Independently re-verified every claim live against the canonical DB
+      (`/opt/veridian/ai-os/memory/superboss-register.sqlite`) at 22:33Z, ~2h after the SPEC's
+      own 10:30Z timestamp: `UMR-20260729-112414-3269` is `status='completed'` (not queued, not
+      rank one); real queued count 22-34 (not 41), oldest ~10.7h (not ~191h); 5 workers
+      genuinely `running` right now (dispatched 22:25-22:32Z), matching `CONCURRENCY_CAP`
+      exactly (not zero); PHASE-3-BUILD-CALC/PHASE-4-BUILD-WORKFLOW resubmitted 41-43x each in
+      a real ~70min burst (09:14-10:20Z) but every one landed `rejected_duplicate`, never
+      queued; no `veridian-directive-engine.service` systemd unit exists anywhere on this box
+      (`directive_engine.sh` runs via a detached `screen` session per its own header comment,
+      confirmed not currently running) -- nothing to `systemctl disable`.
+
+      Root cause: both cited UMRs (1d28/f2a7) are already fully resolved. `veridian-scripts`
+      commit `b0a2516` (2026-08-06T09:24:54Z, 13+ hours before this task dispatched) diagnosed
+      the real mechanism (`directive_engine.py` process_one()'s ephemeral in-memory retry flag
+      not surviving across ticks -> perpetual poison-pill resubmission winning rank one under
+      the aging tiebreak) and fixed it durably, plus added `resource_governor.py`'s
+      `flag_stale_queued_tasks()` safeguard -- confirmed live to have already fired at
+      21:16:32Z today (pm_decisions_pending rows 274-288). The SPEC's "check-duplicate
+      fail-open" framing is a real but explicitly-already-ruled-out red herring per that same
+      commit's own message.
+
+      This is now the 3rd+ consecutive dispatch cycle re-presenting this same already-resolved
+      09:14-11:17Z incident as a live blocker -- see sibling `task-20260806-222550-resolve-
+      the-two-stale-queued-rows-blocki` (independently reached the identical conclusion ~7min
+      earlier) and its own cross-reference to `task-20260806-212450` (PR #227, commit
+      `bf5f973`). None of the four requested actions were taken (systemd disable: nothing to
+      disable; fail-closed code fix: would misdiagnose an already-fixed incident; mark stale
+      rows terminal: the cited keystone row is already terminal and the genuinely-stale rows
+      already have their own open PM-review flags via the existing safeguard, not this task's
+      call to auto-resolve; verify drain: queue was never stalled).
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry only. Read-only investigation
+      (direct sqlite3 queries against the canonical DB, `systemctl`/`screen`/`ps`, `git log`/
+      `git show` against `/opt/veridian/scripts`) -- no `umr_tasks` or `pm_decisions_pending`
+      row was written, no process was started/stopped/disabled, no code file was changed.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
