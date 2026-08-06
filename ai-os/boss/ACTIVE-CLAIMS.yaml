@@ -40,6 +40,53 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-080044-stall-recovery-on-corruption-recovery-um) -- SPEC-claimed stall recovery on UMR-20260806-042540-e272 + real sqlite3 .recover procedure against superboss-register.sqlite's corrupted file_inventory table -- both premises found false/stale before real action, no .recover run [DONE, closed same session]"
+    claimed_at: "2026-08-06T08:04Z (this session, closed same session)"
+    claim: |
+      SPEC: UMR-20260806-042540-e272 claimed "in running status since 2026-08-06T04:25:40 UTC,
+      more than three hours" with `PRAGMA integrity_check` against
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite` "still does not return ok, confirmed
+      live at 2026-08-06T07:27:30 UTC by generate_pm_report_v3.py section one and section six".
+      Directed a mandatory 6-step sequence: byte-level backup, before-evidence integrity_check,
+      `sqlite3 .recover` into a fresh file, verify `umr_tasks`/`ocid_canonical_registry` row
+      counts unchanged, conditional swap, after-evidence integrity_check, write results back via
+      `superboss-register.py` only.
+
+      Independently re-verified both premises against real live sources before acting (matches
+      [[veridian-task-prompt-false-premise-pattern]]) -- **both were stale**:
+      - `UMR-20260806-042540-e272`'s live `umr_tasks` row already shows `status='completed'`
+        (dispatched `task-20260806-042813-corruption-recovery--fresh-clean-resume` at
+        2026-08-06T04:28:16Z), not "running".
+      - The 07:27:30Z corruption claim was **real** -- confirmed against the actual
+        `pm-report-history.log` entry for that exact `generated_at` timestamp
+        (`DB integrity_check OK: False`, `rows=['database disk image is malformed']`). But by
+        the time this task did real work (~08:05-08:09Z) it was **already resolved**, corroborated
+        by 4 independent checks: an immediately-prior stall-recovery session
+        (`UMR-20260806-074029-8c76`, evidence already recorded in the same `umr_tasks` row's
+        `metadata_json`) ran its own checks at ~07:41-07:42Z, both clean; the untouched automatic
+        pm-report cycle at `generated_at=2026-08-06T07:57:12Z` independently shows
+        `db_integrity_ok=True`; and this session's own two independent `PRAGMA
+        integrity_check`/`quick_check` runs at 08:08Z and 08:09Z, all "ok".
+
+      Took a real byte-level backup anyway before concluding
+      (`/opt/veridian/ai-os/memory/backups/superboss-register.sqlite.pre-stall-recovery-verify-20260806T080811Z.bak`,
+      1,614,348,288 bytes, sha256-verified). Did **not** run `sqlite3 .recover` -- running it
+      against an already-healthy 1.6GB production database would be pure added risk for zero
+      benefit, and a full `.recover` dump would itself violate the SPEC's own "do not touch any
+      other table" constraint. Wrote real before/after evidence, backup path/size, and row counts
+      (`umr_tasks`=7314, `ocid_canonical_registry`=69, `file_inventory`=30965, all tables healthy)
+      back into `UMR-20260806-042540-e272`'s `umr_tasks` row using only `superboss-register.py`'s
+      own `_connect()`/`_write_lock()`/`update_umr_task()` (same `importlib.util.
+      spec_from_file_location` pattern already used by `gtm_write_category_result.py` et al.) --
+      never raw SQL. Verified the write landed via an independent read-only re-query. Confirmed
+      parent decision `UMR-20260805-163026-14f1` is already `status='resolved'` in
+      `pm_decisions_pending` -- no further action needed there.
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry). Live-infra scope
+      (outside git, `/opt/veridian/ai-os/memory/`): one new additive backup file only. No table
+      other than the additive backup copy was touched; `superboss-register.sqlite` itself was
+      opened read-only for every verification query and written to exactly once, via
+      `update_umr_task()`, to append verification evidence to one existing row's `metadata_json`.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
