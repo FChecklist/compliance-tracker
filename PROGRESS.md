@@ -62,7 +62,7 @@ lines of unrelated drift):
       host-level sqlite registry outside this repo/PR's own review surface and outside
       CI's gates; not blocking commit/push on it -- noting honestly as incomplete rather
       than silently skipping or fabricating registration
-- [ ] Commit + push per meaningful unit, open PR
+- [x] Commit + push (3bde69e8) + PR opened: https://github.com/FChecklist/compliance-tracker/pull/997
 
 ## Explicitly out of scope this session
 - CO-006 (PR #653, complete but needs new `erp_statistical_key_figure_types`/postings schema tables
