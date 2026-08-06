@@ -5857,6 +5857,55 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260806-215747-owner-delegated-decision--provision-a-re) -- Owner-delegated PM decision: provisioned real dummy test tenant Meridian Test Industries + 4 real role-based test accounts, ran real GTM category 15 (multi-tenant isolation) and category 16 (role permission) tests -- both PASS, pm_decisions_pending id=69/70 resolved [DONE, PR pending CI]"
+    claimed_at: "2026-08-06T21:57Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner-delegated real decision to the PM): category 15/16 were BLOCKED since 2026-08-05
+      on the standing no-credential-entry rule -- no Owner-provisioned multi-tenant/role test
+      credential existed (pm_decisions_pending id=69/id=70). This task IS that Owner-delegated
+      decision: provisioned a real, obviously-fictional, clearly test-flagged dummy tenant
+      ("Meridian Test Industries (GTM Cat 15/16 Test Fixture -- Non-Production)",
+      compliance.organisations.id=dstmb99kn1hc4toxb6iqs1td,
+      slug=meridian-test-industries-gtm-fixture-nonprod, internal_use_exempt=true -- deliberately
+      distinct from 3 pre-existing unrelated "Meridian *" orgs already in this DB) + 4 real
+      Supabase Auth + compliance.users accounts, one per standard B2B SaaS role (source:
+      descope.com RBAC providers guide, WorkOS multi-tenant RBAC design guide) -- admin (the
+      schema's owner/CEO-equivalent seat, no separate "owner" enum value exists), manager, member,
+      viewer. Real credentials generated via crypto.randomBytes, stored only in the gitignored
+      compliance-tracker/.env.local, never committed in plaintext (script:
+      compliance-tracker/scripts/gtm-provision-cat15-16-test-tenant.ts).
+
+      Used those 4 real accounts (real Playwright browser logins against
+      https://projexa-ai.com/login, real authenticated HTTP calls) to rewrite and run
+      /opt/veridian/scripts/gtm_check_multi_tenant_testing.py (category 15) and
+      gtm_check_role_permission_testing.py (category 16), replacing their prior "blocked, no
+      credential" stubs. Category 15: 4/4 accounts confirmed confined to the Meridian org via
+      /api/me, 0 leaks in list endpoints, direct fetch of a real different tenant's resource (Acme
+      Corp/org_001/ci_02) denied (404) for every role including admin -- real Postgres RLS
+      confirmed working regardless of role rank. Category 16: a real 4-role x 5-endpoint matrix
+      (POST /api/departments, POST /api/compliance, DELETE /api/compliance/[id], POST
+      /api/access-review/cycles, GET /api/me) against the real ROLE_RANK gate
+      (src/lib/supabase/auth-guard.ts) -- 17/17 checks matched the documented boundary exactly, 0
+      mismatches. Both recorded into gtm_certification_categories via gtm_write_category_result.py
+      only (category_index=15 passed=1, category_index=16 passed=1) -- never a narrated pass.
+      pm_decisions_pending id=69 and id=70 both resolved via superboss-register.py's own canonical
+      resolve-pm-decision-pending CLI, citing this real evidence. id=101 (an unrelated,
+      pre-existing democeo@projexa-ai.com credential-reset question) intentionally left untouched
+      -- out of this task's scope.
+    scope_note: >-
+      Real changes: compliance-tracker/scripts/gtm-provision-cat15-16-test-tenant.ts (new, this
+      PR); /opt/veridian/scripts/gtm_check_multi_tenant_testing.py + gtm_check_role_permission_testing.py
+      (rewritten, committed+pushed directly to veridian-scripts main per that repo's own
+      live-checkout convention); 1 new compliance.organisations row + 4 new compliance.users rows
+      + 4 new Supabase Auth (auth.users) rows in project pcrjmlpuqsbocqfwoxod; a handful of
+      disposable department/compliance-item rows created and mostly deleted again inside the new
+      test org during category 16's real write/delete probes; compliance-tracker/.env.local
+      (gitignored, credential storage only) on both this task's isolated workspace and the shared
+      /opt/veridian/repos/compliance-tracker checkout (append-only, own dedicated marker block,
+      pre-existing dirty files in that shared checkout from other concurrent sessions left
+      untouched); pm_decisions_pending id=69/id=70 resolved; this ACTIVE-CLAIMS.yaml entry;
+      PROGRESS.md. Did not touch any other real tenant's data (category 15's cross-tenant probes
+      were read-only GETs only).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
