@@ -13,13 +13,26 @@
       alone, not duplicated.
 - [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml, committed+pushed before real work
 
-## Remaining
-- [ ] Reimplement CO-001 (listJournalEntryLinesByCostCenter), CO-003 (costCenterHierarchyReport) in
+- [x] Reimplement CO-001 (listJournalEntryLinesByCostCenter), CO-003 (costCenterHierarchyReport) in
       erp-accounting-service.ts fresh on current main
-- [ ] Reimplement FI-GL-002 (glAccountBalanceDisplay), FI-GL-008 (glAccountGroupBalancesSummary) in
+- [x] Reimplement FI-GL-002 (glAccountBalanceDisplay), FI-GL-008 (glAccountGroupBalancesSummary) in
       erp-financial-report-service.ts fresh on current main
-- [ ] Implement FI-GL-007 (subledger-to-GL reconciliation) fresh
-- [ ] For each: report_definitions migration + report-catalog-service.ts entry + API route + real tests
-- [ ] Register each in wiring_registry (superboss-register.py) immediately on creation
-- [ ] tsc --noEmit clean, bun test clean
+- [x] Implement FI-GL-007 (subledger-to-GL reconciliation) fresh (BUILD_NEW, deterministic_formula
+      wired into report-engine-service.ts's FORMULA_REGISTRY as `subledger_to_gl_reconciliation`)
+- [x] For each: report_definitions migration (drizzle/0313-0317) + report-catalog-service.ts entry +
+      API route + real tests -- all 5 done. 4 EXTEND_EXISTING reports use execution_type=
+      'external_service' (thin API route, no FORMULA_REGISTRY entry needed, matching drizzle/0183's
+      established precedent); FI-GL-007 alone uses 'deterministic_formula' since it's BUILD_NEW.
+- [x] wiring_registry check: confirmed (by reading generate_wiring_registry.py) it's a mechanically
+      regenerated snapshot from existing catalogs (DATABASE_CATALOG.json/FUNCTION_CATALOG.json/
+      ROUTE_REGISTRY_SCHEMA/SOFTWARE_CATALOG.yaml/knowledge_engine sqlite), not a manual per-file
+      registration step. Cross-checked against precedent PRs for this exact task (FI-AA-006 #648,
+      FI-AR-006 #645, FI-AP-006 #651, HCM-006 #654) -- none of them performed a manual
+      superboss-register.py registration step either. No action needed here.
+- [x] tsc --noEmit clean (NODE_OPTIONS=--max-old-space-size=6144, bun x tsc OOMs on this box without it)
+- [x] bun test clean: new file's 17/17 pass; full suite 2529/2529 pass, 0 fail (some tests print
+      expected error-logging output for intentional fail-closed cases, not real failures)
+
+## Remaining
 - [ ] Commit + push, open PR
+- [ ] Close out ACTIVE-CLAIMS.yaml entry for this session once PR is open

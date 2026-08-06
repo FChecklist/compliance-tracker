@@ -1975,6 +1975,41 @@
       "when": 1785566543899,
       "tag": "0311_content_search_view",
       "breakpoints": true
+    },
+    {
+      "idx": 282,
+      "version": "7",
+      "when": 1786009502644,
+      "tag": "0313_co001_cost_center_line_item_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 283,
+      "version": "7",
+      "when": 1786009502645,
+      "tag": "0314_co003_cost_center_hierarchy_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 284,
+      "version": "7",
+      "when": 1786009502646,
+      "tag": "0315_fi_gl_002_gl_account_balance_display_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 285,
+      "version": "7",
+      "when": 1786009502647,
+      "tag": "0316_fi_gl_008_gl_account_group_balances_report_definition",
+      "breakpoints": true
+    },
+    {
+      "idx": 286,
+      "version": "7",
+      "when": 1786009502648,
+      "tag": "0317_fi_gl_007_subledger_gl_reconciliation_report_definition",
+      "breakpoints": true
     }
   ]
 }
