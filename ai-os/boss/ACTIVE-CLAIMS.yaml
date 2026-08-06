@@ -8978,8 +8978,8 @@ recently_completed:
       File scope: `PROGRESS.md` (restored from wholesale-replace regression + this task's own section),
       this ACTIVE-CLAIMS entry. No src/, schema, migration, or CI changes -- the real code fix already
       landed via PR #803 before this session started; nothing left to merge or fix in this cycle.
-  - session_label: "claude-code (task-20260804-062840-pm-decision--confirm-the-corrected-ocid) -- PM decision: confirm corrected OCID-039 UMR citation, monitor PR #789 to real completion [CONFIRMED, no code change needed]"
-    claimed_at: "2026-08-04T06:29Z (this session, closed same session)"
+  - session_label: "claude-code (task-20260804-062840-pm-decision--confirm-the-corrected-ocid) -- PM decision: confirm corrected OCID-039 UMR citation, monitor PR #789 and Group C to real completion [DONE, all 3 threads resolved 2026-08-06]"
+    claimed_at: "2026-08-04T06:29Z (this session, resumed/closed 2026-08-06)"
     claim: |
       SPEC (PM decision under `UMR-20260802-173631-ca85` OCID-021): confirms the real correction found
       this cycle -- OCID-039's real end-user production-certification own-registration UMR is
@@ -9018,8 +9018,44 @@ recently_completed:
       exists in this repo's own governance record. Flagging this honestly per this codebase's own
       discipline (do not silently pick an interpretation) rather than guessing which batch "Group C"
       refers to; whoever has the fuller cross-session context on that label should reconcile it.
+    resolution_2026_08_06: |
+      Resumed after PR #789's own live review process (flagged above) finished its work. All 3
+      threads this entry left open are now independently re-verified resolved -- real closure, not
+      narrated:
+
+      1. **PR #789**: `gh pr view 789` confirms `MERGED` at `2026-08-04T07:33:11Z`
+         (`headRefOid: 0072b6ccabe9443954e2363716c8eb46ed6701ec`). Independently confirmed via
+         `git merge-base --is-ancestor 0072b6cc origin/main` that this merge commit really is an
+         ancestor of `origin/main` (merged as `4284570a`, "docs: register OCID-038/039/040 -- real
+         discovery + real end-user verification (implementation LOCKED)").
+
+      2. **`ai-os/MASTER-TRACKER.yaml` update**: re-examined now that PR #789 is merged, and found
+         the earlier "remaining step" premise (that the tracker cites the wrong OCID-039 UMR and
+         needs correcting) does not hold -- neither `UMR-20260803-042839-b9c4` nor
+         `UMR-20260803-072825-3706` is cited anywhere in `ai-os/MASTER-TRACKER.yaml` (confirmed via
+         a full-file grep of the real `origin/main` blob, working around this sandbox's known
+         `[[veridian-shell-large-output-truncation-bug]]` by extracting via `git cat-file -p` first).
+         The 3 real child-gap entries PR #789 actually added to the tracker
+         (`GAP-VERI-TODO-STUCK-LOADING-NOT-READY`, `GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE`,
+         `GAP-MOBILE-VIEWPORT-BLANK-CONTENT`) cite their own correct per-finding UMRs
+         (`UMR-20260803-072925-cacf`, `-072940-6a88`, `-072955-3132`) and are unaffected by the
+         039-UMR-numbering question this task was about. No tracker edit needed or made.
+
+      3. **"Group C closure work"**: re-searched (same terms as before) now that 2 days of
+         further real work has landed, and found it this time --
+         `ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md` §3
+         identifies "Group C" as the OCID-022..037 documentation-merge pass dispatched under
+         `UMR-20260804-032101-dcd0` (`task-20260804-032121-group-c-closure--review-and-merge-the-ni`),
+         and its own 2026-08-05 independent-review update states plainly: **"the Group C pass has
+         completed -- all 11 of its real target PRs (#784 + 10 more) are merged"**, each
+         independently re-confirmed a real `origin/main` ancestor via `git merge-base
+         --is-ancestor`, not narrated from `gh pr view` state alone. Already closed by another
+         session before this one resumed -- nothing left for this task to do on that thread either.
+
+      All 3 threads this task's SPEC named are now genuinely resolved. No further action, no code
+      or tracker change required. Closing this claim.
     scope_note: >-
-      File scope: this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration, CI, or
-      `MASTER-TRACKER.yaml` changes -- this was a confirmation-only PM decision with no real
-      inconsistency found on `main` to fix, and the one real pending action (tracker update once PR
-      #789 merges) is explicitly deferred per the SPEC's own instruction.
+      File scope: this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration, or
+      `MASTER-TRACKER.yaml` changes -- confirmed on 2026-08-06 re-check that no tracker edit was
+      ever actually needed (see `resolution_2026_08_06` above); the other two open threads (PR #789
+      merge, Group C) were independently re-verified complete, not acted on by this session.
