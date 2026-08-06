@@ -20,7 +20,15 @@
 - [x] Logged full findings + evidence in `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed` (new
       top entry).
 
+- [x] Opened PR #1000 with these findings against `main`. `gh pr view`: `mergeStateStatus=BLOCKED`,
+      `reviewDecision=REVIEW_REQUIRED` -- this PR hits the exact same real branch-protection
+      self-approval deadlock documented in the finding itself (every credential in this environment
+      resolves to the same GitHub identity, so no independent second approval is obtainable). Not
+      retried a second way per the circuit-breaker instruction; this is an Owner-decision item, not
+      something to route around unilaterally (`AGENTS.md` Rule 9).
+
 ## Remaining
-- None for this task. No process was live to kill; nothing to restart. The real unresolved item
-  (unchanged from task-075810's own finding, not new work for this task) is the Owner decision on
-  PR #959's structural review-count deadlock -- see the `ACTIVE-CLAIMS.yaml` entry for detail.
+- None for this task's own investigation -- it is complete and fully evidenced. PR #1000 is open but
+  cannot self-merge (same structural review-count deadlock as PR #959). The real unresolved item
+  (unchanged from task-075810's own finding, not new work created by this task) is the Owner
+  decision on that deadlock -- see the `ACTIVE-CLAIMS.yaml` entry for detail.
