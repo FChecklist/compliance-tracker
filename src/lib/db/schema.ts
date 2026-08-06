@@ -2131,6 +2131,22 @@ export const productBranches = platformSchemaDB.table('product_branches', {
   // through to the platform default (org-branding-service.ts's
   // DEFAULT_BRAND_NAME).
   hostDomain: text('host_domain'),
+  // OCID-020 child UMR-20260805-142629-8087 ("broader pre-auth brand
+  // mismatch", extending OCID-038/PR #886's own resolvePreAuthBrandByHost()
+  // pattern): PreAuthBrand only ever carried brandName/productBranchId --
+  // PR #954's own investigation (signup brand-resolution fix) disclosed
+  // that pre-auth pages therefore only ever brand-resolved the wordmark,
+  // never the tagline/footer copy line shown alongside it. `tagline`
+  // already existed on this table (see above, wave106) but was never read
+  // by resolvePreAuthBrandByHost() -- this adds the one real missing
+  // sibling column (`footer`, a short attribution/footer line, e.g. "Built
+  // for Indian compliance management") on the SAME existing table/
+  // mechanism, not a second parallel brand-config source. Nullable: no real
+  // PROJEXA-specific footer copy exists anywhere in this repo at the time
+  // this column was added (confirmed by grep across drizzle/*.sql before
+  // writing this) -- callers fall back to the existing generic default
+  // copy when this is NULL, exactly like every other column on this table.
+  footer: text('footer'),
 })
 
 export const productBranchModules = platformSchemaDB.table('product_branch_modules', {

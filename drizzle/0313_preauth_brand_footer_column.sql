@@ -1,0 +1,38 @@
+-- OCID-020 child UMR-20260805-142629-8087 ("broader pre-auth brand
+-- mismatch"), extending OCID-038/PR #886's resolvePreAuthBrandByHost()
+-- pattern and closing the gap PR #954 (signup brand-resolution fix)
+-- honestly disclosed but explicitly left out of its own scope: PreAuthBrand
+-- only ever carried brandName/productBranchId, so login/signup only ever
+-- brand-resolved the wordmark, never the tagline/footer copy line shown
+-- alongside it.
+--
+-- platform.product_branches already has a `tagline` column (added by
+-- drizzle/0084_wave106_master_ai_os_registry.sql) -- this migration reuses
+-- it as-is (no change needed there) and adds the one real missing sibling
+-- column, `footer`, on the SAME existing table -- not a second, parallel
+-- brand-config source. Matches drizzle/0312_stage1_preauth_brand_host_
+-- lookup.sql's own precedent of adding one narrowly-scoped column to this
+-- table for this exact resolver.
+--
+-- Real, honest limitation: confirmed via a fresh grep of every
+-- drizzle/*.sql file in this repo before writing this migration that no
+-- real PROJEXA-specific tagline or footer marketing copy exists anywhere
+-- in this codebase (the real, org-referenced PROJEXA row, id
+-- 5fceebcd-0a7a-4448-ae2b-a72637124f13, branch_key 'projexa', was seeded by
+-- drizzle/0203_platform_applications_provisioning.sql with no tagline and
+-- has no footer set either). This migration does NOT fabricate that copy --
+-- it only adds the column. Both `tagline` and `footer` stay NULL for that
+-- row until the Owner supplies real PROJEXA marketing copy; callers
+-- (org-branding-service.ts's resolvePreAuthBrandByHost()) return NULL
+-- through to the page, which falls back to the existing generic default
+-- copy exactly as it did before this change -- never a blank/broken UI.
+--
+-- Hand-authored SQL, meant to be applied out-of-band via the Supabase MCP
+-- by a DB-access-capable session -- same convention as drizzle/0312 and
+-- drizzle/0245 (see their own headers for the precedent). NOT replayed by
+-- drizzle-kit migrate, and NOT yet applied to the live database as of this
+-- commit: this session is a fresh, isolated clone with no DATABASE_URL/
+-- Supabase credentials available to it, so this migration could only be
+-- written and reviewed here, not executed. Flagged honestly in this PR's
+-- body rather than claimed as done.
+ALTER TABLE platform.product_branches ADD COLUMN IF NOT EXISTS footer text;

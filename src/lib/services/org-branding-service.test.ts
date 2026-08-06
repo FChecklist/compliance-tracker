@@ -260,6 +260,8 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
       id: "branch-projexa",
       displayName: "PROJEXA",
       hostDomain: "projexa-ai.com",
+      tagline: null,
+      footer: null,
       ...overrides,
     }
   }
@@ -326,5 +328,37 @@ describe("resolvePreAuthBrandByHost (Stage 1: pre-authentication, domain-based r
     const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
     const result = await resolvePreAuthBrandByHost("PROJEXA-AI.COM")
     expect(result?.brandName).toBe("PROJEXA")
+  })
+
+  // OCID-020 child UMR-20260805-142629-8087 ("broader pre-auth brand
+  // mismatch"): tagline/footer are real columns on the same
+  // product_branches row brandName already comes from -- these tests prove
+  // resolvePreAuthBrandByHost() actually reads and returns them (previously
+  // silently dropped, per PR #954's own disclosed gap), and that a branch
+  // row with no configured copy resolves to null rather than throwing or
+  // fabricating text -- callers own the null-fallback, this function never
+  // invents copy.
+  test("a matched branch with real tagline/footer copy configured returns both", async () => {
+    const findFirst = mock(async () => productBranchRow({ tagline: "Run every marketplace from one place", footer: "Built for construction compliance" }))
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com")
+    expect(result?.tagline).toBe("Run every marketplace from one place")
+    expect(result?.footer).toBe("Built for construction compliance")
+  })
+
+  test("a matched branch with no tagline/footer configured (the real PROJEXA row today) resolves both to null, not fabricated text", async () => {
+    const findFirst = mock(async () => productBranchRow())
+    mock.module("@/lib/db", () => ({
+      db: { query: { productBranches: { findFirst } } },
+      productBranches: {},
+    }))
+    const { resolvePreAuthBrandByHost } = await import("./org-branding-service")
+    const result = await resolvePreAuthBrandByHost("projexa-ai.com")
+    expect(result?.tagline).toBeNull()
+    expect(result?.footer).toBeNull()
   })
 })

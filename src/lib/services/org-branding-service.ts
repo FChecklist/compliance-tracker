@@ -245,6 +245,23 @@ export async function getBrandingAssetPath(orgId: string, kind: "logo" | "favico
 export interface PreAuthBrand {
   productBranchId: string
   brandName: string
+  // OCID-020 child UMR-20260805-142629-8087 ("broader pre-auth brand
+  // mismatch"): real extension of Stage 1 resolution, closing the gap PR
+  // #954 (signup brand-resolution fix) honestly disclosed -- this type
+  // used to carry only brandName/productBranchId, so every pre-auth page
+  // could only ever brand-resolve the wordmark, never the tagline/footer
+  // copy line shown alongside it. Both are read straight from
+  // product_branches (tagline/footer columns, the SAME real config source
+  // brandName already comes from -- no second, parallel brand-config
+  // source) and are `null` whenever that branch row hasn't had real copy
+  // configured for it (true for PROJEXA as of this change -- no real
+  // PROJEXA-specific tagline/footer copy exists anywhere in this repo).
+  // Callers must apply their own existing generic-default fallback for
+  // `null`, exactly like every other nullable field resolved by this
+  // service (see resolveBranding() above) -- this function never fabricates
+  // copy on a caller's behalf.
+  tagline: string | null
+  footer: string | null
 }
 
 // Deliberately permissive host normalization (strip a trailing :port, lowercase)
@@ -280,8 +297,13 @@ export const resolvePreAuthBrandByHost = cache(async (host: string | null | unde
   if (!normalized) return null
   const branch = await db.query.productBranches.findFirst({
     where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
-    columns: { id: true, displayName: true },
+    columns: { id: true, displayName: true, tagline: true, footer: true },
   })
   if (!branch) return null
-  return { productBranchId: branch.id, brandName: branch.displayName }
+  return {
+    productBranchId: branch.id,
+    brandName: branch.displayName,
+    tagline: branch.tagline ?? null,
+    footer: branch.footer ?? null,
+  }
 })

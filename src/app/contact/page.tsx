@@ -1,8 +1,29 @@
 import Link from "next/link";
 import Image from "next/image";
+import { headers } from "next/headers";
+import type { Metadata } from "next";
 import { ContactUsForm } from "@/components/ContactUsForm";
+import { resolvePreAuthBrandByHost } from "@/lib/services/org-branding-service";
 
-export const metadata = { title: "Contact Us — VERIDIAN AI" };
+// OCID-020 child UMR-20260805-142629-8087 ("broader pre-auth brand
+// mismatch"): this page hardcoded "VERIDIAN COGNITIVE AI OS" in both its
+// nav and footer wordmark even when the request comes in on a resolved
+// brand's own domain (e.g. projexa-ai.com) -- same root-cause class already
+// fixed for /login (PR #886) and /signup (PR #954), extended here.
+// Deliberately page-level, not root layout (see layout.tsx's own comment on
+// why): this page already needs to read headers() for the real brand, and
+// is already an async Server Component with no static-export requirement.
+// Unlike login/pricing (which had no page-specific metadata before their
+// own fixes and so correctly fall back to `{}` -> the root layout's
+// default title on an unmatched host), this page DID already have a real
+// static title ("Contact Us — VERIDIAN AI") for every request -- so this
+// unconditionally returns a title, with `??` only swapping the brand name,
+// to avoid silently losing that title on the common/unmatched-host case.
+export async function generateMetadata(): Promise<Metadata> {
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
+  return { title: `Contact Us — ${brand?.brandName ?? "VERIDIAN AI"}` };
+}
 
 export default async function ContactPage({
   searchParams,
@@ -10,15 +31,17 @@ export default async function ContactPage({
   searchParams: Promise<{ confirmed?: string }>;
 }) {
   const { confirmed } = await searchParams;
+  const headerList = await headers();
+  const brand = await resolvePreAuthBrandByHost(headerList.get("host"));
 
   return (
     <main className="min-h-screen bg-[#F4F1E8] text-[#1a1a17] antialiased">
       <nav className="border-b border-[#1a1a17]/10">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-6">
           <Link href="/" className="flex items-center gap-2.5 font-heading text-lg tracking-tight">
-            <Image src="/logo-mark.svg" alt="VERIDIAN" width={28} height={28} priority />
+            <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={28} height={28} priority />
             <span>
-              VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span>
+              {brand ? brand.brandName : (<>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></>)}
             </span>
           </Link>
           <div className="hidden items-center gap-8 text-sm text-[#1a1a17]/70 md:flex">
@@ -65,10 +88,10 @@ export default async function ContactPage({
       <footer className="border-t border-[#1a1a17]/10">
         <div className="mx-auto flex max-w-6xl flex-col gap-4 px-6 py-10 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center gap-2 font-heading">
-            <Image src="/logo-mark.svg" alt="VERIDIAN" width={22} height={22} />
-            <span>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></span>
+            <Image src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN"} width={22} height={22} />
+            <span>{brand ? brand.brandName : (<>VERIDIAN <span className="text-[#1a1a17]/50">COGNITIVE AI OS</span></>)}</span>
           </div>
-          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} VERIDIAN AI</div>
+          <div className="text-sm text-[#1a1a17]/50">© {new Date().getFullYear()} {brand?.brandName ?? "VERIDIAN AI"}</div>
         </div>
       </footer>
     </main>
