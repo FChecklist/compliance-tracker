@@ -40,8 +40,8 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260806-230706-real-reject-both-external-agent-pilot-su) -- real audit of the first two external-agent pilots (ZAI-COMMS-01/UMR-20260806-104534-b29c, DEEPSEEK-COMMS-02/UMR-20260806-104527-4f5f)"
-    claimed_at: "2026-08-06T23:07Z (this session)"
+  - session_label: "claude-code (task-20260806-230706-real-reject-both-external-agent-pilot-su) -- real audit of the first two external-agent pilots (ZAI-COMMS-01/UMR-20260806-104534-b29c, DEEPSEEK-COMMS-02/UMR-20260806-104527-4f5f) [DONE, closed same session]"
+    claimed_at: "2026-08-06T23:07Z (this session, closed same session)"
     claim: |
       SPEC: real-reject both first-attempt external-agent pilot diffs (ZAI-COMMS-01 on
       src/app/layout.tsx: fabricated, referenced "Z.ai Code Scaffold"/"Z.ai Team"/a
