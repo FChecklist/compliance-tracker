@@ -40,32 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260804-063409-pm-decision--get-a-genuinely-independent) -- PM decision: genuinely independent review + merge gate for veridian-scripts PR #19 (OCID-063 mechanical handoff envelope), since that repo has no automated supervisor tooling"
-    claimed_at: "2026-08-04T06:50Z (this session)"
-    claim: |
-      SPEC (PM directive `UMR-20260804-060832-9fdf` / `UMR-20260804-061827-e3c6`): veridian-scripts
-      PR #19 (`feat/ocid063-mechanical-handoff-envelope`) needs a real, genuinely independent review
-      before merge -- same discipline as compliance-tracker's AUDIT gate, applied manually since
-      veridian-scripts has no automated supervisor/CI audit tooling. On resume, found the round-1
-      independent review (dispatched earlier this session, `UMR-20260804-062915-684a`) had already
-      run and posted a real `AUDIT: FAIL` comment on the PR: a real defect where `json.load()` on
-      `--handoff-envelope` only guarantees valid JSON, not a dict, so a non-dict top-level value
-      (null/string/number/bool/array) crashed with an uncaught `AttributeError` instead of the clean
-      rejection the flag's own help text promises. Also found the fix already landed on the PR branch
-      (commit `e49e383`, pushed by a separate concurrent session under the same UMR) -- an
-      `isinstance(envelope, dict)` guard plus a real regression test
-      (`test_cmd_checkpoint_rejects_non_dict_envelope`) exercising all 5 non-dict JSON shapes plus a
-      well-formed-envelope control case. No fresh independent PASS has been posted against this fix
-      commit yet (only the round-1 FAIL exists on the PR). This session's remaining scope: dispatch a
-      fresh, separate, no-authorship-context review of commit `e49e383` specifically (not a repeat of
-      round 1's already-covered ground) to confirm the fix actually closes the reported gap and the
-      new test is real, post that verdict as an `AUDIT:` comment on PR #19, and only merge on a real
-      PASS -- then independently verify the merge commit is an ancestor of `origin/main`.
-    scope_note: >-
-      File scope: veridian-scripts repo (`FChecklist/veridian-scripts`, PR #19 / branch
-      `feat/ocid063-mechanical-handoff-envelope`) -- review + merge only, not further feature work.
-      This ACTIVE-CLAIMS.yaml entry, `PROGRESS.md` in this task's own workspace. No compliance-tracker
-      src/, schema, or CI changes.
   - session_label: "claude-code (task-20260804-031540-pm-decision--resolve-credit-accountant-b) -- PM decision: unblock task-20260803-214944's credit-accountant rejection [confirmed, no code fix needed], GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/C/E [DONE, PR #865 open pending independent audit]"
     claimed_at: "2026-08-04T03:20Z (this session)"
     claim: |
@@ -5282,6 +5256,30 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-063409-pm-decision--get-a-genuinely-independent) -- PM decision: genuinely independent review + merge gate for veridian-scripts PR #19 (OCID-063 mechanical handoff envelope) [DONE, PR #19 MERGED]"
+    claimed_at: "2026-08-04T06:50Z (this session, closed same session)"
+    claim: |
+      SPEC (PM directive `UMR-20260804-060832-9fdf` / `UMR-20260804-061827-e3c6`): veridian-scripts
+      PR #19 (`feat/ocid063-mechanical-handoff-envelope`) needed a real, genuinely independent review
+      before merge -- same discipline as compliance-tracker's AUDIT gate, applied manually since
+      veridian-scripts has no automated supervisor/CI audit tooling. Round-1 independent review found
+      a real defect: `json.load()` on `--handoff-envelope` only guarantees valid JSON, not a dict, so
+      a non-dict top-level value (null/string/number/bool/array) crashed with an uncaught
+      `AttributeError` instead of the clean rejection the flag's own help text promises -- posted as
+      `AUDIT: FAIL`. Fix landed on the PR branch (commit `e49e383`): `isinstance(envelope, dict)`
+      guard plus a real regression test (`test_cmd_checkpoint_rejects_non_dict_envelope`) exercising
+      all 5 non-dict JSON shapes plus a well-formed-envelope control case. Round-2 independent
+      re-review dispatched specifically against commit `e49e383` (fresh review, not a repeat of round
+      1's ground) confirmed the fix closes the gap and the new test is real -- posted `AUDIT: PASS`.
+      Merged only on the real PASS verdict: merge commit `81931136046ccac56a65956ef581c48b62fcb872`,
+      merged 2026-08-04T06:51:36Z. Re-confirmed on a later resume (2026-08-06) via
+      `gh api .../compare/<mergeCommit>...<main-head>`: `behind_by: 0`, a real ancestor of
+      veridian-scripts `main`, not just a closed-PR label.
+    scope_note: >-
+      File scope: veridian-scripts repo (`FChecklist/veridian-scripts`, PR #19 / branch
+      `feat/ocid063-mechanical-handoff-envelope`) -- review + merge only, not further feature work.
+      This ACTIVE-CLAIMS.yaml entry, `PROGRESS.md` in this task's own workspace. No compliance-tracker
+      src/, schema, or CI changes.
   - session_label: "claude-code (task-20260803-041006-ocid-024-veridian-laptop-web-browser-run) -- OCID-024: VERIDIAN Laptop Web Browser Runtime v1.0 (documentation only) [PUSHED, PR #767 OPEN]"
     claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
     claim: |
