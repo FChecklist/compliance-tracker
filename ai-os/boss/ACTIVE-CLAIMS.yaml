@@ -40,6 +40,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-173250-real-comprehensive-end-to-end-browser-te) -- OCID-020/UMR-20260802-165606-4413: real comprehensive unauthenticated-surface browser certification of live projexa-ai.com, starting from the PM's real /signup title-redirect finding"
+    claimed_at: "2026-08-05T17:32Z"
+    claim: |
+      SPEC (Owner directive, top priority, UMR-20260802-165606-4413/OCID-020): investigate the PM's
+      real browser finding that https://projexa-ai.com/signup showed a page titled "VERIDIAN
+      COGNITIVE AI OS -- AI Cognitive Research" instead of a signup form, then run real, systematic,
+      unauthenticated-only Playwright browser testing across every real public page (root, /login,
+      /signup, marketing pages), screenshotting each with real URL evidence, fixing and independently
+      retesting any real gap found -- never typing a real password into any real field (fixed rule,
+      no exceptions, applies equally to fresh test accounts). Any real authenticated-flow testing
+      stops at the credential-entry point and is flagged back to the Owner, not attempted.
+
+      Scope: `src/app/signup/page.tsx`, new `src/app/signup/signup-form.tsx` (real fix -- see PR),
+      Playwright evidence screenshots, `ai-os/boss/ACTIVE-CLAIMS.yaml`, PROGRESS.md, and the real
+      `ocid_canonical_registry` evidence_json deposit for OCID-020 via
+      /opt/veridian/scripts/superboss-register.py's upsert_ocid_canonical_registry(). No DB
+      migrations, no auth-flow code, no credential handling.
+    scope_note: >-
+      File scope as listed above. Read-only investigation confirmed the PM's finding is real but its
+      root cause is NOT a redirect: the real signup form renders correctly, but inherits the root
+      layout's generic static <title>/OG metadata (no per-page override), the exact same
+      OCID-038/GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH class of gap already fixed on /login
+      (UMR-20260804-090421-c647) but never applied to /signup -- confirmed via direct source read of
+      src/app/login/page.tsx + login-form.tsx (the fixed precedent) vs src/app/signup/page.tsx
+      (still hardcoded "VERIDIAN AI" wordmark + no generateMetadata()). No conflicting active claim
+      found on this file/gap area as of claim time.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
