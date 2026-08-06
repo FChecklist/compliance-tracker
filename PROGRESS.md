@@ -2679,3 +2679,37 @@ session: the only remaining gate is an independent auditor's review, which by th
 must be a different session, and the post-merge ACTIVE-CLAIMS cleanup which by definition cannot
 happen before that merge. Not spinning further invocations on this -- next real action belongs to
 whichever session picks up the audit, or a fresh PM decision consuming this comparison's finding.
+
+## 2026-08-06 checkpoint (invocation 3/20): CLOSED -- OCID-064 fully resolved on `main`, no further action
+
+Independently re-verified live state (not trusted from a stale spec) before doing any new work, per
+this file's own resume protocol:
+
+- **PR #881 (this task's own PR) is `CLOSED`, not merged** -- closed 2026-08-05T09:35:10Z by a later
+  session (`task-20260804-073932-...`) in favor of PR #882, which recorded the follow-up PM decision
+  that OCID-064's dispatch prompt's "Ollama" element (a real local server-side runtime, distinct from
+  the browser-side WebLLM/Transformers.js tiers this repo already covers) was genuinely new and needed
+  folding into OCID-062 §3.8 specifically -- refining, not contradicting, this task's own comparison.
+- **PR #882 is also `CLOSED`, not merged** -- closed 2026-08-05T10:13:57Z, same session, on discovering
+  the real §3.8 "Ollama" fold-in was *already merged* to `main` via PR #876 (commit `76e3682b`,
+  2026-08-04T08:11:15Z), written by a separate concurrent worker while resolving PR #876's own merge
+  conflict. Confirmed directly: `76e3682b` is a real ancestor of current `origin/main`, and
+  `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+  §3.8 on `main` right now opens "Real, targeted addition — closes OCID-064
+  (`UMR-20260804-072532-a02d`, `UMR-20260804-073906-3dd0`)".
+- **The one honest gap flagged at closure time** (no `ACTIVE-CLAIMS.yaml`/`MASTER-TRACKER.yaml`/
+  `OS.yaml` tracker entry recorded the closure, only the document content did) has since been closed
+  too, by a still-later independent session (`task-20260805-151445-...`, commit visible on
+  `origin/main`'s `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed:` section, reusing this same
+  `UMR-20260804-073906-3dd0` per instruction, no new UMR minted). That session independently
+  re-verified the exact same chain above before writing it.
+
+**Net conclusion:** OCID-064 is closed, real, and on `main`, with full tracker bookkeeping. This
+task's own comparison reasoning (PR #881) was not discarded -- it correctly flagged the
+"Ollama"/local-server element as the one part needing a PM call, which is exactly what got folded in.
+It was superseded only in *mechanism* (its own PR never merged; the real content landed via PR #876
+through a different, faster path) not in substance. Nothing further is actionable from this task:
+no code, doc, or tracker change remains to make, and re-doing already-completed bookkeeping would
+itself violate the ACTIVE-CLAIMS duplicate-work protocol this repo enforces. This branch's own
+`worker/task-20260804-073455-register-ocid-064--local-deterministic-l` PR (#881) stays closed as-is.
+Closing out this task as **done, no further invocations needed**.
