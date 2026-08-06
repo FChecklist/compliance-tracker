@@ -61,6 +61,7 @@ import {
   constructionSiteDiaries, constructionExpenseEntries, constructionActivities,
   erpPurchaseOrders, erpSuppliers, erpStockLedgerEntries, erpBudgetLineItems, erpBudgets, erpCostCenters,
   erpContracts, erpContractBillingSchedules,
+  erpSalesInvoiceItems, erpItems, erpItemGroups,
   projects,
   interiorMoodBoards, interiorFfeItems, interiorFloorPlans, interiorFloorPlanRooms,
   interiorFurniturePlacements, interiorMaterials, users,
@@ -76,6 +77,7 @@ import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
 import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
+import { subledgerToGlReconciliation, SUBLEDGER_RECONCILIATION_TOLERANCE } from "./erp-financial-report-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1376,6 +1378,238 @@ async function computeVendorPaymentBehavior(ctx: { orgId: string }, params: Reco
   }
 }
 
+/**
+ * FI-GL-007 (Subledger-to-GL Reconciliation) -- thin {columns,rows} reshape
+ * over erp-financial-report-service.ts#subledgerToGlReconciliation, the
+ * real computation (see that function's own header comment for the full
+ * design, honest scope, and why this reconciliation is genuinely meaningful
+ * rather than a no-op in this codebase). params.asOfDate/companyId/
+ * consolidate mirror the same optional params trial-balance/cash-flow's own
+ * FORMULA_REGISTRY-adjacent report routes already accept.
+ */
+async function computeSubledgerToGlReconciliation(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : new Date().toISOString().slice(0, 10)
+  const companyId = typeof params.companyId === "string" ? params.companyId : undefined
+  const result = await subledgerToGlReconciliation(ctx, asOfDate, companyId ? { companyId, consolidate: params.consolidate === true } : undefined)
+
+  return {
+    columns: ["Subledger", "GL Control Account(s)", "Subledger Total", "GL Balance", "Variance", "Reconciled"],
+    rows: result.rows.map((r) => ({
+      Subledger: r.subledger === "receivable" ? "Accounts Receivable" : "Accounts Payable",
+      "GL Control Account(s)": r.glAccountNames.length ? r.glAccountNames.join(", ") : "(none configured)",
+      "Subledger Total": Math.round(r.subledgerTotal * 100) / 100,
+      "GL Balance": Math.round(r.glBalance * 100) / 100,
+      Variance: Math.round(r.variance * 100) / 100,
+      Reconciled: r.isReconciled ? "Yes" : "NO -- investigate",
+    })),
+    note: result.allReconciled
+      ? `Both AR and AP reconcile to the GL as of ${asOfDate} (within the ${SUBLEDGER_RECONCILIATION_TOLERANCE} rounding tolerance).`
+      : `At least one subledger does NOT reconcile to the GL as of ${asOfDate} -- see the flagged row(s) above. Fixed-asset reconciliation is a separate report (FI-AA-006); inventory/stock is not included here because stock movements do not yet post a journal entry to the GL in this codebase.`,
+  }
+}
+
+// SD-006 "Sales by Material / Service Type" (sap_mapping.sqlite sap_reports,
+// module SD, priority MEDIUM, BUILD_NEW as of 2026-07-28, re-verified
+// directly against this repo on 2026-07-30 rather than trusting the gap
+// analysis file's own citations). Per that row's own implementation_notes,
+// renamed for construction: "Revenue by Service Type" -- the material
+// master (erp_items, grouped via erp_item_groups) maps to a construction
+// firm's service catalog/work type (demolition, joinery, painting,
+// electrical, project-management-fee, ...).
+//
+// Real finding: erp_sales_invoice_items.item_id (Wave 60) already exists
+// and is nullable -- the schema already supports grouping revenue by
+// material/service-item type, but grep across every src/lib/services/*.ts
+// file found zero report function anywhere that performs this specific
+// aggregation. This is a genuine BUILD_NEW: no new schema, a new query +
+// grouping only.
+//
+// calculation_logic's "Total Net Revenue = sum of net values from billing
+// line items matching that material/material group" maps directly onto
+// summing erp_sales_invoice_items.amount (already quantity * rate,
+// snapshotted per line at invoice-creation time -- see
+// erp-invoicing-service.ts#createSalesInvoice) for non-cancelled invoices
+// in the selected period.
+
+/** One already-resolved billing line (invoice item joined to its item/item-group), the shape the DB-touching wrapper below builds from real query rows. */
+export type SalesByServiceTypeLine = {
+  itemCode: string | null
+  itemName: string | null
+  itemGroupName: string | null
+  description: string
+  quantity: number
+  amount: number
+  standardBuyingRate: number | null
+}
+
+export type SalesByServiceTypeRow = {
+  code: string
+  description: string
+  totalNetRevenue: number
+  billingLineItems: number
+  costOfGoodsSold: number | null
+  grossProfit: number | null
+  grossMarginPercent: number | null
+}
+
+/**
+ * Pure grouping/summing function -- extracted standalone (same precedent as
+ * isBillingScheduleDue above) so the actual aggregation is directly
+ * unit-testable with real multi-material fixture data, while the
+ * DB-touching wrapper (salesByMaterialServiceTypeReport, below) stays
+ * untested here, matching this file's own established convention (see this
+ * file's test file header comment).
+ *
+ * groupBy "item" groups by erp_items.item_code (individual material/service
+ * item); groupBy "group" groups by the item's erp_item_groups.group_name
+ * (material group). Either way, a line with no itemCode/itemGroupName at
+ * all (erp_sales_invoice_items.item_id is nullable -- a free-text service
+ * description with no erp_items link) is bucketed into a real "Unassigned"
+ * group instead of being silently dropped, matching this codebase's
+ * established convention for an ungroupable-but-real row
+ * (interiorProfitByRoomAnalysis's "Unassigned" room bucket).
+ *
+ * Gross Profit / Gross Margin % (includeCost: true) uses
+ * erp_items.standard_buying_rate x quantity as the cost -- this is a PROXY,
+ * not a real weighted-average cost from the stock ledger (no
+ * per-invoice-line cost allocation exists in this schema). A line with no
+ * standard_buying_rate set (or no item link at all) contributes $0 cost,
+ * which overstates margin for those lines -- disclosed via the caller's
+ * `note` field (salesByMaterialServiceTypeReport), not hidden here.
+ */
+export function aggregateSalesByMaterialServiceType(
+  lines: SalesByServiceTypeLine[],
+  opts: { groupBy: "item" | "group"; includeCost: boolean }
+): SalesByServiceTypeRow[] {
+  const byKey = new Map<string, { code: string; description: string; revenue: number; count: number; cost: number }>()
+
+  for (const line of lines) {
+    const groupLabel = opts.groupBy === "group" ? line.itemGroupName : line.itemCode
+    const key = groupLabel ?? "__unassigned__"
+    const code = groupLabel ?? (opts.groupBy === "group" ? "Unassigned" : "UNASSIGNED")
+    const description =
+      opts.groupBy === "group"
+        ? (line.itemGroupName ?? "No item group / no item link (free-text service line)")
+        : (line.itemName ?? line.description)
+
+    const existing = byKey.get(key) ?? { code, description, revenue: 0, count: 0, cost: 0 }
+    existing.revenue += line.amount
+    existing.count += 1
+    if (opts.includeCost) existing.cost += line.quantity * (line.standardBuyingRate ?? 0)
+    byKey.set(key, existing)
+  }
+
+  return [...byKey.values()].map((g) => {
+    const revenue = Math.round(g.revenue * 100) / 100
+    const cost = opts.includeCost ? Math.round(g.cost * 100) / 100 : null
+    const grossProfit = opts.includeCost && cost !== null ? Math.round((g.revenue - g.cost) * 100) / 100 : null
+    const grossMarginPercent = opts.includeCost ? (g.revenue > 0 ? Math.round(((g.revenue - g.cost) / g.revenue) * 10000) / 100 : 0) : null
+    return {
+      code: g.code,
+      description: g.description,
+      totalNetRevenue: revenue,
+      billingLineItems: g.count,
+      costOfGoodsSold: cost,
+      grossProfit,
+      grossMarginPercent,
+    }
+  })
+}
+
+/**
+ * DB-touching wrapper: real erp_sales_invoice_items joined to
+ * erp_sales_invoices (org + period + not-cancelled filter, optional
+ * customer filter) and left-joined to erp_items/erp_item_groups, fed
+ * through aggregateSalesByMaterialServiceType above. Untested here
+ * (see that function's own header + this file's test file note).
+ *
+ * params: dateFrom/dateTo (required -- calculation_logic's "period
+ * selection"), groupBy ("item" default | "group"), customerId (optional),
+ * includeCost (optional, default false), sortBy ("revenue" default |
+ * "margin").
+ */
+async function salesByMaterialServiceTypeReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const dateFrom = typeof params.dateFrom === "string" ? params.dateFrom : undefined
+  const dateTo = typeof params.dateTo === "string" ? params.dateTo : undefined
+  if (!dateFrom || !dateTo) throw new ServiceError("dateFrom and dateTo are required for the Sales by Material/Service Type report", 400)
+  const groupBy: "item" | "group" = params.groupBy === "group" ? "group" : "item"
+  const includeCost = params.includeCost === true || params.includeCost === "true"
+  const customerId = typeof params.customerId === "string" && params.customerId ? params.customerId : undefined
+  const sortBy: "revenue" | "margin" = params.sortBy === "margin" ? "margin" : "revenue"
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoiceConditions = [
+      eq(erpSalesInvoices.orgId, ctx.orgId),
+      gte(erpSalesInvoices.postingDate, dateFrom),
+      lte(erpSalesInvoices.postingDate, dateTo),
+      sql`${erpSalesInvoices.status} != 'cancelled'`,
+    ]
+    if (customerId) invoiceConditions.push(eq(erpSalesInvoices.customerId, customerId))
+
+    const rawRows = await db
+      .select({
+        itemId: erpSalesInvoiceItems.itemId,
+        description: erpSalesInvoiceItems.description,
+        quantity: erpSalesInvoiceItems.quantity,
+        amount: erpSalesInvoiceItems.amount,
+        itemCode: erpItems.itemCode,
+        itemName: erpItems.itemName,
+        itemGroupId: erpItems.itemGroupId,
+        standardBuyingRate: erpItems.standardBuyingRate,
+      })
+      .from(erpSalesInvoiceItems)
+      .innerJoin(erpSalesInvoices, eq(erpSalesInvoiceItems.invoiceId, erpSalesInvoices.id))
+      .leftJoin(erpItems, eq(erpSalesInvoiceItems.itemId, erpItems.id))
+      .where(and(...invoiceConditions))
+
+    const groupIds = [...new Set(rawRows.map((r) => r.itemGroupId).filter((id): id is string => !!id))]
+    const groupRows = groupIds.length ? await db.query.erpItemGroups.findMany({ where: inArray(erpItemGroups.id, groupIds) }) : []
+    const groupNameById = new Map(groupRows.map((g) => [g.id, g.groupName]))
+
+    const lines: SalesByServiceTypeLine[] = rawRows.map((r) => ({
+      itemCode: r.itemCode,
+      itemName: r.itemName,
+      itemGroupName: r.itemGroupId ? (groupNameById.get(r.itemGroupId) ?? null) : null,
+      description: r.description,
+      quantity: Number(r.quantity),
+      amount: Number(r.amount),
+      standardBuyingRate: r.standardBuyingRate != null ? Number(r.standardBuyingRate) : null,
+    }))
+
+    const aggregated = aggregateSalesByMaterialServiceType(lines, { groupBy, includeCost })
+    const sorted = [...aggregated].sort((a, b) =>
+      sortBy === "margin"
+        ? (b.grossMarginPercent ?? -Infinity) - (a.grossMarginPercent ?? -Infinity)
+        : b.totalNetRevenue - a.totalNetRevenue
+    )
+
+    const codeColumn = groupBy === "group" ? "Material Group" : "Material/Item Code"
+    const columns = [codeColumn, "Description", "Total Net Revenue", "Billing Line Items"]
+    if (includeCost) columns.push("Cost of Goods Sold (proxy)", "Gross Profit", "Gross Margin %")
+
+    return {
+      columns,
+      rows: sorted.map((r) => {
+        const row: Record<string, string | number> = {
+          [codeColumn]: r.code,
+          Description: r.description,
+          "Total Net Revenue": r.totalNetRevenue,
+          "Billing Line Items": r.billingLineItems,
+        }
+        if (includeCost) {
+          row["Cost of Goods Sold (proxy)"] = r.costOfGoodsSold ?? 0
+          row["Gross Profit"] = r.grossProfit ?? 0
+          row["Gross Margin %"] = r.grossMarginPercent ?? 0
+        }
+        return row
+      }),
+      note: includeCost
+        ? "Cost of Goods Sold is a PROXY (erp_items.standard_buying_rate x quantity), not a real weighted-average cost from the stock ledger -- erp_stock_ledger_entries has no per-invoice-line cost allocation in this schema. Lines with no standard_buying_rate set (or no item link at all -- item_id is nullable) contribute $0 cost, which overstates margin for those lines. Rows with no item/item-group link are bucketed as 'Unassigned', not dropped. No prior-period comparison is computed by this report -- pass a separate dateFrom/dateTo call for a prior period and diff client-side; no 'customer sales analysis' report exists yet in this codebase to reuse a shared variance calculation from."
+        : "Rows with no item/item-group link (erp_sales_invoice_items.item_id is nullable -- a free-text service line) are bucketed as 'Unassigned', not dropped. No prior-period comparison is computed by this report -- pass a separate dateFrom/dateTo call for a prior period and diff client-side; no 'customer sales analysis' report exists yet in this codebase to reuse a shared variance calculation from.",
+    }
+  })
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
@@ -1416,6 +1650,8 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   billing_due_list: computeBillingDueList,
   customer_payment_behavior_dso: computeCustomerPaymentBehavior,
   vendor_payment_behavior_dpo: computeVendorPaymentBehavior,
+  subledger_to_gl_reconciliation: computeSubledgerToGlReconciliation,
+  sales_by_material_service_type: salesByMaterialServiceTypeReport,
 }
 
 // ─── AI recipe executor (ai_recipe) ───────────────────────────────────────

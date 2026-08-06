@@ -8,9 +8,9 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
+import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, erpSuppliers, erpCustomers, users } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, sql, desc, lte, gte, like } from "drizzle-orm"
+import { and, eq, sql, desc, lte, gte, like, inArray, isNotNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
@@ -170,6 +170,138 @@ export async function listJournalEntries(ctx: { orgId: string }, filters: { stat
         : eq(erpJournalEntries.orgId, ctx.orgId),
       orderBy: (t, { desc }) => desc(t.postingDate),
     })
+  })
+}
+
+// SAP KSB1 equivalent (CO-001, EXTEND_EXISTING): listJournalEntries above has
+// no cost-center dimension at all -- this is the drill-down a controller
+// reaches for after spotting a variance on a cost center summary, so it
+// needs the GL account AND the cost center on one line (implementation_notes:
+// "the user should see one line item and see both 'which account' and 'which
+// department' without switching reports"), not a second, separate FBL3N-style
+// GL-only line-item view.
+export type CostCenterLineItemFilters = { costCenterIds?: string[]; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+export async function listJournalEntryLinesByCostCenter(ctx: { orgId: string }, filters: CostCenterLineItemFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpJournalEntries.orgId, ctx.orgId), isNotNull(erpJournalEntryLines.costCenterId)]
+    if (filters.costCenterIds?.length) conditions.push(inArray(erpJournalEntryLines.costCenterId, filters.costCenterIds))
+    if (filters.fromDate) conditions.push(gte(erpJournalEntries.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpJournalEntries.postingDate, filters.toDate))
+    const where = and(...conditions)
+
+    const [lines, [{ count }]] = await Promise.all([
+      db
+        .select({
+          journalEntryId: erpJournalEntries.id,
+          postingDate: erpJournalEntries.postingDate,
+          referenceType: erpJournalEntries.referenceType,
+          referenceId: erpJournalEntries.referenceId,
+          userRemark: erpJournalEntries.userRemark,
+          accountId: erpAccounts.id,
+          accountName: erpAccounts.accountName,
+          accountNumber: erpAccounts.accountNumber,
+          costCenterId: erpJournalEntryLines.costCenterId,
+          debit: erpJournalEntryLines.debit,
+          credit: erpJournalEntryLines.credit,
+          lineRemark: erpJournalEntryLines.remark,
+        })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+        .where(where)
+        .orderBy(desc(erpJournalEntries.postingDate))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .where(where),
+    ])
+
+    return { lines, total: count, page, limit, totalPages: Math.ceil(count / limit) }
+  })
+}
+
+// SAP-equivalent cost center hierarchy roll-up (CO-003, EXTEND_EXISTING):
+// erp_cost_centers already carries a real parent_cost_center_id/is_group tree
+// (Wave 52) but nothing sums child balances up to each parent node -- this is
+// a genuine new aggregation on top of existing data, not new schema.
+// Deliberately shallow-tree-friendly per implementation_notes ("do not
+// over-engineer the hierarchy... a simple flat list... is often more
+// practical"): the recursion handles any depth correctly, but a ten-person
+// firm's real data will only ever be 2-3 levels.
+export type CostCenterHierarchyNode = {
+  costCenterId: string
+  name: string
+  isGroup: boolean
+  ownAmount: number
+  totalAmount: number
+  children: CostCenterHierarchyNode[]
+}
+
+export async function costCenterHierarchyReport(ctx: { orgId: string }, fromDate: string, toDate: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const costCenters = await db.query.erpCostCenters.findMany({ where: eq(erpCostCenters.orgId, ctx.orgId) })
+
+    // Overhead cost centers are cost/expense objects (implementation_notes:
+    // "Office/Admin, Project Management, Estimating..." -- all spend, not
+    // revenue) -- expense accounts are debit-natured, so debit-credit reads
+    // as positive spend, matching the report's own "total overhead spending"
+    // framing.
+    const rows = await db
+      .select({
+        costCenterId: erpJournalEntryLines.costCenterId,
+        totalDebit: sql<string>`coalesce(sum(${erpJournalEntryLines.debit}), 0)`,
+        totalCredit: sql<string>`coalesce(sum(${erpJournalEntryLines.credit}), 0)`,
+      })
+      .from(erpJournalEntryLines)
+      .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+      .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+      .where(and(
+        eq(erpJournalEntries.orgId, ctx.orgId),
+        eq(erpJournalEntries.status, "submitted"),
+        gte(erpJournalEntries.postingDate, fromDate),
+        lte(erpJournalEntries.postingDate, toDate),
+        eq(erpAccounts.rootType, "expense"),
+        isNotNull(erpJournalEntryLines.costCenterId),
+      ))
+      .groupBy(erpJournalEntryLines.costCenterId)
+
+    const ownAmountById = new Map(rows.map((r) => [r.costCenterId as string, Number(r.totalDebit) - Number(r.totalCredit)]))
+    const childrenByParent = new Map<string | null, typeof costCenters>()
+    for (const cc of costCenters) {
+      const key = cc.parentCostCenterId ?? null
+      if (!childrenByParent.has(key)) childrenByParent.set(key, [])
+      childrenByParent.get(key)!.push(cc)
+    }
+
+    function rollUp(costCenterId: string): number {
+      const own = ownAmountById.get(costCenterId) ?? 0
+      const children = childrenByParent.get(costCenterId) ?? []
+      return own + children.reduce((sum, c) => sum + rollUp(c.id), 0)
+    }
+
+    function buildNode(cc: (typeof costCenters)[number]): CostCenterHierarchyNode {
+      return {
+        costCenterId: cc.id,
+        name: cc.name,
+        isGroup: cc.isGroup,
+        ownAmount: ownAmountById.get(cc.id) ?? 0,
+        totalAmount: rollUp(cc.id),
+        children: (childrenByParent.get(cc.id) ?? []).map(buildNode),
+      }
+    }
+
+    const roots = childrenByParent.get(null) ?? []
+    return { fromDate, toDate, roots: roots.map(buildNode) }
   })
 }
 
@@ -589,4 +721,87 @@ export async function createTaxWithholdingCategory(
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_tax_withholding_category.created", entityType: "erp_tax_withholding_category", entityId: category.id })
     return category
   })
+}
+
+// ─── FI-AP-001 / FI-AR-001: Vendor / Customer Line Item Display ───────────
+// PHASE-2-CROSSREF (sap_mapping.sqlite sap_reports, engine_track=
+// 'calculation') ids FI-AP-001 and FI-AR-001, both HIGH priority,
+// EXTEND_EXISTING(erpJournalEntryLines partyType=supplier/customer). Same
+// shape as CO-001's listJournalEntryLinesByCostCenter just above (SAP
+// KSB1's sibling FBL1N/FBL5N line-item displays) -- filters
+// erp_journal_entry_lines by partyType instead of costCenterId. partyId is
+// a polymorphic text column (no DB-level FK to erp_suppliers/erp_customers,
+// see schema.ts's own comment on it), so the party name is resolved with a
+// separate lookup query and merged in application code rather than an
+// (impossible) SQL join.
+export type PartyLineItemFilters = { partyIds?: string[]; fromDate?: string; toDate?: string; page?: number; limit?: number }
+
+async function listJournalEntryLinesByParty(ctx: { orgId: string }, partyType: "supplier" | "customer", filters: PartyLineItemFilters = {}) {
+  await requireErpEnabled(ctx.orgId)
+  const page = Math.max(1, filters.page ?? 1)
+  const limit = Math.min(200, Math.max(1, filters.limit ?? 50))
+  const offset = (page - 1) * limit
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(erpJournalEntries.orgId, ctx.orgId), eq(erpJournalEntryLines.partyType, partyType)]
+    if (filters.partyIds?.length) conditions.push(inArray(erpJournalEntryLines.partyId, filters.partyIds))
+    if (filters.fromDate) conditions.push(gte(erpJournalEntries.postingDate, filters.fromDate))
+    if (filters.toDate) conditions.push(lte(erpJournalEntries.postingDate, filters.toDate))
+    const where = and(...conditions)
+
+    const [lines, [{ count }]] = await Promise.all([
+      db
+        .select({
+          journalEntryId: erpJournalEntries.id,
+          postingDate: erpJournalEntries.postingDate,
+          referenceType: erpJournalEntries.referenceType,
+          referenceId: erpJournalEntries.referenceId,
+          userRemark: erpJournalEntries.userRemark,
+          accountId: erpAccounts.id,
+          accountName: erpAccounts.accountName,
+          accountNumber: erpAccounts.accountNumber,
+          partyId: erpJournalEntryLines.partyId,
+          debit: erpJournalEntryLines.debit,
+          credit: erpJournalEntryLines.credit,
+          lineRemark: erpJournalEntryLines.remark,
+        })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .innerJoin(erpAccounts, eq(erpJournalEntryLines.accountId, erpAccounts.id))
+        .where(where)
+        .orderBy(desc(erpJournalEntries.postingDate))
+        .limit(limit)
+        .offset(offset),
+      db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(erpJournalEntryLines)
+        .innerJoin(erpJournalEntries, eq(erpJournalEntryLines.journalEntryId, erpJournalEntries.id))
+        .where(where),
+    ])
+
+    const partyIds = [...new Set(lines.map((l) => l.partyId).filter((id): id is string => !!id))]
+    const partyNameById = new Map<string, string>()
+    if (partyIds.length) {
+      if (partyType === "supplier") {
+        const suppliers = await db.query.erpSuppliers.findMany({ where: and(eq(erpSuppliers.orgId, ctx.orgId), inArray(erpSuppliers.id, partyIds)) })
+        for (const s of suppliers) partyNameById.set(s.id, s.supplierName)
+      } else {
+        const customers = await db.query.erpCustomers.findMany({ where: and(eq(erpCustomers.orgId, ctx.orgId), inArray(erpCustomers.id, partyIds)) })
+        for (const c of customers) partyNameById.set(c.id, c.customerName)
+      }
+    }
+
+    const linesWithPartyName = lines.map((l) => ({ ...l, partyName: l.partyId ? (partyNameById.get(l.partyId) ?? "Unknown") : null }))
+    return { lines: linesWithPartyName, total: count, page, limit, totalPages: Math.ceil(count / limit) }
+  })
+}
+
+/** FI-AP-001 (SAP FBL1N equivalent): every journal entry line posted against a vendor. */
+export async function listVendorLineItems(ctx: { orgId: string }, filters: PartyLineItemFilters = {}) {
+  return listJournalEntryLinesByParty(ctx, "supplier", filters)
+}
+
+/** FI-AR-001 (SAP FBL5N equivalent): every journal entry line posted against a customer. */
+export async function listCustomerLineItems(ctx: { orgId: string }, filters: PartyLineItemFilters = {}) {
+  return listJournalEntryLinesByParty(ctx, "customer", filters)
 }
