@@ -5857,7 +5857,75 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
-  - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
+  - session_label: "claude-code (task-20260806-222538-owner-mandate--z-ai-gtm-findings-closure) -- Z.AI GTM standing mandate (governing UMR-20260806-101802-a350), tranche-1 catch-up cycle: 2 refined investigation findings recorded, zero new points opened, honest hold on the platform-wide merge deadlock [ONE CYCLE OF A LARGE MULTI-CYCLE PROGRAM, more remains]"
+    claimed_at: "2026-08-06T22:40Z (this session, closed same session -- next worker invocation should pick this back up under the same governing UMR)"
+    claim: |
+      SPEC (owner standing mandate, governing UMR-20260806-101802-a350): Z.AI ran an 8-part real
+      black-box audit of projexa-ai.com; merge all 8 parts into one file, enumerate every atomic
+      point, mint a child UMR per point under this governing UMR, and run each through
+      verify-gap -> fix-plan -> implement -> audit -> re-test-live -> certify boolean closed, never
+      fabricating a pass, holding any point that can't be independently verified from this server.
+
+      **Live-reverified rather than trusted as-is (per the standing false-premise pattern this
+      registry keeps recording): the SPEC's own "eight files are being transferred right now" framing
+      is stale.** All 8 real source files already exist (`/opt/veridian/ai-os/memory/zai-gtm-findings/`),
+      already merged into one file (`ai-os/memory/ZAI_BLACKBOX_AUDIT_MERGED.md`), already parsed by a
+      reusable script (`ai-os/scripts/zai_gtm_audit_parser.py`) into `ai-os/memory/ZAI_BLACKBOX_AUDIT_POINTS_MANIFEST.json`
+      (139 real points), all landed in FChecklist/veridian-ai-os PR #3 (merged 2026-08-06T10:38:57Z,
+      confirmed via live `gh`/file inspection, not narration). A predecessor session already ran a
+      Tranche-1 cycle (governing PM instruction 14:44:51Z) on the 11 highest-severity points (1
+      BLOCKER + 10 CB, all Part 8): correctly dedup'd P1-BLOCKER-001 into P8-CB-01 (both describe the
+      same invalid-demo-credential issue), minted all 10 child UMRs, live-reproduce-verified every
+      one, and filed+PM-decided all 10 as owner proposals (`pm_decisions_pending` ids 92-101).
+      Real state per point as of this cycle (all independently re-confirmed live, not trusted from the
+      prior session's own record): CB-02 (no CSP) + CB-03 (no X-Frame-Options) implemented together
+      as one real PR #994 (`fix/ocid-csp-frame-protection`), locally quality-gated (build/lint/2512
+      tests/manual curl against a local `next start`) -- **unmerged**, `gh pr view 994` shows
+      `mergeStateStatus=BLOCKED`/`reviewDecision=REVIEW_REQUIRED`. CB-09 (sitemap wrong domain)
+      implemented via the earlier DeepSeek external-agent pilot as real PR #978 -- also
+      **unmerged/BLOCKED** (confirmed live `origin/main:src/app/sitemap.ts` still hardcodes
+      `veridian-ai-os.vercel.app`). Both blocked by the same known, active, platform-wide
+      branch-protection self-approval deadlock (`[[veridian-branch-protection-self-approval-deadlock-active]]`
+      memory, and separately tracked under governing UMR-20260806-071025-1d28's own long open
+      pm_decisions_pending chain, ids 112/210/226/230 etc.) -- not a defect in either PR, and not
+      something this task can resolve; every code-touching point in this tranche is structurally
+      blocked from a genuine live re-test/certify step until that deadlock clears. CB-04 (passcode
+      rate-limiting, decision 94) and CB-10 (/forgot-password 404, decision 100) are PM-approved but
+      genuinely not yet implemented -- real remaining work for a future cycle. CB-05 (Supabase
+      platform rate limits, decision 95) and CB-08 (brand inconsistency, decision 98) are correctly
+      PM-held for the Owner (dashboard-only setting / brand-identity judgment call, out of this
+      session's reach). CB-01/BLOCKER (demo credentials, decision 101) correctly stays `open`,
+      genuinely un-reproducible without touching a real credential or Supabase service-role access
+      this session doesn't have -- held, not fabricated.
+
+      **This cycle's own real, additive work (not duplicate of the above):** independently
+      re-investigated the two PM-approved *investigation-only* points and corrected the record --
+      (1) CB-06 (`UMR-20260806-145437-a0e0`, HttpOnly code_verifier cookie): confirmed live via the
+      real auth code (`src/lib/supabase/client.ts`'s `createBrowserClient` + the real
+      `src/app/auth/callback/route.ts` server Route Handler already using `exchangeCodeForSession`)
+      that this is @supabase/ssr's own documented PKCE pattern with no supported fully-server-initiated
+      alternative -- genuinely not feasible without forking the library's browser-client flow, recorded
+      as an accepted residual risk per the PM's own stated condition, not left silently open. (2) CB-07
+      (`UMR-20260806-145437-bf4c`, sw.js 404 / no PNG icons): found the prior investigation's own
+      evidence was **wrong** -- `git grep ServiceWorkerRegister origin/main` and `git ls-tree -r
+      origin/main -- public/sw.js` both come back empty; PR #54 never actually shipped this. Real
+      root cause, found via `git log --all --diff-filter=A -- '*sw.js'`: a complete real fix already
+      exists on branch `fix/ocid038-offline-service-worker` (commit `c07f9e55`, OCID-038) as PR #889
+      -- also **BLOCKED** by the identical merge deadlock, not a build/deploy pipeline gap as
+      previously guessed. The PNG-icons half of CB-07 is separately confirmed still fully open on
+      both `origin/main` and PR #889's branch (zero PNG files under `public/` on either). Both
+      corrections written back to the real `umr_tasks.outputs_json` rows via the canonical
+      `update_umr_task()` function (imported, never raw SQL) -- merged onto, not overwriting, the
+      prior evidence.
+
+      **Zero points certified closed this cycle** -- correctly, per the SPEC's own "never fabricate a
+      pass" instruction: no code from this tranche has reached production while the merge deadlock is
+      active, so no live re-test evidence is honestly obtainable yet for any of them. Full point-by-
+      point status recorded in this task's own `PROGRESS.md`. Real remaining work for the next cycle:
+      implement CB-04 rate-limiting and CB-10 /forgot-password (both PM-approved, un-started); once the
+      merge deadlock clears, get PR #994/#978/#889 merged and run the real live re-test + certify step
+      on CB-02/03/06(residual-risk)/07/09; then continue past Tranche-1 into the remaining ~128 of 139
+      total points (20 HP + 20 MP + 10 OBS + 78 verdicted sub-checks) this task's SPEC also covers.
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
       SPEC (`UMR-20260804-073906-3dd0`, OCID-064, reusing this same UMR per explicit instruction --
