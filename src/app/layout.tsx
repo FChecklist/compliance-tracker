@@ -41,7 +41,9 @@ export const metadata: Metadata = {
     "purpose-bound AI",
     "accountable AI",
   ],
-  icons: { icon: "/logo-mark.svg" },
+  icons: { icon: "/logo-mark.svg", apple: "/logo-mark.svg" },
+  themeColor: "#1C2B3A",
+  appleWebApp: { capable: true },
   openGraph: {
     title: "VERIDIAN COGNITIVE AI OS — AI Cognitive Research",
     description:
