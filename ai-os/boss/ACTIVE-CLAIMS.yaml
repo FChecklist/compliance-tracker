@@ -5857,7 +5857,30 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
-  - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
+  - session_label: "claude-code (task-20260806-025037-item-f--correct-the-false-domain-conflic) -- Item F, close the b12046eb citation gap on the projexa-ai.com domain finding [DONE, docs-only, no Vercel/domain-routing change]"
+    claimed_at: "2026-08-06T (this session, closed same session)"
+    claim: |
+      SPEC (PM instruction, relates to UMR-20260802-123246-f2e7 / UMR-20260802-124023-371b,
+      resuming task-20260802-123916): re-verified live (read-only Vercel API, GET only, no writes)
+      that no domain is currently bound to two projects -- `projexa-ai.com`/`www.projexa-ai.com`
+      are bound solely to `veridian-compliance-ai`, matching what `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      item 12 and `COMPLETED.yaml`'s `WAVE-10-REDO` entry already state. That substance was already
+      correct and already documented (via UMR ids) before this session started; the real remaining
+      gap was narrower than the SPEC assumed -- `task-20260802-123916`'s own investigation commit
+      (`b12046eb`) was never cited by hash anywhere, only by UMR id. Added that citation to both
+      files for traceability. Did not touch the `WAVE-10-REDO` entry's "Owner decision" narrative or
+      the projexa-vs-veridian-compliance-ai architecture question -- per the SPEC's own instruction,
+      that question is reserved for the Owner directly, not this session.
+
+      **Also surfacing, not acting on**: an orphaned, unmerged commit (`ca9e6432`, branch
+      `worker/task-20260802-152728-closure-checklist--nudge-d-e-audits--clo`, blocked by the credit
+      accountant, never opened as a PR) independently investigated this same domain the same day
+      and logged a `WAVE-201` entry that explicitly does NOT attribute the 2026-08-02T13:50 UTC
+      re-cutover to a verifiable Owner decision (`doer.agent: "unattributed"`, `auditor.verdict:
+      "pending"`) -- in tension with `WAVE-10-REDO`'s (the version that landed on `main`) "REAL
+      OWNER DECISION, given directly" framing. Left both entries as-is (not this session's call to
+      referee), but flagged this to the PM since it bears directly on the architecture question
+      being taken to the Owner.
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
       SPEC (`UMR-20260804-073906-3dd0`, OCID-064, reusing this same UMR per explicit instruction --

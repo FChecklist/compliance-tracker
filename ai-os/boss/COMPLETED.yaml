@@ -2909,10 +2909,12 @@ entries:
         projexa-ai.com/www.projexa-ai.com over from the standalone `projexa` Vercel project to
         `veridian-compliance-ai`, as the final step of the VERIDIAN/PROJEXA brand-layer merge. At
         some point on or around 2026-07-27, both domains were reversed back to the standalone
-        `projexa` project -- found by task-20260802-123916 (real Vercel API investigation) and
-        independently confirmed by this session (UMR-20260802-123246-f2e7) via live
-        GET /v9/projects/{id}/domains -- with NO record of that reversal anywhere in ai-os/, exactly
-        the documentation gap this entry closes.
+        `projexa` project -- found by task-20260802-123916 (real Vercel API investigation,
+        committed as b12046eb) and independently confirmed by this session
+        (UMR-20260802-123246-f2e7) via live GET /v9/projects/{id}/domains -- with NO record of
+        that reversal anywhere in ai-os/, exactly the documentation gap this entry closes.
+        Citation added 2026-08-06 (PM documentation-correction pass, Item F) so the real
+        investigating task/commit is traceable from this entry, not just the UMR ids.
 
         REAL OWNER DECISION (UMR-20260802-134939-145d, given directly): revert to the Wave 10 state.
         Executed via the real Vercel API (VERCEL_ACCESS_TOKEN, team meet-track-s-projects), mirroring
