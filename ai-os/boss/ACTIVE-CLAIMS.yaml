@@ -40,6 +40,45 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-163345-re-dispatch--dead-zone-auto-remediation) -- re-dispatch of UMR-20260806-115605-854d/UMR-20260806-115538-1e55 (dispatched dead-zone auto-remediation) -- found already fully implemented on veridian-scripts PR #167 with a real, silently-force-pushed-away TOCTOU fix; recovered + re-audited + merged [DONE, closed same session]"
+    claimed_at: "2026-08-06T16:33Z (this session, closed same session)"
+    claim: |
+      SPEC (re-dispatch, citing UMR-20260806-115605-854d as "confirmed stranded in the real
+      dead zone"): add a deterministic report-pipeline check that auto-resets a `umr_tasks` row
+      stuck at status='dispatched' for >15 real minutes with no real task directory and no real
+      systemd worker ever created, back to 'queued', logging the auto-fix into
+      pm_decisions_pending as an informational audit record only (never a gate); escalate to a
+      real decision only if the same row dead-zones a second time after already being auto-reset
+      once.
+
+      Found: this exact fix already existed, fully implemented and tested, as an OPEN PR in the
+      separate `FChecklist/veridian-scripts` repo (#167, branch
+      `fix/dispatched-dead-zone-auto-remediation-umr20260806115538-1e55-854d`, script
+      `reconcile_dispatched_dead_zone.py`). That PR had one real, confirmed defect from an
+      independent `AUDIT: FAIL` review (a genuine TOCTOU race -- writes happened without
+      re-verifying evidence inside the write lock) that had ALREADY been fixed on the same branch
+      (commit 7ce788e) -- but that fix had been silently dropped by a stale force-push from an
+      unrelated session, reverting the branch's remote tip back to pre-fix content
+      (`md5sum`-confirmed byte-identical to the original unfixed commit). This session's real,
+      non-duplicate work: diagnosed the force-push regression, recovered the already-good fix
+      from a local branch ref still present on this server (not reconstructed from scratch),
+      rebased cleanly onto current origin/main (34 commits, zero conflicts), verified
+      12/12 + 348/348 + 187/188 tests pass (1 pre-existing unrelated failure independently
+      reproduced on bare origin/main), pushed with --force-with-lease, dispatched an independent
+      audit agent (not self-certified) that re-verified from scratch in its own isolated
+      worktree and returned AUDIT: PASS, then merged (`gh pr merge --squash`, f6ab6114) --
+      this session runs under the real veridian-worker systemd unit (cgroup-verified), unlike
+      the earlier interactive session the PR's own thread noted was merge-blocked. Marked both
+      UMR-20260806-115538-1e55 and UMR-20260806-115605-854d terminal (status=completed) via
+      superboss-register.py mark-umr-terminal -- both were still genuinely at status='dispatched'
+      immediately before the merge, confirming the SPEC's "stranded" premise was real, not stale.
+    scope_note: >-
+      File scope: this compliance-tracker repo -- PROGRESS.md, this ACTIVE-CLAIMS entry only.
+      Real work touched a SEPARATE repo (`veridian-scripts`, not compliance-tracker):
+      `reconcile_dispatched_dead_zone.py` + `tests/test_reconcile_dispatched_dead_zone.py`
+      (recovered content, byte-identical to the already-reviewed 7ce788e commit, no new code
+      written), via PR #167 (merged). No src/, schema, or compliance-tracker application code
+      touched.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
