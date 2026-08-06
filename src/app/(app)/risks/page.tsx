@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { StatusPill } from "@/components/SimpleModulePage";
+import { toast } from "sonner";
 
 type Risk = { id: string; title: string; category: string; likelihood: number; impact: number; status: string; ownerDept: string | null };
 
@@ -22,7 +23,12 @@ export default function RisksPage() {
 
   const create = async () => {
     if (!titleInput.trim()) return;
-    await fetch("/api/risks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: titleInput }) });
+    const res = await fetch("/api/risks", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: titleInput }) });
+    // Gap closure, real live-found bug (GAP-RISK-CREATE-403-SILENT-DENIAL-UX,
+    // OCID-047 independent re-verification, UMR-20260802-165606-4413): this
+    // used to close the form and reload unconditionally, so a denied (403)
+    // or otherwise failed creation looked identical in the UI to a success.
+    if (!res.ok) { toast.error((await res.json().catch(() => ({}))).error ?? "Failed to create risk"); return; }
     setTitleInput(""); setShowForm(false);
     load();
   };

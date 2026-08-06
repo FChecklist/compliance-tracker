@@ -1,10 +1,13 @@
 # VERIDIAN Universal End User Work Model — v1.0
 
-**UMR (this artifact):** `UMR-20260803-042019-844f`, self-registered at time of writing, following
-the same convention `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md` used for its own
-artifact UMR. **Real dispatch UMR for this task** (`umr_tasks` table,
-`/opt/veridian/ai-os/memory/superboss-register.sqlite`, confirmed by direct query, not narrated):
-`UMR-20260803-040929-9713` (`owner-task-20260803-040927-2381049`). Parent, per this task's own
+**UMR:** `UMR-20260803-040929-9713` (`owner-task-20260803-040927-2381049`), the real dispatch UMR
+for this task (`umr_tasks` table, `/opt/veridian/ai-os/memory/superboss-register.sqlite`, confirmed
+by direct query, not narrated). **Correction (2026-08-05, per `UMR-20260805-083603-9efa`):** this
+document originally also self-minted a separate "artifact UMR" (`UMR-20260803-042019-844f`),
+believing it followed the same convention `ai-os/VERIDIAN_END_USER_EXPERIENCE_FOUNDATION_2026-08-03.md`
+used for its own artifact UMR — that self-minted ID was never really registered anywhere (verified
+via the 3-step method in `ai-os/MASTER-TRACKER.yaml`'s `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`
+entry) and is removed here; this document now cites only its real dispatch UMR above. Parent, per this task's own
 prompt: `UMR-20260803-040844-4a33` — confirmed by the same direct query to be the real
 `owner_dispatch_gateway` row that created `task-20260803-040852-ocid-022-...` itself (`task_kind:
 veridian_task_create`); it is a real, correctly-cited UMR, not a mislabeled one. Also cites, per
