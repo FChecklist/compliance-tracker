@@ -114,8 +114,8 @@ the id alone.
 - [x] `bunx eslint` clean on all touched/new files (no output)
 - [x] `scripts/check-migration-collision.mjs` clean: 12 new/changed migration files, no collisions
 - [x] `scripts/check-guardrail-presence.mjs` clean: 88/88 markers
-- [ ] Commit + push this batch onto the existing PR #997 branch (not yet done as of this PROGRESS.md
-      write -- see next step)
+- [x] Commit + push this batch onto the existing PR #997 branch (e244e762, pushed; PR #997 now
+      shows 5 commits)
 - [ ] wiring_registry (superboss-register.py) -- still deferred, same honest note as invocation 2
 
 ## Still remaining after invocation 3 (follow-up task/session)
