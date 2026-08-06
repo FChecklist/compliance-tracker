@@ -40,6 +40,29 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-215747-owner-delegated-decision--provision-a-re) -- Owner-delegated PM decision: provision a real, clearly-fictional dummy test tenant (Meridian Test Industries) + 4 real test accounts (admin/manager/member/viewer), use them to run real GTM category 15 (multi-tenant isolation) and category 16 (role permission) tests, unblocking pm_decisions_pending id=69/70"
+    claimed_at: "2026-08-06T21:57Z (this session)"
+    claim: |
+      SPEC (Owner-delegated real decision to the PM): category 15/16 have been BLOCKED since
+      2026-08-05 (re-confirmed 2026-08-06 per UMR-20260806-165616-74d5) on the standing
+      no-credential-entry rule -- no Owner-provisioned multi-tenant/role test credential existed.
+      pm_decisions_pending id=69 (cat 15) and id=70 (cat 16) both recommended "Owner provisions a
+      real test credential" as the unblocking action. This task IS that action: create one new,
+      dedicated, obviously-fictional test org (name TBD, "Meridian Test Industries" per SPEC's own
+      example) + one real Supabase Auth + compliance.users account per role (admin, manager,
+      member, viewer), generated credentials never committed in plaintext, then use those sessions
+      to run real HTTP tests against https://projexa-ai.com (live app, Supabase project
+      pcrjmlpuqsbocqfwoxod) for both categories, recording pass/fail via
+      gtm_write_category_result.py only.
+    scope_note: >-
+      File scope: /opt/veridian/scripts/gtm_provision_*.mjs (new), /opt/veridian/scripts/
+      gtm_check_multi_tenant_testing.py (rewrite), /opt/veridian/scripts/
+      gtm_check_role_permission_testing.py (rewrite), compliance.organisations +
+      compliance.users (1 new org + 4 new user rows only, via the app's own drizzle client),
+      Supabase Auth project pcrjmlpuqsbocqfwoxod (4 new auth.users rows via service-role admin
+      API), compliance-tracker/.env.local (gitignored, credential storage only), this
+      ACTIVE-CLAIMS.yaml entry, PROGRESS.md. Does not touch any other org/tenant's data except
+      read-only lookups to find a real cross-tenant probe target for category 15.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
