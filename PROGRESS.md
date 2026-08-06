@@ -15,6 +15,14 @@
 - [x] `record-owner-proposal-completion --id 102` correctly refused (row 102's status is `redirected`, not `approved` -- the gate is by design). Filed a new completion-report proposal instead (`insert-owner-proposal`, decision row **222**, same child UMR) documenting: the approved deliverable done+merged, the withdrawals honored, the new (not previously PM-reviewed) `/opt/veridian/workspace/*` reclaim finding+action with full evidence, and the `/home/rajat/work/*` worktrees explicitly left untouched/unreported-on.
 - [x] Real `df -h /`: 265G used/24G avail/92% at this task's resume (19:40Z) -> 255G used/34G avail/89% now, stable across repeated checks, no further active writer observed.
 
+- [x] Final commit + push of this PROGRESS.md (this commit)
+- [x] ACTIVE-CLAIMS.yaml entry for this task confirmed already closed out same-session (commit afacd951's entry carries `claimed_at: "...closed same session"` + full closure narrative through decision row 222 and the final `df -h /` reading) -- verified live at this invocation (3/20), no further edit needed.
+
 ## Remaining
-- [ ] Final commit + push of this PROGRESS.md
-- [ ] Update ACTIVE-CLAIMS.yaml to close out this task's claim entry
+(none -- task closed)
+
+## Final state (verified this invocation, 2026-08-06)
+- `df -h /`: 301G size / 255G used / 34G avail / 89% -- stable, no active writer.
+- `git status`: clean at HEAD `174e1b1d` before this checkpoint.
+- ACTIVE-CLAIMS.yaml: this task's entry already reads CLOSED.
+- No further action required; this invocation only confirmed the prior invocation's closure was real and complete.
