@@ -1,3 +1,57 @@
+# PROGRESS -- task-20260806-075804-close-all-real-owner-dispatched-umrs-fro
+
+SPEC: close all real owner_dispatch_gateway UMRs from the trailing 24h (`umr_tasks` table,
+`superboss-register.sqlite`). SPEC's own hand-typed snapshot (95 rows) is stale/wrong vs the live
+query (121 rows) -- SPEC itself instructs querying live rather than trusting hand-typed numbers, so
+121 is treated as ground truth. Full detail:
+`ai-os/OWNER_DISPATCH_GATEWAY_24H_CLOSURE_2026-08-06.md`.
+
+## Completed
+
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no conflicting active claim found for this exact
+      closure mandate.
+- [x] Live, read-only query of `umr_tasks` (`source_trigger='owner_dispatch_gateway'`,
+      `ts_submitted >= now-24h`) -- 121 real rows (`discovery/raw_rows.json`).
+- [x] Bulk `gh pr list` across the 3 real repos referenced by this codebase's own OCID tooling
+      (compliance-tracker, veridian-scripts, projexa) -- 692 PRs indexed by branch
+      (`discovery/prs_*.tsv`).
+- [x] Deterministic, scripted (no AI narration) join of the 121 rows against real PR evidence via
+      `outputs_json.new_task_id` -> `worker/<new_task_id>` branch match -- `discovery/classified.json`.
+- [x] Deterministic bucketing into 16 real buckets, 121/121 accounted for -- `discovery/buckets.json`.
+- [x] Killed-row (22) real explanation: 20/22 cluster in a real 7-minute mass-kill window
+      (2026-08-05T20:34:53Z-20:41:47Z), 2 isolated individual kills, 1 of which (`UMR-20260806-050055-d145`)
+      had its real work resumed and merged 48min later (`veridian-scripts#125`). See report §5.
+- [x] Write-path safety decision documented (§6 of report): no raw SQL against
+      `superboss-register.sqlite` given its active corruption/recovery history today; canonical
+      `reconcile-umr-status --apply` doesn't cover the branch-match relationship this pass found,
+      so stale-status rows are evidence-logged via `pm_decisions_pending` (canonical CLI) rather than
+      force-corrected.
+- [x] **Caught and fixed own real mistake**: first commit of this section wholesale-replaced this
+      shared, multi-task cumulative `PROGRESS.md` (953 real lines of prior tasks' history) instead
+      of prepending -- caught before push via `git show HEAD~1:PROGRESS.md` (using
+      `git cat-file -p <blob>`, not a plain `git show | head`, since the latter silently truncates
+      large output in this sandbox with a fake "... more files changed" trailer -- see
+      `[[veridian-shell-large-output-truncation-bug]]`), amended to restore+prepend rather than
+      force-push a data-loss commit.
+
+## Remaining
+
+- [ ] Log the 7 stale-status rows' real PR evidence into `pm_decisions_pending`
+      (`insert-pm-decision-pending` / `resolve-pm-decision-pending`, canonical CLI only).
+- [ ] Real 7-step playbook on `completed_open_needs_playbook` (7 rows): PR state, audit comment vs
+      head SHA, conflict resolution if needed, merge if clean, independent post-merge verification.
+- [ ] Real judgment call on `rejected_duplicate_with_real_pr_anomaly` (7 rows): is the real open PR
+      itself the duplicate (close it), or was the `rejected_duplicate` label wrong (run the
+      playbook)?
+- [ ] Real per-row check on `failed_open_needs_check` (5), `completed_dispatched_no_pr` (8),
+      `running_no_pr_needs_check` (5), `failed_no_pr` (3).
+- [ ] Real staleness-only check (no merge, no edits) on `running_open_live_do_not_touch` (18) --
+      idle >2h vs real task workspace checkpoint; nudge only if genuinely stale.
+- [ ] Dispatch up to 5 parallel agents for the above judgment-call buckets, one UMR/branch/PR per
+      agent, never two on the same file/branch/PR/UMR.
+- [ ] Final honest report: real evidence per row closed, explicit disclosure of anything not reached
+      within this session's budget for continuation next cycle.
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
