@@ -11,8 +11,12 @@
       to ground the gate section honestly
 - [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
 
+- [x] Wrote canonical planning doc: ai-os/OCID_067_VEDTOCP_DIGITAL_TWIN_PROGRAM_2026-08-04.md
+      (registration/planning only, LOCKED gate, deliberately does not hand-enumerate a stale
+      per-item OCID-015..066 snapshot -- cites MASTER-TRACKER.yaml/COMPLETED.yaml as live source
+      of truth instead)
+- [x] Added ai-os/OS.yaml index entry for the new document
+
 ## Remaining
-- [ ] Write canonical planning doc: ai-os/OCID_067_VEDTOCP_DIGITAL_TWIN_PROGRAM_2026-08-04.md
-- [ ] Add ai-os/OS.yaml index entry
 - [ ] Commit and push
 - [ ] Open PR (docs-only)
