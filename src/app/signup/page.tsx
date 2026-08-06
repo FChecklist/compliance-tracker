@@ -221,6 +221,7 @@ function SignupForm() {
                   <Input
                     id="fullName"
                     type="text"
+                    autoComplete="name"
                     placeholder={t("fullNamePlaceholder")}
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
@@ -270,6 +271,7 @@ function SignupForm() {
                     <Input
                       id="org"
                       type="text"
+                      autoComplete="organization"
                       placeholder={t("organisationPlaceholder")}
                       value={organisation}
                       onChange={(e) => setOrganisation(e.target.value)}
@@ -321,6 +323,7 @@ function SignupForm() {
                   <Input
                     id="email"
                     type="email"
+                    autoComplete="email"
                     placeholder={t("workEmailPlaceholder")}
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
@@ -336,6 +339,7 @@ function SignupForm() {
                   <Input
                     id="password"
                     type="password"
+                    autoComplete="new-password"
                     placeholder={t("passwordPlaceholder")}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
