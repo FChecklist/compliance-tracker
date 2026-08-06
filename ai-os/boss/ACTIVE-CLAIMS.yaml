@@ -40,6 +40,66 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-230706-real-reject-both-external-agent-pilot-su) -- real audit of the first two external-agent pilots (ZAI-COMMS-01/UMR-20260806-104534-b29c, DEEPSEEK-COMMS-02/UMR-20260806-104527-4f5f)"
+    claimed_at: "2026-08-06T23:07Z (this session)"
+    claim: |
+      SPEC: real-reject both first-attempt external-agent pilot diffs (ZAI-COMMS-01 on
+      src/app/layout.tsx: fabricated, referenced "Z.ai Code Scaffold"/"Z.ai Team"/a
+      z-cdn.chatglm.cn icon URL, none of which exist in the real file; DEEPSEEK-COMMS-02 on
+      src/app/sitemap.ts: real target line correct but invented surrounding import lines,
+      confirmed failing `git apply`), fix root cause in prompt rendering (>=5 real
+      surrounding lines), then close both real points via the normal internal path
+      (sitemap.ts BASE -> https://projexa-ai.com, layout.tsx metadata themeColor/
+      icons.apple/appleWebApp.capable), quality-gate, PR, gtm_certification_categories
+      evidence, child UMR closure.
+
+      Found BEFORE writing any code (never trust a SPEC's framing unverified, matches
+      [[veridian-task-prompt-false-premise-pattern]]): this exact real work is already
+      done. `git log --all` surfaced 577b66f9 (`fix/layout-pwa-metadata-zai-comms-02-
+      umr20260806104534-b29c`, PR #979 OPEN) and 04ab410d (`fix/sitemap-canonical-domain-
+      deepseek-comms-03-umr20260806104527-4f5f`, PR #978 OPEN) -- both real, correct,
+      minimal diffs matching the SPEC's requested fixes byte-for-byte (independently
+      re-diffed against each PR's merge-base, not trusted from the commit message alone).
+      Both child UMR rows (b29c, 4f5f) already carry real `metadata_json` recording the
+      ZAI-COMMS-02/DEEPSEEK-COMMS-03 retry outcome, PR link, commit sha and verification.
+
+      Also independently re-verified (not just re-trusted) the root-cause correction
+      already recorded in UMR 4f5f's own metadata_json: read `render_external_agent_prompt()`
+      (superboss-register.py:6733) directly -- it already embeds each file's ENTIRE real
+      content (`body = content`, not a single line or 5 lines), and
+      `external_agent_dispatch` has ZERO rows total, so neither ZAI-COMMS-01 nor
+      DEEPSEEK-COMMS-02 went through this tracked pipeline at all. The SPEC's proposed
+      root cause ("prompt only supplied the single target line") is FALSE for the one
+      real code path that does prompt rendering in this repo; whatever process actually
+      produced the fabricated/malformed diffs ran entirely outside tracked code and is
+      unattributed. Declined to implement the requested "≥5 lines of context" prompt-
+      rendering change -- it would edit already-correct code and would not have prevented
+      the real failure.
+
+      Real, non-duplicate contribution this session: (1) independently verified both
+      open PRs' diffs are exactly correct and minimal as an auditor who did not implement
+      them, and posted structured `AUDIT: PASS` verdicts (both PRs' own `audit-check` CI
+      job was failing on a missing verdict comment, per Rule 10); (2) did NOT merge either
+      PR -- both are explicitly marked `never_auto_merge: true` / "Needs human review
+      before merge" in their own dispatch code and PR body, a guardrail specific to
+      external-agent-sourced code that Rule 9 protects even under the Owner's 2026-07-31
+      full-autonomy directive, and both also show `reviewDecision: REVIEW_REQUIRED` with
+      zero reviews -- the known [[veridian-branch-protection-self-approval-deadlock-active]]
+      recurrence; (3) checked all 25 `gtm_certification_categories` rows for a real mapping
+      -- none exists: category 24 (lighthouse audit)'s own live run already scored
+      seo=1/best-practices=1 (these two findings never showed up as a failure there), and
+      every other row already carries its own distinct, already-verified, unrelated
+      finding -- did not fabricate a link via `update_gtm_certification_category()`;
+      (4) enriched both child UMR rows' `metadata_json` (via canonical `update_umr_task()`,
+      never raw SQL) with the SPEC's own quoted reject-evidence text so it's queryable
+      alongside the already-recorded outcome.
+    scope_note: >-
+      DB writes: `umr_tasks` rows UMR-20260806-104534-b29c / UMR-20260806-104527-4f5f
+      (metadata_json enrichment only, via update_umr_task()). GitHub: one `AUDIT: PASS`
+      comment each on PR #978 and PR #979 (compliance-tracker) -- no push, no merge. Repo
+      files: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) only. No
+      src/app/sitemap.ts or src/app/layout.tsx change made directly -- the real fix
+      already exists, unmerged, on the two PRs above.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
