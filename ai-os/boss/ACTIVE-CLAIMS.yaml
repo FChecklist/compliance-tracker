@@ -40,6 +40,38 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-104213-build-extend-workflow-track-engines) -- Build/extend workflow-track (state-machine) engines from PHASE-2-CROSSREF [DONE, closed same session -- 3rd duplicate dispatch of already-complete scope, no code change]"
+    claimed_at: "2026-08-06T (this session, closed same session)"
+    claim: |
+      SPEC (identical text to two prior dispatches of this exact task title,
+      task-20260729-112447 and task-20260730-040813): build/extend only workflow-track engines
+      marked BUILD_NEW/EXTEND_EXISTING in the real PHASE-2-CROSSREF
+      (/opt/veridian/ai-os/memory/sap_mapping.sqlite, sap_reports table,
+      veridian_mapping_status column). Independently re-queried this live rather than trusting
+      the SPEC text or the two prior sessions' notes: `engine_track='workflow' AND
+      veridian_mapping_status IN (BUILD_NEW, EXTEND_EXISTING)` is still exactly the same 2 rows
+      those prior sessions found -- SD-002 (Billing Due List) and SD-007 (Sales Order Status
+      Overview), both BUILD_NEW, zero EXTEND_EXISTING rows on this track. Confirmed both are
+      already fully built and MERGED to main (verified via `gh pr view`/`gh pr list --state all`,
+      not just git log): PR #629 (construction-billing-workflow-service.ts's
+      listBillingDueQueue/getClaimTimeline, construction-progress-claims domain, merged
+      2026-07-30T05:26:52Z) and PR #644 (erp-selling-service.ts's getSalesOrderDocumentFlow,
+      generic ERP Sales & Distribution domain, merged). engine_track='hybrid' (FI-AR-004,
+      FI-AP-008, CRM-004/005/007) and engine_track='calculation' (PHASE-3-BUILD-CALC's scope)
+      remain out of scope per the same track-scoping the first session in this chain established.
+      wiring_registry check: erp-selling-service.ts is fully VERIFIED_MATCH in the live
+      superboss-register.sqlite wiring_registry table; construction-billing-workflow-service.ts's
+      file row is stuck PATH_MISSING (stale from 2026-07-29T11:45Z, file genuinely exists at the
+      canonical path today) -- pre-existing registry drift, not this task's SPEC (engine
+      build/extend, not registry repair), and left untouched given a live sibling worker
+      (task-20260806-031857-extend-superboss-regis...) is actively changing that exact shared
+      script/db right now. Conclusion: zero remaining workflow-track engines to build. No code
+      change made in this repo -- closing this claim same session rather than fabricating work
+      against an already-complete scope. Full detail in this branch's PROGRESS.md.
+    scope_note: >-
+      File scope: PROGRESS.md, this ACTIVE-CLAIMS entry only. Read-only investigation
+      (sqlite queries against two host-level DBs, gh pr view/list, git grep/log) -- no src/,
+      schema, or infrastructure changes.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
