@@ -40,6 +40,49 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-222554-z-ai-gtm-findings-files-are-now-real-and) -- verify Z.AI GTM findings-files-are-real premise + do requested merge/enumeration step under governing UMR-20260806-101802-a350 -- found ALREADY DONE elsewhere, no action taken here [DONE, closed same session]"
+    claimed_at: "2026-08-06T22:25Z (this session, closed same session)"
+    claim: |
+      SPEC (dispatch text = registry `INS-20260806-102459-ce07`, 2026-08-06T10:24:59Z): confirmed
+      all 8 real Z.AI GTM finding report files present at
+      `/opt/veridian/ai-os/memory/zai-gtm-findings/` with real non-zero sizes/line counts (Part1-8:
+      340/413/352/378/489/475/570/480 lines, 3497 total) -- TRUE, no discrepancy. SPEC then asked
+      this task to "begin with the real merge and real point enumeration step first, report the real
+      total point count once enumerated" under governing `UMR-20260806-101802-a350`.
+
+      Queried `superboss-register.py search` (never filesystem `find` for a UMR, per that tool's own
+      guard) and found this exact next step was already completed by a later, more current dispatch
+      cycle (registry `INS-20260806-144451-cd3e`, 2026-08-06T14:44:51Z -- ~4.5h before this task's
+      own 22:25 dispatch) in a **wholly separate repo**, `FChecklist/veridian-ai-os` (live checkout
+      `/opt/veridian/ai-os`, second clone `/opt/veridian/repos/veridian-ai-os`) -- not this repo
+      (`compliance-tracker`); none of the governing files exist here. PR #3 there ("Z.AI GTM audit:
+      merge 8 parts + enumerate 139 points", predecessor UMR `UMR-20260806-102500-ab50`) is MERGED
+      (commit `fafa365`, 2026-08-06T10:38:57Z). Independently re-verified the point count from the
+      raw merged manifest blob (`git cat-file -p main:memory/ZAI_BLACKBOX_AUDIT_POINTS_MANIFEST.json`
+      -- a first `git show` attempt silently truncated to 31/2503 real lines, a known flaky-
+      truncation issue, bypassed): **139 real points** (61 labeled findings: CB 11 incl. the 1
+      BLOCKER, HP 20, MP 20, OBS 10; + 78 sub-checks; per-part P1 17/P2 12/P3 11/P4 15/P5 14/P6 13/
+      P7 7/P8 50) -- matches the registry's own recorded figures exactly, independently recomputed
+      rather than trusted blindly.
+
+      Further downstream, a PM-directed closure-tranche task under the same governing UMR (scope: 1
+      BLOCKER + 10 CB tranche) had already run further still: PR #5 there ("collapse P1-BLOCKER-001/
+      P8-CB-01 known duplicate", `UMR-20260806-144454-d00c`, commit `f11423f`, 2026-08-06T14:49:50Z)
+      -- verified the two points are the same underlying demo-credential defect, collapsed 139->138
+      points via the canonical re-runnable parser (never hand-edited JSON). PR #5 is OPEN, not yet
+      merged, as of this investigation.
+
+      Conclusion: this task's full charter (verify files real -> merge/enumerate -> report count
+      before per-point closure) was already satisfied by independently-verified prior work outside
+      this repo. Redoing it here would be duplicate; starting per-point closure here would be both
+      duplicate (PR #5 already ahead) and out of scope (this workspace has no access to the real
+      governing files -- they live in `veridian-ai-os`, not `compliance-tracker`). No code change
+      made in either repo by this task.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry only (both in `compliance-tracker`). No
+      src/, schema, script changes. No changes made to `FChecklist/veridian-ai-os` (out of this
+      task's repo scope; that repo already has live/PM-directed activity of its own on this same
+      governing UMR -- not duplicated or interfered with here).
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
