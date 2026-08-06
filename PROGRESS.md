@@ -33,24 +33,45 @@ query (121 rows) -- SPEC itself instructs querying live rather than trusting han
       large output in this sandbox with a fake "... more files changed" trailer -- see
       `[[veridian-shell-large-output-truncation-bug]]`), amended to restore+prepend rather than
       force-push a data-loss commit.
+- [x] Opened compliance-tracker PR #973 for the discovery/classification doc + ACTIVE-CLAIMS entry.
+- [x] Logged all 7 `stale_*_merged_needs_reconcile` rows' real PR evidence into
+      `pm_decisions_pending` via canonical CLI (`insert-pm-decision-pending` +
+      `resolve-pm-decision-pending`, decision IDs 12-18) -- status `logged_evidence_status_not_corrected`,
+      each citing real PR repo/number/mergedAt.
+- [x] Dispatched wave 1 of parallel agents (5, max concurrency, no two on the same
+      file/branch/PR/UMR) on the highest-value judgment-call rows spanning both
+      `completed_open_needs_playbook` and `rejected_duplicate_with_real_pr_anomaly`:
+      UMR-20260805-112247-3ad0 (compliance-tracker#963), UMR-20260806-032912-9088
+      (veridian-scripts#105), UMR-20260805-122801-469e (veridian-scripts#87),
+      UMR-20260805-084120-e196 (compliance-tracker#958), UMR-20260805-084109-2786
+      (compliance-tracker#957). Results pending -- will be logged here + pm_decisions_pending once
+      each agent reports real evidence.
 
 ## Remaining
 
-- [ ] Log the 7 stale-status rows' real PR evidence into `pm_decisions_pending`
-      (`insert-pm-decision-pending` / `resolve-pm-decision-pending`, canonical CLI only).
-- [ ] Real 7-step playbook on `completed_open_needs_playbook` (7 rows): PR state, audit comment vs
-      head SHA, conflict resolution if needed, merge if clean, independent post-merge verification.
-- [ ] Real judgment call on `rejected_duplicate_with_real_pr_anomaly` (7 rows): is the real open PR
-      itself the duplicate (close it), or was the `rejected_duplicate` label wrong (run the
-      playbook)?
+- [ ] Await wave 1 agent results; log each real outcome (merge commit hash / close reason) to
+      `pm_decisions_pending` and this file.
+- [ ] Wave 2: remaining 2 of `completed_open_needs_playbook` (UMR-20260805-145042-e536/veridian-scripts#93,
+      UMR-20260805-034900-f0f2/compliance-tracker#943) + remaining 5 of
+      `rejected_duplicate_with_real_pr_anomaly` (UMR-20260805-025554-46f9/compliance-tracker#940,
+      UMR-20260806-064237-9ca3/veridian-scripts#128, UMR-20260805-142048-4edb/veridian-scripts#90,
+      UMR-20260805-083603-9efa/compliance-tracker#951, UMR-20260805-083516-d73c/veridian-scripts#60,
+      UMR-20260805-033159-4f47/compliance-tracker#947, UMR-20260805-093630-29d1/veridian-scripts#71).
 - [ ] Real per-row check on `failed_open_needs_check` (5), `completed_dispatched_no_pr` (8),
       `running_no_pr_needs_check` (5), `failed_no_pr` (3).
 - [ ] Real staleness-only check (no merge, no edits) on `running_open_live_do_not_touch` (18) --
       idle >2h vs real task workspace checkpoint; nudge only if genuinely stale.
-- [ ] Dispatch up to 5 parallel agents for the above judgment-call buckets, one UMR/branch/PR per
-      agent, never two on the same file/branch/PR/UMR.
 - [ ] Final honest report: real evidence per row closed, explicit disclosure of anything not reached
       within this session's budget for continuation next cycle.
+
+## Note on scale vs. this session's budget
+
+121 real rows, most needing individual, non-trivial investigation (many PRs are `CONFLICTING`/
+`DIRTY` against current `main`, spanning 3 repos). This session's own real evidence-gathering +
+wave-1 dispatch already represents substantial, genuine work; full 121-row closure within one
+session's budget is not realistic without sacrificing verification quality -- continuing in
+further cycles against this same PROGRESS.md/ACTIVE-CLAIMS trail is the intended, honest path,
+not a fabricated "all closed" claim.
 
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
