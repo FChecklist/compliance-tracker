@@ -1029,3 +1029,50 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
   not independently confirmed (the root page's error digest was never cross-checked against a
   server-side stack trace), folded into the one gap entry above rather than registered twice.
 - [ ] Open PR and get it through independent review before merge.
+
+## Update (2026-08-06, resumed session, real merge to unblock PR #896)
+PR #896 had drifted to `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` against `main`
+(108 commits ahead since this branch was pushed). Real `git merge origin/main` performed
+(not a rebase, to avoid rewriting an already-pushed/open-PR branch's history). 3 real
+conflicts, all in this repo's known-conflict-prone governance docs:
+- `PROGRESS.md`: pure append conflict (this session's own section vs. an unrelated sibling
+  task's section) -- resolved by keeping both in full, no content lost.
+- `ai-os/MASTER-TRACKER.yaml`: two conflict hunks, both additive-field conflicts under the
+  same `GAP-VERI-TODO-STUCK-LOADING-NOT-READY` / `GAP-MOBILE-VIEWPORT-BLANK-CONTENT` entries
+  (this session's `root_cause_found`/`real_fix_applied`/`self_disclosure_independent_verification`
+  fields vs. a later OCID-020 checkpoint session's own `reverification_2026_08_04` fields, plus
+  4 brand-new sibling gap entries from `origin/main`) -- resolved by keeping all fields from
+  both sides (no real key collision, both are genuine distinct evidence), preserving all 4 new
+  entries unchanged.
+- `ai-os/boss/ACTIVE-CLAIMS.yaml`: pure append conflict on the `active:` list (this session's
+  own claim entry vs. a later closed-same-session checkpoint-refresh entry) -- resolved by
+  keeping both.
+- **Real bug found and fixed during this merge, not pre-existing on either parent branch**:
+  after mechanically stripping the `<<<<<<<`/`=======`/`>>>>>>>` markers from
+  `ACTIVE-CLAIMS.yaml`, the file failed `yaml.safe_load` (`expected '<document start>', but
+  found '<block mapping start>'` at line 5905). Root-caused: the file's `active:` top-level key
+  (line 41-42 pre-merge) had been silently glued onto the end of the preceding `# ====...====`
+  comment line with no newline between them (`...====active:`), swallowing the real `active:`
+  key into a comment and leaving every list item under it floating without a parent key.
+  Confirmed via `git cat-file -p` against both `HEAD^1` and `origin/main` independently that
+  this exact corruption did NOT exist in either parent before the merge -- introduced during
+  this session's own conflict-marker cleanup (mechanism not fully isolated; likely a
+  string-replace boundary effect). Fixed by re-inserting the missing newline + `active:` as
+  its own line; re-verified `yaml.safe_load` parses clean with both real top-level keys
+  (`active`, `recently_completed`) intact. (Separately, cosmetically noted but explicitly
+  NOT fixed: line 1's `# ====...====# ACTIVE CLAIMS REGISTRY...` is a pre-existing identical
+  class of corruption confirmed present on BOTH `HEAD^1` and `origin/main` independently before
+  this session touched the file -- harmless since it's fully inside a `#` comment either way,
+  out of this merge's own narrow scope to fix.)
+- All 3 previously-unmerged files staged and merge committed. Post-merge verification: 0
+  conflict markers anywhere in the tree; `python3 -c yaml.safe_load` clean on both
+  `ai-os/MASTER-TRACKER.yaml` and `ai-os/boss/ACTIVE-CLAIMS.yaml`; ran the real
+  `scripts/check-*.mjs` governance suite after `bun install` (node_modules had not been
+  installed in this task workspace) -- all 7 applicable checks pass (`check-reviewer-not-author`
+  and `check-terminology-guardrail` correctly refuse to run standalone without PR-specific
+  args, not a real failure); `bunx tsc --noEmit` clean; `bun test
+  src/components/veri-chat/ChainSelector.test.ts` 14/14 pass.
+
+## Remaining
+- [ ] Confirm PR #896 now shows `MERGEABLE` on GitHub and CI goes green post-push.
+- [ ] Hand off for independent audit per Rule 10 -- not self-certified here.
