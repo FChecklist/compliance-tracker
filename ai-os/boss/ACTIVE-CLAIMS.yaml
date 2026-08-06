@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+    claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
+    claim: |
+      SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
+      stall distinct from the one recovered last cycle (`task-20260805-003832-real-stall-recovery`),
+      citing byte-for-byte-identical tmux pane text across two consecutive 10-minute cycles and zero
+      CPU-time increase over a real minute. Independently re-sampled both signals live rather than
+      trusting the SPEC: found the opposite on both counts. Real process CPU time on PID 1836738
+      climbed steadily over 5 samples across ~90+ real seconds (04:37 -> 05:05 mm:ss, ~12% running
+      avg, not flat). The live tmux pane (`claude:0.0`) changed substantially across 5 captures in
+      the same window -- a `grep` on `superboss-register.py` finished, a new `timeout 30 python3`
+      sqlite3 query against `superboss-register.sqlite` (checking `UMR-20260805-025554-46f9` /
+      `UMR-20260805-032243-185e`) started and completed, new real narrative output printed (closing
+      out a self-corrected false corruption alarm), then idle at its own prompt with a normally
+      finished turn. Token counter climbed 6.8k -> 8.5k across captures. Conclusion: the session is
+      genuinely active, not stalled -- did **not** restart/resume it via `supervisor-entrypoint.sh`,
+      since doing so would have killed real in-progress work on a false premise. Noted but did not
+      touch: the shared `repos/compliance-tracker` checkout has a large uncommitted diff
+      (`ai-os/scripts/superboss-register.py` +5010/-83, ~20 other `ai-os/scripts/*` files) that
+      appears to be this same live session's own in-flight work, matching its on-screen SPEC (fix
+      `audit_ocid_canonical_registry.py` dry-run/apply-mode output ambiguity); spot-checked for
+      duplicate/corrupted content (`grep '^+def ' | sort | uniq -d` -> 0 hits), left untouched as it
+      belongs to the live session. Also cross-checked PR #941 (real, open, `mergeable: MERGEABLE`,
+      `mergeStateStatus: BLOCKED`, no required review yet) -- consistent with the live pane's own
+      stated in-progress next step.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry only. Read-only investigation (`ps`,
+      `tmux capture-pane`, `git log`/`git diff`/`gh pr view`) -- no src/, schema, script, or
+      infrastructure changes; no process was started, stopped, or restarted.
   - session_label: "claude-code (task-20260804-040754-register-ocid-054--universal-repository) -- OCID-054 real discovery/inventory of every repo, branch, PR, worker, queue, job, task, doc, config across the FChecklist org + real security/exposed-credential scan [read-only, DONE, PR #869 rebuilt 2026-08-05 with a history that never contains the raw leaked secret]"
     claimed_at: "2026-08-04T04:07Z (this session; re-registered 2026-08-05 after PR #869's original branch history -- which briefly contained a real secret's raw value at commit 03f60ffd -- was rebuilt as a single clean commit off current main so that value is never reachable from any commit on this branch)"
     claim: |
@@ -180,7 +209,7 @@ active:
       (`fix/reviewer-not-author-check-umr20260805091629`) off `origin/main` so as not
       to disturb other sessions' in-flight uncommitted work in the shared
       `repos/compliance-tracker` checkout.
-  - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [OCID-047 DONE PR #926, OCID-050 IN PROGRESS]"
+  - session_label: "claude-code (task-20260805-003832-real-stall-recovery--continue-ocid-047-a) -- real stall recovery, finishing OCID-047's 2 remaining live-found gaps + OCID-050's 1 live-found gap, one at a time [DONE: OCID-047 gaps closed via own merged PR (commit b937dc25); OCID-050 gap found already closed by concurrent PR #930 during a routine rebase -- independently re-confirmed live, no duplicate fix added, PR #941]"
     claimed_at: "2026-08-05T00:50Z (this session -- registered mid-session, after the OCID-047 fix was already committed; disclosed honestly per this file's own Rule 4 rather than silently backfilling an earlier timestamp)"
     claim: |
       SPEC (PM decision, checkpoint refresh, `UMR-20260804-234032-146e`, parent
@@ -5862,6 +5891,93 @@ recently_completed:
       ai-os/OS.yaml (1 new index entry), this ACTIVE-CLAIMS entry, PROGRESS.md. Real throwaway PR #942
       opened and closed against main (never merged, branch deleted) -- no src/, schema, or branch-
       protection-setting changes made.
+  - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
+    claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
+    claim: |
+      SPEC (`UMR-20260804-073906-3dd0`, OCID-064, reusing this same UMR per explicit instruction --
+      no new UMR minted): claimed OCID-064's real status was "closed as fold-in duplicate of
+      OCID-062" but that its own real closure PR (#881 or #882) was "still open and unmerged," and
+      asked this session to resolve whichever is correct, close the other as a duplicate, and get
+      the correct one merged through independent review.
+
+      **Independently re-verified against live GitHub state before acting on the SPEC's premise
+      (not trusted as-is):** both PR #881 and PR #882 were already `CLOSED` (not merged) --
+      #881 at 2026-08-05T09:35:12Z, #882 at 2026-08-05T10:13:50Z, both by a separate prior session
+      earlier the same day, several hours before this task was dispatched. That prior session's own
+      closing comments (read in full via `gh api .../issues/{881,882}/comments`, not the
+      truncated `gh pr view` text) already did exactly the reconciliation this SPEC asked for, and
+      reached a materially different, correct conclusion: the real §3.8 "Ollama" fold-in this SPEC
+      believes is still pending was **already merged to `main` a day earlier**, as part of PR #876
+      (OCID-062's own document, merged 2026-08-04T08:11:15Z) -- that PR's branch history contains
+      commit `76e3682b` ("...add real §3.8 Ollama documentation (closes OCID-064)"), written by a
+      separate concurrent worker while resolving PR #876's own merge conflict. Confirmed directly:
+      `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      §3.8 on `main` right now opens with "Real, targeted addition — closes OCID-064
+      (`UMR-20260804-072532-a02d`, `UMR-20260804-073906-3dd0`)" -- citing this exact UMR. So neither
+      #881 (a superseded comparison-only checkpoint) nor #882 (a duplicate re-derivation of the same
+      Ollama finding under a different UMR, `UMR-20260804-050857-d33f`, staged for insertion into a
+      doc that had already received the equivalent section by the time #882's own audit ran) is the
+      "real correct PR to merge" -- merging either would put stale/duplicate content on `main` net to
+      a fold-in that already landed. This is not a case of "pick the right one of two open PRs"; it's
+      a case of the SPEC's premise (open/unmerged) being stale by several hours. No PR reopened, no
+      PR merged -- doing so would contradict the prior session's own correct, well-evidenced decision.
+
+      **Real remaining gap this task actually closed:** the prior session's own final closing comment
+      on #881 explicitly flagged one honest gap it left open -- "neither `ACTIVE-CLAIMS.yaml` nor
+      `MASTER-TRACKER.yaml`/`OS.yaml` on `main` currently carries a `recently_completed`/tracker entry
+      recording this closure (only the document content itself does)." Independently confirmed that
+      gap still existed as of this session (`git grep -n "OCID-064"` against `ACTIVE-CLAIMS.yaml`,
+      `MASTER-TRACKER.yaml`, and `OS.yaml` on current `main`: zero hits in all three). This entry is
+      that small, accurate follow-up bookkeeping record -- reusing this task's own UMR
+      (`UMR-20260804-073906-3dd0`) per the SPEC's explicit instruction, not minting a new one.
+    scope_note: >-
+      File scope: this file only (`ai-os/boss/ACTIVE-CLAIMS.yaml`) plus `PROGRESS.md`. No source
+      code, schema, PR state, or `.github/workflows/**` touched. PR #881 and PR #882 left exactly as
+      the prior session left them (`CLOSED`, unmerged) -- confirmed that state is correct, did not
+      reopen or merge either.
+  - session_label: "claude-code (task-20260804-045439-register-ocid-058--universal-task-regist) -- OCID-058: real UTR/execution-architecture discovery+verification, no new architecture [DONE, PR opened]"
+    claimed_at: "2026-08-04T05:00Z (this session, closed same session)"
+    claim: |
+      SPEC (parent chain: OCID-057 `UMR-20260804-035943-3c38`, OCID-056 `UMR-20260804-035904-142e`,
+      OCID-055 `UMR-20260804-035817-6300`, OCID-054 `UMR-20260804-035759-1eb2`, OCID-053
+      `UMR-20260804-033853-2a17`, OCID-020 `UMR-20260802-165606-4413`, OCID-021
+      `UMR-20260802-173631-ca85` -- all 7 independently confirmed as real, live rows in
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`'s `umr_tasks` table, status=running,
+      source_trigger=owner_dispatch_gateway, via direct sqlite3 query, not trusted from the SPEC text
+      alone). OCID-012, again cited in the incoming dispatch-prompt template as a reference, again
+      returns zero real matches anywhere in this repo or the real UMR chain (`git grep -n "OCID-012"`
+      repo-wide: zero hits) -- flagged back to the Owner again per the SPEC's own instruction, not
+      registered as real.
+
+      This OCID is explicitly discovery/verification ONLY (SPEC: "shall not redesign execution and
+      shall only certify the existing execution architecture"). Real scope covered: inspected every
+      real execution path (interactive Super Boss dispatch via `dispatch-owner-task.sh`, headless
+      `veridian-worker@` tasks via `veridian-task.py cmd_create`, the 21
+      `veridian-cron-*`/`veridian-dispatch-tick`/`veridian-task-watchdog` systemd --user timers, and
+      API/integration paths: `/api/internal/ops-task-sync`, `/api/ai/team/dispatch`, GitHub
+      `repository_dispatch` `zai-task`/`claude-task`), confirmed what real task-tracking record each
+      one produces, and whether it references a real UMR id. Produced three honest findings
+      documents (`ai-os/VERIDIAN_OCID_058_UTR_REGISTRY_2026-08-04.md`,
+      `ai-os/VERIDIAN_OCID_058_EXECUTION_ARCHITECTURE_REPORT_2026-08-04.md`,
+      `ai-os/VERIDIAN_OCID_058_EXECUTION_TRACEABILITY_REPORT_2026-08-04.md`). Real, confirmed
+      finding: 5 independently-keyed real task-tracking record types exist today (`umr_tasks`;
+      `instructions`/`work_items`/`actions`; `task.yaml`; `platform.ops_dev_tasks`;
+      `platform.task_register`), none with separately-named actor/identity/governance-context
+      fields, and only ONE real, momentary cross-reference to a real UMR object exists anywhere
+      (`work_items.ai_task_id = umr_id`, at owner-dispatch instant only -- confirmed by direct read
+      of `dispatch-owner-task.sh:83` and this task's own real `task.yaml`, which itself carries no
+      `umr_id` field). GitHub `repository_dispatch`'s `zai-task`/`claude-task` workflow
+      (`.github/workflows/ai-dispatch.yml`) confirmed a real but fully inert 31-line echo-only stub.
+      Registered `GAP-OCID058-UTR-MULTI-ACTOR-STRUCTURE-MISSING` in `MASTER-TRACKER.yaml`, held for
+      a PM decision -- not built here, per this OCID's own explicit "no redesign" instruction.
+    scope_note: >-
+      File scope: 3 new discovery/report documents under `ai-os/`, `ai-os/OS.yaml` (index
+      registration), `ai-os/MASTER-TRACKER.yaml` (new gap registration), `PROGRESS.md`, this file.
+      No code/schema/migration changes anywhere -- verified `check-metadata-index-coverage.mjs` and
+      `check-guardrail-presence.mjs` both pass locally. Read-only investigation against
+      `/opt/veridian/scripts/*.py`, `/opt/veridian/ai-os/`, `~/.config/systemd/user/*`,
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite` (SELECT queries only, no writes), and
+      this repo's `src/app/api/`, `src/lib/db/schema.ts`, `.github/workflows/*.yml`.
   - session_label: "claude-code (task-20260804-040805-register-ocid-057--universal-knowledge-g) -- OCID-057 real Universal Knowledge Register/Graph/Dedup/Broken-Reference/Orphan report [DONE, PR opened]"
     claimed_at: "2026-08-04T04:08Z (this session, closed same session)"
     claim: |
@@ -5951,6 +6067,43 @@ recently_completed:
       this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No src/, schema, or infrastructure changes --
       read-only DB query plus read-only live HTTP checks against the deployed site, zero code
       changes, zero new PR (nothing left to merge).
+  - session_label: "claude-code (task-20260804-164310-ocid-061-registration-only-universal-det) -- OCID-061 registration-only: Universal Deterministic Input Runtime and Intent Resolution Certification [DONE, PR open, awaiting CI]"
+    claimed_at: "2026-08-04T16:43Z (this session, closed same session)"
+    claim: |
+      SPEC (registration-only dispatch, real parent OCID-060 PR #874 open): independently re-confirmed
+      zero pre-existing OCID-061 registration via a direct read-only query against the real umr_tasks
+      table in superboss-register.sqlite (zero rows for task_identity matching '%ocid-061%' or this
+      task's own folder timestamp), matching the dispatch prompt's own claim rather than merely trusting
+      it. Wrote `ai-os/VERIDIAN_OCID_061_UNIVERSAL_DETERMINISTIC_INPUT_RUNTIME_REGISTRATION_2026-08-04.md`:
+      captures the Owner's full real directive text verbatim and its explicit 7-OCID dependency list
+      (OCID-024/025/027/031/033/034/058), each independently re-verified live via `gh pr view` against
+      its own real current PR state rather than trusted from OCID-060's own same-day snapshot --
+      OCID-024/025/033 had all merged (PRs #767/#766/#778) since OCID-060 was written hours earlier, a
+      live instance of this repo's own already-flagged concurrent-state-drift pattern. Also flagged,
+      not silently resolved: OCID-058's own self-cited UMR (`UMR-20260804-035943-3c38`, per its own
+      `ai-os/OS.yaml` entry) collides with the same UMR value cited elsewhere for OCID-057 -- a further
+      instance of the already-tracked `GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES` chain-integrity
+      anomaly, not introduced here and not re-litigated here (out of this document's own scope).
+
+      This document's own UMR is honestly disclosed as not self-minted rather than fabricated: this
+      task's own `task.yaml` carries no `umr_id`, and a fresh `umr_tasks` query (re-run at the end of
+      this session, after all other research) still returned zero rows for this task's own identity --
+      `umr_tasks` rows are written by this server's own background dispatch-sync pipeline, not by an
+      interactive documentation task, and self-inserting a row directly into a live, write-lock-protected
+      production database would be a real overreach beyond this dispatch's own explicit registration-only
+      scope. Same disclosure pattern `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      already established for OCID-062's own UMR.
+
+      No runtime code implemented, no browser/PWA/server execution path touched, no mode-pill or
+      option-chain logic touched -- explicitly out of scope per this task's own dispatch instruction.
+      Explicitly re-confirms real implementation/certification for OCID-061 stays locked behind the same
+      OCID-038 -> OCID-039 -> OCID-040 gate (SEC-07) as every other OCID in this chain, re-citing (not
+      re-deriving) OCID-060's own fresh evidence that gate remains genuinely open.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_061_UNIVERSAL_DETERMINISTIC_INPUT_RUNTIME_REGISTRATION_2026-08-04.md`
+      (new), `ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/,
+      schema, migration, or CI changes -- registration documentation only, zero code changes, per this
+      dispatch's own explicit instruction.
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |
