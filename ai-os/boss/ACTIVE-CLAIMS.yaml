@@ -5857,6 +5857,43 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260806-151408-owner-directive--cap-and-report-the-real) -- Owner directive to cap+report real PARALLEL_WORKERS_CEILING/INTERACTIVE_SUBAGENT_COUNT: found already fully implemented and merged, closed as duplicate dispatch [DONE, no code changes]"
+    claimed_at: "2026-08-06T15:14Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner directive, `veridian-scripts` repo -- separate live-checkout from this
+      compliance-tracker workspace): confirmed `dispatch_core.py`'s `CONCURRENCY_CAP` (env
+      `VERIDIAN_DISPATCH_CONCURRENCY_CAP`, default 5, no override present anywhere on this server)
+      and `dispatch-tick.py`'s `acquire_dispatch_lock()`/`has_free_slot()` pre-spawn gating are the
+      real, already-enforced ceiling for the systemd `veridian-worker@*` layer. Asked this session to
+      update `generate_pm_report_v3.py` Section 1 so `PARALLEL_WORKERS_CEILING` reads
+      `dispatch_core.CONCURRENCY_CAP` directly (never a hardcoded literal), and to add a second real,
+      purely-observational `INTERACTIVE_SUBAGENT_COUNT` field (real count of `claude -p` child
+      processes under the main tmux session's own process tree) since that field does not govern
+      interactive-session subagent concurrency at all -- citing `UMR-20260806-081403-ebd3` as related
+      prior work.
+
+      **Independently re-verified before doing any real work (not trusted as-is):** isolated a fresh
+      worktree off `veridian-scripts`' `origin/main` (another concurrent session had real uncommitted
+      work dirtying the shared checkout at `/opt/veridian/scripts` -- left untouched) and found this
+      SPEC's entire scope already implemented, tested, and merged: `get_worker_ceiling()` (real
+      `load_module_from_path()` import of `dispatch_core.py`, reads live `CONCURRENCY_CAP`, no
+      hardcoded literal) and `get_interactive_subagent_count()` (real `tmux list-panes` + descendant
+      `/proc/<pid>/cmdline` matching for `claude -p`, explicitly labeled "not governed by
+      PARALLEL_WORKERS_CEILING above") are both wired into `build_report()`/`render_report_text()`
+      Section 1, with a docstring that already cites "`UMR-20260806-084701-0d40` (citing prior
+      `UMR-20260806-081403-ebd3`)" -- the exact citation this SPEC asked for. Shipped via PR #149
+      (`FChecklist/veridian-scripts`), commit `3fd89b0`, merged `2026-08-06T09:00:25Z` -- ~6 hours
+      before this task was dispatched. Ran the 4 dedicated tests
+      (`test_get_worker_ceiling_real_import`, `test_get_worker_ceiling_honest_error_on_missing_module`,
+      `test_get_interactive_subagent_count_real_end_to_end`,
+      `test_get_interactive_subagent_count_honest_error_no_session`) live against current `main`: all
+      4 pass. No code changes made -- adding a second implementation would duplicate/risk diverging
+      from the already-correct, already-tested one.
+    scope_note: >-
+      File scope: this workspace's `PROGRESS.md` and this ACTIVE-CLAIMS entry only. Investigated
+      (read-only) `/opt/veridian/scripts/{dispatch_core.py,dispatch-tick.py,generate_pm_report_v3.py,
+      test_generate_pm_report_v3.py}` in an isolated worktree, then removed that worktree with no
+      diff to commit -- no changes to the live `veridian-scripts` checkout or its `main` branch.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
