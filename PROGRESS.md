@@ -56,7 +56,14 @@ query (121 rows) -- SPEC itself instructs querying live rather than trusting han
       zero-code-change verification doc, conflict-resolved against main (kept branch's own
       PROGRESS.md per repo convention) and merged after a fresh AUDIT:PASS at the new head SHA.
       `pm_decisions_pending` id 20 (resolved).
-- [ ] UMR-20260805-112247-3ad0 (compliance-tracker#963): agent running, not yet reported.
+- [x] UMR-20260805-112247-3ad0 (compliance-tracker#963): left OPEN, not merged/closed -- real,
+      structural blocker: only one GitHub collaborator identity exists (`FChecklist`), which is
+      also this PR's own author, so `required_approving_review_count=1`+`enforce_admins=true`
+      makes self-approval structurally impossible (no bypass). Content itself is real, correct,
+      not superseded (`mergeable=MERGEABLE`, confirmed against current main HEAD). Posted a real
+      evidence-based AUDIT:PASS resolving the audit-check half of the gate; the review-identity
+      half genuinely needs Owner action (provision a second reviewer identity). Logged as
+      **`pm_decisions_pending` id 19, left OPEN** for Owner visibility -- correctly not force-closed.
 - [ ] UMR-20260805-122801-469e (veridian-scripts#87): agent running, not yet reported.
 - [ ] UMR-20260805-084120-e196 (compliance-tracker#958): agent running, not yet reported.
 - [ ] UMR-20260805-084109-2786 (compliance-tracker#957): agent running, not yet reported.
