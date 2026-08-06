@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-075804-close-all-real-owner-dispatched-umrs-fro) -- close all real owner_dispatch_gateway umr_tasks rows from the trailing 24h [IN PROGRESS]"
+    claimed_at: "2026-08-06T08:10Z (this session)"
+    claim: |
+      SPEC (Owner standing mandate, related parent `UMR-20260806-071025-1d28` per sibling rows in
+      the same batch): close all real `umr_tasks` rows with `source_trigger='owner_dispatch_gateway'`
+      submitted in the trailing 24h via the real 7-step closure playbook, using real deterministic
+      scripts for discovery/classification (AI judgment only for genuine ambiguity), up to 5
+      non-colliding parallel agents, real evidence (commit hash/file path/PR number) logged back to
+      the UMR row and `pm_decisions_pending`, no narrated-only claims.
+
+      Real premise correction found before acting: the SPEC's own hand-typed snapshot ("95 rows: 59
+      running / 21 killed / 7 rejected_duplicate / 5 queued / 3 completed") does not match a live
+      query -- real live count is 121 rows (39 completed / 30 running / 22 killed /
+      16 rejected_duplicate / 9 failed / 5 queued), queried read-only
+      (`file:...?mode=ro`) against `superboss-register.sqlite`, safe under its own `.writelock`. The
+      SPEC's own text explicitly instructs querying live rather than hand-typing numbers, so 121 is
+      treated as ground truth, not treated as a false premise to decline. Full detail, method, and
+      deterministic per-row classification (16 real buckets, 121/121 accounted for):
+      `ai-os/OWNER_DISPATCH_GATEWAY_24H_CLOSURE_2026-08-06.md`.
+    scope_note: >-
+      File scope so far: `PROGRESS.md`, `ai-os/OWNER_DISPATCH_GATEWAY_24H_CLOSURE_2026-08-06.md`
+      (new), this ACTIVE-CLAIMS entry, read-only discovery artifacts under this task's own
+      `discovery/` (not committed to compliance-tracker -- workspace-local). Next real work (per
+      PROGRESS.md `## Remaining`): `pm_decisions_pending` writes via the canonical
+      `superboss-register.py` CLI only (no raw SQL), and up to 5 parallel agents each scoped to one
+      distinct UMR/branch/PR for the genuine judgment-call buckets, never two against the same
+      file/branch/PR/UMR. Explicitly will NOT touch the 18 `running_open_live_do_not_touch` rows'
+      branches/PRs beyond a read-only staleness check -- those may be other live sessions' real
+      in-progress work.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
