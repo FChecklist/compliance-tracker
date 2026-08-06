@@ -36,8 +36,15 @@
       (mirroring the sibling task-075810 pattern) since the investigation itself is finished and the
       only remaining item needs the Owner, not more worker cycles.
 
+- [x] Re-verified again on resume (invocation 4/20, 2026-08-06T20:5x checkpoint cycle): `gh pr view
+      1000` still shows `mergeStateStatus=BLOCKED`/`reviewDecision=REVIEW_REQUIRED`, identical to
+      invocation 3's read. No new merge attempt made (invocation 3 already confirmed server-side the
+      block is real, not stale; repeating that probe again would add nothing). `ACTIVE-CLAIMS.yaml`
+      entry for this task confirmed still present and accurate. No state change anywhere to act on.
+
 ## Remaining
 - None for this task's own investigation -- it is complete and fully evidenced. PR #1000 is open but
   cannot self-merge (same structural review-count deadlock as PR #959). The real unresolved item
   (unchanged from task-075810's own finding, not new work created by this task) is the Owner
-  decision on that deadlock -- see the `ACTIVE-CLAIMS.yaml` entry for detail.
+  decision on that deadlock -- see the `ACTIVE-CLAIMS.yaml` entry for detail. This task should stay
+  `blocked`; nothing further for a worker cycle to do until the Owner acts on the deadlock or PR #1000.
