@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260805-143610-resolve-real-conflicting-merge-state-and) -- OCID-055/UMR-20260804-035817-6300, dispatched to resolve PR #868's claimed DIRTY/CONFLICTING mergeStateStatus + failing Metadata Index Coverage Check + failing audit-check -- found premise stale, PR already merged, no action needed [DONE, closed same session]"
+    claimed_at: "2026-08-05T14:36Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's prompt.txt, citing UMR-20260804-035817-6300/OCID-055): claimed PR #868 had a
+      real DIRTY/CONFLICTING mergeStateStatus, a real failing Metadata Index Coverage Check, and a
+      real failing audit-check, and asked to resolve the conflict against current main, fix both
+      checks (Metadata Index the same way PR #934 fixed it), and get it merged via real independent
+      review, reusing UMR-20260804-035817-6300 rather than minting a new one.
+
+      Live verification found the premise stale (same class as
+      [[veridian-live-concurrent-state-drift]] / [[veridian-task-prompt-false-premise-pattern]]): PR
+      #868 was already `MERGED` (merge commit `33367f7faeb21966bdf74cf6c1cd6aba6ba0df42`, merged
+      2026-08-05T10:02:51Z by the repo owner, ~4.5 hours before this task's own dispatch). Its
+      `mergeStateStatus`/`mergeable` both read `UNKNOWN` live via `gh pr view` -- not `DIRTY`/
+      `CONFLICTING` -- because GitHub stops computing that field once a PR is closed and its head
+      branch (`worker/task-20260804-040758-register-ocid-055--universal-repository`) deleted
+      (confirmed via `git ls-remote origin`, zero matching ref). All 18 real CI checks on the PR
+      show `SUCCESS`/`NEUTRAL` including `Metadata Index Coverage Check` and `audit-check` -- the PR
+      already carries a real fix commit (`aa25360237c4`, "fix: real Metadata Index Coverage Check
+      failure -- index OCID-055 register") whose own message states it reused
+      `UMR-20260804-035817-6300`/OCID-055 and followed the identical pattern PR #934 used earlier
+      the same session, exactly as this task's SPEC asked for. The merge commit is already a real
+      ancestor of both `origin/main` and this task's own branch HEAD (`git merge-base
+      --is-ancestor 33367f7f HEAD` confirms). No new commit, PR, or UMR was created -- the work this
+      SPEC asked for was already done by a prior session hours earlier; disclosing that here rather
+      than fabricating a duplicate PR against an already-merged branch.
+    scope_note: >-
+      File scope: `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No code, PR, or
+      other governance-doc changes -- verification-only finding, no real gap left open.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
