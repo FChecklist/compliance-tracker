@@ -47,10 +47,30 @@ query (121 rows) -- SPEC itself instructs querying live rather than trusting han
       (compliance-tracker#957). Results pending -- will be logged here + pm_decisions_pending once
       each agent reports real evidence.
 
+## Wave 1 results (logged as they complete)
+
+- [x] UMR-20260806-032912-9088 (veridian-scripts#105): MERGED for real, commit `d816d4f6c0f90ae325c27a64b1ea26da44ae20fc`
+      (2026-08-06T08:23:08Z), independently verified via `gh api .../commits/main` + `git ls-remote`
+      (two sources agree). Real finding: this row's nominal objective (close PR#98, defer to #100)
+      was already done by a concurrent thread before this branch existed; PR#105 itself was a
+      zero-code-change verification doc, conflict-resolved against main (kept branch's own
+      PROGRESS.md per repo convention) and merged after a fresh AUDIT:PASS at the new head SHA.
+      `pm_decisions_pending` id 20 (resolved).
+- [ ] UMR-20260805-112247-3ad0 (compliance-tracker#963): agent running, not yet reported.
+- [ ] UMR-20260805-122801-469e (veridian-scripts#87): agent running, not yet reported.
+- [ ] UMR-20260805-084120-e196 (compliance-tracker#958): agent running, not yet reported.
+- [ ] UMR-20260805-084109-2786 (compliance-tracker#957): agent running, not yet reported.
+
+**Budget note:** this session's token budget is nearly exhausted after wave 1 (one agent alone used
+~50k tokens for a genuinely thorough real playbook run). No wave 2 dispatched. Remaining wave-1
+agents' results, if they arrive after this session ends, are real work already in flight and should
+be picked up and logged by the next cycle against this same PROGRESS.md/ACTIVE-CLAIMS trail rather
+than re-dispatched.
+
 ## Remaining
 
-- [ ] Await wave 1 agent results; log each real outcome (merge commit hash / close reason) to
-      `pm_decisions_pending` and this file.
+- [ ] Await/log remaining wave 1 agent results (4 of 5) -- real outcome (merge commit hash / close
+      reason) to `pm_decisions_pending` and this file, once budget allows.
 - [ ] Wave 2: remaining 2 of `completed_open_needs_playbook` (UMR-20260805-145042-e536/veridian-scripts#93,
       UMR-20260805-034900-f0f2/compliance-tracker#943) + remaining 5 of
       `rejected_duplicate_with_real_pr_anomaly` (UMR-20260805-025554-46f9/compliance-tracker#940,
