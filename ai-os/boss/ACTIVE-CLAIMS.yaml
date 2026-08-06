@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (UMR-20260806-132527-30dc, child UMR-20260806-133845-32eb) -- real OCID-020 category 23 (UX audit) fail-root-cause + minimal fix, targeting the 4 real severity>=3 heuristics (H2/H4/H9/H10) from the 2026-08-06T10:31:26Z evidence"
+    claimed_at: "2026-08-06T13:45Z"
+    claim: |
+      SPEC (parent UMR-20260802-165606-4413/OCID-020, governing set UMR-20260805-131542-121f):
+      category 23 UX audit is FAIL. Read the real evidence_json in gtm_certification_categories
+      (category_index=23) and this repo's ai-os/scripts side (the check script itself is actually
+      tracked in the separate `veridian-scripts` repo, not here -- see PR opened there for the
+      check-methodology fix). File scope in THIS repo: src/app/pricing/page.tsx (decorative logo
+      glyph aria-hidden fix), src/app/not-found.tsx (new, real custom 404 -- H9), src/app/login/
+      login-form.tsx + src/app/signup/page.tsx (add real home/contact footer links -- H10). Does
+      NOT touch the /login,/help "PROJEXA" title mismatch driving part of H2 -- confirmed that
+      string doesn't originate anywhere in this repo's source (no middleware.ts, zero grep hits),
+      matching this file's own pre-existing 2026-08-02 finding ("https://projexa-ai.com does not
+      serve the PROJEXA application right now... routing... explicitly deferred") -- a real
+      domain/deployment-routing gap, not a page-code bug, left untouched here.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
