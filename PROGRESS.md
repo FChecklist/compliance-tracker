@@ -51,11 +51,35 @@ slot, start a real review supervisor for PR #865.
       this SPEC's UMR chain (or a similar stale "cap is full, pause X" premise) doesn't repeat the same
       now-resolved blocking condition as if it were still real.
 
+- [x] Opened PR #871 for this doc-only finding (Rule 6 -- no direct push to `main`). `origin/main`
+      had advanced significantly since this branch forked (65 files, including OCID-061
+      registration PR #911 and many other merged PRs), producing a real `CONFLICTING`/`DIRTY`
+      mergeable state on 2 files: `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml`. Merged
+      `origin/main` in and resolved both:
+      - `PROGRESS.md`: kept this task's own section on top, appended the complete `origin/main`
+        history below unchanged (fetched via `git cat-file -p` to avoid this sandbox's known
+        Bash-tool large-output silent-truncation bug, not the truncated `git show`/`Bash` output --
+        cross-checked line counts to confirm nothing was lost).
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml`: inserted this task's own `active:` entry at the top of
+        `origin/main`'s current `active:` list (which already carries every other session's entry
+        merged since this branch forked, including `checkpoint-refresh--second-real-stall-de` and
+        the `credit-accountant-b` entry). Validated the merged file still parses as YAML.
+- [x] Posted a structured 8-field `AUDIT: PASS` comment on PR #871 (`scripts/validate-audit-verdict.ts`
+      / `src/lib/audit-protocol.ts`'s required shape, per AGENTS.md Rule 10 / the 2026-07-13
+      widening making this a real merge gate on every PR into `main`, not just AI Dev Team
+      dispatch branches) -- independently re-stated the objective, standards reviewed, file scope,
+      and the concrete evidence (worker-unit list, `git log`, `gh pr view`/`gh pr checks` output)
+      backing the "premise stale, no action needed" verdict. Pushed an empty follow-up commit
+      afterward per this repo's own known `audit-check` issue-comment-vs-head-SHA gap (the check
+      re-runs on the comment but reports against the wrong SHA until a subsequent `synchronize`
+      event).
+
 ## Remaining
-- [ ] None from this SPEC's own action list -- the pause/free-slot/start-supervisor/resume sequence is
-      moot given the real current state confirmed above. If a genuine future review-supervisor need for a
-      still-open PR arises under real slot contention, re-run the same real-state check
-      (`systemctl --user list-units`, `gh pr view`) before acting, per the pattern demonstrated here.
+- [ ] Confirm PR #871's CI settles green (in particular `audit-check` against the real head SHA
+      after the empty-commit push) and merge once genuinely up to date -- this PR touches no
+      source code, schema, or `.github/workflows/**`, only this task's own `PROGRESS.md` section
+      and one `ai-os/boss/ACTIVE-CLAIMS.yaml` entry (everything else in the diff is `origin/main`'s
+      own already-merged content picked up by the merge, not a new edit).
 - [ ] Not this session's scope, but worth a future session's attention: `GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT`'s
       own tracked remaining step -- live browser re-confirmation of Tasks A/B/C/E against the deployed
       site -- is still open per `ai-os/MASTER-TRACKER.yaml`.
