@@ -46,4 +46,10 @@
 
 ## Remaining
 
-- [ ] none
+- [ ] none -- all 4 steps done. PR #1006 (FChecklist/compliance-tracker) opened
+      for this docs bookkeeping; currently `mergeStateStatus=BLOCKED` (repo-wide
+      known issue -- 1 review required, no second real GitHub identity to
+      provide it; `gh pr merge --admin` confirmed still rejected with "At least
+      1 approving review is required" -- same standing deadlock already logged
+      in this session's memory, not something this task caused or can fix).
+
