@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260806-142157-ocid-020-categories-15-16-17-21-execute) -- real execution of the already-built GTM certification check scripts for categories 15 (multi tenant testing), 16 (role permission testing), 17 (browser compatibility), 21 (deployment testing) [IN PROGRESS]"
+  - session_label: "claude-code (task-20260806-142157-ocid-020-categories-15-16-17-21-execute) -- real execution of the already-built GTM certification check scripts for categories 15 (multi tenant testing), 16 (role permission testing), 17 (browser compatibility), 21 (deployment testing) [DONE, closed same session]"
     claimed_at: "2026-08-06T14:30Z (this session)"
     claim: |
       SPEC (this task's own prompt.txt, parent `UMR-20260802-165606-4413`/OCID-020): categories 15,
@@ -73,6 +73,25 @@ active:
       gtm_certification_categories rows for category_index 15/16/17/21 only (via
       superboss-register.py / gtm_write_category_result.py canonical scripts, never raw SQL). No
       src/, schema, or CI changes expected -- read-only check scripts already exist.
+    result: >-
+      Real execution complete for all 4. Minted individual child UMRs under
+      `UMR-20260802-165606-4413` for each category (15 -> `UMR-20260806-142729-d449`, 16 ->
+      `UMR-20260806-142729-ca81`, 17 -> `UMR-20260806-142729-ed21`, 21 -> `UMR-20260806-142729-55fc`),
+      replacing the shared, itself-failed `UMR-20260805-142958-ddd8` these 4 rows still cited,
+      matching the corrected per-category convention the 2026-08-06 11:58 backfill already applied
+      to the other 21 categories. Category 15 (multi tenant testing) and 16 (role permission
+      testing): real script executed, genuinely `blocked` (passed=NULL) -- no Owner test credential
+      present, same honest outcome as before, freshly re-verified. Category 17 (browser
+      compatibility): already had a real, fresh `passed=0` from ~1h13m before this task's own
+      dispatch -- not re-run (would be pure duplicate work), child UMR minted for
+      linkage/attribution backfill only. Category 21 (deployment testing): real script executed,
+      found a real `VERCEL_ACCESS_TOKEN` now present (confirmed it authenticates via explicit
+      `--token`), but the unmodified check script only auto-detects the CLI's own `VERCEL_TOKEN`
+      name and its `vercel ls` call genuinely timed out without it -- result honestly recorded as
+      `blocked`, not a fabricated pass/fail; the script's `--token`-wiring gap flagged in
+      `PROGRESS.md` as a follow-up finding, not fixed (out of this task's execute-only scope). No
+      raw SQL used anywhere -- all writes went through `superboss-register.py`'s own
+      `upsert_umr_task()`/`update_umr_task()` and `gtm_write_category_result.py`'s canonical writer.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
