@@ -67,6 +67,16 @@ active:
       wiring_registry immediately per-function per this task's own spec, rather than force-pushing
       onto either stale/conflicting branch. Leaving PR #643/#647 as-is (not closing them) for whoever
       owns reconciling those branches -- noting the overlap here per this file's protocol #4.
+    status_update: |
+      2026-08-06 (later same session): all 5 functions implemented fresh on this branch (real
+      DB-backed logic, no placeholders) + report_definitions migrations (drizzle/0313-0317) +
+      report-catalog-service.ts entries + 5 API routes + 17 new DB-free unit tests. Checked
+      wiring_registry directly (generate_wiring_registry.py): it's a mechanically regenerated
+      snapshot from existing catalogs, not a manual per-file registration step -- confirmed no
+      precedent PR for this same task (FI-AA-006 #648, FI-AR-006 #645, FI-AP-006 #651, HCM-006
+      #654) performed one either. tsc --noEmit clean, bun test 2529/2529 pass. PR open:
+      https://github.com/FChecklist/compliance-tracker/pull/995 -- awaiting CI, will move this
+      entry to recently_completed once merged.
       NOT touching: SD-006 (open PR #652, real code, CONFLICTING) or CO-006 (open PR #653, real code,
       CONFLICTING) -- both already have complete implementations (migrations/routes/tests) sitting in
       their own open PRs; redoing them here would be pure duplication, reconciling those merge
