@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-234529-run-the-deterministic-reconcile-stale-sw) -- ran resource_governor.py --reconcile-stale per 24h closure mandate UMR-20260806-071025-1d28, real child UMR-20260806-235333-3587 [DONE, closed same session]"
+    claimed_at: "2026-08-06T23:45Z (this session, closed same session)"
+    claim: |
+      SPEC (24h closure mandate UMR-20260806-071025-1d28, citing PM report contract
+      UMR-20260806-042531-be9c): claimed a trailing-24h owner_dispatch_gateway set of
+      total=141 closed=38 (27.0%) with 29 rows stuck in status='dispatched', naming
+      UMR-20260806-103954-6f42 (veridian-directive-engine.service enable) as proof at
+      least one was really done despite reading dispatched. Minted real child
+      UMR-20260806-235333-3587 via the canonical registrar (resource_governor.py
+      --submit -> superboss-register.py upsert_umr_task, closed via mark-umr-terminal).
+      Ran resource_governor.py --reconcile-stale (dry run then --execute): 3 real rows
+      reconciled to completed with real systemd-derived evidence (UMR-20260806-101302-65a0,
+      UMR-20260806-152231-965d, UMR-20260806-152232-75d2), all source_trigger=
+      dispatch-tick:resume_interrupted_workers, none owner_dispatch_gateway. Re-read the
+      real trailing-24h owner_dispatch_gateway numbers via generate_pm_report_v3.py
+      (same query as the PM report contract): before=after, total=234 closed=128
+      pct=54.7, 0 rows in status=dispatched at either snapshot -- the SPEC's 11:25 UTC
+      snapshot was ~12.5h stale by execution time (23:5x UTC), already overtaken by
+      normal background dispatch-tick/dead-zone reconciliation. The named proof-row
+      UMR-20260806-103954-6f42 was independently found already auto-reset by a separate
+      dead-zone reconciler at 2026-08-06T21:16:08Z (before this session started) and
+      since reused for an unrelated task -- reported per Step 5 as a stale premise, not
+      hand-edited. Full evidence: ai-os/registry/reconcile-stale-sweep-20260806-235333.md.
+    scope_note: >-
+      File scope: PROGRESS.md, ai-os/registry/reconcile-stale-sweep-20260806-235333.md,
+      this ACTIVE-CLAIMS entry. Real DB writes made only through the canonical CLI tools
+      (resource_governor.py --reconcile-stale --execute, superboss-register.py --submit /
+      mark-umr-terminal) -- no raw SQL UPDATE against umr_tasks, no status hand-set.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
