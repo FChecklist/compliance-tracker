@@ -5857,6 +5857,43 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-091301-pm-decision--continue-monitoring-the-rem) -- monitor remaining Group C PRs #780/#778/#777/#785, resolve real blockers [DONE, all 4 merged]"
+    claimed_at: "2026-08-04T09:13Z (this session; entry backfilled 2026-08-06 -- see note below)"
+    claim: |
+      SPEC (PM decision, `UMR-20260802-173631-ca85` OCID-021): PR #773 (OCID-029) already
+      independently verified merged (commit `8e90dc35`). Continue monitoring the remaining
+      4 real Group C PRs -- #780, #778, #777, #785 -- resolving any real blocker as it surfaces.
+      No new decision needed.
+
+      Independently re-checked live state of all 4 PRs rather than trusting the spec's snapshot.
+      PR #780: `mergeStateStatus: UNSTABLE` / `mergeable: MERGEABLE`, all 7 required checks
+      passing (only the non-required `Vercel` preview was rate-limited) -- merged (squash),
+      merge commit `e06786c3`. PR #778, #777, #785: real `DIRTY`/`CONFLICTING` against `main` --
+      each branch was reset to its own real remote tip (a concurrent session had already pushed
+      to some of them) and merged fresh with `origin/main`; conflicts were confined to the usual
+      additive governance files (`ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`), resolved by keeping both sides' entries,
+      YAML validated, pushed. All required checks (Lint/Type Check/Build/audit-check/Guardrail
+      Presence/Asset Registry Coverage/Unit Tests/E2E) went green on all 3; confirmed merged via
+      `gh pr view --json mergedAt,mergeCommit,mergedBy`: #778 -> `f10c757f` (2026-08-04T09:44:47Z),
+      #777 -> `cf2a6d26` (2026-08-04T10:35:43Z), #785 -> `8d8e1dba` (2026-08-04T11:43:44Z), all
+      merged by the repo's automation identity (`FChecklist`) once required checks passed --
+      no manual `gh pr merge` needed for these 3, unlike #780.
+
+      **Backfill note (2026-08-06, invocation 3/20):** this session's own `active:` entry
+      registering this claim was made in local commits on the task's own worker branch
+      (`024bb42c`, `f00cf340`) but that branch was never opened as a PR against `main`, so the
+      claim/progress record never actually reached this shared registry -- a real process gap in
+      the prior invocation, not a fabricated history. This entry reconstructs the record from
+      those local commits plus live re-verification (`gh pr view`) of all 4 PRs' final merged
+      state, cross-checked against a fresh `git fetch origin main` (now far ahead, `958ccacc`+),
+      confirming none of this is stale. All 4 Group C PRs are real, merged, confirmed ancestors
+      of current `main`. This task's scope is complete.
+    scope_note: >-
+      File scope: this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry only (adds the missing
+      `recently_completed:` record for an already-real, already-merged task; the 4 PR merges
+      themselves happened 2026-08-04 via the mechanism described above). No src/ or schema
+      changes.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
