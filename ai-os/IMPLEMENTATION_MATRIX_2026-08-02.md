@@ -1077,7 +1077,7 @@ content has no hard read-dependency on those siblings' text.
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-041653-9de5`, OCID-20260803-022)
+## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-040844-4a33`, OCID-022, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`)
 
 Real Owner directive, tier 1, parented to `UMR-20260802-173631-ca85` (this same ERP Functional
 Completeness Master Program). Extends the existing master program — no new program, no new
@@ -1160,6 +1160,39 @@ OCID-023's own dispatched worker). The real gate every directive in this chain a
 OCID-020 (`UMR-20260802-165606-4413`), which is real, genuinely still open, and correctly respected.
 
 Canonical artifact updated: this file, `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` (new) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-03): OCID-035 VERIDIAN Continuous Platform Evolution Runtime v1.0 (this task's own directive, parented to `UMR-20260803-042003-5e92`, OCID-034)
+
+Real, documentation-only definition of how VERIDIAN continuously evolves — enhancement request capture
+and classification, search-before-change (deferring to OCID-027's own discovery/reuse taxonomy rather
+than restating it), per-artifact-type enhancement patterns (function/report/analysis/prompt/business
+rule/workflow/UI/UX), multi-brand and multi-tenant propagation, generic component extraction, canonical
+artifact and UMR chain update, regression/duplication prevention, compatibility/impact/performance
+validation, release readiness, and platform governance/health/metrics. Full detail:
+`ai-os/VERIDIAN_CONTINUOUS_PLATFORM_EVOLUTION_RUNTIME_2026-08-03.md`.
+
+**Real numbering note:** this task's own `task.yaml`/`prompt.txt` self-identify as OCID-035, parented
+to OCID-034 (`UMR-20260803-042003-5e92`, "VERIDIAN Universal Context and Predictive Runtime",
+dispatched as `task-20260803-055118-ocid-034-veridian-universal-context-and`, in progress, no document
+yet). `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`'s own table labels this same mission
+text as OCID-034 instead — the same class of off-by-one drift that document has already self-corrected
+twice (OCID-036/037 in its own §1a; OCID-026/027/028/029/030 in PR #776). Per the precedent PR #776
+established, this document trusts its own task's real self-identification over the snapshot table and
+flags the snapshot row for a future correction pass, rather than silently renumbering itself either
+way. No content in the new document depends on which integer it carries.
+
+**Cluster-overlap check performed (per real PM decision `UMR-20260803-045159-ec55`):** read the one
+real adjacent document that existed at the time this was written — OCID-027's "Global Knowledge
+Discovery and Reuse Runtime" (PR #771, open/unmerged) — and explicitly scoped this document's own
+"search before change" section to cross-reference it rather than restate its discovery taxonomy. Also
+checked OCID-029/030 (PRs #773/#772, separate functional domains — organization modeling and decision
+logic, no overlap found). OCID-032/034/036 had not started (no document, no PR) as of this pass.
+
+Canonical artifact created: `ai-os/VERIDIAN_CONTINUOUS_PLATFORM_EVOLUTION_RUNTIME_2026-08-03.md` (new)
+— not rewritten, not duplicated. This entry amends the existing UMR chain in place; no new chain
+started.
 
 ---
 
@@ -1458,6 +1491,38 @@ continuity, native PWA install, and reports/analysis flows.
 `GAP-MOBILE-VIEWPORT-BLANK-CONTENT` (`UMR-20260803-072955-3132`), plus the PWA documentation
 correction (`UMR-20260803-073010-fcaf`) filed against OCID-034's doc and this file's own OCID-034
 amendment above.
+## Amendment (2026-08-03): VERIDIAN Universal Knowledge and Service Catalog v1.0 (`UMR-20260803-042230-180c`, OCID-20260803-037)
+
+Real Owner directive, tier 1, documentation only. Real dispatch UMR per the corrected row in
+`ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md` §1 and confirmed by
+`ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md` (OCID-036, real
+content OCID-035, PR #782) §36's own handoff note, which names this exact UMR for OCID-037. Parented to
+`UMR-20260803-042144-e83f` (real OCID-036 directive). Also cites `UMR-20260803-040844-4a33` through
+`UMR-20260803-042034-0c1f` (OCID-022 through OCID-035, in order), `UMR-20260802-173631-ca85` (ERP
+Functional Completeness Master Program, this file's own parent), `UMR-20260802-165606-4413` (OCID-020),
+`UMR-20260802-164659-9a31` (server artifact traceability audit), `UMR-20260802-165034-5747` (standing
+gatekeeper rule), `UMR-20260802-165434-cd91` (unified project memory model). Extends the existing master
+program; no new program, no new file beyond the one canonical artifact named below.
+
+**Real, honest zero-duplication check performed** (per the binding PM decision `UMR-20260803-045159-ec55`,
+applicable to every worker picking up OCID-026 through 037): `find`/`gh pr list` confirmed no
+"Universal Knowledge and Service Catalog" document, mechanism, or registry exists anywhere in this repo
+under any name. The two directly adjacent, real, substantive sibling documents —
+`ai-os/VERIDIAN_GLOBAL_KNOWLEDGE_DISCOVERY_AND_REUSE_RUNTIME_2026-08-03.md` (OCID-027, PR #771, open,
+620 lines) and `ai-os/VERIDIAN_UNIVERSAL_CAPABILITY_DISCOVERY_AND_EVOLUTION_RUNTIME_2026-08-03.md`
+(OCID-036, PR #782, open, 502 lines) — were read in full (via `git cat-file -p` on the real blob SHA, after
+a first `git show` attempt was silently truncated to 31 lines by the Bash tool's own known large-output
+truncation behavior) before writing a word of this document's own content, and this document's own §0/§33
+name exactly which of its 37 sections cross-reference those two siblings versus which are genuinely new.
+
+**Real discovery performed, not re-derived from memory**: `ai-os/VERIDIAN_LAPTOP_WEB_BROWSER_RUNTIME_2026-08-03.md`
+(OCID-024, PR #767) §14-15 and `ai-os/VERIDIAN_MOBILE_PWA_AND_VERI_CHAT_RUNTIME_2026-08-03.md` (OCID-025,
+PR #766) §12-13 were read for real, file:line-grounded Mode Pill (`VeriComposer.tsx:534-555`,
+`capability-tree-service.ts::buildCapabilityTree()`) and Option Chain (`ChainSelector.tsx`, `dynamic_chains`
+table, `schema.ts:1804`) evidence, cross-checked against `ai-os/CONSTITUTION.yaml`'s `DMP-01` through
+`DMP-06` rules. Confirmed, a fourth independent time in this chain (after OCID-034 §22, OCID-024 §15,
+OCID-025 §13), that the directive term "option chain" has zero literal matches in `src/` and real, correctly
+maps to the existing Chain Selector / `dynamic_chains` mechanism — not a new concept this document invents.
 
 **Status, real and current:**
 
@@ -1654,7 +1719,7 @@ BREAKDOWN_2026-08-03.md` (new file), this amendment, `ai-os/OS.yaml` (registrati
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-042019-844f`, dispatch `UMR-20260803-040929-9713`, OCID-20260803-023)
+## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-040929-9713`, OCID-023, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`; this document originally also self-minted a fabricated "artifact UMR", `UMR-20260803-042019-844f`, never really registered anywhere)
 
 Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-040844-4a33` (the real
 `owner_dispatch_gateway` UMR that created sibling task `task-20260803-040852-ocid-022`, independently
@@ -1700,10 +1765,15 @@ partial exception being `pmsIssues.isArchived`, a bare flag with no retention/di
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-20260803-023 | `UMR-20260803-042019-844f` (artifact) / `UMR-20260803-040929-9713` (dispatch) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
+| OCID-20260803-023 | `UMR-20260803-040929-9713` (real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`; the "artifact" UMR `UMR-20260803-042019-844f` previously listed here was fabricated, never really registered) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
 
 Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md` (new, not a
 duplicate — confirmed via `git log --all --name-only` finding `UNIVERSAL_TASK_WRAPPER_DESIGN.md` as
 the one genuine piece of prior art, which the new document builds on rather than replaces), this
 file (this amendment), `ai-os/OS.yaml` (new index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim
 entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
+| OCID-037 | `UMR-20260803-042230-180c` | VERIDIAN Universal Knowledge and Service Catalog v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as every prior entry in this chain** |
+
+Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_KNOWLEDGE_AND_SERVICE_CATALOG_2026-08-03.md` (new).
+Canonical artifact updated: this file, `ai-os/OS.yaml` (index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml`
+(claim entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
