@@ -5857,6 +5857,40 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260805-122949-pm-decision--harden-compliance-tracker-b) -- verify + synthetically prove Metadata Index Coverage Check branch-protection hardening (UMR-20260805-033159-4f47) [DONE]"
+    claimed_at: "2026-08-05T12:29Z (this session, closed same session)"
+    claim: |
+      SPEC (PM decision, UMR-20260805-033159-4f47 finding, related UMR-20260805-025349-a6b8,
+      UMR-20260805-025554-46f9, Hard Rule 7 lock UMR-20260802-165606-4413): add the Metadata Index
+      Coverage Check to compliance-tracker's real required status checks on main, and require >=1 real
+      approving review before merge, then prove it with a real synthetic throwaway PR that
+      intentionally fails the check and is confirmed genuinely blocked from merging.
+
+      Independently verified before acting: this exact corrective action had already been applied once
+      by a prior session (UMR-20260805-034917-33a9) -- Metadata Index Coverage Check already required,
+      required_approving_review_count already set to 1, enforce_admins already true. A second, later,
+      real Owner-approved directive (UMR-20260805-091648-6793) then deliberately, temporarily reverted
+      required_approving_review_count to 0, because the sole real GitHub identity in this system
+      (FChecklist) authors every PR and GitHub structurally refuses self-approval -- with
+      enforce_admins true and no bypass, review_count=1 made every future merge in the repo impossible.
+      That exception's own documented re-enable trigger (UMR-20260805-091629-d8e3, a real second
+      reviewer identity going live) has NOT fired -- confirmed via
+      ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md: the check code merged (PR #938) but its
+      workflow is still unapplied and no second real identity/App exists.
+
+      Decision: did NOT flip required_approving_review_count back to 1 -- doing so would have silently
+      overridden a later, still-valid, Owner-approved exception before its own trigger fired, and would
+      have re-locked every future merge in the repo. Instead independently re-verified the Metadata
+      Index Coverage Check half is genuinely live via a real synthetic test: opened throwaway PR #942
+      with a deliberately-unindexed ai-os/ file, confirmed `Metadata Index Coverage Check: fail` and
+      `mergeStateStatus: BLOCKED` via gh, closed without merging, deleted the branch. Full honest
+      before/after and citations in
+      ai-os/GOVERNANCE_RECORD_METADATA_CHECK_HARDENING_VERIFICATION_2026-08-05.md.
+    scope_note: >-
+      File scope: ai-os/GOVERNANCE_RECORD_METADATA_CHECK_HARDENING_VERIFICATION_2026-08-05.md (new),
+      ai-os/OS.yaml (1 new index entry), this ACTIVE-CLAIMS entry, PROGRESS.md. Real throwaway PR #942
+      opened and closed against main (never merged, branch deleted) -- no src/, schema, or branch-
+      protection-setting changes made.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
