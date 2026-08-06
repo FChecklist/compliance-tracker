@@ -5,6 +5,10 @@ import {
   registerAllGuardrails, AI_TEAM_CLOSURE_REVIEW_LEAF,
   GST_SPLIT_ENGINE_LEAVES, LOAN_ENGINE_LEAVES, GRATUITY_CALCULATOR_LEAF, COMMISSION_CALCULATOR_LEAF,
   AI_DOCUMENT_EXTRACTION_LEAF,
+  BONUS_CALCULATOR_LEAF, ARREAR_CALCULATOR_LEAF, ATTRITION_CALCULATOR_LEAF, ATTENDANCE_CALCULATOR_LEAF,
+  ADVANCE_TAX_CALCULATOR_LEAF, CAPITAL_GAINS_CALCULATOR_LEAF, BANKING_INTEREST_CALCULATOR_LEAF,
+  CREDIT_LIMIT_CALCULATOR_LEAF, TCS_CALCULATOR_LEAF, MATERIALITY_CALCULATOR_LEAF,
+  COMPLIANCE_INTEREST_CALCULATOR_LEAF, INCREMENT_CALCULATOR_LEAF,
 } from "./guardrail-registrations"
 
 registerAllGuardrails()
@@ -181,6 +185,132 @@ describe("Business Rule Validation Before Execution (VERIDIAN Review Framework, 
 
   test("commission calculator passes a realistic rate", () => {
     expect(evaluateGuardrails(COMMISSION_CALCULATOR_LEAF, "process", { saleAmount: 100000, commissionRatePercent: 5 })).toEqual({ passed: true })
+  })
+})
+
+describe("Guardrail Coverage expansion (ai-os/GUARDRAIL_COVERAGE_CANDIDATES_2026-07-24.yaml batch, 'process' phase)", () => {
+  test("bonus calculator rejects a percent outside the Payment of Bonus Act's 8.33-20% statutory range", () => {
+    const result = evaluateGuardrails(BONUS_CALCULATOR_LEAF, "process", { annualBasicPlusDa: 300000, bonusPercent: 25 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("bonus_percent_out_of_bounds")
+  })
+
+  test("bonus calculator passes a real statutory-range percent", () => {
+    expect(evaluateGuardrails(BONUS_CALCULATOR_LEAF, "process", { annualBasicPlusDa: 300000, bonusPercent: 8.33 })).toEqual({ passed: true })
+  })
+
+  test("arrear calculator rejects a negative revised pay", () => {
+    const result = evaluateGuardrails(ARREAR_CALCULATOR_LEAF, "process", { revisedMonthlyPay: -1, originalMonthlyPay: 50000, affectedMonths: 6 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("arrear_pay_out_of_bounds")
+  })
+
+  test("arrear calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(ARREAR_CALCULATOR_LEAF, "process", { revisedMonthlyPay: 60000, originalMonthlyPay: 50000, affectedMonths: 6 })).toEqual({ passed: true })
+  })
+
+  test("attrition calculator rejects a negative headcount", () => {
+    const result = evaluateGuardrails(ATTRITION_CALCULATOR_LEAF, "process", { separations: 5, openingHeadcount: -10, closingHeadcount: 90 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("attrition_count_out_of_bounds")
+  })
+
+  test("attrition calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(ATTRITION_CALCULATOR_LEAF, "process", { separations: 5, openingHeadcount: 100, closingHeadcount: 95 })).toEqual({ passed: true })
+  })
+
+  test("attendance calculator rejects a total working days figure past a calendar year", () => {
+    const result = evaluateGuardrails(ATTENDANCE_CALCULATOR_LEAF, "process", { presentDays: 20, totalWorkingDays: 400 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("attendance_days_out_of_bounds")
+  })
+
+  test("attendance calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(ATTENDANCE_CALCULATOR_LEAF, "process", { presentDays: 20, totalWorkingDays: 22 })).toEqual({ passed: true })
+  })
+
+  test("advance tax calculator rejects an implausible amount", () => {
+    const result = evaluateGuardrails(ADVANCE_TAX_CALCULATOR_LEAF, "process", { estimatedAnnualTax: 5_000_000_000, alreadyPaid: 0 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("advance_tax_amount_out_of_bounds")
+  })
+
+  test("advance tax calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(ADVANCE_TAX_CALCULATOR_LEAF, "process", { estimatedAnnualTax: 100000, alreadyPaid: 25000 })).toEqual({ passed: true })
+  })
+
+  test("capital gains calculator rejects a negative sale value", () => {
+    const result = evaluateGuardrails(CAPITAL_GAINS_CALCULATOR_LEAF, "process", { saleValue: -1, costOfAcquisition: 100000 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("capital_gains_amount_out_of_bounds")
+  })
+
+  test("capital gains calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(CAPITAL_GAINS_CALCULATOR_LEAF, "process", { saleValue: 500000, costOfAcquisition: 300000 })).toEqual({ passed: true })
+  })
+
+  test("banking interest calculator rejects an implausible rate", () => {
+    const result = evaluateGuardrails(BANKING_INTEREST_CALCULATOR_LEAF, "process", { principal: 100000, annualRatePercent: 999, days: 90 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("banking_interest_rate_out_of_bounds")
+  })
+
+  test("banking interest calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(BANKING_INTEREST_CALCULATOR_LEAF, "process", { principal: 100000, annualRatePercent: 7, days: 90 })).toEqual({ passed: true })
+  })
+
+  test("credit limit calculator rejects a negative income", () => {
+    const result = evaluateGuardrails(CREDIT_LIMIT_CALCULATOR_LEAF, "process", { monthlyIncome: -1, multiplier: 20 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("credit_limit_income_out_of_bounds")
+  })
+
+  test("credit limit calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(CREDIT_LIMIT_CALCULATOR_LEAF, "process", { monthlyIncome: 80000, multiplier: 20 })).toEqual({ passed: true })
+  })
+
+  test("TCS calculator rejects a rate outside 0-100%", () => {
+    const result = evaluateGuardrails(TCS_CALCULATOR_LEAF, "process", { saleValue: 100000, ratePercent: 150 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("tcs_rate_out_of_bounds")
+  })
+
+  test("TCS calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(TCS_CALCULATOR_LEAF, "process", { saleValue: 100000, ratePercent: 1 })).toEqual({ passed: true })
+  })
+
+  test("materiality calculator rejects a negative base amount", () => {
+    const result = evaluateGuardrails(MATERIALITY_CALCULATOR_LEAF, "process", { baseAmount: -1 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("materiality_amount_out_of_bounds")
+  })
+
+  test("materiality calculator passes a realistic base amount", () => {
+    expect(evaluateGuardrails(MATERIALITY_CALCULATOR_LEAF, "process", { baseAmount: 10_000_000 })).toEqual({ passed: true })
+  })
+
+  test("compliance interest calculator rejects an implausible rate", () => {
+    const result = evaluateGuardrails(COMPLIANCE_INTEREST_CALCULATOR_LEAF, "process", { amount: 10000, annualRatePercent: 999, daysLate: 30 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("compliance_interest_rate_out_of_bounds")
+  })
+
+  test("compliance interest calculator passes realistic inputs", () => {
+    expect(evaluateGuardrails(COMPLIANCE_INTEREST_CALCULATOR_LEAF, "process", { amount: 10000, annualRatePercent: 18, daysLate: 30 })).toEqual({ passed: true })
+  })
+
+  test("increment calculator rejects an implausible percent", () => {
+    const result = evaluateGuardrails(INCREMENT_CALCULATOR_LEAF, "process", { currentSalary: 50000, incrementPercent: 5000 })
+    expect(result.passed).toBe(false)
+    if (!result.passed) expect(result.reason).toBe("increment_percent_out_of_bounds")
+  })
+
+  test("increment calculator passes a realistic percent", () => {
+    expect(evaluateGuardrails(INCREMENT_CALCULATOR_LEAF, "process", { currentSalary: 50000, incrementPercent: 10 })).toEqual({ passed: true })
+  })
+
+  test("optional fields absent are not violations -- e.g. TCS thresholdAmount is optional", () => {
+    expect(evaluateGuardrails(TCS_CALCULATOR_LEAF, "process", { saleValue: 100000, ratePercent: 1 })).toEqual({ passed: true })
   })
 })
 
