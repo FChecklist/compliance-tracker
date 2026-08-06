@@ -70,6 +70,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (me?.accountStage === "stage_0") router.replace("/stage0-chat");
   }, [me?.accountStage, router]);
+
+  // OCID-038 GAP-NO-SERVICE-WORKER-OFFLINE-BLANK-PAGE, real fix
+  // (UMR-20260803-072940-6a88, real implementation authorized
+  // UMR-20260804-105822-a267): registered here, at the authenticated app
+  // shell -- the real gap was directly observed inside an already-
+  // authenticated session going offline, and this is the one mount point
+  // that wraps every authenticated route. See public/sw.js's own header for
+  // the real, deliberately minimal (app-shell-only, not full offline-first)
+  // scope. Fails silently if unsupported (older browsers/some in-app
+  // webviews) -- this is a real, additive resilience improvement, never a
+  // requirement for the app to function.
+  useEffect(() => {
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {})
+    }
+  }, []);
   const overdueCount = stats?.overdue ?? 0;
   const noticeCount = stats?.noticeCount ?? 0;
   const accountType = me?.orgAccountType ?? "company";
