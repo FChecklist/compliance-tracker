@@ -17,6 +17,8 @@
       of truth instead)
 - [x] Added ai-os/OS.yaml index entry for the new document
 
+- [x] Commit and push
+- [x] Open PR (docs-only): https://github.com/FChecklist/compliance-tracker/pull/986
+
 ## Remaining
-- [ ] Commit and push
-- [ ] Open PR (docs-only)
+(none -- task complete, awaiting CI/merge on PR #986)
