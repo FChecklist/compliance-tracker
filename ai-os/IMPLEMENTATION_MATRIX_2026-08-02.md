@@ -1777,3 +1777,56 @@ entry, to be moved to `recently_completed` on merge) — not rewritten, not dupl
 Canonical artifact created: `ai-os/VERIDIAN_UNIVERSAL_KNOWLEDGE_AND_SERVICE_CATALOG_2026-08-03.md` (new).
 Canonical artifact updated: this file, `ai-os/OS.yaml` (index entry), `ai-os/boss/ACTIVE-CLAIMS.yaml`
 (claim entry, to be moved to `recently_completed` on merge) — not rewritten, not duplicated.
+
+---
+
+## Amendment (2026-08-06): Mandatory Governance Directive (`UMR-20260804-051521-7099`) formally
+## registered as `CONSTITUTION.yaml` SEC-08 — real duplicate-dispatch finding, pointer not a new table
+
+Real PM directive: formally adopt, as a standing rule for every OCID dispatch going forward (not a
+new OCID, not a new platform/database/framework/auth/execution/knowledge model), the discover ->
+verify -> reuse -> enhance -> standardize -> update UMR -> update UTR -> update canonical artifact
+-> implement discipline this whole OCID-015 through OCID-06x chain was already applying by hand.
+Parented to OCID-017 (`UMR-20260802-165034-5747`, the standing gatekeeper rule) and OCID-015
+(`UMR-20260802-164801-2ab9`, Master Execution Framework design), related OCID-020
+(`UMR-20260802-165606-4413`) and OCID-021 (`UMR-20260802-173631-ca85`). Also requested: one real
+normalized cross-reference table for OCID-015 through OCID-062 (real parent/UMR/dependency
+OCIDs/real PR-merge status), folded into OCID-053's and OCID-057's existing deliverables rather
+than a new parallel document.
+
+**Real, disclosed duplicate-dispatch finding, not silently redone from scratch.** This exact
+directive was dispatched at least twice within about an hour of each other on 2026-08-04: once
+informally, inside OCID-053's own dispatch (commit `64442700`/`3556813b`, 05:21Z — "OCID-053
+cross-reference extension (OCID-054..062) per standing normalization rule"), which added a real
+table to `ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md` section 7
+(parent/UMR/dependency/PR-status for OCID-054 through OCID-062) but explicitly deferred its own
+promised mirror in OCID-057's doc ("once that PR is resumed") and never produced a formal
+`CONSTITUTION.yaml` entry; and once as a dedicated task
+(`task-20260804-062800-register-the-mandatory-governance-direct`, 06:29Z), which closes both of
+those two real gaps — see `ai-os/CONSTITUTION.yaml` `SEC-08` (new) and the short mirror note added
+to OCID-057's own document.
+
+**Real decision on the cross-reference table itself, per this rule's own "reuse" step**: rather
+than author a fifth cross-reference document covering overlapping ground (the OCID-022..039 status
+snapshot, OCID-053 §1–3/§7, OCID-057, and the OCID-047-052 planning doc already exist), this
+amendment points to the two real artifacts that already satisfy this ask instead of duplicating
+them:
+- `ai-os/VERIDIAN_OCID_060_FINAL_PLATFORM_AUDIT_REPORT_2026-08-04.md` (PR #874, merged) — a
+  complete, evidence-cited, per-OCID table (real UMR, real PR(s), real status, real evidence
+  citation) covering **OCID-012 through OCID-059**.
+- `ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md` section 7 —
+  extends real parent/UMR/dependency/PR-status coverage through **OCID-062**.
+
+**Real, honest live-drift correction found this session** (independently re-checked via `gh pr
+view`, not narrated from either snapshot): OCID-060's table (written 2026-08-04) shows several rows
+as `OPEN` that are now confirmed `MERGED` as of this session (2026-08-06) — OCID-016 tranche 4
+(#749), OCID-022 (#765), OCID-023 (#768), OCID-024 (#767), OCID-025 (#766), OCID-026 (#775),
+OCID-029 (#773), OCID-032 (#780), OCID-033 (#778), OCID-037 (#785). This is ordinary, expected
+live-concurrent-state drift in a fast-moving multi-session repo, not a defect in OCID-060's own
+methodology — recorded here rather than hand-editing OCID-060's own table (which would itself
+duplicate/fork the canonical record OCID-060 already owns).
+
+Canonical artifact updated: this file, `ai-os/CONSTITUTION.yaml` (new `SEC-08` entry),
+`ai-os/VERIDIAN_OCID_057_UNIVERSAL_KNOWLEDGE_GRAPH_2026-08-04.md` (short mirror-note addendum),
+`ai-os/boss/ACTIVE-CLAIMS.yaml` — not rewritten, not duplicated. No new cross-reference document
+created.

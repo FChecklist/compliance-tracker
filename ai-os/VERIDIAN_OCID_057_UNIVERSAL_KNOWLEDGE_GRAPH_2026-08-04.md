@@ -260,3 +260,22 @@ most material finding of this pass; (b) the UMR/OCID governance-knowledge graph 
 previously assembled anywhere as one artifact; (c) formalizing two previously-prose-only gaps into
 tracked `GAP-` entries (section 5). Both new gap entries and the two broken/fabricated OCID references
 are now recorded in `ai-os/MASTER-TRACKER.yaml` so this finding survives past this single document.
+
+---
+
+## Amendment (2026-08-06): the OCID-053 §7 mirror note this document owed
+
+`ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md` section 7 (added
+under the Mandatory Governance Directive, `UMR-20260804-051521-7099`) extended real
+parent/UMR/dependency/PR-status coverage through OCID-062 and explicitly promised to mirror that
+table into this document ("once that PR is resumed"). That mirror was never added. Rather than paste
+a duplicate copy of the same table here — which this document's own reuse-over-rebuild discipline
+(section 6) argues directly against — this amendment records the pointer instead: OCID-053 section 7
+is the real, current OCID-054..062 cross-reference; `ai-os/VERIDIAN_OCID_060_FINAL_PLATFORM_AUDIT_REPORT_2026-08-04.md`
+(PR #874, merged) is the real, current OCID-012..059 cross-reference; `ai-os/CONSTITUTION.yaml`
+`SEC-08` (new) is the formal, grep-able registration of the standing normalization-discipline rule
+itself. Full detail, including a real disclosed duplicate-dispatch finding behind this whole
+amendment, is in `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s own 2026-08-06 amendment — not
+repeated here.
+
+Canonical artifact updated: this file (this amendment only) — not rewritten, no table duplicated.

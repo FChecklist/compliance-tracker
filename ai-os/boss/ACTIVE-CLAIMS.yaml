@@ -40,6 +40,53 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-062800-register-the-mandatory-governance-direct) -- PM registration of standing normalization-discipline rule (parent OCID-20260802-015/017, related OCID-020/021) + real cross-reference table for OCID-015 through OCID-062 [DONE -- see corrected findings below]"
+    claimed_at: "2026-08-04T06:29Z (this session; closed same session 2026-08-06)"
+    claim: |
+      SPEC (PM directive): formally register, as a standing rule going forward (not a new OCID, not
+      a new platform/database/framework/auth/execution/knowledge model), the discover -> verify ->
+      reuse -> enhance -> standardize -> update UMR -> update UTR -> update canonical artifact ->
+      implement discipline, parented to OCID-20260802-017 (`UMR-20260802-165034-5747`, the standing
+      gatekeeper rule) and OCID-20260802-015 (`UMR-20260802-164801-2ab9`, Master Execution Framework
+      design), related to OCID-020 (`UMR-20260802-165606-4413`) and OCID-021 (`UMR-20260802-173631-ca85`).
+      Also requested: one real normalized cross-reference table (parent/UMR/dependency OCIDs/real
+      PR-merge status) covering "OCID-015 through OCID-062", reusing knowledge-graph discovery
+      "already authorized under OCID-053 (UMR-20260804-033853-2a17) and OCID-057
+      (UMR-20260804-035943-3c38)", folded into those UMRs' existing deliverables rather than a new
+      parallel document.
+
+      **Real, corrected finding (this branch's original pre-work verification below was run against
+      a stale local checkout, 154 commits behind `origin/main` -- corrected after merging current
+      main, not silently left standing):** OCID-053 and OCID-057 are real, both merged (PR #867,
+      PR #866). Further, this exact directive (`UMR-20260804-051521-7099`, "the Mandatory Governance
+      Directive") was already informally adopted roughly an hour before this task's own dispatch, by
+      a different interactive session working inside OCID-053's own dispatch (commit `64442700`/
+      `3556813b`, 2026-08-04T05:21:09Z) -- a real, disclosed duplicate-dispatch collision. That prior
+      adoption added a real cross-reference table (OCID-053 section 7, covering OCID-054..062) but
+      never (a) mirrored it into OCID-057's own doc as promised, or (b) registered the rule formally
+      in `ai-os/CONSTITUTION.yaml`. A separate, already-merged document
+      (`ai-os/VERIDIAN_OCID_060_FINAL_PLATFORM_AUDIT_REPORT_2026-08-04.md`, PR #874) independently
+      already covers OCID-012 through OCID-059 in the exact real-parent/real-UMR/real-PR/real-status
+      table form this task's spec asks for. Real decision: rather than add a fifth redundant
+      cross-reference document to an already five-deep redundant chain, this task (1) registered the
+      standing rule formally as `ai-os/CONSTITUTION.yaml` `SEC-08` (the one genuinely undone piece),
+      (2) added a short pointer amendment to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` recording
+      the duplicate-dispatch finding and pointing to OCID-060/OCID-053 §7 as the real current
+      cross-reference tables, and (3) added the short mirror note to OCID-057's own doc that OCID-053
+      §7 had promised but never delivered. Full detail: this task's own `PROGRESS.md`.
+
+      Original (now-superseded) pre-work verification text, kept for the record rather than erased:
+      "`git grep` across `ai-os/` for `OCID-053`/`OCID-057` (all formats) and for the literal UMR IDs
+      `UMR-20260804-033853-2a17` / `UMR-20260804-035943-3c38` returns zero hits anywhere in this
+      repo. The real, currently-registered OCID chain tops out at OCID-052... OCID-053 through
+      OCID-062 do not exist under any label." -- this was accurate for the stale branch state it was
+      run against, not for `origin/main`; see the correction above.
+    scope_note: >-
+      File scope: `ai-os/CONSTITUTION.yaml` (new `SEC-08` entry), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`
+      (pointer amendment), `ai-os/VERIDIAN_OCID_057_UNIVERSAL_KNOWLEDGE_GRAPH_2026-08-04.md` (short
+      mirror-note addendum), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`.
+      Documentation/governance only -- no src/, schema, or CI changes, per the directive's own
+      explicit "no new platform/database/framework" instruction.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |

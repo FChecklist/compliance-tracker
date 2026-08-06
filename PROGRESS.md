@@ -1,3 +1,85 @@
+# PROGRESS -- task-20260804-062800-register-the-mandatory-governance-direct
+
+SPEC: PM registration of a standing normalization-discipline rule (discover -> verify -> reuse ->
+enhance -> standardize -> update UMR -> update UTR -> update canonical artifact -> implement),
+parent OCID-20260802-017 (`UMR-20260802-165034-5747`, standing gatekeeper rule) and
+OCID-20260802-015 (`UMR-20260802-164801-2ab9`, Master Execution Framework), related OCID-020
+(`UMR-20260802-165606-4413`) and OCID-021 (`UMR-20260802-173631-ca85`). No new platform/DB/
+framework/auth/execution/knowledge model. Also requested: one real cross-reference table for
+OCID-015 through OCID-062, folded into the existing deliverables of OCID-053/OCID-057.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/CONSTITUTION.yaml`, `ai-os/OS.yaml` per
+      CLAUDE.md's read order.
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before further work.
+      Committed+pushed on its own, per that file's own protocol (step 2: fast, before the real
+      work PR).
+- [x] **First-pass verification (stale, corrected below):** on this branch's original state
+      (154 commits behind `origin/main` at that point), `git grep` found zero hits for
+      `OCID-053`/`OCID-057`/their cited UMRs and concluded they didn't exist. **This was wrong** --
+      the branch was stale, not the citations. Recorded honestly here rather than silently erased,
+      per this repo's own established correction convention (see OCID-057's own doc for the
+      identical class of self-correction).
+- [x] `git fetch origin main` + `git merge origin/main` (154 commits; resolved real conflicts in
+      `PROGRESS.md` and `ai-os/boss/ACTIVE-CLAIMS.yaml`, both list/scratch files where the
+      resolution is "keep both sides," not a substantive conflict). Re-ran verification on the
+      current tree:
+      - **OCID-053 and OCID-057 are real** and merged (PR #867, PR #866), each with a full,
+        real, evidence-cited canonical document
+        (`ai-os/VERIDIAN_OCID_053_UNIVERSAL_KNOWLEDGE_AND_REFERENCE_GRAPH_2026-08-04.md`,
+        `ai-os/VERIDIAN_OCID_057_UNIVERSAL_KNOWLEDGE_GRAPH_2026-08-04.md`).
+      - **This exact directive was already informally adopted once before this task was even
+        dispatched.** `UMR-20260804-051521-7099` ("the Mandatory Governance Directive") is cited
+        as already-adopted, under OCID-017, in OCID-053 section 7, and in OCID-063/067/068's own
+        headers -- all landed *before* this task's own `claimed_at` (06:29Z). The registering
+        commit (`3556813b`/`64442700`, "OCID-053 cross-reference extension (OCID-054..062) per
+        standing normalization rule", 2026-08-04T05:21:09Z) was made by a different interactive
+        session working inside OCID-053's own dispatch, roughly an hour before this task's own
+        dispatch at 06:28. This is a real, disclosed duplicate-dispatch collision -- same class as
+        the ones already on record for OCID-047/052/068 (see this session's own memory) -- not
+        silently redone from scratch.
+      - That prior adoption added OCID-053 section 7 (a real parent/UMR/dependency/PR-status table
+        for OCID-054 through OCID-062) but explicitly deferred the promised mirror in OCID-057's own
+        doc ("once that PR is resumed") -- independently confirmed that mirror was **never added**
+        (`grep` for a matching section in the OCID-057 doc: zero hits).
+      - It also never produced a formal, grep-able `ai-os/CONSTITUTION.yaml` entry for the standing
+        rule itself -- confirmed no `SEC-08` (or any entry referencing this discipline) exists yet.
+      - **A separate, already-merged document, `ai-os/VERIDIAN_OCID_060_FINAL_PLATFORM_AUDIT_REPORT_2026-08-04.md`
+        (PR #874, merged 2026-08-05), already contains a complete, evidence-cited, per-OCID table
+        covering OCID-012 through OCID-059** -- real UMR, real PR(s), real status, real evidence
+        column per row. This substantively is the "OCID-015 through OCID-062" cross-reference table
+        this task's own spec asks for (it's slightly live-stale in a few rows -- several OPEN rows
+        for OCID-016/022/023/024/025/026/029/032/033/037 are independently confirmed MERGED as of
+        this session's own live `gh pr view` checks -- but the coverage, structure, and citation
+        discipline are exactly on-spec).
+- [x] **Real decision, to avoid adding a fifth redundant cross-reference document to an already
+      five-deep redundant chain** (status snapshot doc, OCID-053, OCID-057, OCID-060, and the
+      OCID-047-052 planning doc all independently cover overlapping OCID ranges with varying
+      staleness): did **not** author a new full table. Instead:
+      1. Registered the standing rule formally as `ai-os/CONSTITUTION.yaml` `SEC-08` (the one
+         genuinely undone, high-value piece -- a grep-able constitutional entry, not just repeated
+         prose across dispatch prompts).
+      2. Added a short pointer amendment to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (the true
+         master canonical artifact for this whole chain) recording: the duplicate-dispatch finding,
+         a pointer to OCID-060 as the current real cross-reference table for OCID-012..059, OCID-053
+         §7 as the extension to OCID-062, and the live-drift corrections found this session.
+      3. Added the short mirror note to OCID-057's own doc that section 7 of OCID-053 already
+         promised, rather than pasting a duplicate table -- a pointer to OCID-053 §7 + OCID-060,
+         consistent with this whole initiative's own reuse-over-duplicate discipline.
+- [x] Committed the real work, opened a PR, let CI run.
+
+## Remaining
+- [ ] None -- see Completed. If CI or an independent auditor finds a real gap, address it here.
+
+---
+
+## Preserved history from a different, unrelated task that previously shared this same
+## repo-root `PROGRESS.md` path (`task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0`
+## and its own predecessors below it). Kept in full, byte-for-byte, rather than dropped on merge,
+## per this repo's own established convention for this recurring shared-file conflict (see git
+## history, "fix: real PROGRESS.md history truncation from merge commit c0064107"). Not this
+## task's own work -- do not attribute anything below to this task.
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
