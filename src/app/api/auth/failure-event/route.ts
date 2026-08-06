@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { recordAuthFailureAndCheckAnomaly, isValidAuthFailureMethod } from "@/lib/services/auth-failure-service"
+import { getRequestIp } from "@/lib/utils/request-ip"
 
 // VERIDIAN Review Framework gap-closure: Anomaly Detection, "repeated
 // failed auth". Public, pre-auth route -- the client calls this right
@@ -23,9 +24,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   }
 
-  const ipAddress = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim()
-    ?? request.headers.get("x-real-ip")
-    ?? undefined
+  const ipAddress = getRequestIp(request)
 
   try {
     await recordAuthFailureAndCheckAnomaly({ email, method, ipAddress })

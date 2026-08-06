@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
-import { createClient as createAdminClient } from "@supabase/supabase-js"
 import { validateSsoAssertionAndGetUser, ServiceError } from "@/lib/services/sso-service"
+import { getSupabaseAdmin } from "@/lib/supabase/admin-client"
 
 // The SAML Assertion Consumer Service -- public by definition (the IdP
 // POSTs the assertion here after the user authenticates at the IdP).
@@ -24,10 +24,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ org
 
     const { email } = await validateSsoAssertionAndGetUser(orgSlug, samlResponse, callbackUrl)
 
-    const supabaseAdmin = createAdminClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.SUPABASE_SERVICE_ROLE_KEY!
-    )
+    const supabaseAdmin = getSupabaseAdmin()
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: "magiclink",
       email,
