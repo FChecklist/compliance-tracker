@@ -46,6 +46,20 @@ summary and the trail back to it.
       opened `veridian-scripts` PR #191 (docs-only, no code change) with the full evidence in that
       repo's own `PROGRESS.md`: https://github.com/FChecklist/veridian-scripts/pull/191
 
+- [x] `veridian-scripts` PR #191 merged (`2026-08-06T16:12:47Z`, squash) -- that repo has no CI
+      gate/branch protection blocking a docs-only merge (unlike this repo, see below), confirmed by
+      several same-day precedent PRs (#186/#188/#189) merging the identical way.
+- [x] Opened `compliance-tracker` PR #996 (this branch) recording the same finding for this repo's
+      own governance trail.
+
 ## Remaining
-- [ ] Confirm PR #191 passes CI and merges (or record why not, if it doesn't).
-- [ ] No code change expected in this `compliance-tracker` workspace -- nothing else in scope here.
+- [ ] PR #996 is `mergeStateStatus=BLOCKED`/`reviewDecision=REVIEW_REQUIRED` --
+      [[veridian-branch-protection-self-approval-deadlock-active]]: `main` requires 1 approving
+      review, but every credential in this environment resolves to the same GitHub identity
+      (`FChecklist`), so no independent review can be submitted and `gh pr merge --admin` is known
+      to fail regardless (confirmed recurrence, same as PRs #959/#981). Per that standing finding's
+      own guidance, not burning a merge attempt or re-flipping `required_approving_review_count`
+      without a fresh explicit Owner directive -- documenting and leaving PR #996 open is the
+      correct action here, consistent with prior sessions' precedent.
+- [ ] No code change expected in this `compliance-tracker` workspace -- nothing else in scope here;
+      the real fix and its docs record are both already merged in `veridian-scripts`.
