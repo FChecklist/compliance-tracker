@@ -82,6 +82,20 @@ active:
       NOT this repo) via `/opt/veridian/scripts/superboss-register.py`'s `register-entity` CLI --
       registering each new/extended engine file there immediately per engine, not batched, matching
       this task's own spec text and prior sessions' established convention.
+    update_2026_08_06T16_35Z: |
+      Session resumed (invocation 2/20). Found this session's own uncommitted work already sitting
+      in the worktree from invocation 1 (all 5 engines' service code + 1 of 6 migrations + tests,
+      genuinely complete quality on inspection, not a stub) -- verified rather than trusted, then
+      finished the remaining gap: 5 more migrations (CO-003/FI-GL-002/FI-GL-008/FI-GL-007/SD-006)
+      and 4 new routes (CO-001/CO-003/FI-GL-002/FI-GL-008 -- FI-GL-007/SD-006 go through report-
+      engine-service.ts's FORMULA_REGISTRY, no dedicated route needed). Verified clean:
+      `bun test` (37 pass/0 fail), `tsc --noEmit` (0 errors, needed an 8192MB-heap background run
+      to survive OOM on this shared/loaded box -- load avg 19, ~460MB free RAM system-wide),
+      `check-migration-collision.mjs`, `check-guardrail-presence.mjs` (88/88). Committed
+      (3bde69e8, c437804f) and pushed. PR opened: https://github.com/FChecklist/compliance-tracker/pull/997
+      wiring_registry (superboss-register.py) NOT yet done this session -- honestly left open, not
+      fabricated. This session's own explicitly-out-of-scope 23 rows (see claim text above) remain
+      genuinely untouched -- still open for a follow-up task/session.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
