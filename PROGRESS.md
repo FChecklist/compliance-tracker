@@ -1,3 +1,50 @@
+# PROGRESS -- task-20260804-091305-pm-decision--owner-has-resolved-the-proj (resumed, invocation 3)
+
+SPEC: PM decision under OCID-038 (`UMR-20260803-042801-ec4b`) / OCID-021
+(`UMR-20260802-173631-ca85`), resolving `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH`.
+
+## Completed (prior invocations, on branch `feat/ocid038-projexa-stage1-domain-branding`)
+- [x] Implemented Stage 1 pre-auth host-header brand resolution in
+      `org-branding-service.ts`/`layout.tsx`/`page.tsx`/`login/page.tsx` (commit `77f46855`),
+      opened PR #885, full test/typecheck/lint/build passing. Full discovery notes preserved in
+      that branch's own git history.
+
+## Completed (this invocation, on resume)
+- [x] Re-verified live state before proceeding, per this repo's own standing discipline, rather
+      than trusting the last checkpoint's "push + open PR" plan as still current.
+- [x] Found PR #885 already open (a prior invocation must have pushed/opened it) but
+      `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING` against `origin/main`.
+- [x] Root-caused the conflict: a **separate, independent session** implemented the identical fix
+      (commit `d45dbd3b`, dispatched under a different UMR `UMR-20260804-090421-c647`) and merged
+      it to `main` via PR #886 at 2026-08-04T10:41:41Z -- ~75 seconds after this session's own
+      `77f46855` commit. A genuine two-session collision on the same gap.
+- [x] Confirmed `main`'s version should stand, not this branch's: `ai-os/MASTER-TRACKER.yaml`'s
+      `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` already reads `status: resolved` citing PR #886,
+      and `main` has since received two further independent review rounds on top of it
+      (`10963630`, `46d63222`) -- strictly more mature than PR #885's single unreviewed commit.
+      The one incidental fix PR #885 also carried (a pre-existing `productBranches` test-mock
+      omission) was independently found and fixed the same way in PR #886's own changes, so
+      nothing unique is lost by not merging.
+- [x] Posted a closing explanation comment on PR #885 citing the exact commits/timestamps and
+      closed it unmerged (no attempt made to resolve the merge conflicts -- doing so would mean
+      forcing a superseded implementation on top of already-reviewed work).
+- [x] Corrected `ai-os/boss/ACTIVE-CLAIMS.yaml`: added a `recently_completed` entry recording this
+      real outcome (validated YAML still parses).
+- [x] Noted, out of scope: `ai-os/MASTER-TRACKER.yaml` already tracks a separate governance
+      finding about PR #886 itself (`GAP-SEC07-OCID038-PREMATURE-IMPLEMENTATION-PR886`, a SEC-07
+      lock-timing question, disposition pending Owner/PM decision) -- a live worktree
+      (`docs/sec07-ocid038-violation-audit-pr886`) already appears to be working that question;
+      left entirely untouched here.
+
+## Remaining
+- [ ] Commit + push this housekeeping correction (`docs/ocid038-pr885-duplicate-closure-correction`
+      branch, off `origin/main`), run governance checks, open PR, confirm CI green, get independent
+      audit per Rule 7(c)/10, merge.
+- [ ] Report outcome to PM: OCID-038's `GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH` is already
+      closed on `main` (no further action needed); this task's own duplicate branch/PR is closed.
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
