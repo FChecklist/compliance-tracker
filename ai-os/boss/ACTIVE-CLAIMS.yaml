@@ -5856,6 +5856,36 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+  - session_label: "claude-code (task-20260806-205209-pm-correction-the-checklist-metric-oscil) -- PM correction, UMR-20260806-182453-702a: root-cause + fix the Scripts N/M oscillation in generate_platform_completion_checklist.py"
+    claimed_at: "2026-08-06T21:00Z (this session)"
+    claim: |
+      SPEC (PM correction amending queued UMR-20260806-181542-d05b, reuses child
+      UMR-20260806-182453-702a, cites Owner absolute stop-work order
+      task-20260806-165921-owner-absolute-stop-work-order--complete): the
+      platform-completion checklist's own "Scripts N of M" metric read 47/148,
+      then 45/150, then back to 47/148 across ~25 real minutes with no
+      corresponding platform change -- OSCILLATION, not the regression the prior
+      (withdrawn) UMR claimed. Root-caused: generate_platform_completion_checklist.py
+      (/opt/veridian/scripts/) derives both its script list (_list_scripts()) and
+      test-file list (_list_test_files()) from a live glob.glob() scan of the
+      shared, actively-mutated /opt/veridian/scripts checkout, then runs pytest
+      against those live files -- so any concurrent session's uncommitted/in-flight
+      .py file (confirmed live: full_server_file_registration.py [PR #212],
+      session_metadata_sync.py + sweep_awaiting_approval.py [PR #190], all
+      currently untracked in `git status`) shifts the denominator run to run, and
+      pytest run-to-run variance (PR #204's own title states an intended
+      47/148->57/150 but the SPEC's real observed reading was 45/150) shifts the
+      numerator. Fix: pin script/test discovery + content reads to a `git archive
+      HEAD` snapshot instead of the live working tree, so two runs with no new
+      commit produce byte-identical output regardless of concurrent WIP in the
+      shared checkout. File scope: FChecklist/veridian-scripts
+      generate_platform_completion_checklist.py only (via isolated worktree
+      `fix/checklist-metric-determinism`, not editing the live /opt/veridian/scripts
+      checkout directly); this compliance-tracker repo's ai-os/boss/ACTIVE-CLAIMS.yaml
+      + PROGRESS.md for bookkeeping. Does NOT touch OCID-020, Z.AI track, or any
+      unrelated PR (still paused under the stop-work order), and does NOT mark the
+      order complete.
+
 recently_completed:
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
