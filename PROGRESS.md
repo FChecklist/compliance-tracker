@@ -19,5 +19,10 @@
       hand-edited
 - [x] Wrote full evidence doc: `ai-os/registry/reconcile-stale-sweep-20260806-235333.md`
 
+- [x] Committed + pushed, opened PR #1009 (https://github.com/FChecklist/compliance-tracker/pull/1009)
+      -- MERGEABLE, mergeStateStatus=BLOCKED (known repo-wide required-review self-approval
+      deadlock, [[veridian-branch-protection-self-approval-deadlock-active]]; leaving for the
+      autonomous supervisor pipeline per AGENTS.md 2026-07-31 addendum, not force-merging)
+
 ## Remaining
-- [ ] Commit + push, open PR
+- [ ] None -- task complete, awaiting normal PR merge pipeline
