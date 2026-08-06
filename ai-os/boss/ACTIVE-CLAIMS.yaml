@@ -628,59 +628,6 @@ active:
       170e disambiguation), `PROGRESS.md`. No src/, schema, or CI changes -- pure discovery/
       documentation, per this OCID's own explicit no-new-architecture scope.
 
-  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-erp-sales-construction-self-service-enablement) -- OCID-021 Wave 1 Item 2: real fix for GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API [DONE, PR opened]"
-    claimed_at: "2026-08-03T21:55Z (this session)"
-    claim: |
-      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
-      OCID-020-complete + OCID-021-authorized dispatch): OCID-020 declared complete, OCID-021 real
-      implementation authorized, scoped to the honestly registered gap backlog from Group F testing,
-      one gap per dispatch, real branch/fix/retest/PR/merge, citing the gap id closed each time.
-
-      Verified before starting (per standing rule, never trust a PM spec's framing unverified):
-      `git merge-base --is-ancestor` confirmed this task's starting HEAD was already an ancestor of
-      `origin/main` (5 commits behind, incl. PR #786) -- fast-forwarded first. Confirmed via
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` `recently_completed` + `PROGRESS.md`'s own tail that Item 1
-      (`GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`) was already done by a prior session under this exact
-      same PM decision ID (PR #851, merged, confirmed ancestor of the fast-forwarded `origin/main`) --
-      not re-doing it. Picking up Item 2 of the same 6-item backlog, next in the PM's own listed order:
-      `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API` (MASTER-TRACKER.yaml status:
-      open, confirmed via direct read, not assumed from the SPEC's framing).
-    scope_note: >-
-      File scope (planned): new `src/app/api/erp/enablement/route.ts`,
-      `src/app/api/crm/enablement/route.ts`, `src/app/api/construction/enablement/route.ts` (mirroring
-      the existing `src/app/api/pms/enablement/route.ts` / `src/app/api/the-firm/enablement/route.ts`
-      pattern -- the service-layer functions `enableErpForOrg`/`enableSalesForOrg`/
-      `enableConstructionForOrg` already exist and are fully implemented, this only wires a real
-      authenticated route to each), `ai-os/MASTER-TRACKER.yaml` (gap status update),
-      `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration changes.
-  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-veri-chat-no-visible-ai-signal) -- OCID-021 Wave 1: real fix for GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL [DONE, PR opened]"
-    claimed_at: "2026-08-03T23:10Z (this session)"
-    claim: |
-      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
-      OCID-020-complete + OCID-021-authorized dispatch): continuing the same OCID-021 Wave 1 backlog
-      this task's own prior invocation started (Item 1 `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`,
-      PR #851, merged; Item 2 `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
-      PR #852, open pending independent audit -- not touched further by this entry).
-
-      On resume, found this task's own workspace had real, uncommitted, working (tsc-clean) code for
-      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` sitting directly on top of PR #852's own
-      branch (`fix/gap-erp-sales-construction-self-service-enablement`) -- a prior invocation had
-      started the next backlog item without switching to its own branch first, which would have mixed
-      two unrelated gaps into one PR/audit unit. Verified the in-progress diff was real and correct
-      (not narrated): `bunx tsc --noEmit` clean, matches `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`'s
-      own `recommendation` in `ai-os/MASTER-TRACKER.yaml`, and the `confidenceLabel` field it reads
-      already exists on the real `getMessages()` API response (`chat-service.ts:394`), confirmed by
-      direct read, not assumed. Relocated it to its own isolated worktree/branch (`git worktree add`
-      off `origin/main`, not the shared main workspace, to respect
-      [[veridian-shared-worktree-stash-risk]]) rather than commit it onto PR #852's branch, added a
-      real regression test (`HomeThreadSlot.test.ts`, 4 tests/6 assertions, matching this repo's
-      established pure-function-test pattern), reran `bunx tsc --noEmit` and `bun test` clean in the
-      new worktree itself (not just the original workspace) before committing.
-    scope_note: >-
-      File scope: `src/components/veri-chat/HomeThreadSlot.tsx` (message-mapping change only, no new
-      mechanism), new `src/components/veri-chat/HomeThreadSlot.test.ts`, `ai-os/MASTER-TRACKER.yaml`
-      (gap status update), `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration/API
-      changes -- `confidenceLabel` was already returned by the real backend, this only reads it.
   - session_label: "claude-code (task-20260803-160919-pm-decision--hold-ocid-049-until-pr-825) -- OCID-049 hold decision, PR #825 gate corrected to PR #826, docs-only [DONE, docs-only]"
     claimed_at: "2026-08-03T16:09Z (this session, closed same session)"
     claim: |
@@ -5857,6 +5804,44 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260803-214944-pm-final-decision--ocid-020-independentl, fix/gap-veri-chat-no-visible-ai-signal) -- OCID-021 Wave 1: real fix for GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL [DONE, PR #853 merged]"
+    claimed_at: "2026-08-03T23:10Z (this session)"
+    claim: |
+      SPEC (PM decision `UMR-20260803-212402-1922` / this task's own `UMR-20260802-165606-4413`
+      OCID-020-complete + OCID-021-authorized dispatch): continuing the same OCID-021 Wave 1 backlog
+      this task's own prior invocation started (Item 1 `GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK`,
+      PR #851, merged; Item 2 `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`,
+      PR #852, merged -- not touched further by this entry).
+
+      On resume, found this task's own workspace had real, uncommitted, working (tsc-clean) code for
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL` sitting directly on top of PR #852's own
+      branch (`fix/gap-erp-sales-construction-self-service-enablement`) -- a prior invocation had
+      started the next backlog item without switching to its own branch first, which would have mixed
+      two unrelated gaps into one PR/audit unit. Verified the in-progress diff was real and correct
+      (not narrated): `bunx tsc --noEmit` clean, matches `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`'s
+      own `recommendation` in `ai-os/MASTER-TRACKER.yaml`, and the `confidenceLabel` field it reads
+      already exists on the real `getMessages()` API response (`chat-service.ts:394`), confirmed by
+      direct read, not assumed. Relocated it to its own isolated worktree/branch (`git worktree add`
+      off `origin/main`, not the shared main workspace, to respect
+      [[veridian-shared-worktree-stash-risk]]) rather than commit it onto PR #852's branch, added a
+      real regression test (`HomeThreadSlot.test.ts`, 4 tests/6 assertions, matching this repo's
+      established pure-function-test pattern), reran `bunx tsc --noEmit` and `bun test` clean in the
+      new worktree itself (not just the original workspace) before committing.
+
+      **Update (2026-08-06, this session, independently re-verified on resume, not narrated):** PR #853
+      genuinely MERGED (`de46a07a`, confirmed via `gh pr view 853` and `git merge-base --is-ancestor` on
+      `origin/main`). Moving this entry from `active:` to `recently_completed:` per this file's own
+      protocol step 3 -- it sat stale under `active:` past this fix's own merge because the earlier
+      invocation that opened the PR never came back to close out the claim entry. Also found and closed
+      a second, related loose end while here: PR #864 (a later "adopted review" of this same branch,
+      `chore/active-claims-close-ocid021-item2`) was a stale duplicate of already-merged PR #855 (zero
+      net diff vs. `origin/main`, confirmed via `git diff $(git merge-base origin/main <head>)..<head>`)
+      -- closed with an explanation rather than left open with a failing `audit-check`.
+    scope_note: >-
+      File scope: `src/components/veri-chat/HomeThreadSlot.tsx` (message-mapping change only, no new
+      mechanism), new `src/components/veri-chat/HomeThreadSlot.test.ts`, `ai-os/MASTER-TRACKER.yaml`
+      (gap status update), `ai-os/boss/ACTIVE-CLAIMS.yaml`, `PROGRESS.md`. No schema/migration/API
+      changes -- `confidenceLabel` was already returned by the real backend, this only reads it.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
@@ -6345,7 +6330,7 @@ recently_completed:
       already existed), this `ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No
       `CONSTITUTION.yaml` change (SEC-07 already correct, nothing to amend). No
       src/, schema, or CI changes.
-  - session_label: "claude-code (docs/gap-product-branches-schema-rootcause) -- real root cause found + fixed for GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY: wrong Postgres schema queried, real migration 0245 moved both tables to `platform` [DONE, PR pending]"
+  - session_label: "claude-code (docs/gap-product-branches-schema-rootcause) -- real root cause found + fixed for GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY: wrong Postgres schema queried, real migration 0245 moved both tables to `platform` [DONE, PR #863 merged]"
     claimed_at: "2026-08-04T03:12Z (this session)"
     claim: |
       SPEC (PM decision `UMR-20260804-030715-b004`, citing `UMR-20260802-165606-4413` OCID-020 and
