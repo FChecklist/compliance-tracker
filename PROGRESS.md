@@ -611,9 +611,15 @@ re-audited here (out of scope for a conflict-resolution pass).
       `ai-os/boss/ACTIVE-CLAIMS.yaml`), push. Confirmed via `gh pr view 884`:
       `mergeable: MERGEABLE` (was `CONFLICTING`), `mergeStateStatus: BLOCKED`
       (CI re-running on the new merge commit, not a real conflict anymore).
-- [ ] Confirm CI green on the new merge commit (Vercel rate-limit fail is the
-      known unrelated flake; everything else was pending/starting at last
-      check), then hand off for merge per below.
+- [x] Confirmed CI on the new merge commit (`gh pr checks 884`): all 16
+      functional checks pass (Lint/Type Check/Build/Unit/E2E/Analyze/Secret
+      Scanning/Security Pattern/Guardrail Presence/Terminology/Migration/
+      Metadata Index/Doc Cross-Reference/Doc Quarantine/Documentation Sentinel/
+      Asset Registry Coverage). `Vercel` still `pending` (the known unrelated
+      rate-limit flake). `audit-check` (Rule 10's mandatory-audit-check gate)
+      shows `fail` -- this is the EXPECTED state, not a defect: it fails until
+      an independent `AUDIT: PASS`/`AUDIT: FAIL` comment is posted on the PR,
+      which this same session cannot self-certify per Rule 7(c)/10.
 - [ ] Independent audit per Rule 7(c)/Rule 10 (mandatory, this is documentation/
       governance work by a judgment-tier-eligible session).
 - [ ] Real fix of PR #878's truncated canonical doc is NOT this task's scope --
