@@ -384,6 +384,19 @@ function SignupForm() {
           <p className="text-center text-xs text-white/40 mt-6">
             {tAuth("footer")}
           </p>
+          {/* OCID-020 category 23 fix (UMR-20260806-132527-30dc): the real
+              UX audit found /signup rendered zero navLinks/footerLinks --
+              no way back to the marketing site and no help/contact entry
+              point pre-auth. These two links are the minimal real fix. */}
+          <div className="mt-2 flex items-center justify-center gap-4 text-xs text-white/50">
+            <Link href="/" className="hover:text-white/80 hover:underline">
+              Back to home
+            </Link>
+            <span aria-hidden="true">&middot;</span>
+            <Link href="/contact" className="hover:text-white/80 hover:underline">
+              Need help? Contact us
+            </Link>
+          </div>
           <div className="mt-3 flex justify-center">
             <LanguageSwitcher className="text-[11px] bg-white/10 border border-white/20 rounded-md px-1.5 py-0.5 text-white/70" />
           </div>
