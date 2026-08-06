@@ -1,3 +1,29 @@
+# PROGRESS -- chore/active-claims-cleanup-veri-chat-and-rootcause-entries (PR #974)
+
+Resumed invocation of this task (invocation 4/20). Full detail lives in PR #974's own PROGRESS.md
+entry (isolated worktree `/tmp/active-claims-cleanup-wt`, not this shared workspace, per
+[[veridian-shared-worktree-stash-risk]]) -- summarized here for this workspace's own continuity.
+
+## Completed
+- [x] Verified this task's own two prior real fixes are genuinely merged: PR #853
+      (`GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`, `de46a07a`) and PR #863
+      (`GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` root-cause fix, `8e76ba0e`).
+- [x] Found this branch's own PR #864 was a stale duplicate of already-merged PR #855 (zero real
+      diff vs `origin/main`) with a permanently-failing `audit-check` as a result -- closed it with
+      a documented explanation.
+- [x] Root-caused why: `ai-os/boss/ACTIVE-CLAIMS.yaml` still had 2 stale `active:` entries for gaps
+      whose fixes had already merged, never moved to `recently_completed:`. Fixed in a fresh
+      worktree off current `origin/main` (this branch is 169 commits behind `main` -- too far to
+      usefully rebase for a docs-only cleanup), also corrected an unrelated stale "PR pending"
+      label found along the way. Opened PR #974 for this fix.
+
+## Remaining
+- [ ] Get PR #974 through CI + self-audit (per this session's established pattern), merge.
+- [ ] This branch (`chore/active-claims-close-ocid021-item2`) itself has no further open PR and no
+      further planned work once #974 merges -- both its real fixes are already on `main`.
+
+---
+
 # PROGRESS -- docs/gap-product-branches-schema-rootcause
 
 Cites: `UMR-20260802-173631-ca85` (OCID-021), `UMR-20260804-030715-b004` (PM decision: find and fix
