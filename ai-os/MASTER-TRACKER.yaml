@@ -3152,6 +3152,33 @@ open_items:
         or any new architecture -- reuses existing, tested engines only.
       status: open
       first_raised: "This session, 2026-08-04, OCID-062 discovery pass (UMR-20260802-173631-ca85 OCID-021, UMR-20260802-165606-4413 OCID-020)"
+
+    - id: GAP-OCID-061-CANONICAL-DOC-TRUNCATED-UNMERGED
+      name: "OCID-061's own canonical discovery artifact is truncated and still unmerged (PR #878) -- not a duplicate-architecture finding, a completeness one"
+      old_ids: []
+      detail: |
+        Real, live finding, OCID-065 audit (`UMR-20260804-044535-7214` OCID-061 ->
+        `UMR-20260802-173631-ca85` OCID-021 -> `UMR-20260802-165606-4413` OCID-020, governed by the
+        Mandatory Governance Directive `UMR-20260804-051521-7099`) -- see
+        `ai-os/VERIDIAN_OCID_065_COMPLETENESS_AND_ZERO_DUPLICATION_AUDIT_2026-08-04.md` SS2 for full
+        detail; this entry is a pointer, not a duplicate of PR #878's own
+        `GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT` entry (which lives on that unmerged branch, not here).
+
+        PR #878 (`worker/task-20260804-054220-register-ocid-061--universal-determinist`) is real, OPEN,
+        `mergeable: CONFLICTING`, not merged to `origin/main`. Its intended canonical artifact,
+        `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md`, is genuinely only 31 lines on
+        that branch, covers 1 of the 4 required intake surfaces, and ends mid-sentence with a literal
+        `... more files changed` tool-output-truncation artifact committed as if it were real content.
+        The real 4-surface discovery + honest "no canonical intent object" finding does exist on that
+        branch, but only inside its `MASTER-TRACKER.yaml` diff, not the broken canonical doc.
+      status: open
+      owner: "unassigned -- belongs to PR #878's own active claim (task-20260804-054220), not this
+        audit's scope to fix."
+      blocker: "None technical. Needs: (1) resolve PR #878's merge conflicts against current main, (2)
+        rewrite the canonical .md from the real content already proven correct in that branch's own
+        MASTER-TRACKER.yaml/PROGRESS.md (transcription, not new discovery), (3) merge."
+      first_raised: "2026-08-04, OCID-065 audit"
+
     - id: GAP-VERI-TODO-STUCK-LOADING-NOT-READY
       name: "VERI To Do task list can show \"Loading...\" for 6+ real seconds, and VERI Chat composer submission produced one real \"VERI AI isn't ready yet\" toast error (severity: unconfirmed, medium-priority to investigate -- real but not yet reproduced enough times to characterize)"
       old_ids: []
