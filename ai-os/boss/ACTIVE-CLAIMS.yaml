@@ -5857,6 +5857,69 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260806-151357-urgent--real-memory-pressure-escalation) -- PID 2275852 / PR-959-merge-task memory-pressure escalation: real live evidence gathered, found NOT the known stuck-loop bug and NOT currently a live issue [DONE, docs-only, no code/PR changes]"
+    claimed_at: "2026-08-06T19:5xZ (this session)"
+    claim: |
+      SPEC (urgent PM escalation, no UMR cited): claimed 3 straight cycles of climbing load average
+      (14.6 -> 19.7 -> 27.7 on 1-min) and collapsing swap-free (24MB -> 0 -> 52KB), and asked this
+      session to determine whether PID 2275852 (a node process under
+      `task-20260806-075810-merge-pr-959-compliance-tracker--real-au`, claimed >26min elapsed,
+      ~2GB RSS, 185-196% CPU) is a real instance of the known stuck-in-a-loop bug
+      (`UMR-20260806-070018-61fc`) or genuinely still progressing -- kill+restart if stuck, leave
+      running with real evidence if progressing. Also asked to identify a second large process, a
+      pytest run started ~08:28, and whether it's the same task or a real duplicate.
+
+      **Live-verified, not trusted as stated (this task's own prior invocation was already blocked
+      once today, 15:36Z, on an unrelated false-premise disk claim -- see this file's git history):**
+      `ps -p 2275852` returns nothing -- **the process does not exist anymore.** Its parent task
+      (`task-20260806-075810-merge-pr-959-compliance-tracker--real-au`) has systemd unit
+      `inactive (dead)`, last transitioned at **2026-08-06T09:08:39Z -- over 10.5 hours before this
+      investigation ran**, not "currently at 26+ minutes." `journalctl -k` across that whole window
+      shows **zero** kernel OOM-kill events -- nothing was ever actually killed for memory. Current
+      live system state at investigation time: `loadavg` 6.58/7.21/8.35 (not 27.7), swap 3.2G/4G
+      used with 848Mi still free (not the claimed 0/52KB collapse), and 12Gi "available" memory per
+      `free -h` (270Mi "free" alone is normal Linux buff/cache accounting, not real pressure). The
+      escalation numbers in the SPEC do not match live reality at investigation time; if real at
+      some earlier moment, it had already fully resolved on its own before this task's worker ran.
+
+      **That task's own `task.yaml` shows it was never stuck -- it made real, evidenced forward
+      progress and reached a legitimate `blocked` terminal state, not a loop:** verified PR #959 via
+      `gh pr view` (state=OPEN, mergeable=MERGEABLE), verified a real `AUDIT: PASS` comment against
+      the exact head SHA, verified all ~17 CI checks green, identified the OCID it closes (OCID-038),
+      attempted a real merge twice, and root-caused the actual blocker -- `main`'s branch protection
+      (`required_approving_review_count: 1` + `enforce_admins: true`) structurally refusing
+      self-approval because every real credential in this environment resolves to the same GitHub
+      identity (`FChecklist`) -- the same structural deadlock already on file in
+      `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` and
+      `ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md`. It explicitly declined
+      to self-authorize flipping the review-count guardrail per `AGENTS.md` Rule 9 and stopped
+      cleanly. Its own systemd log confirms two real invocations (07:58:15-08:35:23, then
+      08:35:55-09:08:39) each consuming ~1h23m / ~16min real CPU time -- the elevated CPU/RSS the
+      SPEC cites reflects real `gh`/CI-verification work across those invocations, not a spin loop.
+      **Verdict: not an instance of the known stuck-loop bug (`UMR-20260806-070018-61fc`) -- a real
+      investigation that completed and correctly stopped on a real, still-open structural gate.**
+      One caveat for the record: that task's own completed-steps claimed it had "logged this finding
+      in `ai-os/boss/ACTIVE-CLAIMS.yaml`" -- `git grep` for `task-20260806-075810`, `merge-pr-959`,
+      and `PR #959` against this file's current `main` state found zero matches, so that specific
+      sub-claim does not check out; noted here rather than silently repeated.
+
+      **Second process (pytest, ~08:28):** not found running now (`ps aux | grep pytest`: empty),
+      and no reference to a pytest invocation anywhere in `task-20260806-075810`'s own `worker.log`
+      or `systemd.log` -- so it does not belong to that task. Could not positively attribute it to a
+      specific other task dir in the time budget available (dozens of sibling tasks were active in
+      that same window per `journalctl --user -u 'veridian-worker@*'`); it is not live now either way,
+      so there is no real duplication risk remaining to act on. Flagging this as an honest gap rather
+      than fabricating an attribution.
+
+      **Net conclusion for the Owner:** no kill/restart action was needed or taken -- there was
+      nothing live to kill. The real remaining item is unchanged from `task-20260806-075810`'s own
+      finding: PR #959 (and likely other real, already-`AUDIT: PASS`-reviewed PRs) remain
+      structurally unmergeable until the Owner either provisions a real second GitHub reviewer
+      identity or issues a fresh, explicit, bounded review-count exception.
+    scope_note: >-
+      File scope: this file (`ai-os/boss/ACTIVE-CLAIMS.yaml`) plus `PROGRESS.md` only. No source
+      code, no other task's `task.yaml`/systemd unit touched, no processes killed (none were live to
+      kill), no branch-protection settings changed.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
