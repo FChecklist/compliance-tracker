@@ -33,6 +33,10 @@
 - [x] bun test clean: new file's 17/17 pass; full suite 2529/2529 pass, 0 fail (some tests print
       expected error-logging output for intentional fail-closed cases, not real failures)
 
+- [x] Commit + push, open PR: https://github.com/FChecklist/compliance-tracker/pull/995
+
 ## Remaining
-- [ ] Commit + push, open PR
-- [ ] Close out ACTIVE-CLAIMS.yaml entry for this session once PR is open
+- [ ] Wait for CI to go green on PR #995
+- [ ] Merge PR #995 (watch for the known self-approval-deadlock issue --
+      see memory `veridian-branch-protection-self-approval-deadlock-active`)
+- [ ] Close out ACTIVE-CLAIMS.yaml entry for this session once merged
