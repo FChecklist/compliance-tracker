@@ -2909,10 +2909,10 @@ entries:
         projexa-ai.com/www.projexa-ai.com over from the standalone `projexa` Vercel project to
         `veridian-compliance-ai`, as the final step of the VERIDIAN/PROJEXA brand-layer merge. At
         some point on or around 2026-07-27, both domains were reversed back to the standalone
-        `projexa` project -- found by task-20260802-123916 (real Vercel API investigation) and
-        independently confirmed by this session (UMR-20260802-123246-f2e7) via live
-        GET /v9/projects/{id}/domains -- with NO record of that reversal anywhere in ai-os/, exactly
-        the documentation gap this entry closes.
+        `projexa` project -- found by task-20260802-123916 (real Vercel API investigation,
+        committed as b12046eb) and independently confirmed by this session
+        (UMR-20260802-123246-f2e7) via live GET /v9/projects/{id}/domains -- with NO record of
+        that reversal anywhere in ai-os/, exactly the documentation gap this entry closes.
 
         REAL OWNER DECISION (UMR-20260802-134939-145d, given directly): revert to the Wave 10 state.
         Executed via the real Vercel API (VERCEL_ACCESS_TOKEN, team meet-track-s-projects), mirroring
@@ -2943,6 +2943,18 @@ entries:
 
         ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md item 12 (Go Live) corrected to reflect this in a
         separate real commit, cited under UMR-20260802-104058-25ba.
+
+        ARCHITECTURE RATIONALE ADDED 2026-08-06 (`UMR-20260806-025638-cbea`, real Owner decision,
+        given verbatim): "VERIDIAN is one single application, PROJEXA-AI.COM is a thin client brand
+        extension only, not a separate product, more industry brands are planned the same way,
+        product is VERIDIAN sold through different brand names." This is the standing rationale for
+        the redo above -- no new cutover was executed under this UMR; independently re-verified live
+        on 2026-08-06T03:09 UTC first (curl + DNS, region/IP fingerprint matches
+        `veridian-compliance-ai`'s `vercel.json`, not standalone `projexa`) that the binding above was
+        already the current live state before recording this, so `vercel domains add ... --force` was
+        not re-run. This decision also supersedes the orphaned, unmerged `WAVE-201` entry (branch
+        `ca9e6432`, no PR, `auditor.verdict: pending`) that logged a same-direction but unattributed
+        re-cutover the same day as this entry -- that branch's claim is superseded, not this one's.
   - id: MIGRATION-DRIFT-0264-EMAIL-INTEL-500-FIX
     title: "Live migrations-ledger/schema drift: drizzle/0264_helpdesk_tiered_sla_team_routing.sql recorded as applied but never actually ran on the live DB -- real production 500 on GET /api/email-intelligence, now fixed and independently reverified"
     doer:
