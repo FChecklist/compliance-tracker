@@ -5857,6 +5857,62 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260806-080003-add-real-percent-complete-field-for-the) -- SPEC (UMR-20260806-071025-1d28: extend generate_pm_report_v3.py with a real PERCENT_COMPLETE_24H_OWNER_UMR_SET field) found already fully implemented and merged by a concurrent session [DONE, no new code, no new PR -- duplicate]"
+    claimed_at: "2026-08-06T08:10Z (this session, closed same session)"
+    claim: |
+      SPEC (UMR-20260806-071025-1d28, Owner standing mandate): extend
+      `/opt/veridian/scripts/generate_pm_report_v3.py` (repo `FChecklist/veridian-scripts`, NOT this
+      compliance-tracker repo -- confirmed via `git ls-files` here returning zero hits, then located
+      the real file via `find` across `/opt/veridian`) with one new deterministic section: a real SQL
+      query against `umr_tasks` WHERE `source_trigger = 'owner_dispatch_gateway'` AND `ts_submitted`
+      within the trailing 24 hours, a real count per status, and a single real percent field --
+      count of status in (completed/merged/verified/closed) divided by real total * 100, rounded to
+      1 decimal, printed as `PERCENT_COMPLETE_24H_OWNER_UMR_SET` plus the real status breakdown, zero
+      AI calls, pure SQL/arithmetic, matching this script's existing style.
+
+      **Before writing any code, checked `git log`/`gh pr list` across every real local checkout of
+      this file** (`/opt/veridian/scripts` -- live main checkout -- and `/opt/veridian/repos/
+      veridian-scripts` -- found sitting on branch
+      `worker/task-20260806-item2-item4-collision-perf-and-umr-closure`, a DIFFERENT concurrent
+      session's workspace). That branch's own commit `ff3c86e` ("fix(pm-report-v3): Section 12 real
+      perf fix ... + Section 14 owner UMR closure tracking", citing `UMR-20260806-070018-d88b` items
+      2+4, "extended by `UMR-20260806-071942-5132`") already implements this exact requirement:
+      `get_owner_umr_closure_section()` / Section 14 "OWNER UMR CLOSURE TRACKING" -- real
+      `source_trigger='owner_dispatch_gateway'` SQL, real all-time + trailing-24h status breakdowns,
+      `OWNER_UMR_CLOSED_STATUSES = frozenset({"completed", "merged", "verified", "closed"})` (with an
+      honest documented note that only `'completed'` is actually reachable under `umr_tasks`' real
+      `CHECK` constraint -- `UMR_STATUSES` in `superboss-register.py` has no `merged`/`verified`/
+      `closed` value -- the exact same honest mismatch this task's own investigation independently
+      found before discovering the fix already existed), `percent_complete_24h_owner_umr_set =
+      round(closed_24h / trailing_total * 100, 1)`, rendered as `PERCENT_COMPLETE_24H_OWNER_UMR_SET=`
+      in `render_report_text()` Section 14, wired unconditionally into `build_report()` (real "every
+      future run" per the SPEC), `SCRIPT_VERSION` 3.1.2 -> 3.2.0, 20 new/updated tests. **Confirmed
+      merged to `main`, not just committed to a branch**: `gh pr view 133 --repo
+      FChecklist/veridian-scripts` -> `state: MERGED`, `baseRefName: main`, `mergedAt:
+      2026-08-06T07:51:58Z` (required-CI branch protection per `AGENTS.md` Rule 6 means this could
+      not have merged without passing tests). Re-fetched `origin/main` directly (not trusting the
+      live `/opt/veridian/scripts` checkout's own possibly-stale HEAD, which was still showing
+      pre-merge `SCRIPT_VERSION 3.1.2` before this session's own `git fetch`) and confirmed
+      `git show origin/main:generate_pm_report_v3.py` contains `owner_umr_closure_section`,
+      `PERCENT_COMPLETE_24H_OWNER_UMR_SET`, and `SCRIPT_VERSION = "3.2.0"` verbatim.
+
+      UMR timeline supports this being the real fulfillment of this exact task, not a coincidence:
+      this task's own `UMR-20260806-071025-1d28` was minted 07:10:25; the implementing commit's own
+      "extended by" citation `UMR-20260806-071942-5132` was minted 07:19:42 (9 minutes later, same
+      day) and the fix commit itself landed 07:31:00, merged 07:51:58 -- all before this task session
+      started. **Conclusion: no new code, no new PR.** Reimplementing this section from scratch would
+      have produced either a redundant Section 14/15 duplicate or a merge conflict against
+      already-shipped, already-tested, already-CI-verified real code -- see
+      [[veridian-duplicate-pm-authorization-same-fix]] for the same prior-session pattern this
+      matches.
+    scope_note: >-
+      File scope: this file (`ai-os/boss/ACTIVE-CLAIMS.yaml`) and `PROGRESS.md` only, both in this
+      compliance-tracker repo. Zero changes to `veridian-scripts` (`/opt/veridian/scripts` or
+      `/opt/veridian/repos/veridian-scripts`) -- read-only investigation only (`git log`, `git show`,
+      `git diff`, `gh pr view`/`list`, `grep`/`Read` over the real file). No PR opened, no branch
+      pushed, no live-checkout `git pull`/merge performed (the live checkout at
+      `/opt/veridian/scripts` has an unrelated concurrent session's own uncommitted changes --
+      `superboss-register.py` etc -- left untouched).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
