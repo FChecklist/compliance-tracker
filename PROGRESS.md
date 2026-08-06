@@ -1,3 +1,52 @@
+# PROGRESS -- chore/active-claims-cleanup-veri-chat-and-rootcause-entries
+
+Cites: `UMR-20260802-165606-4413` (OCID-020), `UMR-20260802-173631-ca85` (OCID-021). Resumed
+invocation of `task-20260803-214944-pm-final-decision--ocid-020-independentl` (branch
+`chore/active-claims-close-ocid021-item2`), invocation 4/20.
+
+## Completed
+- [x] On resume, independently re-verified (not trusted from the checkpoint note) that this task's
+      own two real fixes are genuinely merged: `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`
+      (PR #853, `de46a07a`) and, from an earlier invocation of this same task, the
+      `GAP-PRODUCT-BRANCHES-LIVE-VS-DIRECT-READ-DISCREPANCY` root-cause fix (PR #863, `8e76ba0e`) --
+      both confirmed via `gh pr view` + `git merge-base --is-ancestor` against `origin/main`.
+- [x] Found this task's own branch (`chore/active-claims-close-ocid021-item2`) still had an open PR
+      (#864, "Adopted: review branch ... -- OCID-021 docs update + credit-accountant unblock") with a
+      failing `audit-check`. Investigated rather than assumed stale-CI-SHA (the known
+      issue_comment-vs-PR-head bug): the real cause was structural, not transient -- PR #855 (same
+      head branch, same content: the OCID-021 Item 2 claim-registry move) had already independently
+      merged (`94b5915f`) before PR #864 was reviewed, leaving #864 with a genuinely empty diff
+      (`git diff $(git merge-base origin/main <head>)..<head>` = 0 lines). Closed PR #864 with a
+      documented explanation rather than leaving it open with a permanently-failing required check.
+- [x] Found the real root cause of #864's existence: this task's own `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      `active:` section still carried two stale entries for gaps whose fixes had already merged
+      (Item 2 / `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`, and
+      `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`), never moved to `recently_completed:`
+      per this file's own protocol step 3 -- the earlier invocations that opened PR #852/#853 never
+      came back to close out their own claim entries once those PRs merged.
+- [x] Fixed directly against current `origin/main` in an isolated worktree (`/tmp/active-claims-cleanup-wt`,
+      not this shared workspace, per [[veridian-shared-worktree-stash-risk]]): removed the Item 2
+      `active:` entry (a stale duplicate of an already-correct `recently_completed:` closure record
+      for the same PR), moved the veri-chat entry to `recently_completed:` with an updated
+      "PR #853 merged" status, and corrected a third, unrelated stale label found along the way
+      (`docs/gap-product-branches-schema-rootcause`'s entry still said "[DONE, PR pending]" despite
+      PR #863 being merged).
+- [x] Verified the edited YAML still parses (`python3 -c "import yaml; yaml.safe_load(...)"` -- clean;
+      `scripts/check-governance-yaml-parse.mjs` itself has an unrelated `bun`/`js-yaml` ESM-export
+      issue in this environment, not this edit's fault, and per [[veridian-governance-yaml-parse-check-not-wired-to-ci]]
+      isn't wired to CI regardless).
+- [x] Opened PR #974 for this cleanup on a fresh branch off current `origin/main` (avoiding this
+      task's own 169-commits-behind branch entirely rather than rebasing a large stale history).
+
+## Remaining
+- [ ] Get PR #974 through CI + audit, merge per Rule 6/10.
+- [ ] This task's own branch (`chore/active-claims-close-ocid021-item2`) has no further open PR and
+      no further planned work -- its two real fixes (PR #852, #853) are both merged, and this
+      cleanup closes the loose ends they left behind. No further action expected from this task
+      unless a new PM decision dispatches more OCID-021 backlog items to it.
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
