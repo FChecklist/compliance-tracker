@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-104218-build-extend-calculation-track-engines) -- build/extend calculation-track engines from PHASE-2-CROSSREF"
+    claimed_at: "2026-08-06T10:52Z (this session)"
+    claim: |
+      SPEC: "Build/extend only calculation-track engines marked BUILD_NEW or EXTEND_EXISTING from
+      PHASE-2-CROSSREF." Resolved PHASE-2-CROSSREF the same way every prior session in this task
+      lineage did (re-verified directly, not trusted from their notes): the real `sap_reports` table
+      in `/opt/veridian/ai-os/memory/sap_mapping.sqlite` (`engine_track`/`veridian_mapping_status`
+      columns). `engine_track='calculation' AND veridian_mapping_status IN (BUILD_NEW,
+      EXTEND_EXISTING(...))` = 36 rows (9 BUILD_NEW, 27 EXTEND_EXISTING).
+      COLLISION CHECK: `worker/task-20260806-091101-build-extend-calculation-track-engines` (claim
+      commit 3aa241f2, claimed_at 09:16Z, ~1.5h before this session -- inside the 4h window)
+      registered the identical scope but has ZERO commits beyond its own claim registration (no PR,
+      `gh pr list` clean). Proceeding rather than blocking on a claim with no real work behind it yet
+      -- documenting this honestly per this file's own protocol #4, same class of decision as the
+      2026-07-29/2026-07-30 sessions in this same task lineage (see their entries below/PROGRESS.md
+      history on this task's prior branches for precedent).
+      REAL STATE VERIFIED LIVE against current main + `gh pr list` (not trusted from any prior
+      session's notes): of the 36 rows, 6 are already merged (FI-AP-005 #??, FI-AP-006 PR #651,
+      FI-AP-007, FI-AR-006 PR #645, FI-AA-006 PR #648, HCM-006 PR #654 -- confirmed via literal ID
+      string present in migrations/services on origin/main). 4 open PRs exist for 7 more rows, all
+      last-touched 2026-08-02, all `mergeable_state: dirty/CONFLICTING` against current main (too
+      stale to merge as-is): PR #643 (CO-001, CO-003, FI-GL-002, FI-GL-008 -- service-layer code only,
+      missing report_definitions migration/route/tests), PR #647 (FI-GL-007, fully complete:
+      migration+route+service+tests), PR #652 (SD-006, fully complete), PR #653 (CO-006, fully
+      complete but requires NEW schema tables -- bigger/separate scope, left untouched).
+      THIS SESSION'S SCOPE (budget-bounded -- 36 fresh engines is multi-session scale per this task's
+      own history spanning 6+ prior sessions): rescue the 5 genuinely still-missing, already-designed
+      rows by reusing their verified-good code from the stale PRs above (re-implemented fresh against
+      current main, not a raw cherry-pick, since the source branches are 4-6 days stale with 32k+
+      lines of unrelated drift) -- CO-001, CO-003, FI-GL-002, FI-GL-008 (service functions from PR
+      #643, adding the missing migration+route+tests myself) and FI-GL-007 (service+route+migration+
+      tests from PR #647, already complete). Also taking SD-006 (formula function+migration+tests
+      from PR #652, already complete, no schema changes needed) since it was equally ready. CO-006
+      (PR #653) explicitly left alone -- needs new schema tables, a materially bigger unit of work.
+      Remaining ~23 rows (CO-005, FI-AP-001..004, FI-AR-001/002/005/007, MM-004/008, PS-001/005/007,
+      SD-004/005/008, Treasury-004/005, FI-AA-004/007, CRM-006, HCM-005) are genuinely untouched by
+      any branch/PR found -- explicitly out of scope for this session, left for a follow-up task
+      (documented in this branch's PROGRESS.md).
+      wiring_registry = `/opt/veridian/ai-os/memory/superboss-register.sqlite` (host-level, shared,
+      NOT this repo) via `/opt/veridian/scripts/superboss-register.py`'s `register-entity` CLI --
+      registering each new/extended engine file there immediately per engine, not batched, matching
+      this task's own spec text and prior sessions' established convention.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
