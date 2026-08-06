@@ -1074,5 +1074,8 @@ conflicts, all in this repo's known-conflict-prone governance docs:
   src/components/veri-chat/ChainSelector.test.ts` 14/14 pass.
 
 ## Remaining
-- [ ] Confirm PR #896 now shows `MERGEABLE` on GitHub and CI goes green post-push.
-- [ ] Hand off for independent audit per Rule 10 -- not self-certified here.
+- [x] Confirmed PR #896 now shows `mergeable: MERGEABLE` (was `CONFLICTING`) immediately
+      post-push; `mergeStateStatus: BLOCKED` at that check, expected -- fresh CI run had just
+      started (a real required-check gate, not a merge conflict). `gh pr checks 896 --watch`
+      launched to track it to completion (background, this session).
+- [ ] Once CI is green: hand off for independent audit per Rule 10 -- not self-certified here.
