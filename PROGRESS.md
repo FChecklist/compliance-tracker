@@ -606,13 +606,23 @@ re-audited here (out of scope for a conflict-resolution pass).
 
 ## Remaining
 - [x] Commit + push this branch, open PR (**PR #884**).
+- [x] Resolve the real merge conflict against current `origin/main` (126
+      commits ahead at merge time -- `PROGRESS.md`, `ai-os/OS.yaml`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`), push. Confirmed via `gh pr view 884`:
+      `mergeable: MERGEABLE` (was `CONFLICTING`), `mergeStateStatus: BLOCKED`
+      (CI re-running on the new merge commit, not a real conflict anymore).
+- [ ] Confirm CI green on the new merge commit (Vercel rate-limit fail is the
+      known unrelated flake; everything else was pending/starting at last
+      check), then hand off for merge per below.
 - [ ] Independent audit per Rule 7(c)/Rule 10 (mandatory, this is documentation/
       governance work by a judgment-tier-eligible session).
 - [ ] Real fix of PR #878's truncated canonical doc is NOT this task's scope --
       flagged as a finding for a fresh PM decision, not silently fixed here.
-- [ ] Resolve the merge conflict against current `origin/main`, push, confirm
-      PR #884's `mergeStateStatus` clears, confirm CI green (Vercel rate-limit
-      fail is the known unrelated flake), then hand off for merge per above.
+- [ ] Separately flagged (not fixed here): `origin/main` has since merged a
+      real OCID-061 canonical registration doc (PR #911), which may supersede
+      this doc's own "PR #878 still open/truncated" finding -- needs a fresh
+      look by a follow-up session (see the merge note above and the
+      `ai-os/OS.yaml` index entry amendment).
 
 ---
 
