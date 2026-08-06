@@ -10140,3 +10140,25 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260806-222545-resume-credit-blocked-backlog-after-real) -- resume credit-blocked backlog after real OpenRouter balance recovery"
+    claimed_at: "2026-08-06T22:35Z (this session)"
+    claim: |
+      SPEC (24h closure mandate, parent UMR-20260806-071025-1d28): live OpenRouter credits call
+      (independently re-verified, not trusted from the SPEC alone) confirmed real remaining balance
+      $19.854897045 (total_credits=60, total_usage=40.145102955), far above credit-accountant.py's
+      MIN_REMAINING_USD=0.10 floor. Scanned STUCK_TASKS_HEARTBEAT.json's 781 status=='blocked' tasks
+      for the exact balance-floor rejection text (excluding the two other distinct
+      credit_accountant_rejected reasons -- existing-mechanism-covers-this and accountant-call-failed
+      -- which the SPEC explicitly scopes out as different findings): found 12 real task_ids, all
+      dated 2026-07-18, confirmed via each one's own task.yaml checkpoint history that the balance
+      floor rejection is the sole/terminal real blocker (no other rejection reason anywhere in any of
+      the 12 histories). Confirmed zero pre-existing umr_tasks rows for any of the 12 (dispatched via
+      direct systemctl before the resource_governor/umr_tasks queue pipeline existed for this task
+      class) -- requeuing via resource_governor.submit() (the same function dispatch-tick.py's own
+      resume_interrupted_workers_tick() uses), not reset-umr-to-queued.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry, the 12 target tasks' own
+      `ai-os/tasks/<task_id>/task.yaml` checkpoints (via veridian-task.py checkpoint, not raw edits),
+      and real writes to umr_tasks via `resource_governor.submit()`/`superboss-register.py` only --
+      never raw SQL. No changes to `credit-accountant.py` (SPEC explicitly withholds that -- the
+      balance computation itself needs no fix, only these tasks need requeuing).
