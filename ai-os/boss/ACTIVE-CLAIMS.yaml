@@ -40,6 +40,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260806-142157-ocid-020-categories-15-16-17-21-execute) -- real execution of the already-built GTM certification check scripts for categories 15 (multi tenant testing), 16 (role permission testing), 17 (browser compatibility), 21 (deployment testing) [IN PROGRESS]"
+    claimed_at: "2026-08-06T14:30Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, parent `UMR-20260802-165606-4413`/OCID-020): categories 15,
+      16, 17, 21 each already cite a real check script in their own `evidence_json`, but their
+      `passed` column was reported as still null in the dispatching prompt. Mint one real child UMR
+      under the parent via the canonical registrar (`/opt/veridian/scripts/superboss-register.py`),
+      then execute each category's already-cited script for real and record the real result via
+      `gtm_write_category_result.py` (never raw SQL). Do not touch categories 1-14, 18-20, 22-25;
+      category 19 is owned by a different real worker this cycle.
+
+      Live re-verification before acting found the SPEC's premise partially stale (per
+      [[veridian-live-concurrent-state-drift]]): category 17 (browser compatibility) already shows a
+      real, fully-evidenced `passed=0` with `validated_at=2026-08-06T13:08:53Z` -- run by a prior
+      session ~1h13m before this task's own dispatch (14:21:57Z), citing a genuine webkit
+      missing-shared-libs failure. Not re-running 17 (no environment change since; re-running would
+      be pure duplicate work) -- documenting the already-real result instead. Categories 15, 16, 21
+      still show `passed=NULL` (env-credential-gated `blocked` for 15/16 per the standing
+      never-enter-a-credential rule; Vercel-auth-gated `blocked` for 21) -- re-running these three for
+      real this session.
+
+      Also found: categories 15, 16, 21 still carry the old shared `child_umr_id`
+      (`UMR-20260805-142958-ddd8`, itself `status=failed` in `umr_tasks`) that the 2026-08-06 11:58
+      backfill (`UMR-20260806-114728-d469`) already replaced with individual per-category child UMRs
+      for the other 21 categories, specifically because a shared child UMR across multiple category
+      rows was the identified defect that backfill fixed. Minting individual child UMRs for 15/16/21
+      per that same corrected convention rather than reusing the SPEC's literal singular framing,
+      which would recreate the already-fixed anti-pattern.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry, umr_tasks rows and
+      gtm_certification_categories rows for category_index 15/16/17/21 only (via
+      superboss-register.py / gtm_write_category_result.py canonical scripts, never raw SQL). No
+      src/, schema, or CI changes expected -- read-only check scripts already exist.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
