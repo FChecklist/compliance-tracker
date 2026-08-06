@@ -50,7 +50,14 @@
       same-session entry so no other `compliance-tracker` session re-investigates the same false
       premise.
 
+- [x] Opened PR #1003 (`FChecklist/compliance-tracker`) with this docs-only finding. Attempted
+      `gh pr merge --admin --squash`: blocked by the known, already-documented branch-protection
+      self-approval deadlock ("At least 1 approving review is required by reviewers with write
+      access" -- only one real GitHub identity exists in this org) -- left open, not forced further.
+
 ## Remaining
-- [ ] None for this task. Real per-point closure work (child UMRs, reproduce verdicts, owner
+- [ ] PR #1003 needs a real review/merge path resolved (pre-existing, org-wide deadlock, not
+      specific to this PR -- see memory `veridian-branch-protection-self-approval-deadlock-active`).
+- [ ] None else for this task. Real per-point closure work (child UMRs, reproduce verdicts, owner
       proposals) for the 1 BLOCKER + 10 CB tranche remains open in `FChecklist/veridian-ai-os` PR #5
       and beyond -- that is correctly scoped to a task dispatched against that repo, not this one.
