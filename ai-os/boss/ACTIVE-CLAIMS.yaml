@@ -5433,6 +5433,42 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-111301-pm-decision--authorize-real-implementati) -- OCID-038 3-gap PM decision: got PR #889 (service worker) and PR #896 (VERI-todo/composer) both to real AUDIT: PASS + MERGEABLE, gap 3 (mobile viewport) still genuinely untouched [BLOCKED -- not merged, structural branch-protection self-approval reviewer-identity deadlock, Owner action needed]"
+    claimed_at: "2026-08-06T13:22Z (this session)"
+    claim: |
+      SPEC (PM decision, OCID-038 UMR-20260803-042801-ec4b / OCID-021
+      UMR-20260802-173631-ca85): 2 prior invocations of this same task
+      correctly found real implementation already in flight and stopped as
+      duplicate. This invocation re-verified live state rather than trusting
+      those checkpoint notes: PR #889 and PR #896 both existed with real
+      fixes but were CONFLICTING (~70 commits behind main) and had CI/audit
+      gaps. Rebased both onto current main (PR #896 turned out to already be
+      rebased by a prior session under a stale local ref -- caught before
+      force-pushing over it). Fixed a real Terminology Guardrail Check
+      failure on #889 (missing exemption for 3 pre-existing dated comments
+      in AppShell.tsx). Dispatched genuinely independent audits (fresh
+      subagents): round 1 on #889 correctly found and FAILED a stale
+      line-number citation in the exemption entry (96 vs the PR's own real
+      112); fixed, round 2 independently re-verified and PASSED. #896's
+      independent audit PASSED (composer race-gate + Promise.all
+      parallelization, both verified correct; MASTER-TRACKER.yaml's
+      needs_verification status honestly left unflipped).
+      Both PRs are now `mergeable: MERGEABLE` with real `AUDIT: PASS`
+      comments, but `mergeStateStatus: BLOCKED` -- confirmed live that
+      main's branch-protection self-approval deadlock
+      (required_approving_review_count=1, no second real GitHub identity
+      exists in this environment) is still active. Cannot merge with any
+      credential available to this session; disclosed honestly rather than
+      attempted-around. Gap 3 (mobile viewport) untouched -- still needs the
+      PM's required second independent mobile-viewport session before any
+      fix.
+    scope_note: >-
+      File scope: this session touched `ai-os/registry/terminology-guardrail-exemptions.yaml`,
+      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` on the PR branches
+      themselves (via worktrees, pushed directly to `fix/ocid038-offline-service-worker`),
+      plus this task's own worker-branch `PROGRESS.md`. No merge performed
+      (blocked, see above). Do NOT mark OCID-038 VERIFIED until all 3 gaps
+      close on `origin/main`.
   - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [DONE, PR #879 MERGED -- merge commit 31d39b53aaa7ae01064dcba6c3c57a482a984679, independently confirmed a real ancestor of origin/main via fresh clone, 2026-08-04. Real independent AUDIT: PASS posted and it auto-merged.]"
     claimed_at: "2026-08-04T06:08Z (this session)"
     claim: |

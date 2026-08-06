@@ -55,20 +55,67 @@ real evidence of closure on `origin/main`.
       `ai-os/registry/terminology-guardrail-exemptions.yaml` (same pattern
       as this registry's other grandfathered dated-comment entries).
 
+## Completed (continued)
+- [x] Rebased PR #889 (`fix/ocid038-offline-service-worker`) onto current
+      `origin/main` (real conflicts in `PROGRESS.md` + `ai-os/boss/ACTIVE-CLAIMS.yaml`,
+      resolved additively per this repo's own established convention --
+      MASTER-TRACKER.yaml auto-merged clean), carried the exemption fix,
+      pushed. Result: `mergeable: MERGEABLE` (was `CONFLICTING`).
+- [x] PR #896: found it was a false start -- my first rebase attempt was
+      against a STALE local ref. Live `gh pr view --json headRefOid` showed
+      the real head (`1cc718aa`) already had its own real merge of
+      `origin/main` done by a prior session (fixing a YAML-corruption
+      byproduct from that session's own conflict resolution). Caught this
+      *before* force-pushing over it -- aborted the stale rebase, removed
+      the worktree, did not touch the branch's real content.
+- [x] Independent audit round 1 on PR #889 (fresh subagent, not
+      self-certified): found a real, genuine issue -- the AppShell.tsx
+      exemption entry cited a stale line number (96, its pre-PR position;
+      this PR's own first commit shifted it to 112 by inserting the
+      service-worker registration block above it). Posted `AUDIT: FAIL`.
+- [x] Fixed the real finding (96 -> 112, with an honest note explaining
+      the shift), pushed.
+- [x] Independent audit round 2 on PR #889 (different subagent instance):
+      independently re-verified the fix against the live file content at
+      the PR's head, confirmed correct. Posted `AUDIT: PASS`
+      (https://github.com/FChecklist/compliance-tracker/pull/889#issuecomment-5205443123).
+      Pushed an empty commit to work around the known audit-check
+      issue-comment-vs-head-SHA re-trigger gotcha.
+- [x] Independent audit on PR #896 (fresh subagent): reviewed the real
+      composer send-gate race fix (`aiThreadsLoading` gate, set in
+      `.finally()` so it can't get stuck permanently true) and the
+      `Promise.all` parallelization in `listVeriTodos()` (confirmed the 3
+      parallelized queries are genuinely independent, confirmed the
+      remaining sequential chain was left untouched), confirmed
+      `MASTER-TRACKER.yaml`'s `status: needs_verification` was honestly
+      left unflipped. Posted `AUDIT: PASS`, pushed the CI-re-sync empty
+      commit.
+
+## Real, current, final state as of this invocation (2026-08-06)
+- PR #889 (service worker, gap 1): `mergeable: MERGEABLE`, real
+  `AUDIT: PASS` posted (round 2, after a real round-1 `AUDIT: FAIL` was
+  found and genuinely fixed, not rubber-stamped).
+- PR #896 (VERI-todo/composer, gap 2): `mergeable: MERGEABLE`, real
+  `AUDIT: PASS` posted.
+- Both PRs: `mergeStateStatus: BLOCKED`, confirmed live -- the
+  branch-protection self-approval deadlock (`required_approving_review_count: 1`,
+  no second real GitHub identity exists in this environment) is still
+  active as of 2026-08-06. **This session cannot merge either PR with any
+  credential available to it.** Both are genuinely merge-ready the moment
+  that structural deadlock clears (Owner action needed: provision a real
+  second reviewer identity, or grant a fresh bounded review-count
+  exception) -- disclosed honestly rather than attempted-around.
+- Gap 3 (mobile viewport): still genuinely NOT fixed, NOT re-tested. The
+  PM's own required precondition (a real second independent
+  mobile-viewport session to confirm reproduction before any fix) has not
+  happened. Correctly still `status: open` in `MASTER-TRACKER.yaml`.
+
 ## Remaining
-- [ ] Rebase PR #889's branch (`fix/ocid038-offline-service-worker`) onto
-      current `origin/main`, carrying this exemption fix, resolve real
-      merge conflicts, push, confirm CI green.
-- [ ] Rebase PR #896's branch onto current `origin/main`, resolve real
-      merge conflicts, push, confirm CI green.
-- [ ] Dispatch a genuinely independent audit (fresh subagent, not
-      self-certification) for each PR once green, post `AUDIT: PASS`/`FAIL`.
-- [ ] Gap 3 (mobile viewport): run the real second independent
-      mobile-viewport session the PM decision requires, before any fix is
-      attempted.
-- [ ] Merging #889/#896 is blocked on the branch-protection
-      self-approval deadlock above -- cannot be resolved by this session;
-      surfacing to the Owner rather than attempting a bypass. Once CI is
-      green on both, they are merge-ready the moment that deadlock clears.
+- [ ] Owner action needed to unblock merging #889/#896 (branch-protection
+      reviewer-identity deadlock) -- not actionable by this session.
+- [ ] Gap 3 (mobile viewport): a fresh session/invocation should run the
+      real second independent mobile-viewport re-test before any fix.
 - [ ] Do NOT mark OCID-038 VERIFIED in `MASTER-TRACKER.yaml` until all 3
-      gaps have real evidence of closure on `origin/main` (per PM decision).
+      gaps have real evidence of closure on `origin/main` (per PM decision)
+      -- correctly still not done; #889/#896 are audit-passed but not yet
+      merged, and gap 3 is untouched.
