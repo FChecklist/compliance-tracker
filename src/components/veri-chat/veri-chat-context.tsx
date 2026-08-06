@@ -77,6 +77,13 @@ type AiThreadState = {
   // shell chrome.
   selectedPath: PathSegment[];
   setSelectedPath: (path: PathSegment[] | ((prev: PathSegment[]) => PathSegment[])) => void;
+  // GAP-VERI-TODO-STUCK-LOADING-NOT-READY root cause (MASTER-TRACKER.yaml):
+  // aiThreadId/activeAiThreadId start null and only populate once the
+  // /api/conversations fetch below resolves -- a composer submit in the
+  // window before that lands hits the null branch and reports "not ready"
+  // even though it would have succeeded a moment later. Exposed so the
+  // composer can gate submission on this instead of racing it.
+  aiThreadsLoading: boolean;
 };
 
 const AiThreadContext = createContext<AiThreadState | null>(null);
@@ -86,6 +93,7 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
   const [activeAiThreadId, setActiveAiThreadId] = useState<string | null>(null);
   const [aiThreads, setAiThreads] = useState<AiThreadSummary[]>([]);
   const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
+  const [aiThreadsLoading, setAiThreadsLoading] = useState(true);
 
   useEffect(() => {
     fetch("/api/conversations")
@@ -100,7 +108,8 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
           setActiveAiThreadId(primary.id);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setAiThreadsLoading(false));
   }, []);
 
   const switchAiThread = (id: string) => setActiveAiThreadId(id);
@@ -129,8 +138,8 @@ function AiThreadProvider({ children }: { children: ReactNode }) {
   };
 
   const value = useMemo<AiThreadState>(
-    () => ({ aiThreadId, activeAiThreadId, aiThreads, switchAiThread, createNewAiThread, selectedPath, setSelectedPath }),
-    [aiThreadId, activeAiThreadId, aiThreads, selectedPath]
+    () => ({ aiThreadId, activeAiThreadId, aiThreads, switchAiThread, createNewAiThread, selectedPath, setSelectedPath, aiThreadsLoading }),
+    [aiThreadId, activeAiThreadId, aiThreads, selectedPath, aiThreadsLoading]
   );
 
   return <AiThreadContext.Provider value={value}>{children}</AiThreadContext.Provider>;

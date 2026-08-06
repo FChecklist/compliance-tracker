@@ -33,15 +33,18 @@ export type VeriTodoItem = {
 
 export async function listVeriTodos(ctx: VeriTodoContext): Promise<{ items: VeriTodoItem[] }> {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    const taskRows = await db.query.tasks.findMany({
-      where: and(eq(tasks.userId, ctx.userId), inArray(tasks.status, ["pending", "in_progress"])),
-    })
-
-    const commitmentRows = await db.query.instructionCommitments.findMany({
-      where: and(eq(instructionCommitments.orgId, ctx.orgId), eq(instructionCommitments.assigneeId, ctx.userId), eq(instructionCommitments.status, "pending")),
-    })
-
-    const assigneeRows = await db.query.pmsIssueAssignees.findMany({ where: eq(pmsIssueAssignees.userId, ctx.userId) })
+    // GAP-VERI-TODO-STUCK-LOADING-NOT-READY root cause (MASTER-TRACKER.yaml):
+    // these 3 queries have no data dependency on each other -- run them
+    // concurrently instead of one sequential round-trip each.
+    const [taskRows, commitmentRows, assigneeRows] = await Promise.all([
+      db.query.tasks.findMany({
+        where: and(eq(tasks.userId, ctx.userId), inArray(tasks.status, ["pending", "in_progress"])),
+      }),
+      db.query.instructionCommitments.findMany({
+        where: and(eq(instructionCommitments.orgId, ctx.orgId), eq(instructionCommitments.assigneeId, ctx.userId), eq(instructionCommitments.status, "pending")),
+      }),
+      db.query.pmsIssueAssignees.findMany({ where: eq(pmsIssueAssignees.userId, ctx.userId) }),
+    ])
     const issueIds = assigneeRows.map((a) => a.issueId)
     const issueRows = issueIds.length
       ? await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), inArray(pmsIssues.id, issueIds), eq(pmsIssues.isArchived, false)) })
