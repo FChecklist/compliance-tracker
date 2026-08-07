@@ -18,6 +18,9 @@ does have zero `process.env` references (DB-stored per-org credentials
 are still the primary path, see below), but `src/lib/orchestra-model-
 resolver.ts`'s `platformApiKeyFor()` does read 6 provider keys as a real
 platform-level fallback/default when no per-org key is configured.
+Second correction (2026-08-07, independent audit on PR #684): the table
+itself only listed 32 of the 33 names this section already claimed to
+cover — `EMAIL_FROM` was missing, now added below.
 
 | Var | Required | Purpose |
 |---|---|---|
@@ -34,6 +37,7 @@ platform-level fallback/default when no per-org key is configured.
 | `NODE_ENV` / `NEXT_RUNTIME` / `VERCEL_URL` / `NEXT_PUBLIC_APP_URL` / `NEXT_PUBLIC_SITE_URL` | Framework-managed | Standard Next.js/Node/Vercel runtime vars, not VERIDIAN-specific config. |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GROQ_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`, `CEREBRAS_API_KEY` | Optional, platform-level fallback only | Read by `orchestra-model-resolver.ts`'s `platformApiKeyFor()` as a fallback when an org has no DB-stored per-org model credential configured. Not the primary credential path (see below) — an org with its own `customerModelConfig`/`clientModelConfig` entry never touches these. |
 | `COMPOSIO_API_KEY`, `EXCHANGE_RATE_API_KEY`, `RESEND_API_KEY` | Feature-specific | Composio connector auth, live FX-rate feed, transactional email (`email.ts`) respectively. |
+| `EMAIL_FROM` | Optional | `email.ts`'s outgoing "From" address override — defaults to `VERIDIAN AI <noreply@veridian-compliance.ai>` when unset (`src/lib/email.ts:11`). |
 | `AI_CONFIG_ENCRYPTION_KEY` | Yes if any org has a DB-stored AI model credential | Encrypts/decrypts `customerModelConfig`/`clientModelConfig` secrets at rest. |
 | `SUPABASE_DB_PASSWORD`, `GITHUB_DISPATCH_PAT`, `OPS_SYNC_SECRET`, `DEMO_API_KEY_IDS`, `MEMVID_TELEMETRY`, `ORCHESTRA_PAYLOAD_RETENTION_DAYS` | Various ops/tooling | Narrow-purpose vars for specific scripts/integrations — see each var's own call site for detail, not repeated here to avoid drifting out of sync with the code. |
 

@@ -7,8 +7,8 @@
 // pms/meetings + pms/time-entries -- the remaining ~30 domains are still
 // not yet on /api/v1, intentionally absent here rather than faked.
 //
-// task-20260801-173750 (AI-Readable API Documentation gap closure,
-// 2026-08-01): important correction to the paragraph above -- "not yet on
+// task-20260801-173750 (AI-Readable API Documentation gap closure):
+// important correction to the paragraph above -- "not yet on
 // /api/v1" was stale for a large chunk of what it described. By this date
 // src/app/api/v1/projexa/** alone had grown to ~200 real, already-shipped
 // route files (CRM leads/opportunities, HR/recruitment, payroll, risks,
