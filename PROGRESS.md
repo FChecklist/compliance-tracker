@@ -117,11 +117,7 @@ rubber-stamp self-certification) rather than just re-posting a pass:
       Full-repo `tsc --noEmit` -- run in background (see below).
 - [x] Committed (5b280566) and pushed to the existing PR #1016 branch.
 
-## Remaining
-- [ ] Confirm full-repo `tsc --noEmit` background run is clean, then post
-      the structured 8-field `AUDIT: PASS` verdict comment on PR #1016
-      (per `mandatory-audit-check.yml`), watch CI go green, merge (Rule 6 --
-      no direct push to `main`).
+## Remaining (superseded -- see next section)
 - [x] Rebased onto `origin/main` (which had advanced far past this
       long-stale branch's original 2026-07-18 fork point) to resolve a real
       `CONFLICTING`/`DIRTY` mergeable state. Conflicts: `crm-service.ts`
@@ -135,6 +131,49 @@ rubber-stamp self-certification) rather than just re-posting a pass:
       this file + `ai-os/boss/ACTIVE-CLAIMS.yaml` (both additive, kept both
       sides' content per this repo's own established convention -- see the
       `origin/main` history appended below).
+
+## Push + audit close-out (this invocation, 2026-08-07, resume 16/20)
+Resumed and found the prior invocation's `deleteLead`/`deleteOpportunity`
+RBAC fix (commit `1dbd8118`) was committed locally but never actually
+pushed -- PR #1016's real head on GitHub was still the prior commit
+(`5b280566`), one commit behind local. Pushed it first, then did a genuine
+independent re-review (not a rubber-stamp) before posting the audit
+verdict:
+
+- [x] Pushed the unpushed `1dbd8118` commit to the PR branch.
+- [x] Independently re-diffed `1dbd8118` against its parent (`git diff`,
+      not trusting the commit message alone) and confirmed both
+      `deleteLead`/`deleteOpportunity` now call
+      `assertGate(canReassignOrDeleteLead/Opportunity(ctx.role))` and both
+      `DELETE` routes pass `role: dbUser.role` through, matching the
+      `deleteAccount` precedent this PR cites.
+- [x] Independently re-ran `bun test src/lib/services/crm-service.test.ts`
+      (39 pass, 0 fail, 61 expect calls) and `eslint` on all 3 touched files
+      (zero warnings) rather than trusting the commit message's own
+      "verified" claims.
+- [x] Checked PR #1016's live CI: every real check green (Lint, Type Check,
+      Build, Unit Tests, E2E Tests, Guardrail Presence Check, Terminology
+      Guardrail Check, Secret Scanning, Security Pattern Check, Migration
+      Number Collision Check, and all doc/metadata/asset checks). Only
+      `Vercel` was red, and that was an infrastructure build-rate-limit
+      error (`upgradeToPro=build-rate-limit`), not a code problem -- not a
+      required check, left as-is.
+- [x] Posted the structured 8-field `AUDIT: PASS` verdict comment (per
+      `mandatory-audit-check.yml`'s contract, `validateAuditProtocolFields()`
+      shape) on PR #1016:
+      https://github.com/FChecklist/compliance-tracker/pull/1016#issuecomment-5212537646
+- [x] Per `[[veridian-audit-check-issue-comment-sha-bug]]` (known repo
+      issue: the audit-check re-triggered by an `issue_comment` event
+      reports against the wrong SHA until a real `synchronize` event
+      follows), pushed a follow-up empty commit (`b5cec9fe`) to force that
+      synchronize event.
+
+## Remaining
+- [ ] Confirm the audit-check job re-runs against the correct head SHA
+      after the empty-commit synchronize push and reports green, then merge
+      PR #1016 (Rule 6 -- no direct push to `main`, PR/CI gate applies).
+- [ ] Close out the `ai-os/boss/ACTIVE-CLAIMS.yaml` entry for this task
+      once merged.
 
 ---
 
