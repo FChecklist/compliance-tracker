@@ -68,7 +68,14 @@ minutes, starving every other worker's write across the whole Superboss Register
       this repo's established per-task-reset convention for that file). Re-ran the full test suite
       post-rebase: **10 passed** again. Force-pushed (`--force-with-lease`) to the same branch/PR,
       new head `4c583cc`.
-- [ ] Request fresh real Superboss/audit review on corrected head -- no self-certification.
+- [~] Requesting fresh real Superboss/audit review: traced the real review mechanism
+      (`supervisor-entrypoint.sh` + `veridian-supervisor@<task_id>.service` template unit).
+      task-20260807-081913's own workspace/branch IS PR #256's real branch, so archived its stale
+      round-1 `review.json` (-> `review.json.round1-reject-08h48`, per the script's own documented
+      retrigger convention) and ran `systemctl --user restart
+      veridian-supervisor@task-20260807-081913-amendment-to-umr-20260807-070110-5ea7--s.service` --
+      confirmed running, real `claude -p` review process live against the resynced current head
+      (`4c583cc`). Awaiting its real verdict (not self-certifying).
 - [ ] Once genuine fresh PASS + clean mergeable: merge via standard close-out checklist, verify real
       mergedAt + git log origin/main.
 - [ ] Reconcile UMR-20260807-070904-736a via resource_governor.py (not raw SQL).
