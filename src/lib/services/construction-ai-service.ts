@@ -13,6 +13,12 @@
 // unlike extractDocumentContent they THROW a ServiceError when no model is
 // configured rather than silently returning nothing, since the caller
 // explicitly asked for this and deserves a clear error, not a blank result.
+// (Cognitive Architecture: Deterministic-First Principles wave:
+// detectBudgetScheduleRisk is now the one exception -- its riskLevel never
+// genuinely needed AI, see classifyBudgetScheduleRisk()'s own header below,
+// so "no model configured" now returns a real deterministic result instead
+// of a 400. generateProgressSummary still throws -- narrative summary
+// generation is genuinely open-ended text, not a label a formula can pick.)
 // Both are deliberately prompted (see 0105_wave123_construction_ai_prompts.sql)
 // to only ever reference numbers actually present in the input -- this
 // project has a documented prior bug of an AI surface hallucinating generic
@@ -110,33 +116,103 @@ export async function generateProgressSummary(ctx: { orgId: string; userId: stri
 
 export type BudgetScheduleRisk = { riskLevel: "low" | "medium" | "high"; budgetRiskReasoning: string; scheduleRiskReasoning: string; recommendedAction: string }
 
+// ─── Cognitive Architecture: Deterministic-First Principles ───────────────
+// riskLevel used to be decided by the LLM alone even though every input
+// (variance, delayedTaskCount, totalTaskCount) is a number, not free text --
+// the prompt itself already says "Base riskLevel primarily on variance ...
+// and the proportion of delayed tasks" (0105_wave123_construction_ai_
+// prompts.sql), i.e. it's asking the model to compute a threshold a
+// deterministic function can compute for real. Same "software decides which
+// predefined label applies from real state" doctrine already established
+// elsewhere in this codebase (risk-classification.ts's classifyRisk(),
+// response-engine.ts's own header comment, report-cadence-service.ts's
+// activity_log.riskLevel trail). classifyBudgetScheduleRisk() below is that
+// deterministic path: pure, unit-tested, most-severe-first threshold
+// checks. Thresholds are intentionally coarse and documented, not tuned
+// against real incident data (none exists yet) -- same honesty discipline
+// as risk-classification.ts's own thresholds.
+export type BudgetScheduleRiskFactors = {
+  budget: number
+  actual: number
+  variance: number // budget - actual (construction-reports-service.ts's budgetVsActual) -- negative means over budget
+  delayedTaskCount: number
+  totalTaskCount: number
+}
+
+const HIGH_OVERSPEND_RATIO = 0.20 // 20% over budget
+const MEDIUM_OVERSPEND_RATIO = 0.10 // 10% over budget
+const HIGH_DELAYED_RATIO = 0.40 // 40% of tasks delayed
+const MEDIUM_DELAYED_RATIO = 0.20 // 20% of tasks delayed
+
+export function classifyBudgetScheduleRisk(factors: BudgetScheduleRiskFactors): "low" | "medium" | "high" {
+  const overspendRatio = factors.budget > 0 ? Math.max(0, -factors.variance) / factors.budget : 0
+  const delayedRatio = factors.totalTaskCount > 0 ? factors.delayedTaskCount / factors.totalTaskCount : 0
+
+  if (overspendRatio >= HIGH_OVERSPEND_RATIO || delayedRatio >= HIGH_DELAYED_RATIO) return "high"
+  if (overspendRatio >= MEDIUM_OVERSPEND_RATIO || delayedRatio >= MEDIUM_DELAYED_RATIO) return "medium"
+  return "low"
+}
+
+// Deterministic fallback reasoning text, used when no AI model is
+// configured for the org (see below) -- classification never needed AI in
+// the first place, so "no model configured" no longer means "no answer."
+function templateBudgetScheduleRisk(factors: BudgetScheduleRiskFactors, riskLevel: "low" | "medium" | "high"): BudgetScheduleRisk {
+  const overspendPct = factors.budget > 0 ? Math.round((Math.max(0, -factors.variance) / factors.budget) * 100) : 0
+  const delayedPct = factors.totalTaskCount > 0 ? Math.round((factors.delayedTaskCount / factors.totalTaskCount) * 100) : 0
+  return {
+    riskLevel,
+    budgetRiskReasoning: factors.budget <= 0
+      ? "No budget is set for this project, so budget risk could not be assessed."
+      : factors.variance < 0
+        ? `Project is ${overspendPct}% over budget (actual ${factors.actual} vs budget ${factors.budget}).`
+        : `Project is within budget (actual ${factors.actual} vs budget ${factors.budget}).`,
+    scheduleRiskReasoning: factors.totalTaskCount <= 0
+      ? "No tasks are logged for this project yet, so schedule risk could not be assessed."
+      : `${factors.delayedTaskCount} of ${factors.totalTaskCount} tasks (${delayedPct}%) are delayed.`,
+    recommendedAction: riskLevel === "high"
+      ? "Review budget and schedule with the project team immediately."
+      : riskLevel === "medium"
+        ? "Monitor budget and schedule closely over the next reporting period."
+        : "No immediate action needed; continue routine monitoring.",
+  }
+}
+
 export async function detectBudgetScheduleRisk(ctx: { orgId: string; userId: string }, projectId: string): Promise<BudgetScheduleRisk> {
   const startedAt = Date.now()
-  const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-  if (!modelConfig) throw new ServiceError("No AI model is configured for this organisation", 400)
 
   const [dashboard, budgetActual] = await Promise.all([
     getProjectDashboard({ orgId: ctx.orgId }, projectId),
     budgetVsActual({ orgId: ctx.orgId }, projectId),
   ])
-  const systemPrompt = await resolvePromptTemplate("construction.detect_budget_schedule_risk")
-  const userMessage = `Real aggregated data (JSON): ${JSON.stringify({
+  const factors: BudgetScheduleRiskFactors = {
     budget: budgetActual.budget, actual: budgetActual.actual, variance: budgetActual.variance,
     delayedTaskCount: dashboard.delayedTaskCount, totalTaskCount: dashboard.taskCount,
-  })}`
+  }
+  const riskLevel = classifyBudgetScheduleRisk(factors)
+
+  const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+  if (!modelConfig) return templateBudgetScheduleRisk(factors, riskLevel)
+
+  const systemPrompt = await resolvePromptTemplate("construction.detect_budget_schedule_risk")
+  const userMessage = `Real aggregated data (JSON): ${JSON.stringify(factors)}`
 
   const { data, usage } = await callLLMJson<BudgetScheduleRisk>(
     modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage,
     { temperature: 0.2, maxTokens: 500, expectedKeys: ["riskLevel"] }, modelConfig.fallback
   )
+  // riskLevel is always the deterministic value above -- the LLM's own
+  // riskLevel output (whatever it decided) is discarded here, never
+  // surfaced to a caller. The LLM's real job on this call is the reasoning
+  // prose only.
+  const result: BudgetScheduleRisk = { ...data, riskLevel }
 
   recordOrchestraExecution({
     orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "construction.detect_budget_schedule_risk",
-    input: { projectId }, output: { riskLevel: data.riskLevel },
+    input: { projectId }, output: { riskLevel: result.riskLevel },
     status: "completed", durationMs: Date.now() - startedAt,
     provider: modelConfig.provider, model: modelConfig.model, usage,
   })
-  return data
+  return result
 }
 
 export type DrawingDescription = { drawingType: string | null; elements: string[]; dimensions: string[]; annotations: string[]; notes: string }

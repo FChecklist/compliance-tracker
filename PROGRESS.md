@@ -1,3 +1,75 @@
+# PROGRESS -- task-20260718-171005-cognitive-architecture--deterministic-fi
+
+SPEC: title only ("Cognitive Architecture: Deterministic-First Principles"), no `prompt.txt`
+exists in this task's workspace. 13 prior invocations made zero real progress (10 credit-
+accountant pre-flight rejections/failures 2026-07-18..20, then a long idle gap to
+2026-08-07). Cross-checked both retry siblings (`task-20260718-172005-retry-1`,
+`task-20260718-173005-retry-2`, both `status: blocked`, no real work) and the merged sibling
+theme task (`task-20260718-171002`, "Cognitive Consistency & Maturity", closed via commit
+`13ee655ec`) -- no prior session produced a written findings list specific to this theme, so
+this session generated its own real findings against `ai-os/CONSTITUTION.yaml`'s
+`software_first` section (SF-01/SF-02: "Predictive/repetitive work is done by deterministic
+software first. AI is the fallback, not the default.").
+
+## Completed
+- [x] Registered this session's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` before starting real
+      work (commit `4908193b9`, pushed).
+- [x] Ran a codebase-wide audit (Explore sub-agent) for LLM call sites doing classification/
+      scoring on purely structured (non-free-text) input without a deterministic pre-check,
+      mirroring this repo's own established, well-documented "deterministic-first" pattern
+      (`risk-classification.ts`'s `classifyRisk()`, `response-engine.ts`'s "software decides
+      which predefined label applies" doctrine, `llm-routing-gate.ts`/`asset-routing-engine.ts`/
+      `dynamic-chain-directory-service.ts`/`wisdom-engine-service.ts`'s own header comments).
+      Found 3 ranked candidates: (1) `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()`,
+      (2) `construction-ai-service.ts`'s `detectBudgetScheduleRisk()`, (3) `ai-team/team-
+      service.ts`'s `classifyTask()` (self-documented as a known, deferred follow-up in
+      `capability-tree-service.ts:1032`).
+- [x] Fixed (2): `detectBudgetScheduleRisk()`'s `riskLevel` was decided by the LLM alone from
+      purely numeric aggregates (`variance`, `delayedTaskCount`/`totalTaskCount`) -- the
+      prompt template itself already says "Base riskLevel primarily on variance ... and the
+      proportion of delayed tasks", i.e. it was asking the model to compute a threshold a pure
+      function can compute for real. Added `classifyBudgetScheduleRisk()` (pure,
+      most-severe-first threshold checks over overspend-ratio and delayed-task-ratio, same
+      style as `risk-classification.ts`'s `classifyRisk()`). The LLM call (when a model IS
+      configured for the org) is now used only for the reasoning prose; its own `riskLevel`
+      output is always discarded and overridden by the deterministic value, so a hallucinated
+      label can never reach a caller. When no AI model is configured, this now returns a real
+      deterministic result (`templateBudgetScheduleRisk()`) instead of throwing a 400 --
+      classification never needed AI in the first place.
+- [x] New `construction-ai-service.test.ts`: 11 tests on `classifyBudgetScheduleRisk()`
+      covering on-budget/under-budget, medium/high overspend thresholds, medium/high delayed-
+      ratio thresholds, "the more severe of the two signals wins", and zero-budget/zero-tasks
+      not dividing by zero. `bun test` (after `bun install`, `node_modules` was missing in this
+      workspace) -- 11/11 pass.
+- [x] `bunx eslint` on both touched files -- clean, zero output.
+
+- [x] `bunx tsc --noEmit` -- re-ran with a larger heap (`--max-old-space-size=8192`) after the
+      prior invocation's OOM on this box's default heap (a known large-project constraint, not
+      specific to this change); confirmed clean, zero errors, 7.5s, exit 0.
+- [x] Registered `GAP-CONSTRUCTION-AI-RISKLEVEL-LLM-ONLY-CLASSIFICATION` in
+      `ai-os/MASTER-TRACKER.yaml`'s `open_items`, status `resolved`, citing the real fix and
+      verification above and both disclosed follow-ups. Validated the YAML still parses.
+- [x] Ran all 4 governance checks (`check-metadata-index-coverage.mjs --diff-only`,
+      `check-guardrail-presence.mjs`, `check-terminology-guardrail.mjs --diff-only`,
+      `check-doc-cross-references.mjs`). Terminology check caught a real finding: two source
+      comments had a hardcoded ISO date (`2026-08-07`) in this new code, which the guardrail
+      correctly flags as a hardcoded example needing a `<Entity.Attribute>` placeholder or an
+      explicit exemption. Fixed by removing the date from the comment text (it wasn't load-
+      bearing information, just prose) rather than adding an exemption. All 4 checks pass clean
+      after the fix.
+
+## Remaining
+- [ ] Commit, push, open PR, confirm CI green, hand off for independent audit (Rule 7c/10).
+- [ ] Move the `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:` once merged.
+- [ ] Real, disclosed follow-ups (NOT done here, flagged not silently dropped): candidate (1)
+      `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()` is the same class of finding but
+      a larger product-behavior-change risk (changes what "AI-scored" means for existing leads/
+      opportunities) -- needs its own scoped task/PM decision, not bundled in here. Candidate
+      (3) `ai-team/team-service.ts`'s `classifyTask()` is a routing/dispatch-path change with
+      higher blast radius (AI Dev Team task routing) -- also left for a separate task.
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
