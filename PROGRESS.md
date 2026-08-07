@@ -92,3 +92,25 @@ full live-verification trail in one place, including the specific `BLOCKED` /
       identity, before it can merge
 - [ ] (Out of this task's scope) A `gh` token with `workflow` scope needs to
       apply the CI job diff described in PR #685's own body
+
+## Re-verification (invocation 3, same session)
+
+This invocation's own docs-only commit above was already pushed as **PR #1040**
+(`worker/task-20260807-064732-retry-ai-documentation-lifecycle-v2`), opened by a
+prior invocation. Live re-check today:
+- All required CI checks pass except `audit-check` (no `AUDIT: PASS`/`FAIL`
+  comment posted — expected for a solo-session docs commit per Rule 7(c), a
+  self-audit wouldn't be valid anyway) and `Vercel` (unrelated
+  `api-deployments-free-per-day` rate limit, not a real defect).
+- `mergeStateStatus: BLOCKED` — same self-approval deadlock as PR #685.
+- Checked whether the **3 prior duplicate-dispatch sessions'** commits
+  (`ffc03fd2d`, `af20dcd27`, `8fb282745`) ever landed on `main`: **none did**
+  (`git merge-base --is-ancestor <sha> origin/main` fails for all three). Their
+  PRs are stuck behind the identical deadlock. This confirms the blocker is a
+  **repo-configuration issue affecting every PR in this repo**, not something
+  particular to this gap or this task's own PR — nothing left for a future
+  dispatch of this gap to discover or fix; the same conclusion will hold until
+  a human/owner action (second reviewer identity, or branch-protection change)
+  happens outside any single task's scope.
+
+No further action taken this invocation; no new duplicate work created.
