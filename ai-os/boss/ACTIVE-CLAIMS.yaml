@@ -5859,7 +5859,7 @@ active:
 recently_completed:
   - session_label: "claude-code (worker task-20260718-083004-cache---synchronization--cache-integrity) -- VERIDIAN Review Framework: Cache & Synchronization / Cache Integrity & Security (3 findings)"
     completed_at: "2026-08-07T (this session)"
-    merged_as: "not yet PR'd -- see PROGRESS.md in that task's workspace for full detail"
+    merged_as: "PR #1019 (https://github.com/FChecklist/compliance-tracker/pull/1019) -- open, CI running as of this update; not yet merged/audited"
     summary: |
       Closed all 3 findings in one PR (same module/area): [High] Cache
       Security & Encryption -- src/lib/llm-response-cache.ts's `content`
@@ -5876,6 +5876,18 @@ recently_completed:
       infra rather than skipping the Critical finding. Added
       llm-response-cache.test.ts (was 0 test coverage, now 8 passing tests).
       Did not touch permission-service.ts's ERP_ACTION_ROLES.
+      CI fix, round 2: a first attempted fix for a CI-only (unreproducible
+      locally) `llm-client.test.ts` failure -- "capture+restore the real
+      `@/lib/llm-client` module" -- did not actually hold on CI's real file
+      order (re-verified live via the job's own log, not the PR summary).
+      Root cause: `llm-response-cache.test.ts` mocking
+      `@/lib/llm-client` via `mock.module()` at all leaks into
+      `llm-client.test.ts`'s own static import of that same module,
+      regardless of an `afterEach` restore call. Fixed by mocking
+      `globalThis.fetch` instead (removes the module-registry mutation
+      entirely) -- verified in both explicit file orders plus the full
+      local suite. See PROGRESS.md's "CI fix, round 2" section for full
+      detail.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
