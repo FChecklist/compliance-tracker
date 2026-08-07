@@ -3,6 +3,8 @@ import { eq } from "drizzle-orm";
 import postgres from "postgres";
 import { createHash } from "crypto";
 import { getConnectionString } from "@/lib/db/connection-string";
+import { withRetry, LLMHttpError } from "@/lib/llm-client";
+import { logTokenUsage } from "@/lib/services/token-usage-service";
 
 // Raw SQL client for vector operations (Drizzle doesn't support vector type)
 let rawClient: ReturnType<typeof postgres> | null = null;
@@ -38,22 +40,40 @@ function getRawClient() {
 // `vector(1536)` column with zero schema change). Tried first now, ahead of
 // the Groq path, which is kept only for the case a BYOK caller explicitly
 // passes a Groq key.
+// Cognitive AI Operating System Consistency gap closure (2026-08-07): both
+// retry and cost-tracking now match every real callLLM call site --
+// withRetry() is the exact same transient-failure (429/5xx/network) +
+// backoff policy llm-client.ts uses for every provider, and a successful
+// call is logged to the same token_usage_ledger every product Orchestra
+// Layer call feeds (scope='product_orchestra', layerKey='embeddings_direct'
+// distinguishes this from a real registered Orchestra Layer -- embeddings
+// has no per-org model config to resolve, so there's no orchestraLayers row
+// to attach to). Fire-and-forget, matching recordOrchestraExecution()'s own
+// posture: observability must never block or fail the actual AI call.
 async function tryOpenRouterEmbedding(text: string): Promise<number[] | null> {
   const key = process.env.OPENROUTER_API_KEY;
   if (!key) return null;
   try {
-    const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text.slice(0, 8000) }),
+    const data = await withRetry(async () => {
+      const res = await fetch("https://openrouter.ai/api/v1/embeddings", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ model: "openai/text-embedding-3-small", input: text.slice(0, 8000) }),
+      });
+      if (!res.ok) throw new LLMHttpError(`OpenRouter embedding API error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
+      return res.json();
     });
-    if (res.ok) {
-      const data = await res.json();
-      return data.data[0].embedding as number[];
-    }
-    console.warn("OpenRouter embedding API returned", res.status, "— trying next fallback");
+    void logTokenUsage({
+      scope: "product_orchestra",
+      layerKey: "embeddings_direct",
+      provider: "openrouter",
+      model: "openai/text-embedding-3-small",
+      taskSummary: "embeddings.ts direct call (not routed through an Orchestra Layer)",
+      usage: { promptTokens: data.usage?.prompt_tokens ?? data.usage?.total_tokens ?? 0, completionTokens: 0 },
+    });
+    return data.data[0].embedding as number[];
   } catch (err) {
-    console.warn("OpenRouter embedding fetch failed:", err, "— trying next fallback");
+    console.warn("OpenRouter embedding fetch failed after retries:", err, "— trying next fallback");
   }
   return null;
 }
@@ -123,25 +143,37 @@ async function generateEmbeddingUncached(
   const key = apiKey || process.env.GROQ_API_KEY;
   if (key) {
     try {
-      const res = await fetch("https://api.groq.com/openai/v1/embeddings", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${key}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "nomic-embed-text",
-          input: text.slice(0, 8000), // model limit
-        }),
+      const data = await withRetry(async () => {
+        const res = await fetch("https://api.groq.com/openai/v1/embeddings", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${key}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            model: "nomic-embed-text",
+            input: text.slice(0, 8000), // model limit
+          }),
+        });
+        if (!res.ok) throw new LLMHttpError(`Groq embedding API error ${res.status}: ${await res.text().catch(() => "")}`, res.status);
+        return res.json();
       });
-
-      if (res.ok) {
-        const data = await res.json();
-        return { vector: data.data[0].embedding as number[], isReal: true };
-      }
-      console.warn("Groq embedding API returned", res.status, "— using fallback");
+      // No MODEL_PRICING row for nomic-embed-text (see llm-client.ts's own
+      // comment on that omission) -- estimatedCostUsd lands null, but the
+      // request/token-count itself is still recorded, same "record what we
+      // know, don't fabricate the rest" posture as every other honest-gap
+      // constant in this codebase.
+      void logTokenUsage({
+        scope: "product_orchestra",
+        layerKey: "embeddings_direct",
+        provider: "groq",
+        model: "nomic-embed-text",
+        taskSummary: "embeddings.ts direct call (not routed through an Orchestra Layer)",
+        usage: { promptTokens: data.usage?.prompt_tokens ?? data.usage?.total_tokens ?? 0, completionTokens: 0 },
+      });
+      return { vector: data.data[0].embedding as number[], isReal: true };
     } catch (err) {
-      console.warn("Groq embedding fetch failed:", err, "— using fallback");
+      console.warn("Groq embedding fetch failed after retries:", err, "— using fallback");
     }
   }
 

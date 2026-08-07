@@ -20,12 +20,23 @@ export type LogTokenUsageInput = {
   provider: string
   model: string
   usage: LLMUsage
+  // Cognitive AI Operating System Consistency gap closure (2026-08-07):
+  // for a caller whose model isn't token-priced (e.g. whisper-client.ts's
+  // per-minute-of-audio Whisper billing -- there is no MODEL_PRICING row
+  // for "whisper-1" and there never will be, it's the wrong pricing shape
+  // entirely), skip estimateCostUsd()'s own token-based math and use this
+  // value directly instead. `null` here still means "not attempted" (e.g.
+  // duration unknown), same as estimateCostUsd() returning null for an
+  // unrecognized model -- both land as a real null column, not a fabricated 0.
+  estimatedCostUsdOverride?: number | null
 }
 
 /** Fire-and-forget-safe: caller decides whether to await or not. Never throws past a caught/logged failure. */
 export async function logTokenUsage(input: LogTokenUsageInput): Promise<void> {
   try {
-    const estimatedCostUsd = estimateCostUsd(input.model, input.usage)
+    const estimatedCostUsd = input.estimatedCostUsdOverride !== undefined
+      ? input.estimatedCostUsdOverride
+      : estimateCostUsd(input.model, input.usage)
     await db.insert(tokenUsageLedger).values({
       scope: input.scope,
       orgId: input.orgId ?? null,

@@ -121,7 +121,21 @@ function isRetryable(error: unknown): boolean {
 
 const RETRY_DELAYS_MS = [300, 900]; // 2 retries total per attempt (3 tries), short exponential backoff
 
-async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
+// Exported (VERIDIAN Review Framework, Cognitive AI Operating System
+// Consistency, 2026-08-07): embeddings.ts and whisper-client.ts are the
+// only two call sites in this codebase that talk to an AI provider without
+// going through callLLM/callLLMJson (embeddings has no chat-completions
+// shape to reuse; Whisper's multipart/form-data audio upload is
+// structurally unrelated to a JSON chat call -- see each file's own header
+// comment for why staying outside callLLM is still the right call). Both
+// were flagged as having zero retry/cost-tracking parity with every real
+// callLLM call site. Retry parity: reuse this exact same
+// transient-failure-classification + backoff policy directly (not a
+// reimplementation that could silently drift from this one). Cost-tracking
+// parity: see logTokenUsage() in token-usage-service.ts, which both files'
+// callers now feed via LLMUsage-shaped records the same way
+// recordOrchestraExecution() does for every callLLM site.
+export async function withRetry<T>(attempt: () => Promise<T>): Promise<T> {
   let lastError: unknown;
   for (let i = 0; i <= RETRY_DELAYS_MS.length; i++) {
     try {
@@ -187,6 +201,20 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   "z-ai/glm-5.2": { promptPer1k: 0.00042, completionPer1k: 0.00132 },
   "z-ai/glm-5v-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
   "z-ai/glm-5-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
+  // Cognitive AI Operating System Consistency gap closure (2026-08-07):
+  // embeddings.ts's OpenRouter path proxies OpenAI's text-embedding-3-small
+  // -- stable, long-published OpenAI pricing ($0.02 / 1M tokens), embeddings
+  // have no completion tokens so that half is always 0. Without this row,
+  // estimateCostUsd() silently returns null for every embedding call, the
+  // same gap the z-ai/glm-* rows above were added to close for AI Team.
+  "openai/text-embedding-3-small": { promptPer1k: 0.00002, completionPer1k: 0 },
+  // embeddings.ts's Groq fallback path (nomic-embed-text) deliberately has
+  // NO row here: unlike every other provider in this table, Groq does not
+  // publish per-token pricing for this model on its public pricing page as
+  // of this wave (it's a BYOK-only fallback path in practice -- see
+  // embeddings.ts's own header comment). estimateCostUsd() returning null
+  // for it is the same honest "don't guess at a cost" behavior this
+  // function documents for any other unrecognized model, not an oversight.
 };
 
 export function estimateCostUsd(model: string, usage: LLMUsage): number | null {

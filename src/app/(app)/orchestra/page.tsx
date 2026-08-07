@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Bot, Sparkles, Info, Activity } from "lucide-react";
+import { Bot, Sparkles, Info, Activity, RefreshCw } from "lucide-react";
 import { RealAssistantColumn } from "@/components/orchestra/RealAssistantColumn";
 import { AgentLibrarySheet } from "@/components/orchestra/AgentLibrarySheet";
 import { TIER_COLOR, TIER_LABEL, type AgentTier } from "@/lib/orchestra-mock-data";
@@ -47,6 +47,9 @@ export default function OrchestraPage() {
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" asChild>
             <Link href="/orchestra/analytics"><Activity className="w-4 h-4 mr-1" />Analytics</Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href="/orchestra/loop-improvements"><RefreshCw className="w-4 h-4 mr-1" />Loop Improvements</Link>
           </Button>
           <AgentLibrarySheet />
         </div>

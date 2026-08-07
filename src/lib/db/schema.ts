@@ -2032,6 +2032,23 @@ export const loopImprovements = complianceSchemaDB.table('loop_improvements', {
   deployedAt: timestamp('deployed_at'),
   rollbackTriggered: boolean('rollback_triggered').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // VERIDIAN Review Framework gap closure (Continuous Software Evolution,
+  // 2026-08-07): every prior row here was write-only -- no loop ever gets a
+  // path to set isDeployed true (see loop-improvement-proposer.ts's own
+  // header comment), and until this wave nothing ever surfaced an individual
+  // row to a human either (every existing reader -- ai-performance-report-
+  // service.ts, d1-metrics-tracker-service.ts, report-cadence-service.ts --
+  // only reads aggregate counts/deltas, never a specific row). These 4
+  // columns are the review queue's own decision trail, additive and
+  // nullable so every pre-existing row (and every existing reader) is
+  // unaffected. Recording a decision here is NOT the same as isDeployed --
+  // approving still doesn't auto-apply anything (that remains real, separate
+  // engineering work per improvementType/targetType); it's the human
+  // "yes, worth acting on" / "no, dismiss" checkpoint that never existed.
+  reviewDecision: text('review_decision'), // 'approved' | 'dismissed', null = pending
+  reviewedBy: text('reviewed_by'), // dbUser.id of the reviewer
+  reviewedAt: timestamp('reviewed_at'),
+  reviewNotes: text('review_notes'),
 })
 
 export const loopHealthMetrics = complianceSchemaDB.table('loop_health_metrics', {

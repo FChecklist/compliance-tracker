@@ -1624,6 +1624,28 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-171002-cognitive-architecture--cognitive-consis) -- VERIDIAN Review Framework: Cognitive Architecture / Cognitive Consistency & Maturity (4 findings, 1 PR)"
+    completed_at: "2026-08-07T (this session)"
+    merged_as: "compliance-tracker PR pending (branch worker/task-20260718-171002-cognitive-architecture--cognitive-consis, not yet opened/merged as of this entry) -- claim added retroactively at completion, not at start (this task resumed at invocation 14/20 with PROGRESS.md still showing 'Not started'; verified via git log --all/gh pr list at resume time that no other session had touched this area, so no collision to record)."
+    claim: |
+      4 findings, all confirmed still-open by re-reading current code (none
+      were already resolved): (1) Low, embeddings.ts/whisper-client.ts
+      retry+cost-tracking parity with callLLM -- added directly, reusing
+      llm-client.ts's exported withRetry() and a new estimateWhisperCostUsd()
+      + logTokenUsage() estimatedCostUsdOverride field. (2) Medium,
+      high-impact-action-detector.ts false-negative tracking -- new
+      src/lib/loops/high-impact-miss-audit.ts, piggybacked on the existing
+      daily loops cron, proposes a loop_improvements summary row per run.
+      (3) High, loop_improvements review queue -- drizzle/0225 adds 4
+      additive review columns, new loop-improvement-review-service.ts +
+      /api/orchestra/loop-improvements[/[id]] + /orchestra/loop-improvements
+      page (mirrors the existing /capability-improvements pattern). (4)
+      Medium, AI_OS_CERTIFICATION.md quarterly recertification cadence --
+      documented in the doc itself + MASTER-TRACKER.yaml
+      GAP-COGNITIVE-MATURITY-RECERT, next pass due 2026-10-04.
+      Did not touch permission-service.ts/ERP_ACTION_ROLES per the task's
+      explicit instruction. Full verification (bun install, tsc --noEmit
+      clean, eslint clean, 28/28 relevant tests passing) in PROGRESS.md.
   - session_label: "Super Boss (Claude Desktop, interactive) -- Home-page merge panel fix + veridian-ui-kit adoption"
     completed_at: "2026-07-18T (this session)"
     merged_as: "compliance-tracker PR #436 (tier1, self-merged after CI green), commit 3d3f6aef. Sibling repos: FChecklist/veridian-ui-kit (new shared package), FChecklist/projexa PR #38 (adoption, awaiting Owner review -- no CI/branch-protection in that repo)."

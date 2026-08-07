@@ -1,80 +1,118 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-171002-cognitive-architecture--cognitive-consis
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+VERIDIAN Review Framework gap-closure: Cognitive Architecture / Cognitive
+Consistency & Maturity (4 findings). All 4 addressed in this branch/PR --
+they share the same module/area (Orchestra/loops/AI-provider-call
+plumbing), matching the task's own "one coherent PR" guidance.
+
+Re-read each finding's actual current implementation before changing
+anything, per the task's instruction -- none of the 4 were already
+resolved, but the recommended approaches were adapted where the real code
+differed from what the finding assumed (see notes per item below).
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] **[Low] Cognitive AI Operating System Consistency** -- embeddings.ts
+      and whisper-client.ts had zero retry/cost-tracking parity with
+      callLLM's own call sites, confirmed by reading both files fresh.
+      - `withRetry()` (llm-client.ts) is now exported and reused directly
+        (not reimplemented) by both files' HTTP calls -- same 429/5xx/
+        network retry+backoff policy as every callLLM call site.
+      - `embeddings.ts`: successful OpenRouter/Groq embedding calls now log
+        to `token_usage_ledger` via `logTokenUsage()` (scope
+        `product_orchestra`, layerKey `embeddings_direct`). Added a real
+        `openai/text-embedding-3-small` pricing row to llm-client.ts's
+        MODEL_PRICING; left `nomic-embed-text` unpriced with an honest
+        comment (Groq doesn't publish per-token pricing for it) rather than
+        guessing.
+      - `whisper-client.ts`: added `estimateWhisperCostUsd()` (pure,
+        per-minute-of-audio, matches OpenAI's real Whisper pricing) --
+        deliberately NOT a DB write inside whisper-client.ts itself, to
+        preserve its own established "pure HTTP, fully fetch-mockable, no
+        DB" test posture (whisper-client.test.ts). voice-ticket-service.ts
+        (which already owns DB/orgId context) calls it and logs via
+        `logTokenUsage()` with a new `estimatedCostUsdOverride` field
+        (token-usage-service.ts) since Whisper isn't token-priced.
+      - All 4 touched/created files pass `tsc --noEmit` and existing tests
+        (whisper-client.test.ts, llm-client.test.ts,
+        voice-ticket-service.test.ts all green).
+
+- [x] **[Medium] Human-in-Control Architecture** -- confirmed the Phase 3
+      Intent Engine really is still deferred (high-impact-action-detector.ts
+      is still the deterministic keyword stand-in) and there was genuinely
+      no false-negative tracking anywhere.
+      - New `src/lib/loops/high-impact-miss-audit.ts`: re-runs the
+        deterministic detector against a rolling 24h window of tasks,
+        samples up to 25 of the ones it did NOT gate, and asks an LLM
+        (task_oa layer, new `high_impact_miss_audit.judgment` prompt
+        template, drizzle/0225) whether each one actually describes one of
+        the 9 high-impact categories. Records one summary row per run via
+        `proposeLoopImprovement()` (loopId `high_impact_miss_audit`,
+        targetId `phase3_intent_engine_decision`) with
+        `{judged, missed, rate, recommendPhase3, examples}` -- a real,
+        queryable trend a human can use to decide if Phase 3 is warranted,
+        reviewable through the new review queue below. Wired into the
+        existing daily loops cron (`/api/internal/loops/run/route.ts`),
+        piggybacked the same way `capabilityIndexFreshnessAudit` was --
+        not one of the 15 canonical loops, so no new cron entry needed.
+      - Honest limitation stated in the file's own header: this assumes
+        the detector's TRIGGERS list hasn't changed within the 24h scan
+        window, since detection is recomputed retrospectively rather than
+        persisted at task-creation time (no such column existed to read).
+
+- [x] **[High] Continuous Software Evolution** -- confirmed
+      `loop_improvements` is still write-only: `isDeployed` has no path to
+      ever become true (loop-improvement-proposer.ts's own comment already
+      said so), and every existing reader (ai-performance-report-service.ts,
+      d1-metrics-tracker-service.ts, report-cadence-service.ts) only
+      aggregates counts/deltas -- no UI/API surfaced an individual row.
+      - drizzle/0225 adds 4 additive/nullable columns to `loop_improvements`
+        (`review_decision`, `reviewed_by`, `reviewed_at`, `review_notes`) --
+        the decision trail, not an auto-apply mechanism (what a fix even
+        means varies per loop/targetType; building a generic auto-apply
+        engine across all of them is real, separate, deferred work).
+      - New `src/lib/services/loop-improvement-review-service.ts` (list/
+        approve/dismiss, veridian_admin-gated) + API routes
+        `/api/orchestra/loop-improvements` (GET) and
+        `/api/orchestra/loop-improvements/[id]` (POST action=approve|
+        dismiss) + a new page `/orchestra/loop-improvements`, linked from
+        the Orchestra root page. Deliberately mirrors the existing
+        `/capability-improvements` page's exact review-queue pattern
+        (filter -> card list -> action dialog with a required reason on the
+        negative action) rather than inventing a new UI shape.
+
+- [x] **[Medium] Cognitive Maturity Score** -- read AI_OS_CERTIFICATION.md
+      fresh: the 51-category scoring mechanism + Part 5 gate are real and
+      current; "Overall gate result: FAIL" is the honestly-low score the
+      finding refers to. Confirmed it had been run exactly once (2026-07-04)
+      with no scheduled re-run.
+      - Added a "Recertification cadence" section to the top of
+        AI_OS_CERTIFICATION.md: quarterly cadence, next pass due 2026-10-04,
+        a changelog block, and instructions for what a pass does (re-check
+        every category, not just trust prior ratings -- several have already
+        flipped between ad-hoc fixes).
+      - Added `GAP-COGNITIVE-MATURITY-RECERT` to
+        `ai-os/MASTER-TRACKER.yaml`'s `real_gaps_not_yet_built` so the due
+        date surfaces the same way every other open governance item does,
+        not just inside the one doc. YAML re-verified parseable
+        (`python3 -c "import yaml; yaml.safe_load(...)"`).
+
+## Verification run this pass
+- `bun install` (node_modules wasn't present at task start in this
+  worktree) -- 1691 packages, clean.
+- `tsc --noEmit` on the full project: 0 errors (first attempt OOM'd on the
+  default heap size under this sandbox's constrained memory; re-ran with
+  `NODE_OPTIONS=--max-old-space-size=4096`, clean pass, unrelated to any
+  change here).
+- `eslint` on every touched/created file: clean.
+- `bun test` on whisper-client.test.ts, llm-client.test.ts,
+  voice-ticket-service.test.ts, high-impact-action-detector.test.ts: 28/28
+  pass.
+- No `permission-service.ts` / `ERP_ACTION_ROLES` changes -- not touched,
+  per the task's explicit instruction.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] None for this task's 4 findings -- ready for PR.
+- [ ] Not this task's scope, noted for whoever picks up
+      GAP-COGNITIVE-MATURITY-RECERT on 2026-10-04: actually run the next
+      certification pass.

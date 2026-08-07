@@ -2,6 +2,18 @@
 
 **First certification pass: 2026-07-04. Grounded in direct codebase + live-database evidence, not aspiration.**
 
+## Recertification cadence (added 2026-08-07, VERIDIAN Review Framework gap closure -- "Cognitive Maturity Score")
+
+The review framework's own finding on this document: "the scoring mechanism is real [the 51-category taxonomy + Part 5 gate below], but the underlying score itself shows significant immaturity [Overall gate result: FAIL] -- and it had been run exactly once (2026-07-04) with no commitment to ever re-run it." A single point-in-time certification pass silently goes stale as the codebase moves (this doc's own §1.3/§3.1 entries already show ratings the first pass got wrong being corrected in later waves via ad-hoc re-checks, not a scheduled process) -- codified here as an explicit, trackable cadence instead of relying on someone remembering to re-run it:
+
+- **Cadence**: quarterly (every 3 months from the first pass).
+- **Next pass due**: 2026-10-04. Tracked as an open item in `ai-os/MASTER-TRACKER.yaml` (`GAP-COGNITIVE-MATURITY-RECERT`) so it surfaces the same way every other open governance item does, rather than living only in this doc where nothing re-checks it.
+- **What a recertification pass does**: re-read the current implementation of every category in Parts 1-4 below (not just trust the prior rating -- several ratings above have already flipped between passes as real fixes landed, e.g. §1.3 RAG 🔴→🟡, §2.5 Model Switching 🔴→🟢), re-run Part 5's gate checklist, update this document in place (ratings, evidence citations, the "Overall gate result" line), and append a dated one-line changelog entry directly below this section. Whoever runs it also resets "Next pass due" to +3 months from that pass's date and updates the MASTER-TRACKER item's due date to match.
+- **Changelog** (append one line per pass, most recent first):
+  - 2026-07-04 -- first pass (see full document below).
+
+---
+
 ## Why this document exists
 
 The user asked VERIDIAN to be evaluated not as "does the software work" but as an **AI Operating System** -- AI-native, multi-agent, multi-tenant, a Worker Agent / Knowledge / Memory / Workflow platform -- and proposed a 51-category certification taxonomy spanning functional testing through AI-security, chaos engineering, and a final "AI OS Certification" meta-gate covering Levels 1-4, Worker Agents, and AI-Native Capabilities.

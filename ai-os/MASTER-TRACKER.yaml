@@ -551,6 +551,14 @@ open_items:
       first_raised: "2026-07-14, Owner review of the FChecklist/VERIDIAN AI OS design description"
 
   real_gaps_not_yet_built:
+    - id: GAP-COGNITIVE-MATURITY-RECERT
+      name: "AI_OS_CERTIFICATION.md quarterly recertification pass"
+      detail: "VERIDIAN Review Framework gap closure (Cognitive Maturity Score, 2026-08-07): AI_OS_CERTIFICATION.md's 51-category scoring mechanism is real, but it had been run exactly once (first pass 2026-07-04) with no scheduled re-run -- several of its own ratings were already known-stale between ad-hoc fixes (e.g. its own §1.3 RAG 🔴->🟡, §2.5 Model Switching 🔴->🟢 notes). AI_OS_CERTIFICATION.md now has a 'Recertification cadence' section (added same pass) codifying quarterly re-runs; this tracker item exists so the next due date surfaces the same way every other open item does, instead of only living inside that one doc."
+      next_step: "Next pass due 2026-10-04: re-read every Part 1-4 category against current code, re-run the Part 5 gate, update ratings/evidence/'Overall gate result' in place, append a changelog line, and reset both AI_OS_CERTIFICATION.md's 'Next pass due' and this item's due date to +3 months from that pass."
+      first_raised: "2026-08-07 (VERIDIAN Review Framework, Cognitive Architecture / Cognitive Consistency & Maturity gap closure)"
+      due: "2026-10-04"
+      size: quick_slice
+
     # These are the still-accurate, still-open items from the old GAPS.yaml
     # (46 items) / 30-gap-backlog.yaml (11 items) catalogs, AFTER removing
     # everything closed by Priority 1's 18 areas, Priority 2's D-domain

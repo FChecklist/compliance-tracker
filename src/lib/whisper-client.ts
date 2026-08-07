@@ -18,6 +18,21 @@
 // apiKey(), tenant-scoped.ts's getAppRuntimeConnectionString()) -- there is
 // no shared requireEnv() helper anywhere in this codebase to extend, so
 // this follows the same ad-hoc-per-call-site shape those examples use.
+// Cognitive AI Operating System Consistency gap closure (2026-08-07):
+// retry now matches every real callLLM call site (withRetry() is the exact
+// same transient-failure classification + backoff policy, reused directly
+// rather than re-implemented here where it could silently drift).
+// Cost-tracking is deliberately NOT logged inside this file: this module's
+// own header comment above establishes it as the one fully DB-free,
+// fetch-mockable module in the Voice Tickets feature (see
+// whisper-client.test.ts), and Whisper is billed per-minute-of-audio, not
+// per-token, so it can't reuse llm-client.ts's MODEL_PRICING/
+// estimateCostUsd shape anyway. estimateWhisperCostUsd() below is the pure,
+// still-fully-testable half of that parity; voice-ticket-service.ts (which
+// already owns the DB/orgId context) calls it and writes to the same
+// token_usage_ledger every product Orchestra Layer call feeds.
+import { withRetry, LLMHttpError } from "@/lib/llm-client"
+
 export class WhisperConfigError extends Error {
   constructor(message: string) {
     super(message)
@@ -47,6 +62,26 @@ const WHISPER_MODEL = "whisper-1"
 // OpenAI's API.
 export const WHISPER_MAX_BYTES = 25 * 1024 * 1024
 
+// OpenAI's own published rate for this endpoint: $0.006 per minute of
+// audio, billed to the nearest second (stable since Whisper API launch --
+// same class of long-stable public pricing constant as llm-client.ts's
+// "gpt-4o"/"gpt-4o-mini" rows). Pure and side-effect-free so it stays
+// testable without a mocked fetch, unlike the transcription call itself.
+const WHISPER_COST_PER_MINUTE_USD = 0.006
+
+/**
+ * Estimated cost for one transcription call, given the audio's duration.
+ * Returns null when duration is unknown -- voiceMemos.durationSeconds is
+ * client-supplied and optional (see voice-ticket-service.ts's
+ * createVoiceMemo), so "unknown" is a real, expected case here, not an
+ * error -- same "absence means not attempted, don't guess" contract as
+ * llm-client.ts's estimateCostUsd()/LLMUsage.cacheReadTokens.
+ */
+export function estimateWhisperCostUsd(durationSeconds: number | null | undefined): number | null {
+  if (durationSeconds === null || durationSeconds === undefined || durationSeconds < 0) return null
+  return (durationSeconds / 60) * WHISPER_COST_PER_MINUTE_USD
+}
+
 export type TranscriptionResult = { text: string }
 
 // Pure HTTP call, no DB -- the only I/O is the OpenAI request itself, so
@@ -74,24 +109,31 @@ export async function transcribeAudio(
   form.append("model", WHISPER_MODEL)
   form.append("response_format", "json")
 
-  const res = await fetch(WHISPER_ENDPOINT, {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}` },
-    body: form,
+  const data = await withRetry(async () => {
+    const res = await fetch(WHISPER_ENDPOINT, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}` },
+      body: form,
+    })
+
+    if (!res.ok) {
+      let detail = ""
+      try {
+        const errBody = await res.json() as { error?: { message?: string } }
+        detail = errBody?.error?.message || ""
+      } catch {
+        detail = await res.text().catch(() => "")
+      }
+      // LLMHttpError (not a plain Error) so withRetry's isRetryable() can
+      // tell a transient 429/5xx from a permanent 4xx (bad key, bad
+      // request) the exact same way it does for every callLLM call site --
+      // a 401 (bad key) still fails on the first try, never retried.
+      throw new LLMHttpError(`OpenAI Whisper transcription failed (HTTP ${res.status}): ${detail || "no further detail from OpenAI"}`, res.status)
+    }
+
+    return res.json() as Promise<{ text?: string }>
   })
 
-  if (!res.ok) {
-    let detail = ""
-    try {
-      const errBody = await res.json() as { error?: { message?: string } }
-      detail = errBody?.error?.message || ""
-    } catch {
-      detail = await res.text().catch(() => "")
-    }
-    throw new Error(`OpenAI Whisper transcription failed (HTTP ${res.status}): ${detail || "no further detail from OpenAI"}`)
-  }
-
-  const data = await res.json() as { text?: string }
   if (typeof data.text !== "string") {
     throw new Error("OpenAI Whisper returned a response with no text field -- cannot use as a transcript")
   }

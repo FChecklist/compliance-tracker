@@ -33,7 +33,8 @@ import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engin
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
-import { transcribeAudio } from "@/lib/whisper-client"
+import { transcribeAudio, estimateWhisperCostUsd } from "@/lib/whisper-client"
+import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { addMeetingActionItem, ServiceError } from "./veri-meeting-service"
 export { ServiceError }
 
@@ -131,8 +132,12 @@ export async function transcribeAndExtractVoiceMemo(
     )
   }
 
-  await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
-    db.update(voiceMemos).set({ status: "transcribing", updatedAt: new Date() }).where(eq(voiceMemos.id, memoId))
+  // .returning() here (rather than the bare update every other status
+  // transition in this function uses) so durationSeconds -- captured once
+  // at upload time in createVoiceMemo(), client-supplied and optional -- is
+  // available for the cost-tracking log below without a second query.
+  const [{ durationSeconds }] = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    db.update(voiceMemos).set({ status: "transcribing", updatedAt: new Date() }).where(eq(voiceMemos.id, memoId)).returning({ durationSeconds: voiceMemos.durationSeconds })
   )
 
   let transcript: string
@@ -144,6 +149,28 @@ export async function transcribeAndExtractVoiceMemo(
     await markFailed(message)
     throw err
   }
+
+  // Cognitive AI Operating System Consistency gap closure (2026-08-07):
+  // cost-tracking parity for the one direct (non-callLLM) provider call in
+  // this service -- see whisper-client.ts's own header comment for why the
+  // cost estimate is computed there (pure, no DB) but logged here (this
+  // function already owns the DB/orgId/userId context). Fire-and-forget,
+  // same posture as recordOrchestraExecution() below. Whisper is billed
+  // per-minute-of-audio, not per-token, so estimatedCostUsdOverride is
+  // passed explicitly instead of relying on logTokenUsage's normal
+  // MODEL_PRICING/token-based estimate (which has no "whisper-1" row and
+  // never will -- it isn't a token-priced model).
+  void logTokenUsage({
+    scope: "product_orchestra",
+    orgId: ctx.orgId,
+    userId: ctx.userId,
+    layerKey: "voice_transcription_direct",
+    provider: "openai",
+    model: "whisper-1",
+    taskSummary: "whisper-client.ts direct call (not routed through an Orchestra Layer)",
+    usage: { promptTokens: 0, completionTokens: 0 },
+    estimatedCostUsdOverride: estimateWhisperCostUsd(durationSeconds),
+  })
 
   await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.update(voiceMemos).set({ transcript, transcribedAt: new Date(), status: "extracting", updatedAt: new Date() }).where(eq(voiceMemos.id, memoId))
