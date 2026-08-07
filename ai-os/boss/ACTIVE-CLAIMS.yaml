@@ -40,7 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+  - session_label: "claude-code (task-20260806-212459-urgent--governance-reconciliation-backgr) -- checkpoint refresh, verify claimed dead 'Build governance reconciliation agent' with frozen tokens for 10+ min -- found NOT a dead process, closed same session [DONE]"
+    claimed_at: "2026-08-06T21:28Z (this session, closed same session)"
+    claim: |
+      SPEC claimed a definitive, twice-confirmed (10 min apart) real process scan found zero
+      processes for a "Build governance reconciliation agent" shown in "your own panel", frozen
+      token/elapsed numbers, asked to mark its UMR failed/held and move on, and to apply the same
+      treatment to any other agent with 10+ min of zero token growth. This session has no literal
+      "panel" tool, so live-reverified via `superboss-register.sqlite`'s `umr_tasks` table and
+      `resource_governor_tick.log` instead of trusting the SPEC. Found: this task's own name IS
+      "governance reconciliation background agent" (task-20260806-212459-urgent--governance-
+      reconciliation-backgr) and its own originating row, UMR-20260806-095628-5547
+      (`owner-task-20260806-095627-2806371`), sat `queued`/`stale_queued_flagged` in
+      `resource_governor_tick.log` (line 97994) from 2026-08-06T09:56:28Z until finally dispatched
+      at 21:25:02Z -- an ~11.5h real backlog caused by repeated `swap_hard_ceiling` (~99.99% swap
+      used) dispatch blocks, NOT a crashed/lost process -- there was never a live process to die,
+      so "zero processes + frozen tokens" was an accurate description of a not-yet-dispatched queue
+      item, not a dead agent. It is now this exact live session (invocation 1/20, in_progress).
+      Cross-checked all 4 currently in_progress task.yaml files server-wide at 21:28:26Z: all were
+      dispatched 3.4-3.7 minutes earlier in the same backlog-flush batch (212444/212450/212456/
+      212459) -- none had gone 10+ minutes with zero progress. Conclusion: did NOT mark any real
+      UMR row failed/held -- doing so would have falsely killed this task's own live, currently-
+      succeeding dispatch on a stale pre-dispatch narrative. No other agent met the 10-min-frozen
+      bar either. See [[veridian-stale-escalation-spec-vs-live-process-state]] for the prior
+      instance of this same false-premise pattern (10.5h-stale "urgent memory pressure" escalation).
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
       SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
