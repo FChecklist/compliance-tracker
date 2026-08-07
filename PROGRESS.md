@@ -71,3 +71,4 @@ proceed and actually reach a merged state.
       3 of these per the SPEC, don't redo that work.
 - [ ] CONFLICTING batch (52, real count now 162), in small batches of 2-3 with load/swap headroom
       checks before each batch, per tonight's over-parallelization incidents.
+
