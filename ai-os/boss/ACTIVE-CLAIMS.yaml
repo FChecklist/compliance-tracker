@@ -40,7 +40,31 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+  - session_label: "claude-code (task-20260807-064954-close-phase-2--task--44--final-2-gates) -- Phase 2 Task #44 final 2 gates (PR #630, PR #632) -- own work COMPLETE, gate NOT clear (blocked on repo-wide branch-protection deadlock, Owner action required) [DELIVERABLE COMPLETE, blocked pending Owner]"
+    claimed_at: "2026-08-07T06:49Z (this session)"
+    claim: |
+      Gate 1 (PR #630, Stage 9 unified-search view): independently re-verified already MERGED
+      2026-08-02T04:09:36Z (f39a6fc2) -- SPEC's premise that it was still open/conflicting was
+      stale by ~5 days. No action needed.
+      Gate 2 (PR #632, Stage 11 get_notice_status): confirmed genuinely open with a real merge
+      conflict against current `main`. Rebased onto `origin/main` (958ccacc8) in a scratch branch,
+      resolved 1 real conflict in `ai-os/registry/terminology-guardrail-exemptions.yaml`
+      additively (both sides had independently appended new entries at the same tail position),
+      verified locally (`tsc --noEmit`, eslint, terminology-guardrail check, the PR's own
+      `route.test.ts`, all clean), pushed with `--force-with-lease` to new head `9624ccee6`.
+      All 18 required+optional CI checks green including `audit-check=SUCCESS` against this exact
+      head (5 real AUDIT:PASS/FAIL comments on record). `mergeable=MERGEABLE`, but
+      `mergeStateStatus=BLOCKED`/`reviewDecision=REVIEW_REQUIRED` -- this repo's standing
+      branch-protection self-approval deadlock (`required_approving_review_count=1` +
+      `enforce_admins=true`, only one real GitHub identity exists anywhere in this environment;
+      see memory `veridian-branch-protection-self-approval-deadlock-active`, now 17+ confirmed
+      instances across unrelated PRs). Not fixable by this session -- structural, repo-wide,
+      requires Owner action (provision a 2nd reviewer identity, or a fresh bounded review-count
+      exception). Closed a stale duplicate PR #705 (earlier 2026-08-02 attempt's own docs-only
+      branch, task dir gone) as superseded. Recorded parent UMR-20260802-032455-f94b as
+      `completed_unmerged` (real, CI-green, audited work not yet an ancestor of `origin/main`)
+      via `superboss-register.py mark-umr-terminal`. Phase 3 (Task #45) dispatch intentionally
+      NOT started -- the gate is not clear, only blocked.
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
       SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
