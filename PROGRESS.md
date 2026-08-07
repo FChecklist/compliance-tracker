@@ -86,8 +86,10 @@ reset the branch onto fresh `origin/main` before starting real work, per
       all (the new admin-report gate uses the plain `dbUser.role` inline-check convention that
       table's own non-ERP siblings already use, per this task's own explicit instruction).
 
+- [x] Committed, pushed, opened PR #1015: https://github.com/FChecklist/compliance-tracker/pull/1015
+
 ## Remaining
-- [ ] Open PR, confirm CI green, hand off for independent audit per Rule 10/AGENTS.md.
+- [ ] Confirm CI green, hand off for independent audit per Rule 10/AGENTS.md, merge.
 
 ---
 
