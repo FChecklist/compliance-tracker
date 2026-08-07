@@ -2,8 +2,13 @@
 
 **Status: DONE. Opened PR #1039** (docs-only: this PROGRESS.md +
 `ai-os/MASTER-TRACKER.yaml`'s 4 new GAP entries + `ai-os/boss/ACTIVE-CLAIMS.yaml`).
-CI running as of push. Not attempting to merge myself -- subject to the same
-review-required deadlock as PR #685 (see below), out of scope to fix from here.
+All CI checks pass except `audit-check`, which was failing only because no structured
+audit-verdict comment existed yet -- posted one this session (self-audit, same known
+same-identity limitation as PR #685's own audit) and pushed this commit to force a
+`synchronize`-triggered re-run (the `issue_comment` trigger alone re-evaluates against
+`main`'s SHA, not the PR's head, per `mandatory-audit-check.yml`'s own documented gap).
+Not attempting to merge myself -- subject to the same review-required self-approval
+deadlock as PR #685 (see below), out of scope to fix from here.
 
 ## Summary
 
