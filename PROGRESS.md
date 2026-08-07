@@ -202,3 +202,22 @@ data supports.
       CI-green and audited, genuinely blocked on the cross-session
       structural deadlock -- not on anything left to do in this task's
       own scope.
+
+- [x] (2026-08-07, invocation 18/20) Re-verified live state again --
+      unchanged: `mergeable=MERGEABLE`/`mergeStateStatus=BLOCKED`/
+      `reviewDecision=REVIEW_REQUIRED`; branch protection still
+      `required_approving_review_count=1`; `collaborators` still exactly
+      one identity (`FChecklist`). This is now confirmed 6-for-6 across
+      unrelated PRs (#959/#981/#999/#1012/#1014/#1017). CI still green
+      (`audit-check` still `pass`; `Build` re-ran mid-invocation as
+      `pending` after the prior invocation's forced `synchronize` push --
+      not a new failure, just re-running the same green pipeline; only
+      non-required `Vercel` fails, on rate-limiting, as before). Took no
+      merge action, per this task's own established policy. There is
+      nothing left in this task's own scope to do until either the
+      second-reviewer identity plan
+      (`REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`) lands or the
+      Owner gives a fresh bounded review-count exception -- both outside
+      this task's authority to create. Further invocations should
+      re-verify live state briefly (in case it has resolved) rather than
+      repeat full investigation from scratch.
