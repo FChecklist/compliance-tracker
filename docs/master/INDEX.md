@@ -38,6 +38,7 @@ See the new rows for both, plus `ai-os/BRAIN.md`, in the table below.
 | [`GAP_CLOSURE_LOG.md`](GAP_CLOSURE_LOG.md) | 🆕 | Append-only record of every fix made during the autonomous gap-closure pass — 8 batches, exact files/verification/commit per fix. |
 | [`FINAL_STATUS_REPORT_2026-07-09.md`](FINAL_STATUS_REPORT_2026-07-09.md) | 🆕 | Closing report for the 2026-07-09 gap-closure pass: 22 findings fully closed, 4 partially closed. Superseded on the worker-agent-execution item by `CAPABILITY_COVERAGE.md` (2026-07-10). |
 | [`CAPABILITY_COVERAGE.md`](CAPABILITY_COVERAGE.md) | 🆕 | Live-queried source of truth for CRITICAL_GAPS #1: exactly which worker agents/VCEL calculators are wired into deterministic Chain Selector dispatch vs. still AI-fallback, by domain/category, with the prioritized roadmap for the rest. Re-run its own SQL before trusting any number in it if time has passed. |
+| [`PROMPT_CATALOG.md`](PROMPT_CATALOG.md) | 🆕 | Index of all 26 real `resolvePromptTemplate()` keys + call sites, the `prompt_versions`/`promptTemplates` schema, and an honest accounting of what the separate "Prompt Directory" UI feature still doesn't have (no browsable UI page, no predictive-match/auto-promotion/decay pipeline). |
 
 ---
 
@@ -89,6 +90,7 @@ See the new rows for both, plus `ai-os/BRAIN.md`, in the table below.
 |---|---|---|
 | [`docs/ESCALATION_MATRIX.md`](../ESCALATION_MATRIX.md) | 🆕 | Priority 12 (OPEN-07 point 10) reference doc — names all 5 real, independently-built escalation mechanisms (`escalation-ladder.ts`, `floor-tier-escalation.ts`, `model-tier-eligibility.ts`, the Auditor→Higher-AI loop, `dispatch-completion-monitor.ts`'s fail-closed pattern), what triggers each and what it does, and is explicit about where they do NOT connect. Cross-reference only, not a redesign. |
 | [`docs/AI_WORKFORCE.md`](../AI_WORKFORCE.md) | 🟢 | How a task becomes a reviewed PR via the AI Router → 10-role roster → `repository_dispatch` → sandboxed execution (max 20 turns, no shell) → human-reviewed PR. |
+| [`docs/CONFIGURATION.md`](../CONFIGURATION.md) | 🆕 | Consolidated index of all real `process.env.*` vars used in `src/` (33 distinct names as of last re-verification, deduped; only 4 were previously listed, in `CLAUDE.md`) plus notable in-code sanity-ceiling/feature-flag constants. |
 | [`docs/research/VERI_MAIL_CALENDAR_PLAN.md`](../research/VERI_MAIL_CALENDAR_PLAN.md) | 🟠 | Composio Gmail/Calendar OAuth plan. **Recommended, not built** — verify current status before citing as done. |
 | [`docs/research/VERI_REWARD_EVALUATION.md`](../research/VERI_REWARD_EVALUATION.md) | 🔴 | Gamification architecture recommendation. **Superseded** — VERI Reward is now actually built (`veri-reward-service.ts`, live). |
 | [`docs/research/WORKER_AGENT_AND_PROMPT_LIBRARY_EVALUATION.md`](../research/WORKER_AGENT_AND_PROMPT_LIBRARY_EVALUATION.md) | 🟡 | CEO assessment: don't build a new Worker Agent Library, ~70% already exists via Capability Registry + Prompt OS; real gap was dispatch + confidence scoring. | Wave 114/131 (this session) directly closes part of the dispatch gap this doc identified. |
