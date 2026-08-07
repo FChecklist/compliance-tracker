@@ -221,3 +221,20 @@ data supports.
       this task's authority to create. Further invocations should
       re-verify live state briefly (in case it has resolved) rather than
       repeat full investigation from scratch.
+
+- [x] (2026-08-07, invocation 19/20) Re-verified live state again --
+      unchanged: `mergeable=MERGEABLE`/`mergeStateStatus=BLOCKED`/
+      `reviewDecision=REVIEW_REQUIRED`; branch protection still
+      `required_approving_review_count=1`; `collaborators` still exactly
+      one identity (`FChecklist`). Now confirmed 7-for-7 across unrelated
+      PRs (#959/#981/#999/#1012/#1014/#1017 across invocations, plus this
+      invocation's own re-check). All required CI checks still pass
+      (`audit-check` included); only non-required `Vercel` fails, still on
+      build-rate-limiting, not a real regression. Also checked whether
+      `REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` (the second-
+      reviewer-identity plan referenced above) has landed anywhere in this
+      repo's tracked files (`git ls-files | grep -i REVIEWER_IDENTITY`) --
+      it has not; no such file is tracked. No fresh Owner directive found.
+      Took no merge action, per this task's own established policy (no
+      looping on `gh pr merge`, no self-flipping branch protection).
+      Nothing left in this task's own scope to do.
