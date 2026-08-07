@@ -184,3 +184,21 @@ data supports.
       either the second-reviewer identity (plan already written in
       `REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`) or a fresh
       bounded review-count exception from the Owner to actually merge.
+
+- [x] (2026-08-07, invocation 17/20) Re-verified live state before
+      taking any action, per this session's own memory note that live
+      state can drift/self-resolve between invocations -- it has not
+      here: `gh pr view 1017` still shows `mergeable=MERGEABLE`/
+      `mergeStateStatus=BLOCKED`/`reviewDecision=REVIEW_REQUIRED`;
+      `gh api repos/.../branches/main/protection` still shows
+      `required_approving_review_count=1`; `gh api repos/.../collaborators`
+      still resolves to exactly one identity (`FChecklist`) -- no second
+      reviewer identity has become available since the last check. No new
+      `REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`-plan progress or
+      fresh Owner directive found in the repo. Per this task's own
+      established policy above (don't loop on `gh pr merge`, don't
+      self-flip branch protection without explicit fresh Owner sign-off),
+      took no merge action this invocation. PR #1017 remains fully
+      CI-green and audited, genuinely blocked on the cross-session
+      structural deadlock -- not on anything left to do in this task's
+      own scope.
