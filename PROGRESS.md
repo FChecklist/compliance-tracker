@@ -127,6 +127,54 @@ branch, separate task, live parallel session): `drizzle/0312_stage1_preauth_bran
 has the identical missing-journal-entry gap already on `origin/main` itself
 (pre-existing, not introduced by this branch) -- out of scope for this PR.
 
+**Invocation 3/20 (this session):** Resumed per the harness's checkpoint prompt, but found
+its `LAST_CHECKPOINT`/`completed_steps` text did **not** describe this task at all -- it
+described picking "OCID-052", a browser test against `/api/me`, registering
+`GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS`, and opening **PR #898**. None of that is this
+task's SPEC (AI Cost Governance & FinOps, PR #687). Independently verified before trusting
+either version:
+- `git log`/`git status` on this workspace (`pr687-rescue`, HEAD `94604b1f5`) show only this
+  task's own real commits (the PR #687 rescue + journal fix from invocations 1-2) -- zero trace
+  of any OCID-052/`/api/me` work ever happening in this workspace.
+- `gh pr view 898` is a real, different, already-existing PR (OCID-047/OCID-020 PM-decision
+  content) with no relation to this task.
+- `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` already exists in `ai-os/MASTER-TRACKER.yaml`
+  (line ~834), registered by unrelated prior OCID-052 work, not by this task/session.
+- `task.yaml`'s own checkpoint history shows the contamination happening mid-session: the
+  06:38 checkpoint correctly listed this task's real files (`finance/`, `cost-reconciliation`,
+  `schema.ts`, etc.); the very next checkpoint at 06:43 replaced `completed_steps`/
+  `remaining_steps` with the unrelated OCID-052/PR #898 text, with zero file/commit evidence
+  in this workspace to back it. This looks like a checkpoint-writer cross-contamination bug
+  (this task's `task.yaml` picked up another concurrent session's in-progress narrative) rather
+  than real work performed here.
+
+Conclusion: **disregarded** the OCID-052/PR #898 content as not belonging to this task --
+did not act on it, did not duplicate/re-verify it (that is a different task's real, pre-existing
+work). Continued from this task's own real, verified state instead:
+- Live-reverified PR #687 (`worker/task-20260801-173614-retry-ai-cost-governance-finops-cost-vis`,
+  head `94604b1f5`, same commit as this workspace's `HEAD`): all required + optional CI checks
+  **pass** (Lint, Type Check, Build, Unit Tests, E2E Tests, Analyze, Asset Registry Coverage,
+  Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, Guardrail Presence,
+  Metadata Index Coverage, Migration Number Collision, Secret Scanning, Security Pattern,
+  Terminology Guardrail, `audit-check`). Confirmed `audit-check`'s `success` conclusion is
+  against the **true current head SHA** (`94604b1f5`), not a stale one (checked
+  `GET /commits/{sha}/check-runs` directly) -- a real `AUDIT: PASS` (2026-08-02) is on record
+  and still valid for this content.
+- `gh pr view 687 --json mergeable,mergeStateStatus,reviewDecision`: `mergeable: MERGEABLE`,
+  but `mergeStateStatus: BLOCKED` / `reviewDecision: REVIEW_REQUIRED`. This matches the
+  already-documented, repo-wide structural deadlock (`main` requires 1 approving PR review;
+  every credential in this environment resolves to the same single GitHub identity
+  `FChecklist`, so no independent reviewer can approve; 13+ prior confirmations across other
+  PRs in this same repo, all Owner-blocked, none resolved by `gh pr merge --admin`). Per that
+  established pattern: did **not** attempt `gh pr merge` (would fail identically and cost a
+  circuit-breaker strike for zero new information), did **not** touch the branch-protection
+  review-count setting (would be unauthorized guardrail-weakening under AGENTS.md Rule 9).
+- This task's own real work is therefore **complete and independently CI/audit-verified**;
+  the only remaining step is an Owner-side action outside this session's authority (provision
+  a second reviewer identity, or grant a bounded review-count exception). Updated
+  `ai-os/boss/ACTIVE-CLAIMS.yaml`'s entry for this task to reflect that real final state and
+  moved it to `recently_completed`.
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
