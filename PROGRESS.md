@@ -76,3 +76,22 @@
   resource-headroom-veto design, it needs its own fresh SPEC grounded in the real current design
   (`CONCURRENCY_CAP` + `has_resource_headroom()`), not a re-dispatch of the already-reverted
   dynamic-cap approach.
+
+## Re-verification (invocation 4/20, 2026-08-07)
+- Re-checked PR #1022 live: `mergeStateStatus=BLOCKED`, `reviewDecision=REVIEW_REQUIRED`,
+  `mergeable=MERGEABLE`. All 17 required checks still `SUCCESS` (Lint, Type Check, Build, Unit
+  Tests, E2E Tests, audit-check, Guardrail Presence Check, Asset Registry/Metadata Index Coverage,
+  Terminology/Doc/Secret/Security checks, Migration Number Collision, Analyze). One informational,
+  non-required `Vercel` check shows `fail` (build-rate-limited, not merge-blocking) -- not a
+  regression, just Vercel's shared free-tier quota; does not gate branch protection.
+- Re-confirmed `required_approving_review_count=1` / `enforce_admins=true` on `main` directly via
+  `gh api repos/FChecklist/compliance-tracker/branches/main/protection` -- deadlock is still live,
+  unchanged from the 12th confirmation logged in
+  `[[veridian-branch-protection-self-approval-deadlock-active]]`. No second real GitHub identity
+  exists in this environment to supply the required review, and lowering the review-count
+  requirement myself would be guardrail-weakening without a fresh explicit Owner directive
+  (AGENTS.md Rule 9) -- did not touch it.
+- No `gh pr merge` retry attempted (would fail identically and burn a circuit-breaker strike for
+  no reason -- same reasoning as the prior invocation). Conclusion unchanged: this task's real work
+  is complete; the sole remaining blocker is external (Owner-level branch-protection action), not
+  something further invocations of this task can resolve.
