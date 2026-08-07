@@ -40,6 +40,25 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-064727-retry-ai-documentation-ai-readable-techn) -- [DELIVERABLE COMPLETE, all required+optional CI green incl. audit-check, genuine AUDIT: PASS posted -- merge blocked only by the repo-wide veridian-branch-protection-self-approval-deadlock-active structural gap, Owner action needed, not further task work] VERIDIAN Review Framework gap-closure: AI Documentation / AI-Readable Technical Documentation (10 findings), completed/fixed the existing PR #684 from task-20260801-173750 rather than redoing the work [redispatch of task-20260718-064002/task-20260801-173750, sub-task of UMR-20260801-170930-2080]"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      PR #684 (task-20260801-173750) already did the real 10-finding gap
+      closure and got 2 independent AUDIT: FAIL passes: (1) a stale line
+      citation in business-rules-registry.yaml + an inaccurate env-var count
+      in docs/CONFIGURATION.md -- both already fixed by commit 411f3f0 on
+      that branch; (2) a still-unfixed hardcoded-ISO-date Terminology
+      Guardrail failure in src/lib/openapi/generate.ts line 11, a missing
+      EMAIL_FROM row in CONFIGURATION.md's env-var table, and a real
+      PROGRESS.md merge conflict against current main. This session's scope
+      is exactly those remaining items plus rebasing onto current main --
+      not re-deriving the 10 findings from scratch. File scope: same as the
+      original claim (docs/master/*, ai-os/registry/*, docs/CONFIGURATION.md,
+      scripts/check-*.mjs, src/lib/openapi/generate.ts) plus PROGRESS.md and
+      this file's own conflict resolution. Not touching
+      src/lib/services/permission-service.ts's ERP_ACTION_ROLES table
+      structure.
+
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
