@@ -101,6 +101,24 @@ but out of chronological order against everything main has landed since),
 re-verified the full suite, and am merging via this same PR rather than
 opening a duplicate.
 
+**Invocation 2/20 correction:** the merge commit above was made locally but
+the previous invocation's `ACTIVE-CLAIMS.yaml` entry claimed "pushed to this
+same PR branch" before that push actually happened -- `gh pr view 687` still
+showed `OPEN/CONFLICTING/DIRTY` live at the start of this invocation. Also
+found and fixed a real, separate gap while re-verifying: `drizzle/0313_ai_cost_reconciliation.sql`
+existed on disk but had no matching entry in `drizzle/meta/_journal.json`
+(drizzle-kit would not have known about the migration). Added the missing
+journal entry (idx 282, following the file's existing convention), re-ran
+`check-migration-collision.mjs` (clean), all 4 governance checks (clean),
+`tsc --noEmit` (clean), and `cost-reconciliation-service.test.ts` (10/10
+pass) -- then actually pushed (`46f71602a`) to
+`worker/task-20260801-173614-retry-ai-cost-governance-finops-cost-vis`.
+`gh pr view 687` now genuinely shows `MERGEABLE` (CI freshly triggered,
+pending as of this update). Noted for awareness, not fixed here (separate
+branch, separate task, live parallel session): `drizzle/0312_stage1_preauth_brand_host_lookup.sql`
+has the identical missing-journal-entry gap already on `origin/main` itself
+(pre-existing, not introduced by this branch) -- out of scope for this PR.
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
