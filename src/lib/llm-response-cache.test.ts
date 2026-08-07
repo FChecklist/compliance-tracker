@@ -12,7 +12,20 @@
 // Mocks @/lib/db and @/lib/ai-config-crypto, matching
 // org-branding-service.test.ts's established pattern for this class of
 // dependency (never touching a live DB or pgcrypto from a .test.ts file).
-import { describe, test, expect, mock, beforeEach } from "bun:test"
+// @/lib/llm-client is different: llm-client.test.ts tests that module's
+// REAL implementation directly, so a bare `mock.module("@/lib/llm-client",
+// ...)` here would leak a stub into Bun's process-wide module cache for
+// the rest of the suite -- mock.restore() does NOT undo mock.module()
+// (confirmed Bun limitation; this exact class of bug previously broke
+// tenant-isolation.test.ts, see PR #434 / src/lib/services/tenant-isolation.test.ts's
+// "capture real modules, restore in afterEach" convention, reused here).
+import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
+
+const realLlmClient = await import("@/lib/llm-client")
+
+async function restoreRealModules(): Promise<void> {
+  await mock.module("@/lib/llm-client", () => realLlmClient)
+}
 
 function mockDbUpdateChain(spy: (values: unknown) => void) {
   const chain = {
@@ -57,14 +70,17 @@ function setupMocks(opts: {
     decryptApiKey: mock(opts.decrypt ?? (async (ciphertext: string) => ciphertext.replace(/^enc:/, ""))),
   }))
   mock.module("@/lib/llm-client", () => ({
+    ...realLlmClient,
     callLLM: mock(async () => ({ content: "fresh answer", usage: { promptTokens: 10, completionTokens: 5 } })),
-    stripJsonFence: (s: string) => s,
-    LLMVerificationError: class LLMVerificationError extends Error {},
   }))
 }
 
 beforeEach(() => {
   mock.restore()
+})
+
+afterEach(async () => {
+  await restoreRealModules()
 })
 
 describe("callLLMCached -- encryption at rest", () => {
@@ -178,9 +194,8 @@ describe("callLLMJsonCached -- encryption + TTL parity with callLLMCached", () =
       onInsert: (v) => (inserted = v),
     })
     mock.module("@/lib/llm-client", () => ({
+      ...realLlmClient,
       callLLM: mock(async () => ({ content: '{"answer":"ok"}', usage: { promptTokens: 4, completionTokens: 2 } })),
-      stripJsonFence: (s: string) => s,
-      LLMVerificationError: class LLMVerificationError extends Error {},
     }))
     const { callLLMJsonCached } = await import("./llm-response-cache")
 
