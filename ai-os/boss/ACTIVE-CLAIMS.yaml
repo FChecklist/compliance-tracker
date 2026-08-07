@@ -1624,6 +1624,25 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-083004-cache---synchronization--cache-integrity) -- VERIDIAN Review Framework: Cache & Synchronization / Cache Integrity & Security (3 findings)"
+    completed_at: "2026-08-07T (this session)"
+    merged_as: "not yet PR'd -- see PROGRESS.md in that task's workspace for full detail"
+    summary: |
+      Closed all 3 findings in one PR (same module/area): [High] Cache
+      Security & Encryption -- src/lib/llm-response-cache.ts's `content`
+      column now encrypted at rest via the existing pgcrypto helper
+      (ai-config-crypto.ts), reused rather than a new scheme; [Medium]
+      Automatic Cache Invalidation -- added CACHE_TTL named presets + a
+      per-call ttlMs option (TTL tuning, per that finding's own recommended
+      approach, not a full event-bus); [Critical] Offline Cache Support --
+      new read-only offline shell (public/sw.js + public/offline.html +
+      OfflineShell.tsx + use-online-status.ts), allowlisted to FM
+      register-digitization rows GET + construction site-diary GET aliases,
+      cache-storage purged on logout. Confirmed site-diary has no (app)/ UI
+      yet (API-only) -- cached its GET endpoints anyway as forward-looking
+      infra rather than skipping the Critical finding. Added
+      llm-response-cache.test.ts (was 0 test coverage, now 8 passing tests).
+      Did not touch permission-service.ts's ERP_ACTION_ROLES.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"

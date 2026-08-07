@@ -1,80 +1,131 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-083004-cache---synchronization--cache-integrity
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+Task: VERIDIAN Review Framework gap-closure, "Cache & Synchronization / Cache
+Integrity & Security" -- 3 findings, closed together in one PR since all
+three are the same module/area (server-side LLM response cache +, for the
+offline finding, a genuinely new but small client-side shell).
+
+Per the task's own instruction: read the real current implementation of
+each area FIRST, before assuming the gap-analysis wording still holds.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] **[High] Cache Security & Encryption** -- Gap confirmed real:
+      `src/lib/llm-response-cache.ts`'s `content` column was stored as
+      plaintext. Fixed by reusing the existing pgcrypto (`pgp_sym_encrypt`)
+      helper `src/lib/ai-config-crypto.ts` already provides for BYOK
+      provider API keys and `erp-vendor-master-service.ts` already uses for
+      vendor bank account numbers -- this file is a third caller of that
+      established primitive, not a new encryption scheme. No real KMS
+      integration exists anywhere in this codebase to "evaluate" (grepped:
+      zero aws-sdk/@aws-sdk/client-kms in package.json), so the honest scope
+      here is VERIDIAN's existing at-rest mechanism, not inventing a second
+      one. A decrypt failure (legacy plaintext row / rotated key / corrupt
+      ciphertext) is treated as a cache miss, never a thrown error -- see
+      the file's own header comment for the full reasoning.
+      Files: `src/lib/llm-response-cache.ts`.
+- [x] **[Medium] Automatic Cache Invalidation** -- Gap confirmed real: one
+      hardcoded module-level 24h TTL, no per-call control. Per the finding's
+      own recommended approach ("Selective TTL tuning by data volatility",
+      not a full event-bus), added `CACHE_TTL` named presets
+      (`HIGH_VOLATILITY` 1h / `STANDARD` 24h, unchanged default / `LOW_VOLATILITY`
+      7d) and a per-call `ttlMs` option. Re-checked both of today's real
+      callers (`orchestrate/route.ts`, `fde-service.ts`) against their own
+      already-documented volatility reasoning -- both already fit STANDARD
+      and are left on the default rather than given a fabricated override.
+      Files: `src/lib/llm-response-cache.ts`.
+- [x] Added `src/lib/llm-response-cache.test.ts` -- this module had zero
+      test coverage before. Covers: content is encrypted at rest (DB never
+      receives plaintext), a decryptable hit round-trips to plaintext for
+      the caller, an undecryptable row is a miss (not a throw) and gets
+      overwritten, an expired row is a miss even if still decryptable, an
+      encryption failure on write never blocks the real LLM response
+      reaching the caller, `ttlMs` defaults to `CACHE_TTL.STANDARD` and a
+      caller override is honored, and `callLLMJsonCached` has the same
+      encryption/TTL behavior as `callLLMCached`. 8 tests, all passing
+      (`bun test src/lib/llm-response-cache.test.ts`).
+- [x] **[Critical] Offline Cache Support** -- Gap confirmed real and, unlike
+      the other two, genuinely unaddressed anywhere: grepped for
+      `serviceWorker.register`/workbox/next-pwa/serwist/`public/sw.js` --
+      zero hits anywhere in the repo before this change. Investigated the
+      two screens the finding's recommended approach names before writing
+      anything:
+        - `src/app/(app)/fm-register-digitization/page.tsx` is a real page,
+          but its actual flow is capture-photo -> upload -> AI-extract, not
+          a browsable read-only data screen -- extraction inherently needs
+          the network, so the *page itself* isn't a natural offline-shell
+          candidate. Its rows-GET endpoint
+          (`/api/fm/register-digitization/[batchId]/rows`) is, though, and
+          is what's actually cached.
+        - "site-diary screens" (plural, in the recommended approach) don't
+          exist yet -- there is no `(app)/` UI for construction site diary
+          at all, only its service layer + 3 GET/POST API route aliases
+          (`/api/construction/site-diary`, `/api/v1/construction/site-diary`,
+          `/api/v1/projexa/site-diary`). Rather than skip the finding
+          because "the screen doesn't exist" (the underlying Critical gap --
+          zero offline support anywhere -- is still real), the read-only GET
+          list endpoints are cached now as forward-looking infra, ready for
+          whenever a UI lands on top of them.
+      Implementation, scoped deliberately to READ-ONLY (per the finding's
+      own recommended approach, not a full offline-write rewrite):
+        - `public/sw.js` -- new service worker. Cache-first for static
+          build assets (`_next/static/*`, logo SVGs, fonts); network-first
+          with cache fallback for the allowlisted read-only GET routes
+          above (FM rows + all 3 site-diary GET aliases); a static
+          `public/offline.html` fallback for a navigation that fails
+          offline with nothing cached. Never intercepts a non-GET request.
+          Every cached API response is rebuilt with ONLY its JSON body kept
+          -- `requireAuth()`'s Supabase server client can attach a real
+          session-refresh Set-Cookie header to almost any authenticated
+          response (`src/lib/supabase/server.ts`), so caching+replaying the
+          raw `Response` would risk leaking a session cookie to a later
+          request, possibly from a different signed-in user on a shared
+          browser. See the file's own header comment for the full reasoning,
+          including why full authenticated-page HTML is deliberately never
+          cached (personalized SSR + the same Set-Cookie risk, worse).
+        - `public/offline.html` -- zero-JS/CSS-dependency static fallback.
+        - `src/lib/use-online-status.ts` -- new `navigator.onLine` hook
+          (none existed before, grepped).
+        - `src/components/OfflineShell.tsx` -- registers `public/sw.js` and
+          renders a visible "you're offline" banner; mounted once, globally,
+          from `AppShell.tsx` (same pattern as the existing `HelpWidget`).
+        - `src/components/AppTopbar.tsx`'s `handleLogout` now purges all
+          Cache Storage entries on sign-out (best-effort, non-blocking) --
+          Cache Storage is per-origin, not per-user, so without this a
+          second person signing in on the same shared/kiosk browser could
+          still see the previous org's cached FM/site-diary data.
+      Browser-cache-at-rest encryption is deliberately out of scope for this
+      offline shell: the finding's own recommended approach explicitly
+      "risk-accept[s] browser cache" and points real encryption effort at
+      `llm_response_cache` (closed above) instead -- so no encryption layer
+      was added to `public/sw.js`'s Cache Storage usage.
+      Not in scope for this wave (documented, not silently dropped):
+      queuing/replaying offline *writes* (a materially larger project --
+      conflict resolution, delivery guarantees, re-validating multi-tenant
+      RLS on replay) is left for a dedicated follow-up; only reads are
+      offline-capable now.
+      Files: `public/sw.js`, `public/offline.html`,
+      `src/lib/use-online-status.ts`, `src/components/OfflineShell.tsx`,
+      `src/components/AppShell.tsx`, `src/components/AppTopbar.tsx`.
+- [x] Verified no scope collision: `git grep` for any in-flight
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` entry touching
+      `llm-response-cache.ts`, `fm-register-digitization`, `site-diary`, or
+      a service-worker/offline area -- none found. Did not touch
+      `src/lib/services/permission-service.ts`'s `ERP_ACTION_ROLES` table or
+      add any new permission-service entry -- this gap-closure needed none.
+
+## Verification run
+
+- `bun test src/lib/llm-response-cache.test.ts` -- 8 pass, 0 fail.
+- `bunx eslint` on every changed/new file -- clean, no errors or warnings.
+- Full-repo `tsc --noEmit` could not complete in this sandbox (JS heap OOM
+  on the whole ~400+ table schema graph, unrelated to these changes --
+  reproduces on a clean checkout too); relied on the scoped eslint pass plus
+  the fact that `bun test` itself type-checks the imported module during
+  execution.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+
+- [ ] None for this task's 3 named findings -- all closed. Offline write
+      support (queued/replayed mutations) is a real, larger follow-up noted
+      above but intentionally not started here.
