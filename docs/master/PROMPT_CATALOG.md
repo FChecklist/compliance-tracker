@@ -4,10 +4,14 @@ VERIDIAN Review Framework gap closure (task-20260801-173750, AI-Readable
 Prompt Documentation, [Medium], 2026-08-01). Gap was "prompt documentation
 incomplete." Investigation found the underlying DB/service layer is real
 (`compliance.prompt_versions`/`promptTemplates`, `prompt-os-service.ts`'s
-`resolvePromptTemplate()`, 26 real template keys actually called from
+`resolvePromptTemplate()`, 27 real template keys actually called from
 production code) but had no human/AI-readable index anywhere — this doc is
 that index. It does **not** attempt to build the separate "Prompt Directory"
 UI feature described below (out of scope for a documentation task).
+
+**Correction (independent audit, PR #1047):** the original pass undercounted
+by 1 and undercounted the dynamic/non-literal call-site count by 1 — see
+the table's own header note below for both corrections.
 
 ## What already exists (real, live code)
 
@@ -29,10 +33,15 @@ UI feature described below (out of scope for a documentation task).
   surfaced at `/prompt-eval` (deterministic keyword scoring, admin-gated) —
   a distinct thing from the Prompt Directory below.
 
-## The 26 real template keys, by call site
+## The 27 real template keys, by call site
 
 Every key below is a live `resolvePromptTemplate('key')` call, found by
-grepping `src/` directly (not a designed/aspirational list):
+grepping `src/` directly (not a designed/aspirational list). 26 are passed
+as an inline string literal at the call site; 1
+(`monitor.dispatch_completion_classification`) is passed via a named
+constant (`DISPATCH_COMPLETION_PROMPT_KEY`) one line above its call —
+included here because the constant resolves to exactly one static string,
+unlike the two genuinely dynamic call sites noted below the table.
 
 | Key | Call site |
 |---|---|
@@ -58,13 +67,22 @@ grepping `src/` directly (not a designed/aspirational list):
 | `instruction_mismatch.judgment` | `src/lib/loops/instruction-mismatch-audit.ts` |
 | `loop_engineering.meta_synthesis` | `src/lib/loops/loop-engineering-audit.ts` |
 | `meeting_intelligence.extract` | `src/lib/services/veri-meeting-service.ts` |
+| `monitor.dispatch_completion_classification` | `src/lib/monitors/dispatch-completion-monitor.ts` |
 | `sales_ai.funnel_analysis` | `src/lib/services/visitor-intelligence-service.ts` |
 | `task_execution.planning_system` | `src/lib/task-execution-engine.ts` |
 | `ticket_intelligence.detect` | `src/lib/services/ticket-intelligence-service.ts` |
 | `voice_ticket.extract` | `src/lib/services/voice-ticket-service.ts` |
 
 Naming convention: `{domain}.{purpose}` — no enforced registry of valid
-domains, just an observed convention across the 26 keys above.
+domains, just an observed convention across the 27 keys above.
+
+**2 genuinely dynamic call sites, not included in the table above** because
+the actual key can't be determined by static grep alone (both resolve at
+runtime from a variable, not a literal):
+- `src/app/api/ai/orchestrate/route.ts:54` —
+  `resolvePromptTemplate(EVENT_PROMPT_TEMPLATE_KEYS[eventType])`
+- `src/lib/ai-team/team-service.ts:170` —
+  `resolvePromptTemplate(role.promptKey!)`
 
 **Keeping this table current**: it is a snapshot from a single grep pass
 (2026-08-01), not a generated artifact — a future `resolvePromptTemplate()`
