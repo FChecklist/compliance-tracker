@@ -100,9 +100,19 @@ real, tested, local-only commit on this branch (not pushed) and as a saved patch
 `workflow` scope, then push. All 3 underlying scripts were run and verified passing locally
 before this patch was saved.
 
+## Invocation 3 (2026-08-07)
+
+Resumed a clean tree — all 10 findings' work from invocation 2 was already committed and pushed
+(verified via `git status`/`git log`/direct file checks, not just trusting the checkpoint claim).
+The only genuinely remaining action in this task's own scope was opening the PR, which had not
+yet been done. Opened: **https://github.com/FChecklist/compliance-tracker/pull/1038**. CI is
+running (`gh pr checks 1038 --watch` launched in background).
+
 ## Remaining
+- [ ] Watch PR #1038's CI to green, then merge (no direct push to `main` per Rule 6).
 - [ ] Apply/push `ai-os/registry/PENDING-CI-WIRING-architecture-doc-drift.patch` (owner or a
-      session with `workflow` scope).
+      session with `workflow` scope) — separate from this PR, real limitation of this session's
+      token.
 - [ ] None else for this task's own scope. Three real, deliberately-deferred items (remaining
       ~64 PROJEXA OpenAPI sub-resources; a full VA-01..VA-11 veda-advisors re-audit; continued
       VCEL engine wiring) are logged in `ai-os/MASTER-TRACKER.yaml`'s
