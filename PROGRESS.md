@@ -69,29 +69,73 @@ what was actually found vs. the original gap description.
     (zero import path for leads). Plan: `POST /api/crm/leads/import`
     following `/api/compliance/import`'s CSV pattern + a downloadable
     template + UI upload button.
-13. **[High] Localization Readiness** -- verified: there is no
-    platform-wide i18n framework anywhere in this codebase (no i18next/
-    next-intl, no `t()` translation calls found outside currency
-    formatting). This is a platform-wide gap, not CRM/Leads-specific --
-    nothing to fix at the leads-schema level (matches the recommended
-    approach's own "no schema change needed"). Documented, no code change.
+13. **[High] Localization Readiness** -- verified, and corrected an earlier
+    wrong assumption in this same investigation: the platform DOES have a
+    real i18n framework wired at the root (`next-intl`, `NextIntlClientProvider`
+    in `src/app/layout.tsx`, `messages/en.json`+`messages/hi.json`) -- but
+    the message catalog only has `Nav`/`Auth`/`Login`/`Signup` namespaces.
+    Every authenticated-app page, CRM/Leads included, is 100% hardcoded
+    English (`useTranslations` has zero callers anywhere under
+    `src/app/(app)/**`, confirmed by grep). This is a genuine, but
+    platform-wide, gap -- translating only the Leads page while every other
+    authenticated page stays hardcoded English would be an inconsistent
+    half-measure, not a real fix, and is out of one CRM-scoped PR's
+    coherent scope. Matches the finding's own recommended approach ("no
+    schema change needed for leads itself") -- documented for the tracker,
+    no code change made here.
 
 ## Completed
 - [x] Read ACTIVE-CLAIMS.yaml, registered this session's claim, pushed.
 - [x] Read current implementation (crm-service.ts, /api/crm/leads/**,
       /crm page, report_definitions, schema.ts) against all 13 findings.
+- [x] #2 status transition validation (`VALID_LEAD_TRANSITIONS`, enforced in `updateLead()`)
+- [x] #6 FORCE RLS migration (`drizzle/0225_force_rls_crm_leads_stage_history.sql`) --
+      **not yet applied live** (no DB-access tool available in this session;
+      prior FORCE-RLS migrations in this history were applied live via the
+      Supabase MCP by a session that had it -- flagged as a follow-up).
+      Stage-history write-on-create/update itself verified correct by
+      direct code read (no gap there).
+- [x] #7 search/filter/bulk: `GET /api/crm/leads` now accepts
+      search/status/ownerId/source/companyId + page/pageSize (back-compat
+      preserved for zero-param callers), `POST /api/crm/leads/bulk-reassign`,
+      filter bar + checkbox bulk-select + bulk-reassign toolbar in the UI
+- [x] #8 Zod field-level validation on create/update (`ServiceError.fields`,
+      additive constructor param -- every other 2-arg `ServiceError` call
+      site is unaffected), rendered under each input in the New Lead dialog
+- [x] #4 CSV export (`GET /api/crm/leads/export`, honors active filters) +
+      "Export CSV" button. `report_definitions` rows for lead source/status
+      were already built (0183) -- documented, not duplicated.
+- [x] #12 CSV import (`POST /api/crm/leads/import`) + downloadable template
+      (`GET /api/crm/leads/import/template`) + upload button in the UI
+- [x] #1 orphan-check cron (`/api/internal/crm-data-integrity/run`, weekly)
+- [x] #5 auto-scoring cron (`/api/internal/crm-lead-scoring/run`, daily)
+- [x] #10 notification triggers: new-lead-assigned (on create + PATCH
+      reassignment) + overdue-follow-up cron
+      (`/api/internal/crm-lead-followup-alerts/run`, daily) -- reused
+      existing `assignment`/`deadline_reminder` enum values, no schema change
+- [x] #9 VERI Reward wiring: `convertLeadToClient()` awards points to the
+      lead's owner when `source` matches a tracked-referral pattern, gated
+      by `isVeriRewardEnabledForOrg()`
+- [x] #11 in-app help panel (`LeadLifecycleHelp`, static content + deep
+      link to /knowledge-base)
+- [x] #13 investigated for real (corrected an earlier wrong "no i18n
+      framework exists" draft note -- next-intl is real and wired at the
+      root, just not extended to any authenticated page yet), documented
+      as a platform-wide gap out of this PR's scope, no code change
+- [x] vercel.json cron registration (3 new entries)
+- [x] New pure-function test file `crm-service.test.ts` (11 tests, all
+      passing) covering `VALID_LEAD_TRANSITIONS` + the Zod schemas
+- [x] `bun x eslint` on every touched file: clean, zero warnings/errors
+- [x] `bun test src/lib/services/crm-service.test.ts` +
+      `crm-accounts-service.test.ts` (pre-existing, unaffected): 49/49 pass
+- [x] Full-repo `tsc --noEmit` OOMs in this sandbox regardless of
+      `--max-old-space-size` (pre-existing sandbox memory limit, not
+      introduced by this change) -- full verification deferred to CI's
+      real Type Check job, which runs with proper resources
+- [x] Committed + pushed to `worker/task-20260718-081005-crm---sales-modules--leads`
 
 ## Remaining
-- [ ] #2 status transition validation
-- [ ] #6 FORCE RLS migration + stage-history test
-- [ ] #7 search/filter/bulk (API + UI)
-- [ ] #8 Zod field-level validation (API + UI)
-- [ ] #4 CSV export
-- [ ] #12 CSV import + template
-- [ ] #1 orphan-check cron
-- [ ] #5 auto-scoring cron
-- [ ] #10 notification triggers (assignment + overdue cron)
-- [ ] #9 VERI Reward wiring on convert
-- [ ] #11 in-app help panel
-- [ ] vercel.json cron registration
-- [ ] typecheck/lint/build/test, then PR
+- [ ] Open the PR, let CI run (Lint/Type Check/Build/Unit Tests), fix
+      anything CI catches, merge once green.
+- [ ] Flag for a follow-up session with Supabase MCP access: apply
+      `drizzle/0225_force_rls_crm_leads_stage_history.sql` live.
