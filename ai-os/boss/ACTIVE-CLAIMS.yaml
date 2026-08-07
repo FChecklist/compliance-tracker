@@ -40,18 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260807-062740-cleanup-closed-6-stale-awaiting-approval) -- data-integrity cleanup of 6 task.yaml records stuck at status=awaiting_human_approval whose target PRs (#418, #419, #589, #591, #592, #593 on FChecklist/compliance-tracker) are already MERGED"
-    claimed_at: "2026-08-07T06:27Z (this session)"
-    claim: |
-      SPEC (800-task audit cleanup action): independently re-verified via `gh pr view` that PRs
-      #418, #419, #589, #591, #592, #593 are all real, MERGED (confirmed mergedAt timestamps for
-      each, ranging 2026-07-18 to 2026-07-27) -- not stale claims, live-reconfirmed this session.
-      The corresponding task.yaml records were never updated off `awaiting_human_approval` after a
-      human merged them. Data-integrity/record-keeping cleanup only -- no code changes, no PR
-      actions taken.
-    scope_note: >-
-      File scope: the 6 target task.yaml records only, PROGRESS.md, this ACTIVE-CLAIMS.yaml entry.
-      No src/, schema, or infrastructure changes.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
@@ -5869,6 +5857,43 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-062740-cleanup-closed-6-stale-awaiting-approval) -- closed 6 task.yaml records stuck at status=awaiting_human_approval whose target PRs (#418, #419, #589, #591, #592, #593 on FChecklist/compliance-tracker) were already MERGED [DONE, all 6 now status=completed]"
+    claimed_at: "2026-08-07T06:27Z (this session, closed same session)"
+    claim: |
+      SPEC (800-task audit cleanup action): claimed 6 task.yaml records were stuck at
+      `awaiting_human_approval` after a human merged their target PRs, and described a specific
+      2 -> `completed` / 4 -> `blocked` closure it said had already happened.
+
+      **Independently re-verified before acting (not trusted as-is):** all 6 PRs (#418, #419,
+      #589, #591, #592, #593) confirmed real `MERGED` via `gh pr view --json mergeCommit,
+      statusCheckRollup` (real commit SHAs, CI SUCCESS on every real check). Found the SPEC's
+      description was itself stale: that exact 2/`completed`+4/`blocked` closure had genuinely
+      already happened, on 2026-08-01, by an earlier "800-task audit" session -- the 4 got
+      `blocked` (not `completed`) only because `veridian-task.py`'s completed-transition guardrail
+      requires a prior `pending_review` checkpoint in the task's own history, which those 4 lacked
+      at the time. A 2026-08-02 follow-up then moved those 4 from `blocked` to `pending_review`,
+      deliberately deferring to `supervisor-sweep.sh`'s normal state machine rather than
+      self-certifying -- but that deferral never resolved: `supervisor-sweep.sh` only restarts a
+      supervisor when a `pending_review` task's `review.json` is missing, and all 4 already had a
+      real `review.json` (approved, tier2) from their original review, so the sweep would never
+      pick them up. They were genuinely stuck at `pending_review` 5 days later with no live
+      process left to close them.
+
+      Found the guardrail that blocked `completed` on 2026-08-01 no longer applied: the task's own
+      history now contains a `pending_review` checkpoint (added 2026-08-02), so `completed` was
+      legitimately reachable via the real, sanctioned path -- a better outcome than re-applying the
+      SPEC's literal stale `blocked` description. For all 4, wrote a real Rule-7-compliant
+      `--evidence-json` (real pr_url, real merge commit_sha, real independently-verified
+      test_results, this session's own umr_id, empty open_items/blockers) and ran
+      `veridian-task.py checkpoint <id> --status completed --evidence-json ...` for real, in
+      production; all 4 succeeded. #418/#419 were already `completed` from the 2026-08-01 pass,
+      left untouched. Final state: all 6 now `status: completed`.
+    scope_note: >-
+      File scope: the 6 target task.yaml records under /opt/veridian/ai-os/tasks/ (a separate live
+      control-plane repo, not PR-gated -- confirmed via its own git history that direct writes are
+      the established pattern there), PROGRESS.md, this ACTIVE-CLAIMS.yaml entry. No src/, schema,
+      or infrastructure changes in compliance-tracker; no PR actions taken on the 6 target PRs
+      themselves (they were already merged).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
