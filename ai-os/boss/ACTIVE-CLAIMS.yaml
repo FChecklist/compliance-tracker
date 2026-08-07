@@ -40,6 +40,19 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-153608-gtm-cat13-ai-testing-scenario-1--explora) -- OCID-020 real, bounded AI-driven exploratory testing pass on the CRM lead-scoring surface (or nearest real equivalent) [IN PROGRESS]"
+    claimed_at: "2026-08-07T15:40Z (this session)"
+    claim: |
+      SPEC (GTM cert category 13 / AI testing, OCID-020, UMR-20260807-153552-9957): one bounded,
+      real exploratory-QA pass -- load the real CRM lead-scoring page (or nearest real equivalent
+      surface if it has moved/doesn't exist), exercise its real interactive elements (filters, sort,
+      pagination, edit forms) via live browser or direct API calls, and report real, independently
+      reproducible defects (exact steps/route/expected-vs-actual) to this task's own result.json. No
+      fabricated findings if zero real defects are found. One focused pass, not open-ended.
+    scope_note: >-
+      File scope: this task's own result.json, PROGRESS.md, this ACTIVE-CLAIMS entry. Read-only
+      exploratory testing against the real app (browser session and/or direct API calls) -- no src/,
+      schema, migration, or CI changes expected unless a real defect fix is explicitly authorized.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
