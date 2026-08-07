@@ -1,3 +1,159 @@
+# PROGRESS -- task-20260807-062745-batch-disposition-of-166-balance-exhaust
+
+Sub-task of parent audit UMR-20260801-153900-9100 / INS-20260801-153857-f963 /
+WRK-20260801-153900-e66f ("Audit and clean 800 ai-os task records"). This session's own UMR:
+UMR-20260801-170930-2080 (per the deterministic briefing this task was dispatched with).
+
+## Completed
+
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first (per Rule 11) -- no live conflicting claim found
+  for this scope.
+- [x] **Found a prior real attempt at this exact sub-task, already substantially complete --
+  verified before doing any new work, per the established false-premise-check pattern:**
+  `/opt/veridian/ai-os/tasks/task-20260801-170950-batch-disposition-of-166-balance-exhaust/`
+  (created 2026-08-01, 6 days before this dispatch), `status: awaiting_human_approval`, PR #710
+  (`worker/task-20260801-170950-batch-disposition-of-166-balance-exhaust`). That session already
+  did the real work this prompt asks for:
+  - Grep-verified the real population blocked by the exact fail-reason string
+    `openrouter_balance_exhausted` is **47 tasks, not 166** -- no doc in this repo substantiates
+    166; confirmed the gate (`check_openrouter_balance()`) really was removed
+    (`veridian-scripts` commit `7ff5be8`, 2026-08-01).
+  - Real disposition already executed on all 47 via the sanctioned
+    `veridian-task.py checkpoint <id> --status <failed|blocked> --note "..."` tool (updates
+    task.yaml + syncs CONTROLLER.yaml + app DB): **42 CLOSED** (`status: failed` + disposition
+    note -- this system's task-record vocabulary has no distinct "closed/superseded" status, so
+    `failed` + a clear note is the sanctioned pattern for an intentional close, confirmed from the
+    tool's own source), **5 flagged genuine RETRY** (`status: blocked` + note, real work confirmed
+    still needed, deferred pending headroom), **0 deleted**.
+  - Full per-item disposition table with PR-merge evidence for each of the 47 is preserved in git
+    history: branch `worker/task-20260801-170950-batch-disposition-of-166-balance-exhaust`,
+    commit `2c7d51d18` (`PROGRESS.md: record batch 1 dispositions for 42 of 47
+    balance-exhausted tasks`), reproduced in full below as the durable record.
+  - PR #710 (docs-only: this repo's `ACTIVE-CLAIMS.yaml` claim entry + that task's own
+    `PROGRESS.md`) was independently reviewed same-day: **verdict `approve`, tier2** (held for
+    human sign-off under the pre-2026-07-31 rules). Per AGENTS.md Rule 11 (2026-07-31, "Full
+    autonomy, no exceptions"), an `approve` verdict no longer needs a separate human-confirmation
+    step -- but the PR itself was never actually merged; it sat open.
+- [x] **Live-reverified PR #710's real current state rather than trusting the 6-day-old record:**
+  `gh pr view 710` showed `state: OPEN`, `mergeable: CONFLICTING`, `mergeStateStatus: DIRTY` --
+  stale against current `main` (6 days of unrelated churn on `ai-os/boss/ACTIVE-CLAIMS.yaml` and
+  the repo-root `PROGRESS.md` from ~150 other sessions in between, not a real content conflict).
+- [x] **Also independently caught, this session, before writing anything:** this task's own fresh
+  workspace `PROGRESS.md` had already been silently scaffolded as a 6-line stub shadowing this
+  file's real 954-line accumulated `HEAD` history (same recurring wholesale-replace regression
+  class multiple prior sessions in this repo have hit and fixed) -- restored the real `HEAD`
+  content via `git checkout -- PROGRESS.md` before making any edit, then prepended this section on
+  top rather than overwriting.
+- [x] Rebased the real PR #710 diff onto current `main` in this task's own
+  branch/worktree (`worker/task-20260807-062745-batch-disposition-of-166-balance-exhaust`) rather
+  than re-doing the underlying disposition work:
+  - `ai-os/boss/ACTIVE-CLAIMS.yaml`: added the original claim (with its full evidence/discrepancy
+    note) under `recently_completed:` (not `active:`, since the real work is done and durable) as
+    a fresh entry, appended after the current `recently_completed:` header -- did not touch any of
+    the ~149 other live `active:` entries or ~111 other `recently_completed:` entries. Verified
+    `python3 -c "import yaml; yaml.safe_load(...)"` parses clean before and after (`active: 149`,
+    `recently_completed: 111`).
+  - `PROGRESS.md` (this file): this section prepended, full prior history (including the OCID-064
+    section that was `HEAD`) kept unchanged below.
+- [x] Re-checked real current headroom before considering the 5 deferred RETRY items (SPEC step
+  2): `free -h` -> swap **4.0Gi/4.0Gi (100% full)**; `uptime` -> load **11.65** on 8 cores. Both
+  strictly worse than the original session's own defer threshold (swap 2.9/4.0Gi, load 9.65) and
+  matching the documented Jul26/31 OOM-incident pattern. **Decision: the 5 already-identified real
+  RETRY items remain correctly deferred, not dispatched, this session either** -- dispatching any
+  of them now would spin up a new systemd worker under genuinely tight memory/CPU pressure, exactly
+  what the process instructions warn against.
+- [x] Registered continuation entry in `ai-os/boss/ACTIVE-CLAIMS.yaml` (`recently_completed:`,
+  see above) linking both UMRs (parent `UMR-20260801-153900-9100`, this session
+  `UMR-20260801-170930-2080`) and the original session's real work, so a future session reads the
+  full history in both directions without re-deriving it.
+
+### Original disposition table (all 47, preserved verbatim from
+`task-20260801-170950-batch-disposition-of-166-balance-exhaust`'s PROGRESS.md /
+commit `2c7d51d18`, TASK-ID = SUPERBOSS_V2_PLAN id where applicable)
+
+| Task record(s) | V2-ID | Verdict | Disposition | Evidence |
+|---|---|---|---|---|
+| task-20260720-022700-...finish-the-uae-countr | V2-1 | DONE | **CLOSED** (failed+note) | PR #492 MERGED 2026-07-21 |
+| task-20260720-022708-...shared-cross-repo-pro | V2-4 | NOT-DONE | **RETRY, deferred** (blocked, note added) | No PR/module anywhere; confirmed by PR #686 too |
+| task-20260720-022710-...byob-bring-your-own-a | V2-5 | DONE | **CLOSED** | PR #498 MERGED 2026-07-21 |
+| task-20260720-031002-...persistent-vercel-sta | V2-7 | DONE | **CLOSED** | PR #495 MERGED 2026-07-20 |
+| task-20260720-035002-...surface-loop-derived | V2-9 | DONE | **CLOSED** | PR #500 MERGED 2026-07-21 |
+| 044002 / 045002-retry1 / 050001-retry2 (delegation-expiry-enf) | V2-11 | SUPERSEDED | **CLOSED x3** | Real successor: task-20260726-171939, PR #579 OPEN (independent review rejected -- fix-vs-abandon call belongs to that task's own trail, not here) |
+| 045004 / 050004-retry1 / 051002-retry2 (serverless-resource-l) | V2-12 | DONE (via later retry) | **CLOSED x3** | PR #581 MERGED 2026-07-27 |
+| 045007 / 050006-retry1 / 051004-retry2 (chat-context---termin) | V2-13 | DONE (via later retry) | **CLOSED x3** | PR #580 MERGED 2026-07-27 |
+| 045009 / 050008-retry1 / 051006-retry2 (preview-deployment-sp) | V2-14 | DONE (via later retry) | **CLOSED x3** | PR #573 MERGED 2026-07-27 |
+| 050010 / 051008-retry1 / 052001-retry2 (storage-rls---backup) | V2-15 | PARTIAL | **CLOSED x3, flagged AMBIGUOUS** | PR #575 OPEN, blocked on real Owner cost decision (Supabase Free->Pro for PITR) -- not resolvable by any retry |
+| 051011 / 052004-retry1 / 053002-retry2 (crm-performance-under) | V2-16 | PARTIAL | **CLOSED x3, flagged for follow-up** | PR #576 OPEN, mechanical-only gate (missing audit-check + metadata-index), no content defect |
+| 052006 / 053004-retry1 / 054001-retry2 (hr-performance-error) | V2-17 | PARTIAL | **CLOSED x3, flagged AMBIGUOUS** | PR #583 OPEN, independent review rejected -- fix-vs-abandon call on that PR's own trail |
+| 052008 / 053007-retry1 / 054004-retry2 (multi-office-selector) | V2-18 | NOT-DONE | **retry-0/1 CLOSED as superseded-by-retry-2; retry-2 RETRY, deferred** | No PR, zero completed_steps on all 3; consolidating to one real redispatch instead of 3 |
+| 052011 / 053009-retry1 / 054006-retry2 (prompt---cache-real-p) | V2-19 | NOT-DONE | **retry-0/1 CLOSED as superseded-by-retry-2; retry-2 RETRY, deferred** | Same pattern as V2-18 |
+| 053011 / 054009-retry1 / 055002-retry2 (search-performance-ex) | V2-20 | PARTIAL | **CLOSED x3, flagged AMBIGUOUS** | PR #582 OPEN, independent review rejected |
+| 054011 / 055004-retry1 / 060002-retry2 (e-invoicing-per-line) | V2-21 | PARTIAL | **CLOSED x3, flagged AMBIGUOUS** | PR #574 OPEN, independent review rejected |
+| task-20260720-055007-...executive-reporting-d | V2-22 | NOT-DONE | **RETRY, deferred** | No PR found either source |
+| task-20260720-055009-...remove-anthropic-api | V2-23 | DONE | **CLOSED** | Done via direct Owner action 2026-08-01 (env var removed from /opt/veridian/shared/.env), per PR #686 Part 3 |
+| task-20260720-055011-...crm-contacts-list-rou | V2-24 | DONE | **CLOSED** | PR #509 MERGED 2026-07-21 (Wave 3 CRM pages, different dispatch) |
+| task-20260720-060006-...continue-the-autonomo | V2-25 | MOOT | **CLOSED** | ai-os/gap_queue.yaml no longer exists in current tree; queue itself retired via PR #686's closeout -- nothing left to monitor |
+| task-20260720-054314-canary-zero-waste-pipeline-test | n/a | MOOT | **CLOSED** | Synthetic canary; pipeline health already re-confirmed by this task + parent audit both passing pre-flight post-fix |
+| task-20260720-060747-billstack-bharatnet-reverse-engineering | n/a (repo: infisuite-reverse-engineering) | DONE-BUT-UNMERGED | **RETRY, deferred (needs rebase, not redo)** | Real completed docs exist on unmerged branch `worker/task-20260720-060747-...`, but it forked BEFORE the cityline docs merged to origin/main -- a raw PR would delete already-merged cityline files. Needs rebase onto current origin/main + clean PR, not a from-scratch redo. |
+| task-20260720-060749-cityline-crm-billstack-reverse-engineeri | n/a | DONE | **CLOSED** | Merged to infisuite-reverse-engineering origin/main (commits ec40a01/b8b1591 area) |
+| task-20260720-060750-cityline-contracts-reverse-engineering | n/a | DONE | **CLOSED** | Merged to origin/main (commit 9c5538b) |
+| task-20260720-060752-cityline-ticketing-6-role-reverse-engine | n/a | SUPERSEDED | **CLOSED** | Superseded by task-20260726-172013 (own PR #1, MERGED, af77400) |
+
+**Original checkpoint status: all CLOSE dispositions above were executed** 2026-08-02 via
+`python3 /opt/veridian/scripts/veridian-task.py checkpoint <id> --status failed --note "..."`
+(the sanctioned tool). These are live mutations to `/opt/veridian/ai-os/tasks/*/task.yaml`, outside
+this git repo, so they are not part of this repo's `git status`/PR/CI gate -- same as every other
+task-record checkpoint in this system. Not re-verified line-by-line this session (would require
+re-reading all 42 task.yaml files); spot-check recommended if a future session needs to rely on an
+individual verdict rather than the aggregate.
+
+**Original tally: 42 CLOSED (status=failed+note), 5 flagged genuine RETRY (status=blocked+note,
+real work confirmed still needed), 0 deleted.**
+
+## Remaining
+
+- [ ] **Real RETRY dispatches, still deferred pending headroom** (re-check `free -h`/`uptime`
+  before dispatching -- as of this session, swap was 100% full and load 11.65/8cores, worse than
+  the original defer threshold): V2-4 (`task-20260720-022708`, shared-cross-repo-pro), V2-18-retry2
+  (`task-20260720-054004`, multi-office-selector), V2-19-retry2 (`task-20260720-054006`,
+  prompt-cache-metrics), V2-22 (`task-20260720-055007`, executive-reporting), billstack-bharatnet
+  (`task-20260720-060747`, repo `infisuite-reverse-engineering` -- needs a REBASE of its
+  already-complete branch onto current origin/main + clean PR, not a from-scratch redo). Each
+  retry-dispatch MUST go through `dispatch-owner-task.sh` for its own UMR ID -- never a raw
+  relaunch, per this sub-task's own SPEC.
+- [ ] Get PR #710 (rebased in this branch) through CI + merged. This is a docs-only diff
+  (`ACTIVE-CLAIMS.yaml` + repo-root `PROGRESS.md`), previously reviewed `approve`/tier2 -- under
+  Rule 11 (2026-07-31 autonomy directive) it should now merge autonomously once CI is green and
+  `scope-check.py` passes, without a separate human sign-off step.
+- [ ] AMBIGUOUS items needing Owner attention (already surfaced in the original per-task notes, not
+  blocking this task's own completion -- tracked on their own separate PR/task trails now, not by
+  this task): V2-15's Supabase Free->Pro cost decision (PR #575); V2-11/17/20/21's fix-vs-abandon
+  calls on their own independent-review-rejected PRs (#579/#583/#582/#574).
+- [ ] Surface the 166-vs-47 discrepancy back to the parent audit (`UMR-20260801-153900-9100`) --
+  per the DB (`umr_tasks` table, live query 2026-08-07), that parent UMR's own status is still
+  `running` and its `response_summary` is still empty, so it has not yet produced a findings list
+  to correct. This note (and the original session's identical note) stands as the record until the
+  parent audit itself runs.
+
+## Final report (per SPEC step 5)
+
+- **Real population disclosed:** 47 tasks matched the exact fail-reason string
+  `openrouter_balance_exhausted` (not 166 -- no document in this repo substantiates 166; see
+  discrepancy note above, first raised 2026-08-02, unchanged as of this session).
+- **Retried-and-completed:** 0 this session (0 new retries dispatched -- headroom too tight both at
+  original claim time and again today; the 5 flagged RETRY items are genuine outstanding work, not
+  yet re-dispatched).
+- **Closed/end-dated:** 42 (status=failed + disposition note, `veridian-task.py checkpoint`,
+  executed 2026-08-02, verified still the sanctioned method).
+- **Deleted-as-confirmed-duplicate:** 0 (SPEC 4d correctly never triggered -- no exact duplicates
+  with their own separate UMR/disposition found among the 47).
+- **Still ambiguous/unresolved:** 5 RETRY items awaiting headroom to dispatch (listed above) + 4
+  fix-vs-abandon calls on their own independent PR trails (#579/#583/#582/#574) + 1 real Owner cost
+  decision (PR #575, Supabase plan tier) -- none of these block this sub-task's own closure; they
+  are the genuine remaining work the disposition surfaced, tracked on their own trails.
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
