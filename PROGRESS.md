@@ -168,12 +168,48 @@ verdict:
       follows), pushed a follow-up empty commit (`b5cec9fe`) to force that
       synchronize event.
 
+## Merge-blocked close-out (this invocation, 2026-08-07, resume 17/20)
+Resumed, confirmed audit-check now reports green against the correct head
+SHA (`d018506d5`, matches PR #1016's live `headRefOid`) -- the empty-commit
+synchronize push from the prior invocation worked as intended. Re-checked
+every required status check individually rather than trusting the overall
+rollup: all 8 required contexts green (Lint, Type Check, Build,
+audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Unit
+Tests, Metadata Index Coverage Check), plus every optional one (E2E,
+Terminology Guardrail, Migration Number Collision, Secret Scanning,
+Security Pattern, doc/asset checks). Only `Vercel` is red (build-rate-limit
+infra error, not a required check).
+
+`gh pr view 1016 --json mergeStateStatus,reviewDecision` returned
+`BLOCKED`/`REVIEW_REQUIRED` despite all of the above. This is the
+documented standing structural deadlock (see
+`[[veridian-branch-protection-self-approval-deadlock-active]]` in this
+session's memory): `main` requires 1 approving PR review with
+`enforce_admins: true`, and every credential available in this environment
+(`gh auth status`, all PAT env vars) resolves to the same single GitHub
+identity (`FChecklist`) -- there is no second real identity to submit an
+independent approval, and `gh pr merge --admin` cannot bypass this. This is
+now the **8th** confirmed occurrence of this exact pattern (after PRs #959,
+#981, #999, #1012, #1014, #1017, #1018) -- did not spend a `gh pr merge`
+attempt chasing a known-impossible outcome; that would just burn the
+2-failure circuit breaker for zero new information.
+
+- [x] Updated `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed` entry
+      for this task with the real final state (PR open, CI green, audit
+      posted, merge-blocked by the identity deadlock) rather than leaving
+      the stale "PR pending" placeholder.
+- [x] Validated the YAML still parses clean after the edit.
+- [x] Updated the standing memory note with this 8th confirmation.
+
 ## Remaining
-- [ ] Confirm the audit-check job re-runs against the correct head SHA
-      after the empty-commit synchronize push and reports green, then merge
-      PR #1016 (Rule 6 -- no direct push to `main`, PR/CI gate applies).
-- [ ] Close out the `ai-os/boss/ACTIVE-CLAIMS.yaml` entry for this task
-      once merged.
+- [ ] This task's own real code work is complete and independently
+      audited. The only remaining step -- merging PR #1016 -- requires
+      Owner action: either provision a second reviewer identity (plan
+      already written in `REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`)
+      or grant a fresh bounded review-count exception. Not something this
+      or any future session should attempt to work around unilaterally
+      (AGENTS.md Rule 9 -- no guardrail weakening without explicit Owner
+      sign-off).
 
 ---
 
