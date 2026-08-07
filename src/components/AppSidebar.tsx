@@ -411,6 +411,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           href: "/audit",
           icon: History,
         },
+        {
+          label: t("sections.admin.items.aiCostGovernance"),
+          href: "/ai-cost-governance",
+          icon: Wallet,
+        },
       ],
     },
     {
