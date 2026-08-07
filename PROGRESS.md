@@ -1,3 +1,34 @@
+# PROGRESS -- task-20260718-164007-cloud-deployment--deployment-operations
+
+VERIDIAN Review Framework gap-closure: Cloud Deployment / Deployment Operations,
+5 findings (full spec: `prompt.txt` in this task's own workspace, not this repo).
+
+**Housekeeping note (2026-08-07, invocation 14/20):** this task's branch had drifted
+onto stale, unrelated history (a different task's leftover commit sitting ~1293
+commits behind current `origin/main`, in this repo's shared multi-worktree checkout --
+same class of issue as `veridian-shallow-worktree-blocks-merge-base` /
+`veridian-resume-uncommitted-work-wrong-branch`). No real work for *this* task had
+been committed yet (`PROGRESS.md` was still the placeholder, no matching PR existed).
+Reset the branch to `origin/main` (`958ccacc8`) before starting real work, so this
+PR's diff is scoped to this task only, and re-verified all 5 findings fresh against
+that current code (a prior in-conversation investigation had been done against the
+stale pre-reset tree and is superseded by the section below).
+
+## Completed
+- [ ] (in progress -- see below)
+
+## Remaining
+- [ ] Re-verify all 5 findings against current `origin/main`
+- [ ] Performance Monitoring -- dashboard-usage cadence
+- [ ] Deployment Security -- secret-scan advisory not blocking
+- [ ] Environment Configuration Management -- dev/staging/prod separation
+- [ ] Edge Function Utilization -- selective edge adoption
+- [ ] Deployment Audit Trail -- deployment-history view
+
+---
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
