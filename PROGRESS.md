@@ -61,14 +61,33 @@ off. PR #684 got two independent `AUDIT: FAIL` passes:
 
 ## Remaining
 
-- [ ] Confirm the fresh CI run goes green on the new head SHA (Lint/Type
-      Check/Build/Unit Tests + Terminology Guardrail Check + Guardrail
-      Presence Check).
-- [ ] Post a fresh independent `AUDIT: PASS`/`AUDIT: FAIL` verdict on PR #684
-      per AGENTS.md Rule 7(c)/10 once CI is confirmed green (this session
-      implemented the fixes, so per Rule 7(c) it should not be the sole
-      self-certifying auditor if another session is available -- documented
-      honestly either way).
-- [ ] Merge PR #684 once CI is green and an independent-enough audit passes.
+- [x] Confirm the fresh CI run goes green on the new head SHA
+      (`b766f6abc5e9e8ae74ce129ff94b02719caffc02`): Lint, Type Check, Build,
+      Unit Tests (2512 pass), Analyze, CodeQL, Terminology Guardrail Check,
+      Guardrail Presence Check, Asset Registry Coverage Check, Metadata
+      Index Coverage Check, Migration Number Collision Check, Doc Quarantine
+      Banner Check, Doc Cross-Reference Check, Secret Scanning, Security
+      Pattern Check all passed. `audit-check` (required) still fails because
+      no `AUDIT: PASS/FAIL` comment exists yet against this head SHA --
+      expected, next step below. `Vercel` deployment preview failed on a
+      pre-existing external rate limit (`api-deployments-free-per-day`), not
+      a required status check, not caused by this PR.
+- [ ] Post a fresh `AUDIT: PASS`/`AUDIT: FAIL` verdict on PR #684 per
+      AGENTS.md Rule 7(c)/10, honestly disclosing that this session both
+      implemented the fixes and is posting the verdict (same single-real-
+      identity structural limitation as
+      `veridian-audit-pass-same-identity-limitation` -- no second session
+      available to cross-audit right now).
+- [ ] Known `audit-check` issue-comment-vs-head-SHA gap (this repo, see
+      `veridian-audit-check-issue-comment-sha-bug`): after posting the AUDIT
+      comment, push a fresh no-op-ish synchronize so the check re-evaluates
+      against the PR's real head SHA rather than `main`'s.
+- [ ] Merge PR #684 once CI (incl. `audit-check`) is green. Known risk:
+      `veridian-branch-protection-self-approval-deadlock-active` -- `main`
+      requires 1 PR review but only one real GitHub identity exists in this
+      environment, so `gh pr merge` (even `--admin`) may be structurally
+      blocked regardless of CI state; document honestly if so rather than
+      forcing a bypass.
 - [ ] Move this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry from `active:`
-      to `recently_completed:` once merged.
+      to `recently_completed:` once merged (or once this session ends,
+      whichever first, per that file's own protocol).
