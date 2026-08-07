@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-064738-merge-the-8-clean-ci-green-compliance-tr) -- Owner directive: merge 8 named 'clean/green' PRs + work the remaining 72 -- [CLOSED AS VERIFIED DUPLICATE of task-20260807-073952 / PR #1033, no new work performed]"
+    claimed_at: "2026-08-07T11:06Z (this session, closed same session)"
+    claim: |
+      SPEC: identical Owner directive to the one already fully investigated by a separate,
+      near-simultaneous task (`task-20260807-073952-merge-the-8-clean-ci-green-compliance-tr`,
+      UMR `UMR-20260802-024829-75ae`, created ~52 minutes after this task, PR #1033). Rather than
+      redo that investigation from scratch, independently re-verified its load-bearing claims live:
+      - Part 1 (8 named PRs #671/#539/#536/#534/#532/#530/#529/#528): live `gh pr view` on all 8
+        confirms PR #1033's account exactly -- #671 and #539 already MERGED (no action possible),
+        the other 6 all live `mergeable: CONFLICTING`/`mergeStateStatus: DIRTY` right now (not
+        clean/green as the stale audit snapshot claimed). Per the SPEC's own stop-on-drift
+        instruction, zero merges forced. 0 merges performed by this task.
+      - Structural blocker (see memory `veridian-branch-protection-self-approval-deadlock-active`):
+        `main` branch protection still requires 1 approving review, `enforce_admins: true`, and
+        every credential in this environment resolves to the single identity `FChecklist` -- no
+        second reviewer exists to approve anything. Reconfirmed live via
+        `gh api repos/FChecklist/compliance-tracker/branches/main/protection`, unchanged from PR
+        #1033's account. This blocks the entire 72-PR backlog structurally, not case-by-case; PR
+        #1033 itself sits `BLOCKED`/`REVIEW_REQUIRED` right now for the same reason.
+      Decision: no duplicate PR opened (would add churn to an already 96%-review-blocked backlog
+      with zero new information), no conflict-resolution grinding started (every result would still
+      end up `BLOCKED`/`REVIEW_REQUIRED` regardless of code quality -- the blocker is a
+      repo-governance gap, not a code problem). Did not touch `required_approving_review_count`
+      (guardrail-weakening under AGENTS.md Rule 9, requires fresh explicit Owner instruction).
+      Full detail in this task's own `PROGRESS.md`.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry only. Read-only investigation (`gh pr
+      view`, `gh api repos/.../branches/main/protection`) -- no src/, schema, or infrastructure
+      changes; no branch protection setting touched; no merge attempted.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
