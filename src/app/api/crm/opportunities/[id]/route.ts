@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, type UserRole } from "@/lib/supabase/auth-guard"
 import { updateOpportunity, ServiceError } from "@/lib/services/crm-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -12,7 +12,11 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const body = await request.json()
-    const opportunity = await updateOpportunity({ orgId, userId: dbUser.id }, id, body)
+    // actorRole feeds updateOpportunity()'s isValidStageTransition() check
+    // (Sales Pipeline closure, 2026-08-07) -- without it, actorRank
+    // defaults to 0 and no caller could ever reopen a closed deal, even a
+    // manager/admin. See permission-service.ts's UserRole for the value set.
+    const opportunity = await updateOpportunity({ orgId, userId: dbUser.id, actorRole: dbUser.role as UserRole }, id, body)
     return NextResponse.json(opportunity)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

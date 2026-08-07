@@ -1,80 +1,131 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-082004-crm---sales-modules--sales-pipeline
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 findings).
+
+## Already resolved before this task (verified live, findings were stale)
+- `getSalesPipelineOverview()` (crm-service.ts) and the `/api/v1/projexa/sales-pipeline`
+  external-API alias were already fully implemented (leadsByStatus, opportunitiesByStage,
+  winRate, openPipelineValue, overdue follow-up counts). Not rebuilt.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
+- [x] **Data Model Completeness & Referential Integrity** -- new org-scoped `crm_pipeline_stages`
+      config table (drizzle/0225), lazily auto-seeded per org with the 5 pre-existing hardcoded
+      stage strings (`listPipelineStages()`), so no data migration/backfill needed and behavior
+      is unchanged for every org that hasn't touched pipeline config. CRUD routes under
+      `/api/crm/pipeline/stages` (manager-gated). Registered in `asset-registry-coverage.yaml`
+      (`registered`, not `exempted` -- has a genuine `label` display-name column).
+- [x] **Business Rule & Validation Accuracy** -- `isValidStageTransition()` (pure, unit-tested,
+      10 tests) wired into `updateOpportunity()`. A deal can move freely between any two
+      non-terminal stages (including backward); moving OUT of a closed (won/lost) stage requires
+      manager rank. The UI's plain `<Select>` previously allowed any jump silently.
+- [x] **Multi-Tenant / Multi-Project Isolation** -- re-verified: `crm_pipeline_stages` carries
+      `org_id` + `FORCE ROW LEVEL SECURITY` + the standard `app_runtime_org_scoped` policy,
+      identical to `crm_accounts` (drizzle/0219). No isolation gap introduced.
+- [x] **Reporting & Export Accuracy** -- new `sales-pipeline-overview` entry in `REPORT_CATALOG`
+      (new `"CRM"` `ReportDomain`, gated to the existing `sales` product branch via
+      `report-domain-enablement-service.ts` -- NOT mislabeled as `"ERP"`). CSV export route at
+      `GET /api/crm/pipeline/export`.
+- [x] **AI Copilot / Worker Agent Integration Depth** -- `getPipelineAiSummary()`, a new
+      pipeline-level AI insight ("which deals are at risk this quarter") aggregating across the
+      open funnel, following `analyzeOpportunity()`'s existing 6-step orchestration pattern
+      (enforcePolicy -> resolveModelConfig -> resolvePromptTemplate -> callLLMJson ->
+      recordOrchestraExecution). New `crm_intelligence.pipeline_summary` prompt template
+      (drizzle/0225). Ephemeral (not persisted) -- no single entity row to cache it against.
+      Surfaced via a "Pipeline Insight" button on the new Kanban tab.
+- [x] **Search, Filter & Bulk Operations** -- search box + owner filter on the new Kanban view;
+      multi-select + bulk-reassign toolbar wired to the pre-existing `bulkReassignOpportunities()`
+      service function via a new native route (`POST /api/crm/opportunities/bulk-reassign` --
+      previously only reachable via the external `/api/v1/projexa` alias, zero in-app consumer).
+- [x] **Error Handling & Data Validation Messaging** -- illegal stage-transition drags revert
+      optimistically and surface the server's real `ServiceError` reason via toast, not a silent
+      no-op or generic failure message.
+- [x] **Cross-Module Integration Consistency** -- the new Pipeline tab is the first real in-app
+      consumer of `getSalesPipelineOverview()`/`listPipelineStages()`, proving out the
+      client-side composition the code comment referenced.
+- [x] **Notification & Alert Trigger Correctness** -- new `pipeline-stuck-deal-digest-service.ts`
+      (mirrors `task-nudge-digest-service.ts`'s exact shape: platform-wide cron, one batched
+      notification per deal owner, zero LLM call). "Stuck" = 30+ days in current stage per
+      `crm_stage_history`'s latest row for that opportunity. Cron registered in `vercel.json`
+      (`45 9 * * *`). `GET /api/crm/pipeline/stuck` surfaces the same list in the UI (badge per
+      card).
+- [x] **Documentation & In-App Help Coverage** -- the Pipeline tab itself (with inline empty/
+      loading states and a labeled AI insight panel) is the documentation surface the finding
+      said didn't exist because no UI existed; this PROGRESS.md entry + the code's own header
+      comments serve as the technical documentation. No separate user-help article written this
+      wave -- flagged as a real gap, not silently dropped (see Deferred below).
+- [x] **Data Import/Export Template Fidelity** -- CSV **export** implemented
+      (`GET /api/crm/pipeline/export`, includes stage label, value, currency, exchange rate,
+      owner, AI win probability). **Import is explicitly deferred** (see below) -- a real
+      round-trippable import needs unknown-ownerId/unknown-stage validation and dedup logic that
+      is genuinely more scope than fits this wave; noted here rather than silently dropped.
+- [x] **Localization Readiness** -- `crm_opportunities.currency_id`/`exchange_rate` columns added
+      (drizzle/0225, identical shape to drizzle/0208's fix for `erp_quotations`/
+      `erp_sales_orders`). `exchangeRate` defaults to `'1'` so every pre-existing row keeps
+      reading as "org base currency, rate 1" -- zero behavior change until an opportunity is
+      explicitly given a foreign currency. `getSalesPipelineOverview()`'s aggregates now sum
+      `estimatedValue * exchangeRate` (base-currency rollup) instead of naively summing mixed
+      currencies.
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+## Explicitly out of scope / deferred (documented, not silently dropped)
+- **Audit Trail & Change History**: `crm_stage_history` already logs every stage/status
+  transition (who/when/from/to) for both leads and opportunities -- verified this is real and
+  working, so it already IS the pipeline's audit trail for the dimension this finding names.
+  Did **not** retrofit the generic `audit_logs` table (via `logActivity()`) onto every existing
+  `createLead`/`updateLead`/`createOpportunity` call -- that is a broader "Leads/Opportunities"
+  audit-trail completeness fix (create/delete events beyond stage change), not specific to
+  Sales Pipeline, and touching that much of `crm-service.ts`'s shared surface risked colliding
+  with a concurrently-active session (see `ACTIVE-CLAIMS.yaml`'s CRM Accounts/Contacts RBAC
+  entry). Flagged as a real follow-on, not claimed as done.
+- CSV **import** for opportunities (see above).
+- A dedicated `Reports & Analysis` help article for the new catalog entry.
+- Full RBAC pass on `/api/crm/leads`/`/api/crm/opportunities` CRUD routes (currently
+  role-unchecked beyond org membership) -- out of the 14 findings this task was scoped to; only
+  the one genuinely new action this wave introduces (`crm.pipeline_stages.manage`) got a
+  permission-service.ts entry, added additively per the task's own instruction.
+
+## Verification performed
+- `bun test src/lib/services/crm-service.test.ts` -- 10/10 pass (isValidStageTransition, all
+  branches: forward/backward/no-op/close-from-any-role/reopen-requires-manager/unknown-stage/
+  defensive fallback).
+- Targeted review of every touched file for type correctness; the new `ReportDomain` value
+  ("CRM") required updating 4 `Record<ReportDomain, ...>` exhaustive maps
+  (`report-catalog-service.ts` x2, `report-engine-service.ts`, `capability-tree-service.ts`,
+  `ReportCatalogList.tsx`) -- all fixed. A full whole-repo `bunx tsc --noEmit` run in this
+  sandbox hits an OOM/timeout on unrelated pre-existing files (missing `@types/node` in
+  `scripts/`, etc.) even with an increased heap -- inconclusive on a full pass; real CI
+  (`bun run build`/lint) is the actual gate and has not run yet as of this checkpoint.
+- Not run in this sandbox (no live `DATABASE_URL`): the drizzle/0225 migration itself, and any
+  route requiring a live DB. Migration SQL follows this repo's own established, previously-
+  applied pattern (drizzle/0219 crm_accounts, drizzle/0208 currency columns) closely enough to
+  be low-risk, but has not been executed against a real database by this session.
+
+## Files touched
+- `drizzle/0225_sales_pipeline_module.sql` (new migration)
+- `src/lib/db/schema.ts` (crmPipelineStages table; crmOpportunities.currencyId/exchangeRate)
+- `src/lib/services/crm-service.ts` (pipeline stage CRUD, isValidStageTransition,
+  listStuckOpportunities, getPipelineAiSummary, currency-aware overview, stage-transition
+  enforcement in updateOpportunity)
+- `src/lib/services/crm-service.test.ts` (new)
+- `src/lib/services/pipeline-stuck-deal-digest-service.ts` (new)
+- `src/lib/services/permission-service.ts` (additive: `crm.pipeline_stages.manage`)
+- `src/lib/services/report-catalog-service.ts` (new `CRM` ReportDomain, new catalog entry)
+- `src/lib/services/report-domain-enablement-service.ts` (+.test.ts) (CRM -> `sales` branch gate)
+- `src/lib/services/report-engine-service.ts` (Record<ReportDomain> exhaustiveness)
+- `src/lib/services/capability-tree-service.ts` (Record<ReportDomain> exhaustiveness)
+- `src/components/ReportCatalogList.tsx` (Record<ReportDomain> exhaustiveness)
+- `src/components/crm/PipelineKanbanBoard.tsx` (new)
+- `src/app/(app)/crm/page.tsx` (new "Pipeline" tab)
+- `src/app/api/crm/pipeline/{stages,stages/[id],export,ai-summary,stuck}/route.ts` (new)
+- `src/app/api/crm/opportunities/bulk-reassign/route.ts` (new)
+- `src/app/api/crm/opportunities/[id]/route.ts` (thread actorRole through to updateOpportunity)
+- `src/app/api/internal/pipeline-stuck-deal-digest/run/route.ts` (new)
+- `vercel.json` (new cron entry)
+- `ai-os/registry/asset-registry-coverage.yaml` (crm_pipeline_stages registered)
+- `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim registered at task start)
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] Open a PR against `main` (branch protection + CI gate per AGENTS.md Rule 6) -- not yet
+      opened as of this checkpoint; next invocation should run `gh pr create` and let CI
+      (Lint/Type Check/Build/Unit Tests) run, then address any real failures it surfaces.
+- [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:`
+      once the PR merges.

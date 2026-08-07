@@ -10,8 +10,9 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks, Building2 } from "lucide-react";
+import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks, Building2, Kanban } from "lucide-react";
 import { currencyLabel, useCurrencies } from "@/lib/currency-format";
+import PipelineKanbanBoard from "@/components/crm/PipelineKanbanBoard";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -245,6 +246,7 @@ export default function CrmPage() {
         <TabsList>
           <TabsTrigger value="leads"><UserPlus className="size-3.5 mr-1.5" /> Leads</TabsTrigger>
           <TabsTrigger value="opportunities"><Target className="size-3.5 mr-1.5" /> Opportunities</TabsTrigger>
+          <TabsTrigger value="pipeline"><Kanban className="size-3.5 mr-1.5" /> Pipeline</TabsTrigger>
         </TabsList>
 
         <TabsContent value="leads" className="mt-4 space-y-3">
@@ -425,6 +427,10 @@ export default function CrmPage() {
               ))}
             </div>
           )}
+        </TabsContent>
+
+        <TabsContent value="pipeline" className="mt-4">
+          <PipelineKanbanBoard />
         </TabsContent>
       </Tabs>
     </div>
