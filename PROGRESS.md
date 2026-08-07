@@ -39,6 +39,21 @@
 ## This session's own bookkeeping PR
 - Opened PR #1044 (this session's own PROGRESS.md/ACTIVE-CLAIMS.yaml changes), closed the stale duplicate #705, posted a genuine self-audited `AUDIT: PASS` (disclosed same-identity limitation), and re-synced after the comment (standard fix for the audit-check-vs-stale-SHA footgun). `audit-check` re-confirmed `pass` against the real head. As expected, #1044 will hit the identical branch-protection deadlock once its own CI settles -- not attempting a merge loop on it either; it's docs-only and non-blocking to report the real finding above.
 
+## Invocation 4/20 re-verification (2026-08-07, no new work needed)
+Live re-checked before doing anything further, per the task-prompt-false-premise
+pattern (don't trust a stale checkpoint, but also don't redo settled work):
+- PR #632 head `9624ccee6e17e86aa2981e07b1662bc8b6f100a7` unchanged;
+  `mergeable=MERGEABLE`, `mergeStateStatus=BLOCKED`, `reviewDecision=REVIEW_REQUIRED` -- identical to last checkpoint.
+- PR #1044 (this session's own bookkeeping PR) equally `BLOCKED`/`REVIEW_REQUIRED` for the same structural reason.
+- `main` branch protection unchanged: `required_approving_review_count=1`, `enforce_admins=true`.
+- Every credential in this environment still resolves to the single identity `FChecklist` (`gh api user` -> `FChecklist`).
+Nothing has changed since the last checkpoint. This is the **18th confirmation**
+of the repo-wide branch-protection self-approval deadlock (see memory
+`veridian-branch-protection-self-approval-deadlock-active`). No further local
+action can move this forward -- re-running rebase/CI/audit again would not
+change the outcome. Deliberately not looping further on this; leaving the
+ACTIVE-CLAIMS entry as-is (`[DELIVERABLE COMPLETE, blocked pending Owner]`).
+
 ## Remaining (deferred to Owner / a future session, not actionable here)
 - [ ] Owner provisions a second real reviewer identity, or grants a fresh bounded review-count exception, to unblock `main`'s branch protection repo-wide (this affects far more than just PR #632 -- see memory `veridian-branch-protection-self-approval-deadlock-active`'s "10th+ confirmation, at scale" entry: 96% of the entire open-PR backlog is affected).
 - [ ] Once unblocked: merge PR #632, re-run `mark-umr-terminal --status completed` (upgrading from `completed_unmerged`) with the real merge commit.
