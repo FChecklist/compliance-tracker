@@ -1,3 +1,35 @@
+# PROGRESS -- task-20260718-083002-crm---sales-modules--veri-reward--gamifi
+
+VERIDIAN Review Framework gap-closure: CRM & Sales Modules / VERI Reward (Gamification &
+Referral) -- 11 findings (see prompt.txt in the task dir for full text). Resume, invocation
+14/20. On resume, found this branch had drifted 788 commits behind `origin/main` with zero
+task-specific commits of its own (a stale worktree state, not real prior work on this task) --
+reset the branch onto fresh `origin/main` before starting real work, per
+[[veridian-resume-uncommitted-work-wrong-branch]].
+
+## Plan (11 findings, scoping real vs. already-satisfied)
+- [ ] CRUD & Approval Workflow Correctness (Low) -- live-trigger verification; no live DB access
+      in this sandbox, will verify via code-path read + note honestly rather than fabricate a
+      live smoke-test result.
+- [ ] Business Rule & Validation Accuracy (Medium) -- extract achievement-unlock threshold logic
+      into a pure, unit-testable function; add tests (matches this repo's own established
+      DB-free `.test.ts` convention, see crm-service.test.ts).
+- [x] Multi-Tenant / Multi-Project Isolation (Low) -- already satisfied per the finding's own
+      text (RLS forced, verified live); no code change needed.
+- [ ] Reporting & Export Accuracy (Medium) -- add an admin-facing engagement report.
+- [ ] AI Copilot Integration Depth (Medium) -- low-priority nice-to-have per the finding's own
+      text; deferred, documented.
+- [x] Audit Trail & Change History (Low) -- N/A per the finding's own text; no code change.
+- [ ] Search, Filter & Bulk Operations (Medium) -- pagination/date-range filtering on points
+      history + leaderboard.
+- [ ] Notification & Alert Trigger Correctness (Medium) -- toast at the moment of unlock.
+- [ ] Documentation & In-App Help Coverage (Medium) -- "how it works" panel.
+- [ ] Data Import/Export Template Fidelity (High) -- CSV export of points history.
+- [ ] Localization Readiness (Medium) -- investigating whether any i18n system exists in this
+      codebase at all before proposing a wiring change.
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
