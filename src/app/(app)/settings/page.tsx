@@ -21,8 +21,10 @@ import {
   TrendingUp,
   KeyRound,
   Paintbrush,
+  CreditCard,
 } from "lucide-react";
 import OrgLimitsSection from "@/components/OrgLimitsSection";
+import BillingSection from "@/components/BillingSection";
 import BrandingSection from "@/components/BrandingSection";
 import AdoptionMetricsSection from "@/components/AdoptionMetricsSection";
 import AiConfigSection from "@/components/AiConfigSection";
@@ -67,6 +69,7 @@ const SETTINGS_NAV = [
   { id: "api-access", label: "API Access", icon: Key },
   { id: "webhooks", label: "Webhooks", icon: Webhook },
   { id: "org-limits", label: "Seats & AI Spend", icon: Users2 },
+  { id: "billing", label: "Billing", icon: CreditCard },
   { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
@@ -507,6 +510,20 @@ export default function SettingsPage() {
                 ) : (
                   <p className="text-sm text-muted-foreground">Only admins can view and change seat and spend limits.</p>
                 )}
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSection === "billing" && (
+            <Card className="rounded-xl shadow-card bg-white">
+              <CardHeader>
+                <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
+                  <CreditCard className="size-4" />
+                  Billing
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <BillingSection isAdmin={isAdmin} />
               </CardContent>
             </Card>
           )}
