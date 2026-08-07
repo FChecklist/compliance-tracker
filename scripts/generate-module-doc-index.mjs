@@ -60,7 +60,7 @@ async function buildIndex() {
     const src = await readFile(path.resolve(REPO_ROOT, SERVICES_DIR, name), "utf8")
     const summary = extractLeadingSummary(src)
     if (summary) {
-      rows.push(`| \`${name}\` | ${summary.replace(/\|/g, "\\|")} |`)
+      rows.push(`| \`${name}\` | ${summary.replace(/\\/g, "\\\\").replace(/\|/g, "\\|")} |`)
     } else {
       undocumented++
       rows.push(`| \`${name}\` | _(no leading doc comment found)_ |`)
