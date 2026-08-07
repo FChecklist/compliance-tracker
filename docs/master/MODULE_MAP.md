@@ -2,7 +2,20 @@
 
 **Purpose:** the canonical "where does X live" reference. Every domain in this codebase, mapped to its tables, services, API routes, and pages. Built 2026-07-09 from a direct structural pass over the repo (not from documentation claims) — table/service/route counts below are grep-verified against the live tree, not estimated.
 
-**Scale at time of writing:** 115 migrations, 460+ tables (`compliance` schema), 114 files in `src/lib/services/`, 573+ API route files, 145+ page files, ~61K lines of TS/TSX. PROJEXA (construction ERP) lives inside this same repo, not a separate one.
+**Scale at time of writing (2026-07-09):** 115 migrations, 460+ tables (`compliance` schema), 114 files in `src/lib/services/`, 573+ API route files, 145+ page files, ~61K lines of TS/TSX. PROJEXA (construction ERP) lives inside this same repo, not a separate one.
+
+> **Scale correction, 2026-08-07 (AI Documentation gap-closure,
+> UMR-20260801-170930-2080 sub-task):** the numbers above have not kept
+> pace with the codebase since 2026-07-09 -- live counts today: **284
+> migrations, 468 tables, 301 files in `src/lib/services/`, 995 API route
+> files, 188 page files.** The per-domain file-list detail below is
+> unverified against this same drift and may be similarly stale in places
+> -- treat it as a starting point, not a guarantee, and re-grep a domain's
+> real files before relying on this doc for anything more than "roughly
+> where does X live." A full per-domain re-pass is real, multi-hour work
+> out of scope for this pass; `scripts/check-architecture-doc-drift.mjs`
+> (added the same day, see `ai-os/system-tree/00-INDEX.md`) now gives an
+> early warning next time these numbers drift this far again.
 
 Use this doc to scope a task before touching code: find your domain below, and you have the full file list without re-deriving it via grep every session.
 

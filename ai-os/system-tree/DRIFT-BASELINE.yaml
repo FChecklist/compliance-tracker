@@ -1,0 +1,41 @@
+# Drift baseline for scripts/check-architecture-doc-drift.mjs.
+#
+# Closes the [Low] "AI-Readable Architecture Documentation" and [Low]
+# "AI-Readable Database Documentation" findings from the VERIDIAN Review
+# Framework's AI Documentation gap-closure (UMR-20260801-170930-2080
+# sub-task, 2026-08-07). Both findings share the same root cause:
+# `ai-os/system-tree/` (see 00-INDEX.md) is a manual, point-in-time
+# snapshot -- last full regeneration 2026-07-26 -- with no signal that a
+# re-sync is due. Re-running the full 5-parallel-Explore-agent methodology
+# that built the tree is real, multi-hour work not worth doing on every
+# commit; this file is the cheap, continuous half of the fix: a recorded
+# baseline the CI check below compares live counts against, so drift past
+# a real threshold becomes visible instead of silent.
+#
+# This does NOT replace the periodic full re-sync (still the right way to
+# refresh 11-compliance-tracker-api.yaml / 12-compliance-tracker-database.yaml's
+# per-route/per-table detail) -- it is the lighter signal that a re-sync is
+# now due. When you do re-run the full methodology, update the numbers
+# below to match and bump `recorded_date`.
+
+recorded_date: "2026-08-07"
+recorded_by: "AI Documentation gap-closure (UMR-20260801-170930-2080 sub-task)"
+
+counts:
+  # git-tracked route.ts files under src/app/api/ (compliance-tracker's
+  # own API surface; excludes projexa/veda-advisors, which are separate
+  # repos/checkouts the tree also documents but this repo can't grep).
+  api_routes: 995
+  # `.table(` calls in src/lib/db/schema.ts -- one per Drizzle table.
+  db_tables: 468
+  # `.enum('...'` calls in src/lib/db/schema.ts -- one per Drizzle enum
+  # (schema-scoped via `compliance.enum(...)`, not top-level `pgEnum()`).
+  db_enums: 133
+
+# Prior recorded snapshot, for reference (what 00-INDEX.md stated before
+# this pass, dated to the tree's last full regen):
+previous:
+  recorded_date: "2026-07-26"
+  api_routes: 614
+  db_tables: 377
+  db_enums: 106
