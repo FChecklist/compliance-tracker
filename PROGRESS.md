@@ -126,6 +126,47 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
 ## Remaining
 - [x] Open a PR against `main` (branch protection + CI gate per AGENTS.md Rule 6) --
       **PR #1018** opened (https://github.com/FChecklist/compliance-tracker/pull/1018).
-      Next invocation: check CI status, address any real failures, merge once green.
+- [x] Branch had drifted 788 commits behind `main` since this task's original checkpoint
+      (2026-08-07) -- zero CI check-suite had even been created for the original push
+      (`mergeable: CONFLICTING`). Unshallowed the clone (`git fetch --unshallow`), merged
+      `origin/main`, and resolved 9 conflicted files by hand (merge commit `1429f1fbc`):
+      - `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/registry/asset-registry-coverage.yaml`,
+        `vercel.json` (own cron moved to `50 9 * * *` to avoid a same-minute collision with
+        main's new `orchestra-log-purge` cron) -- straightforward additive concatenations.
+      - `src/lib/db/schema.ts` -- two conflicts where git's diff had merged two *different*
+        tables' closing braces into one shared line (this session's `crmPipelineStages` and
+        main's new `crmSalesTargets`); fixed by hand so each table gets its own `})`, verified
+        against the raw `HEAD`/`MERGE_HEAD` blobs via `git cat-file -p` (not the truncation-prone
+        `git show`, see [[veridian-git-show-large-output-flaky-truncation]]).
+      - `src/lib/services/crm-service.ts` -- same "shared closing brace" pattern for
+        `getPipelineAiSummary()` (this session) vs `setSalesTarget()` (main); merged import
+        block (union of both sides' new symbols: `crmPipelineStages`/`crmLostReasons`/
+        `crmSalesTargets`/`crmActivities`/`users`, `TenantDb`, `ne`/`isNull`,
+        `buildPipelineDeals`, `ROLE_RANK`/`UserRole`, `serviceErrorBody`); merged
+        `updateOpportunity()`'s `patch` type to carry both `currencyId`/`exchangeRate` (this
+        session) and `lostReasonId` (main). Verified post-merge: every exported function name
+        unique (no duplicate definitions survived), brace depth balances to 0 across the file.
+      - `src/lib/services/crm-service.test.ts` -- add/add conflict (both sides added a new test
+        file for the same module); combined into one file covering all three pure predicates
+        (`isValidStageTransition`, `computeRoundRobinAssignment`, `aggregateLeadSourceEffectiveness`).
+      - `src/app/(app)/crm/page.tsx` -- main had independently shipped a Wave 3 refactor
+        (2026-07-21) that replaced the old tabbed Leads/Opportunities UI on this page with a
+        card-grid "MODULES" overview linking to dedicated per-area pages -- this session's old
+        tabs-based "Pipeline" tab no longer fit that architecture. Resolved by adopting main's
+        grid entirely and re-homing the Kanban board onto its own new route,
+        **`src/app/(app)/crm/pipeline/page.tsx`** (mirrors the header/back-link pattern of
+        `crm/accounts/page.tsx`), added as a `MODULES` entry (no count badge -- it's not a
+        distinct record count, just opportunities viewed by stage).
+      - `src/app/api/crm/opportunities/[id]/route.ts` -- merged import (this session's
+        `UserRole` type import + main's new `getOpportunity`/`deleteOpportunity` handlers).
+      Verification after resolving: `bun test src/lib/services/crm-service.test.ts` -- **22/22
+      pass** (10 from this session + 12 from main, both now in the same file). Every touched
+      file round-trips through `bun build --target=node` with zero syntax errors. A full
+      `bunx tsc --noEmit` (even with `--max-old-space-size=6144`) still times out at 280s in
+      this sandbox -- inconclusive locally, same known pre-existing limitation noted below; CI's
+      own Type Check job is the real gate and is running as of this checkpoint (PR #1018,
+      commit `1429f1fbc`).
+- [ ] Watch PR #1018's CI (Lint/Type Check/Build/Unit Tests + CodeQL + Mandatory Audit Check)
+      to green, address any real failures, then merge.
 - [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:`
       once the PR merges.
