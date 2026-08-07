@@ -284,3 +284,12 @@ this session's capability (Owner provisions a second reviewer identity, or grant
 of this task should check `gh pr view 1018 --json mergeStateStatus,reviewDecision` once; if it
 still reads `BLOCKED`/`REVIEW_REQUIRED`, no further action is needed beyond a one-line
 confirmation -- do not re-run the full CI/checks audit again absent an actual change.
+
+## Re-checked 2026-08-07 (invocation 19/20) -- no change, one-line confirmation only
+`gh pr view 1018 --json mergeStateStatus,reviewDecision,state` still returns
+`{"mergeStateStatus":"BLOCKED","reviewDecision":"REVIEW_REQUIRED","state":"OPEN"}`. Per
+invocation 18's own instruction, did not re-run the full CI/checks audit -- nothing has
+changed. Same standing structural deadlock (single GitHub identity, branch protection
+requires 1 approving review + enforce_admins). Nothing left for this session to do; blocker
+requires Owner action (provision second reviewer identity, grant review-count exception, or
+merge directly).
