@@ -35,8 +35,18 @@ order (174 before 175 before 173, since 172/176/177 are already gone).
       (not a force-push) to the PR's own branch. mergeable flipped MERGEABLE/CLEAN after.
       MERGED 2026-08-07T00:07:35Z, commit d0d1050e264e9b5fa14f553c35316bbd9b3693cb.
 
+- [x] PR 175 (prune-memory-backups cadence + event trigger) reviewed: systemd-only change
+      (.path/.service/.timer + README, no Python). Diffed each proposed unit file byte-for-byte
+      against the REAL, already-installed, already-enabled live units on this box
+      (`systemctl --user cat`) -- .timer and .path identical (only trailing-newline noise);
+      .service functionally identical (ExecStart/Type/ConditionPathExists unchanged), only the
+      header COMMENT text differs from live (PR body's "content is unchanged" claim is an
+      overstatement for that one comment block, noted honestly, not a functional risk -- no
+      auto-deploy from this directory per its own README). No merge conflict (`git merge
+      --no-commit --no-ff` clean). MERGED 2026-08-07T00:08:58Z, commit
+      ced1f1468dd3e535a2a2d5a7352d56e7cb23c9a9.
+
 ## Remaining
-- [ ] Review PR 175 (prune-memory-backups cadence + event trigger) -- run real tests
 - [ ] Review PR 173 (gtm_check_ux_audit aria-hidden exclusion) -- run real tests
 - [ ] Merge whichever genuinely pass; record real reasons for any declined
 - [ ] Write real evidence into child UMR row; mark-umr-terminal
