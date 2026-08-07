@@ -144,7 +144,7 @@ export async function createLead(
     // own action (assigning to yourself doesn't need a ping).
     if (lead.ownerId && lead.ownerId !== ctx.userId) {
       await db.insert(notifications).values({
-        userId: lead.ownerId, orgId: ctx.orgId, title: "New lead assigned",
+        userId: lead.ownerId, title: "New lead assigned",
         message: `You've been assigned lead "${lead.name}".`, type: "assignment",
         metadata: { kind: "crm_lead_assigned", leadId: lead.id },
       }).catch((err) => console.error(`[crm-service] failed to notify lead assignment for ${lead.id}:`, err))
@@ -190,7 +190,7 @@ export async function updateLead(
     // see that function's own comment.
     if (patch.ownerId && patch.ownerId !== previousOwnerId && patch.ownerId !== ctx.userId) {
       await db.insert(notifications).values({
-        userId: patch.ownerId, orgId: ctx.orgId, title: "New lead assigned",
+        userId: patch.ownerId, title: "New lead assigned",
         message: `You've been assigned lead "${updated.name}".`, type: "assignment",
         metadata: { kind: "crm_lead_assigned", leadId: updated.id },
       }).catch((err) => console.error(`[crm-service] failed to notify lead reassignment for ${updated.id}:`, err))
@@ -1344,7 +1344,7 @@ export async function notifyOverdueLeadFollowUpsForOrg(ctx: { orgId: string }): 
     for (const lead of overdue) {
       if (!lead.ownerId || !lead.nextActionDate) continue
       await db.insert(notifications).values({
-        userId: lead.ownerId, orgId: ctx.orgId, title: "Lead follow-up overdue",
+        userId: lead.ownerId, title: "Lead follow-up overdue",
         message: `Lead "${lead.name}" was due for follow-up on ${lead.nextActionDate}.`, type: "deadline_reminder",
         metadata: { kind: "crm_lead_followup_overdue", leadId: lead.id },
       })
