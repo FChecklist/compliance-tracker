@@ -41,6 +41,45 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-082004) -- CRM & Sales Modules: Sales Pipeline gap-closure"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure for Sales Pipeline (14 findings
+      from the framework evaluation, task-20260718-082004). Re-verified live
+      before starting: getSalesPipelineOverview() (crm-service.ts) and the
+      /api/v1/projexa/sales-pipeline alias already exist and work -- those
+      two findings are stale, documented as such in PROGRESS.md rather than
+      rebuilt. Genuinely open and being built here: a new org-scoped
+      crm_pipeline_stages config table (+ auto-seed of the 5 existing
+      hardcoded stage strings), stage-transition legality validation in
+      updateOpportunity(), a Kanban "Pipeline" tab on /crm reusing the
+      dnd-kit pattern from src/app/(app)/pms/[projectId]/board/page.tsx,
+      search/filter/bulk-reassign on that view, a pipeline-overview
+      REPORT_CATALOG entry (new "CRM" ReportDomain, gated to the existing
+      'sales' product branch), a pipeline-level AI summary
+      (crm_intelligence.pipeline_summary prompt) following analyzeOpportunity's
+      existing orchestration pattern, audit_logs coverage via logActivity()
+      for lead/opportunity mutations (crm-service.ts currently has zero
+      audit_logs writes -- only the narrower crm_stage_history ledger), a
+      CSV export route, a stuck-deal digest cron mirroring
+      task-nudge-digest-service.ts, and currency_id/exchange_rate columns on
+      crm_opportunities (mirrors drizzle/0208's exact pattern for
+      erp_quotations/erp_sales_orders).
+      File scope: src/lib/db/schema.ts (crmPipelineStages + crmOpportunities
+      currency columns), a new drizzle/0225_*.sql migration,
+      src/lib/services/crm-service.ts, a new
+      src/lib/services/pipeline-stuck-deal-digest-service.ts, new routes
+      under src/app/api/crm/pipeline/**, src/app/api/crm/opportunities/
+      bulk-reassign/, src/app/api/internal/pipeline-stuck-deal-digest/run/,
+      src/app/(app)/crm/page.tsx, report-catalog-service.ts +
+      report-domain-enablement-service.ts, permission-service.ts (one
+      additive key: crm.pipeline_stages.manage), vercel.json (new cron
+      entry). Explicitly NOT touching crm-accounts-service.ts, Fixed
+      Assets/Sales Orders/Quotations RBAC, or permission-service.ts's
+      existing ERP_ACTION_ROLES entries (additive-only, per this task's own
+      instructions). No open PR or active claim found for this area at
+      claim time (checked `gh pr list --state all` and this file's own
+      "pipeline"/"crm_leads"/"crm_opportunities" grep hits).
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
