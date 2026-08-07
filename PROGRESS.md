@@ -17,5 +17,8 @@
 - [ ] Coordinate with / resume UMR-20260801-170930-2080 directly rather than re-auditing from scratch next time
 
 ## Final step
-- [ ] `agent_work_briefing.py record-completion --umr-id UMR-20260801-153900-9100` with real summary
-- [ ] Commit + push
+- [x] Opened PR #1025 (compliance-tracker), commit 1d14bc5b67f06ef15bf4145dab085a9500f67b94
+- [x] Merge attempted, blocked on known branch-protection self-approval deadlock (1 approving review required, no second real GitHub identity) -- not this work's own gate
+- [x] Own UMR (UMR-20260801-153900-9100) marked `completed_unmerged` via `mark-umr-terminal`
+- [x] `agent_work_briefing.py record-completion --umr-id UMR-20260801-153900-9100` recorded
+- [x] Commit + push
