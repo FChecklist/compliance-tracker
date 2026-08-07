@@ -211,6 +211,23 @@ attempt chasing a known-impossible outcome; that would just burn the
       (AGENTS.md Rule 9 -- no guardrail weakening without explicit Owner
       sign-off).
 
+## Re-check (this invocation, 2026-08-07, resume 18/20) -- no change, 9th confirmation
+Live-reverified rather than assuming: `gh pr view 1016` still
+`state=OPEN mergeable=MERGEABLE mergeStateStatus=BLOCKED reviewDecision=REVIEW_REQUIRED`;
+`gh api repos/FChecklist/compliance-tracker/branches/main/protection` still shows
+`required_approving_review_count=1`, `enforce_admins=true`; `gh auth status` still resolves to
+the single `FChecklist` identity. Re-read `REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md` in
+full -- its "temporary bounded exception" (`UMR-20260805-091648-6793`) is not currently in effect
+on `main`'s live protection settings, and identity provisioning is independently confirmed still
+structurally out of reach for any headless session (no `admin:org`/App-management scope exists
+anywhere in this environment). Did not re-attempt `gh pr merge` -- an 8th identical attempt would
+burn the 2-failure circuit breaker for zero new information, per this task's own protocol.
+**No further scope exists for this session to close**: no new code work, no new gap in the CRM
+Sales/Opportunities module surfaced (`ai-os/MASTER-TRACKER.yaml` has no other open, unclaimed
+`opportunit*` entry), and the one remaining step is Owner-only. Recommend against spending
+further invocations re-running this identical check absent a real change in branch-protection
+settings or reviewer-identity provisioning -- doing so would be pure churn, not new verification.
+
 ---
 
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
