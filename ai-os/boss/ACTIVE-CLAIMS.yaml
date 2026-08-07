@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-064959-parallel-job--cross-reference-every-rele) -- go-live master-initiative traceability sweep, found DUPLICATE of task-20260807-073957 (UMR-20260802-035156-85d2, PR #1035) [DONE, closed same session]"
+    claimed_at: "2026-08-07T11:43Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner directive, Chat ID 2082026-02, identical to the one dispatched to
+      `task-20260807-073957`): cross-reference every currently-relevant real UMR/PR back to the
+      go-live master directive (`UMR-20260802-034545-3388` / `UMR-20260802-034651-6b2c`).
+
+      Found this task is a straight duplicate dispatch: `task-20260807-073957` (started ~49 min
+      after this task, `UMR-20260802-035156-85d2`) already fully executed this exact scope and
+      opened PR #1035 before this task's second invocation reached real work. Independently
+      re-verified (not taken on trust) 5 of its load-bearing claims live: the
+      `ai-os/MASTER_INITIATIVE_TRACKING_2026-08-02.md` dated section exists on disk; real PR
+      comments citing both root UMRs exist on `#632`/`#683`/`#687`/`#1013` (sampled 4 of ~25);
+      `veridian-scripts` PR #8 (entity/relation graph) is still OPEN/DIRTY, correctly unused;
+      `resource_governor.py --query-umr --status running` returned 20 rows (expected drift from
+      the 29 at that task's dispatch time); PR #1035's diff is exactly the 2 docs-only files
+      claimed. Per this task's own explicit "do not duplicate-dispatch" constraint, did **not**
+      re-run the sweep or re-post any PR comments.
+
+      Value-added instead of a no-op: independently audited PR #1035 (genuinely separate
+      task/session from its author, satisfying Rule 7c) and posted a real 8-field `AUDIT: PASS`
+      verdict comment. Confirmed this does not unblock merge -- `reviewDecision: REVIEW_REQUIRED`
+      persists, the repo's known separate branch-protection self-approval deadlock (only one real
+      GitHub identity exists), out of this task's own scope to fix.
+    scope_note: >-
+      File scope: this repo's `PROGRESS.md`, this `ACTIVE-CLAIMS.yaml` entry, one audit-verdict
+      PR comment on `PR #1035` (docs-only PR, not this repo's own code/schema/CI). No source,
+      schema, or CI/workflow changes. No linked UMR/PR's own work touched or redone.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
