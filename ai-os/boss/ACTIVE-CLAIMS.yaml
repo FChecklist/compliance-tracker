@@ -5857,6 +5857,35 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-065010-real-completion-audit--live-click-throug) -- real completion audit, VERI Chat composer UX live click-through (VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md §3.1-3.6) [DONE, docs-only, read-only audit]"
+    claimed_at: "2026-08-07T12:50Z (this session, closed same session)"
+    claim: |
+      SPEC (own UMR `UMR-20260802-040327-0a7d`, parent `UMR-20260802-034545-3388` / `UMR-20260802-030121-ae66`,
+      "real completion audit, area 2"): live, authenticated browser click-through against
+      `https://projexa-ai.com` targeting the 6 unbuilt VERI Chat composer UX items
+      `IMPLEMENTATION_MATRIX_2026-08-02.md` item 2/6 identified via source read only, 5 days earlier
+      (sidebar→composer sync, overlay/backdrop, breadcrumb reposition, per-segment ×, external-AI
+      handoff link, resizable composer) -- confirm or refute the source finding with real live
+      evidence, not another source-only pass.
+
+      **Result:** reconfirmed, no change. Real click-through (14 screenshots,
+      `/opt/veridian/browser/screenshots/spec-audit-*.png`) against the 6 items plus the 2 already
+      scored source-complete (single-row chain picker, "Create similar task again" rename) found:
+      the 2 source-complete items are genuinely live and working; 4 of the 6 unbuilt items had a
+      reachable live UI state to check against and are confirmed still absent live (sidebar-composer
+      sync, overlay/backdrop, breadcrumb reposition, per-segment ×); the remaining 2 (TaskDocumentScreen/
+      external-AI clipboard handoff, resizable composer) have no UI entry point to click at all, so
+      source-absence remains the only evidence. Cross-referenced same-day sibling PR #1043
+      (`task-20260807-064948-real-completion-audit--ui-ux--veri-chat`), which independently
+      live-verified the intent-recall palette (§3.6) is real but gated out of Discuss mode, and
+      explicitly disclosed these 6 composer items as out of its own scope -- confirmed this task is
+      complementary, not duplicate.
+
+      **Full evidence:** `ai-os/VERIDIAN_REAL_COMPLETION_AUDIT_VERI_CHAT_COMPOSER_UX_LIVE_2026-08-07.md`.
+      **No launch-blocking findings** -- a known, already-tracked UX-completeness gap, not a
+      regression. Docs-only change (audit doc + `IMPLEMENTATION_MATRIX_2026-08-02.md` live-reverification
+      note); no app code touched.
+
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
