@@ -90,3 +90,4 @@ state: all 5 metrics within its 20% drift threshold.
 - `bun run lint` -- **0 errors** (3 pre-existing warnings, unrelated to this diff)
 - `bun build src/lib/openapi/generate.ts` -- bundles cleanly (86 modules)
 - `bun test` (full suite) -- **2512 pass, 0 fail**, 223 files (full `tsc --noEmit` OOM'd on this sandbox's memory limit before completing -- a known environment constraint, not a code issue; `bun build` on the one changed `.ts` file is the substitute check used here)
+
