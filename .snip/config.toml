@@ -1,0 +1,4 @@
+mode = "project"
+
+[filters]
+dir = ".snip/filters"

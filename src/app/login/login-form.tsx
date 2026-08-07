@@ -12,8 +12,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
+import type { PreAuthBrand } from "@/lib/services/org-branding-service";
 
-export function LoginForm() {
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+// implementation (UMR-20260804-090421-c647): `brand` is resolved
+// server-side by the async parent page.tsx (real HTTP Host header ->
+// product_branches lookup) and passed down as a plain prop -- this
+// component does no I/O of its own, matching the "enhance, don't build a
+// second engine" instruction. `null` (the common case: no host match) means
+// "render exactly what this page already rendered before this change" --
+// this must never look broken/different for the platform default.
+export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
   const t = useTranslations("Login");
   const tAuth = useTranslations("Auth");
   const router = useRouter();
@@ -64,6 +73,15 @@ export function LoginForm() {
 
     if (error) {
       toast.error(error.message);
+      // Fire-and-forget: feeds the repeated-failed-auth Tier-1 monitor
+      // (src/lib/services/auth-failure-service.ts). Never blocks the error
+      // toast on this, and never reveals anything beyond what the toast
+      // above already does.
+      fetch("/api/auth/failure-event", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, method: "password" }),
+      }).catch(() => {});
       setLoading(false);
       return;
     }
@@ -184,9 +202,9 @@ export function LoginForm() {
           {/* Logo */}
           <div className="text-center mb-8">
             <div className="inline-flex items-center gap-3 mb-4">
-              <img src="/logo-mark.svg" alt="VERIDIAN AI" className="size-11 rounded-xl" />
+              <img src="/logo-mark.svg" alt={brand?.brandName ?? "VERIDIAN AI"} className="size-11 rounded-xl" />
               <span className="font-heading text-2xl text-white">
-                VERIDIAN AI
+                {brand?.brandName ?? "VERIDIAN AI"}
               </span>
             </div>
             <p className="text-white/60 text-sm">
