@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction"
+  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017 open, all CI green incl. audit-check, AUDIT: PASS posted -- BLOCKED on the known repo-wide self-approval merge deadlock (required_approving_review_count:1 but only one real GitHub identity exists in this environment; see this session's own memory note), awaiting Owner action, not further code work]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
       ai-os/CONSTITUTION.yaml's prompt_cache_framework (CACHE-01..04,
