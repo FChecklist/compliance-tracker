@@ -1,41 +1,38 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
-import { listLeads, listLeadsPaged, createLead, ServiceError } from "@/lib/services/crm-service"
+import { listLeadsPaged, createLead, ServiceError } from "@/lib/services/crm-service"
 
-// VERIDIAN Review Framework gap-closure, "Search, Filter & Bulk
-// Operations": listLeadsPaged() already existed in the service layer
-// (built for the PROJEXA alias route) but nothing under /api/crm/** called
-// it -- GET returned every lead, unfiltered, unpaginated. Backward
-// compatible: a request with none of these params still gets the original
-// `{ leads: [...] }` flat-array shape (existing callers, e.g. the New
-// Opportunity dialog's lead picker, are unaffected). A request with any
-// filter/pagination param gets the paginated shape instead.
+// Wave 3 (2026-07-21): listLeadsPaged already existed (Priority 15) with
+// real search/filter/pagination -- this route only ever called the older
+// unpaged listLeads, a real "software already built, never wired" gap at
+// 100-employee/500-project scale. Same query-param shape as
+// /api/crm/accounts (the paginated precedent in this same module).
+//
+// VERIDIAN Review Framework gap-closure (2026-08-07), "Search, Filter &
+// Bulk Operations": ownerId/source/companyId filters added alongside the
+// existing search/status -- listLeadsPaged() already accepted them
+// (Priority 17), this route just wasn't passing them through yet.
 export async function GET(request: NextRequest) {
   const { response, orgId } = await requireAuth()
   if (response) return response
-  if (!orgId) return NextResponse.json({ leads: [] })
+  if (!orgId) return NextResponse.json({ items: [], total: 0, page: 1, pageSize: 25 })
 
-  const url = new URL(request.url)
-  const search = url.searchParams.get("search") ?? undefined
-  const status = url.searchParams.get("status") ?? undefined
-  const ownerId = url.searchParams.get("ownerId") ?? undefined
-  const source = url.searchParams.get("source") ?? undefined
-  const companyId = url.searchParams.get("companyId") ?? undefined
-  const pageParam = url.searchParams.get("page")
-  const pageSizeParam = url.searchParams.get("pageSize")
-  const hasFilters = !!(search || status || ownerId || source || companyId || pageParam || pageSizeParam)
+  const { searchParams } = new URL(request.url)
 
   try {
-    if (!hasFilters) {
-      const leads = await listLeads({ orgId })
-      return NextResponse.json({ leads })
-    }
-    const { items, total, page, pageSize } = await listLeadsPaged({ orgId }, {
-      search, status, ownerId, source, companyId,
-      page: pageParam ? Number(pageParam) : undefined,
-      pageSize: pageSizeParam ? Number(pageSizeParam) : undefined,
-    })
-    return NextResponse.json({ leads: items, total, page, pageSize })
+    const result = await listLeadsPaged(
+      { orgId },
+      {
+        search: searchParams.get("search") ?? undefined,
+        status: searchParams.get("status") ?? undefined,
+        ownerId: searchParams.get("ownerId") ?? undefined,
+        source: searchParams.get("source") ?? undefined,
+        companyId: searchParams.get("companyId") ?? undefined,
+        page: searchParams.get("page") ? Number(searchParams.get("page")) : undefined,
+        pageSize: searchParams.get("pageSize") ? Number(searchParams.get("pageSize")) : undefined,
+      }
+    )
+    return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("CRM leads list error:", error)

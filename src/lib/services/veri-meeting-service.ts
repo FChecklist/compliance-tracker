@@ -27,11 +27,30 @@ import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engin
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
+import { runMeetingIntelligenceGenerationMonitor } from "@/lib/monitors/meeting-intelligence-generation-monitor"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
+import type { ServiceActor } from "./context"
 
-export type VeriMeetingContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// Wave 143 (PROJEXA Minutes of Meetings wiring): widened from a hardcoded
+// `dbUser: typeof users.$inferSelect` to the same dbUser|apiKey
+// discriminated union `ServiceActor` already used elsewhere in this
+// codebase for exactly this reason (see context.ts's own header) -- every
+// pre-existing caller (VeriChatPanel, voice/ticket/email intelligence,
+// mother-router) still just passes `{ orgId, userId, dbUser }`, which
+// satisfies the `dbUser` branch unchanged. New callers reachable only via a
+// Bearer API key (PROJEXA's callVeridian(), no cookie session) now have a
+// real `{ orgId, userId, apiKey }` option instead of needing a fabricated
+// dbUser.
+export type VeriMeetingContext = { orgId: string; userId: string } & ServiceActor
+
+// logActivity()/runMeetingIntelligenceGenerationMonitor() both require the
+// same discriminated dbUser XOR apiKey actor shape -- this is the one place
+// that ternary gets written, instead of at each of this file's ~9 call sites.
+function actorOf(ctx: VeriMeetingContext): ServiceActor {
+  return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+}
 
 function generateSystemId(): string {
   const year = new Date().getFullYear()
@@ -45,9 +64,18 @@ function assertEditable(meeting: { status: string }) {
   }
 }
 
-export async function listVeriMeetings(ctx: { orgId: string }) {
+// Wave 143: contextEntityId scoping added -- PROJEXA's MoM screen is
+// per-project, so it needs "meetings for this project" rather than the
+// full org-wide feed every existing internal caller (VeriChatPanel's
+// Meetings tab) wants.
+export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.veriMeetings.findMany({ where: eq(veriMeetings.orgId, ctx.orgId), orderBy: desc(veriMeetings.scheduledAt) })
+    db.query.veriMeetings.findMany({
+      where: contextEntityId
+        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId))
+        : eq(veriMeetings.orgId, ctx.orgId),
+      orderBy: desc(veriMeetings.scheduledAt),
+    })
   )
 }
 
@@ -82,7 +110,7 @@ export async function createVeriMeeting(
 
     await logActivity({
       tx: db, action: "veri_meeting.created", entityType: "veri_meeting", entityId: meeting!.id,
-      details: `Created meeting "${title}"`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Created meeting "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return meeting
   })
@@ -113,7 +141,7 @@ export async function updateVeriMeetingDetails(
     const changedFields = Object.keys(patch).filter((k) => k !== "updatedAt")
     await logActivity({
       tx: db, action: "veri_meeting.details_updated", entityType: "veri_meeting", entityId: meetingId,
-      details: `Updated: ${changedFields.join(", ")}`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Updated: ${changedFields.join(", ")}`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return updated
   })
@@ -134,7 +162,7 @@ export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: s
 
     await logActivity({
       tx: db, action: "veri_meeting.minutes_updated", entityType: "veri_meeting", entityId: meetingId,
-      details: "Minutes updated", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Minutes updated", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return updated
   })
@@ -154,7 +182,7 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
 
     await logActivity({
       tx: db, action: "veri_meeting.published", entityType: "veri_meeting", entityId: meetingId,
-      details: "Meeting published and locked", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Meeting published and locked", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return row
   })
@@ -187,53 +215,80 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
 // explicitly promotes via the existing addMeetingActionItem(), never
 // auto-created as real `tasks` rows.
 export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meetingId: string) {
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
-    const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
-    if (!meeting) throw new ServiceError("Meeting not found", 404)
-    if (!meeting.minutes?.trim()) throw new ServiceError("Meeting has no minutes to analyze", 400)
+  // Split from the generation attempt itself (RES-02 Phase 1,
+  // PLATFORM_STRATEGY.md 29.3): "meeting not found"/"no minutes to analyze"
+  // are input-validation failures, never a real generation attempt, so they
+  // must never trigger meeting-intelligence-generation-monitor.ts's
+  // COO escalation -- only a genuine attempt (model config resolved, LLM
+  // call made) that then fails counts as a MOM_GENERATED rule violation.
+  const meeting = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+  )
+  if (!meeting) throw new ServiceError("Meeting not found", 404)
+  if (!meeting.minutes?.trim()) throw new ServiceError("Meeting has no minutes to analyze", 400)
 
-    const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+  try {
+    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+      const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+      if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
 
-    const systemPrompt = await resolvePromptTemplate("meeting_intelligence.extract")
-    const userMessage = `Meeting: "${meeting.title}"\n\nMinutes:\n${meeting.minutes}`
+      const systemPrompt = await resolvePromptTemplate("meeting_intelligence.extract")
+      const userMessage = `Meeting: "${meeting.title}"\n\nMinutes:\n${meeting.minutes}`
 
-    // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
-    // minutes are human-typed free text, the same risk shape as any chat
-    // surface -- this call had no Constitution gate despite that.
-    const policyDecision = enforcePolicy(
-      { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
-      userMessage
+      // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+      // minutes are human-typed free text, the same risk shape as any chat
+      // surface -- this call had no Constitution gate despite that.
+      const policyDecision = enforcePolicy(
+        { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
+        userMessage
+      )
+      if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
+
+      const startedAt = Date.now()
+      const { data: result, usage } = await callLLMJson<{
+        summary: string
+        keyDecisions: string[]
+        suggestedActionItems: { title: string; assignee: string | null; dueDateHint: string | null }[]
+      }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
+
+      recordOrchestraExecution({
+        orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
+        input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
+        status: "completed", durationMs: Date.now() - startedAt,
+        provider: modelConfig.provider, model: modelConfig.model, usage,
+      })
+
+      const [updated] = await db.update(veriMeetings).set({
+        aiSummary: result.summary,
+        aiKeyDecisions: result.keyDecisions ?? [],
+        aiSuggestedActionItems: result.suggestedActionItems ?? [],
+        aiGeneratedAt: new Date(),
+      }).where(eq(veriMeetings.id, meetingId)).returning()
+
+      await logActivity({
+        tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
+        details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, ...actorOf(ctx),
+      })
+
+      await runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
+        meetingId, title: meeting.title, succeeded: true,
+      })
+
+      return updated
+    })
+  } catch (err) {
+    // The transaction above rolled back on throw, so a monitor row logged
+    // inside it would have rolled back too -- a fresh transaction is the
+    // only way the escalate report actually persists, same "separate
+    // read/write transactions" posture dispatch-completion-monitor.ts's own
+    // runDispatchCompletionSweep already uses.
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
+        meetingId, title: meeting.title, succeeded: false, failureReason: err instanceof Error ? err.message : String(err),
+      })
     )
-    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
-
-    const startedAt = Date.now()
-    const { data: result, usage } = await callLLMJson<{
-      summary: string
-      keyDecisions: string[]
-      suggestedActionItems: { title: string; assignee: string | null; dueDateHint: string | null }[]
-    }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
-
-    recordOrchestraExecution({
-      orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
-      input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
-      status: "completed", durationMs: Date.now() - startedAt,
-      provider: modelConfig.provider, model: modelConfig.model, usage,
-    })
-
-    const [updated] = await db.update(veriMeetings).set({
-      aiSummary: result.summary,
-      aiKeyDecisions: result.keyDecisions ?? [],
-      aiSuggestedActionItems: result.suggestedActionItems ?? [],
-      aiGeneratedAt: new Date(),
-    }).where(eq(veriMeetings.id, meetingId)).returning()
-
-    await logActivity({
-      tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
-      details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, dbUser: ctx.dbUser,
-    })
-    return updated
-  })
+    throw err
+  }
 }
 
 // Action item becomes a real `tasks` row -- VERI To Do's listVeriTodos()
@@ -273,7 +328,7 @@ export async function addMeetingActionItem(
 
     await logActivity({
       tx: db, action: "veri_meeting.action_item_added", entityType: "veri_meeting", entityId: meetingId,
-      details: `Action item added: "${title}"`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Action item added: "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return { actionItem, task: task! }
   })
@@ -332,7 +387,7 @@ export async function createMeetingShareLink(ctx: VeriMeetingContext, meetingId:
 
     await logActivity({
       tx: db, action: "veri_meeting.share_link_created", entityType: "veri_meeting", entityId: meetingId,
-      details: "Share link created", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Share link created", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return link
   })
