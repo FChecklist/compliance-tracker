@@ -10140,3 +10140,43 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260807-073946-retry-ai-documentation-lifecycle-v2, UMR-20260801-173737-547a) -- VERIDIAN Review Framework: AI Documentation / Documentation Lifecycle gap-closure, duplicate dispatch [DONE, closed same session, no new PR]"
+    claimed_at: "2026-08-07T (this session, closed same session)"
+    claim: |
+      SPEC (sub-task of `UMR-20260801-170930-2080`, retrying an attempt originally blocked by the
+      now-removed OpenRouter/Cerebras balance hard-stop): close 5 Medium findings -- Automatic
+      Documentation Generation, Documentation Versioning, Documentation Accuracy, Documentation
+      Completeness, Documentation Synchronization with Code.
+
+      Did not re-implement. Found this exact gap was already fully closed by a real prior
+      redispatch of this same task (`task-20260801-173753-retry-ai-documentation-lifecycle-v2`),
+      which built `scripts/check-doc-drift.mjs` + `ai-os/system-tree/doc-counts-baseline.yaml`
+      (findings #1/#3), verified finding #2's mechanism as already-adequate per its own
+      recommendation, and ran `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (findings #4/#5,
+      empty-guardrails 48/94 -> 40/94, plus a defined ~90-day audit-cadence recommendation) --
+      all in **PR #685**, already independently `AUDIT: PASS`ed 2026-08-02 (commit `acba56faa`).
+
+      Independently re-verified rather than trusting the prior claim: `gh pr view 685` shows
+      `OPEN`/`mergeable: MERGEABLE`/`mergeStateStatus: BLOCKED` (review-count only, not a merge
+      conflict), every real CI check green (`gh pr checks 685`), and the PR branch already
+      contains today's `main` tip (`958ccacc8`) per `git merge-base --is-ancestor`. Re-ran the
+      doc-drift check's own counting logic against this session's live checkout: tables 443/443
+      (0%), enums 130/130 (0%), API routes 995/991 (0.4%), app pages 163/163 (0%), components
+      81/81 (0%) -- all inside the 10% tolerance band, baseline still accurate today.
+
+      The only two things not yet done are pre-existing, unrelated, and not closable by any
+      session's own action this week: (a) PR #685 is blocked purely by the standing
+      branch-protection self-approval deadlock (see `[[veridian-branch-protection-self-approval-deadlock-active]]`,
+      9+ confirmations, this session's own `gh auth status` shows the identical single-identity
+      credential); (b) the new `doc-drift` CI job is real, tested standalone code but isn't wired
+      into `.github/workflows/ci.yml` yet because this environment's `gh` token lacks `workflow`
+      scope (see `[[gh-token-lacks-workflow-scope]]`), confirmed still true this session too.
+      Opening a second PR would only duplicate the review deadlock and risk a real
+      `ai-os/system-tree/*`/`ACTIVE-CLAIMS.yaml` conflict against PR #685 for zero benefit, so no
+      new PR was opened. Recorded via `agent_work_briefing.py record-completion` against
+      `UMR-20260801-173737-547a`.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this `ACTIVE-CLAIMS.yaml` entry only. Read-only investigation
+      (`gh pr view`/`gh pr checks`, `git merge-base`, `git cat-file`, local re-run of the
+      doc-drift counting logic) -- no src/, schema, script, CI workflow, or governance-registry
+      changes; PR #685 itself was not touched, merged, or force-pushed.
