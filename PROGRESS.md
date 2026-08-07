@@ -132,6 +132,48 @@ each area FIRST, before assuming the gap-analysis wording still holds.
 - [ ] PR #1019 open (https://github.com/FChecklist/compliance-tracker/pull/1019),
       CI running -- confirm green, hand off for independent audit/merge.
 
+## CI fix, round 2 (this session, invocation 16): the round-1 leak fix didn't hold
+
+The prior session's commit `2241988990` claimed to fix a real CI-only failure
+(`llm-client.test.ts`'s 4 Anthropic-prompt-caching tests failing only in CI,
+never locally) by adding a "capture the real `@/lib/llm-client` module once,
+restore it in `afterEach`" pattern to `llm-response-cache.test.ts`, reusing
+`tenant-isolation.test.ts`'s established convention (PR #434). Verified this
+was **not actually fixed**: re-checked PR #1019's live CI run
+(`gh run view` on the HEAD commit's own run, not a stale cached status) --
+`Unit Tests` was still failing, with the exact same 4 tests, same error
+(`TypeError: undefined is not an object (evaluating 'getBody().system')`,
+i.e. `callLLM` never called `fetch` -- proof the leaked stub from
+`llm-response-cache.test.ts`'s `setupMocks()` was still what
+`llm-client.test.ts`'s own static `import { callLLM } from "./llm-client"`
+resolved to, restore-in-`afterEach` notwithstanding).
+Root-caused via the real CI job log (`gh api .../actions/jobs/<id>/logs`,
+not the truncated `gh run view` summary): `llm-response-cache.test.ts` runs
+immediately before `llm-client.test.ts` in CI's real file-discovery order
+(confirmed by log line order), and dozens of unrelated files run cleanly
+between them -- so the leak isn't "any mock.module() call taints everything
+forever," it's specifically that `llm-client.test.ts`'s own static
+top-level import of the exact same module still bound to the mocked
+version despite the `afterEach` restore call having already run by then.
+`mock.restore()` not undoing `mock.module()` is documented; explicitly
+re-`mock.module()`-ing back to a captured real reference turned out to be
+an unreliable fix for *this* class of leak (a same-file, same-process
+static import of the mocked module elsewhere), not just a cosmetic gap --
+same honest limitation the `tenant-isolation.test.ts` comment already
+flagged ("defense-in-depth... not a locally-provable fix on its own").
+Fixed by removing the `@/lib/llm-client` `mock.module()` call entirely:
+`llm-response-cache.test.ts` now mocks `globalThis.fetch` instead (the
+exact pattern `llm-client.test.ts` already uses on itself), so `callLLM`
+runs as real, unmocked code against a fake HTTP response -- zero
+module-registry mutation for this dependency, eliminating the leak vector
+rather than chasing another instance of it. Verified: isolated run, both
+file orders explicitly (`llm-response-cache.test.ts` then
+`llm-client.test.ts`, and reversed), and the full local suite (2502
+pass/0 new fail -- the 2 pre-existing local-only fails/2 errors are an
+unrelated missing `@fchecklist/veridian-ui-kit` package in this sandbox,
+confirmed passing in CI's own log for those same tests). `eslint` clean.
+Pushed as a new commit on this same branch/PR #1019 -- not a new PR.
+
 ## Merge with `origin/main` (this session)
 
 `origin/main` had advanced far past this branch's fork point (an unrelated

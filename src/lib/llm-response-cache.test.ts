@@ -12,19 +12,36 @@
 // Mocks @/lib/db and @/lib/ai-config-crypto, matching
 // org-branding-service.test.ts's established pattern for this class of
 // dependency (never touching a live DB or pgcrypto from a .test.ts file).
-// @/lib/llm-client is different: llm-client.test.ts tests that module's
-// REAL implementation directly, so a bare `mock.module("@/lib/llm-client",
-// ...)` here would leak a stub into Bun's process-wide module cache for
-// the rest of the suite -- mock.restore() does NOT undo mock.module()
-// (confirmed Bun limitation; this exact class of bug previously broke
-// tenant-isolation.test.ts, see PR #434 / src/lib/services/tenant-isolation.test.ts's
-// "capture real modules, restore in afterEach" convention, reused here).
+// @/lib/llm-client is deliberately NEVER passed to mock.module() here --
+// llm-client.test.ts tests that module's REAL implementation directly via
+// a static top-level `import { callLLM } from "./llm-client"`, and a
+// mock.restore()-in-afterEach "capture real module, restore it" pattern
+// (tenant-isolation.test.ts's own established convention, PR #434) was
+// tried here first and did NOT hold on CI's real file-discovery order --
+// llm-client.test.ts's own static import still resolved to this file's
+// stale mocked callLLM 4 times in a row, breaking its real Anthropic
+// prompt-caching assertions (confirmed live in CI, unreproducible locally
+// where file order differs; mock.module() replaces bun's process-wide
+// module registry entry, and restoring it later doesn't reliably un-leak
+// an already-bound static import elsewhere). Fixed instead by mocking
+// globalThis.fetch directly (llm-client.test.ts's own established pattern
+// for exercising callLLM's REAL code against a fake HTTP response) --
+// callLLM runs for real, unmocked, so there is no module-registry mutation
+// at all for this dependency, eliminating the leak vector rather than
+// chasing it.
 import { describe, test, expect, mock, beforeEach, afterEach } from "bun:test"
 
-const realLlmClient = await import("@/lib/llm-client")
+const realFetch = globalThis.fetch
 
-async function restoreRealModules(): Promise<void> {
-  await mock.module("@/lib/llm-client", () => realLlmClient)
+/** Fakes the OpenAI-compatible-provider HTTP response callLLM's groq branch expects (callOpenAICompatible's `data.choices[0].message.content` / `data.usage.{prompt,completion}_tokens` shape). */
+function mockLlmFetch(content: string, usage: { promptTokens: number; completionTokens: number } = { promptTokens: 10, completionTokens: 5 }) {
+  globalThis.fetch = (async () => ({
+    ok: true,
+    json: async () => ({
+      choices: [{ message: { content } }],
+      usage: { prompt_tokens: usage.promptTokens, completion_tokens: usage.completionTokens },
+    }),
+  })) as typeof fetch
 }
 
 function mockDbUpdateChain(spy: (values: unknown) => void) {
@@ -69,18 +86,15 @@ function setupMocks(opts: {
     encryptApiKey: mock(opts.encrypt ?? (async (plaintext: string) => `enc:${plaintext}`)),
     decryptApiKey: mock(opts.decrypt ?? (async (ciphertext: string) => ciphertext.replace(/^enc:/, ""))),
   }))
-  mock.module("@/lib/llm-client", () => ({
-    ...realLlmClient,
-    callLLM: mock(async () => ({ content: "fresh answer", usage: { promptTokens: 10, completionTokens: 5 } })),
-  }))
+  mockLlmFetch("fresh answer")
 }
 
 beforeEach(() => {
   mock.restore()
 })
 
-afterEach(async () => {
-  await restoreRealModules()
+afterEach(() => {
+  globalThis.fetch = realFetch
 })
 
 describe("callLLMCached -- encryption at rest", () => {
@@ -193,10 +207,7 @@ describe("callLLMJsonCached -- encryption + TTL parity with callLLMCached", () =
       hit: null,
       onInsert: (v) => (inserted = v),
     })
-    mock.module("@/lib/llm-client", () => ({
-      ...realLlmClient,
-      callLLM: mock(async () => ({ content: '{"answer":"ok"}', usage: { promptTokens: 4, completionTokens: 2 } })),
-    }))
+    mockLlmFetch('{"answer":"ok"}', { promptTokens: 4, completionTokens: 2 })
     const { callLLMJsonCached } = await import("./llm-response-cache")
 
     const result = await callLLMJsonCached<{ answer: string }>({ orgId: "org-1" }, "groq", "llama-3", "key", "sys", "user")
