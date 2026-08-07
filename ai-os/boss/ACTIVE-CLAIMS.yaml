@@ -40,6 +40,18 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-062740-cleanup-closed-6-stale-awaiting-approval) -- data-integrity cleanup of 6 task.yaml records stuck at status=awaiting_human_approval whose target PRs (#418, #419, #589, #591, #592, #593 on FChecklist/compliance-tracker) are already MERGED"
+    claimed_at: "2026-08-07T06:27Z (this session)"
+    claim: |
+      SPEC (800-task audit cleanup action): independently re-verified via `gh pr view` that PRs
+      #418, #419, #589, #591, #592, #593 are all real, MERGED (confirmed mergedAt timestamps for
+      each, ranging 2026-07-18 to 2026-07-27) -- not stale claims, live-reconfirmed this session.
+      The corresponding task.yaml records were never updated off `awaiting_human_approval` after a
+      human merged them. Data-integrity/record-keeping cleanup only -- no code changes, no PR
+      actions taken.
+    scope_note: >-
+      File scope: the 6 target task.yaml records only, PROGRESS.md, this ACTIVE-CLAIMS.yaml entry.
+      No src/, schema, or infrastructure changes.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
