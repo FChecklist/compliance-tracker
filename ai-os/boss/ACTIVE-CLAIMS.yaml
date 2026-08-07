@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (worker task-20260718-082004) -- CRM & Sales Modules: Sales Pipeline gap-closure"
+  - session_label: "claude-code (worker task-20260718-082004) -- CRM & Sales Modules: Sales Pipeline gap-closure -- PR #1018, all 8 required CI checks green (incl. audit-check), BLOCKED on merge by the standing self-approval reviewer-identity deadlock (not implementation work) [implementation DONE, merge pending Owner action]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
       VERIDIAN Review Framework gap-closure for Sales Pipeline (14 findings

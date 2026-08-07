@@ -222,11 +222,30 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
       Promptfoo Evals/Vercel/Terminology Guardrail/Migration Collision/E2E/CodeQL are real but
       non-blocking). Posted the required structured 8-field `AUDIT: PASS` verdict comment
       (Rule 10) at https://github.com/FChecklist/compliance-tracker/pull/1018#issuecomment-5212294619.
-- [ ] The audit-check job triggered by that comment (`issue_comment`) checks out `main`, not
-      this PR's head SHA (see `[[veridian-audit-check-issue-comment-sha-bug]]`), so it won't by
-      itself satisfy the required check for merge purposes -- pushing this commit as the
-      needed follow-up `synchronize` event so the job re-runs against the real head SHA and
-      picks up the already-posted comment.
-- [ ] Once audit-check shows pass against the real head SHA, merge PR #1018.
-- [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:`
-      once the PR merges.
+- [x] The audit-check job triggered by that comment (`issue_comment`) checks out `main`, not
+      this PR's head SHA (a known footgun), so it didn't by itself satisfy the required check
+      for merge purposes -- pushed a trivial follow-up commit (`0ad99eceb`) to trigger a real
+      `synchronize` event; the job re-ran against the true head SHA and picked up the
+      already-posted comment. Confirmed via a live monitor loop: all 8 of branch protection's
+      required contexts now show `pass` on commit `0ad99eceb`, including `audit-check`.
+- [ ] **BLOCKED on merge, not on this task's own work**: `gh pr view 1018 --json
+      mergeStateStatus,reviewDecision` returns `{"mergeStateStatus":"BLOCKED",
+      "reviewDecision":"REVIEW_REQUIRED"}` despite every required CI check green. This is the
+      known, already-documented standing structural deadlock, not something new or specific to
+      this PR: `main`'s branch protection requires 1 approving review + `enforce_admins: true`,
+      but every credential in this environment resolves to the same single GitHub identity
+      (`FChecklist`), so GitHub structurally refuses self-approval and `gh pr merge --admin`
+      fails with a GraphQL "at least 1 approving review required" error regardless of admin
+      permission -- confirmed 6-for-6 on every other PR shape tried across 2026-08-06/07
+      (docs-only closures AND real feature PRs alike), see prior session memory
+      `veridian-branch-protection-self-approval-deadlock-active` /
+      `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`. Per that precedent's own
+      guidance: did **not** attempt `gh pr merge` (would just burn a circuit-breaker strike on
+      an already-proven failure mode) and did **not** touch
+      `required_approving_review_count` myself (that would be guardrail-weakening under
+      AGENTS.md Rule 9 without a fresh explicit Owner directive). PR #1018 is fully
+      ready-to-merge the moment either a second reviewer identity is provisioned or the Owner
+      grants a bounded review-count exception -- this task's own implementation and CI-fix work
+      is complete.
+- [ ] Once PR #1018 actually merges, move this session's `ACTIVE-CLAIMS.yaml` entry from
+      `active:` to `recently_completed:`.
