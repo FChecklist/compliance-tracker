@@ -5857,6 +5857,20 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-071602-retry-ai-documentation-ai-readable-techn) -- VERIDIAN Review Framework gap closure: AI-Readable Technical Documentation, 8/10 findings closed, 1 deferred (disclosed), 1 no-op (already fine), PR #1047 [DONE, awaiting independent audit before merge]"
+    claimed_at: "2026-08-07T14:10Z (this session, invocation 2/20, registered and closed together -- real work for this task was already done uncommitted in invocation 1; this session's own task.yaml/PROGRESS.md checkpoint narrative had been cross-contaminated with an unrelated task's content and never registered a claim here, corrected this invocation)"
+    claim: |
+      SPEC (redispatch of task-20260718-064002, UMR-20260801-170930-2080, 10 AI-Readable
+      Technical Documentation findings from task-20260801-173750's evaluation): closed
+      Business Rules [High], Configuration [Medium], Prompt [Medium], Workflow [Medium], API
+      [Medium], Architecture+Database [Low, shared gap], Calculation [Low] findings; confirmed
+      Metadata [Low] needed no action; deferred Module [Low] (explicitly optional per the
+      finding's own text). Full verification trail in PROGRESS.md on the PR branch --
+      business-rule file:line citations, engine/route file counts, and the 26-key prompt count
+      were spot-checked directly against source before committing, not just asserted.
+      `scripts/check-doc-scale-freshness.mjs` (new) is not yet wired into `ci.yml` -- this
+      session's `gh` token lacks the `workflow` OAuth scope needed to push that file; documented
+      as a remaining step. PR: https://github.com/FChecklist/compliance-tracker/pull/1047
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
