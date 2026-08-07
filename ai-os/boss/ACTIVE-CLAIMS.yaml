@@ -1624,6 +1624,38 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
+    completed_at: "2026-08-07T (this session)"
+    merged_as: "PR pending at time of writing -- see this task's own PROGRESS.md"
+    summary: |
+      This task's own prompt.txt/spec was never written to the workspace
+      (task.yaml has no spec field beyond the title; 13 prior invocations
+      all failed/blocked, mostly on OpenRouter credit-accountant pre-flight
+      rejections, zero real work landed). Audited the existing CRM/Sales
+      module for a genuine open gap rather than re-doing already-shipped
+      work (lead-to-opportunity pipeline, AI scoring/analysis, follow-up-
+      task chaining, Sales Pipeline dashboard/KPI widget all already built).
+      Real gap found: crm-accounts-service.ts got an owner-or-manager RBAC
+      gate in Wave 4 (2026-07-17) but crm_leads/crm_opportunities never did
+      -- any authenticated org member (viewer rank included) could
+      create/edit any lead or opportunity and silently reassign ownership
+      via plain PATCH { ownerId } with zero rank check, through the native
+      /api/crm/leads* and /api/crm/opportunities* routes. Added
+      canEditLead/canReassignOrDeleteLead/canEditOpportunity/
+      canReassignOrDeleteOpportunity/canCreateCrmRecord to crm-service.ts
+      (same shape as the accounts-service precedent), wired into
+      createLead/updateLead/createOpportunity/updateOpportunity via a new
+      optional CrmContext.role field (so the many other CrmContext call
+      sites, incl. all v1/projexa/** routes which already gate at the route
+      layer via requireRoleOrScope, are unaffected), updated the 4 native
+      CRM route files to pass dbUser.role. Added crm-service.test.ts (27
+      pure/no-DB tests, same pattern as crm-accounts-service.test.ts).
+      Verified: bun test on both crm test files (65 pass/0 fail), eslint on
+      all touched files (clean). File scope: src/lib/services/crm-service.ts,
+      crm-service.test.ts, the 4 route.ts files under
+      src/app/api/crm/{leads,opportunities}/. v1/projexa/** routes
+      deliberately untouched (already gated, and their API-key-auth path has
+      no dbUser.role to thread through without added risk).
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"

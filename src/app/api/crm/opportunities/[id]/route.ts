@@ -12,7 +12,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const body = await request.json()
-    const opportunity = await updateOpportunity({ orgId, userId: dbUser.id }, id, body)
+    const opportunity = await updateOpportunity({ orgId, userId: dbUser.id, role: dbUser.role }, id, body)
     return NextResponse.json(opportunity)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
