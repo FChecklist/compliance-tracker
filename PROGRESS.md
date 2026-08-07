@@ -89,7 +89,7 @@ what was actually found vs. the original gap description.
 - [x] Read current implementation (crm-service.ts, /api/crm/leads/**,
       /crm page, report_definitions, schema.ts) against all 13 findings.
 - [x] #2 status transition validation (`VALID_LEAD_TRANSITIONS`, enforced in `updateLead()`)
-- [x] #6 FORCE RLS migration (`drizzle/0225_force_rls_crm_leads_stage_history.sql`) --
+- [x] #6 FORCE RLS migration (`drizzle/0313_force_rls_crm_leads_stage_history.sql`) --
       **not yet applied live** (no DB-access tool available in this session;
       prior FORCE-RLS migrations in this history were applied live via the
       Supabase MCP by a session that had it -- flagged as a follow-up).
@@ -136,14 +136,83 @@ what was actually found vs. the original gap description.
 
 ## Remaining
 - [x] Opened PR: https://github.com/FChecklist/compliance-tracker/pull/1014
-- [ ] CI had not registered any check runs (beyond the Vercel preview,
-      which failed on an unrelated "Deployment rate limited" infra flake)
-      as of this session's last check, several minutes after PR creation --
-      unclear whether that's a delay or needs a `git commit --allow-empty`
-      nudge/synchronize event. Next invocation: check `gh pr checks 1014`
-      again; if still nothing, push an empty commit to force a
-      `synchronize` event, then let CI run and fix anything it catches.
+- [x] PR #1014 had gone `CONFLICTING`/`DIRTY` against `main` (788 commits
+      landed on main since this branch was cut, including a genuine
+      architectural refactor of `crm/page.tsx` into a lightweight
+      dashboard with the real Leads UI moved to a new dedicated
+      `crm/leads/page.tsx`, plus an independent `ServiceError` redesign in
+      `compliance-service.ts`). Merged `origin/main` and resolved all 8
+      conflicting files by hand:
+      - `PROGRESS.md`: kept ours (repo convention -- this file is
+        wholesale-replaced per active task, confirmed by main's own
+        `git log` history of the same file).
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml`: kept both claim entries
+        (concurrent, non-overlapping sessions).
+      - `vercel.json`: kept both sets of new cron entries.
+      - `src/lib/services/crm-service.test.ts`: both branches added a
+        pure-predicate test file for different exports of the same
+        module (mine: `VALID_LEAD_TRANSITIONS`/Zod schemas; main's Task
+        #46: `computeRoundRobinAssignment`/`aggregateLeadSourceEffectiveness`)
+        -- merged into one file, one shared import line.
+      - `src/lib/services/crm-service.ts`: merged import lists (both
+        branches added distinct new imports).
+      - `src/lib/services/compliance-service.ts`: main independently
+        redesigned `ServiceError`'s 3rd constructor arg from my flat
+        `fields?: Record<string,string>` into a structured `opts` object
+        (`code`/`friendlyMessage`/`remediationSteps`/`kind`/`retryable`,
+        an Exception Handling Framework gap-closure). Reconciled by
+        adding `fields` as an additional key on that same `opts` object
+        (not a separate parameter) and updating my 2 call sites
+        (`createLead`/`updateLead`'s Zod-failure throws) to the new
+        shape -- every other call site in the codebase (~1450, all 2-arg
+        or already `opts`-shaped) is unaffected.
+      - `src/lib/services/product-branch-service.ts`: merged import list
+        (`db` for my cron-facing `listOrgIdsWithBranchEnabled`, plus
+        main's `organisations`).
+      - `src/app/api/crm/leads/route.ts`: main's Wave 3 (2026-07-21,
+        already shipped, predates this session) independently wired the
+        exact same `listLeadsPaged` filters I'd added, but always returns
+        the paginated `{items,total,page,pageSize}` shape (no flat
+        `{leads}` back-compat branch) -- confirmed live-relied-upon by
+        `crm/leads/page.tsx`, `crm/opportunities/page.tsx` (both already
+        read `.items`). Adopted main's always-paginated version outright;
+        my ownerId/source/companyId filters were already accepted by
+        `listLeadsPaged` pre-merge, so no functional loss.
+      - `src/app/(app)/crm/page.tsx`: main's Wave 3 replaced this file
+        entirely -- the old full tabbed Leads/Opportunities management UI
+        I'd built my UI additions into no longer exists; it's now a
+        lightweight dashboard/overview linking out to dedicated
+        `crm/leads`, `crm/opportunities`, `crm/accounts`, `crm/contacts`,
+        `crm/campaigns` pages. Took main's version as-is (it's the
+        correct, already-established architecture) rather than fighting
+        it.
+      - `src/app/(app)/crm/leads/page.tsx` (Wave 3's real, current Leads
+        UI, not itself in conflict since my branch never touched it):
+        ported every net-new UI feature that used to live in the old
+        `crm/page.tsx` onto this file instead -- bulk-select checkboxes +
+        bulk-reassign toolbar, CSV export/import buttons + template link,
+        per-field validation error rendering under the New Lead dialog's
+        inputs, and the `LeadLifecycleHelp` popover. All call the same
+        backend endpoints built earlier in this session
+        (`/api/crm/leads/bulk-reassign`, `/export`, `/import`,
+        `/import/template`) -- those endpoints themselves had zero merge
+        conflicts.
+      - `src/lib/services/crm-service.ts`'s new 0225-numbered migration
+        collided with main's own new `0225_support_sessions.sql` --
+        caught by CI's "Migration Number Collision Check" on first push
+        post-merge. Renamed to `0313` (next free number after main's
+        actual current highest, `0312`; my first `ls | sort | tail -15`
+        check under-counted and missed 0300+ files) and added the
+        matching `drizzle/meta/_journal.json` entry.
+      - Verified post-merge: `bun x eslint` clean on all 9 touched files;
+        `bun test crm-service.test.ts crm-accounts-service.test.ts
+        sales-pipeline-dashboard-service.test.ts` -- 81/81 pass; migration
+        collision check passes; no stray conflict markers anywhere in the
+        repo (`git grep`).
 - [ ] Flag for a follow-up session with Supabase MCP access: apply
-      `drizzle/0225_force_rls_crm_leads_stage_history.sql` live.
+      `drizzle/0313_force_rls_crm_leads_stage_history.sql` live.
 - [ ] Once merged, move this session's ACTIVE-CLAIMS.yaml entry from
       `active:` to `recently_completed:`.
+- [ ] Re-check `gh pr checks 1014` next invocation -- CI registered real
+      checks this time (Lint/Type Check/Unit Tests/etc. all `pending` as
+      of this push); confirm they go green and the PR becomes mergeable.
