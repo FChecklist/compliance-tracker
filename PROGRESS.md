@@ -25,8 +25,17 @@ order (174 before 175 before 173, since 172/176/177 are already gone).
 - [x] Live-requeried mergeable state for all 6 PRs (not the PM's stale 14:46 snapshot):
       172/176/177 already MERGED; 173/174/175 OPEN.
 
+- [x] PR 174 (superboss-register mark-umr-terminal evidence gate) reviewed: full diff read,
+      16 new tests + 328 existing repo tests all pass (376 total after merge). Found a REAL
+      merge conflict vs current main (git merge --no-commit --no-ff showed CONFLICT in
+      superboss-register.py -- non-overlapping insertion: main's PR#172
+      cmd_requeue_build_lock_contended() vs this PR's validate_umr_terminal_completion_evidence(),
+      same insertion point). Resolved properly (kept both functions, no content dropped),
+      verified ast.parse() clean + full suite green post-merge, pushed as a fast-forward
+      (not a force-push) to the PR's own branch. mergeable flipped MERGEABLE/CLEAN after.
+      MERGED 2026-08-07T00:07:35Z, commit d0d1050e264e9b5fa14f553c35316bbd9b3693cb.
+
 ## Remaining
-- [ ] Review PR 174 (superboss-register mark-umr-terminal evidence gate) -- run real tests
 - [ ] Review PR 175 (prune-memory-backups cadence + event trigger) -- run real tests
 - [ ] Review PR 173 (gtm_check_ux_audit aria-hidden exclusion) -- run real tests
 - [ ] Merge whichever genuinely pass; record real reasons for any declined
