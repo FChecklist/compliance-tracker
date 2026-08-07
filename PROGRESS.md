@@ -46,8 +46,39 @@ order (174 before 175 before 173, since 172/176/177 are already gone).
       --no-commit --no-ff` clean). MERGED 2026-08-07T00:08:58Z, commit
       ced1f1468dd3e535a2a2d5a7352d56e7cb23c9a9.
 
+- [x] PR 173 (gtm_check_ux_audit aria-hidden exclusion) reviewed: 8-line diff, clone+strip
+      aria-hidden approach is correct and matches its own claimed root cause. Clean merge
+      (no conflict). `tests/test_gtm_check_ux_audit.py` -> 24/24 pass (matches PR's own claim),
+      full suite -> 376/376 pass. MERGED 2026-08-07T00:11:25Z, commit
+      5ebc095fa870c9709679b0df72611b4f9e2568ac.
+- [x] Final open-PR count in veridian-scripts: 30 (was 56 at task start -- most of that drop is
+      other concurrent live sessions merging their own PRs in this fast-moving repo, not this task).
+- [x] Child UMR-20260807-000049-8303 marked completed with real structured evidence
+      (--commit-sha ced1f1468d... verified a real ancestor of origin/main, --pr-number 175).
+
 ## Remaining
-- [ ] Review PR 173 (gtm_check_ux_audit aria-hidden exclusion) -- run real tests
-- [ ] Merge whichever genuinely pass; record real reasons for any declined
-- [ ] Write real evidence into child UMR row; mark-umr-terminal
-- [ ] Final report: merged list, declined list + reasons, resulting open-PR count
+- [x] All steps done.
+
+## Final report
+
+**Merged (3):**
+- PR 174 -- fix(superboss-register): make mark-umr-terminal require real structured completion
+  evidence -- real merge conflict found and resolved (non-overlapping insertion clash with
+  PR172's cmd_requeue_build_lock_contended, both kept). 376/376 tests pass. Commit d0d1050e.
+- PR 175 -- fix(memory): raise prune-memory-backups cadence, add event-based trigger --
+  systemd-only, verified byte-identical to the real already-live installed units. Commit ced1f146.
+- PR 173 -- fix(gtm_check_ux_audit): exclude aria-hidden descendants from link-text extraction --
+  24/24 + 376/376 tests pass. Commit 5ebc095f.
+
+**Already merged before this task started (not this session's action, verified live rather than
+trusting the PM's stale 14:46 snapshot):**
+- PR 172 (build-lock serialization fix) -- merged 2026-08-06T15:56:16Z
+- PR 176 (bound unbounded FTS lookups) -- merged 2026-08-06T16:36:44Z
+- PR 177 (reconcile_stale_heartbeats execute gate) -- merged 2026-08-06T14:44:57Z
+
+**Declined:** none -- all 3 PRs still open at task start genuinely passed real review (real diff
+read, real tests run, real merge-conflict check) and were merged.
+
+**Resulting open PR count in veridian-scripts:** 30 (was 56 at task start; the repo is under
+heavy independent concurrent churn, so most of that delta is other live sessions' own merges,
+not this task's).
