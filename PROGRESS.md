@@ -151,7 +151,36 @@ data supports.
       no-op-content commit (this PROGRESS.md update itself) right after
       the audit comment to force that `synchronize` event.
 
+- [x] Confirmed `audit-check` re-ran and passed against this PR's *actual*
+      head SHA (`e8318593f`, verified via
+      `gh api .../commits/<sha>/check-runs`, not just the check name) --
+      the known stale-main-SHA re-trigger bug did not bite this time
+      because the trivial commit was pushed *before* the audit comment,
+      not after. All CI checks now pass except non-required `Vercel`
+      (rate-limited preview deploy): Lint, Type Check, Build, Unit Tests,
+      E2E, Analyze, audit-check, Guardrail Presence, Asset Registry
+      Coverage, Metadata Index Coverage, Terminology Guardrail, Doc
+      Cross-Reference, Doc Quarantine Banner, Documentation Sentinel,
+      Migration Number Collision, Secret Scanning, Security Pattern all
+      **pass**.
+
 ## Remaining
-- [ ] Confirm `audit-check` re-runs green against this PR's actual head
-      SHA (not a stale `main`-SHA report) after this push, and that PR
-      #1017 goes fully `MERGEABLE`/`CLEAN`, then merge it.
+- [ ] **Blocked on a known standing structural issue, not on this task's
+      own code or process** -- `gh pr view 1017` shows
+      `mergeable=MERGEABLE` but `mergeStateStatus=BLOCKED`/
+      `reviewDecision=REVIEW_REQUIRED`: `main`'s branch protection
+      requires 1 approving PR review, but every credential in this
+      environment resolves to the same single GitHub identity
+      (`FChecklist`), so no independent reviewer can approve and
+      `gh pr merge --admin` structurally fails (GraphQL "at least 1
+      approving review required", not bypassable by `admin:true`). This
+      is a confirmed-recurring environment-wide deadlock (5-for-5 across
+      unrelated PRs #959/#981/#999/#1012/#1014 per this session's own
+      memory note), not specific to this PR -- per that same note's own
+      guidance, not looping on `gh pr merge` attempts and not
+      self-flipping `required_approving_review_count` without a fresh
+      explicit Owner directive (that would be guardrail-weakening under
+      AGENTS.md Rule 9). PR #1017 is fully CI-green and audited; it needs
+      either the second-reviewer identity (plan already written in
+      `REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`) or a fresh
+      bounded review-count exception from the Owner to actually merge.
