@@ -97,6 +97,27 @@ no code/logic touched, no linked work redone.
   one step closer to merge (blocked only by the pre-existing, separately-tracked branch-protection
   deadlock, not by anything in this task's control).
 
+## Invocation 5 (2026-08-07T~13:18Z resume) -- lightweight confirmation only, no re-attempt of the failing action
+- [x] Per invocation 4's own recorded conclusion ("2nd consecutive failure of the identical
+      approach: STOP, do not attempt a 3rd time"), did **not** re-run `gh pr merge --admin` a
+      third time. Instead did three cheap, read-only checks to see whether anything *external*
+      to this task had changed since invocation 4:
+      - `gh pr view 1042`: `state: OPEN`, `mergeable: MERGEABLE`, `mergeStateStatus: BLOCKED`,
+        `reviewDecision: REVIEW_REQUIRED` -- identical to invocations 3 and 4.
+      - `main` branch protection: `required_approving_review_count: 1`,
+        `enforce_admins: true` -- identical, still no repo-wide fix landed.
+      - `git status --short`: clean. This task's own ACTIVE-CLAIMS entry already reads
+        `[DONE, closed same session]` from a prior invocation -- nothing left open to close.
+- [x] Conclusion: confirms invocation 4's terminal recommendation was correct rather than
+      premature -- three independent checks now, roughly 18 minutes apart at the end, show zero
+      drift in the one thing this task is waiting on (the environment-wide branch-protection
+      self-approval deadlock, tracked separately, not fixable from this task's scope). Not
+      committing a no-op change to git for this invocation; recording it here only so any future
+      resume can see a fifth confirmation was performed without re-reading git history from
+      scratch. Restating the recommendation: no further re-verification invocations of this task
+      are useful unless the branch-protection setting itself changes (at which point PR #1042
+      merges as-is, no rework).
+
 ## Invocation 4 (2026-08-07T~13:00Z resume) -- second consecutive re-verification, still no new work
 - [x] Re-confirmed the checkpoint's `LAST_CHECKPOINT` narrative (OCID-052 /
       `GAP-API-ME-500-...` / PR #898) again does **not** belong to this task, per the same
