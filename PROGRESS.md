@@ -80,9 +80,32 @@ software first. AI is the fallback, not the default.").
       re-evaluates against the PR's real head.
 
 ## Remaining
-- [ ] Confirm all CI checks (including `audit-check`) are green against the final head SHA, then
-      merge via `gh pr merge --squash` (no direct push to `main`, per Rule 6).
-- [ ] Move the `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:` once merged.
+- [x] Confirmed all CI checks are green against the final head SHA (`ddd427996`): Lint, Type
+      Check, Build, Unit Tests, E2E Tests, `audit-check`, Guardrail Presence Check, Asset
+      Registry Coverage Check, Metadata Index Coverage Check, Terminology Guardrail Check,
+      Doc Cross-Reference Check, Doc Quarantine Banner Check, Documentation Sentinel Check,
+      Migration Number Collision Check, Secret Scanning, Security Pattern Check, `Analyze` --
+      every check that matters is `pass`. Only non-green item is `Vercel` (preview deploy,
+      rate-limited by Vercel's own quota -- not a required status check, not caused by this
+      change). `CodeQL` shows `skipping` (expected/normal for this repo).
+- [x] Attempted `gh pr merge 1037 --squash`: **structurally blocked**, not a transient failure.
+      `mergeStateStatus: BLOCKED`, `reviewDecision: REVIEW_REQUIRED` (`required_approving_review_
+      count: 1` on `main`, `enforce_admins: true`) -- this is the well-documented, now 10+-times-
+      confirmed self-approval deadlock (every credential in this environment resolves to the same
+      single GitHub identity, `FChecklist`; see this session's own memory entry
+      `veridian-branch-protection-self-approval-deadlock-active`, and on-repo
+      `ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md` /
+      `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`). Per that entry's own guidance,
+      did **not** loop on repeated merge attempts and did **not** flip
+      `required_approving_review_count` down myself (that would be guardrail-weakening under
+      AGENTS.md Rule 9 without a fresh explicit Owner directive) -- documented here and left for
+      the Owner to either provision the second reviewer identity or grant a fresh bounded
+      exception, exactly like every other PR hitting this same structural blocker right now.
+- [ ] Once the Owner resolves the review-identity deadlock (repo-wide, not specific to this PR),
+      PR #1037 should merge cleanly as-is -- no further code changes needed on this task's part.
+- [x] Moved this task's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:`
+      reflecting this real final state (real fix done, tested, PR open, CI green, audit posted,
+      merge blocked on the repo-wide structural deadlock -- not on anything this task did).
 - [ ] Real, disclosed follow-ups (NOT done here, flagged not silently dropped): candidate (1)
       `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()` is the same class of finding but
       a larger product-behavior-change risk (changes what "AI-scored" means for existing leads/
