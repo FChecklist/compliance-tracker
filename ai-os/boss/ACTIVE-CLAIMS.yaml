@@ -5857,6 +5857,48 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-065005-independent-audit--pr--630-and-pr--632) -- independent Rule 7c audit of the claimed Phase 2 Task #44 final-2-gates rebase (PR #630, PR #632) [DONE, closed same session]"
+    claimed_at: "2026-08-07T00:00Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner master-prioritization directive, Chat ID 2082026-02): task-20260802-032508 rebased
+      PR #630 (0302->0311 migration renumber, 8-way collision) and PR #632 (terminology-guardrail-
+      exemptions merge) onto fresh origin/main; both claimed to report mergeable=MERGEABLE. Asked for
+      an independent Rule 7c audit (separate session from the rebase) with a real AUDIT: PASS/FAIL
+      comment on each.
+
+      Fresh live re-check found the SPEC's premise partially stale, not fabricated -- both PRs' claims
+      were true as of 2026-08-02, but state has moved since:
+
+      PR #630: already MERGED (2026-08-02T04:09:36Z, merge commit f39a6fc2), with two independent
+      AUDIT: PASS comments already posted before merge -- Rule 7c's gate was already satisfied, this
+      task's own dispatch was itself stale (redundant, not wrong). Independently re-verified anyway:
+      `git merge-base --is-ancestor` confirms the head is a real ancestor of main; origin/main's
+      drizzle/meta/_journal.json parses clean, 282 entries, zero duplicate idx/tag; a fresh GraphQL
+      scan of all 249 currently-open PRs' changed files found zero collisions on drizzle/0311_*.sql;
+      all 19 CI checks green. Posted a confirmatory AUDIT: PASS comment
+      (https://github.com/FChecklist/compliance-tracker/pull/630#issuecomment-5213589665).
+
+      PR #632: real, NEW, currently-unresolved conflict, distinct from the one the 2026-08-02 rebase
+      already fixed. `gh api .../pulls/632` reports mergeable=false/mergeable_state=dirty against
+      current origin/main. `git merge-tree` against the real merge-base confirms a genuine content
+      conflict in ai-os/registry/terminology-guardrail-exemptions.yaml: PR #865 (GAP-OCID-049,
+      merged 2026-08-04T04:50:01Z -- two days after PR #632's last push) independently added a new
+      exemption block at the exact same insertion point PR #632's own new block needs. The 19 green
+      CI checks currently shown on the PR are stale (run completed 2026-08-02T07:05:49Z, before PR
+      #865 landed) and never validated against the main this PR would actually merge into today. The
+      feature code itself (get_notice_status route/service/test/MCP wiring) is sound; only the YAML
+      registry file conflicts. Posted a real AUDIT: FAIL comment naming the exact conflict and the
+      corrective action (re-rebase keeping both new exemption blocks, then a fresh re-audit)
+      (https://github.com/FChecklist/compliance-tracker/pull/632#issuecomment-5213591728).
+
+      Did not attempt to fix PR #632's conflict myself (would blur the doer/auditor separation this
+      task exists to enforce) and did not start Phase 3/Kernel consolidation (Task #45) -- flagging
+      it as NOT YET unblocked, since one of the two required gates (#632) is still open, contrary to
+      the SPEC's "last gate before Phase 2 closes" framing.
+    scope_note: >-
+      No src/ or drizzle/ changes -- audit-only. Touched: ai-os/boss/ACTIVE-CLAIMS.yaml (this entry),
+      PROGRESS.md, two GitHub PR comments (#630, #632). No corrective rebase performed.
+
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
