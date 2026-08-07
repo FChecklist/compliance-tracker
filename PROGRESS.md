@@ -85,6 +85,28 @@
       blocker is the structural review-count deadlock, not anything about this PR's own content.
 - [ ] Close out this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry once #1021 actually merges.
 
+## Re-check (invocation 17, 2026-08-07T08:1x, no state change)
+- [x] Re-verified live rather than assuming: `gh pr view 1021` still `state: OPEN`,
+      `mergeable: MERGEABLE`, `mergeStateStatus: BLOCKED`, `reviewDecision: REVIEW_REQUIRED` --
+      identical to last checkpoint. `.github/workflows/sync-vercel-env-staging.yml` still
+      untracked locally; `gh auth status` confirms this session's token scopes are still
+      `gist, read:org, repo` -- no `workflow` scope, unchanged.
+- [x] Found independent same-day corroboration this is a repo-wide structural blocker, not
+      specific to this PR or session: commit `a05dd09f8` (2026-08-07T07:48Z, a *different*
+      task, `task-20260807-073952`, Owner-directed "merge 8 clean PRs" sweep) live-reconfirmed
+      246/255 open PRs across the whole repo sit at `reviewDecision: REVIEW_REQUIRED` for the
+      same reason -- one required review, `enforce_admins` on, no second real GitHub identity
+      in this environment -- and explicitly flagged it for Owner action (provision a 2nd
+      identity or grant a bounded review-count exception) rather than being grindable away.
+- [x] Per the circuit-breaker rule (don't repeat an identical approach a 3rd/9th/10th time):
+      did **not** re-attempt `gh pr merge` (would be attempt #10 on this exact deadlock) and
+      did **not** re-attempt pushing the workflow file (token scope hasn't changed). Both
+      remaining items are genuinely blocked on the Owner, not on any further action available
+      to this session.
+- [x] Everything else already delivered for this task (staging-env doc/workflow design,
+      deployment SLO service+route+tests, rollback runbook+drill script+tests) is unchanged,
+      merged-ready, and CI-green on PR #1021 -- no rework needed.
+
 ---
 
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
