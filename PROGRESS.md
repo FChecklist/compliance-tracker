@@ -49,20 +49,27 @@ data supports.
 - [x] Updated `ai-os/CONSTITUTION.yaml`: added CACHE-05/CACHE-06 to
       `prompt_cache_framework`, logged in `amendment_log`.
 
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (`active:`
+      section, file-scoped).
+- [x] Added `closed_priorities` Priority 26 entry to
+      `ai-os/MASTER-TRACKER.yaml` documenting this closure, including the
+      tsc-not-independently-confirmed caveat below, honestly.
+- [x] All 3 governance YAML files (`CONSTITUTION.yaml`,
+      `MASTER-TRACKER.yaml`, `ACTIVE-CLAIMS.yaml`) confirmed still
+      `yaml.safe_load`-parseable after edits.
+
 ## Remaining
-- [ ] Full-project `tsc --noEmit` -- attempted twice, both times the
-      sandbox killed it on OOM/timeout before completion (this repo's
-      full type-check appears to need more time/memory than this box
-      reliably gives a single foreground command; a background run was
-      started, result pending). New code closely mirrors
-      `token-usage-service.ts`'s already-compiling pattern (same
-      `db.select().groupBy()` shape, same `db.execute(sql...)` +
-      `as unknown as {...}[]` cast convention as
-      `report-engine-service.ts`'s `computeSnagTrendAnalysis`) -- low risk,
-      but not independently confirmed by a completed tsc run yet.
-- [ ] Update `ai-os/boss/ACTIVE-CLAIMS.yaml` (register claim, then move to
-      `recently_completed` once the PR is up).
-- [ ] Add a `closed_priorities` entry to `ai-os/MASTER-TRACKER.yaml`
-      documenting this closure.
-- [ ] Commit, push, open PR (per AGENTS.md Rule 6 -- no direct push to
-      `main`).
+- [ ] Full-project `tsc --noEmit` -- attempted twice this session
+      (foreground w/ 6GB heap: OOM in ~14s; background w/ 8GB heap:
+      process vanished with no log output, also consistent with an OOM
+      kill), both consistent with this box's own resource pressure today
+      rather than a defect in the new code (Priority 25's own note
+      confirms a full tsc run normally completes here with 21
+      pre-existing unrelated-package errors as baseline). Per this
+      session's own stop-after-2-failures rule, not attempting a 3rd
+      time -- flagged honestly in MASTER-TRACKER.yaml Priority 26 rather
+      than silently claimed clean. Risk assessed low: every new query
+      shape mirrors an already-compiling precedent 1:1.
+- [ ] Push branch + open PR (per AGENTS.md Rule 6 -- no direct push to
+      `main`); CI's own Type Check job will give the real tsc answer this
+      session's sandbox couldn't.
