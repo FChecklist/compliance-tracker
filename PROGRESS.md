@@ -169,16 +169,16 @@ Re-evaluated all 15 findings against this real, existing dashboard instead:
       describe the real (round-2) scope, not the superseded round-1
       "/crm/dashboard" plan.
 
+- [x] Committed (`445f04e9`), pushed, opened PR #1013:
+      https://github.com/FChecklist/compliance-tracker/pull/1013
+
 ## Remaining
-- [ ] `bun run build` (same memory posture as tsc above -- not yet run this
-      session; lint+typecheck+unit tests are the CI-required gates this PR
-      needs, build is the 4th and is expected to be redundant with a clean
-      tsc but not yet independently confirmed).
-- [ ] Commit, push, open PR against `main` (per Rule 6 -- no direct push),
-      confirm CI green, hand off for independent audit per Rule 10 (this
-      session/model is not currently judgment-tier per
-      `model-tier-eligibility.ts` context in CLAUDE.md's own AI-OS rules --
-      not self-certifying).
+- [ ] `bun run build` not run this session (session budget constraint) --
+      lint+typecheck+unit tests are CI-required gates already confirmed
+      green; build is CI's 4th gate, expected redundant with a clean `tsc`
+      but not independently confirmed here. Watch PR #1013's own CI run.
+- [ ] Confirm CI green, hand off for independent audit per Rule 10 -- not
+      self-certified here.
 
 ---
 
