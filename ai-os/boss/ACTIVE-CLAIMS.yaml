@@ -40,6 +40,29 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-164007-cloud-deployment--deployment-operations) -- VERIDIAN Review Framework gap-closure, Cloud Deployment / Deployment Operations (5 findings)"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      Closing 5 Low/Medium findings from the Cloud Deployment / Deployment
+      Operations area of the Review Framework: Performance Monitoring
+      (dashboard-usage cadence), Deployment Security (secret-scan advisory
+      not blocking), Environment Configuration Management (dev/staging/prod
+      env var separation), Edge Function Utilization (selective edge
+      adoption for latency-sensitive DB-free routes), Deployment Audit
+      Trail (deployment-history view for the deploymentEvents table). One
+      coherent PR per the task spec.
+      File scope: `.github/workflows/sentinel.yml` (secret-scan
+      blocking -- NOTE: this session's gh token has no `workflow` OAuth
+      scope, so this specific file's push may need to be applied by a
+      session/token that has it -- see PROGRESS.md), `.env.example` +
+      new `docs/infra/ENVIRONMENT_CONFIG.md` (env separation docs), 1-2
+      `src/app/api/**/route.ts` edge-runtime opt-ins (DB-free routes
+      only), a new deployment-history page under `src/app/(app)/` reading
+      the existing `deploymentEvents` table, and a small
+      system-health/error-log page reading `applicationErrors`. Not
+      touching `src/lib/services/permission-service.ts`'s
+      `ERP_ACTION_ROLES` table or any other in-flight worker's declared
+      scope.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
