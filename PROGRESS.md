@@ -209,10 +209,48 @@ what was actually found vs. the original gap description.
         sales-pipeline-dashboard-service.test.ts` -- 81/81 pass; migration
         collision check passes; no stray conflict markers anywhere in the
         repo (`git grep`).
+- [x] First real CI run post-merge (commit 6650fab7) surfaced 3 genuine
+      issues, all fixed in commit 820453e3:
+      - Migration Number Collision Check failed: my new migration was
+        still numbered 0225 (collided with main's own new
+        `0225_support_sessions.sql`, landed after this branch was cut).
+        Renamed to `0313` (see above), added the matching
+        `drizzle/meta/_journal.json` entry.
+      - Type Check failed: 3 of this session's `db.insert(notifications)`
+        calls (new-lead-assigned x2, overdue-follow-up cron) included an
+        `orgId` field -- `notifications` has never had that column (I'd
+        wrongly pattern-matched it against `crm_stage_history`, which
+        does). Every other real `insert(notifications)` call site in the
+        codebase confirmed the correct shape (no orgId); fixed all 3.
+      - Terminology Guardrail Check failed: the merge touched 6 files
+        this diff-only guardrail scans, 3 of which had never been touched
+        by a post-Phase-3 (2026-07-24) PR before, so their full
+        pre-existing content surfaced as "new" findings. Registered/
+        bumped `ai-os/registry/terminology-guardrail-exemptions.yaml`
+        entries -- bulk of it is changelog-comment dates (same
+        false-positive class as every existing entry in that file), plus
+        2 real UI-placeholder/CSV-template example values
+        (`founder@acme.com`, `Acme Corp` test fixture data) documented
+        with real reasons, not silently suppressed.
+      - Re-ran `node scripts/check-migration-collision.mjs` and
+        `node scripts/check-terminology-guardrail.mjs --diff-only`
+        locally -- both pass. Re-ran the full test suite (81/81 pass) and
+        `bun x eslint` (clean) after the fix.
+- [ ] `audit-check` (AGENTS.md Operating Rule 7c, widened 2026-07-13 to
+      every PR into main) failed with "No structured audit verdict
+      found" -- expected, no audit comment posted yet. Post one with the
+      8 required fields (`Objective Understood`/`Standards Reviewed`/
+      `Scope Confirmed`/`Evidence Recorded`/`Severity Classified`/
+      `Verdict`/`Corrective Action Owner`/`Re-Audit Scheduled`) once the
+      rest of CI is green on this latest push -- known gotcha from a
+      prior session's memory: posting the comment re-triggers this check
+      via `issue_comment` but validates against `main`'s SHA, not the
+      PR's actual head, so it needs a subsequent `synchronize` event
+      (i.e. don't post it as the very last action -- push after, or
+      expect to re-verify).
 - [ ] Flag for a follow-up session with Supabase MCP access: apply
       `drizzle/0313_force_rls_crm_leads_stage_history.sql` live.
 - [ ] Once merged, move this session's ACTIVE-CLAIMS.yaml entry from
       `active:` to `recently_completed:`.
-- [ ] Re-check `gh pr checks 1014` next invocation -- CI registered real
-      checks this time (Lint/Type Check/Unit Tests/etc. all `pending` as
-      of this push); confirm they go green and the PR becomes mergeable.
+- [ ] Re-check `gh pr checks 1014` next invocation -- confirm every
+      check is green and the PR is mergeable.
