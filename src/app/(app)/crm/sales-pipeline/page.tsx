@@ -9,12 +9,15 @@ export const dynamic = "force-dynamic";
 // this feature's unit tests cover -- so clicking a Pipeline Status bar
 // (SCOPE item 4) recomputes the whole page instantly with zero extra
 // network round-trips.
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, DollarSign, PauseCircle, XCircle, TrendingUp, HeartPulse, Frown, X } from "lucide-react";
+import { toast } from "sonner";
+import { ArrowLeft, DollarSign, PauseCircle, XCircle, TrendingUp, HeartPulse, Frown, X, Download, Sparkles, Loader2, AlertTriangle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import {
   BarChart, Bar, Cell, XAxis, YAxis, Tooltip, ResponsiveContainer,
   LineChart, Line, CartesianGrid, Legend,
@@ -24,6 +27,21 @@ import {
   computePipelineStatusOverview, computeMonthlyTrend, computeMonthlyTrendTable,
   PIPELINE_STATUSES, type PipelineDeal, type PipelineStatus, type RawOpportunity,
 } from "@/lib/services/sales-pipeline-dashboard-service";
+
+// VERIDIAN Review Framework gap-closure (2026-08-07, "Sales Dashboard"
+// wave): "Notification & Alert Trigger Correctness" -- surfaced as a banner
+// when this week's Awarded value is down at least this much vs. the prior
+// week (only when a real prior-week baseline exists -- see
+// SalesPipelineTrend.deltaPct's own null-when-no-baseline contract).
+const PIPELINE_DOWN_ALERT_THRESHOLD_PCT = 20;
+
+type SalesPipelineTrend = {
+  currentWeekAwardedValue: number;
+  previousWeekAwardedValue: number;
+  currentWeekAwardedCount: number;
+  previousWeekAwardedCount: number;
+  deltaPct: number | null;
+};
 
 const STATUS_COLORS: Record<PipelineStatus, string> = {
   Awarded: "bg-ct-success-light text-ct-success",
@@ -59,25 +77,71 @@ function KpiTile({ icon, label, value, sub }: { icon: React.ReactNode; label: st
 }
 
 export default function SalesPipelinePage() {
+  const currencies = useCurrencies();
+  const currency = currencyLabel(undefined, currencies);
   const [rawDeals, setRawDeals] = useState<PipelineDeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<PipelineStatus | null>(null);
   const [salespersonFilter, setSalespersonFilter] = useState<string>("all");
   const [monthFilter, setMonthFilter] = useState<string>("all");
   const [targets, setTargets] = useState<{ month: string; targetValue: number }[]>([]);
+  // VERIDIAN Review Framework gap-closure (2026-08-07): scopedToOwnerId/
+  // isManager come from the API's own role-scoping decision (see
+  // /api/crm/sales-pipeline/route.ts's resolveViewerScope) -- the dashboard
+  // never decides this itself client-side, only reflects it.
+  const [scopedToOwnerId, setScopedToOwnerId] = useState<string | null>(null);
+  const [isManager, setIsManager] = useState(false);
+  // Named wowTrend ("week-over-week") to avoid colliding with the existing
+  // `trend` local below (computeMonthlyTrend's target-vs-achieved series) --
+  // two genuinely different trend concepts on this one page.
+  const [wowTrend, setWowTrend] = useState<SalesPipelineTrend | null>(null);
+  const [summary, setSummary] = useState<string | null>(null);
+  const [generatingSummary, setGeneratingSummary] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [pipelineRes, trendRes] = await Promise.all([
+        fetch("/api/crm/sales-pipeline"),
+        fetch("/api/crm/sales-pipeline/trend"),
+      ]);
+      if (!pipelineRes.ok) throw new Error("Failed to load sales pipeline");
+      const data: {
+        deals: RawOpportunity[] & PipelineDeal[]; targets: { month: string; targetValue: number }[];
+        scopedToOwnerId: string | null; isManager: boolean;
+      } = await pipelineRes.json();
+      // API already returns normalized PipelineDeal[] (built server-side via
+      // buildPipelineDeals) -- re-running buildPipelineDeals here would be
+      // redundant, deals arrive pre-shaped.
+      setRawDeals(data.deals as unknown as PipelineDeal[]);
+      setTargets(data.targets ?? []);
+      setScopedToOwnerId(data.scopedToOwnerId ?? null);
+      setIsManager(data.isManager ?? false);
+      setWowTrend(trendRes.ok ? await trendRes.json() : null);
+    } catch {
+      toast.error("Failed to load the sales pipeline dashboard");
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    fetch("/api/crm/sales-pipeline")
-      .then((r) => (r.ok ? r.json() : { deals: [], targets: [] }))
-      .then((data: { deals: RawOpportunity[] & PipelineDeal[]; targets: { month: string; targetValue: number }[] }) => {
-        // API already returns normalized PipelineDeal[] (built server-side via
-        // buildPipelineDeals) -- re-running buildPipelineDeals here would be
-        // redundant, deals arrive pre-shaped.
-        setRawDeals(data.deals as unknown as PipelineDeal[]);
-        setTargets(data.targets ?? []);
-        setLoading(false);
-      });
-  }, []);
+    load();
+  }, [load]);
+
+  const generateSummary = async () => {
+    setGeneratingSummary(true);
+    try {
+      const res = await fetch("/api/crm/sales-pipeline/summary", { method: "POST" });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      const data: { summary: string } = await res.json();
+      setSummary(data.summary);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to generate AI summary");
+    } finally {
+      setGeneratingSummary(false);
+    }
+  };
 
   const salespeople = useMemo(() => [...new Set(rawDeals.map((d) => d.salesperson))].sort(), [rawDeals]);
   const months = useMemo(() => [...new Set(rawDeals.map((d) => d.month).filter((m): m is string => !!m))].sort(), [rawDeals]);
@@ -98,6 +162,26 @@ export default function SalesPipelinePage() {
 
   const heading = statusFilter ? `Sales Pipeline ${statusFilter}` : "Sales Pipeline";
 
+  // VERIDIAN Review Framework gap-closure (2026-08-07): "Data Import/Export
+  // Template Fidelity" / "Reporting & Export Accuracy" -- client-side CSV
+  // export of the currently-filtered deal list, same Blob/anchor pattern as
+  // reports/page.tsx's own exportCSV().
+  const exportCSV = () => {
+    const headers = ["Deal", "Salesperson", "Status", "Value", "Month", "AI Win Probability"];
+    const rows = dealList.map((d) => [
+      `"${d.name.replace(/"/g, '""')}"`, `"${d.salesperson.replace(/"/g, '""')}"`, d.status,
+      d.value, d.month ?? "", d.aiWinProbability != null ? `${d.aiWinProbability}%` : "",
+    ]);
+    const csv = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `sales-pipeline${statusFilter ? `-${statusFilter.toLowerCase().replace(/\s+/g, "-")}` : ""}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="space-y-4">
       <div>
@@ -109,9 +193,12 @@ export default function SalesPipelinePage() {
             <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2">
               <TrendingUp className="w-6 h-6" /> {heading}
             </h1>
-            <p className="text-sm text-ct-muted mt-1">Deal value, health, and revenue trend across the pipeline -- click a status bar to drill in.</p>
+            <p className="text-sm text-ct-muted mt-1">
+              Deal value, health, and revenue trend across the pipeline -- click a status bar to drill in.
+              {!isManager && scopedToOwnerId && " Showing your own deals only -- managers see the full team."}
+            </p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Select value={salespersonFilter} onValueChange={setSalespersonFilter}>
               <SelectTrigger className="w-40"><SelectValue placeholder="Salesperson" /></SelectTrigger>
               <SelectContent>
@@ -134,16 +221,45 @@ export default function SalesPipelinePage() {
                 {statusFilter} <X className="size-3" />
               </button>
             )}
+            <Button size="sm" variant="outline" onClick={exportCSV} disabled={loading || dealList.length === 0}>
+              <Download className="size-3.5 mr-1.5" /> Export CSV
+            </Button>
+            <Button size="sm" variant="outline" onClick={generateSummary} disabled={generatingSummary || loading}>
+              {generatingSummary ? <Loader2 className="size-3.5 mr-1.5 animate-spin" /> : <Sparkles className="size-3.5 mr-1.5" />}
+              AI Weekly Summary
+            </Button>
           </div>
         </div>
       </div>
+
+      {wowTrend?.deltaPct != null && wowTrend.deltaPct <= -PIPELINE_DOWN_ALERT_THRESHOLD_PCT && (
+        <Card className="rounded-xl border-l-4 border-l-red-500 bg-red-50 shadow-card">
+          <CardContent className="p-3 flex items-center gap-2 text-sm text-red-700">
+            <AlertTriangle className="size-4 shrink-0" />
+            Pipeline down {Math.abs(wowTrend.deltaPct).toFixed(1)}% week-over-week -- Awarded value fell from
+            {" "}{currency}{wowTrend.previousWeekAwardedValue.toLocaleString()} to {currency}{wowTrend.currentWeekAwardedValue.toLocaleString()}. Worth investigating.
+          </CardContent>
+        </Card>
+      )}
+
+      {summary && (
+        <Card className="rounded-xl border-l-4 border-l-ct-saffron shadow-card bg-white">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <h3 className="font-medium text-ct-navy text-sm flex items-center gap-1.5"><Sparkles className="size-3.5 text-ct-saffron" /> AI Weekly Summary</h3>
+              <button onClick={() => setSummary(null)} className="text-ct-muted hover:text-ct-navy"><X className="size-3.5" /></button>
+            </div>
+            <p className="text-sm text-ct-slate">{summary}</p>
+          </CardContent>
+        </Card>
+      )}
 
       {loading ? (
         <div className="text-center text-ct-muted p-10">Loading…</div>
       ) : (
         <>
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3">
-            <KpiTile icon={<DollarSign className="w-3.5 h-3.5" />} label="Sales Value" value={`₹${kpis.salesValue.toLocaleString()}`} />
+            <KpiTile icon={<DollarSign className="w-3.5 h-3.5" />} label="Sales Value" value={`${currency}${kpis.salesValue.toLocaleString()}`} />
             <KpiTile icon={<PauseCircle className="w-3.5 h-3.5" />} label="Hold %" value={`${kpis.holdPct.toFixed(1)}%`} />
             <KpiTile icon={<XCircle className="w-3.5 h-3.5" />} label="Lost %" value={`${kpis.lostPct.toFixed(1)}%`} />
             <KpiTile icon={<TrendingUp className="w-3.5 h-3.5" />} label="Success %" value={`${kpis.successPct.toFixed(1)}%`} />
@@ -162,7 +278,7 @@ export default function SalesPipelinePage() {
                         <BarChart data={salesBars} layout="vertical" margin={{ left: 8 }}>
                           <XAxis type="number" tick={{ fontSize: 10 }} />
                           <YAxis type="category" dataKey="label" tick={{ fontSize: 10 }} width={70} />
-                          <Tooltip formatter={(v) => `₹${Number(v).toLocaleString()}`} />
+                          <Tooltip formatter={(v) => `${currency}${Number(v).toLocaleString()}`} />
                           <Bar dataKey="value" fill={TEAL} radius={[0, 3, 3, 0]} />
                         </BarChart>
                       </ResponsiveContainer>
@@ -207,7 +323,7 @@ export default function SalesPipelinePage() {
                         <CartesianGrid strokeDasharray="3 3" stroke="#EEE" />
                         <XAxis dataKey="monthLabel" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={(v) => `₹${Number(v).toLocaleString()}`} />
+                        <Tooltip formatter={(v) => `${currency}${Number(v).toLocaleString()}`} />
                         <Legend wrapperStyle={{ fontSize: 11 }} />
                         <Line type="monotone" dataKey="target" name="Target" stroke={NAVY} strokeDasharray="4 3" strokeWidth={2} dot={{ r: 3 }} />
                         <Line type="monotone" dataKey="achieved" name="Achieved" stroke={TEAL} strokeWidth={2} dot={{ r: 3 }} />
@@ -230,8 +346,8 @@ export default function SalesPipelinePage() {
                           {trendTable.rows.map((row) => (
                             <tr key={row.label} className="border-b border-ct-cloud/60">
                               <td className="py-1.5 pr-2 text-ct-navy font-medium">{row.label}</td>
-                              {row.byMonth.map((v, i) => <td key={i} className="text-right py-1.5 px-2 text-ct-navy">₹{v.toLocaleString()}</td>)}
-                              <td className="text-right py-1.5 pl-2 font-semibold text-ct-navy">₹{row.total.toLocaleString()}</td>
+                              {row.byMonth.map((v, i) => <td key={i} className="text-right py-1.5 px-2 text-ct-navy">{currency}{v.toLocaleString()}</td>)}
+                              <td className="text-right py-1.5 pl-2 font-semibold text-ct-navy">{currency}{row.total.toLocaleString()}</td>
                             </tr>
                           ))}
                         </tbody>
@@ -255,7 +371,7 @@ export default function SalesPipelinePage() {
                         </div>
                         <div className="flex flex-col items-end gap-1 shrink-0">
                           <Badge className={`text-[10px] border-0 ${STATUS_COLORS[d.status]}`}>{d.status}</Badge>
-                          <span className="text-ct-navy font-semibold">₹{d.value.toLocaleString()}</span>
+                          <span className="text-ct-navy font-semibold">{currency}{d.value.toLocaleString()}</span>
                         </div>
                       </li>
                     ))}

@@ -40,6 +40,49 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-082002-crm---sales-modules--sales-dashboard) [DONE, PR pending]"
+    claimed_at: "2026-08-07T (this session, corrected same session -- see below)"
+    claim: |
+      VERIDIAN Review Framework gap-closure: 15 findings against "Sales
+      Dashboard". CORRECTED mid-session: initially read crm-service.ts at
+      420 lines and concluded no dashboard UI existed anywhere, planning a
+      new /crm/dashboard page from scratch. A full re-read (the file had
+      grown to 1018 lines in the meantime -- live, fast-moving multi-session
+      repo) found a real, substantial Sales Pipeline Interactive Dashboard
+      already shipped 2026-07-27 (Owner mockup wave):
+      src/app/(app)/crm/sales-pipeline/page.tsx +
+      sales-pipeline-dashboard-service.ts + /api/crm/sales-pipeline/route.ts,
+      linked from /crm's own header, org+RLS scoped, real unit tests. Did
+      NOT build a duplicate second dashboard -- re-evaluated all 15 findings
+      against this real existing one instead (see PROGRESS.md for the
+      full per-finding breakdown) and closed the 6 that were genuinely still
+      open: Access Control/RBAC (zero role scoping existed -- any org user
+      saw the whole org's pipeline; added restrictToOwnerId threaded through
+      crm-service.ts + a resolveViewerScope() gate in the API route, reusing
+      hasRole()/UserRole from auth-guard.ts, NOT permission-service.ts's
+      ERP_ACTION_ROLES per this task's own instruction), Export (client-side
+      CSV), AI Copilot Depth (generateSalesPipelineSummary(), same Prompt-OS
+      pattern as scoreLead/analyzeOpportunity, new migration
+      drizzle/0313_sales_pipeline_summary_prompt.sql), Notification/Alert
+      (getSalesPipelineTrend(), week-over-week Awarded-value comparison via
+      crm_stage_history, alert banner at >=20% down), Localization (6
+      hardcoded ₹ symbols replaced with the existing
+      currencyLabel()/useCurrencies() hook already used by sibling CRM
+      pages), and Error Handling (added try/catch + toast.error on the
+      dashboard's data fetch). Explicitly did NOT merge in
+      sales-engine-service.ts (platform-level, zero-orgId partner/referral
+      liability -- owner-only /sales-hq) or veri-reward-service.ts
+      (org-growth referral gamification, unrelated domain) despite one
+      finding's literal wording suggesting it -- see PROGRESS.md for the
+      reasoning; treating that as a stale/inaccurate finding rather than
+      forcing an inappropriate cross-tenant data merge.
+      File scope (real, final): src/lib/services/crm-service.ts (additive
+      only), src/app/api/crm/sales-pipeline/route.ts (extended) +
+      sales-pipeline/trend/route.ts + sales-pipeline/summary/route.ts (new),
+      src/app/(app)/crm/sales-pipeline/page.tsx, one additive
+      drizzle/0313_*.sql migration. NOT src/app/(app)/crm/dashboard/** or
+      AppSidebar.tsx/messages/*.json -- the round-1 plan's file list, never
+      actually created once round 2 corrected course.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
