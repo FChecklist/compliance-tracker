@@ -40,7 +40,33 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+  - session_label: "claude-code (task-20260806-234546-pm-approval-of-proposal-62-build-lock-co) -- PM approval of proposal 62 (build lock contention fix), two mandatory conditions (root-cause gate, throughput proof) [DONE, closed same session]"
+    claimed_at: "2026-08-07T00:05Z (this session, closed same session)"
+    claim: |
+      SPEC: PM approval of proposal 62 (child UMR-20260806-121247-a93a, governing
+      UMR-20260806-071025-1d28), with two mandatory conditions: root-cause the
+      live-vs-on-disk flock timing discrepancy before implementing, and produce a
+      real before/after throughput proof. Found the code implementation was
+      already done ~11h before this task was dispatched (UMR-20260806-123316-cf9f,
+      PR #172, merged). Found a REAL, LIVE duplicate dispatch of the identical PM
+      approval: sibling task `task-20260806-234542-pm-approval-of-proposal-62--implement-th`
+      started 4s before this one, for the same governing UMR, and opened PR #232
+      (covering the mandatory idempotency/no-spin test) while this session was
+      still investigating. Coordinated by reading its PR body/diff and picking a
+      disjoint, non-duplicate contribution: the real before/after throughput
+      proof (condition 2) that neither PR #172's own completion evidence nor
+      PR #232 addressed. Delivered as merged PR #234
+      (`docs/proposal-62-throughput-proof-umr20260806121247-a93a`, commit
+      `22471db4`) -- real before/after numbers reported honestly as flat/not-a-
+      proven-win at the aggregate fleet level (documented confounds), plus a new,
+      previously-undiscovered real defect: 9 of 11 (82%) of real contention
+      events since deploy hit a `requeue-build-lock-contended` failure because
+      their task never had a `umr_tasks` row, falling through to a real gate
+      failure caused purely by lock contention -- left open per instructions,
+      not force-closed, with a concrete recommended follow-up. No `mark-umr-
+      terminal`/`record-owner-proposal-completion` call made (both would be
+      silent no-ops on an already-completed row/nonexistent umr_tasks row).
+      See [[veridian-duplicate-pm-authorization-same-fix]]-class precedent.
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
       SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
