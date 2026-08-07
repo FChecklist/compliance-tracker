@@ -211,7 +211,9 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
         and **Vercel** (failed with an explicit `build-rate-limit` message, an infra quota
         issue, not a code problem). **audit-check** is expected to fail until the mandatory
         AUDIT comment is posted post-CI-green, per Rule 10.
-- [ ] Push this commit, re-watch CI to green (Promptfoo Evals and Vercel not yet re-checked --
-      re-verify once the new commit's checks run), then merge.
+- [x] Pushed commit `493aa1734` with all 4 CI fixes. New CI run in progress on the fresh
+      commit as of this checkpoint (all jobs re-queued/pending, `Vercel` still shows the same
+      infra `build-rate-limit` failure independent of code -- not actionable from this side).
+- [ ] Watch this new run to green, address any further real failures, then merge.
 - [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:`
       once the PR merges.
