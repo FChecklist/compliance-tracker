@@ -40,19 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260807-153608-gtm-cat13-ai-testing-scenario-1--explora) -- OCID-020 real, bounded AI-driven exploratory testing pass on the CRM lead-scoring surface (or nearest real equivalent) [IN PROGRESS]"
-    claimed_at: "2026-08-07T15:40Z (this session)"
-    claim: |
-      SPEC (GTM cert category 13 / AI testing, OCID-020, UMR-20260807-153552-9957): one bounded,
-      real exploratory-QA pass -- load the real CRM lead-scoring page (or nearest real equivalent
-      surface if it has moved/doesn't exist), exercise its real interactive elements (filters, sort,
-      pagination, edit forms) via live browser or direct API calls, and report real, independently
-      reproducible defects (exact steps/route/expected-vs-actual) to this task's own result.json. No
-      fabricated findings if zero real defects are found. One focused pass, not open-ended.
-    scope_note: >-
-      File scope: this task's own result.json, PROGRESS.md, this ACTIVE-CLAIMS entry. Read-only
-      exploratory testing against the real app (browser session and/or direct API calls) -- no src/,
-      schema, migration, or CI changes expected unless a real defect fix is explicitly authorized.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
@@ -5870,6 +5857,40 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-153608-gtm-cat13-ai-testing-scenario-1--explora) -- OCID-020 real, bounded AI-driven exploratory testing pass on the CRM lead-scoring surface (nearest real equivalent: /crm/leads) [DONE]"
+    claimed_at: "2026-08-07T15:40Z (this session, closed same session)"
+    claim: |
+      SPEC (GTM cert category 13 / AI testing, OCID-020, UMR-20260807-153552-9957): one bounded,
+      real exploratory-QA pass -- load the real CRM lead-scoring page (or nearest real equivalent
+      surface if it has moved/doesn't exist), exercise its real interactive elements (filters, sort,
+      pagination, edit forms) via live browser or direct API calls, and report real, independently
+      reproducible defects (exact steps/route/expected-vs-actual) to this task's own result.json.
+
+      No dedicated "lead-scoring" route exists in the real route table -- used the nearest real
+      equivalent per the SPEC's own fallback instruction: `/crm/leads`
+      (`src/app/(app)/crm/leads/page.tsx`), which owns the AI lead-scoring action (POST
+      `/api/crm/leads/{id}/score`) and the filters/sort/pagination/edit-form surface. No browser
+      tool and no authenticated session were available in this environment (same constraint this
+      repo's own `TEST_LOG.md` Waves 101-102 already document) -- exercised the real production
+      deployment (`https://projexa-ai.com`, confirmed via `vercel project ls`) directly over HTTPS
+      for the unauthenticated path (confirmed correct: page redirects to `/login`, API returns real
+      401), and did a cited, white-box source trace against the real currently-deployed route/service
+      code for the authenticated interactive elements that couldn't be reached live. Found and
+      reported 2 real defects to `result.json`: (1) high -- `PATCH /api/crm/leads/{id}`
+      (`src/app/api/crm/leads/[id]/route.ts` + `updateLead()` in `crm-service.ts` line 98) spreads
+      the raw request body straight into the DB update with no field whitelist, letting a caller set
+      any `crm_leads` column including AI-score/reasoning fields never exposed by the UI, inconsistent
+      with `createLead()`'s own whitelisted pattern three functions above it in the same file; (2)
+      medium -- `GET /api/crm/leads?page=<non-numeric>` produces `NaN` pagination math
+      (`listLeadsPaged()` line 48/60, live-repro'd the NaN propagation in Node) surfacing as a
+      generic 500 instead of a clean 400. Both honestly disclosed as white-box/code-cited findings,
+      not live-HTTP-proven end to end, since no authenticated session was obtainable this session --
+      not presented as more thoroughly verified than they are.
+    scope_note: >-
+      File scope: this task's own result.json, PROGRESS.md, this ACTIVE-CLAIMS entry. Read-only
+      exploratory testing against the real app (live HTTPS checks + source-code trace) -- no src/,
+      schema, migration, or CI changes made (no fix authorized/attempted this pass, per the SPEC's
+      own "bounded pass, not open-ended" instruction).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
