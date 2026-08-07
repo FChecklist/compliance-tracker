@@ -1,3 +1,95 @@
+# PROGRESS -- task-20260718-082002-crm---sales-modules--sales-dashboard
+
+VERIDIAN Review Framework gap-closure: 15 findings, all under "Sales
+Dashboard". Re-read the actual codebase first (per task instructions) before
+touching anything -- findings below are corrected against what's really there.
+Following this file's own established convention (see many sessions'
+"PROGRESS.md wholesale-replace regression" fixes below): prepending this
+task's own section on top, not touching the accumulated history beneath it.
+
+## Findings review (what's actually true today, 2026-08-07)
+
+- Confirmed real gap: `getSalesPipelineOverview()` (crm-service.ts) has
+  existed since the Priority 15 wave and is already wired into
+  `/api/v1/projexa/sales-pipeline`, but there is **no native `/api/crm/**`
+  route** and **no `src/app/(app)/**` page** consuming it. A CRM/Sales
+  Dashboard genuinely does not exist in the app today -- most of the 15
+  findings collapse into this one root cause.
+- The "Cross-Module Integration Consistency" finding's literal suggestion
+  (merge in `sales-engine-service.ts` commission liability + VERI Reward
+  referral-conversion data) does **not** match the real architecture:
+  - `sales-engine-service.ts` is platform-level with **zero orgId scoping**
+    (`requireAdmin(ctx, 'veridian_admin')`, owner-only `/sales-hq`) -- it's
+    VERIDIAN's own partner/referral-channel program for selling VERIDIAN
+    itself, not a regular org's sales-team data. Surfacing it on a
+    per-org Sales Dashboard visible to that org's own reps/managers would
+    leak VERIDIAN's own platform-wide partner financials to every
+    customer org -- a real multi-tenant violation, not a defensible
+    feature.
+  - `veri-reward-service.ts`'s referrals (`veriRewardReferrals`) ARE
+    org-scoped, but `targetType` is `'customer_to_customer' |
+    'veridian_growth'` -- an org's own employees referring *other
+    companies to become new VERIDIAN customers* (growth gamification),
+    not this org's own CRM deal pipeline with its clients. Different
+    domain despite the shared word "sales".
+  - Treating this as a stale/inaccurate finding per the task's own
+    instruction ("if the described gap doesn't match what you find in the
+    code, say so ... rather than making an unnecessary change") rather
+    than forcing an inappropriate merge.
+- Multi-currency/localization: inherits the existing single-currency
+  limitation already present on `crm_opportunities.estimatedValue` (no
+  currency column) -- same as the finding's own recommended resolution
+  ("address after Opportunities gains multi-currency support"). Reused the
+  existing `useCurrencies()`/`currencyLabel()` hook already used on
+  `/crm` for consistency; genuine multi-currency support is out of scope
+  here.
+- Audit trail: dashboard is read-only; the underlying `crm_stage_history`
+  ledger (Priority 15) already exists and is what the new trend
+  calculation reads from. No new audit surface needed for a read view.
+
+## Completed
+
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no existing claim on Sales
+      Dashboard; registered this task's own claim (session_label
+      `claude-code (worker task-20260718-082002-crm---sales-modules--sales-dashboard)`).
+- [x] Read `crm-service.ts`, `sales-engine-service.ts`,
+      `veri-reward-service.ts`, `crm-enablement-service.ts`, schema.ts's
+      `crm_leads`/`crm_opportunities`/`crm_stage_history`, existing
+      `/crm` page, `/api/v1/projexa/sales-pipeline` route, `auth-guard.ts`
+      role model (`UserRole`/`ROLE_RANK`/`hasRole`), `permission-service.ts`
+      (confirmed NOT touching `ERP_ACTION_ROLES` -- CRM/Sales already uses
+      its own `hasRole()`-based gating, not that table).
+
+## Remaining
+- [ ] `crm-service.ts`: extend `getSalesPipelineOverview()` with optional
+      `ownerId`/`dateFrom`/`dateTo` filters (backward-compatible, existing
+      2 callers unaffected); add `getSalesPipelineTrend()` (week-over-week
+      won-value + new-leads delta from `crm_stage_history`); add
+      `generateSalesDashboardSummary()` (AI weekly narrative, same
+      Prompt-OS pattern as `scoreLead`/`analyzeOpportunity`).
+- [ ] Prompt template migration: new `drizzle/*.sql` adding
+      `crm_intelligence.sales_dashboard_summary` prompt template + v1
+      content (same shape as `0065_wave75_crm_intelligence.sql`).
+- [ ] `src/app/api/crm/dashboard/route.ts` (GET, role-scoped: `member`
+      forced to own `ownerId`, `manager`+ sees team / can filter by
+      `ownerId` query param) + `src/app/api/crm/dashboard/summary/route.ts`
+      (POST, AI summary).
+- [ ] `src/app/(app)/crm/dashboard/page.tsx`: KPI cards (DashboardCard),
+      stage-funnel bar chart (recharts, reusing the existing
+      `OPP_STAGE_COLORS` badge palette from `/crm` for identity
+      consistency), leads-by-status breakdown, week-over-week trend/alert
+      banner, date-range + owner filters, client-side CSV export, AI
+      weekly-summary button.
+- [ ] Nav: link from `/crm` page header + `AppSidebar.tsx` entry under
+      `sections.salesCrm`; add `dashboard` i18n keys to `messages/en.json`
+      + `messages/hi.json`.
+- [ ] `bun run lint` / `bun run build` / relevant unit tests before commit.
+- [ ] Commit, push, open PR against `main` (per Rule 6 -- no direct push).
+
+---
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed

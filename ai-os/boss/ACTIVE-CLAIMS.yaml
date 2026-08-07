@@ -40,6 +40,34 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-082002-crm---sales-modules--sales-dashboard)"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure: 15 findings against "Sales
+      Dashboard" (module never had a UI at all -- crm-service.ts's
+      getSalesPipelineOverview() existed and was already wired into
+      /api/v1/projexa/sales-pipeline, but no native /api/crm/** alias and
+      no src/app/(app)/** page consumed it). Building a real, role-scoped
+      (rep/manager/admin) Sales Dashboard page + native API route, reading
+      getSalesPipelineOverview() + a new week-over-week trend helper in
+      crm-service.ts, plus an AI weekly narrative summary following the
+      scoreLead()/analyzeOpportunity() Prompt-OS pattern already
+      established in that file. Explicitly NOT merging in
+      sales-engine-service.ts (platform-level, zero-orgId partner/referral
+      liability -- owner-only /sales-hq) or veri-reward-service.ts
+      (org-growth referral gamification, unrelated domain) despite one
+      finding's literal wording suggesting it -- see PROGRESS.md for the
+      reasoning; treating that as a stale/inaccurate finding rather than
+      forcing an inappropriate cross-tenant data merge.
+      File scope: src/lib/services/crm-service.ts (additive only),
+      src/app/api/crm/dashboard/**, src/app/(app)/crm/dashboard/page.tsx,
+      src/app/(app)/crm/page.tsx (nav link only), src/components/AppSidebar.tsx
+      (nav link only), messages/en.json + messages/hi.json (new i18n keys
+      only), one additive drizzle/*.sql migration for a new prompt_templates
+      row. NOT touching src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES (per this task's own instructions) -- role gating
+      done via the existing hasRole()/UserRole pattern from auth-guard.ts,
+      same precedent already used elsewhere in crm-service.ts's callers.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
