@@ -130,6 +130,28 @@ active:
       matching this file's own pre-existing 2026-08-02 finding ("https://projexa-ai.com does not
       serve the PROJEXA application right now... routing... explicitly deferred") -- a real
       domain/deployment-routing gap, not a page-code bug, left untouched here.
+      STATUS UPDATE (2026-08-07, task-20260807-062755-retry-ai-cost-governance-finops-cost-vis):
+      PR #687 sat DIRTY for 6 days -- a redispatch of this same task found it
+      already complete and AUDIT: PASS'd rather than duplicating it. Rescued:
+      merged origin/main (additive-only conflicts), renumbered migration
+      0304 -> 0313 (next free slot after main's 0312), re-verified full
+      suite + all governance checks. Invocation 2/20: found the prior
+      invocation had recorded "pushed to this same PR branch" here before the
+      push actually happened (gh pr view 687 was still OPEN/CONFLICTING/DIRTY
+      live) -- also found and fixed a real gap missed by that "re-verified"
+      claim: drizzle/0313's migration file had no matching drizzle/meta/
+      _journal.json entry. Fixed (idx 282), re-ran migration-collision +
+      all 4 governance checks + tsc + cost-reconciliation-service tests
+      (all clean), then genuinely pushed (46f71602a). gh pr view 687 now
+      shows MERGEABLE, CI freshly triggered. Merging via this PR rather than
+      opening a duplicate, once CI is green.
+    scope_note: |
+      src/app/(app)/ai-cost-governance/**, src/app/api/finance/**,
+      src/lib/services/cost-reconciliation-service.ts(+.test.ts),
+      drizzle/0304_ai_cost_reconciliation.sql, docs/AI_COST_GOVERNANCE_FINOPS.md,
+      additive changes to src/lib/services/token-usage-service.ts,
+      src/lib/db/schema.ts, src/components/AppSidebar.tsx,
+      src/lib/protected-routes.generated.ts, messages/{en,hi}.json.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
