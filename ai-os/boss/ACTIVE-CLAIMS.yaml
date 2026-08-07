@@ -5855,8 +5855,67 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
-
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-171005) -- Cognitive Architecture: Deterministic-First Principles [DONE: real fix + tests + PR #1037 open, CI green, audit posted; merge blocked on repo-wide review-identity deadlock, not on this task]"
+    claimed_at: "2026-08-07T (this session, closed same session)"
+    claim: |
+      Task task-20260718-171005-cognitive-architecture--deterministic-fi
+      ("Cognitive Architecture: Deterministic-First Principles"). No
+      prompt.txt/spec artifact exists for this task beyond its title;
+      cross-checked its two retry siblings (task-20260718-172005-retry-1,
+      task-20260718-173005-retry-2, both `status: blocked`, no real work)
+      and the merged sibling theme task-20260718-171002 ("Cognitive
+      Consistency & Maturity", PR closing 13ee655ec) -- no prior session has
+      produced or referenced a written findings list specific to
+      "Deterministic-First Principles", so this session generated its
+      own real findings against CONSTITUTION.yaml's software_first section
+      (SF-01/SF-02, "Predictive/repetitive work is done by deterministic
+      software first").
+      Ran a codebase-wide audit for LLM call sites doing classification/
+      scoring on purely structured (non-free-text) input without a
+      deterministic pre-check, mirroring this repo's own established
+      pattern (risk-classification.ts's classifyRisk(), response-engine.ts's
+      "software decides which predefined label applies" doctrine).
+      Fixed: src/lib/services/construction-ai-service.ts's
+      detectBudgetScheduleRisk() -- riskLevel was LLM-decided from purely
+      numeric aggregates (variance, delayedTaskCount/totalTaskCount) with no
+      deterministic path at all, and threw a hard 400 when no AI model was
+      configured for an org even though the classification itself needs no
+      AI. Added a pure, unit-tested (11/11 pass) classifyBudgetScheduleRisk()
+      threshold function; the LLM call (when a model IS configured) is now
+      used only for reasoning prose, with its own riskLevel output always
+      overridden by the deterministic value.
+      File scope: src/lib/services/construction-ai-service.ts, a new
+      construction-ai-service.test.ts, PROGRESS.md, MASTER-TRACKER.yaml,
+      this file. Explicitly did NOT touch crm-service.ts's scoreLead/
+      analyzeOpportunity (same class of finding, larger product-behavior-
+      change risk -- flagged in PROGRESS.md as a follow-up, not silently
+      dropped) or ai-team/team-service.ts's classifyTask() (routing/
+      dispatch-path change, higher blast radius, also flagged as follow-up).
+
+      **Final outcome:** PR #1037 opened
+      (https://github.com/FChecklist/compliance-tracker/pull/1037), all
+      required CI checks green against final head SHA `ddd427996`
+      (Lint/Type Check/Build/Unit Tests/E2E/audit-check/Guardrail Presence/
+      Asset Registry Coverage/Metadata Index Coverage/Terminology Guardrail/
+      doc checks/Secret Scanning/Security Pattern -- only non-green item is
+      `Vercel`, rate-limited preview deploy, not a required check), a real
+      independently-re-derived 8-field `AUDIT: PASS` posted (adversarially
+      re-checked the `variance` sign convention against
+      construction-reports-service.ts, walked all 11 test cases by hand,
+      confirmed the LLM's own riskLevel is spread-then-overridden so a
+      hallucinated label can never reach a caller). `gh pr merge --squash`
+      hits the same repo-wide structural self-approval deadlock every other
+      PR is hitting right now (`mergeStateStatus: BLOCKED`,
+      `reviewDecision: REVIEW_REQUIRED`, `required_approving_review_count: 1`
+      + `enforce_admins: true`, no second real GitHub identity exists in
+      this environment) -- not specific to this PR or this task. Did not
+      loop on repeated merge attempts and did not flip the review-count
+      setting myself (guardrail-weakening under AGENTS.md Rule 9 without a
+      fresh explicit Owner directive). This task's own work is complete and
+      correct; merging is pending the Owner resolving the repo-wide
+      identity/review-count blocker, tracked separately.
+
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
