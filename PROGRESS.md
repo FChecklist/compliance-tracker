@@ -70,6 +70,8 @@ data supports.
       time -- flagged honestly in MASTER-TRACKER.yaml Priority 26 rather
       than silently claimed clean. Risk assessed low: every new query
       shape mirrors an already-compiling precedent 1:1.
-- [ ] Push branch + open PR (per AGENTS.md Rule 6 -- no direct push to
-      `main`); CI's own Type Check job will give the real tsc answer this
-      session's sandbox couldn't.
+- [x] Push branch + open PR (per AGENTS.md Rule 6 -- no direct push to
+      `main`): https://github.com/FChecklist/compliance-tracker/pull/1017 --
+      CI's own Type Check job will give the real tsc answer this session's
+      sandbox couldn't. Not self-merging -- CI result + eventual audit is
+      the remaining step for a future/supervising session.
