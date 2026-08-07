@@ -11,6 +11,7 @@ import {
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, count } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
 
 // ---------------- RFIs ----------------
@@ -93,6 +94,12 @@ export async function reviewSubmittal(ctx: { orgId: string; userId: string }, su
   if (!VALID.includes(status)) throw new ServiceError(`status must be one of: ${VALID.join(", ")}`, 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.constructionSubmittals.findFirst({ where: and(eq(constructionSubmittals.id, submittalId), eq(constructionSubmittals.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Submittal not found", 404)
+    if (isSelfApproval(existing.submittedById, ctx.userId)) {
+      throw new ServiceError("You cannot review a submittal you submitted yourself -- an independent reviewer is required", 403)
+    }
+
     const [row] = await db.update(constructionSubmittals).set({
       status: status as typeof constructionSubmittals.$inferInsert.status,
       reviewComments: comments ?? null, reviewedById: ctx.userId, reviewedAt: new Date(),
@@ -144,6 +151,15 @@ export async function markPunchListItemReadyForReview(ctx: { orgId: string }, it
 
 export async function verifyPunchListItemClosed(ctx: { orgId: string; userId: string }, itemId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.constructionPunchListItems.findFirst({ where: and(eq(constructionPunchListItems.id, itemId), eq(constructionPunchListItems.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Punch list item not found", 404)
+    // Enforces the "don't let the person who did the work sign off their
+    // own fix" convention this comment above (markPunchListItemReadyForReview)
+    // already documents but never actually checked.
+    if (isSelfApproval(existing.assignedToId, ctx.userId)) {
+      throw new ServiceError("You cannot verify your own punch list item as closed -- an independent verifier is required", 403)
+    }
+
     const [row] = await db.update(constructionPunchListItems).set({
       status: "verified_closed", verifiedById: ctx.userId, verifiedAt: new Date(),
     }).where(and(eq(constructionPunchListItems.id, itemId), eq(constructionPunchListItems.orgId, ctx.orgId))).returning()

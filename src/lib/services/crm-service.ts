@@ -5,18 +5,21 @@
 // needed for a compliance-service-provider's business). Gated identically
 // to the existing Clients page (accountType !== 'company') at the UI
 // layer, matching that page's own precedent.
-import { crmLeads, crmOpportunities, crmStageHistory, clients, erpCustomers, tasks } from "@/lib/db"
-import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq, and, ilike, inArray, sql, lte, isNotNull } from "drizzle-orm"
+import { crmLeads, crmOpportunities, crmStageHistory, crmLostReasons, crmSalesTargets, crmActivities, clients, erpCustomers, tasks, users } from "@/lib/db"
+import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
+import { eq, and, ilike, inArray, sql, lte, isNotNull, isNull } from "drizzle-orm"
+import { buildPipelineDeals } from "./sales-pipeline-dashboard-service"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { executeTask } from "@/lib/task-execution-engine"
+import { recordTaskEscalationEdge } from "@/lib/task-dependency-graph"
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
-import { ServiceError } from "./compliance-service"
+import { ServiceError, serviceErrorBody } from "./compliance-service"
 import { requireSalesEnabled } from "./crm-enablement-service"
-export { ServiceError }
+import { explainCrmLeadDecision, explainCrmOpportunityDecision } from "@/lib/explainability/ai-decision-explanation"
+export { ServiceError, serviceErrorBody }
 
 export type CrmContext = { orgId: string; userId: string }
 
@@ -194,7 +197,7 @@ export async function createOpportunity(
 export async function updateOpportunity(
   ctx: CrmContext,
   opportunityId: string,
-  patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null; nextActionDate: string | null; nextActionNote: string | null }>,
+  patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null; nextActionDate: string | null; nextActionNote: string | null; lostReasonId: string | null }>,
   stageChangeNote?: string
 ) {
   await requireSalesEnabled(ctx.orgId)
@@ -222,6 +225,322 @@ export async function bulkReassignOpportunities(ctx: CrmContext, opportunityIds:
     const updated = await db.update(crmOpportunities).set({ ownerId, updatedAt: new Date() })
       .where(and(eq(crmOpportunities.orgId, ctx.orgId), inArray(crmOpportunities.id, opportunityIds))).returning()
     return updated
+  })
+}
+
+// ─── Task #46 (CRM feature-parity gap analysis) ───────────────────────────
+// bulkReassignLeads/bulkReassignOpportunities above cover MANUAL reassignment
+// of an explicit id list. The gap analysis found we had no automatic/
+// load-balanced distribution and no Total/Allocated/Un-Allocated dashboard.
+// Owner mandate (deterministic-first, applies throughout this project):
+// auto-assignment must be a plain deterministic algorithm -- least-loaded/
+// round-robin, ZERO AI/LLM involvement -- same "pure function over existing
+// columns" shape as bulkReassignLeads itself. Zero new schema: everything
+// below is a query/update over the existing crm_leads/crm_opportunities/
+// users tables, same as the rest of this file.
+//
+// computeRoundRobinAssignment is deliberately pure/exported (no db access)
+// so it can be unit-tested directly, matching this file's own established
+// convention (see crm-accounts-service.test.ts's header note: this repo's
+// .test.ts files exercise pure predicates, never a live DB).
+export type AssignmentOrder = "oldest_first" | "newest_first"
+
+export function computeRoundRobinAssignment(
+  recordIds: string[],
+  userIds: string[],
+  sharingCount?: number
+): { assignments: { recordId: string; userId: string }[]; perUser: Record<string, number> } {
+  const assignments: { recordId: string; userId: string }[] = []
+  const perUser: Record<string, number> = {}
+  for (const uid of userIds) perUser[uid] = 0
+  if (!recordIds.length || !userIds.length) return { assignments, perUser }
+
+  let userIdx = 0
+  for (const recordId of recordIds) {
+    let attempts = 0
+    let placed = false
+    while (attempts < userIds.length) {
+      const uid = userIds[userIdx % userIds.length]
+      userIdx += 1
+      if (sharingCount == null || perUser[uid] < sharingCount) {
+        assignments.push({ recordId, userId: uid })
+        perUser[uid] += 1
+        placed = true
+        break
+      }
+      attempts += 1
+    }
+    // Every user is at (or over) sharingCount -- the whole pool is at
+    // capacity, so nothing later in recordIds can be placed either. Stop
+    // rather than looping through the rest for no effect.
+    if (!placed) break
+  }
+  return { assignments, perUser }
+}
+
+export type AutoDistributeOptions = {
+  // 'oldest_first' (default) matches the reference's "Order By" concept for
+  // working a queue FIFO; 'newest_first' supported for the inverse.
+  order?: AssignmentOrder
+  // Manual-Assign-style per-target cap. Omitted => "Auto Assign" mode: ALL
+  // currently-unassigned records are split evenly (round-robin) across
+  // every active user in the pool.
+  sharingCount?: number
+  // Explicit pool of target users -- omitted => every active user in the org.
+  targetUserIds?: string[]
+}
+export type AutoDistributeResult = {
+  entityType: "lead" | "opportunity"
+  totalUnassigned: number
+  distributedCount: number
+  remainingUnassigned: number
+  perUser: { userId: string; name: string; assignedCount: number }[]
+}
+
+async function fetchActiveOrgUsers(db: TenantDb, orgId: string, targetUserIds?: string[]) {
+  return db.query.users.findMany({
+    where: targetUserIds?.length
+      ? and(eq(users.orgId, orgId), eq(users.isActive, true), inArray(users.id, targetUserIds))
+      : and(eq(users.orgId, orgId), eq(users.isActive, true)),
+    orderBy: (t, { asc }) => asc(t.id),
+    columns: { id: true, name: true },
+  })
+}
+
+// Task #46: deterministic auto-assignment for leads -- queries currently
+// unassigned leads (ownerId IS NULL), fetches active org users, and
+// round-robins/least-loads them up to sharingCount per target (or evenly
+// across all active users when sharingCount is omitted).
+export async function autoDistributeLeads(ctx: CrmContext, opts: AutoDistributeOptions = {}): Promise<AutoDistributeResult> {
+  await requireSalesEnabled(ctx.orgId)
+  const order: AssignmentOrder = opts.order ?? "oldest_first"
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [unassigned, activeUsers] = await Promise.all([
+      db.query.crmLeads.findMany({
+        where: and(eq(crmLeads.orgId, ctx.orgId), isNull(crmLeads.ownerId)),
+        orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+        columns: { id: true },
+      }),
+      fetchActiveOrgUsers(db, ctx.orgId, opts.targetUserIds),
+    ])
+
+    const totalUnassigned = unassigned.length
+    if (!totalUnassigned || !activeUsers.length) {
+      return {
+        entityType: "lead" as const, totalUnassigned, distributedCount: 0, remainingUnassigned: totalUnassigned,
+        perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: 0 })),
+      }
+    }
+
+    const { assignments, perUser } = computeRoundRobinAssignment(unassigned.map((l) => l.id), activeUsers.map((u) => u.id), opts.sharingCount)
+
+    // One UPDATE per target user (inArray of that user's assigned ids),
+    // matching bulkReassignLeads's own update shape above -- not N
+    // single-row updates.
+    const idsByOwner = new Map<string, string[]>()
+    for (const a of assignments) idsByOwner.set(a.userId, [...(idsByOwner.get(a.userId) ?? []), a.recordId])
+    for (const [ownerId, ids] of idsByOwner) {
+      await db.update(crmLeads).set({ ownerId, updatedAt: new Date() })
+        .where(and(eq(crmLeads.orgId, ctx.orgId), inArray(crmLeads.id, ids)))
+    }
+
+    return {
+      entityType: "lead" as const, totalUnassigned, distributedCount: assignments.length,
+      remainingUnassigned: totalUnassigned - assignments.length,
+      perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: perUser[u.id] ?? 0 })),
+    }
+  })
+}
+
+// Task #46: same as autoDistributeLeads above, opportunity side.
+export async function autoDistributeOpportunities(ctx: CrmContext, opts: AutoDistributeOptions = {}): Promise<AutoDistributeResult> {
+  await requireSalesEnabled(ctx.orgId)
+  const order: AssignmentOrder = opts.order ?? "oldest_first"
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [unassigned, activeUsers] = await Promise.all([
+      db.query.crmOpportunities.findMany({
+        where: and(eq(crmOpportunities.orgId, ctx.orgId), isNull(crmOpportunities.ownerId)),
+        orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+        columns: { id: true },
+      }),
+      fetchActiveOrgUsers(db, ctx.orgId, opts.targetUserIds),
+    ])
+
+    const totalUnassigned = unassigned.length
+    if (!totalUnassigned || !activeUsers.length) {
+      return {
+        entityType: "opportunity" as const, totalUnassigned, distributedCount: 0, remainingUnassigned: totalUnassigned,
+        perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: 0 })),
+      }
+    }
+
+    const { assignments, perUser } = computeRoundRobinAssignment(unassigned.map((o) => o.id), activeUsers.map((u) => u.id), opts.sharingCount)
+
+    const idsByOwner = new Map<string, string[]>()
+    for (const a of assignments) idsByOwner.set(a.userId, [...(idsByOwner.get(a.userId) ?? []), a.recordId])
+    for (const [ownerId, ids] of idsByOwner) {
+      await db.update(crmOpportunities).set({ ownerId, updatedAt: new Date() })
+        .where(and(eq(crmOpportunities.orgId, ctx.orgId), inArray(crmOpportunities.id, ids)))
+    }
+
+    return {
+      entityType: "opportunity" as const, totalUnassigned, distributedCount: assignments.length,
+      remainingUnassigned: totalUnassigned - assignments.length,
+      perUser: activeUsers.map((u) => ({ userId: u.id, name: u.name, assignedCount: perUser[u.id] ?? 0 })),
+    }
+  })
+}
+
+// Task #46: the "Manual Assign" shape (a specific user + record count +
+// ordering) -- bulkReassignLeads/bulkReassignOpportunities above take an
+// explicit id list, they don't pick which unassigned records to hand a
+// given user, so this is a genuinely thin wrapper: pick the N oldest/newest
+// unassigned records, then delegate the actual write to the existing
+// bulk-reassign function (zero duplicated update logic).
+export async function manualAssignUnassigned(
+  ctx: CrmContext,
+  entityType: "lead" | "opportunity",
+  targetUserId: string,
+  count: number,
+  order: AssignmentOrder = "oldest_first"
+): Promise<{ entityType: "lead" | "opportunity"; assignedIds: string[] }> {
+  await requireSalesEnabled(ctx.orgId)
+  if (!targetUserId) throw new ServiceError("targetUserId is required", 400)
+  if (!Number.isInteger(count) || count < 1) throw new ServiceError("count must be a positive integer", 400)
+
+  if (entityType === "lead") {
+    const candidates = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+      db.query.crmLeads.findMany({
+        where: and(eq(crmLeads.orgId, ctx.orgId), isNull(crmLeads.ownerId)),
+        orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+        limit: count,
+        columns: { id: true },
+      })
+    )
+    if (!candidates.length) return { entityType, assignedIds: [] }
+    await bulkReassignLeads(ctx, candidates.map((c) => c.id), targetUserId)
+    return { entityType, assignedIds: candidates.map((c) => c.id) }
+  }
+
+  const candidates = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmOpportunities.findMany({
+      where: and(eq(crmOpportunities.orgId, ctx.orgId), isNull(crmOpportunities.ownerId)),
+      orderBy: (t, { asc, desc }) => (order === "oldest_first" ? asc(t.createdAt) : desc(t.createdAt)),
+      limit: count,
+      columns: { id: true },
+    })
+  )
+  if (!candidates.length) return { entityType, assignedIds: [] }
+  await bulkReassignOpportunities(ctx, candidates.map((c) => c.id), targetUserId)
+  return { entityType, assignedIds: candidates.map((c) => c.id) }
+}
+
+// Task #46: the Total/Allocated/Un-Allocated dashboard -- a GROUP BY
+// ownerId count query over the existing crm_leads/crm_opportunities table,
+// filtered by the existing users.isActive, per the gap analysis's own
+// "ZERO new database schema" finding. Per-user activityStatus is an honest,
+// best-available approximation, not a fabricated field: crm_activities has
+// no per-owner column of its own (its assignedToId can differ from the
+// entity's current owner), so "has activity" is derived by joining on
+// entityId -- does any owned lead/opportunity have at least one logged
+// crm_activities row -- rather than claiming to know what the OWNER
+// personally did. A user with zero currently-assigned records gets
+// activityStatus: null (there's nothing to categorize), not a fake status.
+export type AssignmentOverviewUser = {
+  userId: string
+  name: string
+  assignedCount: number
+  activityStatus: "yet_to_start" | "in_progress" | null
+}
+export type AssignmentOverview = {
+  entityType: "lead" | "opportunity"
+  total: number
+  allocated: number
+  unallocated: number
+  perUser: AssignmentOverviewUser[]
+}
+
+export async function getAssignmentOverview(ctx: { orgId: string }, entityType: "lead" | "opportunity"): Promise<AssignmentOverview> {
+  await requireSalesEnabled(ctx.orgId)
+
+  if (entityType === "lead") {
+    return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+      const [totalRows, ownedLeads, activeUsers] = await Promise.all([
+        db.select({ count: sql<number>`count(*)` }).from(crmLeads).where(eq(crmLeads.orgId, ctx.orgId)),
+        db.query.crmLeads.findMany({ where: and(eq(crmLeads.orgId, ctx.orgId), isNotNull(crmLeads.ownerId)), columns: { id: true, ownerId: true } }),
+        fetchActiveOrgUsers(db, ctx.orgId),
+      ])
+      const total = Number(totalRows[0]?.count ?? 0)
+      const allocated = ownedLeads.length
+      const unallocated = total - allocated
+
+      const idsWithActivity = ownedLeads.length
+        ? new Set(
+            (
+              await db.select({ entityId: crmActivities.entityId }).from(crmActivities)
+                .where(and(eq(crmActivities.orgId, ctx.orgId), eq(crmActivities.entityType, "lead"), inArray(crmActivities.entityId, ownedLeads.map((l) => l.id))))
+            ).map((r) => r.entityId)
+          )
+        : new Set<string>()
+
+      const countsByOwner = new Map<string, number>()
+      const activityByOwner = new Map<string, boolean>()
+      for (const lead of ownedLeads) {
+        const ownerId = lead.ownerId as string
+        countsByOwner.set(ownerId, (countsByOwner.get(ownerId) ?? 0) + 1)
+        if (idsWithActivity.has(lead.id)) activityByOwner.set(ownerId, true)
+        else if (!activityByOwner.has(ownerId)) activityByOwner.set(ownerId, false)
+      }
+
+      const perUser: AssignmentOverviewUser[] = activeUsers.map((u) => {
+        const assignedCount = countsByOwner.get(u.id) ?? 0
+        return {
+          userId: u.id, name: u.name, assignedCount,
+          activityStatus: assignedCount === 0 ? null : activityByOwner.get(u.id) ? "in_progress" : "yet_to_start",
+        }
+      })
+
+      return { entityType: "lead" as const, total, allocated, unallocated, perUser }
+    })
+  }
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [totalRows, ownedOpps, activeUsers] = await Promise.all([
+      db.select({ count: sql<number>`count(*)` }).from(crmOpportunities).where(eq(crmOpportunities.orgId, ctx.orgId)),
+      db.query.crmOpportunities.findMany({ where: and(eq(crmOpportunities.orgId, ctx.orgId), isNotNull(crmOpportunities.ownerId)), columns: { id: true, ownerId: true } }),
+      fetchActiveOrgUsers(db, ctx.orgId),
+    ])
+    const total = Number(totalRows[0]?.count ?? 0)
+    const allocated = ownedOpps.length
+    const unallocated = total - allocated
+
+    const idsWithActivity = ownedOpps.length
+      ? new Set(
+          (
+            await db.select({ entityId: crmActivities.entityId }).from(crmActivities)
+              .where(and(eq(crmActivities.orgId, ctx.orgId), eq(crmActivities.entityType, "opportunity"), inArray(crmActivities.entityId, ownedOpps.map((o) => o.id))))
+          ).map((r) => r.entityId)
+        )
+      : new Set<string>()
+
+    const countsByOwner = new Map<string, number>()
+    const activityByOwner = new Map<string, boolean>()
+    for (const opp of ownedOpps) {
+      const ownerId = opp.ownerId as string
+      countsByOwner.set(ownerId, (countsByOwner.get(ownerId) ?? 0) + 1)
+      if (idsWithActivity.has(opp.id)) activityByOwner.set(ownerId, true)
+      else if (!activityByOwner.has(ownerId)) activityByOwner.set(ownerId, false)
+    }
+
+    const perUser: AssignmentOverviewUser[] = activeUsers.map((u) => {
+      const assignedCount = countsByOwner.get(u.id) ?? 0
+      return {
+        userId: u.id, name: u.name, assignedCount,
+        activityStatus: assignedCount === 0 ? null : activityByOwner.get(u.id) ? "in_progress" : "yet_to_start",
+      }
+    })
+
+    return { entityType: "opportunity" as const, total, allocated, unallocated, perUser }
   })
 }
 
@@ -285,6 +604,130 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
   })
 }
 
+// sap_reports gap analysis, lead_source_effectiveness (BUILD_NEW, no existing
+// catalog row -- confirmed absent from the 80-row sap_reports classification
+// PR #677 completed). Pure aggregation kept separate from the DB-fetch below,
+// matching this repo's established "no live DB from a .test.ts file"
+// convention (see sales-pipeline-dashboard-service.ts's own split). Per the
+// gap analysis's own note: CAC is omitted entirely when no marketing-spend-
+// by-source data exists, rather than fabricating a cost figure with no real
+// input -- this schema has no spend-by-source table today, so CAC is never
+// computed here, not silently zeroed.
+export type LeadSourceRow = { id: string; source: string | null; status: string }
+export type OpportunityForSourceRow = { leadId: string | null; stage: string; estimatedValue: string | number | null }
+
+export function aggregateLeadSourceEffectiveness(leads: LeadSourceRow[], opportunities: OpportunityForSourceRow[]) {
+  // Every real lead attributes its own opportunities via leadId -- an
+  // opportunity's source is inherited from the lead it originated from,
+  // never re-declared independently (opportunities created directly against
+  // an existing client, with no leadId, have no attributable source and are
+  // excluded, same "unattributed, not zero" honesty as crmLeads.companyId).
+  const oppsByLeadId = new Map<string, OpportunityForSourceRow[]>()
+  for (const o of opportunities) {
+    if (!o.leadId) continue
+    const bucket = oppsByLeadId.get(o.leadId) ?? []
+    bucket.push(o)
+    oppsByLeadId.set(o.leadId, bucket)
+  }
+
+  const bySource: Record<string, { totalLeads: number; wonDeals: number; totalDeals: number; wonValue: number }> = {}
+  for (const lead of leads) {
+    const key = lead.source?.trim() || "unattributed"
+    const bucket = (bySource[key] ??= { totalLeads: 0, wonDeals: 0, totalDeals: 0, wonValue: 0 })
+    bucket.totalLeads += 1
+    const opps = oppsByLeadId.get(lead.id) ?? []
+    for (const o of opps) {
+      if (o.stage !== "won" && o.stage !== "lost") continue
+      bucket.totalDeals += 1
+      if (o.stage === "won") {
+        bucket.wonDeals += 1
+        bucket.wonValue += o.estimatedValue != null ? Number(o.estimatedValue) : 0
+      }
+    }
+  }
+
+  const bySourceReport = Object.entries(bySource)
+    .map(([source, b]) => ({
+      source,
+      totalLeads: b.totalLeads,
+      conversionRate: b.totalDeals > 0 ? b.wonDeals / b.totalDeals : null,
+      avgWonDealSize: b.wonDeals > 0 ? b.wonValue / b.wonDeals : null,
+      wonDeals: b.wonDeals,
+      totalDeals: b.totalDeals,
+    }))
+    .sort((a, b) => b.totalLeads - a.totalLeads)
+
+  return { bySource: bySourceReport }
+}
+
+export async function getLeadSourceEffectivenessReport(ctx: { orgId: string }) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [leads, opportunities] = await Promise.all([
+      db.query.crmLeads.findMany({ where: eq(crmLeads.orgId, ctx.orgId), columns: { id: true, source: true, status: true } }),
+      db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId), columns: { leadId: true, stage: true, estimatedValue: true } }),
+    ])
+    return aggregateLeadSourceEffectiveness(leads, opportunities)
+  })
+}
+
+// ─── Sales Pipeline Interactive Dashboard (2026-07-27, Owner mockup) ──────
+// Fetches everything the dashboard needs in one shot -- opportunities, the
+// owner-id -> name lookup, and monthly targets -- and hands the raw rows to
+// sales-pipeline-dashboard-service.ts's pure buildPipelineDeals(). All actual
+// KPI/chart aggregation happens client-side over this one payload so every
+// cross-filter click (SCOPE item 4) recomputes instantly with zero extra
+// requests, using the exact same pure functions this file's tests cover.
+export async function getSalesPipelineDashboardData(ctx: { orgId: string }) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [opportunities, orgUsers, targets] = await Promise.all([
+      db.query.crmOpportunities.findMany({ where: eq(crmOpportunities.orgId, ctx.orgId) }),
+      db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true } }),
+      db.query.crmSalesTargets.findMany({ where: eq(crmSalesTargets.orgId, ctx.orgId) }),
+    ])
+
+    const ownerNameById: Record<string, string> = Object.fromEntries(orgUsers.map((u) => [u.id, u.name]))
+    const deals = buildPipelineDeals(
+      opportunities.map((o) => ({
+        id: o.id, name: o.name, ownerId: o.ownerId, estimatedValue: o.estimatedValue,
+        stage: o.stage, expectedCloseDate: o.expectedCloseDate, aiWinProbability: o.aiWinProbability,
+      })),
+      ownerNameById
+    )
+
+    return {
+      deals,
+      targets: targets.map((t) => ({ month: t.month.slice(0, 7), targetValue: Number(t.targetValue) })),
+    }
+  })
+}
+
+/** Upserts an org's monthly revenue target (find-or-create by orgId+month, same app-level-uniqueness convention as the rest of this file's bare-text-id tables). */
+export async function setSalesTarget(ctx: { orgId: string; userId: string }, input: { month: string; targetValue: number }) {
+  await requireSalesEnabled(ctx.orgId)
+  if (!/^\d{4}-\d{2}$/.test(input.month)) throw new ServiceError("month must be 'YYYY-MM'", 400, { code: "VALIDATION" })
+  if (!Number.isFinite(input.targetValue)) throw new ServiceError("targetValue must be a finite number", 400, { code: "VALIDATION" })
+  const monthDate = `${input.month}-01`
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.crmSalesTargets.findFirst({
+      where: and(eq(crmSalesTargets.orgId, ctx.orgId), eq(crmSalesTargets.month, monthDate)),
+    })
+    if (existing) {
+      const [updated] = await db.update(crmSalesTargets)
+        .set({ targetValue: String(input.targetValue), updatedAt: new Date() })
+        .where(eq(crmSalesTargets.id, existing.id))
+        .returning()
+      return updated
+    }
+    const [created] = await db.insert(crmSalesTargets)
+      .values({ orgId: ctx.orgId, month: monthDate, targetValue: String(input.targetValue), createdById: ctx.userId })
+      .returning()
+    return created
+  })
+}
+
 // ─── Wave 75 (CRM Intelligence, AI_OS_CERTIFICATION.md §3.3 NOT_BUILT) ────
 // crmLeads/crmOpportunities were pure CRUD with zero AI reasoning. Both
 // functions reason over each record's own structured fields (source/status/
@@ -300,7 +743,7 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
-    if (!lead) throw new ServiceError("Lead not found", 404)
+    if (!lead) throw new ServiceError("Lead not found", 404, { code: "NOT_FOUND" })
 
     // VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md §3/#6: lead.name is the one
     // genuinely user-authored field reaching the model here (everything
@@ -312,17 +755,28 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.score_lead" },
       lead.name
     )
-    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
     const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503, { code: "AI_NOT_CONFIGURED" })
 
     const systemPrompt = await resolvePromptTemplate("crm_intelligence.score_lead")
     const userMessage = `Lead: "${lead.name}"\nSource: ${lead.source ?? "unknown"}\nStatus: ${lead.status}\nHas email: ${!!lead.contactEmail}\nHas phone: ${!!lead.contactPhone}\nDays since created: ${daysSince(lead.createdAt)}\nDays since last update: ${daysSince(lead.updatedAt)}`
 
     const startedAt = Date.now()
-    const { data: result, usage } = await callLLMJson<{ score: number; reasoning: string; recommendedAction: string }>(
-      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 300 }, modelConfig.fallback
+    // AI Architecture / Explainability & Transparency gap-closure
+    // (2026-07-18, migration 0225): confidence/assumptions/rejectedAlternatives
+    // are requested by the bumped prompt version (see that migration) but
+    // stay optional on the response type -- an org whose model config still
+    // resolves an older cached/BYO prompt (or a model that ignores part of
+    // the schema) shouldn't 500 on missing fields, just fall back to no
+    // explanation extras, same honesty posture as every other AI call site.
+    const { data: result, usage } = await callLLMJson<{
+      score: number; reasoning: string; recommendedAction: string
+      confidence?: "low" | "medium" | "high"; assumptions?: string[]
+      rejectedAlternatives?: { option: string; reason: string }[]
+    }>(
+      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 500 }, modelConfig.fallback
     )
 
     recordOrchestraExecution({
@@ -335,6 +789,9 @@ export async function scoreLead(ctx: CrmContext, leadId: string) {
     const [updated] = await db.update(crmLeads).set({
       aiScore: Math.round(result.score), aiScoreReasoning: result.reasoning,
       aiRecommendedAction: result.recommendedAction, aiScoredAt: new Date(),
+      aiConfidence: result.confidence ?? null,
+      aiAssumptions: result.assumptions ?? [],
+      aiRejectedAlternatives: result.rejectedAlternatives ?? [],
     }).where(eq(crmLeads.id, leadId)).returning()
     return updated
   })
@@ -344,7 +801,7 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
-    if (!opp) throw new ServiceError("Opportunity not found", 404)
+    if (!opp) throw new ServiceError("Opportunity not found", 404, { code: "NOT_FOUND" })
 
     // Same reasoning as scoreLead() above -- opp.name is the only
     // user-authored text reaching the model here.
@@ -352,17 +809,22 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
       { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.analyze_opportunity" },
       opp.name
     )
-    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
+    if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403, { code: "AI_REFUSED" })
 
     const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
-    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+    if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503, { code: "AI_NOT_CONFIGURED" })
 
     const systemPrompt = await resolvePromptTemplate("crm_intelligence.analyze_opportunity")
     const userMessage = `Opportunity: "${opp.name}"\nStage: ${opp.stage}\nEstimated value: ${opp.estimatedValue ?? "unknown"}\nExpected close date: ${opp.expectedCloseDate ?? "unknown"}\nDays since created: ${daysSince(opp.createdAt)}\nDays since last update: ${daysSince(opp.updatedAt)}`
 
     const startedAt = Date.now()
-    const { data: result, usage } = await callLLMJson<{ winProbability: number; riskFactors: string[]; recommendedAction: string }>(
-      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 400 }, modelConfig.fallback
+    // Same optional-extras posture as scoreLead() above.
+    const { data: result, usage } = await callLLMJson<{
+      winProbability: number; riskFactors: string[]; recommendedAction: string
+      confidence?: "low" | "medium" | "high"; assumptions?: string[]
+      rejectedAlternatives?: { option: string; reason: string }[]
+    }>(
+      modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 600 }, modelConfig.fallback
     )
 
     recordOrchestraExecution({
@@ -375,8 +837,29 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
     const [updated] = await db.update(crmOpportunities).set({
       aiWinProbability: Math.round(result.winProbability), aiRiskFactors: result.riskFactors ?? [],
       aiRecommendedAction: result.recommendedAction, aiAnalyzedAt: new Date(),
+      aiConfidence: result.confidence ?? null,
+      aiAssumptions: result.assumptions ?? [],
+      aiRejectedAlternatives: result.rejectedAlternatives ?? [],
     }).where(eq(crmOpportunities.id, opportunityId)).returning()
     return updated
+  })
+}
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain AI Decisions"/"Explains Why a Decision Was Made" -- a
+// general-purpose way to fetch the AiDecisionExplanation for a scored
+// lead/analyzed opportunity, for a shared UI ("explain this AI decision")
+// surface to call instead of each caller re-deriving the shape by hand.
+export async function explainCrmAiDecision(ctx: { orgId: string }, entityType: "lead" | "opportunity", entityId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    if (entityType === "lead") {
+      const lead = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, entityId), eq(crmLeads.orgId, ctx.orgId)) })
+      if (!lead) throw new ServiceError("Lead not found", 404, { code: "NOT_FOUND" })
+      return explainCrmLeadDecision(lead)
+    }
+    const opp = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, entityId), eq(crmOpportunities.orgId, ctx.orgId)) })
+    if (!opp) throw new ServiceError("Opportunity not found", 404, { code: "NOT_FOUND" })
+    return explainCrmOpportunityDecision(opp)
   })
 }
 
@@ -387,33 +870,149 @@ export async function analyzeOpportunity(ctx: CrmContext, opportunityId: string)
 // pass (worker-agent dispatch + Wave 77 memory read-back) -- rather than a
 // generic event bus. Still human-gated by the explicit call here, matching
 // task-execution-engine's own "no unattended write action" doctrine.
-async function createChainedTask(ctx: CrmContext, title: string, description: string) {
+//
+// GP-20 Phase 2 (CONSTITUTION.yaml, task-dependency-graph cycle detection):
+// this is the one real place in this codebase where one task's processing
+// spawns AND dispatches (executes) a second, distinct `tasks` row -- so it's
+// the real call site the new escalation-edge guard hooks into. `fromTaskId`,
+// when the caller knows this follow-up was itself raised while working an
+// existing task, is recorded as a real entity_relationships edge
+// (task -> task, 'escalates_to') via recordTaskEscalationEdge(), which
+// refuses (ServiceError) before this insert ever runs if the edge would
+// close a cycle back to an ancestor task. Optional and additive -- omitting
+// it (every caller before this change) behaves exactly as before.
+async function createChainedTask(ctx: CrmContext, title: string, description: string, fromTaskId?: string | null) {
   const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const [task] = await db.insert(tasks).values({
       orgId: ctx.orgId, userId: ctx.userId, assignedById: ctx.userId, title, description, status: "in_progress",
     }).returning()
+    if (fromTaskId) {
+      await recordTaskEscalationEdge(db, { orgId: ctx.orgId, fromTaskId, toTaskId: task.id, reason: "chained_follow_up_task" })
+    }
     return task
   })
   await executeTask(ctx.orgId, ctx.userId, created.id, created.title, created.description, null, null)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) => db.query.tasks.findFirst({ where: eq(tasks.id, created.id) }))
 }
 
-export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string) {
+export async function createFollowUpTaskFromLead(ctx: CrmContext, leadId: string, fromTaskId?: string | null) {
   await requireSalesEnabled(ctx.orgId)
   const lead = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
   )
   if (!lead) throw new ServiceError("Lead not found", 404)
   if (!lead.aiRecommendedAction) throw new ServiceError("Score this lead first to get an AI-recommended action", 400)
-  return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction)
+  return createChainedTask(ctx, `Follow up: ${lead.name}`, lead.aiRecommendedAction, fromTaskId)
 }
 
-export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string) {
+export async function createFollowUpTaskFromOpportunity(ctx: CrmContext, opportunityId: string, fromTaskId?: string | null) {
   await requireSalesEnabled(ctx.orgId)
   const opp = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
     db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
   )
   if (!opp) throw new ServiceError("Opportunity not found", 404)
   if (!opp.aiRecommendedAction) throw new ServiceError("Analyze this opportunity first to get an AI-recommended action", 400)
-  return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction)
+  return createChainedTask(ctx, `Follow up: ${opp.name}`, opp.aiRecommendedAction, fromTaskId)
+}
+
+
+// ─── VERIDIAN CRM Wave 1 (2026-07-21) ─────────────────────────────────────
+// CRUD audit finding (Owner-directed completion pass): listLeads/
+// listLeadsPaged/createLead/updateLead existed but no single-lead fetch and
+// no delete path -- same gap on the opportunity side (listOpportunities/
+// listOpportunitiesPaged/createOpportunity/updateOpportunity existed, no
+// getOpportunity/deleteOpportunity). Accounts and contacts (crm-accounts-
+// service.ts) already had full CRUD including delete -- checked, not a gap
+// there. Delete here follows crm-accounts-service.ts's own deleteAccount()
+// precedent for the hard-delete-with-referential-blocker shape (this
+// schema has no isActive/archivedAt column on crm_leads/crm_opportunities
+// to soft-delete against -- confirmed by reading the table definitions
+// fresh before writing this, not assumed) -- but deliberately does NOT
+// call logActivity() the way crm-accounts-service.ts's deletes do: this
+// file's own CrmContext type (unlike crm-accounts-service.ts's
+// CrmAccountContext) carries no dbUser, and none of this file's existing
+// create/update functions log activity either -- adding it only to these
+// two new functions would be an inconsistent, half-applied convention
+// borrowed from a different file, not a real fix.
+
+export async function getLead(ctx: { orgId: string }, leadId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
+  )
+}
+
+export async function deleteLead(ctx: CrmContext, leadId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Lead not found", 404)
+
+    const linkedOpportunities = await db.query.crmOpportunities.findMany({
+      where: and(eq(crmOpportunities.leadId, leadId), eq(crmOpportunities.orgId, ctx.orgId)), columns: { id: true },
+    })
+    if (linkedOpportunities.length) {
+      throw new ServiceError(
+        `Cannot delete this lead -- it still has ${linkedOpportunities.length} linked opportunity/opportunities. Reassign or remove them first.`,
+        409
+      )
+    }
+
+    await db.delete(crmLeads).where(eq(crmLeads.id, leadId))
+    return { id: leadId }
+  })
+}
+
+export async function getOpportunity(ctx: { orgId: string }, opportunityId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
+  )
+}
+
+export async function deleteOpportunity(ctx: CrmContext, opportunityId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Opportunity not found", 404)
+    await db.delete(crmOpportunities).where(eq(crmOpportunities.id, opportunityId))
+    return { id: opportunityId }
+  })
+}
+
+// Structured Lost Reason (Odoo reference: a configurable Lost Reasons
+// taxonomy, not free text -- see odoo-reverse-engineering/docs/crm/fields.md
+// "Marking a deal 'Lost' is backed by a structured Lost Reasons config
+// list... not a free-text field"). Org-configurable, not a hardcoded enum,
+// same rationale as this schema's other org-scoped lookup data.
+export async function createLostReason(ctx: CrmContext, reasonText: string) {
+  await requireSalesEnabled(ctx.orgId)
+  const trimmed = reasonText?.trim()
+  if (!trimmed) throw new ServiceError("reasonText is required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [reason] = await db.insert(crmLostReasons).values({ orgId: ctx.orgId, reasonText: trimmed }).returning()
+    return reason
+  })
+}
+
+export async function listLostReasons(ctx: { orgId: string }, opts: { includeInactive?: boolean } = {}) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.crmLostReasons.findMany({
+      where: opts.includeInactive
+        ? eq(crmLostReasons.orgId, ctx.orgId)
+        : and(eq(crmLostReasons.orgId, ctx.orgId), eq(crmLostReasons.isActive, true)),
+      orderBy: (t, { asc }) => asc(t.reasonText),
+    })
+  )
+}
+
+export async function deactivateLostReason(ctx: { orgId: string }, lostReasonId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.crmLostReasons.findFirst({ where: and(eq(crmLostReasons.id, lostReasonId), eq(crmLostReasons.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Lost reason not found", 404)
+    const [updated] = await db.update(crmLostReasons).set({ isActive: false }).where(eq(crmLostReasons.id, lostReasonId)).returning()
+    return updated
+  })
 }

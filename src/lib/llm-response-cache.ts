@@ -143,7 +143,9 @@ export async function callLLMCached(
 
   const { lookup, rowExists } = await lookupCache(cacheKey, now);
   if (lookup) {
-    return { content: lookup.content, usage: { promptTokens: lookup.promptTokens, completionTokens: lookup.completionTokens }, cached: true };
+    // durationMs: 0 -- a cache hit made no real provider call, so there is
+    // no latency to report (distinct from a genuinely instant 0ms call).
+    return { content: lookup.content, usage: { promptTokens: lookup.promptTokens, completionTokens: lookup.completionTokens }, durationMs: 0, cached: true };
   }
 
   const result = await callLLM(provider, model, apiKey, systemPrompt, userMessage, options, fallback);

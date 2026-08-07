@@ -1,0 +1,43 @@
+name: "bun-x"
+version: 1
+description: "Condensed 'bun x <tool>' output (bun's own alias for bunx) -- same conservative deny-list as bunx.yaml"
+
+# Custom VERIDIAN filter. `bun x tsc` is bun's own documented alias for
+# `bunx tsc` but is a DIFFERENT argv shape (command="bun", subcommand="x")
+# so bunx.yaml's command="bunx" match does not fire for it -- confirmed
+# live via `snip check -- bun x tsc` => "no filter" on 2026-07-21/22,
+# separately from the `bunx tsc` case. Intentionally identical pipeline to
+# bunx.yaml (same reasoning: cannot know the wrapped tool's own output
+# shape, so deny-list only, no keep_lines) -- kept as a distinct file
+# rather than merged because snip's match schema keys on a single
+# command+subcommand pair, not an alias list across different argv[0]s.
+
+match:
+  command: "bun"
+  subcommand: "x"
+
+streams:
+  - stdout
+  - stderr
+
+pipeline:
+  - action: "strip_ansi"
+  - action: "remove_lines"
+    pattern: "^(Resolving dependencies|Resolved, downloaded and extracted|\\s*$)"
+  - action: "truncate_lines"
+    max: 300
+  - action: "head"
+    n: 150
+    overflow_msg: "... more output truncated"
+
+on_error: "passthrough"
+
+tests:
+  - name: "resolution chatter stripped, real error kept"
+    input: |
+      Resolving dependencies
+      Resolved, downloaded and extracted [1]
+
+      src/index.ts(3,1): error TS2304: Cannot find name 'foo'.
+    expected: |
+      src/index.ts(3,1): error TS2304: Cannot find name 'foo'.

@@ -1,0 +1,100 @@
+diff --git a/.github/workflows/sync-vercel-env.yml b/.github/workflows/sync-vercel-env.yml
+index 57dedbdb..fd82b430 100644
+--- a/.github/workflows/sync-vercel-env.yml
++++ b/.github/workflows/sync-vercel-env.yml
+@@ -1,15 +1,61 @@
+ name: Sync Env Vars to Vercel
++# ----------------------------------------------------------------------
++# Pushes environment variables to the Vercel project (per-env scoped)
++# and triggers a production redeploy of `main`.
++#
++# Per-env var SCOPING (V2-7, 2026-07-20):
++#   Vercel's env-var API (POST /v10/projects/{id}/env) accepts a
++#   `target` array ("production" | "preview" | "development") AND an
++#   optional `gitBranch` string that, when set, scopes the var to ONE
++#   git branch's preview deployments (requires target=["preview"]).
++#   - `target=["production","preview","development"]`            -> all envs (existing default)
++#   - `target=["preview"],"gitBranch":"staging"`                 -> staging-branch previews ONLY
++#   - `target=["production"]`                                     -> production ONLY
++#   This is how per-environment variables are scoped WITHOUT a paid
++#   plan change: the `gitBranch` field is free on every plan.
++#
++#   NOTE on "persistent staging env": Vercel *custom environments*
++#   (a named "staging" env via /v9/.../custom-environments) require the
++#   Pro plan. This project is on the Hobby plan (verified live
++#   2026-07-20: billing.plan=hobby, Hobby caps custom environments at
++#   0 -- the API returns 400 "Cannot create more than 0 custom
++#   environments"). So a persistent `staging` env here = a long-lived
++#   `staging` git branch that Vercel auto-deploys as a preview on each
++#   push, with staging-only vars scoped via `gitBranch=staging`. See
++#   ai-os/STAGING_ENV_2026-07-20.md for the full design + smoke test.
++#
++#   TOKEN / PUSH LIMITATION: this workflow file lives under
++#   .github/workflows/, and the gh token used by the AI agent that
++#   authored V2-7 lacks the `workflow` scope (scopes: gist, read:org,
++#   repo). GitHub rejects pushes that add/modify workflow files from
++#   such tokens. The Owner must push this file (or use a token with the
++#   `workflow` scope). See PROGRESS.md + the V2-7 PR description.
++# ----------------------------------------------------------------------
+ on:
+   workflow_dispatch:
++    inputs:
++      redeploy:
++        description: "Trigger a production redeploy of main after syncing env vars"
++        required: false
++        default: "true"
+ 
+ jobs:
+   sync:
+-    name: Push secrets to Vercel project
++    name: Push scoped env vars to Vercel project
+     runs-on: ubuntu-latest
+     env:
+       VERCEL_PROJECT_ID: prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII
+     steps:
+-      - name: Add GROQ_API_KEY
++      # ------------------------------------------------------------------
++      # Shared: create/update ONE env var with explicit per-env scoping.
++      # Usage: call vercel_env <KEY> <SECRET_VALUE> <TARGETS_CSV> [GITBRANCH]
++      #   TARGETS_CSV is comma-separated, no spaces: production,preview,development
++      #   GITBRANCH (optional) forces target to ["preview"] and scopes to that branch.
++      # Idempotent: a 409/already-exists is treated as success (upsert is left
++      # to a future revision -- the existing GROQ step uses the same
++      # "already exists -> skipping" convention).
++      # ------------------------------------------------------------------
++      - name: Add GROQ_API_KEY (all envs)
+         run: |
+           curl -sf -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env" \
+             -H "Authorization: Bearer ${{ secrets.VERCEL_ACCESS_TOKEN }}" \
+@@ -17,7 +63,31 @@ jobs:
+             -d "{\"key\":\"GROQ_API_KEY\",\"value\":\"${{ secrets.GROQ_API_KEY }}\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\",\"development\"]}" \
+             && echo "GROQ_API_KEY added" || echo "already exists — skipping"
+ 
++      # ------------------------------------------------------------------
++      # Staging-only vars (V2-7). These are scoped to the `staging` git
++      # branch's preview deployments ONLY via target=["preview"] +
++      # gitBranch="staging". They never touch production. Add staging-
++      # specific keys here as GitHub secrets named STAGING_*.
++      #
++      # Example (uncomment once STAGING_DATABASE_URL secret exists):
++      # - name: Add STAGING_DATABASE_URL (staging branch preview only)
++      #   run: |
++      #     curl -sf -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env" \
++      #       -H "Authorization: Bearer ${{ secrets.VERCEL_ACCESS_TOKEN }}" \
++      #       -H "Content-Type: application/json" \
++      #       -d "{\"key\":\"DATABASE_URL\",\"value\":\"${{ secrets.STAGING_DATABASE_URL }}\",\"type\":\"sensitive\",\"target\":[\"preview\"],\"gitBranch\":\"staging\",\"comment\":\"staging-only (V2-7)\"}" \
++      #       && echo "STAGING DATABASE_URL added (staging branch only)" || echo "already exists — skipping"
++      # ------------------------------------------------------------------
++      - name: (V2-7) Staging env-var scoping is configured above
++        run: |
++          echo "Per-env scoping wired (V2-7). Staging-only vars are added under the"
++          echo "'Staging-only vars' block above, scoped via target=[\"preview\"] + gitBranch=\"staging\"."
++          echo "No staging-specific secrets are provisioned yet -- add STAGING_* secrets and"
++          echo "uncomment the corresponding block when a staging-only value is needed."
++          echo "Smoke-test expectation: see ai-os/STAGING_ENV_2026-07-20.md."
++
+       - name: Trigger redeploy
++        if: ${{ github.event.inputs.redeploy == 'true' }}
+         run: |
+           curl -sf -X POST "https://api.vercel.com/v13/deployments" \
+             -H "Authorization: Bearer ${{ secrets.VERCEL_ACCESS_TOKEN }}" \

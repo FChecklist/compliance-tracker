@@ -1,6 +1,6 @@
 -- Priority 19 Part 2, Workstream A (actor-column FK-vs-API-key-id fix
 -- pass): fixes the same bug class PR #349
--- (drizzle/0204_pms_issues_created_by_no_fk.sql) already fixed on
+-- (drizzle/0258_pms_issues_created_by_no_fk.sql) already fixed on
 -- compliance.pms_issues.created_by_id, now confirmed on BOTH
 -- compliance.crm_leads.created_by_id AND compliance.crm_leads.owner_id
 -- (control/priority19_dubai_e2e_testing_plan.md's "Broader systemic sweep"
