@@ -135,7 +135,15 @@ what was actually found vs. the original gap description.
 - [x] Committed + pushed to `worker/task-20260718-081005-crm---sales-modules--leads`
 
 ## Remaining
-- [ ] Open the PR, let CI run (Lint/Type Check/Build/Unit Tests), fix
-      anything CI catches, merge once green.
+- [x] Opened PR: https://github.com/FChecklist/compliance-tracker/pull/1014
+- [ ] CI had not registered any check runs (beyond the Vercel preview,
+      which failed on an unrelated "Deployment rate limited" infra flake)
+      as of this session's last check, several minutes after PR creation --
+      unclear whether that's a delay or needs a `git commit --allow-empty`
+      nudge/synchronize event. Next invocation: check `gh pr checks 1014`
+      again; if still nothing, push an empty commit to force a
+      `synchronize` event, then let CI run and fix anything it catches.
 - [ ] Flag for a follow-up session with Supabase MCP access: apply
       `drizzle/0225_force_rls_crm_leads_stage_history.sql` live.
+- [ ] Once merged, move this session's ACTIVE-CLAIMS.yaml entry from
+      `active:` to `recently_completed:`.
