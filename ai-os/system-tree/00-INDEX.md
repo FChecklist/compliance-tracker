@@ -36,8 +36,14 @@ Every node is grounded in code that was actually read this session, not assumed.
 
 **The "2nd tree" (the direct replica of the live codebase, built first):**
 - `10-compliance-tracker-governance.yaml` -- the AI-OS governance/platform core: guardrail engine, task-tightening, model-tier routing, the 57-role AI Dev Team roster, the 25-file/247-function VCEL computation-engine registry, the 11 audit "loops," activity log/approval-preferences/dynamic-chain, CI scripts.
-- `11-compliance-tracker-api.yaml` -- all 614 API routes, grouped into ~45 domains, with auth posture, purpose, and workflow per domain.
-- `12-compliance-tracker-database.yaml` -- all 377 tables / 106 enums, grouped by domain, with the schema-wide architectural findings (CUID2 PKs, near-total absence of DB-level FK constraints, `complianceSchemaDB.table()` wrapper).
+- `11-compliance-tracker-api.yaml` -- API routes, grouped into ~45 domains, with auth posture, purpose, and workflow per domain. Recorded at 614 routes as of 2026-07-26 (last full regen); live count as of 2026-08-07 is **995** -- see "How to re-sync" below, this file's per-route detail has not been refreshed at the same cadence as its count.
+- `12-compliance-tracker-database.yaml` -- tables/enums, grouped by domain, with the schema-wide architectural findings (CUID2 PKs, near-total absence of DB-level FK constraints, `complianceSchemaDB.table()` wrapper). Recorded at 377 tables / 106 enums as of 2026-07-26; live count as of 2026-08-07 is **468 tables / 133 enums**.
+
+### How to re-sync (added 2026-08-07, AI Documentation gap-closure)
+
+This tree is a manual, point-in-time snapshot -- it does not auto-update as the codebase grows. Two complementary signals now exist so staleness doesn't go unnoticed:
+- **Cheap, continuous:** `scripts/check-architecture-doc-drift.mjs` (CI job `architecture-doc-drift`) re-counts real API routes / DB tables / DB enums on every push and warns (non-blocking) once they drift >10% from the baseline recorded in `ai-os/system-tree/DRIFT-BASELINE.yaml`. This tells you *that* a re-sync is due -- it does not regenerate the per-route/per-table detail itself.
+- **Periodic, full:** when the drift check fires (or on a monthly cadence regardless), re-run the Methodology above -- 5 parallel, very-thorough Explore agents over the real checkouts -- to refresh `11-compliance-tracker-api.yaml`/`12-compliance-tracker-database.yaml`'s actual per-item detail, then update the counts in this file and `ai-os/system-tree/DRIFT-BASELINE.yaml`'s `counts:`/`recorded_date` to match.
 - `13-compliance-tracker-ui.yaml` -- ~130 authenticated pages and ~65 custom components.
 - `20-projexa.yaml` -- full tree: architecture (thin client, owns no construction DB), pages, API routes (VERIDIAN-proxy + local-DB), components, business logic, construction-domain concepts, and the significant gap found (12+ sidebar-linked modules with no page yet).
 - `30-veda-advisors.yaml` -- full tree: the static marketing site, the real Next.js app (`code-by-zai/`), the ported governance layer, the Stage 0 lead-capture funnel (the one real interactive business flow), and a flagged security finding (plaintext credentials committed in several markdown files).

@@ -13,6 +13,26 @@
 > not current state. See PROGRESS.md in the repo root (task
 > `task-20260718-084003-calculation-engine--calculation-governan`) for the
 > full re-verification trail.
+>
+> **Second correction, 2026-08-07 (AI Documentation gap-closure,
+> UMR-20260801-170930-2080 sub-task):** the [Low] "AI-Readable Calculation
+> Documentation" finding this file was cited against states "~17%
+> implemented against its own catalogue" -- that figure matches neither
+> this file's own numbers above nor current reality. Directly re-counted
+> `dispatchEngine()`'s live switch in `src/lib/task-execution-engine.ts`:
+> **185 real dispatchable engineKeys** as of this date (184 `case` branches
+> in the main switch, lines 384-1608, plus the one special-cased
+> `gst_return_validation_engine` branch handled before the switch at line
+> 389) -- not 127/247 (~51%), and nowhere near 17%. Continuing to wire the
+> remaining catalogued-but-undispatched engines is real, multi-day
+> engineering work (see "The real gap" section below for the actual
+> highest-value gap: 99 product modules with zero worker agents), not a
+> documentation task -- out of scope for this pass. Re-run
+> `Object.keys(WIRED_ENGINE_INPUT_FIELDS).length` in
+> `capability-tree-service.ts` cross-checked against a fresh grep count of
+> `dispatchEngine()`'s case branches for the full current number; this doc
+> does not have live DB access in this sandbox to regenerate the
+> category-by-category table below.
 
 **Purpose:** the honest, always-verifiable answer to "how much of what a user can click is guaranteed to run as real software, not an AI guess." Every number here is a live query against production, re-run each time coverage changes — not an estimate. Started 2026-07-10, per Boss directive: *"Options selected via Mode Pills and Chain Selector is very important for the completion of the work... the worker agent should just execute it like a software."*
 
