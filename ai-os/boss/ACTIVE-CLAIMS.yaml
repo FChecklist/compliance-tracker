@@ -40,7 +40,45 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+  - session_label: "claude-code (task-20260807-071614-retry-ai-documentation-ai-readable-techn) -- rescue/complete PR #684 (AI-Readable Technical Documentation gap closure, 10 findings, task-20260801-173750), stale/mergeable:false since 2026-08-02, 2 rounds of real AUDIT: FAIL against it (line-citation defect + CONFIGURATION.md undercounts, both already fixed by 411f3f0; remaining unfixed: missing EMAIL_FROM row + a real Terminology Guardrail Check failure on a hardcoded ISO date + the merge conflict itself) -- reconstructing the same 14-file diff fresh on top of current main rather than rebasing the 6-day-stale branch, since re-verifying live counts found only trivial 1-line drift in 2 business-rules-registry.yaml citations"
+    claimed_at: "2026-08-07T07:20Z (this session)"
+    claim: |
+      SPEC (redispatch of task-20260718-064002, sub-task of parent UMR-20260801-170930-2080):
+      close 10 AI-Readable Technical Documentation findings in one coherent PR. Before writing
+      anything, checked `git log --all` per [[veridian-duplicate-pm-authorization-same-fix]]-class
+      precedent and found this exact 10-finding scope already fully implemented on branch
+      `worker/task-20260801-173750-retry-ai-documentation-ai-readable-techn` (PR #684, still OPEN).
+      Real diff at its own merge-base vs. main: 14 files (business-rules-registry.yaml,
+      docs/CONFIGURATION.md, docs/master/PROMPT_CATALOG.md, scripts/check-doc-scale-freshness.mjs
+      new; CLAUDE.md/OS.yaml/ARCHITECTURE.md/CAPABILITY_COVERAGE.md/INDEX.md/MODULE_MAP.md/
+      generate.ts/system-tree edited). Two real AUDIT: FAIL rounds already happened on it
+      (2026-08-01 T23:48, 2026-08-02 T09:16): round 1 found a wrong line citation + a
+      CONFIGURATION.md undercount, both genuinely fixed by follow-up commit 411f3f0; round 2
+      confirmed those fixes but found 3 new items -- a missing EMAIL_FROM table row, a real
+      Terminology Guardrail Check failure (bare ISO date `2026-08-01` in generate.ts's own new
+      comment, never addressed), and the branch's merge conflict with main (PROGRESS.md only,
+      per that audit's own local-merge test). Independently re-verified every citation/count in
+      the PR's real content against today's (2026-08-07) live code rather than trusting the
+      6-day-old numbers: table count unchanged (468), migrations/services/routes/pages grew
+      0.4-1% (well under the 20% drift threshold), all 14 business-rules-registry.yaml
+      file:function citations still resolve, only 2 had trivial 1-line drift (calculateGratuity
+      28->29, gstRateSanityCheck 274->275), all 33 process.env.* names and all 26
+      resolvePromptTemplate() keys still match exactly. Given a 6-day-stale branch with this much
+      unrelated main-side churn (`ai-os/boss/ACTIVE-CLAIMS.yaml`/`MASTER-TRACKER.yaml`/etc. all
+      restructured since), reconstructing the same real content fresh off current main is safer
+      than rebasing -- avoids conflict-resolution risk on files this branch never actually
+      touched. Fixing the 3 outstanding real defects in the reconstruction rather than repeating
+      them. Not opening a competing PR for identical scope -- this is a continuation, not
+      duplicate work.
+    scope_note: >-
+      File scope: the same 14 files PR #684 touched (see claim above), reconstructed on the
+      current worker branch of this task. `.github/workflows/ci.yml` deliberately NOT touched --
+      the prior session's own attempt to wire this in was reverted in the same PR
+      (`fbf8b2d90 Revert ci.yml wiring for this push (gh token lacks workflow scope)`), matching
+      this session's own credential limitation ([[gh-token-lacks-workflow-scope]]); noting this
+      honestly rather than re-attempting it. Does not touch
+      `src/lib/services/permission-service.ts`'s `ERP_ACTION_ROLES` table per this task's own
+      scope guardrail.
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
       SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
