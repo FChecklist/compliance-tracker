@@ -10140,3 +10140,41 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+
+# ── claim closed 2026-08-07 (task-20260807-074007) ──────────────────────────
+  - session_label: "claude-code (task-20260807-074007-pm-decision--reconcile-master-index-yaml) -- final closure: MASTER_INDEX.yaml reconciliation (UMR-20260802-080051-6e48) confirmed already substantively resolved, PR #708 superseded [CLOSED]"
+    claimed_at: "2026-08-07T (this session, closed same session)"
+    claim: |
+      PM decision SPEC (parent UMR-20260802-080051-6e48, PM decision
+      UMR-20260802-083104-5987) dispatched with stale evidence: "146 registries
+      (live) vs 51 registries (claude-control)". Verified before acting -- "51"
+      is the exact wrong number a documented shell-truncation bug produced
+      during the *first* pass at this same investigation on 2026-08-02, already
+      caught and corrected that same day (real corrected numbers: 114
+      claude-control vs 104 live pre-reconciliation, 17 unique ids). "146"
+      matches no real count found anywhere in this investigation's history.
+      Did NOT redo work already done: confirmed via direct evidence (GitHub
+      Contents API + `gh pr view`/`gh api` comment threads, not commit
+      messages) that all 3 SPEC decision points were already executed
+      2026-08-02: (1) `sync-repos.sh` already covers `/opt/veridian/ai-os` on
+      `origin/main` of `veridian-scripts` (confirmed via direct API read,
+      independent of this session's stale local clone cache) -- PR #17 closed,
+      content already upstream; (2) `claude-control#122` (minimal, 9-entry,
+      purely-additive replacement for the 3x-audit-failed `claude-control#121`)
+      is MERGED with a real `AUDIT: PASS`; (3) no self-merge anywhere in the
+      chain. `superboss-register.sqlite`'s real `umr_tasks` table already shows
+      `UMR-20260802-080051-6e48` as `status: completed` citing this exact
+      resolution. The one real loose end found: this repo's own PR #708 (prior
+      task `task-20260802-084829`'s documentation-only closure PR) was 5 days
+      stale (still described #121/#17 as "open, not merged" -- now false),
+      never received a real audit comment, and reports `mergeable: CONFLICTING`
+      against current `main`. Closed #708 as superseded by this task's own PR,
+      which restates the current, accurate 2026-08-07 state. Did not touch
+      `ai-os/MASTER_INDEX.yaml` in this repo (a separate, unrelated 65-entry
+      registry snapshot) or the live `/opt/veridian/ai-os` working tree
+      (shared, mid-flight on another session's unrelated branch).
+    scope_note: >-
+      File scope: this repo's `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      (this entry). Cross-repo: closed `compliance-tracker#708` (comment only,
+      no force-push, no branch deletion). No code, schema, migration, or CI
+      changes anywhere.
