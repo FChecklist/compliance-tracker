@@ -2119,6 +2119,18 @@ export const productBranches = platformSchemaDB.table('product_branches', {
   // catalog so it's queryable and can't drift out of sync with the doc.
   buildTier: text('build_tier'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, real Owner decision
+  // 2026-08-04 (UMR-20260804-090421-c647): the real HTTP host this brand's
+  // Stage 1 (pre-authentication) resolution should match, e.g.
+  // "projexa-ai.com". Deliberately a SEPARATE column from `domain` above --
+  // that one is an unrelated, pre-existing, free-text business-taxonomy
+  // grouping (real values: "construction", "compliance", etc.), not a DNS
+  // hostname; see drizzle/0312_stage1_preauth_brand_host_lookup.sql for the
+  // full real-data verification behind this distinction. Nullable: most
+  // branches have no dedicated pre-login domain of their own yet and fall
+  // through to the platform default (org-branding-service.ts's
+  // DEFAULT_BRAND_NAME).
+  hostDomain: text('host_domain'),
 })
 
 export const productBranchModules = platformSchemaDB.table('product_branch_modules', {
@@ -2412,14 +2424,30 @@ export const userClientAccessRelations = relations(userClientAccess, ({ one }) =
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
   org: one(organisations, { fields: [departments.orgId], references: [organisations.id] }),
   head: one(users, { fields: [departments.headId], references: [users.id], relationName: 'deptHead' }),
-  users: many(users),
+  // UMR-20260802-165606-4413: `departments` and `users` have TWO distinct FK
+  // relations to each other (this member-of-department pair, and the
+  // headId-based `head`/`headOfDept` pair above). Drizzle's relational query
+  // builder requires every relation pair between two tables to be named with
+  // `relationName` once more than one pair exists -- leaving this pair
+  // unnamed while `head`/`headOfDept` was named made drizzle unable to
+  // resolve `with: { users: ... }` on `departments.findMany`, throwing
+  // "There are multiple relations between 'users' and 'departments'. Please
+  // specify relation name" at query-build time (before any network I/O,
+  // confirmed via direct reproduction against the real DB with RLS
+  // enforced, for both a fresh self-signup org and an old seeded org --
+  // this was never RLS/tenant-context-dependent). That 500 is what
+  // cascaded into the Compliance Register / Pendency View client-side
+  // crash. Do not remove this relationName without also removing
+  // `deptHead` -- Drizzle needs both sides of the ambiguity named, or
+  // neither.
+  users: many(users, { relationName: 'departmentMembers' }),
   complianceItems: many(complianceItems),
   notices: many(notices),
 }))
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   org: one(organisations, { fields: [users.orgId], references: [organisations.id] }),
-  department: one(departments, { fields: [users.departmentId], references: [departments.id] }),
+  department: one(departments, { fields: [users.departmentId], references: [departments.id], relationName: 'departmentMembers' }),
   assignedCompliance: many(complianceItems, { relationName: 'assignedTo' }),
   auditPointAssignments: many(auditPoints, { relationName: 'auditAssignee' }),
   headOfDept: one(departments, { fields: [users.id], references: [departments.headId], relationName: 'deptHead' }),

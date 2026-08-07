@@ -24,6 +24,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Account = {
   id: string; name: string; industry: string | null; website: string | null;
@@ -51,6 +52,7 @@ export default function CrmAccountsPage() {
   const [lifecycleFilter, setLifecycleFilter] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<User[]>([]);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -75,6 +77,9 @@ export default function CrmAccountsPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => {
     fetch("/api/users").then((r) => r.json()).then((d) => setUsers(d.users ?? []));
+  }, []);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
   }, []);
 
   const createAccount = async () => {
@@ -102,6 +107,10 @@ export default function CrmAccountsPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">
