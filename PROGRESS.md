@@ -99,13 +99,22 @@ now verified below and being committed for the first time.
   High/Medium ones) were prioritized first. Left as real, open, low-
   priority follow-up work, not claimed done.
 
+- [x] Committed, pushed, opened **PR #1047**:
+      https://github.com/FChecklist/compliance-tracker/pull/1047
+- [x] Registered + closed the ACTIVE-CLAIMS entry for this task (it had
+      never been registered -- corrected this invocation), via a small
+      separate **PR #1048**: https://github.com/FChecklist/compliance-tracker/pull/1048
+
 ## Remaining
 
+- [ ] Confirm CI green on both #1047 and #1048 (as of this checkpoint,
+      most jobs pass; `audit-check` fails as expected -- it requires a
+      structured `AUDIT: PASS`/`AUDIT: FAIL` PR comment per AGENTS.md
+      Rule 10, which this session deliberately does not self-post, per
+      the no-self-certification norm).
 - [ ] Wire `scripts/check-doc-scale-freshness.mjs` into `ci.yml` (blocked
       on `workflow` OAuth scope this session doesn't have -- see above).
 - [ ] Optional: `AI-Readable Module Documentation`'s per-file doc-comment
       index, if prioritized later.
-- [ ] Open PR, confirm CI green, hand off for independent audit per
-      AGENTS.md Rule 7(c)/Rule 10 (this session both authored and is
-      self-reporting verification here -- a real second reviewer should
-      still audit before merge, per the governance norm this repo runs on).
+- [ ] Independent audit + merge of #1047 and #1048 by a separate
+      reviewer/session (this session authored both; not self-certifying).
