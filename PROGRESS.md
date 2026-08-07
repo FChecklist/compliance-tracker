@@ -1,3 +1,209 @@
+# PROGRESS -- task-20260801-173614-retry-ai-cost-governance-finops-cost-vis
+
+Redispatch of task-20260718-062003 (blocked at first invocation by the
+OpenRouter/Cerebras balance hard-stop in preflight-guard.py, since removed
+per commit 7ff5be8, 2026-08-01). This invocation resumed a workspace that
+already contained substantial uncommitted work from an earlier invocation of
+this same task (PROGRESS.md itself had been reset to "Not started" without
+the actual code changes being recorded) -- this session's job was to review
+that existing work for correctness/completeness against the 4 findings,
+verify it, close any real gaps, and land it.
+
+## Completed
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no conflicting claim; registered
+      this task's own claim (commit f2f06cb1, pushed standalone first).
+- [x] Reviewed all pre-existing uncommitted work file-by-file against the 4
+      findings before treating any of it as done (per this task's own "read
+      the actual current implementation first" instruction):
+  - **Finding 1 (Low, per-tenant visibility UI)**: confirmed real --
+    `src/app/(app)/ai-cost-governance/page.tsx` consumes the existing
+    `GET /api/ai/team/token-usage`, veridian_admin-gated, linked from the
+    sidebar (Tools -> "AI Cost & FinOps"). `token-usage-service.ts`'s
+    `byOrg` query was extended (additive: new `groupLabel` field via a left
+    join to `organisations`) to resolve org_id to a real org name instead of
+    a raw id -- was the one genuine gap in "UI-surfaced" visibility.
+  - **Finding 2 (Medium, invoice reconciliation)** + **Finding 3 (Medium,
+    measured not estimated)**: both closed by the same feature, per the
+    findings' own shared recommended approach (manual monthly reconciliation
+    first). New `compliance.ai_cost_reconciliations` table (migration 0304,
+    RLS + service_role policy, unique index on period_month+provider),
+    `cost-reconciliation-service.ts` (pure helpers `parsePeriodMonth`/
+    `computeVariance`/`averageAbsPct` unit-tested; DB-touching
+    `recordReconciliation`/`listReconciliations`/
+    `getReconciliationDriftSummary` follow the same pure/DB-touching split
+    as `cost-anomaly-service.ts`), `GET`/`POST /api/finance/ai-cost-reconciliation`
+    (veridian_admin-gated, real input validation), surfaced in the page's
+    "Monthly Invoice Reconciliation" table + an "Estimate Accuracy" KPI
+    tile. Honest limitation stated directly in the UI and in
+    `docs/AI_COST_GOVERNANCE_FINOPS.md` §4: no wired provider exposes true
+    per-request billing, so an *exact* per-action reconciliation isn't
+    buildable with real data -- what's delivered is a measured confidence
+    bound (avg |variance%|) on the existing token-count estimate, not a
+    workaround pretending to be exact.
+  - **Finding 4 (Low, cross-repo spend visibility)**: confirmed the
+    unification is real today (PROJEXA has zero local LLM client; every
+    AI-adjacent call routes back through this repo's `/api/v1/projexa/*` via
+    `veridian-client.ts`, landing in the same `token_usage_ledger`) but was
+    an architectural byproduct with no CI guarantee it stays true --
+    documented in `docs/AI_COST_GOVERNANCE_FINOPS.md` §2, with a companion
+    guardrail script already opened as `FChecklist/projexa#68`
+    (`check-no-provider-api-keys.mjs`). Disclosed honestly: that PR is not
+    yet wired into projexa's CI (the authoring session's token lacked the
+    `workflow` OAuth scope needed to push a workflow-file change) -- the
+    exact job to add is in that PR's description.
+- [x] Verified no collision: migration number 0304 is free on current
+      `origin/main` (470033e6); `check-migration-collision.mjs` passes.
+- [x] Verified governance/registry state is consistent and complete:
+      `ai_cost_reconciliations` is a real, justified `asset-registry-coverage.yaml`
+      exemption (financial audit record, no meaningful display name); the 2
+      new-file terminology-guardrail exemptions (page.tsx's dated comments,
+      test.ts's fixture dates) are genuine, not hardcoded-business-data
+      workarounds; `drizzle/meta/_journal.json` has the matching entry;
+      `docs/` is already blanket-exempted from `check-metadata-index-coverage.mjs`
+      so the new doc needs no separate index entry.
+- [x] Installed a working `bun` toolchain in this session's sandbox (absent
+      at session start) to actually run tests rather than relying on `tsc`/
+      `eslint` alone.
+- [x] `NODE_OPTIONS=--max-old-space-size=8192 npx tsc --noEmit` -- clean, 0 errors.
+- [x] `bun run lint` -- 0 errors (3 pre-existing warnings, all in unrelated
+      files, unaffected by this change).
+- [x] `bun test src/lib/services/cost-reconciliation-service.test.ts` -- 10
+      pass, 0 fail, 17 expect() calls.
+- [x] Full `bun test` -- 2480 pass, 0 fail, 4942 expect() calls (the several
+      lines that look like errors in the output are intentional fail-closed
+      test scenarios in unrelated pre-existing suites, not real failures).
+- [x] All 5 governance check scripts pass: asset-registry-coverage,
+      migration-collision, terminology-guardrail (--diff-only),
+      guardrail-presence, metadata-index-coverage; plus
+      doc-cross-references and doc-quarantine-banner (unaffected, run for
+      completeness since a new doc file was added).
+- [x] Committed all work and pushed to
+      `worker/task-20260801-173614-retry-ai-cost-governance-finops-cost-vis`.
+
+- [x] Opened PR #687: https://github.com/FChecklist/compliance-tracker/pull/687
+
+## Remaining
+- [ ] Confirm CI passes on PR #687, then awaiting fresh supervisor audit
+      before merge (per this repo's Rule 6 -- not self-merged).
+- [ ] `FChecklist/projexa#68`'s CI wiring is still pending someone with the
+      GitHub `workflow` OAuth scope (or the web UI) -- not this task's repo
+      to fix, disclosed here so it isn't silently forgotten.
+
+## Rescue (2026-08-07, task-20260807-062755-retry-ai-cost-governance-finops-cost-vis)
+This PR (#687) sat DIRTY for 6 days after a redispatch of this same task
+independently discovered it already existed, fully built and AUDIT: PASS'd,
+rather than re-implementing the 4 findings from scratch. Rescued instead of
+duplicated: merged `origin/main` (additive-only conflicts in this file,
+`ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/registry/terminology-guardrail-exemptions.yaml`,
+`drizzle/meta/_journal.json`), renumbered the migration `0304` -> `0313`
+(next free slot after main's `0312`; `0304` itself was still technically free
+but out of chronological order against everything main has landed since),
+re-verified the full suite, and am merging via this same PR rather than
+opening a duplicate.
+
+**Invocation 2/20 correction:** the merge commit above was made locally but
+the previous invocation's `ACTIVE-CLAIMS.yaml` entry claimed "pushed to this
+same PR branch" before that push actually happened -- `gh pr view 687` still
+showed `OPEN/CONFLICTING/DIRTY` live at the start of this invocation. Also
+found and fixed a real, separate gap while re-verifying: `drizzle/0313_ai_cost_reconciliation.sql`
+existed on disk but had no matching entry in `drizzle/meta/_journal.json`
+(drizzle-kit would not have known about the migration). Added the missing
+journal entry (idx 282, following the file's existing convention), re-ran
+`check-migration-collision.mjs` (clean), all 4 governance checks (clean),
+`tsc --noEmit` (clean), and `cost-reconciliation-service.test.ts` (10/10
+pass) -- then actually pushed (`46f71602a`) to
+`worker/task-20260801-173614-retry-ai-cost-governance-finops-cost-vis`.
+`gh pr view 687` now genuinely shows `MERGEABLE` (CI freshly triggered,
+pending as of this update). Noted for awareness, not fixed here (separate
+branch, separate task, live parallel session): `drizzle/0312_stage1_preauth_brand_host_lookup.sql`
+has the identical missing-journal-entry gap already on `origin/main` itself
+(pre-existing, not introduced by this branch) -- out of scope for this PR.
+
+**Invocation 3/20 (this session):** Resumed per the harness's checkpoint prompt, but found
+its `LAST_CHECKPOINT`/`completed_steps` text did **not** describe this task at all -- it
+described picking "OCID-052", a browser test against `/api/me`, registering
+`GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS`, and opening **PR #898**. None of that is this
+task's SPEC (AI Cost Governance & FinOps, PR #687). Independently verified before trusting
+either version:
+- `git log`/`git status` on this workspace (`pr687-rescue`, HEAD `94604b1f5`) show only this
+  task's own real commits (the PR #687 rescue + journal fix from invocations 1-2) -- zero trace
+  of any OCID-052/`/api/me` work ever happening in this workspace.
+- `gh pr view 898` is a real, different, already-existing PR (OCID-047/OCID-020 PM-decision
+  content) with no relation to this task.
+- `GAP-API-ME-500-SUBSCRIPTION-PLAN-STATUS` already exists in `ai-os/MASTER-TRACKER.yaml`
+  (line ~834), registered by unrelated prior OCID-052 work, not by this task/session.
+- `task.yaml`'s own checkpoint history shows the contamination happening mid-session: the
+  06:38 checkpoint correctly listed this task's real files (`finance/`, `cost-reconciliation`,
+  `schema.ts`, etc.); the very next checkpoint at 06:43 replaced `completed_steps`/
+  `remaining_steps` with the unrelated OCID-052/PR #898 text, with zero file/commit evidence
+  in this workspace to back it. This looks like a checkpoint-writer cross-contamination bug
+  (this task's `task.yaml` picked up another concurrent session's in-progress narrative) rather
+  than real work performed here.
+
+Conclusion: **disregarded** the OCID-052/PR #898 content as not belonging to this task --
+did not act on it, did not duplicate/re-verify it (that is a different task's real, pre-existing
+work). Continued from this task's own real, verified state instead:
+- Live-reverified PR #687 (`worker/task-20260801-173614-retry-ai-cost-governance-finops-cost-vis`,
+  head `94604b1f5`, same commit as this workspace's `HEAD`): all required + optional CI checks
+  **pass** (Lint, Type Check, Build, Unit Tests, E2E Tests, Analyze, Asset Registry Coverage,
+  Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, Guardrail Presence,
+  Metadata Index Coverage, Migration Number Collision, Secret Scanning, Security Pattern,
+  Terminology Guardrail, `audit-check`). Confirmed `audit-check`'s `success` conclusion is
+  against the **true current head SHA** (`94604b1f5`), not a stale one (checked
+  `GET /commits/{sha}/check-runs` directly) -- a real `AUDIT: PASS` (2026-08-02) is on record
+  and still valid for this content.
+- `gh pr view 687 --json mergeable,mergeStateStatus,reviewDecision`: `mergeable: MERGEABLE`,
+  but `mergeStateStatus: BLOCKED` / `reviewDecision: REVIEW_REQUIRED`. This matches the
+  already-documented, repo-wide structural deadlock (`main` requires 1 approving PR review;
+  every credential in this environment resolves to the same single GitHub identity
+  `FChecklist`, so no independent reviewer can approve; 13+ prior confirmations across other
+  PRs in this same repo, all Owner-blocked, none resolved by `gh pr merge --admin`). Per that
+  established pattern: did **not** attempt `gh pr merge` (would fail identically and cost a
+  circuit-breaker strike for zero new information), did **not** touch the branch-protection
+  review-count setting (would be unauthorized guardrail-weakening under AGENTS.md Rule 9).
+- This task's own real work is therefore **complete and independently CI/audit-verified**;
+  the only remaining step is an Owner-side action outside this session's authority (provision
+  a second reviewer identity, or grant a bounded review-count exception). Updated
+  `ai-os/boss/ACTIVE-CLAIMS.yaml`'s entry for this task to reflect that real final state and
+  moved it to `recently_completed`.
+
+**Invocation 4/20 (2026-08-07):** Re-verified live state before acting -- nothing has changed
+since invocation 3. `gh pr view 687 --json mergeable,mergeStateStatus,reviewDecision`: still
+`mergeable: MERGEABLE`, `mergeStateStatus: BLOCKED`, `reviewDecision: REVIEW_REQUIRED`.
+`gh pr checks 687`: every required check still green (Lint, Type Check, Build, Unit Tests,
+E2E Tests, Analyze, Asset Registry Coverage, Doc Cross-Reference, Doc Quarantine Banner,
+Documentation Sentinel, Guardrail Presence, Metadata Index Coverage, Migration Number
+Collision, Secret Scanning, Security Pattern, Terminology Guardrail, `audit-check`); the one
+non-green line (`Vercel: fail`, "Deployment rate limited") is a preview-deploy convenience
+check, not a required merge gate, and unrelated to this branch's content. Confirmed
+`ai-os/boss/ACTIVE-CLAIMS.yaml`'s entry for this task already reflects this real final state
+(see its invocation-3 note above). No new action taken: re-attempting `gh pr merge` would
+fail identically against the same repo-wide single-identity review deadlock (see
+[[veridian-branch-protection-self-approval-deadlock-active]] in session memory -- confirmed
+still active, not resolved between invocations), and would burn a circuit-breaker strike for
+zero new information. This task's own work has nothing left to do that is within this
+session's authority; remaining is purely the Owner-side action already logged above.
+
+**Invocation 5/20 (2026-08-07):** Re-verified live state again before acting -- unchanged from
+invocation 4. `gh pr view 687 --json mergeable,mergeStateStatus,reviewDecision,state`: still
+`OPEN`, `mergeable: MERGEABLE`, `mergeStateStatus: BLOCKED`, `reviewDecision: REVIEW_REQUIRED`.
+`gh pr checks 687`: all 17 required checks still `pass` (Analyze, Asset Registry Coverage,
+Build, Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, E2E Tests, Guardrail
+Presence, Lint, Metadata Index Coverage, Migration Number Collision, Secret Scanning, Security
+Pattern, Terminology Guardrail, Type Check, Unit Tests, `audit-check`); the only non-passing
+line is still the same non-gating `Vercel` preview-deploy rate-limit. Also re-checked this
+session's own `gh auth status`/token scopes as a sanity check for whether a second reviewer
+identity had become available since the last check: still the single `FChecklist` identity,
+scopes `gist, read:org, repo` (no `workflow`, and no second account) -- confirms the
+review-identity deadlock is still structurally unresolved, not just unresolved by inaction.
+No new action taken, for the same reasons as invocation 4: nothing in this session's authority
+can move a `REVIEW_REQUIRED`/`BLOCKED` PR forward when every available credential resolves to
+the PR's own author identity, and repeating `gh pr merge` would fail identically for the third
+straight time with zero new information, burning a circuit-breaker strike for nothing. This
+task's real work remains complete and CI/audit-verified; the sole remaining step is still the
+Owner-side action (provision a second reviewer identity, or a bounded review-count exception on
+`main`'s branch protection) already logged in invocation 3.
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
