@@ -40,7 +40,22 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+  - session_label: "claude-code (task-20260807-002908-pm-overrides-a-false-positive-credit-acc) -- PM override of credit-accountant rejection on blocked task-20260806-205209 (child UMR-20260806-182453-702a); fixing generate_platform_completion_checklist.py IN PLACE (/opt/veridian/scripts, FChecklist/veridian-scripts) -- no new script/tool"
+    claimed_at: "2026-08-07T00:29Z (this session)"
+    claim: |
+      PM decision dispatch reusing child UMR-20260806-182453-702a (task-20260806-205209, itself
+      blocked 2026-08-06T21:04:40Z by a credit-accountant rejection judged a false positive: the
+      matched "existing mechanism" is itself the defective artifact -- generate_platform_completion_checklist.py
+      producing 5 non-reproducible Scripts-section readings, 47/148 -> 45/150 -> 47/152 -> 0/154).
+      Scope: fix the existing script in place ONLY (no replacement/parallel tool -- that would make
+      the accountant's zero-duplication objection correct after the fact). A prior invocation of the
+      blocked task already root-caused and built a fix in an isolated worktree
+      (`/opt/veridian/scripts` branch `fix/checklist-metric-determinism`, uncommitted) before hitting
+      the rejection -- this session's job is to verify that fix, prove determinism (3x identical
+      runs incl. real pytest), root-cause the numerator-to-zero collapse specifically, open a PR
+      (not push live), and write real evidence into UMR-20260806-182453-702a. Does NOT touch OCID-020,
+      Z.AI track, or the Owner stop-work order (task-20260806-165921, already completed).
+    files_touched: "/opt/veridian/scripts/generate_platform_completion_checklist.py (separate live-checkout repo, FChecklist/veridian-scripts -- see [[veridian-scripts-separate-repo-live-checkout]])"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
       SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
