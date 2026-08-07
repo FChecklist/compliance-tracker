@@ -5857,6 +5857,44 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-064722-retry-ai-documentation-lifecycle) -- AI Documentation / Documentation Lifecycle gap-closure: confirmed duplicate of already-complete PR #685, added 4 newly-surfaced security-gap tracker entries [DONE, no new PR]"
+    claimed_at: "2026-08-07T10:27Z (this session, closed same session)"
+    claim: |
+      SPEC (`prompt.txt`, sub-task of `UMR-20260801-170930-2080`): close all 5 "AI
+      Documentation / Documentation Lifecycle" VERIDIAN Review Framework findings in one
+      coherent PR. Independently re-verified rather than assumed: `git log --all` shows
+      this exact gap was already fully closed in **PR #685**
+      (`worker/task-20260801-173753-retry-ai-documentation-lifecycle-v2`,
+      `scripts/check-doc-drift.mjs` + `SYSTEM-AUDIT-ROUND-3.md` +
+      `ai-os/system-tree/doc-counts-baseline.yaml`), independently `AUDIT: PASS`ed
+      2026-08-02. A same-day sibling task (`task-20260807-071608-retry-ai-documentation-lifecycle`,
+      now `status: blocked`, not live) had already rebased that PR's branch onto today's
+      `main` (`7efcf54f0`) to clear a conflict. Confirmed live: PR #685 `mergeable:
+      MERGEABLE`, all 17 CI checks pass, `reviewDecision: REVIEW_REQUIRED` is the only
+      blocker (the known repo-wide self-approval deadlock -- one real GitHub identity,
+      `enforce_admins:true`, no bypass -- affecting every open PR right now, not
+      specific to this one). Re-ran the doc-drift check's own counting logic by hand
+      against the live repo (its own `bun`/`js-yaml` toolchain hit an unrelated sandbox
+      package-cache issue): `443/130/995/163/81` vs. baseline `443/130/991/163/81`, all
+      within the 10% tolerance -- confirms the check would pass cleanly today, not just
+      when it was written. Did not open a duplicate PR.
+
+      Real, non-duplicate contribution this session: `SYSTEM-AUDIT-ROUND-3.md` (part of
+      PR #685) had surfaced 4 genuine security/process gaps (unrestricted API-key/webhook
+      minting by any authenticated user being the most significant) that were "flagged,
+      not fixed" in that standalone doc and not yet tracked anywhere as actionable work.
+      Added `GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING`,
+      `GAP-DB02-COMPLIANCE-STATUS-NO-SIGNOFF`, `GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE`,
+      `GAP-UI02-CAPA-FINDING-OWNERSHIP-LABEL-ONLY` to `ai-os/MASTER-TRACKER.yaml`'s
+      `real_gaps_not_yet_built` (59 entries now, up from 55) so they don't stay buried in
+      an audit doc nobody re-reads.
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/MASTER-TRACKER.yaml` (4 new additive GAP entries
+      only, no edits to existing entries), this ACTIVE-CLAIMS entry. Did not touch
+      `src/lib/services/permission-service.ts` or any code. No new PR opened (nothing
+      left to put in one -- the real work is already in PR #685, blocked only by the
+      known review-required deadlock and this token's lack of `workflow` scope, neither
+      fixable from this task).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
