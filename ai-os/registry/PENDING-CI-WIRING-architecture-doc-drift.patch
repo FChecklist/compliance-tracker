@@ -1,0 +1,48 @@
+From f07452669d016e22c30cfd241794b663df301d23 Mon Sep 17 00:00:00 2001
+From: Rajat Agarwal <raajat.agarwal@gmail.com>
+Date: Fri, 7 Aug 2026 09:53:43 +0000
+Subject: [PATCH] ci: wire architecture-doc-drift job into ci.yml [UNPUSHED --
+ needs workflow scope]
+
+Adds the CI job that runs scripts/check-architecture-doc-drift.mjs
+(non-blocking warn). This session's gh token lacks the 'workflow' OAuth
+scope, so this specific commit cannot be pushed from here -- see
+PROGRESS.md and ai-os/registry/PENDING-CI-WIRING.patch for the exact diff
+the owner (or a session with workflow scope) needs to apply and push.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
+---
+ .github/workflows/ci.yml | 17 +++++++++++++++++
+ 1 file changed, 17 insertions(+)
+
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 93dbecc1c..54ae3f4a3 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -98,6 +98,23 @@ jobs:
+       # script's own header for the honest limitation this does and
+       # doesn't guarantee.
+       - run: node scripts/check-metadata-index-coverage.mjs
++  architecture-doc-drift:
++    name: Architecture/Database Doc Drift Check
++    runs-on: ubuntu-latest
++    steps:
++      - uses: actions/checkout@v7
++      - uses: oven-sh/setup-bun@v2
++      - run: bun install --frozen-lockfile
++      # AI Documentation gap-closure, 2026-08-07 (UMR-20260801-170930-2080
++      # sub-task): closes the [Low] "AI-Readable Architecture Documentation"
++      # and [Low] "AI-Readable Database Documentation" findings -- both
++      # share one root cause, ai-os/system-tree/ being a manual, point-in-
++      # time snapshot with no signal a re-sync is due. Warns (does not fail
++      # the build, matching Low severity) once live route/table/enum counts
++      # drift more than 10% from ai-os/system-tree/DRIFT-BASELINE.yaml. See
++      # the script's own header for the honest limitation this does and
++      # doesn't guarantee.
++      - run: node scripts/check-architecture-doc-drift.mjs
+   terminology-guardrail-check:
+     name: Terminology Guardrail Check
+     runs-on: ubuntu-latest
+-- 
+2.43.0
+
