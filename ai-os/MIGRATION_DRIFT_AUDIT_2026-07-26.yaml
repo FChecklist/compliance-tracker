@@ -1,0 +1,242 @@
+meta:
+  title: "Migration Drift Audit + Reconciliation -- compliance-tracker live Supabase project (verdian-ai, pcrjmlpuqsbocqfwoxod)"
+  date: "2026-07-26"
+  task: "task-20260726-071400-migration-drift-audit-and-reconciliation"
+  trigger: >
+    Applying phase_1/phase_3's pending migrations 0262/0263 today surfaced that
+    drizzle.__drizzle_migrations had 0 rows despite the live DB having hundreds
+    of real applied tables, and that migrations 0017 and part of 0018 were
+    themselves missing live and had to be manually applied before 0262/0263
+    could succeed. This document is the full systematic audit and fix that
+    finding demanded, not just the two reactive patches already made today.
+
+root_cause:
+  summary: >
+    drizzle/meta/_journal.json -- drizzle-kit's own bookkeeping file, read by
+    drizzle-orm's readMigrationFiles() to decide which migrations exist at all
+    -- has had exactly ONE entry (migration 0000_clammy_may_parker) since the
+    file was FIRST committed to this repo. Confirmed via
+    `git log -p --follow -- drizzle/meta/_journal.json`: every commit that has
+    ever touched this file shows the same single entry; migrations
+    0001-0263 (262 real .sql files) were added directly to drizzle/ over many
+    waves without a single one of them ever running `drizzle-kit generate` to
+    register itself in the journal.
+  evidence: >
+    Confirmed by downloading and reading drizzle-kit@0.31.0 and
+    drizzle-orm@0.45.2's actual published source (npm pack, not guessed):
+    dialect.cjs's PgDialect.migrate() and migrator.cjs's readMigrationFiles()
+    iterate `journal.entries` ONLY -- they never scan the drizzle/ folder
+    directly. With only migration 0000 in the journal, `bun run db:migrate`
+    (== `drizzle-kit migrate`) has never once considered migrations 0001+ to
+    exist. This explains today's earlier observation precisely: running
+    db:migrate blind did not replay the full 263-migration history (that was
+    never possible given the journal's real content) -- it replayed ONLY
+    migration 0000's raw CREATE TABLE/TYPE statements against a database that
+    already has that schema fully built via a different path, hit
+    "already exists" errors partway through, and died after printing two
+    benign NOTICEs (duplicate_object exceptions caught by 0000's own
+    DO $$ EXCEPTION blocks, before hitting a bare CREATE TABLE without an
+    IF NOT EXISTS guard).
+  contributing_factor: >
+    drizzle/0251's own migration comment independently confirms this same
+    root cause was already known/documented by a prior session ("drizzle/meta/
+    _journal.json in this repo is stale (frozen at migration 0000 while 250
+    real .sql files exist untracked by it) -- `bun run db:generate` against it
+    produces a bogus 'create the entire schema from scratch' diff") -- prior
+    sessions worked around the symptom (hand-writing idempotent SQL and
+    applying it out-of-band via Supabase MCP) without ever fixing the
+    underlying journal gap itself. This audit is the first pass that actually
+    repairs the journal + tracking table rather than working around them again.
+
+scope_note_schema_relocation: >
+  Migration 0245_create_platform_schema_compartment.sql (2026-07-19, Owner
+  directive) relocated 22 tables + 3 enum types from the `compliance` schema
+  to a new `platform` schema mid-history (dynamic_chains, worker_agents*,
+  module_registry/product_branches/module_rule_configs,
+  instruction_execution_cache, capability_improvement_proposals/
+  task_capabilities, fde_requests/automation_rules*, ai_model_registry/
+  ai_routing_policies/ai_routing_audit_log/ai_team_role_overrides). Several
+  migrations before 0245 target these tables by their original `compliance.`
+  qualification; applying them today required retargeting the 2 still-pending
+  ones (0140, 0199) at `platform.dynamic_chains` instead of the literal
+  migration-file text. drizzle.config.ts's `schemaFilter: ['compliance']` is
+  now stale for these 22 tables -- a real, separate, pre-existing gap this
+  audit surfaced but did not fix (out of this task's scope; flagged for a
+  future session, since widening schemaFilter to include 'platform' is an
+  application-schema decision, not a migration-tracking one).
+
+enumeration:
+  total_migration_files: 261
+  numbering_range: "0000-0263 (three numbers -- 166, 167, 168 -- were never used; confirmed via git log --diff-filter=A/D that no file was ever added or deleted at those numbers, consistent with parallel-agent numbering collisions documented in this repo's own commit history, e.g. 'Renumber migration 0138 -> 0140 (collided with #167's 0138...)' -- not missing DDL, no action needed)"
+  cross_reference_method: >
+    Not a per-file replay. Extracted every CREATE TABLE / ALTER TABLE ADD
+    COLUMN / CREATE INDEX / CREATE TYPE / DROP TABLE / DROP COLUMN / ALTER
+    TABLE SET SCHEMA target from all 261 files via regex, then checked each
+    target's real existence via batched information_schema.tables /
+    information_schema.columns / pg_indexes / pg_type queries against both
+    the `compliance` and `platform` schemas on project pcrjmlpuqsbocqfwoxod
+    (~5 queries total instead of 261 individual replays). Every finding below
+    was independently re-verified with a direct, targeted existence query
+    before being classified as genuinely missing, and every "not obviously
+    DDL" file left over (RLS policies, seed INSERTs, DROP CONSTRAINT actor-
+    column fixes, prompt seeding) was independently checked against live
+    pg_constraint / pg_policy / column defaults -- none were found missing.
+
+verdicts:
+  already_present_before_this_audit: 249
+  genuinely_missing_and_applied_by_this_audit: 12
+  false_positive_explained: 1
+  note: >
+    249 + 12 + 1(0020, see below) accounts for all 262 files including 0000;
+    all 261 real numbered .sql files (0000 plus the 260 non-skipped numbers
+    from 0001-0263) received an explicit verdict -- none were left
+    unclassified.
+
+genuinely_missing_migrations_applied:
+  - tag: "0005_wave7_hierarchy_and_audit_foundation"
+    missing: "4 indexes only (idx_clients_org_id, idx_client_entities_client_id, idx_user_client_access_client_id, idx_user_client_access_user_id) -- the tables/columns themselves were already live from an earlier out-of-band session, only the trailing CREATE INDEX statements at the end of the file had never run"
+    complication: "One redundant ALTER TABLE audit_logs ALTER COLUMN action TYPE text statement (already applied out-of-band previously) failed on a later-created view (compliance.audit_search, migration 0229) dependency when replayed verbatim -- skipped that single already-applied line and resumed the rest of the file, which is fully idempotent (IF NOT EXISTS / DO $$ EXCEPTION / ON CONFLICT-safe)."
+    verified: "all 4 indexes + full PART B content confirmed present after apply"
+  - tag: "0037_wave45_fix_missing_embeddings_vector_column"
+    missing: "compliance.embeddings.embedding vector(1536) column + its ivfflat index -- confirmed genuinely never applied; storeEmbedding()/findSimilar() had been silently no-op-failing since inception per the migration's own comment"
+    complication: "ivfflat index build needed more than the project's default 32MB maintenance_work_mem (61MB required) -- bumped to 128MB for that one statement via SET, index built successfully"
+    verified: "column + idx_embeddings_vector confirmed present"
+  - tag: "0140_wave166_monitoring_tool_health"
+    missing: "compliance.tool_health_events table (new) + platform.dynamic_chains.monitoring_rules column"
+    complication: "migration text says compliance.dynamic_chains -- retargeted to platform.dynamic_chains per the 0245 relocation"
+    verified: "table + column + index confirmed present"
+  - tag: "0165_model_performance_scorecard"
+    missing: "compliance.activity_log.complexity_tier column + its partial index -- migration's own comment states 'NOT applied to the live database by this PR', confirming this was always meant to be applied by a supervising session"
+    verified: "column + index confirmed present"
+  - tag: "0169_ticket_intelligence"
+    missing: "compliance.ticket_intelligence_items + ticket_intelligence_action_items tables (new) -- migration's own comment states 'NOT applied to the live database', same pending-supervisor-apply convention as 0165"
+    verified: "both tables + 3 indexes + seeded prompt template/version confirmed present"
+  - tag: "0199_gap_dcmd_rich_schema_slice"
+    missing: "7 columns on dynamic_chains (classification, owner_department_id, input_contract, output_contract, ai_config, workflow_steps_config, linked_knowledge_base_page_ids)"
+    complication: "migration text says compliance.dynamic_chains -- retargeted to platform.dynamic_chains per the 0245 relocation"
+    verified: "all 7 columns confirmed present"
+  - tag: "0217_payment_entries_approval_workflow"
+    missing: "new erp_payment_entry_status enum + status column re-type + 8 new columns on erp_payment_entries"
+    verified: "enum + all 8 columns confirmed present, status column correctly re-typed"
+  - tag: "0218_wave_b_fixed_assets_disposal_status"
+    missing: "erp_asset_disposals.status column"
+    verified: "column confirmed present"
+  - tag: "0249_task_register"
+    missing: "platform.task_register table (new) + platform.task_register_status enum + 3 indexes -- genuinely never applied (no self-declared 'not applied' comment on this one, a real oversight, not an intentional pending-apply)"
+    verified: "table + enum + indexes confirmed present"
+  - tag: "0251_crm_wave1_activities_campaigns_lost_reasons"
+    missing: "crm_lost_reasons + crm_campaigns tables (new), lost_reason_id/campaign_id bridge columns, 7 indexes, module_registry + asset_registration_config rows, 2 auto_register_asset triggers"
+    complication: >
+      compliance.crm_activities ALREADY existed live but with a completely
+      different, stale column shape (account_id/contact_id/occurred_at/type --
+      an earlier, superseded design) that matched neither schema.ts's current
+      declared crmActivities shape nor 0251's own design. Confirmed 0 rows and
+      zero FK dependents via pg_constraint before treating this as safe:
+      dropped the stale table and recreated it with the schema.ts-matching
+      shape (entity_type/entity_id/activity_type/status/priority/
+      assigned_to_id/completed_at) that 0251 itself declares.
+    verified: "all 3 tables (crm_lost_reasons, crm_campaigns, rebuilt crm_activities) + all columns/indexes/registry rows/triggers confirmed present"
+  - tag: "0253_tenant_ai_config"
+    missing: "compliance.tenant_ai_config table (new) + partial unique index + RLS policies"
+    complication: "migration references the bare `ai_provider` enum type unqualified -- failed with 'type does not exist' since this apply_migration session's search_path didn't default to compliance; retargeted to compliance.ai_provider explicitly"
+    verified: "table + both indexes confirmed present"
+  - tag: "0255_priority11_deployment_events"
+    missing: "compliance.deployment_events table (new) + 3 indexes + RLS/grants"
+    verified: "table + indexes confirmed present"
+
+false_positive_explained:
+  - tag: "0020_wave24_page_agent_schema"
+    apparent_gap: "compliance.personal_model_config table + organisations.page_agent_enabled column appeared missing"
+    explanation: >
+      Both were genuinely created by 0020, then deliberately DROPPED by a
+      later migration (0196_remove_pageagent.sql, Owner directive: "remove
+      PageAgent it doesn't fit VERIDIAN", confirmed 0 rows / near-zero opt-in
+      at drop time). This is correct migration history playing out exactly as
+      intended, not drift -- no action taken.
+
+migration_tracking_table_fix:
+  problem: >
+    drizzle.__drizzle_migrations had 0 rows. Even after fixing the schema gap
+    above, drizzle-kit migrate's own bookkeeping was still broken:
+    drizzle/meta/_journal.json (the file readMigrationFiles() actually reads)
+    only ever listed migration 0000, so drizzle-kit migrate had never known
+    migrations 0001-0263 existed, and a future `bun run db:generate` would
+    have computed its next index as 1 (colliding with the real, existing
+    0001_mcp_access_codes.sql filename) and diffed against 0000's badly-stale
+    snapshot -- producing a bogus "recreate the entire schema from scratch"
+    migration, exactly as 0251's own comment already predicted.
+  fix_applied:
+    - "Rebuilt drizzle/meta/_journal.json with a dense, sequential idx (0-260) for all 261 real migration files, in numeric-tag order. Each entry's tag is the exact real filename stem; 'when' timestamps were derived from each file's real first-commit-to-repo time via `git log --diff-filter=A --format=%at`, converted to milliseconds and nudged to be strictly increasing where multiple files landed in the same commit second (verified: all 261 entries strictly increasing)."
+    - "Populated drizzle.__drizzle_migrations with one real row per migration: hash = sha256(raw file content) exactly matching drizzle-orm's readMigrationFiles() hashing, created_at = that migration's journal 'when' value. 261 rows inserted (confirmed via SELECT COUNT(*): 261, MAX(created_at) matches the last journal entry's 'when')."
+  why_this_is_correct: >
+    Read drizzle-orm@0.45.2's actual PgDialect.migrate() source (pg-core/
+    dialect.cjs) rather than guessing the row format: it selects the SINGLE
+    row with the max created_at from __drizzle_migrations, then for each
+    journal entry in order, replays it ONLY if that entry's folderMillis is
+    greater than the max created_at already recorded. With 261 real rows now
+    present (max created_at = migration 0263's timestamp, which is also the
+    journal's last entry), every real journal entry's folderMillis is <= that
+    max -- so a future `bun run db:migrate` will correctly recognize all 261
+    migrations as already applied and do nothing, rather than either
+    replaying migration 0000 again (today's original failure) or replaying
+    nothing because the journal didn't know the other 260 files existed.
+  verification: >
+    SELECT COUNT(*) FROM drizzle.__drizzle_migrations returns 261 (was 0).
+    MAX(created_at) = 1785039502000, matching drizzle/meta/_journal.json's
+    final entry (0263_prompt_lifecycle_governance_gates) exactly.
+  known_limitation_not_fixed_this_pass: >
+    drizzle/meta/ is still missing per-migration snapshot JSON files for
+    migrations 0001-0263 (only 0000_snapshot.json + the repaired
+    _journal.json exist) -- these are used ONLY by `drizzle-kit generate`
+    (not `migrate`) to diff schema.ts against the last-known schema state
+    when authoring a NEW migration. Journal + tracking-table repair alone
+    makes `db:migrate` safe (this task's actual success criterion); it does
+    NOT make `db:generate` produce a correct diff for the next new migration
+    -- that would still diff against 0000's snapshot (pre-dating 260
+    migrations of real schema evolution) and produce a bogus "recreate
+    everything" file. Regenerating an accurate current-state snapshot would
+    require a working bun/node_modules environment to run `drizzle-kit
+    generate` once for real and capture (not apply) its resulting snapshot --
+    unavailable in this task's sandbox (no bun, no drizzle-kit installed
+    locally). Flagged here explicitly rather than silently left implicit:
+    the NEXT session that needs to author a brand-new migration should NOT
+    trust `bun run db:generate`'s output verbatim until this snapshot gap is
+    separately closed -- continue the established convention in this repo
+    (hand-author additive, idempotent SQL matching schema.ts, apply via
+    Supabase MCP, same as every migration audited above).
+
+projexa_scope_check:
+  question: "Does projexa's own Supabase project have the same migration-tracking gap?"
+  finding: >
+    No -- confirmed out of scope, not "same gap, not yet checked". Queried
+    projexa's own Supabase project (evpckeuxgvahguwsaeul) directly:
+    `SELECT COUNT(*) FROM drizzle.__drizzle_migrations` fails with
+    `relation "drizzle.__drizzle_migrations" does not exist` -- the `drizzle`
+    schema itself (which drizzle-kit auto-creates via CREATE SCHEMA IF NOT
+    EXISTS on its very first migrate run) has never been created there at
+    all. This compliance-tracker repo's drizzle/ folder and drizzle.config.ts
+    only ever targeted pcrjmlpuqsbocqfwoxod (DATABASE_URL); projexa is a
+    separate frontend product that calls this repo's API routes
+    server-to-server via API keys (PROJEXA-IDENTITY-BRIDGE-01, see migrations
+    0202/0205/0206/0224/0258's own comments) and evidently manages its own
+    Supabase project's schema through a different, non-drizzle-kit path this
+    repo has no visibility into. No fix applied or needed here -- there is no
+    drizzle migration-tracking mechanism on that project for this audit's
+    fix to apply to.
+
+final_checkpoint:
+  total_migrations_checked: 261
+  genuinely_missing_found_and_fixed: 12
+  false_positives_explained_no_action_needed: 1
+  migration_tracking_table_status: "populated with 261 correct rows (was 0); confirmed matches repaired journal"
+  db_migrate_safety: >
+    bun/npm were not available in this task's sandbox to literally invoke
+    `bun run db:migrate` end-to-end against the live project as a final
+    smoke test (no bun binary; node_modules not installed and out of scope
+    to bulk-install here). Safety is instead established by direct inspection
+    of drizzle-orm@0.45.2's actual migrate() logic (quoted above) against the
+    now-repaired journal + tracking-table state: every real journal entry's
+    timestamp is <= the max recorded created_at, which is the exact condition
+    that logic uses to skip replay. A session with a working bun/npm
+    environment should still run `bun run db:migrate` once for real as a
+    final live confirmation before this finding is considered fully closed.

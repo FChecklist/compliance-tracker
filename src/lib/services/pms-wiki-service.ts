@@ -39,8 +39,14 @@ export async function getWikiPageBySlug(ctx: { orgId: string }, projectId: strin
   })
 }
 
+// Same isRealUser gate as knowledge-base-service.ts's createKbPage(), for
+// the same reason: pmsWikiPages.updatedById has a real FK to users.id, and
+// PROJEXA's server-to-server calls authenticate via API key (ctx.userId is
+// the key's own id, not a users row) -- the PROJEXA-facing route used to
+// hard-block API-key callers entirely to avoid that FK 500, which meant
+// PROJEXA could never create a project wiki page at all.
 export async function createWikiPage(
-  ctx: PmsContext,
+  ctx: { orgId: string; userId: string; isRealUser?: boolean },
   projectId: string,
   input: { title: string; content?: string; parentPageId?: string }
 ) {
@@ -62,7 +68,7 @@ export async function createWikiPage(
 
     const [page] = await db.insert(pmsWikiPages).values({
       orgId: ctx.orgId, projectId, parentPageId: input.parentPageId || null,
-      slug, title, content: input.content || null, updatedById: ctx.userId,
+      slug, title, content: input.content || null, updatedById: ctx.isRealUser ? ctx.userId : null,
     }).returning()
     return page
   })
