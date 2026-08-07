@@ -210,7 +210,8 @@
           "departments": "Departments",
           "accessReview": "Access Review",
           "settings": "Settings",
-          "auditLog": "Audit Log"
+          "auditLog": "Audit Log",
+          "aiCostGovernance": "AI Cost Governance"
         }
       },
       "tools": {

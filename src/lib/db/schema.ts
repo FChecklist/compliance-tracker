@@ -9583,6 +9583,33 @@ export const tokenUsageLedger = complianceSchemaDB.table('token_usage_ledger', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── AI Cost Reconciliation (Finance) ─────────────────────────────────────
+// VERIDIAN Review Framework gap-closure (AI Cost Governance & FinOps,
+// 2026-08-07): token_usage_ledger.estimated_cost_usd is exactly that --
+// estimated from a static per-token pricing table (llm-client.ts's
+// estimateCostUsd), never checked against what the provider actually
+// billed. Per the framework's own recommended approach ("manual monthly
+// reconciliation first, low effort; automate later if drift is significant/
+// recurring"), this is deliberately NOT an automated invoice-import
+// pipeline -- it's the smallest real thing that makes "reconciled against
+// actual invoices" true: Finance pastes in the real total from the
+// provider's own billing dashboard once a month, the app computes the
+// estimated ledger total for that same window live (getEstimatedLedgerUsd
+// in cost-reconciliation-service.ts, no snapshot to go stale), and stores
+// the drift. One row per (period, provider) pair, manually entered --
+// enforced at the service layer, not a DB constraint, since Postgres
+// unique constraints on nullable/soft business keys add migration risk this
+// gap-closure's own scope doesn't call for.
+export const aiCostReconciliation = complianceSchemaDB.table('ai_cost_reconciliation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  periodMonth: text('period_month').notNull(), // 'YYYY-MM', calendar month this invoice covers
+  provider: text('provider').notNull(), // 'openrouter' | 'anthropic' | 'openai' | 'groq' | 'cerebras' | ...
+  actualInvoiceUsd: numeric('actual_invoice_usd').notNull(), // real $ from the provider's own billing dashboard, hand-entered
+  notes: text('notes'), // e.g. "OpenRouter dashboard, billing period Jul 1-31"
+  recordedByUserId: text('recorded_by_user_id'), // veridian_admin who entered this
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── VERIDIAN Computational Engine Library (VCEL) ────────────────────────
 // Built 2026-07-08 per the founder's "VERIDIAN Computational Engineering"
 // principle: every deterministic business computation should be executed

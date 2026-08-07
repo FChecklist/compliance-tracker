@@ -1,0 +1,49 @@
+# PENDING MANUAL APPLICATION -- this file is NOT yet a real, active GitHub Actions
+# workflow. Same real, confirmed platform constraint as the two precedents already
+# staged this way (PENDING-MANUAL-APPLICATION-sec07-ocid-lock-check.yml.txt,
+# PENDING-MANUAL-APPLICATION-reviewer-not-author-check.yml.txt): the GitHub token
+# available to this session has scopes 'gist', 'read:org', 'repo' only (confirmed via
+# `gh auth status` while building this) -- no `workflow` OAuth scope, so GitHub itself
+# rejects any push that creates or updates a real .github/workflows/*.yml file.
+#
+# Real, honest disclosure: this PR ships everything else this gap-closure asked for
+# (scripts/check-provider-key-usage.mjs, ai-os/registry/provider-key-usage-allowlist.yaml,
+# both tested and passing locally against the real repo) as real, working, merged code --
+# but the workflow file itself, the piece that makes the check actually RUN on every PR,
+# cannot be pushed by this session. It is committed here, at this non-`.github` path,
+# verbatim and ready to use, so the Owner (or a future session with a PAT that has
+# `workflow` scope) can apply it with one real action:
+#
+#   git mv ai-os/registry/PENDING-MANUAL-APPLICATION-provider-key-usage-check.yml.txt .github/workflows/provider-key-usage-check.yml
+#
+# then commit and push that single rename through a real, sanctioned channel (a PAT with
+# `workflow` scope, or a maintainer's own push). Until that happens, this check is real
+# and runnable locally (`node scripts/check-provider-key-usage.mjs`, confirmed passing
+# against the current repo) but not yet CI-enforced.
+name: Provider Key Usage Check
+on:
+  push: { branches: [main] }
+  pull_request: { branches: [main] }
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  provider-key-usage-check:
+    name: Provider Key Usage Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # AI Cost Governance & FinOps gap-closure (2026-08-07): same
+      # enforcement class as the guardrail-presence/asset-registry-coverage/
+      # metadata-index-coverage checks in ci.yml -- fails the build if a
+      # src/ file references a raw LLM-provider API key env var without a
+      # matching entry (and stated reason) in
+      # ai-os/registry/provider-key-usage-allowlist.yaml. Protects the
+      # cross-repo unified-spend invariant (PROJEXA has no LLM client of its
+      # own, so every real provider key lives only in this repo) from a new
+      # direct-provider call site silently bypassing the logged
+      # token_usage_ledger path. See that registry's own header for the
+      # honest limitation this does and doesn't guarantee.
+      - run: node scripts/check-provider-key-usage.mjs

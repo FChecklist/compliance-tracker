@@ -1,0 +1,73 @@
+# AI Cost Governance & FinOps gap-closure (2026-08-07): "Cross-repo AI spend
+# is visible as one combined figure" was found to be a real architectural
+# byproduct (FChecklist/projexa has zero local LLM client -- confirmed in
+# ai-os/CONSTITUTION.yaml's control_model -- every AI call it makes routes
+# through this repo's /api/v1/projexa/* endpoints, which log through
+# token_usage_ledger the same as every other call site), not a deliberately
+# engineered invariant. This registry + scripts/check-provider-key-usage.mjs
+# is the guardrail that keeps it from silently regressing: every file in src/
+# that references a raw LLM-provider API key env var must be listed here.
+# Adding a NEW file to this list is always allowed (extending coverage);
+# CI fails if a file references a provider key and is NOT listed here, so a
+# new direct-provider call site that bypasses the logged/ledgered path
+# becomes a visible, reviewable diff to this file, same enforcement class as
+# scripts/check-guardrail-presence.mjs (see that script's own header for the
+# honest "reviewable-diff, not runtime-unbypassable" limitation -- identical
+# here).
+#
+# Honest scope limitation, stated up front: this check runs in
+# compliance-tracker's own CI and can only see compliance-tracker's own
+# files. It cannot see FChecklist/projexa's repository directly (this task
+# has no access to that repo/its CI). What it DOES guarantee: the only repo
+# that has ever held a real provider key (per control_model's own
+# verification_rule) can't silently grow a second, unlogged one. Confirming
+# projexa itself still has zero local LLM client requires either (a) this
+# same check ported into that repo's own CI in a follow-up PR there, or (b)
+# periodic manual verification (grep that repo for the same env var names) --
+# recommended in ai-os/COST-CONTROL.md's reconciliation cadence, not
+# automated from here.
+provider_key_env_vars:
+  - OPENROUTER_API_KEY
+  - ANTHROPIC_API_KEY
+  - CEREBRAS_API_KEY
+  - ZAI_API_KEY
+  - OPENAI_API_KEY
+  - GOOGLE_GENERATIVE_AI_API_KEY
+  - GEMINI_API_KEY
+  - GROQ_API_KEY
+
+allowed_files:
+  - file: src/app/api/documents/extract/route.ts
+    reason: "comment-only reference (GROQ_API_KEY mentioned in a historical-bug comment), no real env var read"
+  - file: src/app/api/help/ask/route.ts
+    reason: "reads GROQ_API_KEY presence only to report platform capability status, not to call the provider directly"
+  - file: src/app/api/internal/secrets-audit/run/route.ts
+    reason: "comment-only reference describing the secrets-audit detection problem this route solves"
+  - file: src/lib/ai-router/mother-router.test.ts
+    reason: "test file -- sets/restores process.env.ANTHROPIC_API_KEY around assertions on mother-router.ts, no real call"
+  - file: src/lib/ai-team/cost-policy.ts
+    reason: "reads OPENROUTER_API_KEY to call the AI Dev Team's dispatch path, which logs via token-usage-service.ts (scope='ai_team_internal')"
+  - file: src/lib/ai-team/roster.ts
+    reason: "comment-only reference explaining the platform-key funding model"
+  - file: src/lib/ai-team/team-service.ts
+    reason: "reads OPENROUTER_API_KEY for AI Dev Team dispatch, same logged path as cost-policy.ts"
+  - file: src/lib/db/schema.ts
+    reason: "string literal inside a column comment example, not a real env var read"
+  - file: src/lib/embeddings.ts
+    reason: "reads OPENROUTER_API_KEY/GROQ_API_KEY for the embeddings call -- pure vector generation, no chat-completion spend to ledger, out of token_usage_ledger's own scope (prompt/completion tokens)"
+  - file: src/lib/ingest/extractor.ts
+    reason: "comment-only reference documenting a confirmed-dead code path (GROQ_API_KEY never set in Vercel)"
+  - file: src/lib/orchestra-model-resolver.test.ts
+    reason: "test file -- sets/restores provider key env vars around assertions on orchestra-model-resolver.ts, no real call"
+  - file: src/lib/orchestra-model-resolver.ts
+    reason: "the canonical platform-key resolver (platformApiKeyFor) -- every product/customer Orchestra Layer call routes through here to reach a provider; this IS the intended single funnel for provider-key access, not a bypass. Note: full per-call cost is always recorded in orchestra_executions (orchestra-execution-logger.ts, every layer) -- the separate token_usage_ledger 'product_orchestra' rows this page's byOrg breakdown reads are currently populated only by the two call sites that also call recordPromptCacheMetric() (chat-service.ts, help/ask route), not every layer. Pre-existing partial-coverage gap, documented honestly in PROGRESS.md, not fixed by this gap-closure."
+  - file: src/lib/prompt-security/layer1-input-sanitization.ts
+    reason: "comment-only reference explaining a fallback path for callers without GROQ_API_KEY"
+  - file: src/lib/services/fde-service.ts
+    reason: "comment-only reference documenting graceful degradation when OPENROUTER_API_KEY is absent"
+  - file: src/lib/supabase/api-key-auth.ts
+    reason: "comment-only reference (cross-links orchestra-model-resolver.ts's platformApiKeyFor), this file itself validates INCOMING customer API keys, not outgoing provider keys"
+  - file: src/lib/whisper-client.test.ts
+    reason: "test file -- sets/restores process.env.OPENAI_API_KEY around assertions on whisper-client.ts, no real call"
+  - file: src/lib/whisper-client.ts
+    reason: "reads OPENAI_API_KEY for Whisper transcription -- a real, intentionally separate provider (Voice Tickets), not a token_usage_ledger call site since it has no prompt/completion token shape"

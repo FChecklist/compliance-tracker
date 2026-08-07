@@ -5857,6 +5857,54 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-071557-retry-ai-cost-governance-finops-cost-vis) -- AI Cost Governance & FinOps: per-tenant Finance UI, provider-invoice reconciliation, cross-repo unified-spend guardrail [DONE, PR pending]"
+    claimed_at: "2026-08-07T13:50Z (this session, closed same session)"
+    claim: |
+      SPEC (redispatch of `task-20260718-062003`, sub-task of `UMR-20260801-170930-2080`; original
+      attempt blocked by the OpenRouter/Cerebras balance hard-stop, since removed from
+      `preflight-guard.py`, commit `7ff5be8`): close 4 AI Cost Governance & FinOps Review Framework
+      findings -- per-tenant AI cost visibility for Finance, cost attribution reconciled against
+      real provider invoices, cost-per-report/cost-per-action measured not estimated, and cross-repo
+      (compliance-tracker + PROJEXA) unified AI spend visibility.
+
+      Read the real current implementation first per the SPEC's own instruction (not assumed stale):
+      confirmed `getTokenUsageSummary()`/`/api/ai/team/token-usage` already did real per-org cost
+      aggregation but had no consuming UI page. Built `src/app/(app)/ai-cost-governance/page.tsx`
+      (veridian_admin-gated Finance dashboard) to close that. For invoice reconciliation, confirmed
+      no existing mechanism for the product's own provider spend (the only `reconcil` hit reconciles
+      the AI-OS's own agent-execution dev cost, a separate concern) and built the framework's own
+      recommended fix: a manual monthly reconciliation mechanism (`ai_cost_reconciliation` table,
+      `cost-reconciliation-service.ts`, `/api/ai/team/cost-reconciliation`, a UI section on the new
+      page) rather than an automated invoice-import pipeline. For cross-repo visibility, reconfirmed
+      via `ai-os/CONSTITUTION.yaml`'s `control_model` that PROJEXA has zero local LLM client (all
+      calls route through this repo), so the combined figure is real but was an unguarded
+      architectural byproduct -- added `scripts/check-provider-key-usage.mjs` +
+      `ai-os/registry/provider-key-usage-allowlist.yaml` (same enforcement class as
+      `check-guardrail-presence.mjs`) as the guardrail. Full disposition:
+      `ai-os/AI_COST_GOVERNANCE_FINOPS_2026-08-07.md`; checklist: `PROGRESS.md` on this task's
+      branch.
+
+      Did not touch `permission-service.ts`'s `ERP_ACTION_ROLES` (new route uses the existing
+      direct-role-check pattern `/api/ai/team/token-usage` already uses). CI workflow for the new
+      check staged (not yet active) at
+      `ai-os/registry/PENDING-MANUAL-APPLICATION-provider-key-usage-check.yml.txt` -- this session's
+      `gh auth status` has no `workflow` scope, same precedent as the two existing
+      `PENDING-MANUAL-APPLICATION-*` files. Verified locally before commit:
+      `node scripts/check-provider-key-usage.mjs` and `node scripts/check-governance-yaml-parse.mjs`
+      both pass.
+    scope_note: >-
+      File scope: `src/app/(app)/ai-cost-governance/`, `src/app/api/ai/team/cost-reconciliation/`,
+      `src/lib/services/cost-reconciliation-service.ts`, `src/lib/db/schema.ts` (additive table
+      only), `drizzle/0313_ai_cost_reconciliation.sql`, `scripts/check-provider-key-usage.mjs`,
+      `ai-os/registry/provider-key-usage-allowlist.yaml`,
+      `ai-os/registry/PENDING-MANUAL-APPLICATION-provider-key-usage-check.yml.txt`,
+      `ai-os/AI_COST_GOVERNANCE_FINOPS_2026-08-07.md`, `ai-os/OS.yaml` (+3 index entries),
+      `ai-os/registry/asset-registry-coverage.yaml` (+1 exemption entry),
+      `src/components/AppSidebar.tsx`/`messages/en.json`/`messages/hi.json` (+1 nav item),
+      `src/lib/protected-routes.generated.ts` (regenerated), `PROGRESS.md`, this entry. No overlap
+      with the other two active/recently-completed AI Cost Governance & FinOps sessions in this file
+      (anomaly-detection/spend-forecast/idle-capacity; cost-ceiling-alert/free-tier-cap) -- distinct
+      findings, distinct files.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
