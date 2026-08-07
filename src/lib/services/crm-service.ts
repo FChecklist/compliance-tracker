@@ -32,7 +32,7 @@ export { ServiceError, serviceErrorBody }
 export type CrmContext = { orgId: string; userId: string; role?: string }
 
 // Gap found via a fresh audit immediately before this wave: crm-accounts-
-// service.ts got a real owner-or-manager RBAC gate in Wave 4 (2026-07-17,
+// service.ts got a real owner-or-manager RBAC gate in Wave 4 (17 Jul 2026,
 // canEditAccount/canReassignOrDeleteAccount/canCreateCrmRecord below) but
 // crm_leads/crm_opportunities -- the sibling tables one wave earlier -- never
 // did. Today any authenticated org member, including viewer/client_viewer/

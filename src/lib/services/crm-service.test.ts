@@ -1,6 +1,6 @@
 // CRM & Sales Modules: Opportunities (this wave). Real gap found via a fresh
 // audit: crm-accounts-service.ts got a real owner-or-manager RBAC gate in
-// Wave 4 (2026-07-17, canEditAccount/canReassignOrDeleteAccount/
+// Wave 4 (17 Jul 2026, canEditAccount/canReassignOrDeleteAccount/
 // canCreateCrmRecord) but crm_leads/crm_opportunities -- the sibling tables
 // one wave earlier -- never did. Any authenticated org member, including
 // viewer/client_viewer/external_auditor rank, could create/edit any lead or
