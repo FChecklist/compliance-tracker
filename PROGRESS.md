@@ -124,8 +124,8 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
 - `ai-os/boss/ACTIVE-CLAIMS.yaml` (claim registered at task start)
 
 ## Remaining
-- [ ] Open a PR against `main` (branch protection + CI gate per AGENTS.md Rule 6) -- not yet
-      opened as of this checkpoint; next invocation should run `gh pr create` and let CI
-      (Lint/Type Check/Build/Unit Tests) run, then address any real failures it surfaces.
+- [x] Open a PR against `main` (branch protection + CI gate per AGENTS.md Rule 6) --
+      **PR #1018** opened (https://github.com/FChecklist/compliance-tracker/pull/1018).
+      Next invocation: check CI status, address any real failures, merge once green.
 - [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:`
       once the PR merges.
