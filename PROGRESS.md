@@ -55,13 +55,16 @@ unlike the native CRM UI routes.
       functions across every role rank.
 - [x] Verified: `bun test` on both crm test files -- 65 pass, 0 fail.
       `eslint` on all touched files -- clean, zero warnings/errors.
-- [ ] Full-repo `tsc --noEmit` -- in progress in background (repo is large
-      enough that it needs an increased Node heap and doesn't finish inside
-      a single tool-call timeout window); will record the result here once
-      it returns, before opening the PR.
+- [x] Full-repo `tsc --noEmit` -- clean (ran in background with an
+      increased Node heap; repo is too large for one tool-call timeout
+      window).
+- [x] Registered this work in `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      `recently_completed:` (done in the same commit as the fix -- this was
+      a single fast unit of work, not a multi-hour effort needing an
+      `active:` claim held open first).
+- [x] Committed (928eb8bf), pushed branch, opened PR #1016:
+      https://github.com/FChecklist/compliance-tracker/pull/1016
 
 ## Remaining
-- [ ] Confirm full-repo `tsc --noEmit` is clean.
-- [ ] Commit + push branch, open PR, let CI run.
-- [ ] Register/close this task's entry per `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      protocol.
+- [ ] Watch CI on PR #1016; merge once green (per AGENTS.md Rule 6 --
+      cannot push/merge directly to `main`).
