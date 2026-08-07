@@ -40,6 +40,39 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-065733-resume--area-2-live-ui-ux-click-through) -- Sentinel-triggered idle-session check: real area-2/OCID-020 status + dead-zone requeue of UMR-20260801-170930-2080/UMR-20260801-153900-9100 [DONE, closed same session]"
+    claimed_at: "2026-08-07T07:00Z (this session, closed same session)"
+    status_update: "REAL, CURRENT STATE: (1) Area 2 (OCID-020, live UI/UX click-through
+      certification of projexa-ai.com, parent UMR-20260802-165606-4413) is status='failed'
+      in superboss-register.sqlite, confirmed genuinely terminal (not a false backfill
+      artifact) by an independent re-adjudication ~51min earlier (UMR-20260807-051828-6715)
+      that read the real task_dir (task-20260802-172443-amendment--end-to-end-end-user-certifica)
+      and found task.yaml self-reports status='failed' too, no merged PR. No worker
+      currently owns or is running it -- its last owning unit is not alive. Not resumed
+      here (out of this task's scope; resuming it would be a new initiative). (2) Live-checked
+      every 'running'-status row under both batches (166-task batch UMR-20260801-170930-2080
+      and 800-task audit UMR-20260801-153900-9100) against `systemctl --user is-active` +
+      each task's own task.yaml. Found 9 rows marked running with the owning unit actually
+      dead (Result=success/SubState=dead/MainPID=0, i.e. process exited but dispatch-
+      bookkeeping never wrote a terminal status -- same class of gap already being fixed
+      by the concurrently-running task-20260807-065748-fix-worker-entrypoint-sh-479).
+      Reset 8 of the 9 to status='queued' via the canonical `superboss-register.py
+      reset-umr-to-queued` (UMR-20260801-173320-f35a, -173404-adf7, -173423-9aa1,
+      -173448-362f, -173731-5c08, -173737-547a, UMR-20260802-024829-75ae,
+      UMR-20260802-035156-85d2) -- each verified to have no completion artifact, just a
+      mid-flight 'periodic checkpoint'/'worker started' note. Deliberately did NOT requeue
+      the 9th (UMR-20260801-170930-2080 itself, the '166-balance-exhaust' batch-disposition
+      task): its task.yaml shows a real, deliberate status='blocked' (credit-accountant
+      rejected further auto-fix spend, real PR #898 already opened) -- requeuing it would
+      risk duplicate work against that open PR, so it's flagged for a PM/owner decision
+      instead of a blind reset. (3) Live veridian-worker count was already 5/5 (=
+      CONCURRENCY_CAP) at check time (not the 3->2 decline Sentinel saw ~10min earlier --
+      state had already self-corrected). Ran `resource_governor.py --tick` to confirm: it
+      correctly deferred all dispatch ('cap_exhausted', running_worker_count=5, cap=5) --
+      no new unit started, per this task's own no-new-parallel-initiatives constraint.
+      Swap headroom had degraded further since the SPEC snapshot (82Mi free vs the SPEC's
+      620Mi) -- flagged, no action taken to push past the cap given that. Zero code
+      changes; DB writes only (8 reset-umr-to-queued calls) + this doc."
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
