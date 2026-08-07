@@ -12,10 +12,9 @@
  * hashing helper (hashSHA256, from src/lib/api-keys.ts) uses only Web Crypto
  * so it works unmodified on the Edge runtime.
  *
- * Tools exposed (9, corrected 2026-07-15 -- this comment previously omitted
- * list_notices and get_task_status; see handleTool() below for the real,
- * current list):
- *   list_notices, get_task_status, list_compliance_items,
+ * Tools exposed (10, corrected 2026-07-29 -- Stage 11 added get_notice_status;
+ * see handleTool() below for the real, current list):
+ *   list_notices, get_task_status, get_notice_status, list_compliance_items,
  *   get_compliance_stats, get_overdue_items, create_compliance_item,
  *   update_compliance_status, list_departments, get_penalty_estimate
  *
@@ -225,6 +224,18 @@ const TOOL_DEFINITIONS = [
       properties: { id: { type: 'string' } },
     },
   },
+  // Stage 11 (END_USER_ENGINE receptionist tier, 2026-07-29): the natural
+  // sibling of get_task_status above -- same shape, same routing (internal
+  // fetch() to the new /api/v1/notices/{id}/status Node-runtime route).
+  {
+    name: 'get_notice_status',
+    description: 'Get the current status (and reply deadline) of a regulatory/government notice by id.',
+    inputSchema: {
+      type: 'object',
+      required: ['id'],
+      properties: { id: { type: 'string' } },
+    },
+  },
 ]
 
 // ---------------------------------------------------------------------------
@@ -350,6 +361,16 @@ async function handleTool(
       headers: { Authorization: `Bearer ${bearerToken}` },
     })
     if (!res.ok) throw new Error(`get_task_status failed: ${res.status} ${await res.text()}`)
+    return res.json()
+  }
+
+  if (name === 'get_notice_status') {
+    const id = String(args.id ?? '')
+    if (!id) throw new Error('id is required')
+    const res = await fetch(`${getApiV1BaseUrl()}/notices/${encodeURIComponent(id)}/status`, {
+      headers: { Authorization: `Bearer ${bearerToken}` },
+    })
+    if (!res.ok) throw new Error(`get_notice_status failed: ${res.status} ${await res.text()}`)
     return res.json()
   }
 
