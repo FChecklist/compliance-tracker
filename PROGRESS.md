@@ -58,8 +58,10 @@ software first. AI is the fallback, not the default.").
       bearing information, just prose) rather than adding an exemption. All 4 checks pass clean
       after the fix.
 
+- [x] Committed, pushed, opened PR #1037: https://github.com/FChecklist/compliance-tracker/pull/1037
+
 ## Remaining
-- [ ] Commit, push, open PR, confirm CI green, hand off for independent audit (Rule 7c/10).
+- [ ] Confirm CI green, hand off for independent audit (Rule 7c/10) -- not self-certified here.
 - [ ] Move the `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:` once merged.
 - [ ] Real, disclosed follow-ups (NOT done here, flagged not silently dropped): candidate (1)
       `crm-service.ts`'s `scoreLead()`/`analyzeOpportunity()` is the same class of finding but
