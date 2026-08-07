@@ -5856,35 +5856,44 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
-  - session_label: "claude-code (task-20260807-161539-correction-to-umr-20260807-161418-a63f) -- deterministic stop-work-order check inside resource_governor.py's dispatch_one()"
-    claimed_at: "2026-08-07T16:20Z (this session)"
+recently_completed:
+  - session_label: "claude-code (task-20260807-161539-correction-to-umr-20260807-161418-a63f) -- deterministic stop-work-order check inside resource_governor.py's dispatch_one() [DONE, found already real-implemented by concurrent sibling task, verified not re-built]"
+    claimed_at: "2026-08-07T16:20Z (this session, closed same session ~16:26Z)"
     claim: |
       SPEC (cite UMR-20260807-161418-a63f, correcting that UMR's own wrong
       suggestion of dispatch-owner-task.sh as an alternative location): the
       real incident (UMR-20260807-110133-205d) slipped past the standing
       stop-work order because it was already sitting queued in umr_tasks
       before the order existed and was picked up by the normal tick, never
-      passing through a fresh dispatch-owner-task.sh submission call -- a
-      check only in dispatch-owner-task.sh gates NEW submissions and would
-      NOT have caught this. Building the real, deterministic check inside
-      scripts/resource_governor.py's dispatch_one() (repo:
-      FChecklist/veridian-scripts, file resource_governor.py, function
-      dispatch_one/_dispatch_one_inner), in the same real critical section
-      as the existing metric/slot checks -- blocks PR/push-requiring queued
-      rows at execution time regardless of when/how they were queued.
-      KNOWN COLLISION, noted per this file's own Rule 4: task-20260807-
-      161431-make-the-single-gate-deterministic--enfo (UMR-20260806-171945-
-      5767) targets the identical real file/function with broader latitude
-      on location (dispatch_one() OR dispatch-owner-task.sh). Both were
-      in_progress with zero completed steps at claim time. Will re-check
-      that task's live branch/PR state before opening a PR here to avoid a
-      duplicate/conflicting implementation on the same function.
+      passing through a fresh dispatch-owner-task.sh submission call.
+      KNOWN COLLISION at claim time (noted per this file's own Rule 4):
+      task-20260807-161431-make-the-single-gate-deterministic--enfo
+      (UMR-20260806-171945-5767) targets the identical real file/function.
+      Re-checked the live /opt/veridian/scripts checkout before
+      implementing, per this file's own Rule 4/protocol step 1, and found
+      that sibling session had, in the intervening minutes, ALREADY WRITTEN
+      the real fix directly into the shared working tree (uncommitted at
+      discovery: resource_governor.py +267 lines -- STOP_WORK_ORDER_TASK_IDS
+      well-known marker + _stop_work_order_block_reason() gate wired into
+      BOTH submit() and _dispatch_one_inner()'s real critical section as
+      explicit defense-in-depth for "a row that reaches 'queued' by a
+      different route... queued before this gate itself existed" -- the
+      exact 205d-shaped case verbatim; plus a new
+      tests/test_stop_work_order_gate.py, 397 lines, 9 tests including
+      test_dispatch_one_defense_in_depth_blocks_preexisting_queued_row,
+      the exact real boolean test this correction specifies). Ran that
+      test file standalone: 9/9 passed. Did NOT re-implement, and did NOT
+      commit/push/PR the other session's own uncommitted work (its
+      .task.lock mtime showed it still actively running, and the same
+      shared checkout independently had an unrelated file,
+      superboss-register.py, mid-truncated by a different concurrent
+      session at the same moment -- committing anything from that
+      checkout at that moment would itself have been an unsafe collision).
+      Full detail in this task's own PROGRESS.md.
     scope_note: >-
       File scope: FChecklist/veridian-scripts repo, resource_governor.py
-      only (dispatch_one()/_dispatch_one_inner()). No compliance-tracker
-      files touched despite this task's own CONTROLLER.yaml repo label.
-
-recently_completed:
+      (read/verify only, zero edits made by this session -- the sibling
+      session owns the actual uncommitted diff and its own commit/PR).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
