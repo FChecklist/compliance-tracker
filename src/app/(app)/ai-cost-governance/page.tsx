@@ -202,7 +202,7 @@ export default function AiCostGovernancePage() {
                   <BarChart data={data.byOrg} layout="vertical" margin={{ left: 8 }}>
                     <XAxis type="number" tick={{ fontSize: 10 }} />
                     <YAxis type="category" dataKey="groupKey" tick={{ fontSize: 10 }} width={140} />
-                    <Tooltip formatter={(v: number) => `$${v.toFixed(4)}`} />
+                    <Tooltip formatter={(v) => `$${Number(v).toFixed(4)}`} />
                     <Bar dataKey="estimatedCostUsd" fill="#0E7C6E" radius={[0, 3, 3, 0]} />
                   </BarChart>
                 </ResponsiveContainer>

@@ -66,3 +66,29 @@ commit `7ff5be8`). Full disposition record: `ai-os/AI_COST_GOVERNANCE_FINOPS_202
       documented above and in the gap-closure doc): (a) widening `token_usage_ledger` per-org write
       coverage to every Orchestra Layer -- out of Finding 1's own ("Low") scope; (b) activating the
       staged CI workflow -- blocked on real `workflow`-scope push access, not on this session.
+
+## PR #1046 CI fix-up (invocation 3, 2026-08-07)
+- [x] PR #1046 was open but `mergeStateStatus: BLOCKED` on 2 real failing checks (found via
+      `gh pr checks 1046`, full job logs pulled with `gh api .../actions/jobs/<id>/logs` since
+      `gh run view --log` truncates in this sandbox -- see memory
+      `veridian-shell-large-output-truncation-bug`):
+  - **Type Check (TS2322)**: `ai-cost-governance/page.tsx`'s Recharts `<Tooltip formatter={(v: number) => ...}>`
+    doesn't match Recharts' `Formatter<ValueType, NameType>` signature (`value` can be
+    `undefined`). Fixed to `(v) => \`$${Number(v).toFixed(4)}\`` -- the exact same pattern already
+    used (and passing CI) in `crm/sales-pipeline/page.tsx`'s two Tooltip formatters.
+  - **Terminology Guardrail Check**: 6 new unexempted `hardcoded_iso_date` findings across the 3
+    new/touched files (real dated gap-closure comments, not example/placeholder data) plus
+    `schema.ts`'s baseline needing a bump from 84 to 85 for this PR's one new comment. Added 3 new
+    exemption entries (`ai-cost-governance/page.tsx`, `AppSidebar.tsx`, `cost-reconciliation-service.ts`)
+    and bumped `schema.ts` to 85 in `ai-os/registry/terminology-guardrail-exemptions.yaml`, each with
+    a real per-file reason, following this file's own established convention.
+  - Verified locally: `node scripts/check-terminology-guardrail.mjs --diff-only` now passes (6
+    files scanned, no new findings). Full-project `bunx tsc --noEmit` still OOMs/times out in this
+    sandbox regardless of these changes (pre-existing environment constraint, already documented
+    above) -- relying on CI's own Type Check job to confirm the fix; the corrected line now matches
+    a pattern that already passes CI elsewhere in this codebase.
+  - The 3rd failing item, `Vercel` (`FAILURE`, "Deployment rate limited... upgradeToPro"), is an
+    external Vercel account rate-limit, not a code issue in this PR -- not something a code change
+    here can fix.
+  - Committed and pushed to `worker/task-20260807-071557-retry-ai-cost-governance-finops-cost-vis`;
+    awaiting CI re-run on PR #1046.
