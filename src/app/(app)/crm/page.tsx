@@ -7,16 +7,20 @@ export const dynamic = "force-dynamic";
 // Wave 41 (VERIDIAN CRM, PLATFORM_STRATEGY.md §20): a lead-to-client
 // pipeline completing the existing Wave-1 Clients feature, not a generic
 // sales CRM.
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
-import { Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks, Building2 } from "lucide-react";
+import {
+  Loader2, UserPlus, Target, ArrowRightCircle, Sparkles, ListChecks, Building2,
+  Search, Download, Upload, HelpCircle, Users,
+} from "lucide-react";
 import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
@@ -24,6 +28,35 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+
+// VERIDIAN Review Framework gap-closure (2026-08-07), "Documentation &
+// In-App Help Coverage": KB pages are org-scoped (no platform-wide row to
+// safely seed cross-org), so a static inline panel is the reliable
+// artifact here -- it also deep-links out to the real Knowledge Base
+// module for anything beyond this quick-reference.
+function LeadLifecycleHelp() {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button variant="ghost" size="icon" aria-label="Lead lifecycle help">
+          <HelpCircle className="size-4 text-ct-muted" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="w-80 text-sm space-y-2" align="end">
+        <p className="font-semibold text-ct-navy">The lead lifecycle</p>
+        <ol className="list-decimal list-inside space-y-1 text-ct-muted">
+          <li><b>New</b> -- just captured, not yet worked.</li>
+          <li><b>Contacted</b> -- a rep has reached out.</li>
+          <li><b>Qualified</b> -- a real opportunity is likely; create an Opportunity from here.</li>
+          <li><b>Converted</b> -- became a client (via Convert), or <b>Lost</b> -- didn't pan out.</li>
+        </ol>
+        <p className="text-ct-muted">Status changes only follow this order -- you can't skip back from Qualified to New. Use the AI sparkle to score a lead and get a recommended next action.</p>
+        <Link href="/knowledge-base" className="text-ct-saffron hover:underline block pt-1">Open Knowledge Base &rarr;</Link>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 type Lead = {
   id: string; name: string; contactEmail: string | null; source: string | null; status: string; convertedClientId: string | null;
@@ -65,6 +98,20 @@ export default function CrmPage() {
   const [leadEmail, setLeadEmail] = useState("");
   const [leadSource, setLeadSource] = useState("");
   const [creatingLead, setCreatingLead] = useState(false);
+  // VERIDIAN Review Framework gap-closure, "Error Handling & Data
+  // Validation Messaging": per-field messages from ServiceError.fields,
+  // rendered under the offending input instead of a single toast.
+  const [leadFieldErrors, setLeadFieldErrors] = useState<Record<string, string>>({});
+
+  // VERIDIAN Review Framework gap-closure, "Search, Filter & Bulk
+  // Operations": search/status filter bar + bulk-select over leads.
+  const [leadSearch, setLeadSearch] = useState("");
+  const [leadStatusFilter, setLeadStatusFilter] = useState<string>("all");
+  const [selectedLeadIds, setSelectedLeadIds] = useState<Set<string>>(new Set());
+  const [bulkReassignOwnerId, setBulkReassignOwnerId] = useState("");
+  const [bulkReassigning, setBulkReassigning] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const importFileRef = useRef<HTMLInputElement>(null);
 
   const [oppOpen, setOppOpen] = useState(false);
   const [oppName, setOppName] = useState("");
@@ -74,13 +121,23 @@ export default function CrmPage() {
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
 
+  const leadQueryParams = useCallback(() => {
+    const params = new URLSearchParams();
+    if (leadSearch.trim()) params.set("search", leadSearch.trim());
+    if (leadStatusFilter !== "all") params.set("status", leadStatusFilter);
+    return params;
+  }, [leadSearch, leadStatusFilter]);
+
   const load = useCallback(async () => {
-    const [leadRes, oppRes] = await Promise.all([fetch("/api/crm/leads"), fetch("/api/crm/opportunities")]);
+    const leadParams = leadQueryParams();
+    const leadUrl = leadParams.toString() ? `/api/crm/leads?${leadParams.toString()}` : "/api/crm/leads";
+    const [leadRes, oppRes] = await Promise.all([fetch(leadUrl), fetch("/api/crm/opportunities")]);
     const [leadData, oppData] = await Promise.all([leadRes.json(), oppRes.json()]);
     setLeads(leadData.leads ?? []);
     setOpportunities(oppData.opportunities ?? []);
+    setSelectedLeadIds(new Set());
     setLoading(false);
-  }, []);
+  }, [leadQueryParams]);
 
   useEffect(() => {
     load();
@@ -89,21 +146,86 @@ export default function CrmPage() {
   const createLead = async () => {
     if (!leadName.trim()) return;
     setCreatingLead(true);
+    setLeadFieldErrors({});
     try {
       const res = await fetch("/api/crm/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: leadName, contactEmail: leadEmail || undefined, source: leadSource || undefined }),
       });
-      if (!res.ok) throw new Error();
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        if (body.fields) setLeadFieldErrors(body.fields);
+        throw new Error(body.error ?? "Failed to create lead");
+      }
       toast.success("Lead created");
       setLeadOpen(false);
-      setLeadName(""); setLeadEmail(""); setLeadSource("");
+      setLeadName(""); setLeadEmail(""); setLeadSource(""); setLeadFieldErrors({});
       load();
-    } catch {
-      toast.error("Failed to create lead");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to create lead");
     } finally {
       setCreatingLead(false);
+    }
+  };
+
+  const toggleLeadSelected = (leadId: string) => {
+    setSelectedLeadIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(leadId)) next.delete(leadId); else next.add(leadId);
+      return next;
+    });
+  };
+
+  const toggleSelectAllLeads = () => {
+    setSelectedLeadIds((prev) => (prev.size === leads.length ? new Set() : new Set(leads.map((l) => l.id))));
+  };
+
+  const bulkReassignLeads = async () => {
+    if (selectedLeadIds.size === 0) return;
+    setBulkReassigning(true);
+    try {
+      const res = await fetch("/api/crm/leads/bulk-reassign", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ leadIds: [...selectedLeadIds], ownerId: bulkReassignOwnerId || null }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      toast.success(`Reassigned ${selectedLeadIds.size} lead(s)`);
+      setBulkReassignOwnerId("");
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to bulk-reassign leads");
+    } finally {
+      setBulkReassigning(false);
+    }
+  };
+
+  const exportLeadsCsv = () => {
+    const params = leadQueryParams();
+    const url = params.toString() ? `/api/crm/leads/export?${params.toString()}` : "/api/crm/leads/export";
+    window.open(url, "_blank");
+  };
+
+  const importLeadsCsv = async (file: File) => {
+    setImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/crm/leads/import", { method: "POST", body: formData });
+      if (!res.ok) throw new Error((await res.json()).error ?? "Failed");
+      const result = await res.json();
+      if (result.errors?.length) {
+        toast.info(`Imported ${result.success} lead(s), ${result.errors.length} row(s) failed`);
+      } else {
+        toast.success(`Imported ${result.success} lead(s)`);
+      }
+      load();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to import leads");
+    } finally {
+      setImporting(false);
+      if (importFileRef.current) importFileRef.current.value = "";
     }
   };
 
@@ -114,10 +236,15 @@ export default function CrmPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status }),
       });
-      if (!res.ok) throw new Error();
+      // VERIDIAN Review Framework gap-closure, "Business Rule & Validation
+      // Accuracy": an invalid status transition now comes back as a real
+      // 400 with a specific message (server-side VALID_LEAD_TRANSITIONS
+      // check) instead of silently no-op'ing -- surface it instead of the
+      // old generic "Failed to update lead".
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? "Failed to update lead");
       load();
-    } catch {
-      toast.error("Failed to update lead");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update lead");
     }
   };
 
@@ -232,9 +359,12 @@ export default function CrmPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-heading text-ct-navy">CRM</h1>
-          <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, not just manage an existing one.</p>
+        <div className="flex items-start gap-1">
+          <div>
+            <h1 className="text-2xl font-heading text-ct-navy">CRM</h1>
+            <p className="text-sm text-ct-muted mt-1">Lead-to-client pipeline -- how you actually get a new client, not just manage an existing one.</p>
+          </div>
+          <LeadLifecycleHelp />
         </div>
         <Link href="/crm/accounts">
           <Button variant="outline"><Building2 className="size-4 mr-1.5" /> Accounts</Button>
@@ -248,44 +378,109 @@ export default function CrmPage() {
         </TabsList>
 
         <TabsContent value="leads" className="mt-4 space-y-3">
-          <div className="flex justify-end">
-            <Dialog open={leadOpen} onOpenChange={setLeadOpen}>
-              <DialogTrigger asChild>
-                <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron">New Lead</Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader><DialogTitle>New Lead</DialogTitle><DialogDescription>A prospect not yet a client.</DialogDescription></DialogHeader>
-                <div className="space-y-4 py-2">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-ct-muted uppercase">Name</Label>
-                    <Input value={leadName} onChange={(e) => setLeadName(e.target.value)} placeholder="Acme Retail Pvt Ltd" />
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2 flex-1 min-w-[240px]">
+              <div className="relative flex-1 max-w-xs">
+                <Search className="size-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-ct-muted" />
+                <Input
+                  value={leadSearch}
+                  onChange={(e) => setLeadSearch(e.target.value)}
+                  placeholder="Search leads by name..."
+                  className="pl-8 h-9"
+                />
+              </div>
+              <Select value={leadStatusFilter} onValueChange={setLeadStatusFilter}>
+                <SelectTrigger className="w-[140px] h-9 text-xs"><SelectValue placeholder="All statuses" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All statuses</SelectItem>
+                  <SelectItem value="new">New</SelectItem>
+                  <SelectItem value="contacted">Contacted</SelectItem>
+                  <SelectItem value="qualified">Qualified</SelectItem>
+                  <SelectItem value="converted">Converted</SelectItem>
+                  <SelectItem value="lost">Lost</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" size="sm" onClick={exportLeadsCsv}>
+                <Download className="size-3.5 mr-1.5" /> Export CSV
+              </Button>
+              <Link href="/api/crm/leads/import/template" className="text-xs text-ct-muted hover:underline self-center hidden sm:inline">Template</Link>
+              <input
+                ref={importFileRef}
+                type="file"
+                accept=".csv,text/csv"
+                className="hidden"
+                onChange={(e) => { const file = e.target.files?.[0]; if (file) importLeadsCsv(file); }}
+              />
+              <Button variant="outline" size="sm" onClick={() => importFileRef.current?.click()} disabled={importing}>
+                {importing ? <Loader2 className="size-3.5 mr-1.5 animate-spin" /> : <Upload className="size-3.5 mr-1.5" />}
+                Import CSV
+              </Button>
+              <Dialog open={leadOpen} onOpenChange={setLeadOpen}>
+                <DialogTrigger asChild>
+                  <Button className="bg-ct-saffron hover:bg-ct-saffron-hover text-white shadow-saffron" size="sm">New Lead</Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader><DialogTitle>New Lead</DialogTitle><DialogDescription>A prospect not yet a client.</DialogDescription></DialogHeader>
+                  <div className="space-y-4 py-2">
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-ct-muted uppercase">Name</Label>
+                      <Input value={leadName} onChange={(e) => setLeadName(e.target.value)} placeholder="Acme Retail Pvt Ltd" />
+                      {leadFieldErrors.name && <p className="text-xs text-red-600">{leadFieldErrors.name}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-ct-muted uppercase">Contact Email (optional)</Label>
+                      <Input value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} placeholder="founder@acme.com" />
+                      {leadFieldErrors.contactEmail && <p className="text-xs text-red-600">{leadFieldErrors.contactEmail}</p>}
+                    </div>
+                    <div className="space-y-1.5">
+                      <Label className="text-xs font-semibold text-ct-muted uppercase">Source (optional)</Label>
+                      <Input value={leadSource} onChange={(e) => setLeadSource(e.target.value)} placeholder="Referral" />
+                      {leadFieldErrors.source && <p className="text-xs text-red-600">{leadFieldErrors.source}</p>}
+                    </div>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-ct-muted uppercase">Contact Email (optional)</Label>
-                    <Input value={leadEmail} onChange={(e) => setLeadEmail(e.target.value)} placeholder="founder@acme.com" />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold text-ct-muted uppercase">Source (optional)</Label>
-                    <Input value={leadSource} onChange={(e) => setLeadSource(e.target.value)} placeholder="Referral" />
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button onClick={createLead} disabled={creatingLead || !leadName.trim()} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white">
-                    {creatingLead ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
-                    Create Lead
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                  <DialogFooter>
+                    <Button onClick={createLead} disabled={creatingLead || !leadName.trim()} className="bg-ct-saffron hover:bg-ct-saffron-hover text-white">
+                      {creatingLead ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
+                      Create Lead
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </div>
           </div>
 
+          {selectedLeadIds.size > 0 && (
+            <div className="flex items-center gap-2 rounded-lg border border-ct-saffron/40 bg-ct-saffron/5 px-3 py-2 text-sm">
+              <Users className="size-3.5 text-ct-saffron" />
+              <span className="text-ct-navy">{selectedLeadIds.size} selected</span>
+              <Input
+                value={bulkReassignOwnerId}
+                onChange={(e) => setBulkReassignOwnerId(e.target.value)}
+                placeholder="Owner user ID to reassign to..."
+                className="h-8 max-w-xs text-xs"
+              />
+              <Button size="sm" variant="outline" onClick={bulkReassignLeads} disabled={bulkReassigning}>
+                {bulkReassigning ? <Loader2 className="size-3.5 mr-1 animate-spin" /> : null}
+                Reassign
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedLeadIds(new Set())}>Clear</Button>
+            </div>
+          )}
+
           {leads.length === 0 ? (
-            <Card className="rounded-xl shadow-card bg-white"><CardContent className="pt-10 pb-10 text-center text-sm text-ct-muted">No leads yet.</CardContent></Card>
+            <Card className="rounded-xl shadow-card bg-white"><CardContent className="pt-10 pb-10 text-center text-sm text-ct-muted">No leads match these filters.</CardContent></Card>
           ) : (
             <div className="rounded-xl border border-ct-border bg-white divide-y divide-ct-border">
+              <div className="px-4 py-2 flex items-center gap-3 bg-ct-cloud/40">
+                <Checkbox checked={selectedLeadIds.size === leads.length} onCheckedChange={toggleSelectAllLeads} aria-label="Select all leads" />
+                <span className="text-xs text-ct-muted uppercase font-semibold">Select all</span>
+              </div>
               {leads.map((lead) => (
                 <div key={lead.id} className="px-4 py-3 space-y-1.5">
                   <div className="flex items-center gap-3">
+                    <Checkbox checked={selectedLeadIds.has(lead.id)} onCheckedChange={() => toggleLeadSelected(lead.id)} aria-label={`Select ${lead.name}`} />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-ct-navy">{lead.name}</p>
                       <p className="text-xs text-ct-muted">{lead.contactEmail || "No contact"} {lead.source ? `· ${lead.source}` : ""}</p>

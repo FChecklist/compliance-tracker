@@ -28,7 +28,14 @@ export type ListComplianceFilters = {
 }
 
 export class ServiceError extends Error {
-  constructor(message: string, public status: number) {
+  // `fields` is additive and optional (VERIDIAN Review Framework
+  // gap-closure, CRM Leads "Error Handling & Data Validation Messaging"):
+  // a per-field message map for callers that want to render Zod-style
+  // field-level feedback instead of one generic string. Every existing
+  // 2-arg `new ServiceError(message, status)` call site across the
+  // codebase is unaffected -- this parameter is optional and undefined
+  // unless a caller explicitly passes it.
+  constructor(message: string, public status: number, public fields?: Record<string, string>) {
     super(message)
   }
 }
