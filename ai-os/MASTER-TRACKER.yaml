@@ -615,6 +615,45 @@ open_items:
     # covered an old item, that's noted. Anything NOT listed here from the
     # old catalogs should be assumed CLOSED -- see closed_priorities below
     # for where.
+    - id: GAP-VERI-CHAT-INTENT-PALETTE-UNREACHABLE-FROM-DISCUSS-MODE
+      name: "Real, backend-wired intent/prompt-recall palette (IntentCommandPalette.tsx, GET /api/dynamic-chains/my-library) is only reachable in chain-picker composer modes -- the /-or-Tab trigger is gated to isChainMode, excluding 'Discuss' (free-text, no-gating) mode"
+      old_ids: []
+      status: "open (real, live, reproducible; severity: degrades experience, not launch-blocking)"
+      detail: |
+        Real, live finding, `task-20260807-064948-real-completion-audit--ui-ux--veri-chat`
+        (`ai-os/VERIDIAN_REAL_COMPLETION_AUDIT_UI_UX_VERI_CHAT_2026-08-07.md` §3c). The
+        mockup-to-production spec (`VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md` §3.6) had
+        already confirmed via code read that `IntentCommandPalette.tsx` + `browser-intent-cache.ts` is
+        a real, already-shipped, per-user workflow-recall feature (real IndexedDB store first, real
+        server fallback `GET /api/dynamic-chains/my-library` when the local cache is empty), triggered
+        by `/` or `Tab` on an empty composer -- but did not live-test which composer modes actually
+        fire that trigger.
+
+        Live-tested this session, fresh self-signup test org, real browser: pressing `/` on an empty
+        "Discuss"-mode composer (the free-text mode with `placeholder: "Ask me anything — no task
+        selection needed…"`, the same mode this session's own real end-to-end AI round-trip used --
+        see `GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL`'s 2026-08-07 live-reverification
+        note) just types a literal `/` character into the message box -- the palette never opens,
+        `GET /api/dynamic-chains/my-library` never fires (screenshot
+        `realcompaudit0807d-01-slash-palette.png`).
+
+        Root cause, confirmed by direct code read: `VeriComposer.tsx:671`'s keydown handler --
+        `(e.key === "/" || e.key === "Tab") && value.length === 0 && isChainMode && !isThreadOpen &&
+        !disabled` -- requires `isChainMode`, which "Discuss" (one of the three `FIXED_MODES`:
+        `discuss`, `chats`, `todo`) structurally is not; only the `tree`-derived chain nodes
+        (Compliance Item, Calculators, Construction Intelligence, etc.) satisfy it.
+      size: "S -- extend the keydown condition to also allow composerMode === 'discuss' (the palette's
+        own query/render logic does not appear to depend on chain state, per
+        VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md's own read of IntentCommandPalette.tsx), or
+        make an explicit, documented product decision that intent recall is chain-mode-only by design
+        and this is working as intended (not yet decided either way)."
+      recommendation: |
+        Real, live, reproducible UX gap: the one real, backend-wired workflow-recall feature in the
+        product is unreachable from the mode a real end user typing an ad-hoc request would naturally
+        land in. Not a launch-blocker -- the feature works correctly in chain-picker modes. Either fix
+        the gate or explicitly ratify the current scoping; do not leave it as an accidental gap.
+      first_raised: "2026-08-07, task-20260807-064948-real-completion-audit--ui-ux--veri-chat, real live click-through"
+
     - id: GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT
       name: "GET /api/clients returns ALL org clients to every role incl. viewer, ignoring resolveAccessibleClientIds() -- CLOSED, real fix merged"
       old_ids: []
@@ -2560,6 +2599,17 @@ open_items:
         follow-up for once this PR merges and deploys, same discipline already established by
         `GAP-ERP-SALES-CONSTRUCTION-PMS-NO-SELF-SERVICE-ENABLEMENT-API`'s own fix for the same class of
         "route/UI change requires a real deploy before live re-verification is possible."
+
+        **Live re-verification CLOSED, 2026-08-07** (`task-20260807-064948-real-completion-audit--ui-ux--veri-chat`,
+        `ai-os/VERIDIAN_REAL_COMPLETION_AUDIT_UI_UX_VERI_CHAT_2026-08-07.md` §3a): the exact real
+        browser re-render this note flagged as outstanding was performed. Fresh self-signup test org,
+        real login form, real `/home`, real "Discuss" mode message ("Can you create a task for
+        renewing our fire safety certificate next month?") produced a real ~6s LLM round trip whose
+        reply rendered with the literal `✨ AI-generated reply` marker in `document.body.innerText`,
+        while the thread's earlier deterministic/scripted greeting carried none -- confirmed at both
+        the DOM layer and the `GET /api/conversations/{id}/messages` response
+        (`confidenceLabel: "high"` vs `null`). Genuinely fixed and live in production today, not just
+        unit-tested.
 
     - id: GAP-STAGE0-ROLE-MISSING-FROM-ROLE-RANK
       name: "stage_0 is a real DB role (userRoleEnum) but is missing from the UserRole type and ROLE_RANK map, so a stage_0 user fails every requireRole()/requirePermissionForUser() gate in the app -- including the lowest-bar (viewer/member) ones"

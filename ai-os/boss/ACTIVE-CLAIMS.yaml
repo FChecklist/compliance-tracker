@@ -40,6 +40,44 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-064948-real-completion-audit--ui-ux--veri-chat) -- real completion audit of ERP modules cross-check, UI/UX live click-through, VERI Chat wiring, VERI assistant wiring, on projexa-ai.com (surfaces NOT covered by tonight's #683-688 AI Engineering Quality/Documentation/Cost Governance audit) [DONE, PR #1043]"
+    claimed_at: "2026-08-07T00:00Z (this session, timestamp approximate -- environment has no live clock tool)"
+    claim: |
+      SPEC (Owner directive, task prompt.txt): real, verified (not label-trusting) audit of what's
+      genuinely missing before projexa-ai.com is end-user-ready, across 4 areas: (1) ERP module
+      cross-check (real vs routed-only), (2) UI/UX live click-through of the real projexa-ai.com
+      (not local mockup) vs `VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md`, (3) VERI Chat
+      composer/chain-mode-pill-sync/prompt-library real backend wiring in production, (4) VERI
+      assistant (AI Dev Team dispatch API, Mother Router) real end-user experience vs internal-only.
+      Method: direct testing (real clicks, real API hits, real DB checks) or explicit
+      could-not-verify disclosure -- no doc-derived completeness claims.
+
+      Found before starting: this exact ground has extremely deep, very recent prior coverage --
+      `ai-os/PROJEXA_AI_COM_E2E_CERTIFICATION_REDO_2026-08-02.md` (real signup+login+118-nav-link
+      click-through of `projexa-ai.com` 5 days ago, one real high-severity bug found: Compliance
+      Register/Pendency View client-side crash) and `ai-os/MASTER-TRACKER.yaml` (51 GAP-* entries,
+      only 1 currently OPEN, most VERI-Chat/compliance-register items already CLOSED with real PR
+      citations as of 2026-08-05). This session's real added value is a FRESH live re-verification
+      today, not a re-derivation of that doc's findings -- proceeding on that basis, will flag
+      explicitly which prior findings are reconfirmed-still-true vs now-stale/fixed.
+    scope_note: >-
+      File scope (planned): new `ai-os/VERIDIAN_REAL_COMPLETION_AUDIT_UI_UX_VERI_CHAT_2026-08-07.md`
+      (or similarly named), `ai-os/MASTER-TRACKER.yaml` (any newly confirmed real gaps),
+      `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry). Read-only live probing of
+      `projexa-ai.com` via Playwright + real Supabase Admin API signup/email-confirm (same method
+      as the 2026-08-02 predecessor) -- no destructive writes beyond a disposable test-org signup.
+    completed_note: |
+      2026-08-07, real, live re-verification pass done (real signup, real Admin-API email-confirm,
+      real login-FORM click-through, not cookie injection). Confirmed both previously-broken pages
+      (Compliance Register, Pendency View) genuinely fixed live. Live-closed
+      GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL's own honest not-yet-live-reverified gap
+      (real "AI-generated reply" marker confirmed at DOM+API layer via a real ~6s LLM round trip).
+      Found and documented one NEW real gap: GAP-VERI-CHAT-INTENT-PALETTE-UNREACHABLE-FROM-DISCUSS-MODE.
+      Reconfirmed the fresh-org CRM/ERP 403-no-explanation UX gap still live. Confirmed via code read
+      + the same live round trip that the end-user VERI assistant path is real and working, not
+      internal-only. No launch-blocking findings. Full report:
+      `ai-os/VERIDIAN_REAL_COMPLETION_AUDIT_UI_UX_VERI_CHAT_2026-08-07.md`. PR:
+      https://github.com/FChecklist/compliance-tracker/pull/1043.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
