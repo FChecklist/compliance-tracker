@@ -1,5 +1,10 @@
 # PROGRESS -- task-20260807-064722-retry-ai-documentation-lifecycle
 
+**Status: DONE. Opened PR #1039** (docs-only: this PROGRESS.md +
+`ai-os/MASTER-TRACKER.yaml`'s 4 new GAP entries + `ai-os/boss/ACTIVE-CLAIMS.yaml`).
+CI running as of push. Not attempting to merge myself -- subject to the same
+review-required deadlock as PR #685 (see below), out of scope to fix from here.
+
 ## Summary
 
 This is a **duplicate dispatch**. The real work this task's `prompt.txt` asks for --
