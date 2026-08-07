@@ -5857,6 +5857,43 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260807-062751-dynamic-concurrency-cap-implementation-p) -- declined stale re-dispatch of already-reverted dynamic-cap design [DONE, no code changes, docs-only]"
+    claimed_at: "2026-08-07T06:27Z (this session, closed same session)"
+    claim: |
+      SPEC (sub-task of UMR-20260801-172407-ae58, "dynamic concurrency cap directive"): claimed, as
+      an already-done real fact, that `compute_dynamic_concurrency_cap()` was implemented in
+      `dispatch_core.py` via a still-open `FChecklist/veridian-scripts#9`, "never live-edited ...
+      Independent safety audit dispatched ... not yet merged pending that verdict."
+
+      **Independently re-verified against live GitHub + git state before acting on the premise
+      (matches `[[veridian-task-prompt-false-premise-pattern]]`): the premise is stale by 5 days and
+      describes a design the Owner already reverted.** `gh api repos/FChecklist/veridian-scripts/pulls/9`:
+      PR #9 is `closed`/`merged` (`merged_at: 2026-08-02T03:27:52Z`), real title "fix:
+      CONCURRENCY_CAP=5 fixed + real-time resource-headroom veto (was: dynamic cap)". Its own body:
+      "Per Owner directive UMR-20260801-190119-ff34, reversing this same branch's earlier approach
+      (UMR-20260801-172407-ae58)" -- i.e. this SPEC's own named parent UMR was implemented then
+      reverted same-day, on real evidence (swap hit 100% exhaustion with only 3 of the then-5-slot
+      cap running -- a smarter ceiling number doesn't fix mid-run resource spikes independent of
+      slot count). Confirmed on the live production checkout
+      (`/opt/veridian/scripts/dispatch_core.py`, separate live-checkout repo per
+      `[[veridian-scripts-separate-repo-live-checkout]]`): `git log` shows `7d5e8ec` (implements
+      `compute_dynamic_concurrency_cap()`, UMR-ae58) immediately followed by `c35987c` (reverts it,
+      UMR-20260801-190119-ff34, ~1.5h later, same PR #9's 3 commits) then a further hardening commit
+      `c16f456` (UMR-20260806-101839-688e, 2026-08-06) on top. `grep -n
+      "compute_dynamic_concurrency_cap"` against live `dispatch_core.py`: zero hits -- the function
+      does not exist in production. The real current design is a genuinely fixed `CONCURRENCY_CAP`
+      (env-overridable, default 5) plus an independent real-time `has_resource_headroom()` veto that
+      both must pass.
+
+      **Declined to re-implement `compute_dynamic_concurrency_cap()`** -- doing so would silently
+      reintroduce a design the Owner explicitly rejected on real evidence, on top of the box's real,
+      further-hardened current safety mechanism. No `dispatch_core.py` change made, nothing
+      live-edited, no code PR opened. `ai-os/MASTER-TRACKER.yaml`/`ai-os/boss/COMPLETED.yaml` checked
+      for "ae58": zero hits either way (this revert was never logged there under any UMR).
+    scope_note: >-
+      File scope: this `ai-os/boss/ACTIVE-CLAIMS.yaml` entry, `PROGRESS.md`. No src/, schema,
+      migration, CI, or any `dispatch_core.py`/`veridian-scripts` changes -- finding documented,
+      not acted on, per the evidence above.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
