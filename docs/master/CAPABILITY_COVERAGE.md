@@ -13,6 +13,28 @@
 > not current state. See PROGRESS.md in the repo root (task
 > `task-20260718-084003-calculation-engine--calculation-governan`) for the
 > full re-verification trail.
+>
+> **Added 2026-08-01** (VERIDIAN Review Framework gap closure, AI-Readable
+> Calculation Documentation finding): that finding's own gap description
+> cited "registry is only ~17% implemented against its own catalogue."
+> That figure does not match anything found in this repo's history --
+> grepped for "17%" repo-wide, the only hit is an unrelated idiom in
+> `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`. Treating the "~17%" input as
+> stale/incorrect rather than a real current gap -- **not** building new
+> calculation engines off it. The real, still-open gap here is
+> documentation freshness (this file needs re-running against live data
+> more often than it has been), not engine count -- tracked as such
+> rather than papered over.
+>
+> **Re-verified 2026-08-07** (task-20260807-071602, re-landing this
+> correction after the above went stale/unmerged): a direct re-count of
+> `dispatchEngine()`'s live switch in `src/lib/task-execution-engine.ts`
+> finds 190 real `case` branches (191 dispatchable `engineKey`s counting
+> the GST special-case), not the ~160-170 figure above -- still not this
+> doc's own live-DB category-by-category number (no DB credentials in
+> this sandbox), just a re-verified line count. Someone with live DB
+> access should re-run this doc's own SQL query rather than trust any
+> fixed percentage cited anywhere in this file, including this note.
 
 **Purpose:** the honest, always-verifiable answer to "how much of what a user can click is guaranteed to run as real software, not an AI guess." Every number here is a live query against production, re-run each time coverage changes — not an estimate. Started 2026-07-10, per Boss directive: *"Options selected via Mode Pills and Chain Selector is very important for the completion of the work... the worker agent should just execute it like a software."*
 

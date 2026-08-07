@@ -2,7 +2,7 @@
 
 **Purpose:** the canonical "where does X live" reference. Every domain in this codebase, mapped to its tables, services, API routes, and pages. Built 2026-07-09 from a direct structural pass over the repo (not from documentation claims) — table/service/route counts below are grep-verified against the live tree, not estimated.
 
-**Scale at time of writing:** 115 migrations, 460+ tables (`compliance` schema), 114 files in `src/lib/services/`, 573+ API route files, 145+ page files, ~61K lines of TS/TSX. PROJEXA (construction ERP) lives inside this same repo, not a separate one.
+**Scale at time of writing:** 284 migrations, 468+ tables (`compliance` schema), 212 files in `src/lib/services/`, 995+ API route files, 188+ page files, ~225K lines of TS/TSX (re-verified 2026-08-07, task-20260807-071602 -- see `scripts/check-doc-scale-freshness.mjs`, the CI check this line now feeds; original snapshot was 115/460+/114/573+/145+/~61K as of 2026-07-09, and had drifted 30-147% by the time this correction landed). PROJEXA (construction ERP) lives inside this same repo, not a separate one.
 
 Use this doc to scope a task before touching code: find your domain below, and you have the full file list without re-deriving it via grep every session.
 
