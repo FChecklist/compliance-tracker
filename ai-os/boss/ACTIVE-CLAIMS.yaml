@@ -40,6 +40,43 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-073957-parallel-job--cross-reference-every-rele, UMR-20260802-035156-85d2) -- go-live master-initiative traceability sweep, docs-only [DONE, closed same session]"
+    claimed_at: "2026-08-07T07:39Z (this session, closed same session)"
+    claim: |
+      SPEC (Owner directive, Chat ID 2082026-02, explicit parallel job -- does not block/wait on
+      the master directive UMR-20260802-034545-3388 or its amendment UMR-20260802-034651-6b2c):
+      make "is this UMR/task/PR/CI run part of the go-live master initiative" instantly answerable
+      for every currently-relevant real ID, by cross-referencing back to those two root UMRs.
+      Tracking/traceability only -- no code/logic touched, no linked work redone.
+
+      Mechanism used: `ai-os/MASTER_INITIATIVE_TRACKING_2026-08-02.md` (already the real,
+      established tracking doc for this exact initiative -- row 1 of its own original table
+      already named this task's own UMR). Independently re-checked the entity/relation
+      coordination-graph option first per the Owner's own instructions: `veridian-scripts` PR #8
+      is still real, open, `DIRTY`/`CONFLICTING` -- has not landed, so not usable; used the
+      tracking doc + real PR comments instead, both explicit Owner-sanctioned fallbacks.
+
+      Real results: 20 real `running`-status UMRs judged genuinely in-scope and linked (of 29
+      real rows returned live -- not ~95, consistent with this doc's own earlier note that the
+      field is volatile; 9 more explicitly checked and left out with the real reason each,
+      logged in the doc, not silently dropped); ~35 real PRs linked (8 already merged, ~27 open
+      -- real PR comments citing both root UMRs posted on every currently-open one, idempotency
+      re-checked first so a re-run would not double-post). CI-run-ID linking reconfirmed still
+      not practically doable (no tracking convention exists beyond each PR's own Checks tab) --
+      not fabricating a new system, per the Owner's own instruction.
+
+      Full detail, per-UMR/per-PR tables, and the explicit exclusion list:
+      `ai-os/MASTER_INITIATIVE_TRACKING_2026-08-02.md`, section "Update 2026-08-07T07:50Z --
+      cross-reference sweep".
+    scope_note: >-
+      File scope: `ai-os/MASTER_INITIATIVE_TRACKING_2026-08-02.md` (edited directly on the shared
+      `/opt/veridian/ai-os` checkout, on-disk only, matching that file's own pre-existing
+      untracked/disk-only convention -- that checkout has 1600+ unrelated uncommitted files from
+      concurrent sessions on a non-main branch, so no git commit/push was attempted there; real
+      limitation, not a silent gap), ~25 real PR comments on compliance-tracker (`#632`, `#683`,
+      `#684`, `#687`, `#688`, `#528`-`#536` 8-clean/backlog set, `#1013`-`#1032` continuation
+      batch), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema, CI, or governance
+      logic changes; no linked UMR/PR's own work was touched or redone.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
