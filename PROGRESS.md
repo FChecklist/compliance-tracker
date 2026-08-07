@@ -184,6 +184,26 @@ still active, not resolved between invocations), and would burn a circuit-breake
 zero new information. This task's own work has nothing left to do that is within this
 session's authority; remaining is purely the Owner-side action already logged above.
 
+**Invocation 5/20 (2026-08-07):** Re-verified live state again before acting -- unchanged from
+invocation 4. `gh pr view 687 --json mergeable,mergeStateStatus,reviewDecision,state`: still
+`OPEN`, `mergeable: MERGEABLE`, `mergeStateStatus: BLOCKED`, `reviewDecision: REVIEW_REQUIRED`.
+`gh pr checks 687`: all 17 required checks still `pass` (Analyze, Asset Registry Coverage,
+Build, Doc Cross-Reference, Doc Quarantine Banner, Documentation Sentinel, E2E Tests, Guardrail
+Presence, Lint, Metadata Index Coverage, Migration Number Collision, Secret Scanning, Security
+Pattern, Terminology Guardrail, Type Check, Unit Tests, `audit-check`); the only non-passing
+line is still the same non-gating `Vercel` preview-deploy rate-limit. Also re-checked this
+session's own `gh auth status`/token scopes as a sanity check for whether a second reviewer
+identity had become available since the last check: still the single `FChecklist` identity,
+scopes `gist, read:org, repo` (no `workflow`, and no second account) -- confirms the
+review-identity deadlock is still structurally unresolved, not just unresolved by inaction.
+No new action taken, for the same reasons as invocation 4: nothing in this session's authority
+can move a `REVIEW_REQUIRED`/`BLOCKED` PR forward when every available credential resolves to
+the PR's own author identity, and repeating `gh pr merge` would fail identically for the third
+straight time with zero new information, burning a circuit-breaker strike for nothing. This
+task's real work remains complete and CI/audit-verified; the sole remaining step is still the
+Owner-side action (provision a second reviewer identity, or a bounded review-count exception on
+`main`'s branch protection) already logged in invocation 3.
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
