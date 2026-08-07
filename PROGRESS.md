@@ -9,7 +9,7 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
 
 ## Completed
 - [x] **Data Model Completeness & Referential Integrity** -- new org-scoped `crm_pipeline_stages`
-      config table (drizzle/0225), lazily auto-seeded per org with the 5 pre-existing hardcoded
+      config table (drizzle/0313), lazily auto-seeded per org with the 5 pre-existing hardcoded
       stage strings (`listPipelineStages()`), so no data migration/backfill needed and behavior
       is unchanged for every org that hasn't touched pipeline config. CRUD routes under
       `/api/crm/pipeline/stages` (manager-gated). Registered in `asset-registry-coverage.yaml`
@@ -30,7 +30,7 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
       open funnel, following `analyzeOpportunity()`'s existing 6-step orchestration pattern
       (enforcePolicy -> resolveModelConfig -> resolvePromptTemplate -> callLLMJson ->
       recordOrchestraExecution). New `crm_intelligence.pipeline_summary` prompt template
-      (drizzle/0225). Ephemeral (not persisted) -- no single entity row to cache it against.
+      (drizzle/0313). Ephemeral (not persisted) -- no single entity row to cache it against.
       Surfaced via a "Pipeline Insight" button on the new Kanban tab.
 - [x] **Search, Filter & Bulk Operations** -- search box + owner filter on the new Kanban view;
       multi-select + bulk-reassign toolbar wired to the pre-existing `bulkReassignOpportunities()`
@@ -59,7 +59,7 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
       round-trippable import needs unknown-ownerId/unknown-stage validation and dedup logic that
       is genuinely more scope than fits this wave; noted here rather than silently dropped.
 - [x] **Localization Readiness** -- `crm_opportunities.currency_id`/`exchange_rate` columns added
-      (drizzle/0225, identical shape to drizzle/0208's fix for `erp_quotations`/
+      (drizzle/0313, identical shape to drizzle/0208's fix for `erp_quotations`/
       `erp_sales_orders`). `exchangeRate` defaults to `'1'` so every pre-existing row keeps
       reading as "org base currency, rate 1" -- zero behavior change until an opportunity is
       explicitly given a foreign currency. `getSalesPipelineOverview()`'s aggregates now sum
@@ -94,13 +94,13 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
   sandbox hits an OOM/timeout on unrelated pre-existing files (missing `@types/node` in
   `scripts/`, etc.) even with an increased heap -- inconclusive on a full pass; real CI
   (`bun run build`/lint) is the actual gate and has not run yet as of this checkpoint.
-- Not run in this sandbox (no live `DATABASE_URL`): the drizzle/0225 migration itself, and any
+- Not run in this sandbox (no live `DATABASE_URL`): the drizzle/0313 migration itself, and any
   route requiring a live DB. Migration SQL follows this repo's own established, previously-
   applied pattern (drizzle/0219 crm_accounts, drizzle/0208 currency columns) closely enough to
   be low-risk, but has not been executed against a real database by this session.
 
 ## Files touched
-- `drizzle/0225_sales_pipeline_module.sql` (new migration)
+- `drizzle/0313_sales_pipeline_module.sql` (new migration)
 - `src/lib/db/schema.ts` (crmPipelineStages table; crmOpportunities.currencyId/exchangeRate)
 - `src/lib/services/crm-service.ts` (pipeline stage CRUD, isValidStageTransition,
   listStuckOpportunities, getPipelineAiSummary, currency-aware overview, stage-transition
@@ -166,7 +166,52 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
       this sandbox -- inconclusive locally, same known pre-existing limitation noted below; CI's
       own Type Check job is the real gate and is running as of this checkpoint (PR #1018,
       commit `1429f1fbc`).
-- [ ] Watch PR #1018's CI (Lint/Type Check/Build/Unit Tests + CodeQL + Mandatory Audit Check)
-      to green, address any real failures, then merge.
+- [x] Watched PR #1018's first real CI run (commit `1429f1fbc`) -- it surfaced 4 genuine
+      failures, all fixed live (commit follows this one):
+      - **Migration Number Collision Check**: main had independently landed its own
+        `drizzle/0225_support_sessions.sql` while this branch was open, colliding with this
+        task's `0225_sales_pipeline_module.sql`. Renumbered to `0313_sales_pipeline_module.sql`
+        (next free number after main's real highest, 0312, re-verified live via
+        `git ls-tree origin/main -- drizzle/`, not guessed) and updated the 2 in-code comment
+        cross-references in `crm-service.ts` (lines 595/614) plus this file's own citations.
+      - **Type Check**: `src/components/ReportCatalogList.tsx`'s `byDomain` grouping literal
+        was missing the new `CRM` key required by `Record<ReportDomain, FullCatalogEntry[]>` --
+        the merge-conflict resolution's exhaustiveness fix for this file (noted above) had
+        fixed a *different* `Record<ReportDomain,...>` map earlier in Wave-history but this one
+        was net-new since. Added `CRM: []`. Re-verified with a full local
+        `NODE_OPTIONS="--max-old-space-size=8192" timeout 500 bunx tsc --noEmit` (the earlier
+        280s/6144MB attempt had timed out inconclusively; this one completed) -- zero errors in
+        any file this task touches; the only remaining errors repo-wide are 10 pre-existing
+        `Cannot find module '@fchecklist/veridian-ui-kit/*'` / `@playwright/test` /
+        `@mlc-ai/web-llm` findings (private/optional packages not installed in this sandbox,
+        unrelated to this diff -- confirmed real CI's own Type Check log showed exactly the one
+        `ReportCatalogList.tsx` error and none of these 10, so CI does have those packages).
+      - **Unit Tests**: `permission-service.test.ts`'s exhaustive manager-gated-action list
+        test didn't yet know about this task's new `crm.pipeline_stages.manage` entry in the
+        shared `ERP_ACTION_ROLES` table (a deliberately shared, not ERP-only, action-role table
+        per that file's own header comment -- every module is expected to add its actions
+        there). Added the new action to the test's expected list, same class as the existing
+        `erp.chart_of_accounts.create`/`erp.fixed_assets.category_manage` master-data-config
+        entries. The other 3 fail + 2 module-not-found errors in the full `bun test` run
+        (`event-bus.test.ts`, `connector-data-service.test.ts`,
+        `dispatch-completion-monitor.test.ts`, `HomeThreadSlot.test.ts`, `ChainSelector.test.ts`,
+        `departments/route.test.ts`, `v1/tasks/[id]/status/route.test.ts`) are pre-existing and
+        untouched by this branch's diff (`git diff --name-only origin/main HEAD` confirms none
+        of those files appear) -- not this task's to fix.
+      - **Terminology Guardrail Check**: this task's own new dated gap-closure comments (25
+        findings across 15 files, all real "when/why this was built" comments, none
+        example/sample data) pushed several files' `hardcoded_iso_date` counts above their
+        recorded exemption-manifest baseline. Updated 6 existing entries'
+        `findings_by_category.hardcoded_iso_date` counts + `reason` text and added 9 new
+        entries in `ai-os/registry/terminology-guardrail-exemptions.yaml`, following this
+        file's own established "Bumped N -> M (reason)" convention. Re-verified locally:
+        `node scripts/check-terminology-guardrail.mjs --diff-only` now passes clean.
+      - Not investigated further: **Promptfoo Evals** (unrelated to this task's diff -- no
+        prompt-template file this task touches showed up as a cause in the failure summary)
+        and **Vercel** (failed with an explicit `build-rate-limit` message, an infra quota
+        issue, not a code problem). **audit-check** is expected to fail until the mandatory
+        AUDIT comment is posted post-CI-green, per Rule 10.
+- [ ] Push this commit, re-watch CI to green (Promptfoo Evals and Vercel not yet re-checked --
+      re-verify once the new commit's checks run), then merge.
 - [ ] Move this session's `ACTIVE-CLAIMS.yaml` entry from `active:` to `recently_completed:`
       once the PR merges.

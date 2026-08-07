@@ -592,7 +592,7 @@ export async function listStageHistory(ctx: { orgId: string }, entityType: "lead
 // stages were hardcoded strings ('prospecting'|'proposal'|'negotiation'|
 // 'won'|'lost') duplicated across crm-service.ts and crm/page.tsx, with no
 // per-org configurability and no machine-readable "this is a terminal
-// stage" flag. crm_pipeline_stages (drizzle/0225) is the new config table;
+// stage" flag. crm_pipeline_stages (drizzle/0313) is the new config table;
 // these 5 rows are exactly the pre-existing hardcoded set, so seeding them
 // changes no observable behavior for any org that hasn't touched pipeline
 // config yet.
@@ -611,7 +611,7 @@ const DEFAULT_PIPELINE_STAGES: { stageKey: string; label: string; sortOrder: num
  * inserted when the org has zero rows for this entityType yet). This is the
  * one function every other pipeline-stage consumer (the Kanban UI,
  * isValidStageTransition below, getSalesPipelineOverview) goes through, so
- * an org's config is always resolvable even if it pre-dates drizzle/0225.
+ * an org's config is always resolvable even if it pre-dates drizzle/0313.
  */
 export async function listPipelineStages(ctx: { orgId: string }, entityType: "lead" | "opportunity" = "opportunity"): Promise<PipelineStageRow[]> {
   await requireSalesEnabled(ctx.orgId)

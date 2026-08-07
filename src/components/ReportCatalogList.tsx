@@ -141,7 +141,7 @@ export default function ReportCatalogList() {
   }, [catalog, search, statusFilter]);
 
   const byDomain = useMemo(() => {
-    const grouped: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] };
+    const grouped: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] };
     for (const entry of filtered) grouped[entry.domain].push(entry);
     return grouped;
   }, [filtered]);
