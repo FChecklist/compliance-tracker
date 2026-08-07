@@ -9,10 +9,20 @@ jobs:
     steps:
       - uses: actions/checkout@v7
         with: { fetch-depth: 0 }
+      # Deployment Security gap-closure (Cloud Deployment / Deployment
+      # Operations review, "secret-scan is advisory not blocking"):
+      # `continue-on-error: true` previously swallowed a real gitleaks
+      # finding so this job always reported success regardless of its own
+      # result. Removed -- a genuine leak now fails this job for real.
+      # Follow-up (not done blind in this same change): add "Secret
+      # Scanning" to the repo's required_status_checks once a few real
+      # runs of this job on the live history have been confirmed clean --
+      # that's a repo-wide branch-protection change affecting every PR
+      # from every concurrent session, so it needs its own verified,
+      # deliberate rollout rather than riding in as a side effect here.
       - name: Scan for secrets
         uses: gitleaks/gitleaks-action@v3
         env: { GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}" }
-        continue-on-error: true
   docs-check:
     name: Documentation Sentinel Check
     runs-on: ubuntu-latest

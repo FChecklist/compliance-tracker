@@ -34,6 +34,13 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+# ...except the template itself -- no real values, meant to be committed
+# (Cloud Deployment / Deployment Operations gap-closure, Environment
+# Configuration Management finding, 2026-08-07): this file had been
+# gitignored by the broad `.env*` pattern above since the "Complete
+# ComplianceTrack rebuild" commit (6bc9f9d70), silently dropping it from
+# every PR since. Restored as the one intentional exception.
+!.env.example
 
 # vercel
 .vercel
