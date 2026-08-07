@@ -249,3 +249,18 @@ VERIDIAN Review Framework gap-closure: CRM & Sales Modules / Sales Pipeline (14 
       is complete.
 - [ ] Once PR #1018 actually merges, move this session's `ACTIVE-CLAIMS.yaml` entry from
       `active:` to `recently_completed:`.
+
+## Re-checked 2026-08-07 (invocation 17/20) -- no change, no action taken
+Live re-verification, not a repeat attempt: `gh pr view 1018` still shows
+`mergeStateStatus: BLOCKED`, `reviewDecision: REVIEW_REQUIRED`; branch protection still
+`required_approving_review_count: 1` + `enforce_admins: true`. `gh pr checks 1018` confirms
+all 8 required contexts still green on the same commit (`67099384f`/`0ad99eceb`), plus 6 more
+non-required checks passing (only `Vercel`'s infra build-rate-limit and `Promptfoo Evals` fail,
+both pre-existing/unrelated, both non-blocking per branch protection's own required-contexts
+list). No second reviewer identity has been provisioned; no Owner review-count exception has
+been granted. Per this task's own documented precedent (see prior entry + session memory
+`veridian-branch-protection-self-approval-deadlock-active`), did **not** re-attempt
+`gh pr merge` -- a 6-for-6-confirmed failure mode, retrying would only burn a circuit-breaker
+strike for no new information. This task's implementation work remains complete and unchanged;
+the merge blocker is structural/environmental, not something further work in this session can
+resolve.
