@@ -5,7 +5,7 @@
 // per-vertical copy -- see MASTER_AI_OS_ARCHITECTURE.md's module-reuse and
 // branch-key rules for why. pms-enablement-service.ts is now a thin
 // wrapper over this file with branchKey: "pms".
-import { orgProductBranchEnablements, organisations, productBranches } from "@/lib/db"
+import { db, orgProductBranchEnablements, organisations, productBranches } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { hasRole } from "@/lib/supabase/auth-guard"
@@ -81,6 +81,23 @@ export async function requireBranchEnabled(orgId: string, branchKey: string): Pr
   if (!(await isBranchEnabledForOrg(orgId, branchKey))) {
     throw new ServiceError(`This product branch is not enabled for this organisation`, 403)
   }
+}
+
+// VERIDIAN Review Framework gap-closure (2026-08-07): the "for every org
+// that has this branch enabled" cross-org query every scheduled
+// /api/internal/*\/run job needs (e.g. crm-lead-scoring, matching the
+// "iterate every org, best-effort per org" shape refreshLiveExchangeRatesForAllOrgs()
+// already uses over erpCurrencies). Raw `db`, not tenant-scoped -- this is
+// a platform job with no single org in context, same posture as every
+// other cross-org cron in this codebase.
+export async function listOrgIdsWithBranchEnabled(branchKey: string): Promise<string[]> {
+  const branch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, branchKey) })
+  if (!branch) return []
+  const rows = await db.query.orgProductBranchEnablements.findMany({
+    where: and(eq(orgProductBranchEnablements.productBranchId, branch.id), eq(orgProductBranchEnablements.isEnabled, true)),
+    columns: { orgId: true },
+  })
+  return rows.map((r) => r.orgId)
 }
 
 export async function getBranchEnablement(ctx: { orgId: string }, branchKey: string) {
