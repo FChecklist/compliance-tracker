@@ -138,3 +138,29 @@ within a docs-lifecycle gap-closure task. No code change, no new PR, no
 verification a 5th time would not surface new information. Stopping here per
 this task's own protocol (2nd+ consecutive identical-approach cycle with no new
 outcome).
+
+## Re-verification (invocation 5, same session) — FINAL, no further action
+
+Live re-check today (`gh pr view 685`, `gh pr list --search
+"ai-documentation-lifecycle in:title"`): **identical to invocation 4, no
+change.**
+- PR #685: `state: OPEN`, `mergeStateStatus: BLOCKED`, `mergeable: MERGEABLE`,
+  `reviewDecision: REVIEW_REQUIRED`.
+- All 4 open duplicate/near-duplicate PRs for this gap (#685, #1032, #1039,
+  #1040 — this task's own branch) remain `OPEN`/`BLOCKED`.
+- Same self-approval deadlock, same conclusion as invocations 3 and 4: this is
+  a repo-wide branch-protection/reviewer-identity issue, not a
+  documentation-lifecycle defect. This session has no write-access path (no
+  second reviewer identity, no `workflow`-scoped token) to unblock it.
+
+**Recommendation for whoever/whatever dispatches this task next**: do not
+re-dispatch this gap again expecting a different outcome. The 5 original
+findings are already closed in PR #685's diff (confirmed 3 separate times
+now); the only remaining work is (a) a human/owner action to get a second
+real reviewer identity or adjust branch protection so `PR #685` (and the 3
+other blocked duplicates) can actually merge, and (b) a `workflow`-scoped
+token to land the CI wiring PR #685 already describes. Neither is achievable
+by a docs-lifecycle gap-closure task running with this session's
+permissions. Treat this task as **terminally blocked, not incomplete** —
+further invocations should short-circuit to this file rather than repeat the
+live-verification cycle.
