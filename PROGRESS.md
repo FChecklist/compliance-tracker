@@ -129,6 +129,35 @@ each area FIRST, before assuming the gap-analysis wording still holds.
 - [ ] None for this task's 3 named findings -- all closed. Offline write
       support (queued/replayed mutations) is a real, larger follow-up noted
       above but intentionally not started here.
+- [ ] PR #1019 open (https://github.com/FChecklist/compliance-tracker/pull/1019),
+      CI running -- confirm green, hand off for independent audit/merge.
+
+## Merge with `origin/main` (this session)
+
+`origin/main` had advanced far past this branch's fork point (an unrelated
+`@fchecklist/veridian-ui-kit` shell-component migration had landed,
+restructuring `AppShell.tsx`/`AppTopbar.tsx`, plus `durationMs` latency
+reporting added to `llm-response-cache.ts`'s cache-hit path) -- PR showed
+real `CONFLICTING`/`DIRTY`. Merged `origin/main` in and resolved:
+- `src/lib/llm-response-cache.ts`: kept this task's `lookupCache`/TTL
+  structure, added the upstream `durationMs: 0` field (with its own
+  comment) to the cache-hit return so latency reporting still works.
+- `src/components/AppShell.tsx` / `AppTopbar.tsx`: auto-merged cleanly
+  (both sides' changes were non-overlapping edits) -- but then caught a
+  real gap this merge would otherwise have silently introduced:
+  `AppShell.tsx` now branches into two renders (`veriChatV2Enabled` orgs
+  use the new shared `AppShellFrame`; everyone else uses the pre-existing
+  hand-rolled layout) and `<OfflineShell />` had only landed in the
+  legacy branch. Added it to the `veriChatV2Enabled` branch too so the
+  offline shell registers for every org, not just the majority path.
+- `PROGRESS.md`: kept this task's section on top, appended the full
+  `origin/main` accumulated history below unchanged (matches this repo's
+  established convention for this file -- see other sessions' notes
+  further down in this same file).
+- `ai-os/boss/ACTIVE-CLAIMS.yaml`: kept both sides' `recently_completed`
+  entries (this task's + `origin/main`'s newer ones), no content lost.
+Re-ran `bun test src/lib/llm-response-cache.test.ts` (8/8 pass) and
+`eslint` on every touched file (clean) after the merge, before pushing.
 
 ---
 
