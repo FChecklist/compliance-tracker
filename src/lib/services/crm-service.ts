@@ -1034,6 +1034,13 @@ export async function deleteLead(ctx: CrmContext, leadId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Lead not found", 404)
+    // Delete is a reassign-or-delete-grade action, same bar as an ownerId
+    // reassignment PATCH above -- canReassignOrDeleteLead exists precisely
+    // for this, matching deleteAccount's own assertGate(canReassignOrDelete
+    // Account(...)) precedent in crm-accounts-service.ts. This was the one
+    // real gap this PR's own audit pass caught before merge: the gate
+    // function was added and named for this call site but never wired here.
+    if (ctx.role !== undefined) assertGate(canReassignOrDeleteLead(ctx.role))
 
     const linkedOpportunities = await db.query.crmOpportunities.findMany({
       where: and(eq(crmOpportunities.leadId, leadId), eq(crmOpportunities.orgId, ctx.orgId)), columns: { id: true },
@@ -1062,6 +1069,10 @@ export async function deleteOpportunity(ctx: CrmContext, opportunityId: string) 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Opportunity not found", 404)
+    // Same reassign-or-delete-grade gate as deleteLead above -- see that
+    // function's comment for why this was added during this PR's own audit
+    // pass rather than left as a silent zero-gate hole in the delete path.
+    if (ctx.role !== undefined) assertGate(canReassignOrDeleteOpportunity(ctx.role))
     await db.delete(crmOpportunities).where(eq(crmOpportunities.id, opportunityId))
     return { id: opportunityId }
   })

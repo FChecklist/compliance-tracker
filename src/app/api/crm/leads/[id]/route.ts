@@ -45,7 +45,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   try {
     const { id } = await params
-    const result = await deleteLead({ orgId, userId: dbUser.id }, id)
+    const result = await deleteLead({ orgId, userId: dbUser.id, role: dbUser.role }, id)
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
