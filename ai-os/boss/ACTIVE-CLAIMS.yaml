@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017 open, all CI green incl. audit-check, AUDIT: PASS posted -- BLOCKED on the known repo-wide self-approval merge deadlock (required_approving_review_count:1 but only one real GitHub identity exists in this environment; see this session's own memory note), awaiting Owner action, not further code work]"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      ai-os/CONSTITUTION.yaml's prompt_cache_framework (CACHE-01..04,
+      Phase 1, 2026-07-14) wired prompt_cache_metrics INSERTs into
+      chat-service.ts's generateAiReply() but built zero readers --
+      confirmed via `git grep promptCacheMetrics`: only schema.ts,
+      metrics.ts, and that one call site matched anywhere in src/. This
+      task's own title ("Cache & Synchronization: Cache Utilization &
+      Prediction") has no matching spec doc anywhere in this repo
+      (checked MASTER-TRACKER.yaml; control/CONTROLLER.yaml, referenced
+      by CACHE-01's own `source` field, does not exist in this repo) --
+      interpreted honestly as: close the write-only-sink gap.
+      Scope: new file src/lib/prompt-cache/utilization.ts
+      (getCacheUtilizationSummary() report + predictNextDayCacheSavings()
+      trailing-moving-average forecast, both grouped by layer/by day),
+      its test file, one new additive export in src/lib/llm-client.ts
+      (estimatePromptCacheSavingsUsd(), next to the existing
+      estimateCostUsd(), does not change that function's behavior), and
+      one new route src/app/api/ai/team/cache-utilization/route.ts
+      (mirrors the sibling /api/ai/team/token-usage route's
+      veridian_admin-gating). Does NOT touch chat-service.ts, the
+      prompt_cache_metrics schema, or any other Orchestra Layer call site
+      -- CACHE-03's phased-rollout gap (only one layer wired) is
+      unchanged by this task.
+      Checked this file live before claiming -- no other active entry
+      touches prompt-cache/*, llm-client.ts's MODEL_PRICING/cost-estimate
+      functions, or an /api/ai/team/cache-utilization route.
+
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |

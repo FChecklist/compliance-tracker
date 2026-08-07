@@ -244,6 +244,27 @@ export function estimateCacheSavingsUsd(model: string, usage: LLMUsage): number 
   return (usage.cacheReadTokens / 1000) * pricing.promptPer1k * ANTHROPIC_CACHE_READ_DISCOUNT;
 }
 
+// Cache & Synchronization: Cache Utilization & Prediction task (2026-08-07).
+// Same Anthropic published cache pricing as estimateCacheSavingsUsd above
+// (read = 0.1x base price), but additionally nets out the cache WRITE
+// premium (cacheCreationTokens billed at 1.25x base price) -- estimateCacheSavingsUsd
+// intentionally reports gross read-side savings only (see its own comment,
+// "additive, not a correction to an existing charge"); this function instead
+// answers "what did prompt caching net this account, all-in" for
+// prompt-cache/utilization.ts's per-layer/per-day report, where both cache
+// writes and cache reads happen across many calls and need to be reconciled
+// against each other, not just the read side. Same honest limitation as
+// both siblings: null for any model not in MODEL_PRICING, never a guessed
+// price. Approximation, not an invoice reconciliation: real provider billing
+// may round/bucket differently than this linear estimate.
+export function estimatePromptCacheSavingsUsd(model: string, cacheReadTokens: number, cacheCreationTokens: number): number | null {
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return null;
+  const readSavings = (cacheReadTokens / 1000) * pricing.promptPer1k * ANTHROPIC_CACHE_READ_DISCOUNT;
+  const writeOverhead = (cacheCreationTokens / 1000) * pricing.promptPer1k * 0.25;
+  return readSavings - writeOverhead;
+}
+
 // Wave 45: OpenRouter recommends (not requires) HTTP-Referer/X-Title for
 // attribution and its own rate-limit/ranking purposes -- added only for the
 // openrouter baseUrl, harmless no-ops for Groq/OpenAI which ignore unknown headers.
