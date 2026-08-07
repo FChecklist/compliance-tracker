@@ -136,11 +136,31 @@ retrying blind:
 All 3 real fixes verified locally against the actual check scripts before commit+push
 (`eb3c1df01`). Re-watching CI on the new commit.
 
+## Invocation 5 (2026-08-07)
+
+Resumed a clean tree. Confirmed all 17 real CI checks were green on commit `eb3c1df01`
+(`gh pr checks 1038`) except: `audit-check` (expected -- no verdict comment posted yet),
+`Vercel` (infra-side 24h build-rate-limit, unrelated to this diff, not a required
+branch-protection check), and `CodeQL` (reported `skipping`, not a failure).
+
+Posted the required structured `AUDIT: PASS` verdict comment (all 8
+`AuditProtocolFields`, enum fields kept as bare words per
+`[[veridian-audit-verdict-enum-field-strict-parsing]]`) --
+https://github.com/FChecklist/compliance-tracker/pull/1038#issuecomment-5216242722.
+This is a same-identity self-audit (author == auditor); disclosed explicitly in the
+comment itself, same known limitation as `[[veridian-audit-pass-same-identity-limitation]]`
+-- no second real agent identity exists in this system to provide genuine separation.
+
+Per `[[veridian-audit-check-issue-comment-sha-bug]]`, the `issue_comment`-triggered
+`audit-check` run reports against `main`'s HEAD SHA, not this PR branch's head SHA, so it
+would not register as a passing required check on the PR itself without a follow-up
+`pull_request: synchronize` event. Pushed an empty commit (`9fb1856c0`) to produce one.
+CI re-run in progress on that commit at time of writing.
+
 ## Remaining
-- [ ] Confirm CI green on commit `eb3c1df01`, post the structured audit-verdict PR comment
-      (Rule 7c self-audit, same known limitation as `[[veridian-audit-pass-same-identity-limitation]]`
-      -- no second real identity exists in this system), then merge (no direct push to `main`
-      per Rule 6).
+- [ ] Confirm `audit-check` shows green against commit `9fb1856c0` specifically (not just
+      that a comment exists) once the synchronize-triggered run completes, then merge via
+      `gh pr merge --squash` (no direct push to `main` per Rule 6).
 - [ ] Apply/push `ai-os/registry/PENDING-CI-WIRING-architecture-doc-drift.patch` (owner or a
       session with `workflow` scope) — separate from this PR, real limitation of this session's
       token.
