@@ -2,7 +2,9 @@
 
 **Purpose:** the canonical "where does X live" reference. Every domain in this codebase, mapped to its tables, services, API routes, and pages. Built 2026-07-09 from a direct structural pass over the repo (not from documentation claims) — table/service/route counts below are grep-verified against the live tree, not estimated.
 
-**Scale at time of writing:** 115 migrations, 460+ tables (`compliance` schema), 114 files in `src/lib/services/`, 573+ API route files, 145+ page files, ~61K lines of TS/TSX. PROJEXA (construction ERP) lives inside this same repo, not a separate one.
+**Scale at time of writing:** 285 migrations, 468+ tables (`compliance` schema), 212 files in `src/lib/services/`, 995+ API route files, 188+ page files, ~61K lines of TS/TSX (lines-of-TS/TSX not re-counted this pass). PROJEXA (construction ERP) lives inside this same repo, not a separate one.
+
+**Refreshed 2026-08-07** (VERIDIAN Review Framework gap closure, AI-Readable Architecture/Database Documentation): this line was 115/460+/114/573+/145+ as of 2026-07-09 -- real growth, not a miscount, over ~4 weeks of continuous multi-agent development (PROJEXA's `/api/v1/projexa/*` surface alone accounts for a large share of the route growth; table count barely moved). This snapshot is still a hand re-verification, not continuously synced, but `scripts/check-doc-scale-freshness.mjs` now CI-gates it against >20% drift going forward, so the next drift this large will fail a PR instead of sitting silently for weeks.
 
 Use this doc to scope a task before touching code: find your domain below, and you have the full file list without re-deriving it via grep every session.
 
@@ -117,9 +119,9 @@ Built incrementally, Waves 49-71 (see `orchestra_changes.md`). Grounded in ERPNe
 | | |
 |---|---|
 | **Registry table** | `computationEngines` (engineKey, category, status: implemented/partial/not_started, implementationRef) |
-| **Engine files (25)** | `src/lib/engines/*.ts` — accounting, ai-support, analytics, audit, banking, compliance, costing, crm, data-quality, document-processing, fixed-asset, grc-workflow, gst, hr, income-tax, inventory, logistics, marketing, mathematical, payroll, procurement, project-management, sales, security, tds, validation |
+| **Engine files (32 as of 2026-08-07, was 25 at 2026-07-09)** | `src/lib/engines/*.ts` — accounting, ai-support, analytics, audit, banking, compliance, costing, crm, data-quality, document-processing, fixed-asset, grc-workflow, gst, hr, income-tax, inventory, logistics, marketing, mathematical, payroll, procurement, project-management, sales, security, tds, validation, plus country-specific statute modules under `engines/in/`, `engines/ae/` |
 | **Dispatch** | A deliberately small, explicit `switch` in `task-execution-engine.ts`'s `dispatchEngine()` — NOT a generic resolver dynamic-importing `implementationRef` (that would be a real code-execution injection surface) |
-| **Status** | 25 engine files exist with real logic; only ~15 (GST-focused) are wired into real dispatch as of Wave 114/131 this session — the rest have zero callers |
+| **Status (do not hardcode a % here — see below)** | **Corrected 2026-08-01, re-verified 2026-08-07**: this row previously said "only ~15 of 25 wired" (Wave 114/131 snapshot). That is now stale in the other direction — `docs/master/CAPABILITY_COVERAGE.md` (last regenerated 2026-07-18/19, itself flagged there as already stale relative to Waves 167+) put wired coverage at ~160-170 engineKeys, not 15. **Do not copy a specific number from this row or that doc into anything else** — both are point-in-time snapshots of a number that changes every time an engine gets wired; re-run `docs/master/CAPABILITY_COVERAGE.md`'s own SQL query (`Re-verifying these numbers` section) against `compliance.computation_engines` for the true current count. |
 
 ### Memory / RAG
 | | |
