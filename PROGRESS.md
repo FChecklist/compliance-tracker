@@ -25,7 +25,13 @@
       deterministic-vs-AI-signal gap; added new open gap
       `GAP-VERI-CHAT-INTENT-PALETTE-UNREACHABLE-FROM-DISCUSS-MODE`. Confirmed YAML still parses.
 
+- [x] Committed + pushed; opened PR #1043 (https://github.com/FChecklist/compliance-tracker/pull/1043).
+- [x] Fixed CI: registered new doc in `ai-os/OS.yaml` (Metadata Index Coverage Check), posted the
+      required structured `AUDIT: PASS` comment (8 fields per `validate-audit-verdict.ts`), closed
+      out the ACTIVE-CLAIMS.yaml entry.
+
 ## Remaining
-- [ ] Commit + push this pass; open PR per Rule 6.
+- [ ] Confirm all CI checks land green (Vercel deploy check was hitting a build-rate-limit,
+      unrelated infra issue -- monitoring).
 - [ ] Optional follow-on (not required to close this task): full 118-nav-item re-sweep, mobile
       testing -- explicitly out of this pass's bounded scope, disclosed in the report.
