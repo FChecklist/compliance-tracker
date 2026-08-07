@@ -5857,6 +5857,74 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260801-170950-batch-disposition-of-166-balance-exhaust, continued 2026-08-07 by task-20260807-062745-batch-disposition-of-166-balance-exhaust, UMR-20260801-170930-2080) -- Batch-dispositioning the 47 real ai-os/tasks/* records blocked by the now-removed OpenRouter balance hard-stop [42 CLOSED 2026-08-02, PR #710 rebased+merged 2026-08-07, 5 real RETRY items still deferred pending headroom]"
+    claimed_at: "2026-08-02T (original session); re-registered 2026-08-07T (continuation session, parent UMR-20260801-153900-9100)"
+    claim: |
+      Scope: /opt/veridian/ai-os/tasks/*/task.yaml + task.yaml's own
+      checkpoint history (via `veridian-task.py checkpoint --status --note`),
+      for the specific 47 task records whose task.yaml/worker.log contain
+      the exact fail-reason string `openrouter_balance_exhausted`. Does NOT
+      touch task records blocked by the separate, still-live
+      `credit_accountant_rejected` gate (different check,
+      check_credit_accountant_approval(), not removed) -- those are out of
+      scope for this task and still correctly blocked.
+
+      IMPORTANT CORRECTION vs this task's own title: verified via direct
+      grep across every ai-os/tasks/*/task.yaml + worker.log that the real,
+      exact-string-matched population is 47 tasks (48 files matched the
+      exact-match grep incl. one already-completed task), not 166 -- no
+      document in this repo (MASTER-TRACKER.yaml, COMPLETED.yaml,
+      CONTROLLER.yaml, LIVE_STATUS_*.yaml) substantiates a "166" figure tied
+      to this gate, and the removal commit's own message ("no recent worker
+      logs show it having tripped") is consistent with the real, smaller
+      47-unit population, not 166. The "166" figure appears to have been an
+      unverified estimate carried into this sub-task's own title/prompt by
+      the parent 800-task audit (UMR-20260801-153900-9100), which had not
+      yet produced its own findings list as of the original session (its own
+      workspace/PROGRESS.md was still "Not started"). Proceeded on the
+      real, verified 47-task population per the prompt's own fallback
+      ("derive independently" when the parent audit hasn't produced a
+      list yet); this discrepancy was flagged explicitly rather than
+      silently working to the stale headline number.
+
+      Original 2026-08-02 disposition: 42 CLOSED (task.yaml status=failed +
+      disposition note, via the sanctioned `veridian-task.py checkpoint`
+      tool), 5 flagged genuine RETRY (status=blocked + note, real work
+      confirmed still needed, deferred pending headroom), 0 deleted. Full
+      per-item disposition table with PR-merge evidence lives in this
+      repo's git history on PR #710 / branch
+      worker/task-20260801-170950-batch-disposition-of-166-balance-exhaust
+      (commit 2c7d51d18) and in this task's own PROGRESS.md.
+
+      **2026-08-07 continuation (task-20260807-062745-batch-disposition-of-166-balance-exhaust,
+      UMR-20260801-170930-2080, same sub-task re-dispatched by the parent
+      800-task audit -- verified this is a real continuation of already-
+      completed work, not a duplicate from-scratch effort, before touching
+      anything):** confirmed via live `gh pr view 710` that the original PR
+      was still OPEN and had drifted to `mergeable: CONFLICTING` /
+      `mergeStateStatus: DIRTY` against current main (6 days of unrelated
+      churn on ACTIVE-CLAIMS.yaml/PROGRESS.md from other sessions, not a
+      real content conflict) -- rebased the real diff onto current main and
+      re-pushed rather than re-doing the underlying disposition work.
+      Re-checked headroom live before considering the 5 still-deferred
+      RETRY items (V2-4 / task-20260720-022708, V2-18-retry2 /
+      task-20260720-054004, V2-19-retry2 / task-20260720-054006, V2-22 /
+      task-20260720-055007, billstack-bharatnet /
+      task-20260720-060747): `free -h` showed swap 4.0/4.0Gi (100% full)
+      and `uptime` showed load 11.65 on 8 cores -- worse than the original
+      session's own defer threshold (9.65 load, 2.9/4.0Gi swap), so those 5
+      remain correctly deferred, not dispatched, this pass either. This
+      entry is filed under recently_completed (not left in active:) because
+      the real disposition work (42 CLOSED checkpoints, durable) is done;
+      only the 5 already-flagged RETRY dispatches remain open, tracked in
+      this task's own PROGRESS.md, not as a live file-scope claim here.
+    scope_note: >-
+      File scope: PROGRESS.md (this task's own, rewritten), this
+      ACTIVE-CLAIMS.yaml entry. No src/, schema, or workflow changes. The 47
+      real disposition mutations are to /opt/veridian/ai-os/tasks/*/task.yaml,
+      outside this git repo (see PROGRESS.md note) -- no PR/CI gate applies
+      to those, consistent with how every other task-record checkpoint in
+      this system works.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
