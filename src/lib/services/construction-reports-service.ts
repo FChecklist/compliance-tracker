@@ -6,15 +6,17 @@
 // so the dynamic route dispatcher (Wave 122 route) can stay a simple switch.
 import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionSiteDiaries,
-  constructionBoqs, constructionBoqLineItems, constructionAttendance, constructionLabourRoster,
+  constructionBoqs, constructionBoqLineItems, constructionAttendance, constructionLabourRoster, constructionPrevailingWageRates,
   constructionKpiDefinitions, constructionKpiEntries, constructionExpenseEntries, erpStockLedgerEntries, erpItems, erpSalesInvoices,
-  documents, pmsIssues, pmsTimeEntries, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
+  documents, pmsIssues, pmsTimeEntries, pmsBillableRates, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
+  pmsBudgets, pmsBudgetLineItems, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, sql, gte, lt } from "drizzle-orm"
+import { and, eq, inArray, sql, gte, lt, lte, or, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { getExpenseSummaryByHead } from "./construction-expense-service"
 import { getProjectDashboard } from "./construction-dashboard-service"
+import { resolvePmsBillableRatePure } from "./pms-time-service"
 // Priority 12 (OPEN-07 point 8 follow-on, 2026-07-14): these 17 functions
 // were the same "zero branch-check" gap PR #282 closed for ERP's
 // erp-financial-report-service.ts -- gated here the identical way, first
@@ -202,12 +204,161 @@ export async function manpowerCostReport(ctx: { orgId: string }, projectId: stri
   })
 }
 
-// 12. Designer Timesheet Report -- pms_time_entries hours summed by user, for this project's issues.
-export async function designerTimesheetReport(ctx: { orgId: string }, projectId: string) {
+// 12. Designer Timesheet Report -- pms_time_entries hours summed by user,
+// for this project's issues, plus a Category/Designer/Project/Designer-status
+// Budget-vs-Actual breakdown (Owner's timesheet requirement, marked
+// "IMPORTANT"). Reuses pms-budget-service.ts's own budget-vs-actual shape
+// (pmsBudgets/pmsBudgetLineItems = planned, sum(hours x resolveBillableRate)
+// = actual, computed live -- see getBudget()/getBudgetActuals() there)
+// rather than construction-reports-service.ts's own ERP-based
+// budgetSummary()/budgetVsActual(): that pattern is a single undivided
+// project-wide total (erp_budget_line_items has no userId/category/project
+// dimension at all -- confirmed by grep), so it cannot support any of the 4
+// breakdowns this report needs. pms_budget_line_items, by contrast, already
+// carries a real per-designer (userId) budget dimension -- the correct
+// existing pattern to extend, not a new one.
+export type DesignerTimesheetEntry = {
+  userId: string
+  userName: string
+  userIsActive: boolean
+  projectId: string
+  projectName: string
+  category: string
+  hours: number
+  cost: number
+}
+export type DesignerTimesheetBudgetLine = {
+  projectId: string
+  userId: string | null
+  amount: number
+}
+export type DesignerTimesheetRosterUser = {
+  userId: string
+  isActive: boolean
+}
+
+function sumBy<T>(items: T[], keyFn: (item: T) => string, valueFn: (item: T) => number) {
+  const totals = new Map<string, number>()
+  for (const item of items) {
+    const key = keyFn(item)
+    totals.set(key, (totals.get(key) ?? 0) + valueFn(item))
+  }
+  return totals
+}
+
+/**
+ * Pure Budget-vs-Actual aggregator: given every relevant time entry (already
+ * priced at its resolved billable rate) and every relevant budget line item
+ * for the org, computes the 4 breakdowns the Owner's timesheet requirement
+ * asks for. No DB access here -- entries/budgetLines are fetched by the
+ * caller (designerTimesheetReport below), matching this repo's convention
+ * of keeping DB-free aggregation logic separately unit-testable (see
+ * resolvePmsBillableRatePure in pms-time-service.ts).
+ *
+ * `roster` (optional, defaults to []) is the full set of org users with
+ * their isActive flag -- pass it so a designer with a real budget line but
+ * zero time entries anywhere (e.g. newly budgeted, hasn't logged hours yet)
+ * still resolves an active/inactive status and isn't silently dropped from
+ * byDesignerStatus. Without it, designerStatusByUser only knows about users
+ * who logged at least one entry, so sum(byDesignerStatus.budget) can fall
+ * short of overallBudget.
+ */
+export function aggregateDesignerTimesheetCosts(
+  entries: DesignerTimesheetEntry[],
+  budgetLines: DesignerTimesheetBudgetLine[],
+  roster: DesignerTimesheetRosterUser[] = []
+) {
+  const actualByCategory = sumBy(entries, (e) => e.category, (e) => e.cost)
+  const hoursByCategory = sumBy(entries, (e) => e.category, (e) => e.hours)
+
+  const actualByDesigner = sumBy(entries, (e) => e.userId, (e) => e.cost)
+  const hoursByDesigner = sumBy(entries, (e) => e.userId, (e) => e.hours)
+  const budgetByDesigner = sumBy(budgetLines.filter((b) => b.userId !== null), (b) => b.userId as string, (b) => b.amount)
+  const designerNames = new Map(entries.map((e) => [e.userId, e.userName]))
+
+  const actualByProject = sumBy(entries, (e) => e.projectId, (e) => e.cost)
+  const budgetByProject = sumBy(budgetLines, (b) => b.projectId, (b) => b.amount)
+  const projectNames = new Map(entries.map((e) => [e.projectId, e.projectName]))
+  const allProjectIds = new Set([...actualByProject.keys(), ...budgetByProject.keys()])
+
+  const statusKey = (isActive: boolean) => (isActive ? "active" : "inactive")
+  const actualByDesignerStatus = sumBy(entries, (e) => statusKey(e.userIsActive), (e) => e.cost)
+  const designerStatusByUser = new Map<string, boolean>(roster.map((u) => [u.userId, u.isActive]))
+  for (const e of entries) {
+    if (!designerStatusByUser.has(e.userId)) designerStatusByUser.set(e.userId, e.userIsActive)
+  }
+  const budgetByDesignerStatus = sumBy(
+    budgetLines.filter((b) => b.userId !== null && designerStatusByUser.has(b.userId as string)),
+    (b) => statusKey(designerStatusByUser.get(b.userId as string)!),
+    (b) => b.amount
+  )
+
+  const overallBudget = budgetLines.reduce((s, b) => s + b.amount, 0)
+  const overallActual = entries.reduce((s, e) => s + e.cost, 0)
+
+  return {
+    byCategory: [...actualByCategory.keys()].sort().map((category) => ({
+      category, hours: hoursByCategory.get(category) ?? 0, actual: actualByCategory.get(category) ?? 0,
+      // No per-category budget dimension exists in pms_budget_line_items
+      // (only kind/userId) -- reported honestly as null, not fabricated,
+      // matching this file's existing convention (see vendorCostReport's
+      // documented gap note above).
+      budget: null as number | null,
+    })),
+    byDesigner: [...new Set([...actualByDesigner.keys(), ...budgetByDesigner.keys()])].sort().map((userId) => {
+      const budget = budgetByDesigner.get(userId) ?? 0
+      const actual = actualByDesigner.get(userId) ?? 0
+      return { userId, userName: designerNames.get(userId) ?? userId, hours: hoursByDesigner.get(userId) ?? 0, budget, actual, variance: budget - actual }
+    }),
+    byProject: [...allProjectIds].sort().map((pId) => {
+      const budget = budgetByProject.get(pId) ?? 0
+      const actual = actualByProject.get(pId) ?? 0
+      return { projectId: pId, projectName: projectNames.get(pId) ?? pId, budget, actual, variance: budget - actual }
+    }),
+    byDesignerStatus: (["active", "inactive"] as const).map((status) => {
+      const budget = budgetByDesignerStatus.get(status) ?? 0
+      const actual = actualByDesignerStatus.get(status) ?? 0
+      return { status, budget, actual, variance: budget - actual }
+    }),
+    overallBudget, overallActual, overallVariance: overallBudget - overallActual,
+  }
+}
+
+// Response shape note (audit fix, PR #597): byDesigner/byProject are
+// necessarily org-wide (a project comparison needs more than 1 project;
+// a designer's total budget/actual isn't naturally scoped to one project
+// either -- see the comment below), while byUser/byCategory/
+// byDesignerStatus/overall* are scoped to the requested project. Rather
+// than mixing both under one flat object with no field-level indication
+// of scope (the audited bug -- likely to mislead a per-project report UI
+// into showing org-wide totals as if they belonged to the requested
+// project), the two scopes are returned under explicit `projectScoped`/
+// `orgWide` keys.
+export type DesignerTimesheetReport = {
+  projectScoped: {
+    byUser: { userId: string; userName: string; totalHours: number }[]
+    byCategory: ReturnType<typeof aggregateDesignerTimesheetCosts>["byCategory"]
+    byDesignerStatus: ReturnType<typeof aggregateDesignerTimesheetCosts>["byDesignerStatus"]
+    overallBudget: number
+    overallActual: number
+    overallVariance: number
+  }
+  orgWide: {
+    byDesigner: ReturnType<typeof aggregateDesignerTimesheetCosts>["byDesigner"]
+    byProject: ReturnType<typeof aggregateDesignerTimesheetCosts>["byProject"]
+  }
+}
+
+export async function designerTimesheetReport(ctx: { orgId: string }, projectId: string): Promise<DesignerTimesheetReport> {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
-    if (issueIds.length === 0) return { byUser: [] }
+    if (issueIds.length === 0) {
+      return {
+        projectScoped: { byUser: [], byCategory: [], byDesignerStatus: [], overallBudget: 0, overallActual: 0, overallVariance: 0 },
+        orgWide: { byDesigner: [], byProject: [] },
+      }
+    }
     const rows = await db.select({
       userId: pmsTimeEntries.userId,
       userName: users.name,
@@ -216,7 +367,206 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
       .innerJoin(users, eq(pmsTimeEntries.userId, users.id))
       .where(and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds)))
       .groupBy(pmsTimeEntries.userId, users.name)
-    return { byUser: rows }
+
+    // Budget-vs-Actual breakdown: Category/Designer-status/overall are
+    // scoped to this project (the report's own subject); Project-wise is
+    // necessarily org-wide (a project comparison needs more than 1
+    // project), and Designer-wise is also computed org-wide since a
+    // designer's total budget/actual isn't naturally scoped to one project
+    // either. Both scopes are derived from the same org-wide fetch below,
+    // filtered per breakdown, rather than issuing near-duplicate queries.
+    const allProjects = await db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), columns: { id: true, name: true } })
+    const allIssues = await db.query.pmsIssues.findMany({ where: eq(pmsIssues.orgId, ctx.orgId), columns: { id: true, projectId: true } })
+    const allUsers = await db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true, isActive: true } })
+    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: eq(pmsTimeEntries.orgId, ctx.orgId) })
+    // Fetched once upfront (not once per time entry, see resolvePmsBillableRatePure
+    // below) -- same pattern pms-invoice-service.ts's buildInvoiceLinesFromTimeEntries
+    // already uses to avoid the equivalent N+1 on this same table.
+    const orgBillableRates = await db.query.pmsBillableRates.findMany({ where: eq(pmsBillableRates.orgId, ctx.orgId) })
+
+    const projectNameById = new Map(allProjects.map((p) => [p.id, p.name]))
+    const projectIdByIssue = new Map(allIssues.map((i) => [i.id, i.projectId]))
+    const userById = new Map(allUsers.map((u) => [u.id, u]))
+    const roster: DesignerTimesheetRosterUser[] = allUsers.map((u) => ({ userId: u.id, isActive: u.isActive }))
+
+    const priced: DesignerTimesheetEntry[] = []
+    for (const entry of allTimeEntries) {
+      const entryProjectId = projectIdByIssue.get(entry.issueId)
+      if (!entryProjectId) continue
+      const user = userById.get(entry.userId)
+      const rate = resolvePmsBillableRatePure(orgBillableRates, entry.userId, entry.spentOn) ?? 0
+      priced.push({
+        userId: entry.userId,
+        userName: user?.name ?? entry.userId,
+        userIsActive: user?.isActive ?? true,
+        projectId: entryProjectId,
+        projectName: projectNameById.get(entryProjectId) ?? entryProjectId,
+        category: entry.activityType?.trim() || "uncategorized",
+        hours: Number(entry.hours),
+        cost: rate * Number(entry.hours),
+      })
+    }
+    const pricedThisProject = priced.filter((e) => e.projectId === projectId)
+
+    const orgBudgetLines: DesignerTimesheetBudgetLine[] = []
+    const orgBudgets = await db.query.pmsBudgets.findMany({ where: eq(pmsBudgets.orgId, ctx.orgId), columns: { id: true, projectId: true } })
+    const budgetIds = orgBudgets.map((b) => b.id)
+    if (budgetIds.length > 0) {
+      const projectIdByBudget = new Map(orgBudgets.map((b) => [b.id, b.projectId]))
+      const lineItems = await db.query.pmsBudgetLineItems.findMany({ where: inArray(pmsBudgetLineItems.budgetId, budgetIds) })
+      for (const li of lineItems) {
+        const liProjectId = projectIdByBudget.get(li.budgetId)
+        if (!liProjectId) continue
+        orgBudgetLines.push({ projectId: liProjectId, userId: li.userId, amount: Number(li.amount) })
+      }
+    }
+    const thisProjectBudgetLines = orgBudgetLines.filter((b) => b.projectId === projectId)
+
+    const orgWide = aggregateDesignerTimesheetCosts(priced, orgBudgetLines, roster)
+    const scoped = aggregateDesignerTimesheetCosts(pricedThisProject, thisProjectBudgetLines, roster)
+
+    return {
+      projectScoped: {
+        byUser: rows,
+        byCategory: scoped.byCategory,
+        byDesignerStatus: scoped.byDesignerStatus,
+        overallBudget: scoped.overallBudget,
+        overallActual: scoped.overallActual,
+        overallVariance: scoped.overallVariance,
+      },
+      orgWide: {
+        byDesigner: orgWide.byDesigner,
+        byProject: orgWide.byProject,
+      },
+    }
+  })
+}
+
+// 12b. Designer-wise Timesheet Status Report -- count/hours per designer
+// broken down by approval status (draft/submitted/approved/rejected).
+// Owner's spec (item 12, "IMPORTANT") asks for this "designer-wise status
+// view" as a distinct cut from the byDesignerStatus (active/inactive)
+// breakdown aggregateDesignerTimesheetCosts already produces above -- that
+// one groups by whether the designer account is active, this one groups by
+// where each designer's logged hours currently sit in the approval
+// workflow (pms_time_entries.approval_status, added alongside this report).
+export type TimesheetStatusEntry = {
+  userId: string
+  userName: string
+  approvalStatus: "draft" | "submitted" | "approved" | "rejected"
+  hours: number
+}
+
+const APPROVAL_STATUSES = ["draft", "submitted", "approved", "rejected"] as const
+
+export function aggregateDesignerApprovalStatus(entries: TimesheetStatusEntry[]) {
+  const byUser = new Map<string, { userId: string; userName: string; counts: Record<string, { hours: number; entries: number }> }>()
+  for (const e of entries) {
+    let bucket = byUser.get(e.userId)
+    if (!bucket) {
+      bucket = {
+        userId: e.userId,
+        userName: e.userName,
+        counts: Object.fromEntries(APPROVAL_STATUSES.map((s) => [s, { hours: 0, entries: 0 }])),
+      }
+      byUser.set(e.userId, bucket)
+    }
+    bucket.counts[e.approvalStatus].hours += e.hours
+    bucket.counts[e.approvalStatus].entries += 1
+  }
+  return [...byUser.values()]
+    .sort((a, b) => a.userId.localeCompare(b.userId))
+    .map((b) => ({ userId: b.userId, userName: b.userName, ...b.counts }))
+}
+
+export async function designerApprovalStatusReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const issueIds = (await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true } })).map((i) => i.id)
+    if (issueIds.length === 0) return { byDesigner: [] }
+    const rows = await db.query.pmsTimeEntries.findMany({
+      where: and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds)),
+      columns: { userId: true, hours: true, approvalStatus: true },
+    })
+    const userIds = [...new Set(rows.map((r) => r.userId))]
+    const usersById = userIds.length > 0
+      ? new Map((await db.query.users.findMany({ where: inArray(users.id, userIds), columns: { id: true, name: true } })).map((u) => [u.id, u.name]))
+      : new Map<string, string>()
+    const entries: TimesheetStatusEntry[] = rows.map((r) => ({
+      userId: r.userId, userName: usersById.get(r.userId) ?? r.userId, approvalStatus: r.approvalStatus, hours: Number(r.hours),
+    }))
+    return { byDesigner: aggregateDesignerApprovalStatus(entries) }
+  })
+}
+
+// 12c. Work Analysis Report -- hours by task/category per designer over a
+// period (Owner spec item 12: "real breakdown of hours by task/category
+// per designer over a period"). "Task" here is the pms_issue the time entry
+// is logged against (pms_issues.title), the same entity designerTimesheetReport
+// already resolves projectId through -- not a new concept.
+export type WorkAnalysisEntry = {
+  userId: string
+  userName: string
+  taskId: string
+  taskName: string
+  category: string
+  hours: number
+}
+
+export function aggregateWorkAnalysis(entries: WorkAnalysisEntry[]) {
+  const byUser = new Map<string, { userId: string; userName: string; totalHours: number; byTask: Map<string, { taskId: string; taskName: string; hours: number }>; byCategory: Map<string, number> }>()
+  for (const e of entries) {
+    let bucket = byUser.get(e.userId)
+    if (!bucket) {
+      bucket = { userId: e.userId, userName: e.userName, totalHours: 0, byTask: new Map(), byCategory: new Map() }
+      byUser.set(e.userId, bucket)
+    }
+    bucket.totalHours += e.hours
+    const taskBucket = bucket.byTask.get(e.taskId) ?? { taskId: e.taskId, taskName: e.taskName, hours: 0 }
+    taskBucket.hours += e.hours
+    bucket.byTask.set(e.taskId, taskBucket)
+    bucket.byCategory.set(e.category, (bucket.byCategory.get(e.category) ?? 0) + e.hours)
+  }
+  return [...byUser.values()]
+    .sort((a, b) => a.userId.localeCompare(b.userId))
+    .map((b) => ({
+      userId: b.userId,
+      userName: b.userName,
+      totalHours: b.totalHours,
+      byTask: [...b.byTask.values()].sort((x, y) => x.taskName.localeCompare(y.taskName)),
+      byCategory: [...b.byCategory.entries()].sort(([x], [y]) => x.localeCompare(y)).map(([category, hours]) => ({ category, hours })),
+    }))
+}
+
+export async function workAnalysisReport(ctx: { orgId: string }, projectId: string, dateFrom?: string, dateTo?: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const issues = await db.query.pmsIssues.findMany({ where: and(eq(pmsIssues.orgId, ctx.orgId), eq(pmsIssues.projectId, projectId)), columns: { id: true, title: true } })
+    const issueIds = issues.map((i) => i.id)
+    if (issueIds.length === 0) return { byDesigner: [] }
+    const issueById = new Map(issues.map((i) => [i.id, i.title]))
+
+    const conditions = [eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds)]
+    if (dateFrom) conditions.push(gte(pmsTimeEntries.spentOn, dateFrom))
+    if (dateTo) conditions.push(lt(pmsTimeEntries.spentOn, dateTo))
+    const rows = await db.query.pmsTimeEntries.findMany({
+      where: and(...conditions),
+      columns: { userId: true, issueId: true, hours: true, activityType: true },
+    })
+    const userIds = [...new Set(rows.map((r) => r.userId))]
+    const usersById = userIds.length > 0
+      ? new Map((await db.query.users.findMany({ where: inArray(users.id, userIds), columns: { id: true, name: true } })).map((u) => [u.id, u.name]))
+      : new Map<string, string>()
+
+    const entries: WorkAnalysisEntry[] = rows.map((r) => ({
+      userId: r.userId,
+      userName: usersById.get(r.userId) ?? r.userId,
+      taskId: r.issueId,
+      taskName: issueById.get(r.issueId) ?? r.issueId,
+      category: r.activityType?.trim() || "uncategorized",
+      hours: Number(r.hours),
+    }))
+    return { byDesigner: aggregateWorkAnalysis(entries) }
   })
 }
 
@@ -289,6 +639,239 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
   return { overallPercentComplete: dashboard.progressPercent, byCategory: categoryBreakdown.categories }
 }
 
+// 18. Category BOQ Amounts Report -- BOQ line-item `amount` totaled per
+// category, for the PROJEXA Company/Department/Project drill-down's
+// category-distribution chart (pie share-of-total + completed-vs-total
+// bar). Category attribution goes lineItem.activityId -> activity.categoryId
+// -> category.name (constructionBoqLineItems has no direct category column
+// of its own -- see its schema.ts comment); a line item with no activityId,
+// or one whose activity's category was deleted, falls into a synthetic
+// "Uncategorized" bucket rather than being silently dropped, so
+// sum(byCategory.totalAmount) + uncategorizedAmount always equals the BOQ's
+// real total, matching scopeReport's totalValue for the same project.
+export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => desc(t.version) })
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    if (!latest) return { categories: [], uncategorizedAmount: 0, totalAmount: 0 }
+
+    const [lineItems, categories, activities] = await Promise.all([
+      db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id), columns: { activityId: true, amount: true } }),
+      db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) }),
+      activityIdsForProject(db, ctx.orgId, projectId),
+    ])
+    const categoryIdByActivity = new Map(activities.map((a) => [a.id, a.categoryId]))
+    const amountByCategory = new Map<string, number>()
+    let uncategorizedAmount = 0
+    for (const item of lineItems) {
+      const categoryId = item.activityId ? categoryIdByActivity.get(item.activityId) : undefined
+      if (!categoryId) { uncategorizedAmount += Number(item.amount); continue }
+      amountByCategory.set(categoryId, (amountByCategory.get(categoryId) ?? 0) + Number(item.amount))
+    }
+    const byCategory = categories.map((c) => ({ categoryId: c.id, name: c.name, totalAmount: amountByCategory.get(c.id) ?? 0 }))
+    const totalAmount = byCategory.reduce((s, c) => s + c.totalAmount, 0) + uncategorizedAmount
+    return { categories: byCategory, uncategorizedAmount, totalAmount }
+  })
+}
+
+// 19. Certified Payroll Report (SAP-mapping gap analysis HCM-006,
+// "Certified Payroll Report (Regulatory / Public Works)", US WH-347
+// equivalent, BUILD_NEW/MEDIUM, engine_track=calculation) -- grepped
+// certifiedPayroll/davis-bacon/prevailingWage/WH-347 across the whole repo
+// first, zero hits, a genuine gap, not assumed. Per public-works project,
+// per calendar week: every site-labour worker's hours by day-of-week and
+// trade classification, the effective hourly rate actually paid, the
+// project's own prevailing-wage determination for that trade (new
+// constructionPrevailingWageRates table, admin-editable master data, same
+// "rates come from a periodic government determination, never a formula"
+// posture as erpStatutoryRules/erpIncomeTaxSlabs), gross wages, and a
+// compliance statement flagging any worker paid below the determination or
+// with no classification on file.
+//
+// Reuses this module's own real site-labour ledger
+// (constructionLabourRoster/constructionAttendance -- trade, dailyRate,
+// hoursWorked, dailyCost per day) rather than pms_time_entries or the
+// payroll module: pms_time_entries has no trade/classification concept at
+// all (confirmed by schema read), and erp_payslips/erp_payroll_runs are
+// monthly-aggregate with no FK to constructionLabourRoster (that table's
+// own schema.ts comment: site labour "rarely has login accounts"). This is
+// the only place per-day, per-trade labour hours genuinely exist.
+//
+// Two real, disclosed gaps (same "honest, not fabricated" posture as
+// vendorCostReport's documented gap above):
+// 1. Deductions -- constructionLabourRoster/constructionAttendance model a
+//    flat daily-rate day-labour workforce with no link whatsoever to the
+//    statutory payroll engine (erp_payslips/erp_payslip_lines). No
+//    federal/state/FICA/etc. withholding is tracked for this workforce at
+//    all, so totalDeductions is honestly 0 and netWages === grossWages for
+//    every worker on this report -- never a fabricated number.
+// 2. Fringe benefits -- constructionPrevailingWageRates stores the
+//    REQUIRED fringe rate per the wage determination for reference only;
+//    no field anywhere tracks fringe benefits actually PAID per worker, so
+//    the compliance flag below compares base hourly rate paid vs.
+//    required only, never fringe.
+export type CertifiedPayrollAttendanceRow = {
+  rosterId: string
+  workerName: string
+  trade: string | null
+  attendanceDate: string // YYYY-MM-DD
+  hoursWorked: number | null
+  dailyCost: number
+}
+export type CertifiedPayrollWageRate = {
+  trade: string
+  prevailingHourlyRate: number
+  fringeBenefitRate: number
+}
+export type CertifiedPayrollComplianceStatus = "compliant" | "rate_below_prevailing" | "no_classification_on_file"
+
+// WH-347's own daily-hours grid runs Sunday-Saturday, keyed by the
+// attendance row's real calendar day-of-week -- not an offset from
+// weekStart, so a report requested with any weekStart still buckets each
+// day under its real name.
+export const WH347_DAY_LABELS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const
+
+/**
+ * Pure core: builds the WH-347-shaped per-worker weekly breakdown from raw
+ * attendance rows + the project's prevailing-wage determinations. No DB
+ * access -- attendanceRows/wageRates are fetched by the caller
+ * (certifiedPayrollReport below), matching this repo's established DB-free
+ * pure-aggregation convention (aggregateDesignerTimesheetCosts above,
+ * resolvePmsBillableRatePure in pms-time-service.ts). weekStart is only
+ * used to compute the returned weekEnd label -- day-of-week bucketing
+ * reads each row's own attendanceDate directly.
+ */
+export function computeCertifiedPayroll(
+  attendanceRows: CertifiedPayrollAttendanceRow[],
+  wageRates: CertifiedPayrollWageRate[],
+  weekStart: string
+) {
+  const rateByTrade = new Map(wageRates.map((r) => [r.trade.trim().toLowerCase(), r]))
+
+  type WorkerAccumulator = {
+    rosterId: string; workerName: string; trade: string | null
+    dailyHours: Record<(typeof WH347_DAY_LABELS)[number], number>
+    totalHours: number; grossWages: number
+  }
+  const byWorker = new Map<string, WorkerAccumulator>()
+  for (const row of attendanceRows) {
+    let bucket = byWorker.get(row.rosterId)
+    if (!bucket) {
+      bucket = {
+        rosterId: row.rosterId, workerName: row.workerName, trade: row.trade,
+        dailyHours: { sun: 0, mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0 },
+        totalHours: 0, grossWages: 0,
+      }
+      byWorker.set(row.rosterId, bucket)
+    }
+    const dayLabel = WH347_DAY_LABELS[new Date(row.attendanceDate).getUTCDay()]
+    const hours = Number(row.hoursWorked ?? 0)
+    bucket.dailyHours[dayLabel] += hours
+    bucket.totalHours += hours
+    bucket.grossWages += row.dailyCost
+  }
+
+  const workers = [...byWorker.values()].sort((a, b) => a.workerName.localeCompare(b.workerName)).map((w) => {
+    const trade = w.trade?.trim() || null
+    const determination = trade ? rateByTrade.get(trade.toLowerCase()) ?? null : null
+    // Effective hourly rate actually paid, derived from real dailyCost/
+    // hoursWorked -- not a fabricated figure. Zero-hours workers (present
+    // in attendance with no hoursWorked recorded) fall back to 0, matching
+    // this file's other "no data yet, not an error" conventions.
+    const ratePaid = w.totalHours > 0 ? w.grossWages / w.totalHours : 0
+    let complianceStatus: CertifiedPayrollComplianceStatus
+    if (!trade || !determination) complianceStatus = "no_classification_on_file"
+    else if (ratePaid < determination.prevailingHourlyRate) complianceStatus = "rate_below_prevailing"
+    else complianceStatus = "compliant"
+
+    return {
+      rosterId: w.rosterId,
+      workerName: w.workerName,
+      trade,
+      dailyHours: w.dailyHours,
+      totalHours: w.totalHours,
+      ratePaid,
+      prevailingHourlyRate: determination?.prevailingHourlyRate ?? null,
+      fringeBenefitRateRequired: determination?.fringeBenefitRate ?? null,
+      grossWages: w.grossWages,
+      totalDeductions: 0, // real, disclosed gap -- see this function's header comment
+      netWages: w.grossWages,
+      complianceStatus,
+    }
+  })
+
+  const exceptions = workers
+    .filter((w) => w.complianceStatus !== "compliant")
+    .map((w) => ({ rosterId: w.rosterId, workerName: w.workerName, reason: w.complianceStatus }))
+
+  return {
+    weekStart,
+    weekEnd: new Date(new Date(weekStart).getTime() + 6 * 86400000).toISOString().slice(0, 10),
+    workers,
+    workerCount: workers.length,
+    totalHours: workers.reduce((s, w) => s + w.totalHours, 0),
+    totalGrossWages: workers.reduce((s, w) => s + w.grossWages, 0),
+    statementOfCompliance: {
+      allWorkersCompliant: exceptions.length === 0,
+      exceptions,
+    },
+    dataGapNotes: [
+      "Deductions are not tracked for this site-labour workforce (construction_labour_roster/construction_attendance model a flat daily-rate workforce with no link to the statutory payroll engine) -- totalDeductions is 0 and netWages equals grossWages for every worker, not fabricated.",
+      "Fringe benefits actually paid are not tracked per worker -- only the wage determination's required rate (if configured) is shown, under fringeBenefitRateRequired.",
+    ],
+  }
+}
+
+export async function certifiedPayrollReport(ctx: { orgId: string }, projectId: string, weekStart: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86400000).toISOString().slice(0, 10)
+
+    const roster = await db.query.constructionLabourRoster.findMany({
+      where: and(eq(constructionLabourRoster.orgId, ctx.orgId), eq(constructionLabourRoster.projectId, projectId)),
+      columns: { id: true, name: true, trade: true },
+    })
+    const rosterById = new Map(roster.map((r) => [r.id, r]))
+
+    const attendance = await db.query.constructionAttendance.findMany({
+      where: and(
+        eq(constructionAttendance.orgId, ctx.orgId),
+        eq(constructionAttendance.projectId, projectId),
+        gte(constructionAttendance.attendanceDate, weekStart),
+        lt(constructionAttendance.attendanceDate, weekEnd)
+      ),
+    })
+    const attendanceRows: CertifiedPayrollAttendanceRow[] = attendance.map((a) => {
+      const r = rosterById.get(a.rosterId)
+      return {
+        rosterId: a.rosterId,
+        workerName: r?.name ?? a.rosterId,
+        trade: r?.trade ?? null,
+        attendanceDate: a.attendanceDate,
+        hoursWorked: a.hoursWorked !== null ? Number(a.hoursWorked) : null,
+        dailyCost: Number(a.dailyCost),
+      }
+    })
+
+    const wageRateRows = await db.query.constructionPrevailingWageRates.findMany({
+      where: and(
+        eq(constructionPrevailingWageRates.orgId, ctx.orgId),
+        eq(constructionPrevailingWageRates.projectId, projectId),
+        lte(constructionPrevailingWageRates.effectiveFrom, weekStart),
+        or(isNull(constructionPrevailingWageRates.effectiveTo), gte(constructionPrevailingWageRates.effectiveTo, weekStart))
+      ),
+    })
+    const wageRates: CertifiedPayrollWageRate[] = wageRateRows.map((w) => ({
+      trade: w.trade, prevailingHourlyRate: Number(w.prevailingHourlyRate), fringeBenefitRate: Number(w.fringeBenefitRate),
+    }))
+
+    const project = await db.query.projects.findFirst({ where: eq(projects.id, projectId), columns: { name: true } })
+
+    return { projectId, projectName: project?.name ?? projectId, ...computeCertifiedPayroll(attendanceRows, wageRates, weekStart) }
+  })
+}
+
 export const REPORT_REGISTRY = {
   "work-progress": workProgressReport,
   "weekly-project": weeklyProjectReport,
@@ -302,11 +885,15 @@ export const REPORT_REGISTRY = {
   "vendor-cost": vendorCostReport,
   "manpower-cost": manpowerCostReport,
   "designer-timesheet": designerTimesheetReport,
+  "designer-approval-status": designerApprovalStatusReport,
+  "work-analysis": workAnalysisReport,
   "kpi": kpiReport,
   "revenue": revenueReport,
   "expense": expenseReport,
   "category-progress": categoryProgressReport,
   "project-completion": projectCompletionReport,
+  "category-boq-amounts": categoryBoqAmountsReport,
+  "certified-payroll": certifiedPayrollReport,
 } as const
 
 export type ReportName = keyof typeof REPORT_REGISTRY
