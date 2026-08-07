@@ -78,7 +78,7 @@ const SETTINGS_NAV = [
   { id: "branding", label: "Branding", icon: Paintbrush },
   { id: "adoption", label: "Adoption Dashboard", icon: TrendingUp },
   { id: "sso", label: "SSO (SAML)", icon: ShieldAlert },
-  // Cloud Deployment / Deployment Operations gap-closure (2026-08-07):
+  // Cloud Deployment / Deployment Operations gap-closure:
   // Performance Monitoring + Deployment Audit Trail findings, both closed
   // by adding the missing simple ops dashboards.
   { id: "system-health", label: "System Health", icon: Activity },
