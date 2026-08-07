@@ -108,8 +108,39 @@ The only genuinely remaining action in this task's own scope was opening the PR,
 yet been done. Opened: **https://github.com/FChecklist/compliance-tracker/pull/1038**. CI is
 running (`gh pr checks 1038 --watch` launched in background).
 
+## Invocation 4 (2026-08-07)
+
+Resumed a clean tree; PR #1038 was open with 5 real check failures (not yet resolved by
+invocation 3's "CI is running" note). Investigated and fixed each on real evidence, not by
+retrying blind:
+
+- **CodeQL (high-severity `js/incomplete-sanitization`)**: `scripts/generate-module-doc-index.mjs`
+  escaped `|` but not `\` when building a markdown table cell from a doc-comment summary --
+  fixed by escaping backslashes first. Regenerated `docs/master/MODULE_DOC_INDEX.md`; no diff
+  (no backslashes in current comments), confirming the fix is forward-looking only.
+- **Metadata Index Coverage Check**: this PR's own 3 new `ai-os/registry/*` files
+  (`BUSINESS-RULES-REGISTRY.md`, `PROMPT-TEMPLATE-DIRECTORY.md`,
+  `PENDING-CI-WIRING-architecture-doc-drift.patch`) weren't indexed in `ai-os/OS.yaml` --
+  added real `covers:` entries for each.
+- **Terminology Guardrail Check**: 4 new `hardcoded_iso_date` findings in
+  `src/lib/openapi/generate.ts` (dated gap-closure section-header comments) -- same
+  changelog-comment class already exempted throughout
+  `ai-os/registry/terminology-guardrail-exemptions.yaml`; added a matching entry.
+- **audit-check**: expected to fail until a structured `AUDIT: PASS`/`AUDIT: FAIL` comment
+  (8-field `AuditProtocolFields` contract, `src/lib/audit-protocol.ts` /
+  `scripts/validate-audit-verdict.ts`) is posted -- planned as the next step once the 3 real
+  fixes above go green.
+- **Vercel**: `Deployment rate limited — retry in 24 hours` -- infra-side rate limit, unrelated
+  to this PR's diff, not a required branch-protection check; not actionable from here.
+
+All 3 real fixes verified locally against the actual check scripts before commit+push
+(`eb3c1df01`). Re-watching CI on the new commit.
+
 ## Remaining
-- [ ] Watch PR #1038's CI to green, then merge (no direct push to `main` per Rule 6).
+- [ ] Confirm CI green on commit `eb3c1df01`, post the structured audit-verdict PR comment
+      (Rule 7c self-audit, same known limitation as `[[veridian-audit-pass-same-identity-limitation]]`
+      -- no second real identity exists in this system), then merge (no direct push to `main`
+      per Rule 6).
 - [ ] Apply/push `ai-os/registry/PENDING-CI-WIRING-architecture-doc-drift.patch` (owner or a
       session with `workflow` scope) — separate from this PR, real limitation of this session's
       token.
