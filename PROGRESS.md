@@ -114,3 +114,27 @@ prior invocation. Live re-check today:
   happens outside any single task's scope.
 
 No further action taken this invocation; no new duplicate work created.
+
+## Re-verification (invocation 4, same session)
+
+Live re-check today, no change since invocation 3:
+- PR #685: `state: OPEN`, `mergeStateStatus: BLOCKED`, `mergeable: MERGEABLE` — still
+  stuck on the same self-approval deadlock.
+- PR #1040 (this task's own prior-invocation PR,
+  `worker/task-20260807-064732-retry-ai-documentation-lifecycle-v2`): still `OPEN`,
+  still `BLOCKED`.
+- Confirmed via `gh pr list --search "ai-documentation-lifecycle in:title"` that
+  there are now **4 open PRs** for this identical gap (#685, #1032, #1039, #1040),
+  all `OPEN`, all duplicate/near-duplicate dispatches of the same underlying gap.
+  #1039 (the one genuinely-new-content PR, security gaps) is also `BLOCKED` the
+  same way.
+- Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` for a documentation-lifecycle entry:
+  none found (consistent with invocation 1's finding).
+
+**Conclusion unchanged**: this is a repo-wide branch-protection/identity
+deadlock (only one real reviewer identity exists), not something fixable from
+within a docs-lifecycle gap-closure task. No code change, no new PR, no
+`ai-os/MASTER-TRACKER.yaml` edit made this invocation — repeating the same
+verification a 5th time would not surface new information. Stopping here per
+this task's own protocol (2nd+ consecutive identical-approach cycle with no new
+outcome).
