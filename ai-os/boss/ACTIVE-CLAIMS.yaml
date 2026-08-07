@@ -5543,6 +5543,70 @@ active:
       erp-einvoice-service.ts, or the statutory-rule enum. Will move to
       recently_completed once the PR merges.
 
+  - session_label: "claude-code (autonomous worker, task-20260718-164005-cloud-deployment--deployment-automation) -- VERIDIAN Review Framework Cloud Deployment / Deployment Automation gap-closure"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      Closing 3 findings dispatched together (same task prompt, coherent
+      single PR per that prompt's own instruction): "Effective Vercel
+      Integration" (no staging/preview environment strategy documented),
+      "Production Deployment Reliability" (no measured production
+      reliability SLO), "Rollback Capability" (theoretical, never
+      rehearsed). Re-verified live before writing anything (prompt's own
+      instruction: don't trust the finding text without re-checking the
+      code) -- src/app/api/webhooks/vercel-deployment/route.ts +
+      deploymentEvents (schema.ts) already exist and already record real
+      Vercel webhook deliveries (the "webhook already exists" the prompt's
+      row 50 pointer meant); no staging environment or rollback runbook
+      existed anywhere. Also live-verified against the real Vercel account
+      (VERCEL_ACCESS_TOKEN present in this environment): project is
+      `veridian-compliance-ai` / `prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII`, Hobby
+      plan -- confirms Custom Environments (Pro-only) isn't available,
+      informing the staging design below.
+      Delivered: (1) `docs/infra/DEPLOYMENT_ENVIRONMENTS.md` +
+      `.github/workflows/sync-vercel-env-staging.yml` (git-branch-scoped
+      Preview env vars as a Hobby-plan-compatible staging equivalent,
+      workflow_dispatch only, mirrors sync-vercel-env.yml's existing
+      pattern -- does not create the `staging` branch itself, documents how
+      to). (2) `src/lib/services/deployment-slo-service.ts` (+ .test.ts) +
+      `GET /api/deployment-slo` (veridian_admin-gated, same posture as
+      /api/ai/team/governance-health) -- computes a real success-rate SLO
+      from deploymentEvents, with a best-effort Sentry overlay that
+      honestly reports "not configured" (SENTRY_AUTH_TOKEN/ORG/PROJECT
+      genuinely absent everywhere in this repo, confirmed via grep) rather
+      than fabricating Sentry data. (3) `docs/runbooks/rollback.md` +
+      `scripts/rollback-drill.mjs` (+ .test.ts) -- the CLI-based drill the
+      prompt asked for, actually run live (read-only) against the real
+      Vercel project while writing the doc: identified the real current
+      production deployment and rollback candidate via Vercel's actual API,
+      captured real output in the runbook. Did NOT execute a real `vercel
+      rollback` against production -- that's a live traffic change,
+      Rule 7(e) requires the owner's explicit confirmation even though it's
+      not this task's call to make unattended.
+      Did not touch permission-service.ts (no RBAC change needed for any of
+      these 3). File scope: docs/infra/DEPLOYMENT_ENVIRONMENTS.md (new),
+      docs/runbooks/rollback.md (new), docs/SEV1_INCIDENT_RUNBOOK.md
+      (one cross-link line added), .github/workflows/sync-vercel-env-
+      staging.yml (new), scripts/rollback-drill.mjs (+.test.ts, new),
+      src/lib/services/deployment-slo-service.ts (+.test.ts, new),
+      src/app/api/deployment-slo/route.ts (new). Checked live before
+      claiming -- no other active entry touches any of these paths.
+
+      2026-08-07 push-time correction: this session's `gh`/git token lacks
+      the `workflow` OAuth scope, so GitHub rejects any push whose commit
+      range touches `.github/workflows/*.yml` (confirmed via a real
+      `remote rejected` push attempt), matching this repo's known
+      constraint. Split the PR: `.github/workflows/sync-vercel-env-
+      staging.yml` is written and committed locally (content unchanged,
+      real and correct) but held back from this push -- everything else
+      (docs, service, route, drill script, tests) is unaffected and pushes
+      cleanly. The workflow file itself needs either (a) a token with
+      `workflow` scope to push it in a tiny follow-up PR, or (b) the Owner
+      adding it directly. `docs/infra/DEPLOYMENT_ENVIRONMENTS.md` (which
+      does push in this PR) documents its name, trigger, and behavior in
+      prose so the design is not lost even if the unpushed file itself is;
+      the file's own real YAML content stays in this task's local
+      workspace pending the follow-up push.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 # Restored 2026-07-19 (this session): this key had gone missing on main --

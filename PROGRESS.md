@@ -1,3 +1,64 @@
+# PROGRESS -- task-20260718-164005-cloud-deployment--deployment-automation
+
+## Completed
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` per Rule 11 before starting real work.
+- [x] Re-verified the 3 dispatched findings live rather than trusting the prompt text as-is:
+      "Effective Vercel Integration" (no staging/preview environment strategy documented),
+      "Production Deployment Reliability" (no measured production reliability SLO), "Rollback
+      Capability" (theoretical, never rehearsed). Confirmed `src/app/api/webhooks/vercel-
+      deployment/route.ts` + `deploymentEvents` (schema.ts) already exist and already record real
+      Vercel webhook deliveries; no staging environment or rollback runbook existed anywhere.
+- [x] Live-verified against the real Vercel account (`VERCEL_ACCESS_TOKEN` present in this
+      environment): project is `veridian-compliance-ai` / `prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII`,
+      Hobby plan -- confirms Custom Environments (Pro-only) is unavailable, informing the staging
+      design below.
+- [x] Delivered (1) `docs/infra/DEPLOYMENT_ENVIRONMENTS.md` +
+      `.github/workflows/sync-vercel-env-staging.yml` (git-branch-scoped Preview env vars as a
+      Hobby-plan-compatible staging equivalent, workflow_dispatch only, mirrors the existing
+      `sync-vercel-env.yml` pattern -- does not create the `staging` branch itself, documents how
+      to). (2) `src/lib/services/deployment-slo-service.ts` (+ `.test.ts`) +
+      `GET /api/deployment-slo` (`veridian_admin`-gated) -- computes a real success-rate SLO from
+      `deploymentEvents`, with a best-effort Sentry overlay that honestly reports "not configured"
+      (Sentry env vars genuinely absent everywhere in this repo) rather than fabricating data.
+      (3) `docs/runbooks/rollback.md` + `scripts/rollback-drill.mjs` (+ `.test.ts`) -- a CLI-based
+      drill actually run live (read-only) against the real Vercel project while writing the doc.
+      Did **not** execute a real `vercel rollback` against production -- that's a live traffic
+      change requiring the Owner's explicit confirmation (Rule 7(e)), not this task's call to make
+      unattended.
+- [x] Housekeeping: found this branch's own base carried a genuinely truncated/corrupted merge
+      conflict in `ai-os/boss/ACTIVE-CLAIMS.yaml` mid-rebase (a stray `<<<<<<< HEAD` marker with
+      no matching `=======`/`>>>>>>>` counterpart, left by an earlier invocation). Rebuilt the
+      correct resolution from the three real git stages (base/ours/theirs via `git cat-file -p`,
+      not the truncation-prone `git show`) -- confirmed the working tree was otherwise already
+      correctly merged (single-line diff), fixed the stray marker, validated the YAML parses
+      clean, and continued the rebase successfully onto current `main` (958ccacc8).
+- [x] Committed (`ca361cfa0`), rebase completed cleanly, single commit ready to push.
+- [x] Ran the new tests live: `bun test src/lib/services/deployment-slo-service.test.ts` (7 pass)
+      and `bun test ./scripts/rollback-drill.test.ts` (6 pass) -- both green. Full-project
+      `tsc --noEmit` OOMs in this environment regardless of this change (pre-existing codebase-size
+      constraint, not something introduced here).
+- [x] Push-time discovery: this session's git/`gh` token lacks the `workflow` OAuth scope
+      (`[[gh-token-lacks-workflow-scope]]`) -- confirmed via a real `remote rejected` push attempt.
+      Split the commit per that memory's documented workaround: pushed everything except
+      `.github/workflows/sync-vercel-env-staging.yml`, which stays local/untracked pending a
+      follow-up push from a token with `workflow` scope or the Owner adding it directly. Recorded
+      this honestly in the `ACTIVE-CLAIMS.yaml` claim rather than silently dropping the file.
+
+## Remaining
+- [ ] `.github/workflows/sync-vercel-env-staging.yml` still needs to be added by a session/token
+      with `workflow` OAuth scope, or by the Owner directly -- content is final and unchanged,
+      just physically un-pushed. Real file sitting at that path in this task's workspace.
+- [ ] Push branch, open PR, confirm CI green (Lint/Type Check/Build/Unit Tests + Mandatory Audit
+      Check + Guardrail Presence Check + Metadata Index Coverage Check).
+- [ ] Post independent 8-field `AUDIT: PASS`/`FAIL` verdict comment (Rule 10) -- not
+      self-certified without genuine re-verification.
+- [ ] Merge once CI is green (subject to the known branch-protection self-approval deadlock --
+      see `[[veridian-branch-protection-self-approval-deadlock-active]]` memory; may need `gh pr
+      merge --admin` or Owner/Superboss intervention).
+- [ ] Close out this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry once merged.
+
+---
+
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 
 ## Completed
