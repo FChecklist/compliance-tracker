@@ -1,80 +1,97 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-081005-crm---sales-modules--leads
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+Scope: 13 Review Framework findings for CRM & Sales Modules / Leads (see
+`prompt.txt`). Read the live implementation first (crm-service.ts,
+/api/crm/leads/**, /crm page) before writing anything -- notes below record
+what was actually found vs. the original gap description.
+
+## Findings & plan
+
+1. **[Low] Data Model Completeness & Referential Integrity** -- confirmed real
+   gap (companyId/convertedClientId are bare text, no FK, matches this
+   codebase's established convention per schema.ts comments). Plan: add
+   `findOrphanedLeadReferences()` + a periodic `/api/internal/crm-data-integrity/run`
+   cron (not a DB FK, to stay consistent with the rest of the schema).
+2. **[Medium] Business Rule & Validation Accuracy** -- confirmed real gap
+   (`updateLead()` accepts any status with zero transition check). Plan: add
+   `VALID_LEAD_TRANSITIONS` mirroring `recruitment-service.ts`'s
+   `VALID_STAGE_TRANSITIONS` pattern, enforce in `updateLead()`.
+3. **[Low] Multi-Tenant / Multi-Project Isolation** -- gap description says
+   "none identified", recommends periodic re-verification. Folded into #6
+   below (RLS is enabled but not FORCEd on crm_leads/crm_opportunities/
+   crm_stage_history -- same class of gap 0215/0223/0219 already fixed for
+   sibling tables, just never applied to these three).
+4. **[High] Reporting & Export Accuracy** -- partially already resolved:
+   `report_definitions` already has built, executable "Lead Register"/"Lead
+   Source Report"/"Lead Status Report" rows (0183_sales_report_definitions.sql)
+   wired through report-engine-service.ts's TABLE_REGISTRY. Genuine remaining
+   gap: no CSV output anywhere, no export action on the CRM UI itself. Plan:
+   add `GET /api/crm/leads/export` (CSV) + a UI "Export CSV" button.
+5. **[Low] AI Copilot / Worker Agent Integration Depth** -- confirmed
+   (scoring is manual-only). Plan: `/api/internal/crm-lead-scoring/run` cron,
+   auto-scores new/stale leads for orgs with Sales enabled.
+6. **[Medium] Audit Trail & Change History** -- `createLead()`/`updateLead()`
+   already write `crm_stage_history` correctly (verified by direct code
+   read). Genuine remaining gap: RLS enabled-not-forced on crm_leads/
+   crm_opportunities/crm_stage_history (never covered by 0215/0219/0223's
+   sweeps). Plan: FORCE RLS migration + a test proving the stage-history
+   write actually happens on create/update.
+7. **[High] Search, Filter & Bulk Operations** -- confirmed (GET /api/crm/leads
+   returns a flat unfiltered array; `listLeadsPaged`/`bulkReassignLeads`
+   already exist in the service layer but nothing in `/api/crm/**` calls
+   them). Plan: wire GET to accept search/status/owner/source params (back-
+   compat preserved), add a bulk-reassign route, add filter bar + bulk-select
+   UI.
+8. **[Medium] Error Handling & Data Validation Messaging** -- confirmed
+   (generic try/catch, no field-level messages). Plan: Zod validation on
+   create/update with field-level issues in the JSON error body + UI surface.
+9. **[Low] Cross-Module Integration Consistency** -- `sales_commission_*`/
+   `sales_referrals` are confirmed (by reading sales-engine-service.ts) to be
+   the platform's own partner/channel-referral program for NEW ORG signups,
+   not an org's internal CRM leads -- wiring `convertLeadToClient()` into
+   that system would be a category error. VERI Reward's own
+   `veriRewardReferrals` is the same (user-invites-user growth loop, not
+   CRM). Real, honest wiring: award VERI Reward points to the lead's owner
+   when a lead whose `source` is a tracked referral converts, gated by
+   `isVeriRewardEnabledForOrg()`.
+10. **[High] Notification & Alert Trigger Correctness** -- confirmed gap.
+    `notificationTypeEnum` already has `assignment` and `deadline_reminder`
+    values that fit both triggers -- no enum change needed (verified against
+    schema.ts). Plan: notify on lead-assigned at creation, and a
+    `/api/internal/crm-lead-followup-alerts/run` cron for overdue
+    `nextActionDate`.
+11. **[Critical] Documentation & In-App Help Coverage** -- confirmed gap. KB
+    pages are org-scoped (no platform-wide row), so a static inline help
+    panel component is the safer artifact vs. seeding data cross-org; links
+    out to /knowledge-base for full docs. Plan: `LeadLifecycleHelp` panel on
+    the CRM page.
+12. **[Critical] Data Import/Export Template Fidelity** -- confirmed gap
+    (zero import path for leads). Plan: `POST /api/crm/leads/import`
+    following `/api/compliance/import`'s CSV pattern + a downloadable
+    template + UI upload button.
+13. **[High] Localization Readiness** -- verified: there is no
+    platform-wide i18n framework anywhere in this codebase (no i18next/
+    next-intl, no `t()` translation calls found outside currency
+    formatting). This is a platform-wide gap, not CRM/Leads-specific --
+    nothing to fix at the leads-schema level (matches the recommended
+    approach's own "no schema change needed"). Documented, no code change.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
-
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] Read ACTIVE-CLAIMS.yaml, registered this session's claim, pushed.
+- [x] Read current implementation (crm-service.ts, /api/crm/leads/**,
+      /crm page, report_definitions, schema.ts) against all 13 findings.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] #2 status transition validation
+- [ ] #6 FORCE RLS migration + stage-history test
+- [ ] #7 search/filter/bulk (API + UI)
+- [ ] #8 Zod field-level validation (API + UI)
+- [ ] #4 CSV export
+- [ ] #12 CSV import + template
+- [ ] #1 orphan-check cron
+- [ ] #5 auto-scoring cron
+- [ ] #10 notification triggers (assignment + overdue cron)
+- [ ] #9 VERI Reward wiring on convert
+- [ ] #11 in-app help panel
+- [ ] vercel.json cron registration
+- [ ] typecheck/lint/build/test, then PR
