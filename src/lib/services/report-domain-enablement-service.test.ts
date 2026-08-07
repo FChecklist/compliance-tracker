@@ -16,6 +16,10 @@ describe("getReportDomainGate", () => {
     expect(getReportDomainGate("construction")).toEqual({ branchKey: "construction", moduleName: "Construction" })
   })
 
+  test("CRM maps to the 'sales' product branch (Sales Pipeline gap-closure, 2026-08-07)", () => {
+    expect(getReportDomainGate("CRM")).toEqual({ branchKey: "sales", moduleName: "Sales & CRM" })
+  })
+
   test("compliance is never gated -- platform core, not a purchasable branch", () => {
     expect(getReportDomainGate("compliance")).toBeNull()
   })
