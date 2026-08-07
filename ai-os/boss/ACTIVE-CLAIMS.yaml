@@ -40,6 +40,64 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260807-073952-merge-the-8-clean-ci-green-compliance-tr, UMR-20260802-024829-75ae) -- Owner directive: merge 8 named 'clean/green' PRs + work the remaining 72 -- [DONE-FOR-NOW, systemic blocker found and documented, no further merges possible until Owner acts]"
+    claimed_at: "2026-08-07T07:40Z (this session)"
+    claim: |
+      SPEC (Owner directive, 2 parts, following tonight's PR-status audit categorizing 80 open PRs):
+      Part 1 -- merge 8 named MERGEABLE/CLEAN/zero-CI-failure PRs (#671,#539,#536,#534,#532,#530,
+      #529,#528) after live re-verification. Part 2 -- work through the remaining 72 (52 CONFLICTING,
+      14 BEHIND, 6 BLOCKED tonight's-own-batch #683-688) in small batches, dedupe/supersede stale
+      ones first, BEHIND then BLOCKED then CONFLICTING in that order, route through
+      dispatch-owner-task.sh, report real progress periodically.
+
+      REAL LIVE FINDINGS (2026-08-07 ~07:45 UTC, all re-verified live via gh/GraphQL, not trusted
+      from the audit snapshot per the SPEC's own instruction):
+
+      Part 1: #671 and #539 were ALREADY MERGED (2026-08-02, 5 days before this task was even
+      dispatched) -- stale audit data, no action needed/possible. The remaining 6 (#528,#529,#530,
+      #532,#534,#536 -- all "audit198-gap-wave*" branches from 2026-07-21, ~2.5 weeks stale) are
+      still OPEN but now show `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY` -- NOT clean as
+      the audit claimed, and none show the current required-CI-check suite having ever run (only
+      Vercel preview checks present). Per the SPEC's own stop condition ("if any no longer shows
+      clean/green, stop on that one, don't force it"): skipped all 6, zero merges forced. Zero of
+      the named 8 were mergeable-by-me today; 2 needed no action, 6 need real conflict resolution.
+
+      Part 2, critical structural finding: the SPEC's own premise is already heavily stale -- live
+      open-PR count right now is **255**, not 80 (3x+ growth from continued parallel-session activity
+      since the audit snapshot). Real live breakdown of all 255 (GraphQL, paginated, no truncation):
+      162 CONFLICTING/DIRTY, 76 MERGEABLE-but-`mergeStateStatus: BLOCKED`, 16 MERGEABLE/BEHIND,
+      1 MERGEABLE/UNSTABLE. **246 of 255 (96%) show `reviewDecision: REVIEW_REQUIRED`.** Confirmed
+      live via `gh api repos/.../branches/main/protection`: `required_approving_review_count: 1`,
+      `enforce_admins: true`. `gh auth status` + every credential in this environment resolves to
+      the single identity `FChecklist` (id 49814285) -- there is no second real reviewer identity to
+      approve anything. This reconfirms (10th+ instance; see
+      `veridian-branch-protection-self-approval-deadlock-active` memory, 9-for-9 through today before
+      this session) that **the dominant blocker for this entire 72-PR backlog is not conflicts or CI
+      -- it is a repo-governance deadlock**: even a PR with zero conflicts and fully green CI cannot
+      actually merge (`gh pr merge`, including `--admin`, mechanically fails on the missing-review
+      requirement) until the Owner either provisions a second reviewer identity or grants a fresh
+      bounded review-count exception (plan already written:
+      `ai-os/REVIEWER_IDENTITY_PROVISIONING_GAP_2026-08-05.md`; prior precedent:
+      `UMR-20260805-091648-6793`). Did NOT flip `required_approving_review_count` myself -- that is
+      guardrail-weakening under AGENTS.md Rule 9 and requires the Owner's own explicit written
+      instruction quoted in a PR plus a manifest update, not my unilateral judgment call, even under
+      the standing full-autonomy delegation (which covers approvals/holds, not guardrail changes).
+
+      Of the named 6 BLOCKED (#683-688): #686 no longer open (resolved separately). Of the remaining
+      5, only #685 still matches BLOCKED-by-review as described; #683/#684/#687/#688 have since
+      drifted to CONFLICTING/DIRTY.
+
+      Decision: given real conflict-resolution work on dozens of PRs would produce completed-but-
+      still-unmergeable artifacts (not real closure) until the Owner resolves the review-identity
+      deadlock, did not grind through the 162 CONFLICTING PRs blind. Documented findings fully in
+      PROGRESS.md and this entry instead, so no other parallel session re-discovers the same
+      blocker from scratch, and flagged it for the Owner as the single highest-leverage action that
+      would unblock this entire backlog at once.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry only. Read-only investigation (`gh pr
+      view`/`gh pr list`/`gh api graphql`/`gh api repos/.../branches/main/protection`) plus one
+      real merge attempt on #671 (discovered already-merged, not a live test) -- no src/, schema,
+      or infrastructure changes; no branch protection setting touched.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
