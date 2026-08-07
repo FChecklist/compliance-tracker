@@ -2,6 +2,17 @@
 # Source: direct inventory of all 614 src/app/api/**/route.ts files this session.
 # Auth posture verified per-file, not assumed. Grouped into domains matching
 # the platform's own URL structure.
+#
+# COUNT REFRESH (2026-08-01, scripts/check-doc-drift.mjs baseline reset):
+# `git ls-files 'src/app/api/**/route.ts' | wc -l` is now 991, not 614 -- a
+# 61% increase since this tree was built. The 573/614 auth-posture ratio
+# and the 6-category breakdown of the remaining 41 above were NOT
+# re-verified against the current 991 (that requires re-reading every new
+# route file, out of scope for this count-only refresh) -- treat that ratio
+# as directionally illustrative, not current fact, until a fuller pass
+# re-confirms it (see SYSTEM-AUDIT-ROUND-3.md). scripts/check-doc-drift.mjs
+# now fails CI if the route count drifts more than 10% from
+# ai-os/system-tree/doc-counts-baseline.yaml without a matching refresh.
 
 repo: compliance-tracker
 tree_version: 1

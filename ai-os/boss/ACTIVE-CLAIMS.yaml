@@ -40,6 +40,48 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260801-173753-retry-ai-documentation-lifecycle-v2) -- AI Documentation / Documentation Lifecycle gap-closure, 5 Review Framework findings"
+    claimed_at: "2026-08-01T (this session)"
+    claim: |
+      Closing 5 Medium findings from a VERIDIAN Review Framework pass on
+      AI Documentation / Documentation Lifecycle. Redispatch of
+      task-20260718-064004 (blocked at first invocation by the OpenRouter/
+      Cerebras balance hard-stop, since removed from preflight-guard.py per
+      commit 7ff5be8).
+
+      Confirmed real, concrete drift before writing any code: system-tree
+      docs (ai-os/system-tree/*.yaml) record 377 tables/106 enums/614 API
+      routes/~130 pages/~65 components; actual counts today (git ls-files +
+      grep against schema.ts) are 443 tables/130 enums/991 API routes/163
+      pages/81 components -- API routes alone are 61% off. Confirms the
+      "Automatic Documentation Generation" and "Documentation Accuracy"
+      findings are still live gaps, not stale evaluation text.
+
+      File scope: new scripts/check-doc-drift.mjs (+ CI wiring in
+      .github/workflows/*.yml, new baseline manifest under
+      ai-os/system-tree/), count-header updates to the 4 system-tree yaml
+      files + 00-INDEX.md (facts only, not a full domain-content
+      re-synthesis -- that's out of scope for this task), a bounded
+      SYSTEM-AUDIT-ROUND-3.md filling `guardrails` for a judged subset of
+      the highest-risk still-empty domains in 50-merged-tree.yaml (ERP,
+      compliance core, access-review, legal, e-signature, admin/finance UI
+      -- same pattern as Round 1/2), plus that round's cadence
+      recommendation for finding #5. Documentation Versioning (finding #2)
+      is a verify-only, no-code-change item per the finding's own
+      recommended approach. Does not touch permission-service.ts's
+      ERP_ACTION_ROLES table or any other in-flight worker's declared
+      scope.
+
+      STATUS UPDATE (2026-08-01, same session): implementation complete,
+      pushed across 2 commits, PR opened:
+      https://github.com/FChecklist/compliance-tracker/pull/685. One known
+      blocker, documented in PROGRESS.md: this session's gh token lacks
+      `workflow` scope, so the ~9-line CI job wiring check-doc-drift.mjs
+      into .github/workflows/ci.yml could not be pushed -- the check itself
+      is fully committed and runnable standalone; needs a manual push by
+      whoever has workflow scope. Left in `active:` (not moved to
+      `recently_completed:`) since the PR is not yet merged, per this
+      file's own protocol.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |

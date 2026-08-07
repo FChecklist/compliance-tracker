@@ -1,6 +1,14 @@
 # compliance-tracker (VERIDIAN AI OS) -- Pages & UI Components
 # Source: direct inventory of src/app/(app)/** (~130 route modules) and
 # src/components/** (~65 non-shadcn files) this session.
+#
+# COUNT REFRESH (2026-08-01, scripts/check-doc-drift.mjs baseline reset):
+# actual counts are now 163 page.tsx modules under src/app/(app)/** and 81
+# .tsx files under src/components/** (both up ~25% since this tree was
+# built). Per-domain content below was NOT re-synthesized this pass (see
+# SYSTEM-AUDIT-ROUND-3.md). scripts/check-doc-drift.mjs now fails CI if
+# these counts drift more than 10% from
+# ai-os/system-tree/doc-counts-baseline.yaml without a matching refresh.
 
 repo: compliance-tracker
 tree_version: 1

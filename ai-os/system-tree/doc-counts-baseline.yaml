@@ -1,0 +1,26 @@
+# Baseline for scripts/check-doc-drift.mjs -- AI Documentation /
+# Documentation Lifecycle gap-closure (VERIDIAN Review Framework,
+# 2026-08-01). Recorded counts as of the last time ai-os/system-tree/'s
+# headers were refreshed to match the live codebase.
+#
+# When scripts/check-doc-drift.mjs fails in CI: refresh the relevant
+# ai-os/system-tree/*.yaml content/headers, then update `counts:` below to
+# the new actual numbers in the SAME PR. Do not just bump the numbers here
+# without touching system-tree -- that defeats the check's purpose.
+#
+# History:
+#   2026-08-01: initial baseline. Previous system-tree headers (recorded
+#   2026-07-11/12, see ai-os/system-tree/00-INDEX.md) claimed 377
+#   tables/106 enums/614 API routes/~130 pages/~65 components -- all
+#   already stale by 15-61% at the time this baseline/check was added (the
+#   concrete finding that motivated this task). Counts below are the real,
+#   freshly-measured values used to reset the baseline in the same PR that
+#   refreshed the count-level facts in system-tree's headers.
+generated_at: "2026-08-01"
+tolerance_pct: 10
+counts:
+  tables: 443
+  enums: 130
+  api_routes: 991
+  app_pages: 163
+  components: 81
