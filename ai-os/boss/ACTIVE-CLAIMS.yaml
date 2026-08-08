@@ -5857,6 +5857,35 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260808-164451-run-the-standard-supervisor-review-pipel) -- standard supervisor review pipeline against veridian-scripts PR #280 / compliance-tracker PR #1064 (task-gateway.py audit-24-points): declined to force a merge or a 3rd audit cycle [DONE, no code/PR merge, docs-only]"
+    claimed_at: "2026-08-08T16:50Z (this session, closed same session)"
+    claim: |
+      SPEC (`UMR-20260806-171945-5767`, `UMR-20260808-145030-f3d1`): claimed real implementation work
+      was complete, sitting unreviewed in two real open PRs (veridian-scripts PR #280, compliance-tracker
+      PR #1064), and asked this session to run `veridian-task.py adopt` + `supervisor-sweep.sh` to trigger
+      the standard audit, merge both PRs if it passes, then run `task-gateway.py audit-24-points` for real
+      against the live tracker.
+
+      **Independently re-verified before acting -- the SPEC's premise was false.** Both PRs are real, but
+      the standard audit had already run against PR #280 -- twice, both times a real `AUDIT: FAIL`, not a
+      duplicate-guard rejection: round 1 (2026-08-08T16:35:07Z) flagged a persistence-layer alert-condition
+      inversion bug (points 14/20) and a point-22 always-True bug; the worker pushed a fix
+      (`c30ddb5f`, 16:41:40Z); round 2 (16:44:26Z) confirmed those were fixed but found the *same*
+      inversion-bug class still live, only half-fixed, in `cmd_audit_24_points()`'s printed/returned JSON
+      (`if_false_who_acts`/`if_false_how_told` keyed off the raw `passed` boolean instead of the
+      alert-aware `healthy` value), plus flagged points 8/9 as tautological (self-logged governance events
+      checked by the same call that logs them). No commits have landed on PR #280 since that 2nd FAIL; its
+      own worker task (`task-20260808-145709...`) is itself `status: blocked`.
+
+      Declined to run a 3rd audit cycle against unchanged, already-twice-failed code (predictable 3rd FAIL
+      for the same unresolved bug -- the "2nd consecutive failure of the identical approach, stop" case,
+      generalized from duplicate-guard to real audit-verdict rejection), and declined to merge either PR
+      (the SPEC's own merge instruction is conditioned on the real audit passing, which it has not; merging
+      the bookkeeping companion alone would register closure bookkeeping ahead of the real code actually
+      landing). Full findings: compliance-tracker PROGRESS.md for this task.
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) only. No source, no CI, no
+      PR merges. No code written.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
