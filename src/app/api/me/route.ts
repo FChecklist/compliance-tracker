@@ -6,7 +6,10 @@ import { eq } from "drizzle-orm"
 import { isPmsEnabledForOrg } from "@/lib/services/pms-enablement-service"
 import { isVeriChatV2EnabledForOrg } from "@/lib/services/veri-chat-v2-enablement-service"
 import { isFirmEnabledForOrg } from "@/lib/services/firm-enablement-service"
+import { isErpEnabledForOrg } from "@/lib/services/erp-enablement-service"
+import { isSalesEnabledForOrg } from "@/lib/services/crm-enablement-service"
 import { resolveBranding } from "@/lib/services/org-branding-service"
+import { getSubscriptionPlanStatus, getAssistantsUsedByUser } from "@/lib/services/subscription-plan-service"
 
 export async function GET() {
   const { response, dbUser, orgId } = await requireAuth()
@@ -18,6 +21,8 @@ export async function GET() {
   const pmsEnabled = orgId ? await isPmsEnabledForOrg(orgId) : false
   const veriChatV2Enabled = orgId ? await isVeriChatV2EnabledForOrg(orgId) : false
   const firmEnabled = orgId ? await isFirmEnabledForOrg(orgId) : false
+  const erpEnabled = orgId ? await isErpEnabledForOrg(orgId) : false
+  const salesEnabled = orgId ? await isSalesEnabledForOrg(orgId) : false
   // Wave B (BYOB white-label branding): resolved here (not raw org columns)
   // so every consumer (AppShell for the sidebar logo/CSS vars, the Branding
   // settings section itself) gets the SAME already-defaulted values -- an
@@ -26,6 +31,11 @@ export async function GET() {
   // remember to fall back on itself. See org-branding-service.ts's own
   // resolveBranding() header for why this is the only sanctioned read path.
   const branding = orgId ? await resolveBranding(orgId) : null
+  // GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Task B: resolved tier + real
+  // limits, same "resolve server-side once, let every client read one flat
+  // field" shape as erpEnabled/salesEnabled above -- no new endpoint.
+  const subscriptionPlanStatus = orgId ? await getSubscriptionPlanStatus(orgId) : null
+  const assistantsUsedByCurrentUser = dbUser?.id ? await getAssistantsUsedByUser(dbUser.id) : 0
 
   return NextResponse.json({
     id: dbUser?.id ?? null,
@@ -46,6 +56,12 @@ export async function GET() {
     pmsEnabled,
     veriChatV2Enabled,
     firmEnabled,
+    erpEnabled,
+    salesEnabled,
+    subscriptionPlanId: subscriptionPlanStatus?.subscriptionPlanId ?? null,
+    subscriptionPlanName: subscriptionPlanStatus?.subscriptionPlanName ?? null,
+    assistantsPerUserLimit: subscriptionPlanStatus?.assistantsPerUserLimit ?? 5,
+    assistantsUsedByCurrentUser,
     orgPlan: org?.plan ?? "free",
     trialEndsAt: org?.trialEndsAt ? org.trialEndsAt.toISOString() : null,
     orgLogoUrl: branding?.logoUrl ?? null,

@@ -1,12 +1,13 @@
-import { db, users, aiAssistants } from "@/lib/db";
+import { db, users } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
-import { requireAuth } from "@/lib/supabase/auth-guard";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
 import { createClient as createAdminClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
 import { randomBytes } from "crypto";
 import { canAssignSeat } from "@/lib/org-license-service";
+import { provisionAiAssistantsForUser } from "@/lib/services/subscription-plan-service";
 
 export async function GET() {
   const { response, orgId } = await requireAuth()
@@ -42,9 +43,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   const { response, dbUser, orgId } = await requireAuth()
   if (response) return response
-  if (!dbUser || (dbUser.role !== 'admin' && dbUser.role !== 'manager')) {
-    return NextResponse.json({ error: "Only admins and managers can invite users" }, { status: 403 })
-  }
+  // GAP found via OCID-047 live re-verification (UMR-20260805-002929-5560,
+  // UMR-20260802-165606-4413): this was a hardcoded role === 'admin' ||
+  // role === 'manager' string check, not ROLE_RANK -- live-confirmed to
+  // reject veridian_admin (rank 6, the platform's highest-privilege role),
+  // branch_manager (rank 4), and senior_professional (rank 3, same rank as
+  // manager) even though all three outrank or match manager's own rank 3.
+  // requireRole() is the same helper every other rank-gated route in this
+  // file's own module already uses (see the ERP journal-entries routes).
+  const roleCheck = requireRole(dbUser, 'manager')
+  if (roleCheck) return roleCheck
   if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   // Wave 172 (area 16, seat enforcement): checked at invite time too, not
@@ -117,18 +125,14 @@ export async function POST(request: NextRequest) {
       }).returning()
     )
 
-    // Wave 2: provision 5 AI Assistants for the invitee. Uses the raw
+    // Wave 2: provision the invitee's AI Assistants, capped at the org's
+    // real resolved subscription-plan tier (GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
+    // Task A -- was unconditionally 5 regardless of tier). Uses the raw
     // (RLS-bypassing) db client deliberately -- ai_assistants RLS requires
     // current_user_id() to equal the row's user_id, and the inviting admin's
     // tenant context has no reason to carry the invitee's user id. This
     // mirrors autoProvisionUser's rationale in auth-guard.ts.
-    await db.insert(aiAssistants).values(
-      Array.from({ length: 5 }, (_, i) => ({
-        userId: newUser.id,
-        assistantNumber: i + 1,
-        label: `Assistant ${i + 1}`,
-      }))
-    )
+    await provisionAiAssistantsForUser(newUser.id, orgId)
 
     return NextResponse.json({ id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }, { status: 201 })
   } catch (error) {
