@@ -7,8 +7,14 @@ export async function GET() {
   if (response) return response
   if (!orgId) return NextResponse.json({ clauses: [] })
 
-  const clauses = await listClauses({ orgId })
-  return NextResponse.json({ clauses })
+  try {
+    const clauses = await listClauses({ orgId })
+    return NextResponse.json({ clauses })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Clause list error:", error)
+    return NextResponse.json({ error: "Failed to list clauses" }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {
