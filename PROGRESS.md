@@ -1001,3 +1001,26 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
   not independently confirmed (the root page's error digest was never cross-checked against a
   server-side stack trace), folded into the one gap entry above rather than registered twice.
 - [ ] Open PR and get it through independent review before merge.
+
+## task-20260808-192224-execute-priority-4--ocid-022-066--the-10 (OCID-022..066 priority-4 unblock, PM decision id=520)
+
+### Completed
+- [x] Independently verified pm_decisions_pending id=520 (Owner-approved, closed_by='Rajat Agarwal', 2026-08-08T18:36:12Z) -- checks out real, proceeding.
+- [x] Cross-checked governing UMR chain (UMR-20260808-150937-43d0 consolidation, UMR-20260808-150432-83dc linking, UMR-20260808-151556-9b3b categorization: 29/45 already closed, 10 confirmed-blocked, rest resolved-by-investigation) -- all real, confirmed live in superboss-register.sqlite.
+- [x] Found a concurrent sibling session (UMR-20260808-183926-70b6 / task-20260808-192230) already dispatching real sub-agents against 6 of the 10 items (OCID-041/042/043/044/045/046) via task-gateway.py, producing real PRs #799/#800/#797/#798/#796/#801 -- avoided duplicating that work.
+- [x] OCID-045: independently verified PR #796 live MERGED (mergedAt=2026-08-08T19:28:35Z) and closed OCID-045-CONSOLIDATION-LINK via update-issue/close-issue (this session verified only, did not create the PR -- zero self-certification).
+- [x] Restored PROGRESS.md from a wholesale-replace regression (this task's own scratch template had truncated the shared 953-line file to 2 lines locally, uncommitted) -- verified `wc -l` before appending.
+
+### Remaining
+- [ ] OCID-056 (real blocker PR #870, CONFLICTING): dispatch real sub-agent to resolve merge conflict + land.
+- [ ] OCID-059 (real blockers PR #873 AND #908, both CONFLICTING): dispatch real sub-agent.
+- [ ] OCID-061 (real blocker PR #878, CONFLICTING): dispatch real sub-agent.
+- [ ] OCID-065 (real blocker PR #884, MERGEABLE but BEHIND -- simplest, no conflict): dispatch real sub-agent.
+- [ ] OCID-041 (PR #799, audit-check FAIL): re-verify once sibling session resolves.
+- [ ] OCID-042 (PR #800, sibling's sub-agent still actively working, task-20260808-184122): re-verify once done.
+- [ ] OCID-043 (PR #797, all checks pass but merge blocked on "8/8 required checks expected" -- known audit-comment-SHA-attach bug): re-attempt merge.
+- [ ] OCID-044 (PR #798, now CONFLICTING as of this check -- was clean minutes earlier, main moved under it): re-verify/resolve.
+- [ ] OCID-046 (PR #801, checks in progress at last check -- Vercel pending): re-attempt merge once green.
+- [ ] Document real workflow-structure metadata under UMR-20260808-150937-43d0 (per SPEC instruction).
+- [ ] Register ACTIVE-CLAIMS.yaml entry for this session's real scope (OCID-056/059/061/065).
+- [ ] record-completion call to agent_work_briefing.py for UMR-20260808-183732-d3a3.

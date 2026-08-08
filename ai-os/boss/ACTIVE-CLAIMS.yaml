@@ -40,6 +40,44 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260808-192224-execute-priority-4--ocid-022-066--the-10) -- priority-4 unblock, the 10 confirmed real-blocked OCID-022..066 items from UMR-20260808-151556-9b3b, per pm_decisions_pending id=520"
+    claimed_at: "2026-08-08T19:30Z (this session, in progress)"
+    claim: |
+      SPEC (Owner-authorized, pm_decisions_pending id=520, independently re-verified live in
+      superboss-register.sqlite before proceeding -- real record, closed_by='Rajat Agarwal',
+      2026-08-08T18:36:12Z): proceed on the 10 real, confirmed-blocked OCID items from
+      UMR-20260808-151556-9b3b's own categorization (Category B "genuinely blocked" subset):
+      OCID-041/042/043/044/045/046/056/059/061/065. Zero duplication of the 29 already-closed
+      items required.
+
+      Found live, before starting: a concurrent sibling session (UMR-20260808-183926-70b6,
+      running as task-20260808-192230-standing-mandate--priorities-1-4-now-run, started ~2 min
+      after this session) already dispatched real task-gateway.py sub-agents against 6 of the 10
+      items (OCID-041/042/043/044/045/046), producing real PRs #799/#800/#797/#798/#796/#801.
+      This session independently re-verified rather than re-dispatching: OCID-045's PR #796
+      confirmed live MERGED (mergedAt=2026-08-08T19:28:35Z) and closed via update-issue/close-issue
+      (verified only, did not create the PR). OCID-042's sub-task (task-20260808-184122) was still
+      an active systemd unit at check time -- left running undisturbed. OCID-041/043/044/046 PRs
+      exist but are not yet cleanly mergeable (audit-check fail, required-checks-not-attached, or
+      real merge conflict respectively) -- left to the sibling session's own sub-agents, not
+      re-dispatched here.
+
+      This session's own real scope, not covered by the sibling: OCID-056 (real blocker PR #870,
+      CONFLICTING), OCID-059 (real blockers PR #873 AND #908, both CONFLICTING), OCID-061 (real
+      blocker PR #878, CONFLICTING), OCID-065 (real blocker PR #884, MERGEABLE but BEHIND).
+      Real active-worker cap checked live via `systemctl --user list-units 'veridian-worker@*'
+      --state=active` before each dispatch (shared 5-agent cap across priority-2/3 and
+      priority-4 per this dispatch's own instruction) -- dispatching sub-agents one at a time as
+      real slots free up, not all 4 at once.
+    scope_note: >-
+      File scope: `PROGRESS.md` (appended, not replaced -- this task's own scratch template
+      wholesale-truncated it locally before this commit, restored from `git checkout` first),
+      this ACTIVE-CLAIMS entry, `master_issue_tracker` rows OCID-056/059/061/065-CONSOLIDATION-LINK
+      (via `update-issue`/`close-issue`, never raw SQL), metadata under UMR-20260808-150937-43d0.
+      Real sub-task PRs land in `compliance-tracker` via task-gateway.py's own submit/start
+      pipeline (separate branches/worktrees, not this workspace). No direct edits to PRs
+      #796-801/870/873/878/884/908 from this workspace -- those are each their own sub-agent's
+      worktree.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
