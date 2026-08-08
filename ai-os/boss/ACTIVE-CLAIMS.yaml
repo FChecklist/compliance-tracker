@@ -5870,8 +5870,9 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
-  - session_label: "claude-code (task-20260808-234728-build-umr171945-0024--real-caller-identi, UMR-20260808-234718-bee8) -- real caller_identity LABELING field on task-gateway.py's cmd_submit gate (UMR171945-0024, governing chain UMR-20260806-171945-5767)"
-    claimed_at: "2026-08-08T23:50Z"
+recently_completed:
+  - session_label: "claude-code (task-20260808-234728-build-umr171945-0024--real-caller-identi, UMR-20260808-234718-bee8) -- real caller_identity LABELING field on task-gateway.py's cmd_submit gate (UMR171945-0024, governing chain UMR-20260806-171945-5767) [DONE, merged, closed]"
+    claimed_at: "2026-08-08T23:50Z (this session, closed same session)"
     claim: |
       SPEC (master_issue_tracker UMR171945-0024, linked_umr_id UMR-20260806-171945-5767):
       extend task-gateway.py cmd_submit's existing --source argument (owner, ai_agent)
@@ -5879,14 +5880,15 @@ active:
       (trusted_executor, end_user, external_integration) -- labeling only, not
       liveness/cryptographic proof. File scope: /opt/veridian/scripts/task-gateway.py
       (separate live-checkout repo, FChecklist/veridian-scripts) -- NOT this
-      compliance-tracker repo; this ACTIVE-CLAIMS.yaml entry lives here per this
-      file's own home, the real code change lands as a veridian-scripts PR. Found
-      real uncommitted work already present in the live /opt/veridian/scripts
-      checkout matching this exact scope (from an earlier turn of this same task,
-      pre-context-summarization) -- verified correct, continuing from there rather
-      than rebuilding.
-
-recently_completed:
+      compliance-tracker repo. Found real, correct work already committed and
+      PR-opened from an earlier turn of this same task (pre-context-summarization);
+      verified it, ran the real boolean test myself (submitted one real instruction
+      per --source value, all 5 confirmed persisted with the correct utm_source in
+      /opt/veridian/ai-os/memory/superboss-register.sqlite's instructions table and
+      independently queryable via superboss-register.py search), squash-merged
+      FChecklist/veridian-scripts PR #287 (commit 347d89e on main), closed
+      UMR171945-0024 via close-issue with real resolution notes, and recorded
+      completion via agent_work_briefing.py record-completion.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |

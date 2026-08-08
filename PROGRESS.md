@@ -24,17 +24,37 @@ FChecklist/veridian-scripts live-checkout repo, NOT this compliance-tracker repo
       known sandbox bug, see project memory). Restored the full real history below via
       `git cat-file -p` (immune to that truncation), per this repo's own established
       convention: own section on top, prior sections preserved below unchanged.
+- [x] Found the uncommitted diff was actually already a full real commit (`e46b9fc`)
+      on branch `feat/caller-identity-5-class-labeling-umr171945-0024` in the live
+      `/opt/veridian/scripts` checkout, with an already-open PR (FChecklist/
+      veridian-scripts#287, MERGEABLE/CLEAN) -- deleted a redundant duplicate branch
+      I'd created before discovering this, continued from the real PR instead.
+- [x] Real boolean test performed on that branch: `task-gateway.py submit` for each
+      of the 5 `--source` values (owner, ai_agent, trusted_executor, end_user,
+      external_integration), each with a unique real `--session-id`/text. All 5
+      succeeded (exit 0); extracted `instruction_id` + `caller_identity` from each
+      JSON response, then independently confirmed via a direct read against the real
+      `instructions` table in `/opt/veridian/ai-os/memory/superboss-register.sqlite`
+      that `utm_source` matches the submitted value for all 5, and separately
+      confirmed all 5 are returned by `superboss-register.py search` on their shared
+      test text.
+- [x] Squash-merged PR #287 (`gh pr merge 287 --squash --delete-branch`) -- landed as
+      commit `347d89e` on `FChecklist/veridian-scripts` main. Re-pulled
+      `/opt/veridian/scripts` to confirm the live checkout now reflects the merged
+      state (`--source` choices list has all 5 values on main).
+- [x] Closed UMR171945-0024 via `superboss-register.py close-issue` with real
+      resolution notes citing PR #287/commit 347d89e and the 5 test instruction_ids.
+- [x] Recorded completion via `agent_work_briefing.py record-completion`
+      (`--umr-status completed --umr-commit-sha 347d89e --umr-pr-number 287
+      --umr-repo veridian-scripts`) -- accepted (first attempt used the pre-squash
+      sha `e46b9fc`, correctly refused as not-yet-an-ancestor-of-main; corrected to
+      the real squash-merge sha).
+- [x] Moved the ACTIVE-CLAIMS.yaml entry from `active:` to `recently_completed:` with
+      a closing summary.
 
 ## Remaining
-- [ ] Create a branch in /opt/veridian/scripts (veridian-scripts repo), commit the
-      caller_identity change, push, open PR
-- [ ] Real boolean test: submit one real instruction with each of the 5 --source
-      values, confirm each recorded + queryable via superboss-register.py search
-- [ ] Confirm CI green, merge PR (or note branch-protection blocker if hit)
-- [ ] Record completion via agent_work_briefing.py record-completion
-- [ ] Close UMR171945-0024 via close-issue with real resolution notes
-- [ ] Move ACTIVE-CLAIMS.yaml entry to recently_completed, commit+push, open/merge
-      compliance-tracker PR for this branch's ai-os/ changes
+- [ ] Commit + push this branch's remaining ai-os/ + PROGRESS.md changes, open a
+      compliance-tracker PR
 
 ---
 
