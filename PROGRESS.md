@@ -1,3 +1,15 @@
+# PROGRESS -- task-20260808-214926-audit-umr171945-0003-0005-0007-real-stat
+
+## Completed
+- [x] Read AGENTS.md/CLAUDE.md governance chain; registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (no conflicting active claim found for these scope terms)
+
+## Remaining
+- [ ] TASK 1: live-trace one real dispatch-owner-task.sh invocation end-to-end; confirm/deny whether it hits task-gateway.py's capability_deterministic_path_available check before any AI worker spawns
+- [ ] TASK 1: re-audit master_issue_tracker rows UMR171945-0003/0005/0007 with fresh evidence; close genuinely-true ones, leave honest gap description on others
+- [ ] TASK 2: check UMR-20260807-035145-aa45's real PR mergeable state against current origin/main
+- [ ] TASK 2: merge cleanly or resolve real conflicts, then merge
+- [ ] TASK 2: close BLK04 via close-issue with real mergedAt timestamp + commit hash
+---
 # PROGRESS -- task-20260807-153612-gtm-cat13-ai-testing-scenario-2--ai-gene
 ## Completed
 - [x] Read AGENTS.md/CLAUDE.md governance chain; checked ai-os/boss/ACTIVE-CLAIMS.yaml for this task's scope terms (no conflicting active claim found)
