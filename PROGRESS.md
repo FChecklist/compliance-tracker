@@ -1010,12 +1010,15 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
 - [x] Found a concurrent sibling session (UMR-20260808-183926-70b6 / task-20260808-192230) already dispatching real sub-agents against 6 of the 10 items (OCID-041/042/043/044/045/046) via task-gateway.py, producing real PRs #799/#800/#797/#798/#796/#801 -- avoided duplicating that work.
 - [x] OCID-045: independently verified PR #796 live MERGED (mergedAt=2026-08-08T19:28:35Z) and closed OCID-045-CONSOLIDATION-LINK via update-issue/close-issue (this session verified only, did not create the PR -- zero self-certification).
 - [x] Restored PROGRESS.md from a wholesale-replace regression (this task's own scratch template had truncated the shared 953-line file to 2 lines locally, uncommitted) -- verified `wc -l` before appending.
+- [x] Opened PR #1068 (ACTIVE-CLAIMS registration + OCID-045 closure + PROGRESS.md).
+- [x] Documented real workflow structure (1 coordinator + up to 5 shared sub-agents, cap-check method) as `check_again_notes` metadata on OCID-065-CONSOLIDATION-LINK, linked to UMR-20260808-150937-43d0.
+- [x] Dispatched real sub-agent task-20260808-193406 via `task-gateway.py submit`+`start` (instruction INS-20260808-193332-616d, work item WRK-20260808-193412-d462) for OCID-065 -- land PR #884 (was MERGEABLE/BEHIND, no real conflict). Real cap check confirmed 5/5 active immediately after -- no further dispatch until a slot frees.
 
 ### Remaining
-- [ ] OCID-056 (real blocker PR #870, CONFLICTING): dispatch real sub-agent to resolve merge conflict + land.
-- [ ] OCID-059 (real blockers PR #873 AND #908, both CONFLICTING): dispatch real sub-agent.
-- [ ] OCID-061 (real blocker PR #878, CONFLICTING): dispatch real sub-agent.
-- [ ] OCID-065 (real blocker PR #884, MERGEABLE but BEHIND -- simplest, no conflict): dispatch real sub-agent.
+- [ ] OCID-065: monitor task-20260808-193406, independently verify PR #884's final state before closing the tracker row.
+- [ ] OCID-056 (real blocker PR #870, CONFLICTING): dispatch real sub-agent once a slot frees.
+- [ ] OCID-059 (real blockers PR #873 AND #908, both CONFLICTING): dispatch real sub-agent once a slot frees.
+- [ ] OCID-061 (real blocker PR #878, CONFLICTING): dispatch real sub-agent once a slot frees.
 - [ ] OCID-041 (PR #799, audit-check FAIL): re-verify once sibling session resolves.
 - [ ] OCID-042 (PR #800, sibling's sub-agent still actively working, task-20260808-184122): re-verify once done.
 - [ ] OCID-043 (PR #797, all checks pass but merge blocked on "8/8 required checks expected" -- known audit-comment-SHA-attach bug): re-attempt merge.
