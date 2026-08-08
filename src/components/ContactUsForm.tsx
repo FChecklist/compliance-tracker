@@ -97,8 +97,9 @@ export function ContactUsForm({
 
       {showCategoryPicker && (
         <div className="mt-6">
-          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">I&apos;m interested in</label>
+          <label htmlFor="contact-category" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">I&apos;m interested in</label>
           <select
+            id="contact-category"
             value={category}
             onChange={(e) => { markDirty(); setCategory(e.target.value); }}
             className="mt-2 w-full rounded-lg border border-[#1a1a17]/20 bg-white px-4 py-2.5 text-sm text-[#1a1a17] focus:outline-none focus:ring-2 focus:ring-[#1a1a17]/20"
@@ -114,8 +115,9 @@ export function ContactUsForm({
       <form onSubmit={handleSubmit} className="mt-6 grid gap-5">
         <div className="grid gap-5 sm:grid-cols-2">
           <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Name</label>
+            <label htmlFor="contact-name" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Name</label>
             <input
+              id="contact-name"
               required
               value={name}
               onChange={(e) => { markDirty(); setName(e.target.value); }}
@@ -124,8 +126,9 @@ export function ContactUsForm({
             />
           </div>
           <div>
-            <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Email</label>
+            <label htmlFor="contact-email" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Email</label>
             <input
+              id="contact-email"
               required
               type="email"
               value={email}
@@ -136,8 +139,9 @@ export function ContactUsForm({
           </div>
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Mobile number</label>
+          <label htmlFor="contact-mobile" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Mobile number</label>
           <input
+            id="contact-mobile"
             type="tel"
             value={mobile}
             onChange={(e) => { markDirty(); setMobile(e.target.value); }}
@@ -146,8 +150,9 @@ export function ContactUsForm({
           />
         </div>
         <div>
-          <label className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Message (optional)</label>
+          <label htmlFor="contact-message" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">Message (optional)</label>
           <textarea
+            id="contact-message"
             value={message}
             onChange={(e) => { markDirty(); setMessage(e.target.value); }}
             rows={4}
