@@ -5857,6 +5857,22 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260808-151622-write-real--exhaustive-boolean-closing-c, UMR-20260808-151556-9b3b) -- registration-only: wrote real category (A/B/C/D) + boolean/apply-fix/check-again findings into all 45 existing OCID-022..066-CONSOLIDATION-LINK master_issue_tracker rows (linked_umr_id=UMR-20260808-150937-43d0) via update-issue, per live re-verification of PR/CI/governance state -- no OCID-022..066 implementation started [DONE, 31/45 rows closed, 6 real re-classification findings, see PROGRESS.md]"
+    claimed_at: "2026-08-08T15:20Z (this session, closed same session)"
+    claim: |
+      SPEC: write real, independently re-verified category + evidence into the 45 real
+      OCID-0NN-CONSOLIDATION-LINK rows already created under UMR-20260808-150937-43d0. Scope was
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry) + superboss-register.sqlite's master_issue_tracker
+      rows via update-issue -- no source code, no new OCID-022..066 implementation. Real outcome:
+      Category A (23 items) 22 confirmed genuinely closeable, 1 re-classified (OCID-048, real open
+      cross-org-isolation gap GAP-OCID048-CROSS-ORG-ISOLATION-EVIDENCE-ONLY-ON-CLOSED-PR). Category
+      B (16 items) 4 re-classified from blocked to resolved on live re-check (OCID-053/054/055/060,
+      stale DB evidence said open); 8 confirmed genuinely still blocked with live PR/CI state
+      recorded. Category C (3 items, OCID-022/023/038) all 3 real governance defects found already
+      closed on live re-check. Category D (3 items) OCID-040/064 resolved to closeable, OCID-066's
+      hold confirmed still standing on two independent real grounds (swap memory + OCID-020/021
+      priority gate). Session context was summarized mid-task; Category B/C/D work from an earlier
+      turn was found intact in the live DB and verified correct rather than duplicated.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
