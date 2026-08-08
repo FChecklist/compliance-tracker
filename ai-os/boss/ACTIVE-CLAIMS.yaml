@@ -40,6 +40,59 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260808-125836-build-task-gateway-py-audit-24-points--r) -- task-gateway.py audit-24-points subcommand: declined, unmet queue dependency independently re-verified [DECLINED, no implementation performed]"
+    claimed_at: "2026-08-08T13:05Z (this session, closed same session)"
+    claim: |
+      SPEC (governing chain UMR-20260806-171945-5767, master_issue_tracker points UMR5767-0001
+      through -0024 -- real, confirmed completed UMR, real rows): build `task-gateway.py
+      audit-24-points`, a new subcommand doing a real deterministic boolean check for 12 named
+      points (2,4,8,9,12,14,16,17,19,20,22,23). SPEC's own explicit gate: "QUEUE BEHIND
+      UMR-20260808-121334-e122 (the task-gateway.py/dispatch-owner-task.sh merge) -- do not start
+      until that lands and is verified, this depends on task-gateway.py being the real, complete
+      single gate first."
+
+      Independently verified that dependency before writing any code (never trust a queue-behind
+      citation unverified, matches [[veridian-task-prompt-false-premise-pattern]]): found its own
+      task workspace (`task-20260808-121337-merge-task-gateway-py---dispatch-owner-t`,
+      `status: blocked`, UMR-20260808-121334-e122) explicitly **declined** the merge -- "No code
+      changed in veridian-scripts; no PR opened there" -- because the real, live, deterministic
+      stop-work-order gate (`resource_governor.py::_stop_work_order_block_reason`) returned BLOCKED
+      against the actual live system state at investigation time (the 7th+ generation of a
+      repeatedly-declined "stop-work-order-lifted" claim this session's own memory already tracks
+      through 6 prior generations).
+
+      Re-ran that same real gate function myself, live, in-process, fresh (not narrated): now
+      returns `None` (unblocked) for `task_kind="veridian_task_create"` -- a real, approved,
+      origin/main-committed `stop-work-order-lifted-2026-08-08-v2` entry now exists in
+      `OWNER_DECISIONS_NEEDED_2026-07-23.yaml` on `veridian-ai-os`'s real `origin/main` (confirmed
+      via a real `git fetch` + `_owner_decisions_committed_entries()`, not a working-tree or
+      local-HEAD read). So the general stop-work-order itself does appear genuinely lifted as of
+      this session -- but that is a DIFFERENT fact from whether the specific dependency (the
+      task-gateway.py + dispatch-owner-task.sh merge into one real gate) actually landed. It has
+      not: confirmed live, `/opt/veridian/scripts/task-gateway.py` (real `origin/main` content,
+      906 lines) still has zero references to `resource_governor`/`dispatch_one`/`stop_work`
+      anywhere; `dispatch-owner-task.sh` is still the only real caller of
+      `resource_governor.py --submit`. No PR for this merge exists in `FChecklist/veridian-scripts`
+      (checked `gh pr list`/`git log --all` for the relevant branch names/commit messages).
+
+      Per the SPEC's own explicit, unambiguous instruction ("do not start until that lands and is
+      verified"), and this dependency being confirmed NOT landed (declined, no PR, no code merged --
+      not merely "not yet done"), declining to implement `audit-24-points` in this cycle. No code
+      changes made to `task-gateway.py` or any file in `veridian-scripts`. Also note: this task's
+      workspace is `compliance-tracker` (this repo) while `task-gateway.py` itself lives in the
+      separate `veridian-scripts` repo/live-checkout (`/opt/veridian/scripts`) -- a structural
+      mismatch independent of the queue-gate finding above, disclosed for a future dispatch's
+      benefit.
+
+      Also independently spot-checked the SPEC's "master_issue_tracker points ... -0024" citation:
+      `UMR-20260806-171945-5767` and rows `UMR5767-0001`..`0024` are real (confirmed via direct
+      sqlite read of `master_issue_tracker`), so the governing-chain citation itself holds up --
+      only the queue-behind dependency is the reason for declining, not a fabricated-premise
+      finding this time.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this `ACTIVE-CLAIMS.yaml` entry only. No changes to
+      `task-gateway.py`, `resource_governor.py`, or any file in `veridian-scripts` -- correctly
+      withheld per the SPEC's own unmet queue-behind gate.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
