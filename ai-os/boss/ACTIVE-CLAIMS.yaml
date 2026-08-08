@@ -40,7 +40,50 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
+  - session_label: "claude-code (task-20260808-142214-addendum-to-umr-20260808-122929-bc77--au) -- addendum: persist audit-24-points' 12 boolean checks into master_issue_tracker (UMR171945-0002/0004/0008/0009/0012/0014/0016/0017/0019/0020/0022/0023)"
+    claimed_at: "2026-08-08T14:40Z (this session)"
+    claim: |
+      SPEC (addendum to UMR-20260808-122929-bc77, governing chain UMR-20260806-171945-5767):
+      persist audit-24-points' 12 real boolean checks into the EXISTING master_issue_tracker rows
+      UMR171945-0001..0024 via the existing `update-issue` CLI, and make `list-issues
+      --linked-umr-id UMR-20260806-171945-5767` the live queryable record.
+
+      Live-verified before starting (per Rule 11): `task-gateway.py audit-24-points` (the base
+      bc77 build, sibling task task-20260808-142208-build-task-gateway-py-audit-24-points--r,
+      dispatched the same minute as this task) does NOT exist yet on live
+      `/opt/veridian/scripts` (`grep -c audit.24.points task-gateway.py` = 0; `git rev-parse HEAD`
+      == `origin/main`, no branch for that task pushed). Also found the shared live checkout
+      (`/opt/veridian/scripts`) currently has REAL uncommitted edits to `task-gateway.py` +
+      `resource_governor.py` from a DIFFERENT, unrelated concurrent session (UMR-20260808-121334-e122
+      Option B gate wiring, PM decision cycle UMR-20260808-141807-7f38) -- not the audit-24-points
+      sibling. Scoping my own edits away from both files those two other sessions own
+      (`task-gateway.py`, `resource_governor.py`) to avoid a real collision in this shared,
+      not-per-task-branched checkout (matches [[veridian-shared-worktree-stash-risk]]).
+
+      Real, verified mapping (previously unconfirmed): bc77's SPEC "Point N" text maps 1:1 to
+      `master_issue_tracker` row `issue_id='UMR171945-{N:04d}'` (confirmed by direct read-only
+      SQLite query -- e.g. point 8 "memory-check log" <-> UMR171945-0008 "PM has seen last 24h
+      memory and checked"; point 17 "Zoekt/pgvector reference" <-> UMR171945-0017 "pgvector/
+      Grafana/.../Zoekt integrated ... automatic by software"). The addendum's own literal
+      "UMR171945-0001 through -0024" citation is real and correct (verified against live DB, not
+      assumed) -- distinct from the unrelated `UMR5767-00NN` prefix also present in the same table
+      from the original 977-row matrix import.
+
+      My real, in-scope deliverable this session (does NOT redo bc77's own 12-check build, which
+      is task-142208's explicit job): (1) `superboss-register.py list-issues --linked-umr-id`
+      filter (currently missing -- confirmed via `--help`, only `--linked-ocid`/`--is-closed`/
+      `--limit` exist), the literal CLI the addendum's own "Real boolean test" paragraph names;
+      (2) a real, tested persistence pattern/regression test (scratch-DB, `SUPERBOSS_REGISTER_DB`
+      seam, never live production `UMR171945-00NN` rows) proving `update-issue` calls for the 12
+      points are correctly reflected by `list-issues --linked-umr-id` -- ready for `task-gateway.py`
+      to call once the base `audit-24-points` subcommand lands.
+    scope_note: >-
+      File scope: `/opt/veridian/scripts/superboss-register.py` (list-issues `--linked-umr-id`
+      filter only), `/opt/veridian/scripts/tests/test_audit24_master_issue_tracker_persistence.py`
+      (new). Explicitly NOT touching `/opt/veridian/scripts/task-gateway.py` or
+      `/opt/veridian/scripts/resource_governor.py` this session (owned live by two other
+      in-flight sessions right now). This task's own workspace: `PROGRESS.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry).
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
       SPEC (checkpoint refresh, parent UMR-20260802-165606-4413/OCID-020): claimed a second real
