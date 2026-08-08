@@ -5856,6 +5856,37 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+  - session_label: "claude-code (task-20260808-121337-merge-task-gateway-py---dispatch-owner-t) -- merge task-gateway.py cmd_start into resource_governor.py's real submit()/dispatch_one() gate, retire dispatch-owner-task.sh"
+    claimed_at: "2026-08-08T12:13Z (this session)"
+    claim: |
+      SPEC (governing chain UMR-20260806-171945-5767, master_issue_tracker points
+      UMR171945-0001/0003/0006/0010/0015): real, verified finding that
+      dispatch-owner-task.sh and task-gateway.py are two separate, non-overlapping
+      dispatch paths -- dispatch-owner-task.sh writes into umr_tasks and benefits
+      from resource_governor.py's real dispatch_one() gate (resource thresholds,
+      concurrency cap, stop-work-order check), but has zero OWNER_ENGINE gating and
+      zero software-first duplicate/capability search. task-gateway.py's cmd_submit/
+      cmd_start have the OWNER_ENGINE gate + software-first search + capability check
+      + tight_task_validation + ddl_authorization_check, but cmd_start calls
+      veridian-task.py create + starts the worker directly, never going through
+      resource_governor's real gate at all. Task: modify task-gateway.py's cmd_start
+      so that after its real validation steps succeed, it submits the validated
+      task_spec into umr_tasks via resource_governor.py's real submit() path instead
+      of calling veridian-task.py create/systemctl start directly -- so the SAME
+      dispatch_one() gate now covers both paths. Verify with a real synthetic test.
+      Only then retire dispatch-owner-task.sh (rename to
+      *.superseded-by-task-gateway-merge-2026-08-08, same convention as other retired
+      scripts in this codebase), update README-SERVER.md and any other doc pointing
+      at dispatch-owner-task.sh as the entry point.
+    scope_note: >-
+      File scope: `/opt/veridian/repos/veridian-scripts` (the separate live-checkout
+      repo, FChecklist/veridian-scripts) -- specifically `task-gateway.py`,
+      `dispatch-owner-task.sh` (rename only), `resource_governor.py` (read/reuse its
+      submit() path, not rewritten), `README-SERVER.md`, plus this repo's own
+      `ai-os/MASTER-TRACKER.yaml` / `ai-os/boss/COMPLETED.yaml` / master_issue_tracker
+      rows for UMR171945-0001/0003/0006/0010/0015 once real evidence lands. No
+      unrelated script changes.
+
 recently_completed:
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
