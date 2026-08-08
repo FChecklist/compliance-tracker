@@ -10140,3 +10140,47 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260808-125843-addendum-to-umr-20260808-122929-bc77--au) -- persist audit-24-points booleans into master_issue_tracker (addendum)"
+    claimed_at: "2026-08-08T13:05Z (this session)"
+    claim: |
+      SPEC (addendum, cites UMR-20260806-171945-5767 + UMR-20260808-122929-bc77): once
+      task-gateway.py's planned `audit-24-points` subcommand runs its 12 real boolean checks
+      (points 2/4/8/9/12/14/16/17/19/20/22/23), persist the results into the existing
+      master_issue_tracker rows (UMR171945-0002 through -0023, mapped issue_number=point+986)
+      via superboss-register.py's real `update-issue` subcommand -- never raw SQL -- setting
+      is_deterministic/is_ai_free/is_boolean_software plus solution_applied/
+      issue_resolved_permanently/check_again_notes each real run.
+
+      Real, material finding before writing any code: the base build this addendum attaches to
+      (`task-20260808-125836-build-task-gateway-py-audit-24-points--r`, UMR-20260808-122929-bc77)
+      has zero real progress and no pushed branch; its own blocking dependency
+      (UMR-20260808-121334-e122) has no task directory at all. `task-gateway.py` has no
+      `audit-24-points` subcommand today -- nothing yet exists for this addendum to attach to.
+
+      Independently re-ran this session's own recurring stop-work-order live-gate check (real
+      issue #980, `resource_governor.py::_stop_work_order_block_reason`) against a freshly cloned,
+      verified-current `origin/main` of veridian-scripts (not the shared, dirty, mid-flight
+      `/opt/veridian/scripts` checkout on an unrelated branch) -- result: BLOCKED for this task's
+      own `veridian_task_create` identity. Root-caused a NEW, concrete reason (distinct from every
+      prior generation's proximate finding): the currently-deployed
+      `_owner_decisions_committed_entries()` requires the parsed YAML to be a bare top-level list,
+      but the real, committed `OWNER_DECISIONS_NEEDED_2026-07-23.yaml` (confirmed via
+      `git cat-file -p HEAD:...`, 743 lines, not the truncated 31-line pipe-`wc -l` read a naive
+      check would get) is a dict with a `decisions:` key holding 25 real entries -- so this
+      function returns 0 entries unconditionally, meaning the deployed gate can never see ANY real
+      approval today, including the real, committed, status:approved
+      `stop-work-order-lifted-2026-08-08` entry that does genuinely exist at HEAD. The fix for this
+      (unwrap the dict, already present on an unmerged branch elsewhere) is itself real PR/push
+      work on `resource_governor.py` -- exactly what the same gate blocks.
+
+      Declined to write or push any code to task-gateway.py/resource_governor.py/
+      superboss-register.py in veridian-scripts. Registering this claim + a docs-only PROGRESS.md
+      completion in compliance-tracker, matching this session's own established precedent for this
+      exact situation ([[veridian-stop-work-order-lift-7th-gen-real-merged-pr-still-live-blocked]]
+      and its predecessors).
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) only, in
+      compliance-tracker. Zero changes to veridian-scripts (task-gateway.py/resource_governor.py/
+      superboss-register.py) or to any master_issue_tracker row -- the real persistence work this
+      addendum asks for could not be attempted while the live stop-work-order gate returns BLOCKED
+      for this task's own identity.

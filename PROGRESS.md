@@ -951,3 +951,112 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
   not independently confirmed (the root page's error digest was never cross-checked against a
   server-side stack trace), folded into the one gap entry above rather than registered twice.
 - [ ] Open PR and get it through independent review before merge.
+# PROGRESS -- task-20260808-125843-addendum-to-umr-20260808-122929-bc77--au
+
+## Completed
+- [x] Read governing chain: UMR-20260806-171945-5767 (24-point checklist origin), the full prompt of
+      UMR-20260808-122929-bc77 (`task-20260808-125836-build-task-gateway-py-audit-24-points--r`'s own
+      task.yaml/prompt, read directly from the real `umr_tasks.inputs_json` row -- not narrated).
+- [x] Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` (10,142 lines) for `171945-5767` / `122929-bc77` /
+      `audit-24`/`24-point` -- zero existing claims on this scope. Registering this task's own claim
+      below (append-only) per Rule 11.
+- [x] Confirmed the real, current state of the base build this addendum attaches to:
+      `task-20260808-125836-build-task-gateway-py-audit-24-points--r` (bc77's own dispatched build
+      task) shows 0 completed_steps, PROGRESS.md still "Not started", and **no remote branch was
+      ever pushed** (`git fetch origin worker/task-20260808-125836-...` -> "couldn't find remote
+      ref"). Its own stated blocking dependency, `UMR-20260808-121334-e122` ("the task-gateway.py/
+      dispatch-owner-task.sh merge"), has **no task directory at all** under `ai-os/tasks/` and no
+      live systemd unit -- both rows read `status='running'` in `umr_tasks` but neither shows any
+      real, independent evidence of active work (matches this session's own recorded
+      [[veridian-live-concurrent-state-drift]] pattern).
+- [x] `task-gateway.py` currently has **no** `audit-24-points` subcommand (confirmed: `grep` for
+      `audit-24-points`/`audit_24_points`/`def cmd_audit` returns zero hits in the live
+      `/opt/veridian/scripts/task-gateway.py`) -- there is nothing yet for this addendum's
+      persistence requirement to attach to.
+- [x] Confirmed real, current `master_issue_tracker` schema and the 12 target rows
+      (`UMR171945-0002/0004/0008/0009/0012/0014/0016/0017/0019/0020/0022/0023`, mapped 1:1 to points
+      2/4/8/9/12/14/16/17/19/20/22/23 by `issue_number = point_number + 986`, verified against the
+      real `issue_identified` text of each row, which matches bc77's own per-point spec text
+      semantically point-for-point). `is_deterministic`/`is_ai_free`/`is_boolean_software` are
+      **empty on all 24 rows today** -- confirming the addendum's own stated gap is real. 3 rows
+      (0008/0009/0021) already carry `issue_resolved_permanently=YES` from a **prior, manual, PM-narrated**
+      close (`apply_fix_notes` reads "Real, done repeatedly this session with live SSH-verified
+      evidence" etc., dated 2026-08-08T09:25) -- not from any deterministic tool, and not overwritten
+      by this task (declined to touch, see below).
+- [x] **Decisive, real, live verification -- this is why no code/PR work was attempted (this
+      addendum's own required deliverable is entirely PR/push work on `task-gateway.py`):**
+      Confirmed that a standing Owner stop-work order
+      (`task-20260806-165921-owner-absolute-stop-work-order--complete`, real issue #980,
+      `STOP_WORK_ORDER_TASK_IDS` in `resource_governor.py`) still real-blocks any
+      `task_kind='veridian_task_create'` PR/push dispatch matching this task's own identity, per the
+      **currently deployed** gate code -- not a stale/local/unmerged copy. Verified 3 separate ways:
+      1. Cloned `veridian-scripts` fresh (`git clone` + `checkout origin/main`, confirmed
+         `git log HEAD..origin/main` empty immediately before running the check -- genuinely current,
+         not the shared, dirty `/opt/veridian/scripts` checkout, which was found mid-flight on an
+         unrelated branch `fix/harden-stop-work-gate-...` with uncommitted files from a different
+         session).
+      2. Ran `resource_governor._stop_work_order_block_reason("veridian_task_create",
+         task_identity=<this task's own id>, umr_id="UMR-20260808-122929-bc77", ...)` in-process
+         against that real, current `origin/main` module. Result: **BLOCKED** (full reason string
+         captured; cites real issue #980 / `UMR-20260806-171945-5767` / `UMR-20260807-161418-a63f`).
+      3. Root-caused *why*, independently of every prior generation's reason (this is new, not a
+         repeat of the ca513ca-stray-branch finding from PR #1057 earlier the same day): the
+         **currently-deployed** `_owner_decisions_committed_entries()` in `resource_governor.py`
+         does `if not isinstance(data, list): return []` on the parsed YAML -- but the real,
+         committed (`git cat-file -p HEAD:OWNER_DECISIONS_NEEDED_2026-07-23.yaml`, 743 lines, blob
+         `637ad91f`, independently re-verified against the known
+         [[veridian-git-show-large-output-flaky-truncation]] and Bash-pipe-truncation footguns via
+         `git cat-file -s`/redirect-to-file rather than a piped `wc -l`) top-level structure is a
+         **dict** (`{audit_id, created_by_task, decisions: [...]}`), not a bare list. Confirmed
+         directly: `_owner_decisions_committed_entries()` returns **0 entries** against this real
+         file (25 real entries exist under `decisions:`, including the real, committed, `status:
+         approved` `stop-work-order-lifted-2026-08-08` entry -- genuinely present at HEAD, not just
+         in the working tree). The only version of this function that unwraps a dict's `decisions`
+         key lives on the **unmerged** `fix/harden-stop-work-gate-...` branch in the shared checkout,
+         not on `origin/main`. **Net effect: the real, live, deployed gate can currently never see
+         ANY real approval, ever, regardless of how genuinely it's authorized** -- this is a new,
+         concrete, root-caused explanation for why every one of this session's 7+ prior
+         "stop-work-order-lifted" verification attempts also came back BLOCKED, each for what looked
+         like a different proximate reason at the time.
+- [x] Recognized the real paradox this creates: fixing that parsing bug is itself a real PR/push
+      change to `resource_governor.py`, i.e. exactly the class of work this same gate blocks --
+      this task cannot fix the gate that is blocking it without first violating it.
+
+## Declined (this addendum's real, required deliverable)
+Per this session's own established precedent for this exact recurring situation
+([[veridian-stop-work-order-lift-7th-gen-real-merged-pr-still-live-blocked]] and its 6 predecessors,
+all independently reaching the same conclusion when the real gate returns BLOCKED for their scope):
+**declining to implement or push the addendum's persistence code** (or the base bc77
+`audit-24-points` feature it depends on, which does not yet exist either) to `task-gateway.py` in
+`veridian-scripts`. Both are real PR/push work on a file the standing stop-work order's scope
+literally names. No code was written or pushed to `veridian-scripts`/`task-gateway.py`/
+`resource_governor.py`/`superboss-register.py`. The scratch clone used only for the live
+verification above (`.scratch/vs-work/`, untracked, not committed) is left in place for the next
+session's convenience and is not part of this repo's tracked tree.
+
+This is a docs-only completion in `compliance-tracker` (this task's own governing repo), recording
+the real investigation and the new root-cause finding for whoever next revisits the stop-work-order
+gate or the bc77 build.
+
+## Remaining (for whichever task resumes this, after the gate is genuinely fixed/lifted)
+- [ ] Fix `resource_governor.py`'s `_owner_decisions_committed_entries()` to unwrap a dict
+      `{..., "decisions": [...]}` top-level shape (matching the real, current
+      `OWNER_DECISIONS_NEEDED_2026-07-23.yaml` format) the same way the unmerged
+      `fix/harden-stop-work-gate-...` branch already does -- this is a real, narrow, independently
+      reviewable bugfix, not a guardrail weakening (it makes the gate see MORE of the truth, not
+      less; still fails closed on any other malformed/missing input).
+- [ ] Land that fix through the normal PR/CI path once the stop-work order is genuinely, verifiably
+      lifted for it (or under a real, git-committed, HEAD-verified exemption that survives the
+      *current*, unfixed parsing bug -- e.g. a bare top-level list entry, if that's ever easier to
+      land first).
+- [ ] Build bc77's own `task-gateway.py audit-24-points` subcommand (12 real boolean checks per its
+      own prompt -- points 2/4/8/9/12/14/16/17/19/20/22/23). None of this exists yet.
+- [ ] Wire this addendum's real requirement into it: after each of the 12 checks, call
+      `superboss-register.py update-issue --issue-id UMR171945-00NN --field is_deterministic=YES
+      --field is_ai_free=YES --field is_boolean_software=YES --field solution_applied=<YES/NO>
+      --field issue_resolved_permanently=<YES/NO> --field check_again_notes="<timestamped outcome>"`
+      for each of the 12 mapped issue_ids (`UMR171945-000{N}` where N=point number, confirmed 1:1
+      mapping in this file's own investigation above) -- never a raw SQL write.
+- [ ] Real boolean test (this addendum's own acceptance criterion): after a real run,
+      `list-issues --linked-umr-id UMR-20260806-171945-5767` must show the updated boolean fields
+      live in those same rows.
