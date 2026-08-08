@@ -1013,10 +1013,12 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
 - [x] Opened PR #1068 (ACTIVE-CLAIMS registration + OCID-045 closure + PROGRESS.md).
 - [x] Documented real workflow structure (1 coordinator + up to 5 shared sub-agents, cap-check method) as `check_again_notes` metadata on OCID-065-CONSOLIDATION-LINK, linked to UMR-20260808-150937-43d0.
 - [x] Dispatched real sub-agent task-20260808-193406 via `task-gateway.py submit`+`start` (instruction INS-20260808-193332-616d, work item WRK-20260808-193412-d462) for OCID-065 -- land PR #884 (was MERGEABLE/BEHIND, no real conflict). Real cap check confirmed 5/5 active immediately after -- no further dispatch until a slot frees.
+- [x] OCID-042: sibling's sub-agent (task-20260808-184122) exited, freeing a real slot; independently verified PR #800 live MERGED (mergedAt=2026-08-08T19:36:26Z) and closed OCID-042-CONSOLIDATION-LINK via update-issue/close-issue (verify-only, zero self-certification).
+- [x] Dispatched real sub-agent task-20260808-193725 via `task-gateway.py submit`+`start` (instruction INS-20260808-193702-456e, work item WRK-20260808-193731-6403) for OCID-056 -- resolve conflict + land PR #870 (CONFLICTING, likely PROGRESS.md collision).
 
 ### Remaining
 - [ ] OCID-065: monitor task-20260808-193406, independently verify PR #884's final state before closing the tracker row.
-- [ ] OCID-056 (real blocker PR #870, CONFLICTING): dispatch real sub-agent once a slot frees.
+- [ ] OCID-056: monitor task-20260808-193725, independently verify PR #870's final state before closing the tracker row.
 - [ ] OCID-059 (real blockers PR #873 AND #908, both CONFLICTING): dispatch real sub-agent once a slot frees.
 - [ ] OCID-061 (real blocker PR #878, CONFLICTING): dispatch real sub-agent once a slot frees.
 - [ ] OCID-041 (PR #799, audit-check FAIL): re-verify once sibling session resolves.
