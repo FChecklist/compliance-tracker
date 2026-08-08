@@ -5857,6 +5857,48 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260808-142214-addendum-to-umr-20260808-122929-bc77--au) -- addendum: real list-issues --linked-umr-id filter + tested audit-24-points -> master_issue_tracker persistence pattern [DONE, veridian-scripts PR #279 open]"
+    claimed_at: "2026-08-08T14:40Z (this session, closed same session)"
+    claim: |
+      SPEC (addendum to UMR-20260808-122929-bc77, governing chain UMR-20260806-171945-5767):
+      persist audit-24-points' 12 real boolean checks into the EXISTING master_issue_tracker rows
+      UMR171945-0001..0024 via the existing `update-issue` CLI, and make `list-issues
+      --linked-umr-id UMR-20260806-171945-5767` the live queryable record.
+
+      Live-verified before starting (Rule 11): `task-gateway.py audit-24-points` (the base bc77
+      build, sibling task task-20260808-142208-build-task-gateway-py-audit-24-points--r,
+      dispatched the same minute as this task) did NOT exist yet on live `/opt/veridian/scripts`.
+      Also found the shared live checkout carried real, unrelated in-flight work from a THIRD
+      session (I had inherited its checked-out branch `fix/e122-shared-gate-check-cmd-start`,
+      HEAD `bc14a21`, one commit ahead of `origin/main`, editing `task-gateway.py`/
+      `resource_governor.py` -- UMR-20260808-121334-e122, unrelated to audit-24-points). Recovered
+      safely: reverted my own in-place edit off that branch, created a clean new branch from
+      `origin/main`, reapplied my diff there, switched the checkout back to the other session's
+      branch afterward -- zero interference with its work at any point (matches
+      [[veridian-shared-worktree-stash-risk]]).
+
+      Real, verified mapping (previously unconfirmed): bc77's SPEC "Point N" text maps 1:1 to
+      `master_issue_tracker` row `issue_id='UMR171945-{N:04d}'` (confirmed by direct read-only
+      SQLite query -- e.g. point 8 "memory-check log" <-> UMR171945-0008; point 17 "Zoekt/pgvector
+      reference" <-> UMR171945-0017). The addendum's own literal "UMR171945-0001 through -0024"
+      citation is real and correct.
+
+      Real, in-scope deliverable this session (does NOT redo bc77's own 12-check build, which is
+      task-142208's explicit job -- confirmed still unbuilt as of this task's own completion):
+      (1) `superboss-register.py list-issues --linked-umr-id` filter (was missing -- confirmed via
+      `--help`); (2) a real, passing regression test
+      (`tests/test_audit24_master_issue_tracker_persistence.py`, 2 tests) proving `update-issue`
+      calls for the 12 points are correctly reflected by `list-issues --linked-umr-id`, a re-run
+      updates in place (no duplicate), and untouched rows stay untouched -- against an isolated
+      scratch DB, never live production `UMR171945-00NN` rows. Opened veridian-scripts PR #279.
+      True end-to-end wiring (task-gateway.py calling this pattern with REAL check results)
+      remains blocked on the sibling base-build task landing -- disclosed, not fabricated closed.
+    scope_note: >-
+      File scope: `/opt/veridian/scripts/superboss-register.py` (list-issues `--linked-umr-id`
+      filter only), `/opt/veridian/scripts/tests/test_audit24_master_issue_tracker_persistence.py`
+      (new, veridian-scripts PR #279). Did NOT touch `/opt/veridian/scripts/task-gateway.py` or
+      `/opt/veridian/scripts/resource_governor.py`. This task's own workspace: `PROGRESS.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
