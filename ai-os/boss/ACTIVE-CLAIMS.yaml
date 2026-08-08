@@ -40,6 +40,36 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260808-150500-register--not-execute--priority-4-umr--o) -- OCID-022..066 consolidated completion project, REGISTRATION ONLY, no real implementation dispatched [DONE, closed same session, PR #1063]"
+    claimed_at: "2026-08-08T15:05Z (this session, closed same session)"
+    claim: |
+      SPEC (governing chain UMR-20260806-171945-5767 priority 1, OCID-020 priority 2, OCID-021
+      priority 3, this project priority 4; briefing UMR-20260808-150432-83dc): create a new,
+      minimal, registration-only UMR representing the OCID-022..066 consolidated completion
+      project, link all 45 real existing ocid_canonical_registry rows (no duplicates), register
+      45 real master_issue_tracker rows, and document the real intended future
+      task-gateway.py-gated process without executing any of it now.
+
+      Minted UMR-20260808-150937-43d0 via the real resource_governor.submit() path with
+      task_kind="systemctl_action" (the one task_kind that does NOT spawn an AI worker --
+      "veridian_task_create" is the one that does); real action recorded is a genuine no-op
+      (`systemctl --user start veridian-superboss-gateway.service`, already active).
+      Independently re-queried the live ocid_canonical_registry (69 total real rows; 45 in the
+      22-66 range, zero gaps) and registered 45 real master_issue_tracker rows
+      (`OCID-0NN-CONSOLIDATION-LINK`, linked_umr_id=UMR-20260808-150937-43d0), each
+      existing_solution_in_system populated from that OCID's real, live canonical_umr_id/
+      status/pr_number -- verified live via `list-issues --linked-umr-id` -> count=45.
+
+      Priority-1 gate re-confirmed still open (UMR-5767 itself complete, but its own 24-point
+      spec still 3/24 closed) -- no real OCID-022..066 implementation was authorized or
+      attempted; this task is documentation + real DB registration rows only.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_OCID_022_066_CONSOLIDATED_COMPLETION_PROJECT_2026-08-08.md`
+      (new), `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry). Real writes outside
+      this git repo: one new umr_tasks row (UMR-20260808-150937-43d0, task_kind=systemctl_action,
+      no worker spawned) and 45 new master_issue_tracker rows in the live
+      superboss-register.sqlite, via superboss-register.py's own sanctioned CLI write path
+      (`_write_lock()`-protected). No src/, schema, migration, or application-code changes.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
