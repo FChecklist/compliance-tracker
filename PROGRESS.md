@@ -64,4 +64,5 @@ UMR-20260806-171945-5767, UMR-20260808-122929-bc77.
       shell out to `superboss-register.py update-issue --issue-id UMR171945-{point:04d} --field
       ...` (exact pattern proven by the new test file above).
 - [x] Opened compliance-tracker PR #1062, posted `AUDIT: PASS` self-audit verdict.
-- [ ] Record completion via `agent_work_briefing.py record-completion`.
+- [x] Recorded completion via `agent_work_briefing.py record-completion`
+      (`UMR-20260808-123107-875a` -> `umr_tasks.status=completed`, `PR #1062`).
