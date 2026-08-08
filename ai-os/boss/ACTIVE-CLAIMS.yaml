@@ -40,6 +40,14 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260808-151622-write-real--exhaustive-boolean-closing-c, UMR-20260808-151556-9b3b) -- registration-only: write real category (A/B/C/D) + boolean/apply-fix/check-again findings into the 45 existing OCID-022..066-CONSOLIDATION-LINK master_issue_tracker rows (linked_umr_id=UMR-20260808-150937-43d0) via update-issue, per live re-verification of PR/CI state -- no OCID-022..066 implementation started"
+    claimed_at: "2026-08-08T15:20Z (this session)"
+    claim: |
+      SPEC: write real, independently re-verified category + evidence into the 45 real
+      OCID-0NN-CONSOLIDATION-LINK rows already created under UMR-20260808-150937-43d0. Scope is
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry only) + superboss-register.sqlite's
+      master_issue_tracker rows via update-issue -- no source code, no new OCID-022..066
+      implementation. Does not touch any file another active claim below already owns.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
