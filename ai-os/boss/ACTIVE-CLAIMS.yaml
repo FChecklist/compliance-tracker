@@ -40,15 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260808-214926-audit-umr171945-0003-0005-0007-real-stat) -- TASK 1: re-audit UMR171945-0003/0005/0007 (master_issue_tracker, linked_umr_id=UMR-20260806-171945-5767) now that UMR171945-0006 (task-gateway.py routing) is merged; live end-to-end trace of dispatch-owner-task.sh. TASK 2: BLK04 -- check/merge UMR-20260807-035145-aa45's real PR (stuck since 2026-08-07)"
-    claimed_at: "2026-08-08T22:30Z"
-    claim: |
-      SPEC (prompt.txt, invocation 2/20, resumed -- PROGRESS.md/task.yaml showed 0 completed_steps
-      at resume, treating as a genuine fresh start not a stale resume). File scope: master_issue_tracker
-      DB rows UMR171945-0003/0005/0007/BLK04 (status/evidence updates only), close-issue calls for
-      any row found genuinely resolved, PR aa45 merge or rebase-and-merge, PROGRESS.md, this
-      ACTIVE-CLAIMS entry. No src/ code changes planned unless TASK 2's merge conflict resolution
-      requires them (in which case: preserve both PRs' real intent per SPEC instruction).
   - session_label: "claude-code (UMR-20260806-132527-30dc, child UMR-20260806-133845-32eb) -- real OCID-020 category 23 (UX audit) fail-root-cause + minimal fix, targeting the 4 real severity>=3 heuristics (H2/H4/H9/H10) from the 2026-08-06T10:31:26Z evidence"
     claimed_at: "2026-08-06T13:45Z"
     claim: |
@@ -5881,6 +5872,40 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260808-214926-audit-umr171945-0003-0005-0007-real-stat) -- TASK 1/TASK 2 duplicate-work finding: both already genuinely completed by a concurrent dispatch before this task started [DONE, no code/DB changes, docs-only]"
+    claimed_at: "2026-08-08T22:30Z (this session, closed same session)"
+    claim: |
+      SPEC (prompt.txt): TASK 1 -- re-audit `master_issue_tracker` rows UMR171945-0003/0005/0007
+      (linked_umr_id `UMR-20260806-171945-5767`) now that UMR171945-0006/PR#282 (task-gateway.py
+      routing) is merged, via a real live end-to-end trace of `dispatch-owner-task.sh`. TASK 2 --
+      check/merge `UMR-20260807-035145-aa45`'s real PR for BLK04, stuck since 2026-08-07.
+
+      **Found both already genuinely done before this task's own work began**, by a concurrent
+      dispatch (`UMR-20260808-214855-34d1`, timestamped 32s before this task's own
+      `task.yaml.created_at` -- a true duplicate, not this task's own invocation 1: no matching task
+      directory exists for that UMR, and this task's own `worker.log`/`completed_steps` were empty
+      at resume). Did not re-do the work; independently re-verified every material claim instead of
+      trusting the DB narrative at face value:
+      - BLK04/PR aa45: `master_issue_tracker.UMR171945-BLK04` already `is_closed=YES`. Confirmed via
+        `gh pr view 251` (`FChecklist/veridian-scripts`): `state=MERGED`, `mergedAt=2026-08-07T15:11:13Z`,
+        commit `6a0e18ab901d229791cf5e58c5757a96f727719f`; confirmed that commit is a real ancestor of
+        current `origin/main` via `git merge-base --is-ancestor` (exit 0). Nothing left to merge.
+      - 0003/0005/0007: correctly still `is_closed=NO`. Re-verified the core claim via direct source
+        read (`grep capability_deterministic_path_available /opt/veridian/scripts/dispatch-owner-task.sh`
+        -> zero matches; SPEC_FILE build hardcodes `task_kind='veridian_task_create'` unconditionally,
+        no branch on the classification result). Confirmed no commit has touched
+        `dispatch-owner-task.sh`/`task-gateway.py`/`resource_governor.py` since 2026-08-08T21:25:05Z,
+        i.e. before the cited 21:54:42Z audit -- its evidence is not stale. Confirmed the cited
+        real-test probe row `UMR-20260808-215121-1e87` genuinely exists in `umr_tasks`
+        (`status=killed`, `task_kind=veridian_task_create`, `ts_submitted=2026-08-08T21:51:21Z`).
+        0003 is genuinely PARTIALLY true (signal now computed on the real path); 0005/0007 remain
+        genuinely FALSE (nothing consumes that signal to route the dispatch) -- correctly left open
+        with the same honest, specific real gap already on record. Did not re-run a duplicate live
+        probe against a real AI-worker slot since fresh, already-verified evidence exists.
+    scope_note: >-
+      File scope: `PROGRESS.md`, this ACTIVE-CLAIMS entry only. No `master_issue_tracker`/`umr_tasks`
+      writes, no PR/merge actions, no src/ or ai-os/scripts changes -- both real outcomes were already
+      correct and evidence-backed; nothing to change.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |

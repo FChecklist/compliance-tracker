@@ -2,13 +2,43 @@
 
 ## Completed
 - [x] Read AGENTS.md/CLAUDE.md governance chain; registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml (no conflicting active claim found for these scope terms)
+- [x] Found this exact SPEC (both TASK 1 and TASK 2) had ALREADY been genuinely completed by a
+      duplicate/concurrent dispatch (`UMR-20260808-214855-34d1`, minted 32s before this task's own
+      `task.yaml.created_at`, work landed in `master_issue_tracker` at 21:49:58Z/21:54:42Z -- inside
+      this task's own invocation-1 window, but not the same session: no matching task directory
+      exists for that UMR, and this task's own `worker.log`/`task.yaml.completed_steps` are empty,
+      so it was not this task's own invocation 1 either). Independently re-verified every material
+      claim rather than trusting the DB narrative at face value:
+  - TASK 2 (BLK04/aa45): `UMR171945-BLK04` already `is_closed=YES`. Confirmed independently via
+    `gh pr view 251` (repo `FChecklist/veridian-scripts`): `state=MERGED`, `mergedAt=2026-08-07T15:11:13Z`,
+    merge commit `6a0e18ab901d229791cf5e58c5757a96f727719f`. Confirmed that commit is a real ancestor
+    of current `origin/main` via `git merge-base --is-ancestor` (exit 0). Nothing left to merge --
+    already correctly closed with real evidence. No action needed.
+  - TASK 1 (0003/0005/0007): all three correctly still `is_closed=NO`. Independently re-verified the
+    core claim via direct source read: `grep -n capability_deterministic_path_available
+    /opt/veridian/scripts/dispatch-owner-task.sh` -> zero matches; the script's SPEC_FILE build
+    (line ~186) hardcodes `'task_kind': 'veridian_task_create'` unconditionally, with no branch on
+    the classification result from `task-gateway.py submit`. Confirmed no commit has touched
+    `dispatch-owner-task.sh`/`task-gateway.py`/`resource_governor.py` since 2026-08-08T21:25:05Z
+    (last real commit `be9f2db`), i.e. before the 21:54:42Z audit -- its evidence is not stale.
+    Confirmed the cited live-test probe row `UMR-20260808-215121-1e87` is real in `umr_tasks`
+    (`status=killed`, `task_kind=veridian_task_create`, `ts_submitted=2026-08-08T21:51:21Z`),
+    consistent with the audit's own description of a throwaway test killed immediately after use.
+    Conclusion matches and is independently confirmed: 0003 is genuinely PARTIALLY true (the
+    deterministic-path signal is now really computed on the real dispatch path, a real improvement
+    from `UMR171945-0006`/PR #282 and `UMR171945-0017`/PR #285 landing) but not fully true (nothing
+    consumes that signal to actually choose the dispatch path); 0005 and 0007 remain genuinely FALSE
+    for the same live-confirmed reason (every real dispatch still unconditionally reaches the AI
+    worker queue). Left open exactly as the prior audit recorded, with an honest, specific real gap
+    (dispatch-owner-task.sh needs a conditional reading `capability_deterministic_path_available`
+    from `task-gateway.py submit`'s JSON to route a software-only `task_kind` when true) -- did not
+    re-run a duplicate live probe to avoid wasting another real AI-worker slot on evidence that
+    already exists and is still fresh.
+- [x] No code/DB changes required this invocation -- both tasks' real terminal state was already
+      correct and evidence-backed; re-closing or re-editing would not change any real outcome.
 
 ## Remaining
-- [ ] TASK 1: live-trace one real dispatch-owner-task.sh invocation end-to-end; confirm/deny whether it hits task-gateway.py's capability_deterministic_path_available check before any AI worker spawns
-- [ ] TASK 1: re-audit master_issue_tracker rows UMR171945-0003/0005/0007 with fresh evidence; close genuinely-true ones, leave honest gap description on others
-- [ ] TASK 2: check UMR-20260807-035145-aa45's real PR mergeable state against current origin/main
-- [ ] TASK 2: merge cleanly or resolve real conflicts, then merge
-- [ ] TASK 2: close BLK04 via close-issue with real mergedAt timestamp + commit hash
+(none -- both TASK 1 and TASK 2 confirmed genuinely, independently complete; see Completed above)
 ---
 # PROGRESS -- task-20260807-153612-gtm-cat13-ai-testing-scenario-2--ai-gene
 ## Completed
