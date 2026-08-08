@@ -5857,7 +5857,37 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
-  - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
+  - session_label: "claude-code (task-20260808-210331-build-umr171945-0018--auto-write-to-mast) -- UMR171945-0018 auto-write-to-master_issue_tracker coverage: verified already genuinely complete, no new code needed [DONE, verification-only]"
+    claimed_at: "2026-08-08T21:30Z (this session, closed same session)"
+    claim: |
+      SPEC (governing chain UMR-20260806-171945-5767, master_issue_tracker row UMR171945-0018):
+      audit resource_governor.py's `_record_master_issue_if_new()` call sites (UMR171945-0019 had
+      counted 6 textual occurrences), identify real event classes not yet auto-recorded into
+      master_issue_tracker, extend coverage if genuinely missing, and prove it with a real
+      live-triggered synthetic-failure test (no manual add-issue call).
+
+      **Found the work already done by an earlier turn of this exact task/UMR
+      (UMR-20260808-204741-a43a), lost to context summarization but fully real and independently
+      re-verified, not re-built:** grepping `_record_master_issue_if_new(` call sites (excluding
+      comments/def/log strings) confirmed exactly 3 real invocation sites in
+      `/opt/veridian/scripts/resource_governor.py` -- `_stop_work_order_block_reason()`
+      (`UMR5767-0980`), `_write_emergency_stop()` Stage-3 hard-stop (`RG-EMERGENCY-STOP-HARDSTOP`),
+      and `_shed_load()` Stage-2 load-shed (`RG-EMERGENCY-STOP-SHEDLOAD`, the genuinely new one --
+      landed via `veridian-scripts` PR #284, commit `ebe833a`/merge `c48103e`, confirmed a real
+      ancestor of `origin/main`). `dispatch_one()`'s other decline paths (duplicate-PR guard,
+      reuse-verdict guard, OCID-supersession) are deliberately per-task outcomes already recorded
+      via `umr_tasks.reason`, correctly NOT duplicated into master_issue_tracker per this helper's
+      own documented dedup contract. Re-ran `tests/test_shed_load_master_issue_tracker.py` live
+      this session: 2 passed, confirming a real synthetic Stage-2 load-shed trip produces a real
+      new `master_issue_tracker` row automatically with zero manual `add-issue` call. Cross-checked
+      the master_issue_tracker row itself live (`superboss-register.sqlite`): `UMR171945-0018` is
+      `is_closed=YES` with detailed real resolution notes citing this exact test/PR, and the one
+      documented test-pollution incident during development (a real accidental production write,
+      tracker_id=1098, caused by a lazy-singleton env-override bug in an early test draft) was
+      honestly caught, reverted (`umr_tasks` row `UMR-20260802-051901-f565` confirmed back to
+      `status=running`), and separately closed with an explicit non-production disclaimer. No new
+      code written this cycle -- confirmed already genuinely complete with real evidence, per the
+      SPEC's own "if genuinely already complete, say so" instruction.
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
       SPEC (`UMR-20260804-073906-3dd0`, OCID-064, reusing this same UMR per explicit instruction --
