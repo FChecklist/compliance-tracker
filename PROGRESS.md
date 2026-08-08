@@ -57,18 +57,34 @@ category failures).
       `grep -n "MANDATORY: Real Issue Recording" README-SERVER.md` -> real match at
       line 5; `grep -c master_issue_tracker README-SERVER.md` -> 3 real matches.
 
+- [x] Step 3: wired `resource_governor.py` (same isolated worktree/branch as step 1,
+      2nd commit on `feat/master-issue-tracker-add-issue-cli`) with a new
+      `_record_master_issue_if_new(issue_id, issue_identified, ...)` helper --
+      best-effort, fail-open (same convention as `_safe_superboss_register()`),
+      dedup-checked by a fixed, deterministic `issue_id` per issue CLASS (never a
+      per-occurrence insert). Wired at exactly two real call sites:
+        - `_write_emergency_stop()` (Stage 3 hard-stop cascade) -- genuinely new,
+          distinct issue class, confirmed absent from `master_issue_tracker` live
+          before this change.
+        - `_stop_work_order_block_reason()` (real issue #980 gate) -- reuses the
+          exact `issue_id` (`UMR5767-0980`) its own already-migrated row has, so
+          this is a real, dedup-checked no-op against production, not a fresh
+          duplicate row.
+      Real boolean tests (throwaway DBs, in-process `importlib` load matching this
+      file's own `_superboss_register()` convention): fresh DB -> real insert for
+      a new class, verified by SELECT; same issue_id again -> real no-op; full
+      end-to-end call through the real `_write_emergency_stop()` (not the helper
+      directly) -> real row written, verified by SELECT; a real `cp` of the live
+      production DB (986 rows, `UMR5767-0980` already present) ->
+      `_record_master_issue_if_new("UMR5767-0980", ...)` confirmed a real no-op,
+      row count unchanged at 986 before and after. Committed + pushed as a 2nd
+      commit on the same branch/PR: https://github.com/FChecklist/veridian-scripts/pull/273
+      (`gh pr edit` to fold the 2nd commit into the PR description failed on an
+      unrelated GitHub GraphQL "Projects (classic)" deprecation error -- left as-is
+      since the 2nd commit's own message already documents it fully and is visible
+      in the PR).
+
 ## Remaining
-- [ ] Step 3: wire `resource_governor.py`'s real gate/pipeline (stop-work-order gate
-      / emergency-stop cascade / dispatch_one()) to call the new add-issue path for
-      a genuinely new, distinct issue class not already captured in
-      master_issue_tracker -- scoped minimally, no duplication of umr_tasks' own
-      reason/failure recording. Candidate identified: `_write_emergency_stop()`
-      (EMERGENCY_CONSECUTIVE_TICKS_HARDSTOP cascade) -- currently only recorded in
-      ATTENTION.md/EMERGENCY_STOP_PATH, system-wide (not per-task, so it does not
-      duplicate umr_tasks), and confirmed absent from master_issue_tracker today
-      (checked live). The stop-work-order gate (`_stop_work_order_block_reason()`)
-      already has a real row (`UMR5767-0980`) -- reusing it via dedup-check, not a
-      fresh per-occurrence insert, to avoid duplicate-row spam on a recurring gate.
-- [ ] Record completion via `agent_work_briefing.py record-completion --umr-id
-      UMR-20260808-074726-d105`.
-- [ ] Final commit + push confirmation.
+- [ ] None -- all 3 steps of the governing directive complete. Awaiting CI +
+      independent review/merge of veridian-scripts PR #273 (not self-mergeable per
+      AGENTS.md Rule 6's PR/CI gate -- no direct push to `main`).
