@@ -1077,7 +1077,7 @@ content has no hard read-dependency on those siblings' text.
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-041653-9de5`, OCID-20260803-022)
+## Amendment (2026-08-03): VERIDIAN End User Experience Foundation v1.0 (`UMR-20260803-040844-4a33`, OCID-022, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`)
 
 Real Owner directive, tier 1, parented to `UMR-20260802-173631-ca85` (this same ERP Functional
 Completeness Master Program). Extends the existing master program — no new program, no new
@@ -1696,6 +1696,99 @@ speculatively authored ahead of their own real dependency chain.
 
 ---
 
+## Amendment (2026-08-03): OCID-042 substantive discovery performed — VERIDIAN Universal Context Packaging Runtime v0.1
+
+Real dispatched worker task (`veridian-worker@task-20260803-085550-register-ocid-042-universal-context-
+pack.service`, real UMR `UMR-20260803-084332-5b52`, confirmed by direct query against `umr_tasks`, tier
+2), distinct from the governance-registration-only amendment immediately above (that entry explicitly
+stated OCID-041 through OCID-046's substantive discovery work "remain[ed] genuinely undone" and that "no
+worker has yet been dispatched"). This amendment records that OCID-042's own substantive discovery has
+now genuinely happened, producing a new canonical artifact:
+`ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md`.
+
+**What was actually done**: a real, file:line-grounded inventory (not narrated from the dispatch prompt)
+of the existing VERIDIAN components a future universal context-packaging runtime would need to reuse —
+`AssembledContext`/`context-assembly.ts` (the one existing typed, serializable context bundle, confirmed
+not wired to any external-provider call site today), `MotherRouterContext`/`resolveModel()` (provider
+resolution only, builds no payload), chat-service.ts history bounding, mode-pill/chain selection data,
+task/report/document content sources, and — the central finding — one canonical low-level dispatcher
+(`llm-client.ts`) fed by roughly two dozen independent ad hoc prompt-construction call sites, plus two
+further fully independent construction paths outside it entirely (`webllm-engine.ts`'s in-browser WebLLM
+path, and `worker-entrypoint.sh`'s raw `task.yaml`/`prompt.txt`-text path to the `claude` CLI). Confirmed
+via repo-wide grep that no `ContextPackage`/`RequestPackage`/`PromptPackage`/`UniversalContext`
+abstraction already exists anywhere in `src/` — zero duplication risk for a future implementation.
+Cross-referenced, not duplicated: OCID-034's existing document (`VERIDIAN_UNIVERSAL_CONTEXT_AND_
+PREDICTIVE_RUNTIME_2026-08-03.md`), which covers predictive *end-user* context, a related but distinct
+subject from this document's outbound-*provider-payload* scope.
+
+**Why this stays discovery-only, not implementation, despite the dispatch prompt requesting EXECUTION**:
+(1) OCID-042's own cited parent, OCID-041, was itself only registered this same cycle as a governance
+record with zero substantive design work performed yet — building a real runtime against a foundation
+that does not yet exist would mean inventing that foundation here, which was explicitly out of scope;
+(2) `SEC-07` (`ai-os/CONSTITUTION.yaml`) locks real implementation under the ERP Functional Completeness
+Master Program, and specifically OCID-038/039/040, until `UMR-20260802-165606-4413` (OCID-020)
+independently clears — unmet as of this writing. No code was written, no existing call site among the
+~24-26 identified was rewired, no schema or `CONSTITUTION.yaml` change was made, and OCID-042 is not
+marked complete anywhere.
+
+Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md` (new file), this
+amendment, `ai-os/OS.yaml` (index entry) — not a rewrite or duplicate of the governance-registration
+amendment above, which stays accurate for OCID-041/043/044/045/046 (still genuinely undispatched as of
+this writing).
+
+---
+
+## Amendment (2026-08-03): OCID-045 re-verified, decline stands — no new certification, no drift found
+
+Real gatekeeper check (per the standing rule above) performed before any new writing: this task's own
+SPEC asked to register OCID-045 (`UMR-20260803-084637-ada4`, parented to OCID-044
+`UMR-20260803-084547-22fd`) as discovery-only with certification explicitly declined. That exact
+registration and decline **already exists**, word-for-word, in the amendment immediately above this
+one (committed `8cdbe5ea`, ~11 minutes before this task's own dispatch) — this task's substantive
+content is not undone work, it is already-done work. Per the gatekeeper rule ("if found: extend/update
+it, never rebuild or duplicate"), this entry does not re-author a second decline; it independently
+re-checks the real state cited by that decline for drift, since ~15-20 minutes had passed and this
+same cycle has shown numbering/status drift before.
+
+**Real re-verification performed this task, current as of this commit, not re-derived from the prior
+entry's own text:**
+- `gh pr list` against `FChecklist/compliance-tracker` (open, 40-item window): zero PRs reference
+  OCID-041, OCID-042, OCID-043, OCID-044, or OCID-045 in title or branch name. No canonical artifact
+  has been opened as a PR for any of the four upstream stages yet — the "zero PR opened" claim in the
+  prior entry still holds.
+- `ai-os/boss/ACTIVE-CLAIMS.yaml`: two new claims appeared *after* the prior decline entry was written
+  (`5af793dc` OCID-041 discovery, `a38d9ebb` OCID-043 discovery, both timestamped ~08:57-08:58, ~10
+  minutes after `8cdbe5ea`'s 08:48 write time) — both live only on their own separate, unmerged sibling
+  worker branches (`worker/task-20260803-085546-register-ocid-041-...`,
+  `worker/task-20260803-085553-register-ocid-043-...`; neither is an ancestor of this branch's `HEAD`,
+  confirmed via `git merge-base --is-ancestor`). Real, honest update: discovery work for OCID-041 and
+  OCID-043 is now actively being dispatched by sibling sessions — still discovery, still no merged PR,
+  still no canonical artifact on `main`. Does not change the decline; if anything, confirms the chain
+  is still mid-discovery, not implementation.
+- OCID-020 (`UMR-20260802-165606-4413`): has **not** independently cleared. The most recent real sweep
+  (`1bc85b36`, merged via PR #794) completed the 115/115 nav-surface coverage but found **3 new real
+  gaps** (`GAP-ERP-REPORTS-CLIENT-CRASH-ON-403`, `GAP-403-VS-500-CLM-HR-PERFORMANCE`,
+  `GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`) — completing a sweep and finding new gaps is the
+  opposite of an independent clean clearance. This is the same real gate cited by SEC-07.
+- `ai-os/CONSTITUTION.yaml` SEC-07 (read directly, current `HEAD`): unchanged since the prior entry,
+  `status: ENFORCED`, still names the same real unlock sequence (OCID-020 clears → OCID-038 → OCID-039
+  → OCID-040) and still holds real implementation, gap closure, certification, and platform freeze
+  locked under it. SEC-07's own text now explicitly directs future entries to cite "SEC-07 or the real
+  UMR" rather than the fictitious "OCID-021 implementation lock" label — this entry does so.
+- OCID-038/039/040: a sibling, unmerged worker branch (`8a7bb2f1`, `worker/task-20260803-071...`)
+  registers real discovery + real end-user verification for all three, explicitly titled
+  "implementation LOCKED" — consistent with, not contradicting, SEC-07's current lock state.
+
+**Conclusion: no drift found that would change the decline.** OCID-045's certification remains
+correctly, honestly refused. `CONSTITUTION.yaml` is not updated to declare the foundation complete.
+OCID-045 is not marked complete. No "zero omissions"/"zero duplication" claim is made. This entry adds
+only a re-verification record — it creates no new canonical artifact and does not duplicate the prior
+decline's own reasoning.
+
+Canonical artifact: this file (this amendment) only.
+
+---
+
 ## Amendment (2026-08-03): OCID-048 registered — Multi Organization/Tenant/Brand Isolation
 ## Certification task breakdown, planning only, direct child of OCID-020
 
@@ -1719,7 +1812,7 @@ BREAKDOWN_2026-08-03.md` (new file), this amendment, `ai-os/OS.yaml` (registrati
 
 ---
 
-## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-042019-844f`, dispatch `UMR-20260803-040929-9713`, OCID-20260803-023)
+## Amendment (2026-08-03): VERIDIAN Universal End User Work Model v1.0 (`UMR-20260803-040929-9713`, OCID-023, real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`, see `GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION`; this document originally also self-minted a fabricated "artifact UMR", `UMR-20260803-042019-844f`, never really registered anywhere)
 
 Real Owner directive, tier 1, documentation only. Parented to `UMR-20260803-040844-4a33` (the real
 `owner_dispatch_gateway` UMR that created sibling task `task-20260803-040852-ocid-022`, independently
@@ -1765,7 +1858,7 @@ partial exception being `pmsIssues.isArchived`, a bare flag with no retention/di
 
 | OCID | UMR | Section (this file) | Status |
 |---|---|---|---|
-| OCID-20260803-023 | `UMR-20260803-042019-844f` (artifact) / `UMR-20260803-040929-9713` (dispatch) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
+| OCID-20260803-023 | `UMR-20260803-040929-9713` (real dispatch UMR — corrected 2026-08-05 per `UMR-20260805-083603-9efa`; the "artifact" UMR `UMR-20260803-042019-844f` previously listed here was fabricated, never really registered) | VERIDIAN Universal End User Work Model v1.0 | **Documentation-only artifact complete on this task's own branch; not yet merged to `main` at the time this amendment was written — this file will be updated with the real merge commit once that happens, same discipline as OCID-20260803-021/022's own entries above** |
 
 Canonical artifact: `ai-os/VERIDIAN_UNIVERSAL_END_USER_WORK_MODEL_2026-08-03.md` (new, not a
 duplicate — confirmed via `git log --all --name-only` finding `UNIVERSAL_TASK_WRAPPER_DESIGN.md` as

@@ -1,0 +1,28 @@
+# Real, explicit Owner override registry for the SEC-07/Hard Rule 7 pre-merge lock
+# (scripts/check-sec07-ocid-lock.mjs, .github/workflows/sec07-ocid-lock-check.yml).
+#
+# UMR-20260805-025554-46f9 (Owner corrective action): "It must allow a real, explicit,
+# narrowly scoped override only when a real Owner override entry exists for that exact
+# PR, the same standing exception mechanism already described in Hard Rule 7 itself, and
+# it must not allow a blanket bypass."
+#
+# Each real entry below authorizes exactly ONE real PR, by number, to touch locked
+# OCID-038/039/040/041-046 scope while OCID-020 is not yet independently verified
+# complete -- matching the real, correctly-handled precedent UMR-20260804-172011-b839
+# already set ("a fresh, explicit, real time override... one time exception to the
+# standing implementation lock, hard rule seven"), the opposite of PR #886's own real
+# violation (no override was ever cited for it).
+#
+# This file is added to via its own real, independently-reviewed PR -- never the SAME
+# PR the override is granted for, so a locked-scope PR can never grant itself a bypass.
+# The gate checks pr_number against the current PR's own real, numeric GitHub PR number;
+# it is not reusable for any other PR, and it is not a standing/blanket exception.
+#
+# Schema per entry:
+#   pr_number: <int>            # the exact real PR this override applies to, and ONLY that PR
+#   umr_id: "UMR-..."           # the real, explicit Owner override UMR citing this exception
+#   granted_by: "Owner" | "PM (delegated)"
+#   granted_at: "<real ISO 8601 UTC timestamp>"
+#   reason: "<real, explicit justification>"
+
+overrides: []
