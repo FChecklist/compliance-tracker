@@ -53,9 +53,32 @@ No real OCID-020/021 implementation begins here. Governing chain: `UMR-20260806-
       governing chain, the anchor-UMR disclosure, all 15 points' real current state, the
       recommended (non-binding) execution order, and the standing `task-gateway.py` gate note.
 
+- [x] Registered all 15 real `master_issue_tracker` rows via `superboss-register.py add-issue`,
+      all `rc=0`, all `linked_umr_id=UMR-20260808-151153-e172`, `linked_ocid=OCID-020` (P1-P5) /
+      `OCID-021` (P6-P15). Independently re-verified live against the real DB (not just trusting
+      the CLI's own stdout). Real `issue_id` -> `tracker_id`/`issue_number` map (identical for
+      every row -- table's autoincrement `tracker_id` and its own `issue_number` sequence
+      happened to align this run):
+
+      | issue_id | tracker_id | linked_ocid |
+      |---|---|---|
+      | OCID020021-COMBINED-P1 | 1083 | OCID-020 |
+      | OCID020021-COMBINED-P2 | 1084 | OCID-020 |
+      | OCID020021-COMBINED-P3 | 1085 | OCID-020 |
+      | OCID020021-COMBINED-P4 | 1086 | OCID-020 |
+      | OCID020021-COMBINED-P5 | 1087 | OCID-020 |
+      | OCID020021-COMBINED-P6 | 1088 | OCID-021 |
+      | OCID020021-COMBINED-P7 | 1089 | OCID-021 |
+      | OCID020021-COMBINED-P8 | 1090 | OCID-021 |
+      | OCID020021-COMBINED-P9 | 1091 | OCID-021 |
+      | OCID020021-COMBINED-P10 | 1092 | OCID-021 |
+      | OCID020021-COMBINED-P11 | 1093 | OCID-021 |
+      | OCID020021-COMBINED-P12 | 1094 | OCID-021 |
+      | OCID020021-COMBINED-P13 | 1095 | OCID-021 |
+      | OCID020021-COMBINED-P14 | 1096 | OCID-021 |
+      | OCID020021-COMBINED-P15 | 1097 | OCID-021 |
+
 ## Remaining
-- [ ] Register all 15 real `master_issue_tracker` rows via `superboss-register.py add-issue`
-- [ ] Confirm all 15 inserts succeeded (query back from live DB), record tracker_id map
 - [ ] `agent_work_briefing.py record-completion` call
 - [ ] Commit + push, open PR
 
