@@ -5857,6 +5857,48 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260808-151224-register--not-execute--combined-priority) -- OCID-020 + OCID-021 combined completion, closed together: registration-only, 15 real master_issue_tracker rows [DONE, docs + DB rows only, zero implementation]"
+    claimed_at: "2026-08-08T15:12Z (this session, closed same session)"
+    claim: |
+      SPEC (governing chain: `UMR-20260806-171945-5767` priority 1, OCID-020 canonical
+      `UMR-20260802-165606-4413`, OCID-021 canonical `UMR-20260802-173631-ca85`):
+      registration-only -- create one real combined-closure tracking anchor for "OCID-020 +
+      OCID-021 combined completion, closed together" and register exactly 15 real
+      `master_issue_tracker` rows (5 OCID-020 points, 10 OCID-021 points) under it, reusing
+      already-live compliance data, no re-audit, no implementation.
+
+      Verified priority 1 genuinely complete first (`status=completed`,
+      `ts_completed=2026-08-08T11:28:32Z`) before proceeding. Queried real live data for both
+      canonical UMRs from the real live DB (`ai-os/memory/superboss-register.sqlite` -- the two
+      DB paths the script's own resolver prefers, `ai-os/superboss-register.sqlite` and
+      `scripts/superboss-register.sqlite`, are both 0-byte stale copies): OCID-020
+      `is_fully_complete=0`, OCID-021 `is_fully_complete=0`, `ocid_compliance_state` for OCID-021
+      shows all 7 rules unmet, `file_existing=0`, `file_work_implemented=0`, `audit_passed=0`
+      (stale 2026-08-05 audit, as the SPEC itself flags). Live re-checked PR #732 (open, BEHIND)
+      and PR #988 (open, BLOCKED) via `gh pr view` -- read-only, confirms SPEC's own cited facts,
+      not a new audit.
+
+      Did **not** self-mint a brand-new `umr_tasks` row via `resource_governor.py --submit`:
+      per this repo's own established precedent (`ai-os/OCID_056_REGISTRATION_2026-08-04.md`
+      OCID-056, OCID-061 PR #911, OCID-062), that call is a real write into the shared dispatch
+      queue drained by a real `veridian-governor-tick.service`, and its only two accepted
+      `task_kind` values either spawn a real AI worker (forbidden by this SPEC) or execute a real
+      `systemctl` action against a real unit (a genuine infra side effect, not "minimal
+      registration"). Used this dispatch's own real, pre-existing, already-terminal
+      `UMR-20260808-151153-e172` as the anchor instead. Full reasoning:
+      `ai-os/OCID_020_021_COMBINED_CLOSURE_REGISTRATION_2026-08-08.md`.
+
+      Registered all 15 rows via `superboss-register.py add-issue` (the one real, sanctioned,
+      permanent mechanism for this) -- no direct SQL write, no duplicate `issue_id`s (checked
+      live first). Zero code/implementation changes; zero OCID-020/021 substantive work
+      performed or claimed.
+    scope_note: >-
+      File scope: `PROGRESS.md`,
+      `ai-os/OCID_020_021_COMBINED_CLOSURE_REGISTRATION_2026-08-08.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), 15 new real `master_issue_tracker` rows
+      (`OCID020021-COMBINED-P1`..`P15`) via the sanctioned `add-issue` CLI. No `src/`, schema,
+      script, or infrastructure changes; no `resource_governor.py --submit` call; no
+      `task-gateway.py` invocation (execution has not begun).
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
