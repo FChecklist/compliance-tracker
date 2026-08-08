@@ -1,16 +1,31 @@
-# PROGRESS -- task-20260803-085546-register-ocid-041-universal-external-exe
-
+# PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
 ## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/CONSTITUTION.yaml` (SEC-07), `ai-os/MASTER-TRACKER.yaml` per protocol
-- [x] Discovered OCID-041's real UMR (`UMR-20260803-084109-6875`) was already registered on `main` (commit `8cdbe5ea`/PR #793) ~17 min before this task dispatched -- registration only, no substantive discovery yet, per that amendment's own text
-- [x] Registered ACTIVE-CLAIMS.yaml entry for this task, committed+pushed before starting real work
-- [x] Independently re-confirmed OCID-020 (`UMR-20260802-165606-4413`) still open (SEC-07 lock applies unchanged)
-- [x] Real read-only discovery pass (Explore agent) over worker dispatch, UMR/UTM generator, review/audit pipeline, model/provider routing, guardrail manifest, and PR/commit/merge/lock traceability -- file:line cited
-- [x] Wrote canonical discovery artifact `ai-os/VERIDIAN_UNIVERSAL_EXTERNAL_EXECUTION_FOUNDATION_2026-08-03.md`: 28-requirement inventory (R1-R28), requirement->component mapping, 5 honest named gaps (GAP-041-1 through GAP-041-5)
-- [x] Registered artifact in `ai-os/OS.yaml` index
-- [x] Amended `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` with this cycle's real deliverable
-- [x] Verified `scripts/check-guardrail-presence.mjs` passes (88 markers present)
-
-## Remaining
-- [ ] Commit + push this cycle's work, open PR
-- [ ] OCID-041 stays discovery-only, not marked complete -- real implementation requires OCID-020 clearing, then OCID-038 -> OCID-039 -> OCID-040 in order, then a fresh explicit Owner override in chat (per SEC-07 and this task's own SPEC)
+- [x] Re-verified the SPEC's premise (UMR-20260804-073906-3dd0, OCID-064: "closed as fold-in
+      duplicate of OCID-062, but its own real closure PR (#881 or #882) is still open and
+      unmerged") against live GitHub state rather than trusting it as-is.
+- [x] Found the premise stale: both PR #881 and PR #882 were already `CLOSED` (not merged) by a
+      separate prior session earlier the same day (#881 at 09:35:12Z, #882 at 10:13:50Z), several
+      hours before this task was dispatched.
+- [x] Read both PRs' full closing-comment threads (`gh api .../issues/{881,882}/comments`, not the
+      truncated `gh pr view` text) and independently confirmed their conclusion is correct: the
+      real OCID-064 fold-in (a §3.8 "Ollama" section) was already merged to `main` a day earlier as
+      part of PR #876 (OCID-062's own document, merged 2026-08-04T08:11:15Z, commit `76e3682b`).
+      Confirmed directly on `main`: `ai-os/VERIDIAN_OCID_062_SERVER_AUTHORITY_AND_MINI_VERIDIAN_EXECUTION_ARCHITECTURE_2026-08-04.md`
+      §3.8 opens "Real, targeted addition — closes OCID-064 (`UMR-20260804-072532-a02d`,
+      `UMR-20260804-073906-3dd0`)" -- citing this exact UMR.
+- [x] Conclusion: neither PR #881 (superseded comparison-only checkpoint) nor PR #882 (duplicate
+      re-derivation under a different UMR, staged for insertion into a doc that had already
+      received the equivalent section) is the "real correct PR to merge." Merging either would put
+      stale/duplicate content on `main`. Left both exactly as the prior session left them (`CLOSED`,
+      unmerged) -- did not reopen or merge either.
+- [x] Closed the one honest gap the prior session's own closing comment flagged as open: no
+      `ACTIVE-CLAIMS.yaml`/`MASTER-TRACKER.yaml`/`OS.yaml` tracker entry recorded this closure.
+      Independently confirmed that gap still existed (`git grep -n "OCID-064"` against all three on
+      current `main`: zero hits). Added a `recently_completed` entry to `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      recording the real outcome, reusing this task's own UMR (`UMR-20260804-073906-3dd0`) per the
+      SPEC's explicit instruction -- no new UMR minted.
+- [x] Validated `ai-os/boss/ACTIVE-CLAIMS.yaml` still parses as YAML after the edit.
+- [x] Opened PR #960, posted an independent 8-field `AUDIT: PASS` verdict re-verifying every
+      load-bearing claim in the PR against live GitHub/git state, and pushed an empty synchronize
+      commit afterward (known `audit-check` issue-comment-vs-head-SHA gap in this repo -- the check
+... more files changed
