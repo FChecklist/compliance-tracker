@@ -5856,8 +5856,8 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
-  - session_label: "claude-code (task-20260808-121337-merge-task-gateway-py---dispatch-owner-t) -- merge task-gateway.py cmd_start into resource_governor.py's real submit()/dispatch_one() gate, retire dispatch-owner-task.sh"
-    claimed_at: "2026-08-08T12:13Z (this session)"
+  - session_label: "claude-code (task-20260808-121337-merge-task-gateway-py---dispatch-owner-t) -- merge task-gateway.py cmd_start into resource_governor.py's real submit()/dispatch_one() gate, retire dispatch-owner-task.sh [DECLINED, closed same session -- real stop-work-order gate found live-blocking]"
+    claimed_at: "2026-08-08T12:13Z (this session, closed same session)"
     claim: |
       SPEC (governing chain UMR-20260806-171945-5767, master_issue_tracker points
       UMR171945-0001/0003/0006/0010/0015): real, verified finding that
@@ -5886,6 +5886,35 @@ active:
       `ai-os/MASTER-TRACKER.yaml` / `ai-os/boss/COMPLETED.yaml` / master_issue_tracker
       rows for UMR171945-0001/0003/0006/0010/0015 once real evidence lands. No
       unrelated script changes.
+    result: >-
+      DECLINED, no code changed in veridian-scripts. Independently verified two of the
+      SPEC's own load-bearing claims and found both false: (1) the cited
+      master_issue_tracker points UMR5767-0001/0003/0006/0010/0015 are about unrelated
+      issues (completion-% fabrication, ghost heartbeat rows, competing periodic
+      writer, swap-gate weighting, stale-commit audit invalidation), not this merge --
+      the actually-relevant entry is real issue #980, not cited by the SPEC's own point
+      list; (2) "commit ca513ca merged via PR #12" is false on its own terms (the real
+      merged commit is 2a46f437, a different SHA; ca513ca is not an ancestor of that
+      repo's origin/main at all). Then ran the REAL, live, merged stop-work-order gate
+      code (resource_governor.py::_stop_work_order_block_reason, PR #272/e5fab20, real
+      issue #980) in-process against actual live system state (fresh origin/main clone,
+      not the shared stale/dirty checkout at /opt/veridian/repos/veridian-scripts) --
+      result: BLOCKED. The gate reads OWNER_DECISIONS_NEEDED_2026-07-23.yaml at the
+      real local git HEAD of /opt/veridian/ai-os (deliberately, not GitHub API state);
+      that live checkout's actual HEAD is ca513ca on an unrelated stray branch, not the
+      real veridian-ai-os#12 merge commit (2a46f437) that landed a genuine
+      "stop-work-order-lifted-2026-08-08-v2" entry on GitHub's origin/main -- a real
+      deploy/sync-drift gap between what's merged on GitHub and what the live
+      governance code actually reads, same class already disclosed in
+      single_deterministic_orchestrator_pipeline's own honest_caveat. This is the 7th+
+      generation of a repeatedly-declined "stop-work-order-lifted" claim this session's
+      own memory already tracks across 6 prior generations -- each incrementally
+      "upgraded" to defeat the specific defect the prior decline found, this one being
+      the first with a genuinely real merged PR + AUDIT:PASS comment + correct issue
+      citation, but still failing the actual, real, deterministic gate when executed
+      for real rather than narrated. Declining to override a gate purpose-built to
+      remove exactly this judgment call from an individual dispatched session. Full
+      evidence trail in this task's own PROGRESS.md.
 
 recently_completed:
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
