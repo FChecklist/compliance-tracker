@@ -1015,10 +1015,13 @@ projexa-ai.com for it, real screenshot + honest result. Discovery/testing only, 
 - [x] Dispatched real sub-agent task-20260808-193406 via `task-gateway.py submit`+`start` (instruction INS-20260808-193332-616d, work item WRK-20260808-193412-d462) for OCID-065 -- land PR #884 (was MERGEABLE/BEHIND, no real conflict). Real cap check confirmed 5/5 active immediately after -- no further dispatch until a slot frees.
 - [x] OCID-042: sibling's sub-agent (task-20260808-184122) exited, freeing a real slot; independently verified PR #800 live MERGED (mergedAt=2026-08-08T19:36:26Z) and closed OCID-042-CONSOLIDATION-LINK via update-issue/close-issue (verify-only, zero self-certification).
 - [x] Dispatched real sub-agent task-20260808-193725 via `task-gateway.py submit`+`start` (instruction INS-20260808-193702-456e, work item WRK-20260808-193731-6403) for OCID-056 -- resolve conflict + land PR #870 (CONFLICTING, likely PROGRESS.md collision).
+- [x] Called `agent_work_briefing.py record-completion` for UMR-20260808-183732-d3a3 with this cycle's honest real-progress summary (not marked terminal -- real work still in flight).
 
 ### Remaining
-- [ ] OCID-065: monitor task-20260808-193406, independently verify PR #884's final state before closing the tracker row.
-- [ ] OCID-056: monitor task-20260808-193725, independently verify PR #870's final state before closing the tracker row.
+- [ ] OCID-065: sub-agent task-20260808-193406 still `in_progress` as of 2026-08-08T19:40Z (PR #884 still OPEN, not yet merged) -- independently verify PR #884's final state before closing the tracker row.
+- [ ] OCID-056: sub-agent task-20260808-193725 still `in_progress` as of 2026-08-08T19:40Z (PR #870 still OPEN, not yet merged) -- independently verify PR #870's final state before closing the tracker row.
+- [ ] OCID-059 (real blockers PR #873 AND #908, both CONFLICTING) and OCID-061 (real blocker PR #878, CONFLICTING): prompt files prepared (/tmp/ocid059-prompt.md, /tmp/ocid061-prompt.md) but not yet dispatched -- real cap was 5/5 at end of this cycle. Dispatch as soon as a real slot frees (`systemctl --user list-units veridian-worker@* --state=active` < 5).
+- [ ] Re-check OCID-041 (PR #799, audit-check FAIL), OCID-043 (PR #797, "8/8 required checks expected" merge error -- known audit-comment-SHA-attach bug), OCID-044 (PR #798, CONFLICTING as of last check), OCID-046 (PR #801, was BEHIND/checks in progress) -- all being handled by the sibling session (UMR-20260808-183926-70b6 / task-20260808-192230), re-verify and close independently once their PRs show MERGED, do not re-dispatch duplicate sub-agents for these.
 - [ ] OCID-059 (real blockers PR #873 AND #908, both CONFLICTING): dispatch real sub-agent once a slot frees.
 - [ ] OCID-061 (real blocker PR #878, CONFLICTING): dispatch real sub-agent once a slot frees.
 - [ ] OCID-041 (PR #799, audit-check FAIL): re-verify once sibling session resolves.
