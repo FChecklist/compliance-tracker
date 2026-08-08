@@ -40,6 +40,15 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260808-214926-audit-umr171945-0003-0005-0007-real-stat) -- TASK 1: re-audit UMR171945-0003/0005/0007 (master_issue_tracker, linked_umr_id=UMR-20260806-171945-5767) now that UMR171945-0006 (task-gateway.py routing) is merged; live end-to-end trace of dispatch-owner-task.sh. TASK 2: BLK04 -- check/merge UMR-20260807-035145-aa45's real PR (stuck since 2026-08-07)"
+    claimed_at: "2026-08-08T22:30Z"
+    claim: |
+      SPEC (prompt.txt, invocation 2/20, resumed -- PROGRESS.md/task.yaml showed 0 completed_steps
+      at resume, treating as a genuine fresh start not a stale resume). File scope: master_issue_tracker
+      DB rows UMR171945-0003/0005/0007/BLK04 (status/evidence updates only), close-issue calls for
+      any row found genuinely resolved, PR aa45 merge or rebase-and-merge, PROGRESS.md, this
+      ACTIVE-CLAIMS entry. No src/ code changes planned unless TASK 2's merge conflict resolution
+      requires them (in which case: preserve both PRs' real intent per SPEC instruction).
   - session_label: "claude-code (UMR-20260806-132527-30dc, child UMR-20260806-133845-32eb) -- real OCID-020 category 23 (UX audit) fail-root-cause + minimal fix, targeting the 4 real severity>=3 heuristics (H2/H4/H9/H10) from the 2026-08-06T10:31:26Z evidence"
     claimed_at: "2026-08-06T13:45Z"
     claim: |
