@@ -40,10 +40,17 @@ implementation work begins from this task.
       is the mandatory single gate for every future task, no exceptions, per Owner
       instruction 2026-08-08), and honest limitations.
 
-## Remaining
-- [ ] Commit + push this documentation.
-- [ ] Record completion via agent_work_briefing.py record-completion for
+- [x] Committed + pushed (2 commits: docs+registration, then ACTIVE-CLAIMS entry). Opened
+      PR #1063 (compliance-tracker) against main. CI running at task end (mergeStateStatus
+      BLOCKED pending checks -- not force-merged; this repo has a known standing
+      branch-protection/single-reviewer-identity constraint on `main`, see this session's own
+      memory notes, so merge may require the Owner or a later cycle regardless of CI outcome).
+- [x] Recorded completion via agent_work_briefing.py record-completion for
       UMR-20260808-150432-83dc.
+
+## Remaining
+- [ ] Merge PR #1063 once CI is green (subject to this repo's standing branch-protection
+      constraint on `main` -- not something this session can force).
 - [ ] (Future, NOT this task) once priorities 1-3 are genuinely evidence-verified complete:
       run each of the 45 OCIDs through task-gateway.py's real submit/start pipeline, capture
       output into UMR-20260808-150937-43d0's metadata, build the real implementation plan
