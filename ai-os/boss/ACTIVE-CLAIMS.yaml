@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260808-145709-build-task-gateway-py-audit-24-points) -- build task-gateway.py audit-24-points subcommand (12 real boolean checks, points 2/4/8/9/12/14/16/17/19/20/22/23) + persistence into master_issue_tracker (UMR171945-0001..0024)"
+    claimed_at: "2026-08-08T15:00Z"
+    claim: |
+      SPEC (governing chain UMR-20260806-171945-5767, re-dispatch UMR-20260808-145030-f3d1,
+      prerequisite UMR-20260808-121334-e122 independently re-verified merged: veridian-scripts
+      PR #278, commit bc14a21, merge 5537b6d on origin/main, local HEAD==origin/main clean).
+      Real file scope in /opt/veridian/scripts (separate live-checkout repo, NOT this repo):
+      task-gateway.py (new audit-24-points subcommand + its own test file), resource_governor.py
+      (porting _record_master_issue_if_new from the unmerged feat/master-issue-tracker-add-issue-cli
+      branch per Point 19 -- finishing that real work, not rebuilding), resource_governor_tick_loop.sh
+      (Point 16 wiring), superboss-register.py (landing the already-uncommitted --linked-umr-id
+      list-issues filter found live in the working tree at dispatch time, matches
+      feat/audit24-master-issue-tracker-linked-umr-id branch WIP). Found and will avoid duplicating:
+      addendum UMR-20260808-123107-875a already completed the persistence-test half (compliance-tracker
+      PR #1062, open) -- this task builds the actual subcommand that test proves the pattern for.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
