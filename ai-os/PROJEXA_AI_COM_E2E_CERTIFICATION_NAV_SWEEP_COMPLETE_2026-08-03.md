@@ -85,6 +85,20 @@ was written to avoid. Recorded as `GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`
 recommendation to re-test these 3 specific routes in isolation under low host load before treating them
 as confirmed, rather than re-running the full 115-item sweep again.
 
+**UPDATE (2026-08-03, `UMR-20260803-101058-1d10`): RESOLVED, confirmed a test-methodology artifact, not
+a real product defect.** Real isolated re-test performed, one route at a time. First attempt (still
+under real, elevated host load, `~9.8-9.9`, honestly not fully load-controlled) reproduced the identical
+timeout on all 3 with a longer 30s window, initially raising rather than lowering suspicion. A second,
+targeted follow-up switched `waitUntil` from `networkidle` to `load` — **all 3 resolved instantly
+(~1 second each), real `200` status, correct final URL, real content confirmed present.** This proves
+`networkidle` (0 network connections for 500ms) never fires on these 3 pages because something on each
+keeps a connection open indefinitely — plausibly VERI Chat's live-update panel (visible mid-load with a
+spinner in the screenshots taken during the failed `networkidle` attempts) — a normal, benign pattern,
+not a hung page. `networkidle` is documented as unsuitable for pages with legitimate persistent
+connections; this was the test's own methodology limitation, not the product's. See
+`GAP-NAV-TIMEOUT-ORCHESTRA-PROMPTEVAL-SALESHQ`'s `resolution_note` in `ai-os/MASTER-TRACKER.yaml` for
+full detail. No code fix needed or appropriate.
+
 ### Reconfirmed, not new: `GAP-ERP-CRM-403-NO-UX-EXPLANATION`
 
 The 403 pattern itself (31 pages, 187 real `403` responses) is the same already-registered gap at a
