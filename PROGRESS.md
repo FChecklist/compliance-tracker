@@ -1,90 +1,105 @@
-# PROGRESS -- task-20260807-153612-gtm-cat13-ai-testing-scenario-2--ai-gene
-## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance chain; checked ai-os/boss/ACTIVE-CLAIMS.yaml for this task's scope terms (no conflicting active claim found)
-- [x] Checked real route table for an "invoice reconciliation" surface -- none exists under that literal name; identified nearest real equivalent: GST Verification & Reconciliation Engine's purchase-invoice <-> GSTR-2B invoice matcher (`src/lib/gst/reconciliation-engine.ts`, exercised by `POST /api/gst-reconciliation/reconcile` -> `runReconciliation()` in `src/lib/services/gst-reconciliation-service.ts`)
-- [x] Confirmed no prior test file existed for this engine (`git ls-files | grep reconciliation-engine` -- only the source file, no `.test.ts`) -- genuine new coverage, not duplicate work
-- [x] Generated 10 real, bounded test cases covering the engine's main real user-facing behaviors: exact match, mismatch w/ delta, tolerance boundary, probable/fuzzy match, invoice-number normalization, missing-in-2B, missing-in-books, duplicate-consumption dedup, aggregate summary, cross-GSTIN isolation
-- [x] `bun install` (node_modules was not present in this workspace) then REALLY EXECUTED via this repo's real test tooling: `bun test src/lib/gst/reconciliation-engine.test.ts` (same `bun test` CI runs at `.github/workflows/ci.yml:53`)
-- [x] Found + fixed one real self-inflicted test bug (TC9 fixture data unintentionally triggered the engine's fuzzy-match fallback between two invoices meant to be independent) -- confirms the engine's fuzzy-match logic is working correctly, not an engine bug
-- [x] Final real result: **10/10 pass**, 25 `expect()` calls, 0 fail
-- [x] Wrote findings to this task's `result.json` (task_dir root, alongside task.yaml)
-- [x] Committed + pushed test file, PROGRESS.md
-- [x] Opened PR #1051; CI went red on Terminology Guardrail Check (5 new findings -- 2 fake GSTIN test
-      constants, 3 fixture invoiceDate literals in the new test file). Verified genuine test-fixture
-      data (same class as this repo's other exempted `*.test.ts` files); added the exemption entry to
-      `ai-os/registry/terminology-guardrail-exemptions.yaml` (via the OCID-020/021 coordinating task),
-      re-ran guardrail check + `bun test` clean (both pass, 10/10 unchanged), posted `AUDIT: PASS`.
-- [x] Merged `origin/main` into this branch (resolved a `PROGRESS.md` history-append conflict per this
-      repo's own established convention -- own section kept at top, `main`'s full prior sections
-      preserved below unchanged) to clear a real `mergeStateStatus: DIRTY` blocker ahead of merge.
+# PROGRESS -- task-20260809-012652-ocid-020--fix-real-remaining-gtm-categor
 
-## Remaining
-- [ ] Merge once CI is green post-merge-commit; record completion via `agent_work_briefing.py record-completion`.
-
----
-
-# PROGRESS -- task-20260803-085550-register-ocid-042-universal-context-pack
+Governing chain: OCID-020 (UMR-20260802-165606-4413), UMR-20260806-124812-93f8 /
+UMR-20260806-142729-ed21 (category 17), UMR-20260806-133845-32eb (category 23).
+This task's own UMR: UMR-20260809-011903-335e.
 
 ## Completed
-- [x] Read governance docs (ACTIVE-CLAIMS.yaml, CONSTITUTION.yaml SEC-07, OS.yaml, IMPLEMENTATION_MATRIX)
-- [x] Verified no other session/PR is currently working OCID-041/042 (no ACTIVE-CLAIMS entry, no open PR)
-- [x] Confirmed real dispatch UMR `UMR-20260803-084332-5b52` via direct query against `umr_tasks`
-- [x] Real codebase discovery: context-assembly/AssembledContext, MotherRouterContext, chat-service
-      history, mode-pill/chain selection, task/report/document content sources, the ~24-callsite
-      ad hoc provider-payload construction finding (llm-client.ts central dispatcher), browser
-      (webllm-engine.ts) and worker-runtime (worker-entrypoint.sh) independent paths, confirmed
-      no existing ContextPackage-style abstraction
-- [x] Wrote canonical artifact `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md`
-- [x] Amended `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` with OCID-042 discovery amendment
-- [x] Registered new doc in `ai-os/OS.yaml`
-- [x] Registered ACTIVE-CLAIMS.yaml entry (recently_completed, closed same session)
-- [x] Committed and pushed; opened PR
+- [x] Read ai-os/boss/ACTIVE-CLAIMS.yaml (this task's own worktree copy) -- no
+      conflicting active claim found for category 17/23 or this task id; the
+      one 2026-08-06 category-23 claim (H2/H4/H9/H10) is >4h stale and its
+      work already merged (PR #987).
+- [x] Category 17 (browser compatibility) re-evaluated fresh, as instructed:
+  - [x] Confirmed real, live state: chromium + firefox load the real page
+        (`https://projexa-ai.com/login`); webkit does not (2/3 engines).
+  - [x] Root-caused webkit's failure precisely at the source level (not
+        inference): read playwright-core's own bundled
+        `dependencies.ts`/`registry.ts` (via coreBundle.js) and confirmed
+        webkit's `dlOpenLibraries` check (`libGLESv2.so.2`, `libx264.so`) is
+        validated via `/sbin/ldconfig -p` (absolute path, system-wide
+        `/etc/ld.so.cache`, no `LD_LIBRARY_PATH` override) -- fundamentally
+        different from the `ldd`-based check used for directly-linked deps
+        (e.g. `libwoff1`, which a prior session in this same UMR *did*
+        successfully vendor+resolve this way).
+  - [x] Confirmed live: `/sbin/ldconfig -p | grep -iE "libGLESv2|libx264"` ->
+        zero matches; `dpkg -l libgles2 gstreamer1.0-libav` -> neither
+        installed (candidates exist in the apt mirror); `sudo -n true` ->
+        "a password is required" (root genuinely unavailable this session).
+  - [x] Conclusion: genuine, exact, root-only blocker. No non-root vendoring
+        strategy can satisfy this check regardless of effort spent, because
+        the check never dlopens/ldd's the vendored files -- it only reads
+        the static system cache. Exact real fix: `sudo apt-get install
+        libgles2 gstreamer1.0-libav`.
+  - [x] Updated `/opt/veridian/scripts/gtm_check_browser_compatibility.py`'s
+        docstring with this precise, source-cited root cause (superseding a
+        prior version's less precise "ffmpeg dependency tree too large"
+        framing -- same correct bottom-line judgment, better evidence) and
+        corrected the "blocked" framing to "fail" (all 3 engine binaries are
+        now genuinely present and tested, so absence-based `blocked` no
+        longer applies -- 2/3 pass is a real, evidenced `fail`).
+  - [x] Re-ran the real check script; result recorded live via
+        `gtm_write_category_result.py`: category_index=17, result=fail,
+        passed=0 (unchanged from before -- correctly NOT marked passed=1,
+        since 3/3 genuinely does not pass and root is genuinely unavailable).
+  - [x] Committed + pushed directly to `veridian-scripts` main (own repo,
+        no branch protection, matches this repo's own established direct
+        docs-commit precedent) -- commit b9acbc4.
+- [x] Category 23 (UX audit) -- read current live evidence in full
+      (`gtm_certification_categories` row 23, `checked_at`
+      2026-08-08T21:37:48Z): 4 real severity-3 heuristic failures across 5
+      pre-auth pages (H2 Match w/ real world, H4 Consistency & standards,
+      H6 Recognition rather than recall, H10 Help & documentation).
+  - [x] H6 (severity 3, clearest single mechanical violation): `/contact`
+        form's 4 fields (`ContactUsForm.tsx`, shared with `/join-us`) render
+        `<label>` text with **no `htmlFor`/`id` pairing** -- purely visual,
+        no real accessible-name association, so it disappears from
+        assistive tech exactly as the audit describes. Real, safe, scoped
+        fix applied: `id`+`htmlFor` on every field, plus `autoComplete`
+        values matching `/login`/`/signup`'s own already-established
+        convention (name/email/tel) -- closes H6's primary finding and
+        contributes to H4's third sub-finding and H7's autofill-consistency
+        sub-finding. Zero new TS errors introduced (`bunx tsc --noEmit`
+        diffed clean against pre-change baseline, 152 pre-existing errors
+        unchanged both sides).
+  - [x] H2 (title/brand switches to "PROJEXA" only on `/login`, nowhere
+        else in the funnel), H4's primary finding (`/pricing` vs `/contact`
+        showing an entirely different brand name *and* nav structure), and
+        H10 (`/help` redirects unauthenticated visitors to `/login` instead
+        of showing pre-auth content) were investigated and NOT force-fixed:
+        - H2/H4-brand: `/login`'s PROJEXA resolution
+          (`resolvePreAuthBrandByHost`) is a deliberate, Owner-directed,
+          page-scoped Stage-1 rollout (OCID-038, quoted Owner decision in
+          `org-branding-service.ts`). Extending it to `/signup`/`/pricing`/
+          `/contact` would mean rewriting hardcoded brand strings across
+          several files' real marketing copy (footer, FAQ content
+          referencing "VERIDIAN AI" by name, CTA text) -- a content/design
+          scope beyond a mechanical swap, and `/contact`'s nav
+          ("Research/Products/On cost/Join Us") vs the rest of the funnel's
+          nav ("Log in/Get Started") reflects what looks like a genuinely
+          different, never-unified marketing template, not a bug to
+          mechanically patch.
+        - H10: `/help` lives under `src/app/(app)/help/page.tsx` -- inside
+          the auth-gated route group by design (same gate every other
+          authenticated page uses). Making it public pre-auth is a real
+          access-control/product decision (what content is safe to expose
+          unauthenticated, and whether a separate public help surface
+          should exist), not a mechanical fix.
+  - [x] Real re-run not yet possible in this session: the live audit probes
+        `https://projexa-ai.com` (production), so the H6 fix only reflects
+        in fresh evidence once merged + deployed (see Remaining).
 
 ## Remaining
-- [ ] None for this cycle -- OCID-042 stays discovery-only per SEC-07 and OCID-041's own not-yet-existing
-      foundation. Real implementation requires OCID-041 to actually land, OCID-020 to independently
-      clear, and OCID-038/039/040 to complete in order, or a fresh explicit Owner override in chat.
-
----
-
-# PROGRESS -- task-20260803-085920-register-ocid-045-discovery-only--declin
-## Completed
-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/CONSTITUTION.yaml` (SEC-07), `ai-os/MASTER-TRACKER.yaml`
-- [x] Gatekeeper check: found this exact SPEC's substantive content (OCID-045 registered discovery-only,
-      certification explicitly DECLINED) already committed in `8cdbe5ea`, ~11 min before this task's
-      own dispatch -- confirmed not undone work, did not duplicate
-- [x] Independently re-verified current state, no drift found:
-      - zero open PRs reference OCID-041 through OCID-045 (`gh pr list`)
-      - OCID-041/OCID-043 discovery now actively in flight on separate unmerged sibling worker
-        branches (`5af793dc`, `a38d9ebb`) -- still discovery-only, no merged PR
-      - OCID-020 (`UMR-20260802-165606-4413`) has NOT cleared -- latest nav sweep (`1bc85b36`, PR #794)
-        found 3 NEW real gaps while completing 115/115 coverage
-      - SEC-07 in `ai-os/CONSTITUTION.yaml` (current HEAD) unchanged, `status: ENFORCED`, same real
-        unlock sequence (OCID-020 -> OCID-038 -> OCID-039 -> OCID-040)
-      - OCID-038/039/040 confirmed still locked per sibling unmerged branch `8a7bb2f1`
-- [x] Appended re-verification amendment to `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (existing
-      canonical artifact) -- no new document, no `CONSTITUTION.yaml` change, no completion claim
-- [x] Registered + closed ACTIVE-CLAIMS entry for this task
-## Remaining
-- [ ] None -- decline stands, no drift found. Real unlock sequence unchanged: OCID-020 must clear,
-      then OCID-038, then OCID-039, then OCID-040, then a fresh explicit Owner override in chat, before
-      OCID-041 through OCID-045 may move from discovery to real implementation/certification.
-snip: tracking error: track: database is locked (5) (SQLITE_BUSY)
-
----
-
-# PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
-
-## Completed
-- [x] Read AGENTS.md/CLAUDE.md governance chain; checked ai-os/boss/ACTIVE-CLAIMS.yaml for this task's scope terms (no conflicting active claim found)
-- [x] Checked real route table for an "invoice reconciliation" surface -- none exists under that literal name; identified nearest real equivalent: GST Verification & Reconciliation Engine's purchase-invoice <-> GSTR-2B invoice matcher (`src/lib/gst/reconciliation-engine.ts`, exercised by `POST /api/gst-reconciliation/reconcile` -> `runReconciliation()` in `src/lib/services/gst-reconciliation-service.ts`)
-- [x] Confirmed no prior test file existed for this engine (`git ls-files | grep reconciliation-engine` -- only the source file, no `.test.ts`) -- genuine new coverage, not duplicate work
-- [x] Generated 10 real, bounded test cases covering the engine's main real user-facing behaviors: exact match, mismatch w/ delta, tolerance boundary, probable/fuzzy match, invoice-number normalization, missing-in-2B, missing-in-books, duplicate-consumption dedup, aggregate summary, cross-GSTIN isolation
-- [x] `bun install` (node_modules was not present in this workspace) then REALLY EXECUTED via this repo's real test tooling: `bun test src/lib/gst/reconciliation-engine.test.ts` (same `bun test` CI runs at `.github/workflows/ci.yml:53`)
-- [x] Found + fixed one real self-inflicted test bug (TC9 fixture data unintentionally triggered the engine's fuzzy-match fallback between two invoices meant to be independent) -- confirms the engine's fuzzy-match logic is working correctly, not an engine bug
-- [x] Final real result: **10/10 pass**, 25 `expect()` calls, 0 fail
-- [x] Wrote findings to this task's `result.json` (task_dir root, alongside task.yaml)
-- [x] Committed + pushed test file, PROGRESS.md
-
-## Remaining
-- [ ] Open PR (branch protection on `main` requires PR + green CI per AGENTS.md Rule 6) and record completion via `agent_work_briefing.py record-completion`
+- [ ] Commit `ContactUsForm.tsx`, push, open PR, let CI run, merge (no
+      blocking review configured -- `required_approving_review_count: 0`).
+- [ ] Once merged/deployed, re-run the real category-23 UX audit check
+      script against production and confirm H6 no longer fails; update
+      `gtm_certification_categories` row 23 with the fresh real evidence.
+      passed=1 only if the AI-assisted pass finds zero severity>=3 findings
+      across all 10 heuristics for real -- H2/H4-brand/H10 will very likely
+      still fail (honest, product-decision blockers, not mechanical), so
+      category 23 will most likely stay a real, evidenced fail this cycle,
+      not pass.
+- [ ] Call `agent_work_briefing.py record-completion` for
+      UMR-20260809-011903-335e with the real summary once the PR is up.
+- [ ] Category 17 stays a real `fail` (2/3 engines) -- no further action
+      possible without root; already reported honestly, not deferred.
