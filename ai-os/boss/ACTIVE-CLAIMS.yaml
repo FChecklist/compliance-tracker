@@ -10551,3 +10551,26 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260813-143203-rca--umr-20260813-091825-7ad8-killed) -- RCA-of-RCA, continuing real remaining scope [IN PROGRESS]"
+    claimed_at: "2026-08-13 (this session)"
+    claim: >-
+      SPEC (PM-sentinel tick, governing UMR-20260813-091825-7ad8): real RCA for the killed
+      dispatch row UMR-20260813-091825-7ad8, itself an owner_dispatch_gateway dispatch that
+      spawned task-20260813-095616-rca--umr-20260808-183926-70b6-killed (an RCA of an earlier
+      killed UMR, UMR-20260808-183926-70b6). Real root cause found (own task.yaml/result.json/
+      PROGRESS.md read directly, not narrated): that worker did real, substantial work -- merged
+      PR 798 (OCID-044), and pushed real conflict-resolution commits to PRs 799/801/884 bringing
+      all three to MERGEABLE -- but then hit a build-lock-contended quality-gate failure; its
+      auto-fix retry was correctly declined by the credit accountant (redundant auto-fix loop
+      pattern), and the task went blocked with no live process. resource_governor.py then
+      mechanically killed the governing UMR-20260813-091825-7ad8 with the boilerplate reason
+      "no PR was ever opened, no real deliverable" -- accurate for that dispatch row's own final
+      state, but misleading about the real work produced downstream. Same anti-pattern as prior
+      RCA-of-RCA rows (UMR-f9a4, UMR-f13c). Continuing the real remaining scope here (not
+      redispatching a duplicate): PRs 799/801/884 all MERGEABLE/BEHIND with fully green CI as of
+      this session's live re-check -- merging each in turn, then marking both governing UMRs
+      terminal with honest evidence.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry, PROGRESS.md (this task's own). No src/ changes
+      introduced by this task -- only merging already-green sibling PRs and closing out UMR rows
+      with real evidence via superboss-register.py mark-umr-terminal.
