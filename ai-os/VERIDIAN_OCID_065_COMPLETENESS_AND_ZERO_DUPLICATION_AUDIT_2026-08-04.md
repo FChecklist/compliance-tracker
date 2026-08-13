@@ -37,7 +37,34 @@ was re-audited from scratch; both are cited directly per the PM's instruction.
 
 ---
 
-## 2. The real gap: OCID-061 has NOT produced a complete, merged canonical artifact
+## 2. CORRECTED 2026-08-13 (real independent audit, PR #884's merge-conflict
+resolution cycle, governing chain UMR-20260808-183926-70b6): the "truncated
+canonical artifact" claim below was FALSE -- an independent structured audit
+(`AUDIT: FAIL`, posted 2026-08-08T19:41:16Z on this PR) re-verified PR #878's
+real blob three independent ways (`git cat-file -s` = 8754 bytes, `git
+cat-file -p | wc -l` = 139 lines, and a raw GitHub download, byte-identical)
+and found a complete, real document with all 5 headed sections (mode pill/
+Chain Selector, free chat, speech-to-text, API/webhook, canonical intent
+object) plus a proper "## Next step" close -- not 31 lines, not ending in
+`... more files changed`, and covering all 4 intake surfaces, not 1. PR #878
+had exactly one commit touching this file (`b8e1074f7`, 2026-08-04T05:52:14Z)
+with no further commits before this section's original claim was written
+~3.5 hours later -- there is no scenario where it was truncated and later
+fixed; it was complete the whole time. This section's original text (below,
+preserved for the record rather than silently deleted) was itself a victim of
+this sandbox's own known `git show`/`git diff` output-truncation bug (see this
+repo's own incident history) -- ironically the exact failure mode it accused
+PR #878 of. Independently re-confirmed again this cycle (2026-08-13) via
+`git cat-file -s`/`-p` against `origin/worker/task-20260804-054220-register-
+ocid-061--universal-determinist`: still 8754 bytes / 139 lines, unchanged.
+The corresponding `GAP-OCID-061-CANONICAL-DOC-TRUNCATED-UNMERGED` entry in
+`ai-os/MASTER-TRACKER.yaml` and the `ai-os/OS.yaml` index note have been
+corrected in the same commit as this correction. PR #878 itself may still
+have real, separate issues (e.g. its own merge-conflict state against current
+`main`) -- out of scope for this correction, which addresses only the
+truncation claim.
+
+### Original (incorrect) text, preserved for the record:
 
 The PM's SPEC asked this to be verified honestly rather than silently built
 around. It is a real, confirmed gap, not narrated as done:
@@ -72,13 +99,12 @@ around. It is a real, confirmed gap, not narrated as done:
   no fresh discovery was re-run here to paper over it; the existing (if
   broken) work is cited as-is.
 
-**Recommendation, not authorized here:** a fresh, narrowly-scoped follow-up
+**Recommendation, not authorized here:** ~~a fresh, narrowly-scoped follow-up
 should (a) rewrite the canonical `.md` from the real content already proven
 correct in `MASTER-TRACKER.yaml`/`PROGRESS.md` on that same branch (no new
 discovery needed, just transcription), (b) resolve the branch's merge
-conflicts against current `main`, and (c) merge. This audit does not do that
-rewrite itself -- it is verification/gap-analysis only, per this OCID's own
-scope, and PR #878 belongs to a different session's active claim.
+conflicts against current `main`, and (c) merge.~~ Superseded by the
+correction above -- no rewrite is needed, the canonical doc was never broken.
 
 ---
 
@@ -167,8 +193,11 @@ across OCID-061 through OCID-064.
 
 ## 4. Deliverables summary (per the PM's explicit request)
 
-- **Gap analysis:** one real, confirmed gap -- OCID-061's canonical artifact
-  (PR #878) is truncated/incomplete and unmerged (§2). No other gap found in
+- **Gap analysis:** CORRECTED 2026-08-13 (see §2) -- the originally-claimed
+  gap ("OCID-061's canonical artifact (PR #878) is truncated/incomplete") was
+  independently re-verified and found FALSE; PR #878's canonical artifact is
+  complete (139 lines, all 4 intake surfaces). Zero real gaps found in this
+  audit's own scope after correction. No other gap found in
   OCID-062/063/064's own scope; their existing gaps (`GAP-MINI-VERIDIAN-CLIENT-EXECUTION-UNWIRED`,
   the voice/`OPENAI_API_KEY` and machine/no-generic-inbound-webhook findings
   in §3) are pre-existing, already-tracked, honestly-labeled gaps, not new
