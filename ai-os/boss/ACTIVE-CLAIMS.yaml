@@ -5914,6 +5914,29 @@ recently_completed:
       DB rows `OCID020021-P03`/`P04` (P04 `check_again_notes` field only,
       P03 untouched), one new `pm_decisions_pending` row (id=522). No other
       src/ changes.
+  - session_label: "claude-code (task-20260803-085553-register-ocid-043-universal-external-exe) -- OCID-043 Universal External Execution Runtime: real discovery-only inventory of existing worker/dispatch/sentinel/review/PR/merge/lock components an external-execution runtime would reuse, per SEC-07 gate [DONE, docs-only]"
+    claimed_at: "2026-08-03T09:00Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision): register OCID-043 (VERIDIAN Universal External Execution Runtime,
+      UMR-20260803-084429-7a70) under parent OCID-042 (UMR-20260803-084332-5b52), which is itself
+      discovery-only and depends on OCID-041 (UMR-20260803-084109-6875) which does not yet exist
+      as a completed result. Per ai-os/CONSTITUTION.yaml SEC-07, real implementation of worker
+      runtime, dispatch runtime, or CONSTITUTION.yaml stays locked until OCID-020
+      (UMR-20260802-165606-4413) independently clears, followed by OCID-038 -> OCID-039 -> OCID-040
+      in order. None of those have cleared. Authorized for discovery only: a real inventory of the
+      existing worker runtime, dispatch engine, sentinel, review pipeline, PR pipeline, merge
+      pipeline, and lock framework a future external execution runtime would need to reuse, real
+      identification of what exists vs. genuine gaps, and a canonical artifact documenting that
+      mapping. Confirmed live via systemctl that OCID-041/042/044/045 sibling worker units were
+      actively running concurrently with this task, so their own discovery artifacts did not exist
+      to defer to -- scoped this document to an independent infrastructure inventory instead
+      (`ai-os/VERIDIAN_OCID_043_UNIVERSAL_EXTERNAL_EXECUTION_RUNTIME_DISCOVERY_2026-08-03.md`, 7
+      named honest gaps). No worker runtime, dispatch runtime, or CONSTITUTION.yaml functional
+      changes. No provider-selection or execution-dispatch code. OCID-043 NOT marked complete.
+    scope_note: >-
+      File scope: new canonical artifact under ai-os/, ai-os/OS.yaml index registration, this
+      ACTIVE-CLAIMS entry, PROGRESS.md. Read-only inventory of claude-control/scripts/.github
+      workflows -- no functional code changes anywhere.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
