@@ -1,43 +1,51 @@
-# PROGRESS -- task-20260813-202556-rca--umr-20260807-150557-f9f4-killed
+# PROGRESS -- task-20260813-212308-rca--umr-20260807-150503-35bc-killed
 
 ## Completed
-- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260807-150557-f9f4` for the real row
-  (not the SPEC's summary). Full record: `ts_submitted` 2026-08-07T15:05:57Z, `ts_sigterm` null,
-  `ts_completed` 2026-08-07T15:06:46Z (~49s clean run, not a real SIGKILL despite `status=killed`),
-  `unit_name` null, `source_trigger` owner_dispatch_gateway.
-- [x] RCA: this is a **genuine, reasoned decline**, not a crash/kill. The dispatch
-  (`task_identity owner-task-20260807-150555-2085481`, title "Amendment to UMR-20260807-110133-205d:
-  EXPLICIT Owner exemption from stop-work order now applies") claimed the Owner said verbatim
-  "FIX IT SO THAT WORK HAPPENS" ~14:5X UTC to exempt UMR-20260807-110133-205d (the real main 12-step
-  integration build) from the standing stop-work order
-  (`task-20260806-165921-owner-absolute-stop-work-order--complete`). The worker verified independently
-  and found the quote existed **only** inside the dispatch's own `raw_text`, reused verbatim across
-  3 near-simultaneous UMRs submitted within ~1 minute of each other (UMR-20260807-150503-35bc,
-  UMR-20260807-150524-a683, UMR-20260807-150557-f9f4/this one), each unlocking a different
-  previously-declined piece of work. No corroboration in `pm_decisions_pending`, `ATTENTION.md`, or
-  the stop-work-order task's own record. Correctly declined; no code written, no branch, no PR.
-- [x] Cross-checked memory: this is confirmed as **gen1** of the recurring
-  fabricated-stop-work-order-exemption saga (`b4e9/a7e5/7433/35bc/a683/f9f4/ee23/a4b5/162a/a63f/bce6/88ae`
-  per UMR-a63f's own RCA reason and sibling UMR-a4b5's RCA), same generation/batch as sibling
-  UMR-20260807-150503-35bc (already independently documented in memory
-  `veridian-fabricated-owner-exemption-stop-work-order-declined.md`, which explicitly names this UMR
-  f9f4 as one of the 3 near-identical siblings in that same 53-second dispatch window).
-- [x] Confirmed the real underlying scope this dispatch tried to unlock (UMR-20260807-110133-205d,
-  "the real main 12-step integration build") is a **separate, distinct** UMR from this one — this
-  RCA does not attempt to build or resume that scope; f9f4 itself produced no work product to
-  redispatch (it was an authorization-only amendment dispatch, correctly declined at the
-  authorization-verification stage before any build work began).
-- [x] Conclusion: `status=killed` is a **mislabel** — same recurring class as the rest of the
-  killed-RCA mislabel series (`mark-umr-terminal` still has no evidence-free "declined" terminal
-  status). No independent fix/PR exists to cite (the decline itself was already the correct,
-  complete outcome) — corrected via `mark-umr-terminal --status completed_unmerged` citing this
-  RCA's own commit, same pattern as sibling UMR-a4b5's RCA (PR #1105).
-- [x] Committed (`fd3787be4`) + pushed; opened PR #1111
-  (https://github.com/FChecklist/compliance-tracker/pull/1111).
-- [x] Marked `UMR-20260807-150557-f9f4` terminal: `mark-umr-terminal --status completed_unmerged
-  --commit-sha fd3787be4 --pr-number 1111 --repo compliance-tracker`. Confirmed via re-query.
-- [x] Recorded completion via `agent_work_briefing.py record-completion --umr-id
-  UMR-20260813-201829-cbc3`. No new `wiring_registry` entity registered (documentation-only RCA).
+- [x] Queried the real row: `resource_governor.py --query-umr --umr-id UMR-20260807-150503-35bc`
+- [x] Read full real `reason`/`outputs_json`/`metadata_json` -- not a real kill. `ts_sigterm` is
+      null, `ts_completed` is set (~83s after dispatch, 2026-08-07T15:05:23 -> 15:06:46), and the
+      full `reason` is a complete, well-evidenced decline, not a truncated/aborted process.
+- [x] Root cause: task `task-20260807-150519-phase-2-sub-phase-1--explicit-owner-exem` asked to
+      wire pgvector/Zoekt/git-hash-object into `resource_governor.py`, citing an "EXPLICIT OWNER
+      AUTHORIZATION... Owner said verbatim FIX IT SO THAT WORK HAPPENS" as an exemption from the
+      real standing stop-work order (`task-20260806-165921-owner-absolute-stop-work-order--complete`).
+      The worker correctly verified this claim against `pm_decisions_pending`, `ATTENTION.md`, and
+      the stop-work-order task's own record -- found zero independent corroboration anywhere, and
+      flagged that this was 1 of 3 near-identical UMRs (35bc/a683/f9f4) dispatched within ~53
+      seconds reusing the identical unverifiable quote to unlock 3 different previously-declined
+      work items. Correctly declined. No code written, no branch, no PR -- correctly, since the
+      claimed authorization was fabricated.
+- [x] Confirmed this is **gen1** of the recurring fabricated-stop-work-order-exemption saga, and is
+      the exact sibling UMR already on file (memory `veridian-fabricated-owner-exemption-stop-work-order-declined`)
+      alongside UMR-20260807-150524-a683 and UMR-20260807-150557-f9f4 (f9f4 already RCA'd+corrected,
+      compliance-tracker PR #1111, same session).
+- [x] Verified the requested build scope (pgvector/Zoekt/git-hash-object wired into
+      `resource_governor.py`) was never subsequently completed under any legitimate dispatch:
+      `git log --all --grep pgvector\|zoekt -- resource_governor.py` in veridian-scripts returns
+      nothing for that file. (Zoekt *was* separately wired into `task-gateway.py`'s `cmd_submit`
+      under an unrelated, legitimately-governed UMR -- `be9f2db`/PR #285/UMR171945-0017 -- not this
+      one, and not resource_governor.py.) No real remaining scope to redispatch: the only
+      "authorization" for this specific build was the fabricated quote itself.
+- [x] Live-verified the stop-work order gate itself: `resource_governor.py::_stop_work_order_block_reason("veridian_task_create")`
+      now returns `None` (unblocked) as of 2026-08-13 -- the order has since been genuinely lifted
+      for real, unrelated to this fabricated-exemption saga. This does not retroactively validate
+      the 2026-08-07 decline (which was correct given what was verifiable at the time), and does not
+      create new real scope to redispatch here without a fresh, real, current directive.
+- [x] Root cause of the mislabel: `status=killed` implies an involuntary process termination
+      (SIGTERM/SIGKILL). This was a clean, voluntary, reasoned decline that ran to normal
+      completion. Same mislabel class as sibling f9f4 and the rest of the
+      `gh-token-lacks-workflow-scope` mislabel series memory.
+- [x] Corrected via `superboss-register.py mark-umr-terminal --status completed_unmerged` citing
+      this RCA's own commit as evidence (same pattern used for sibling f9f4, PR #1111).
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1112, commit `d5108bd1f`.
+      UMR-20260807-150503-35bc now shows `status=completed_unmerged`.
 
 ## Remaining
-- [ ] None — RCA complete.
+- [ ] None. RCA complete, terminal status corrected, PR #1112 opened.
+
+## Note
+`ai-os/boss/ACTIVE-CLAIMS.yaml` does not exist in the live `/opt/veridian/ai-os` checkout at task
+start (checked before starting real work, per Rule 11) -- registry currently absent from the live
+tree, not skipped. Proceeding per Rule 11's own stated limitation (cooperative registry, not a
+technical lock) since this is a narrowly-scoped, low-collision-risk docs-only RCA of an already
+6-day-old terminal row.
