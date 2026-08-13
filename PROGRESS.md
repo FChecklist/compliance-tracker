@@ -32,8 +32,12 @@
   status). No independent fix/PR exists to cite (the decline itself was already the correct,
   complete outcome) — corrected via `mark-umr-terminal --status completed_unmerged` citing this
   RCA's own commit, same pattern as sibling UMR-a4b5's RCA (PR #1105).
-- [x] Committed + pushed; recorded via `agent_work_briefing.py record-completion`; will mark UMR
-  terminal citing this commit once pushed.
+- [x] Committed (`fd3787be4`) + pushed; opened PR #1111
+  (https://github.com/FChecklist/compliance-tracker/pull/1111).
+- [x] Marked `UMR-20260807-150557-f9f4` terminal: `mark-umr-terminal --status completed_unmerged
+  --commit-sha fd3787be4 --pr-number 1111 --repo compliance-tracker`. Confirmed via re-query.
+- [x] Recorded completion via `agent_work_briefing.py record-completion --umr-id
+  UMR-20260813-201829-cbc3`. No new `wiring_registry` entity registered (documentation-only RCA).
 
 ## Remaining
 - [ ] None — RCA complete.
