@@ -69,10 +69,37 @@
         narrow RCA task's scope and risks colliding with other concurrent sessions depending on
         that exact file.
 
+- [x] GATE_FAIL auto-fix attempt 2/2: the background `flock -w 600` + `bun run build` wait
+      started under attempt 1 did **not** survive past that invocation boundary (its log,
+      `/tmp/f9a4-build-verify.log`, exists but is 0 bytes -- the backgrounded shell job was
+      tied to that tool session and did not persist as a real detached process). Re-checked
+      live state this invocation (2026-08-13, invocation 3/20): the build lock
+      (`/tmp/veridian-quality-gate-build.lock`) is *still* genuinely contended, but now by a
+      **different** unrelated task's `quality-gate.sh` (`task-20260813-104656-rca--umr-20260808-183732-d3a3-killed`,
+      confirmed via `fuser` + `/proc/<pid>/cmdline`) -- same real infra-contention root cause
+      as attempt 1, not resolved, not stale.
+- [x] Per `task.yaml`, the credit-accountant already independently reached the same
+      conclusion and issued a hard stop: auto-fix attempt 1 was rejected with `REDIRECT: ...
+      not a code defect ... needs a simple retry/requeue mechanism, not an AI auto-fix call`,
+      and attempt 2 was rejected outright with `"prior increment 2 was explicitly rejected --
+      hard stop, needs human review before any further spend on this task"`. Per this task's
+      own RESUME protocol ("on a 2nd consecutive failure of the identical approach: STOP, do
+      not attempt a 3rd time"), did **not** start a 3rd build-wait/gate-fix attempt this
+      invocation -- doing so would be exactly the further metered spend the credit-accountant
+      explicitly hard-stopped pending human review.
+
 ## Remaining
-- [ ] None on this UMR's actual RCA scope. PR #1055 itself stays open/unmerged pending
-      resolution of the known repo-wide branch-protection self-approval deadlock (tracked
-      separately).
-- [ ] GATE_FAIL build-lock verification: background build in progress against real lock
-      contention from an unrelated concurrent task (bounded by that task's own 900s timeout);
-      will record the real exit code once it completes.
+- [ ] None on this UMR's actual RCA scope (the substantive deliverable): the terminal record
+      for UMR-20260808-095907-f9a4 is corrected (`completed_unmerged`, evidence-gated), and
+      that correction is committed on this branch (`9b977bc76`, `264ed54ad`) in this task's own
+      PR #1082 (open). PR #1055 (the *underlying* worker's real, correct decline) itself stays
+      open/unmerged pending resolution of the known repo-wide branch-protection self-approval
+      deadlock (tracked separately, not in this task's scope).
+- [ ] GATE_FAIL on this task's own PR #1082 (`quality-gate-0.json` `build` step): root-caused
+      as real, current, unrelated build-lock contention (not a code defect in this docs-only
+      diff), auto-fix attempts exhausted, and the credit-accountant has issued an explicit hard
+      stop requiring human review before further spend. **Needs human action**: either
+      (a) re-run/requeue this PR's quality gate once the lock is free (a plain retry, no AI
+      spend, would very likely pass -- lint already passes clean and the diff is docs-only), or
+      (b) explicit owner sign-off to continue auto-fix spend past the credit-accountant's stop.
+      Leaving this open rather than self-authorizing a 3rd attempt.
