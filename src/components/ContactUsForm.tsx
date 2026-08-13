@@ -95,6 +95,15 @@ export function ContactUsForm({
     <div className="rounded-2xl border border-[#1a1a17]/15 bg-[#F9F7F0] px-8 py-10">
       <h3 className="font-heading text-2xl text-[#1a1a17]">{heading}</h3>
 
+      {/* OCID-020 category 23 fix (UMR-20260809-011903-335e, GTM cat23 H6/H4/H7
+          re-investigation): every label below was visually a <label> but had
+          no htmlFor/id pairing with its field -- purely cosmetic text, not a
+          real programmatic association, so screen readers announced no
+          accessible name once the placeholder (the only fallback) vanished
+          on focus/input. Real fix: htmlFor+id pairing on every field, plus
+          autoComplete values matching /login and /signup's own already-
+          established convention for the same field types (name/email/tel),
+          closing the audit's H7 autofill-inconsistency finding too. */}
       {showCategoryPicker && (
         <div className="mt-6">
           <label htmlFor="contact-category" className="text-xs font-semibold uppercase tracking-[0.2em] text-[#1a1a17]/50">I&apos;m interested in</label>
@@ -119,6 +128,7 @@ export function ContactUsForm({
             <input
               id="contact-name"
               required
+              autoComplete="name"
               value={name}
               onChange={(e) => { markDirty(); setName(e.target.value); }}
               className="mt-2 w-full rounded-lg border border-[#1a1a17]/20 bg-white px-4 py-2.5 text-sm text-[#1a1a17] focus:outline-none focus:ring-2 focus:ring-[#1a1a17]/20"
@@ -131,6 +141,7 @@ export function ContactUsForm({
               id="contact-email"
               required
               type="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => { markDirty(); setEmail(e.target.value); }}
               className="mt-2 w-full rounded-lg border border-[#1a1a17]/20 bg-white px-4 py-2.5 text-sm text-[#1a1a17] focus:outline-none focus:ring-2 focus:ring-[#1a1a17]/20"
@@ -143,6 +154,7 @@ export function ContactUsForm({
           <input
             id="contact-mobile"
             type="tel"
+            autoComplete="tel"
             value={mobile}
             onChange={(e) => { markDirty(); setMobile(e.target.value); }}
             className="mt-2 w-full rounded-lg border border-[#1a1a17]/20 bg-white px-4 py-2.5 text-sm text-[#1a1a17] focus:outline-none focus:ring-2 focus:ring-[#1a1a17]/20"
