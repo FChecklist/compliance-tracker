@@ -40,6 +40,29 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260813-201829-rca--umr-20260807-153242-ee23-killed) -- RCA on UMR-20260807-153242-ee23 killed status, real-decline mislabel correction"
+    claimed_at: "2026-08-13T20:18Z (this session)"
+    claim: |
+      SPEC (PM-sentinel tick dispatch): RCA on `UMR-20260807-153242-ee23`
+      (`status=killed`, unit `task-20260807-153249-phase-2-sub-phase-1--wire-pgvector-zoekt.service`).
+      Live `resource_governor.py --query-umr` confirms this is the same recurring
+      real-decline-mislabeled-killed pattern as the rest of the fabricated-stop-work-order-exemption
+      saga (`b4e9/a7e5/7433/35bc/a683/f9f4/ee23/a4b5` -- this is gen2, `ee23`): a genuine, careful,
+      reasoned decline (`ts_sigterm` null, clean ~2m9s completion), not a real process kill. Own prior
+      session memory already independently recorded this exact decline in real time
+      (`[[veridian-file-based-exemption-still-self-referential-declined]]`), including its own
+      commit `e1cabe40b` on branch `worker/task-20260807-153249-phase-2-sub-phase-1--wire-pgvector-zoekt`
+      -- confirmed still real and pushed to origin, but never opened as a PR / never merged. This
+      task's real scope: open that decline as a real PR (or an equivalent real citable artifact) and
+      correct the terminal status via `mark-umr-terminal`, same pattern as sibling corrections
+      `[[veridian-umr-a4b5-killed-rca-real-decline-mislabeled-gen3-saga]]` and
+      `[[veridian-umr-162a-killed-rca-real-decline-mislabeled-scope-still-open]]`. No new
+      pgvector/Zoekt/git-object implementation work -- the underlying stop-work order (Owner-level,
+      standing) is still unresolved by any independently-verifiable evidence, so that scope stays
+      correctly declined, not built.
+    scope_note: >-
+      File scope: `PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry) only. No source code
+      changes -- documentation/terminal-status correction only.
   - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
     claimed_at: "2026-08-03T08:56Z (this session)"
     claim: |
