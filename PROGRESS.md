@@ -1,12 +1,58 @@
-# PROGRESS -- task-20260813-161305-rca--umr-20260813-124020-8a97-status-run
+# PROGRESS -- task-20260813-162455-rca--umr-20260813-131646-007b-status-run
+
 ## Completed
-- [x] Queried the real live row: `resource_governor.py --query-umr --umr-id UMR-20260813-124020-8a97`. By the time this task actually ran, the row already read `status=failed` (not `running` as the dispatching SPEC's snapshot claimed -- a status-run row can move between snapshot and pickup), reason: `worker-exit-status-bridge (ExecStopPost, STEP 2 fix task-20260807-052027-platform-integrity--worker-units-exit-0): unit ... stopped with task.yaml's own last checkpoint status='blocked' ... bridging so the row does not stay at 'running' forever`.
-- [x] Confirmed the real unit state directly, not trusting the row: `systemctl --user show veridian-worker@task-20260813-140934-rca--umr-20260813-101757-f13c-killed.service` -> `ActiveState=inactive`, `SubState=dead`, `Result=success`, `ExecMainStatus=0`. The unit finished cleanly at 2026-08-13T14:48:06Z -- it was never stuck and was never SIGKILLed. `journalctl --user -u ...` shows a clean Start line at 14:09:39 and a clean stop/CPU-accounting line at 14:48:06, no kill signal anywhere in the log.
-- [x] Read that worker's real on-disk `task.yaml`/`PROGRESS.md` (`ai-os/tasks/task-20260813-140934-rca--umr-20260813-101757-f13c-killed/`). It had **fully completed its real assigned RCA**: root-caused why UMR-20260813-101757-f13c got SIGKILLed (a redundant post-hard-stop systemd resume, the same already-known "restart_count churn" gap flagged by prior RCAs), confirmed the underlying fix (veridian-scripts PR #296, commit `41c3d02`) still held, and correctly ran `mark-umr-terminal --umr-id UMR-20260813-101757-f13c --status completed` with real evidence -- **live-reverified here**: `resource_governor.py --query-umr --umr-id UMR-20260813-101757-f13c` now reads `status=completed`.
-- [x] Confirmed that worker also wrote a real doc commit (`44b71c2d2`, "docs: RCA UMR-20260813-101757-f13c killed...") and **pushed** it to `origin/worker/task-20260813-140934-rca--umr-20260813-101757-f13c-killed` -- confirmed live via `git fetch` + `git cat-file -e`, commit genuinely exists on origin. `gh pr list` for that branch returns zero PRs -- it never opened a PR before the credit-accountant hard-stopped the run (task.yaml's last checkpoint recorded `status=blocked`).
-- [x] Root cause: the worker-exit-status-bridge (a real, previously-shipped fix, STEP 2 of task-20260807-052027) behaved exactly as designed -- it saw a terminal `blocked` self-report and correctly bridged the parent `UMR-20260813-124020-8a97` row out of permanent `running` limbo into `failed`, rather than leaving it stuck forever. The bridge did its job; `failed` is just the wrong bucket for what actually happened here (real, correct work shipped and pushed, just not merged/PR'd) -- the same "exit-write-back-bug class" the dispatching SPEC named up front, and the same pattern already seen in UMR-f9a4/UMR-0faf/UMR-3ad2/UMR-1d97.
-- [x] Corrected the terminal outcome with real evidence: `superboss-register.py mark-umr-terminal --umr-id UMR-20260813-124020-8a97 --status completed_unmerged --repo compliance-tracker --commit-sha 44b71c2d2 --reason "..."` -- succeeded, live-reverified (`resource_governor.py --query-umr` now shows `status=completed_unmerged`).
-- [x] Recorded completion via `agent_work_briefing.py record-completion --umr-id UMR-20260813-141620-94c7` (this task's own deterministic-briefing UMR).
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no conflicting active claim for this scope.
+- [x] Confirmed real live systemd state of `veridian-worker@task-20260813-150556-rca--umr-20260813-101802-3ad2-killed.service`:
+      `ActiveState=inactive`, `SubState=dead`, `Result=success`, `ExecMainStatus=0` -- a clean
+      exit, not a hung/killed unit. `journalctl` shows a normal start (15:06:00) and a normal
+      stop with resource accounting (15:10:33), no SIGKILL/OOM/crash markers.
+- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260813-131646-007b` live: the
+      SPEC's premise ("status=running") is **stale**. The real, current row already reads
+      `status=completed_unmerged`, `ts_completed=2026-08-13T15:21:13Z`, with a real, honest
+      `reason` written by `reconcile_stale_running_workers.py` (an independent dead-zone
+      reconciler, STEP 3, `task-20260807-052027`) citing real evidence: unit confirmed
+      `ActiveState=inactive`, real task dir, `task.yaml` last status, and 1 real completion
+      candidate (branch `worker/task-20260813-150556-rca--umr-20260813-101802-3ad2-killed`
+      still exists on origin) -- letting `mark-umr-terminal`'s own evidence gate decide, never
+      asserted blind. This self-correction happened automatically before this session started
+      -- **no fabrication, no fix-my-own-premise needed**, the row's own status was already
+      accurate and honestly evidenced.
+- [x] Verified the cited evidence for real: `commit_sha=8f79df5a4` exists
+      (`docs: RCA UMR-20260813-101802-3ad2 (killed) -- real work mislabeled, corrected to
+      completed_unmerged citing PR #1083`), and PR #1089
+      (`worker/task-20260813-150556-rca--umr-20260813-101802-3ad2-killed`) is real, open, with
+      an `AUDIT: PASS` comment already posted. This matches the already-recorded memory
+      `veridian-umr-3ad2-killed-rca-real-work-mislabeled`.
+- [x] Found a real, additional gap while verifying PR #1089's mergeability: its only failing
+      required check was **Metadata Index Coverage Check**, because the branch's own new file
+      `ai-os/RCA_UMR-20260813-101802-3ad2_2026-08-13.md` was never registered in `ai-os/OS.yaml`'s
+      index (same enforcement gate every other governance doc in this repo already satisfies).
+      This is real "remaining scope" per this task's own SPEC language ("either fix... or record
+      a real, honest terminal outcome") -- the terminal-outcome half was already honestly done
+      by the reconciler; the fix half (getting the already-correct PR actually mergeable) was
+      not.
+- [x] Fixed it directly on PR #1089's own branch (via an isolated `/tmp/wt-1089` worktree, not
+      this task's own branch): added the missing `ai-os/OS.yaml` index entry, verified
+      `node scripts/check-metadata-index-coverage.mjs` passes locally (181 items, 178 indexed +
+      7 exempted), committed (`79a9e3ea9`) and pushed to
+      `worker/task-20260813-150556-rca--umr-20260813-101802-3ad2-killed`.
+- [ ] Confirm PR #1089's CI goes green on the new commit, then merge it (branch protection:
+      `required_approving_review_count=0`, so no separate reviewer needed -- just green required
+      checks).
+- [ ] Call `agent_work_briefing.py record-completion --umr-id UMR-20260813-151931-c3a5` with the
+      real summary.
+
 ## Remaining
-- [ ] None for this task's own scope -- an honest terminal outcome has been recorded with real evidence for UMR-20260813-124020-8a97, and its subject UMR-20260813-101757-f13c was independently confirmed already correctly `completed`.
-- Same unfixed structural gap already flagged by prior RCAs (UMR-b85c, UMR-f13c, UMR-0faf): the worker-exit-status-bridge's `blocked` -> `failed` mapping is a defensible fail-safe (never leave a row stuck at `running`) but conflates "the task self-reported no more automatic progress" with "the task produced nothing real" -- a human/RCA still has to distinguish real-but-unmerged work from genuine failure every time. Not fixed here (out of this narrow RCA's scope, and each individual occurrence keeps getting caught and corrected downstream, same as the precedents above).
+- [ ] Watch CI on PR #1089 (Monitor running), merge once green.
+- [ ] If CI does NOT go green after this one fix (2-strike rule: stop after a 2nd identical-approach
+      failure, do not force a 3rd), record what's blocking and stop -- do not fabricate a
+      completion.
+- [ ] Final commit+push of this task's own PROGRESS.md.
+- [ ] `record-completion` write-back.
+
+## Real gap NOT fixed (out of scope for this task, flagged honestly)
+- The recurring "reconciler self-corrects a dispatch row to `completed_unmerged`, but the real
+  PR that would make it fully `completed` sits blocked on an unrelated CI gate" pattern has now
+  recurred at least twice in this exact RCA-of-RCA chain (this task, and by inference likely
+  others in the same lineage). `reconcile_stale_running_workers.py` verifies the branch/PR
+  *exists*, not that it's *mergeable* -- worth a future gap entry if this recurs again.
