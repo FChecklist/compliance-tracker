@@ -40,29 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260813-104656-rca--umr-20260808-183732-d3a3-killed) -- RCA on killed UMR-20260808-183732-d3a3 already independently completed today by task-20260813-091906 (root cause: credit-accountant.py FTS false positive, fixed PR #291 veridian-scripts); picking up that RCA's own disclosed remaining scope: OCID-056/059/061 mechanical rebase+re-audit (PR #870/#873/#878, all mergeStateStatus=DIRTY from 5 days of main drift, same conflict class as the already-fixed OCID-043) [IN PROGRESS]"
-    claimed_at: "2026-08-13T10:55Z (this session)"
-    claim: |
-      GOVERNING CHAIN: UMR-20260808-183732-d3a3 (killed, real honest RCA+partial-outcome
-      already recorded by task-20260813-091906 today -- verified live via
-      `resource_governor.py --query-umr`, not restated blind). That RCA's own PROGRESS.md
-      disclosed 3 items as its own real, non-duplicate, NOT-yet-redispatched remaining
-      scope: OCID-056 (PR #870), OCID-059 (PR #873), OCID-061 (PR #878) -- all real content
-      PRs blocked purely by mechanical main-drift conflicts in PROGRESS.md/
-      ai-os/boss/ACTIVE-CLAIMS.yaml (verified via local `git merge --no-commit` against
-      current origin/main, zero src/schema conflicts). Not a new RCA dispatch (declining to
-      redo already-complete, verified-accurate work) -- this claim is for the "fix +
-      redispatch remaining scope" half of that RCA's own two-way choice, since it's real,
-      disclosed, and unclaimed (checked this file + `systemctl --user list-units
-      veridian-worker@*` live before starting).
-    scope_note: >-
-      File scope: rebase-only commits on branches
-      worker/task-20260804-040801-register-ocid-056--platform-security-rec,
-      worker/task-20260804-045443-register-ocid-059--universal-browser--pw,
-      worker/task-20260804-054220-register-ocid-061--universal-determinist (PROGRESS.md +
-      ai-os/boss/ACTIVE-CLAIMS.yaml conflict resolution only, keeping origin/main's content
-      intact + appending this branch's own entry -- same precedent as OCID-043's fix),
-      this claim, this task's own PROGRESS.md. No src/, schema, or CI-workflow changes.
   - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
     claimed_at: "2026-08-03T08:56Z (this session)"
     claim: |
@@ -5915,6 +5892,30 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260813-104656-rca--umr-20260808-183732-d3a3-killed) -- RCA on killed UMR-20260808-183732-d3a3 already independently completed today by task-20260813-091906 (root cause: credit-accountant.py FTS false positive, fixed PR #291 veridian-scripts); picked up that RCA's own disclosed remaining scope: OCID-056/059/061 mechanical rebase+re-audit [DONE, all 3 PRs merged]"
+    claimed_at: "2026-08-13T10:55Z (this session, closed same session)"
+    claim: |
+      GOVERNING CHAIN: UMR-20260808-183732-d3a3 (killed, real honest RCA+partial-outcome
+      already recorded by task-20260813-091906 today -- verified live via
+      `resource_governor.py --query-umr`, not restated blind). That RCA's own PROGRESS.md
+      disclosed 3 items as its own real, non-duplicate, NOT-yet-redispatched remaining
+      scope: OCID-056 (PR #870), OCID-059 (PR #873), OCID-061 (PR #878) -- all real content
+      PRs blocked purely by mechanical main-drift conflicts, same conflict class as the
+      already-fixed OCID-043. Not a new RCA dispatch (declining to redo already-complete,
+      verified-accurate work) -- this claim was for the "fix + redispatch remaining scope"
+      half of that RCA's own two-way choice.
+
+      OUTCOME: all 3 PRs rebased across multiple main-drift rounds as each merged ahead of
+      the others and re-conflicted the rest, structured 8-field `AUDIT: PASS` comments
+      posted per `scripts/validate-audit-verdict.ts`'s real contract, all CI green, all 3
+      merged live: #870 (2026-08-13T11:20:14Z), #873 (2026-08-13T11:26:51Z), #878
+      (2026-08-13T11:33:14Z). All 3 `master_issue_tracker` rows
+      (`OCID-056/059/061-CONSOLIDATION-LINK`) closed via `superboss-register.py
+      update-issue`, independently re-verified live (`is_closed=YES` on all 3). One item
+      remains genuinely out of scope for this task and was flagged directly to the Owner,
+      not fabricated resolved: a live Supabase `service_role` key for project
+      `jusqumifsmtcaujqyjuy` (MeetTrack production DB) sitting in plaintext in
+      `CLAUDE-HANDOFF.md`, per OCID-056's own discovery report.
   - session_label: "claude-code (task-20260804-054220-register-ocid-061--universal-determinist) -- OCID-061 discovery/mapping of the four intake surfaces (mode pill/Chain Selector, free chat, speech-to-text, API/webhook entry points) + canonical-intent-object gap search [DONE, discovery only, PR pending]"
     claimed_at: "2026-08-04T05:42Z (this session, closed same session)"
     claim: |
