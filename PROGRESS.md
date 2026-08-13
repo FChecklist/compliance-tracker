@@ -104,16 +104,27 @@
       `ai-os/boss/ACTIVE-CLAIMS.yaml` had no real conflict (my branch never touched it; the
       apparent stat delta was purely main having moved ahead since this branch's base).
 
+- [x] Posted the required structured 8-field `AUDIT: PASS` comment on PR #1082
+      (https://github.com/FChecklist/compliance-tracker/pull/1082#issuecomment-5280543470)
+      per `scripts/validate-audit-verdict.ts`'s real contract (bare-word enum fields for
+      Severity Classified/Verdict, all 8 labeled fields present).
+- [x] Hit the known `audit-check`/`issue_comment` SHA-mismatch bug (the comment-triggered
+      run reports against `main`'s SHA, not the PR head -- confirmed via
+      `gh api .../workflows/mandatory-audit-check.yml/runs`: the `issue_comment` run
+      succeeded but shows `head_branch: main`). Pushed an empty sync commit
+      (`64ac7e3e7`) to trigger a fresh `pull_request` (synchronize) event so the
+      required-check status re-evaluates against the PR's actual head, matching the
+      pattern already documented by the immediately-prior merged task's own PROGRESS.md.
+- [x] PR mergeability flipped from `CONFLICTING`/`DIRTY` to `MERGEABLE` after the
+      merge-resolution commit (`e900a3338`).
+
 ## Remaining
-- [ ] Post the required structured 8-field `AUDIT: PASS` comment on PR #1082 per
-      `scripts/validate-audit-verdict.ts`'s real contract (bare-word enum fields for
-      Severity Classified/Verdict, all 8 labeled fields present) to satisfy the
-      `audit-check` required status check, then push this merge-resolution commit so CI
-      re-evaluates against the new head.
-- [ ] Confirm PR #1082 flips to `MERGEABLE`/CI-green, then this task's actual RCA scope
-      (the substantive deliverable) is fully done: the terminal record for
-      UMR-20260808-095907-f9a4 is corrected (`completed_unmerged`, evidence-gated) and that
-      correction is committed here. PR #1055 (the *underlying* worker's real, correct
-      decline) itself stays open/unmerged pending resolution of the known repo-wide
-      branch-protection self-approval deadlock (tracked separately, not in this task's
-      scope).
+- [ ] Confirm the post-sync-commit CI run shows `audit-check` `SUCCESS` and PR #1082 is
+      fully green/mergeable (in progress, monitoring).
+- [ ] Once green, this task's actual RCA scope (the substantive deliverable) is fully
+      done: the terminal record for UMR-20260808-095907-f9a4 is corrected
+      (`completed_unmerged`, evidence-gated) and that correction is committed here. PR
+      #1055 (the *underlying* worker's real, correct decline) itself stays open/unmerged
+      pending resolution of the known repo-wide branch-protection self-approval deadlock
+      (tracked separately, not in this task's scope) -- merging PR #1082 does not require
+      or depend on #1055 merging.
