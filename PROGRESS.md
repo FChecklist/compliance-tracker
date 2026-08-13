@@ -30,8 +30,15 @@ UMR-20260804-040122-2b4b / OCID-059.
       -- see commit `d25c9314` and the OCID-055/PR #868 rebase precedent) rather than
       reintroducing a stale multi-hundred-line historical blob that duplicates content already on
       `origin/main` under its real commits.
+- [x] `task-20260813-104656-rca--umr-20260808-183732-d3a3-killed` (this UMR chain, resuming
+      this branch's own real remaining scope after 9 more days of main drift): merged current
+      `origin/main` in again, same convention (`PROGRESS.md` replaced with this short summary,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` merged real, zero duplicates, zero history discarded).
+      Pushed; CI re-running against the new head.
 
 ## Remaining
-- [ ] Push the resolved merge, confirm CI green on the new head.
-- [ ] Confirm/obtain a real independent `AUDIT: PASS` review comment (Rule 10 gate).
+- [ ] Confirm CI green on the new head (`audit-check` already showed `pass` before this push --
+      re-verify it still does, or re-post/re-trigger if the push reset it).
+- [ ] Confirm/obtain a real independent `AUDIT: PASS` review comment registered against the new
+      head SHA (Rule 10 gate).
 - [ ] Merge PR #873; move the ACTIVE-CLAIMS entry to `recently_completed`.
