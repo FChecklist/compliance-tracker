@@ -40,6 +40,39 @@
 - [x] Recorded completion via `agent_work_briefing.py record-completion` for
       UMR-20260813-101807-da7e.
 
+- [x] GATE_FAIL auto-fix attempt 1/2 (`quality-gate-0.json`): investigated the `build` gate
+      failure (`lint` passed with 0 errors/3 pre-existing warnings unrelated to this change).
+      Confirmed root cause is **not a code defect**:
+      - This task's own diff vs `origin/main` is `PROGRESS.md` only (`git diff origin/main --stat`)
+        -- zero source files changed, nothing for a build to break.
+      - `quality-gate.sh`'s build step lost the short 20s lock race, then its
+        `requeue-build-lock-contended` CLI call itself failed with
+        `"no active (queued/dispatched/running) umr_tasks row found for task_identity=..."` --
+        confirmed via `resource_governor.py --query-umr --search` (0 matches, any substring):
+        this RCA-type task was never inserted into `umr_tasks` in the first place (dispatched
+        directly as a systemd unit, not through `resource_governor.submit()`), so the
+        queue-requeue fallback structurally can never apply to it -- by the script's own
+        design/comments this is treated as a real gate failure ("NOT silently dropping this"),
+        not a bug to patch around.
+      - Verified the lock contention itself is real and currently live, not stale: `fuser` on
+        `/tmp/veridian-quality-gate-build.lock` showed 3 held-open FDs belonging to a
+        *different*, unrelated task's `quality-gate.sh` + `bun run build` (`timeout -k 30 900`),
+        already running ~620s at time of check.
+      - Started a background wait-and-build (`flock -w 600` on the same lock, then
+        `bun run build`) to obtain direct, real evidence of a clean build once that other
+        task's build finishes and releases the lock, rather than assuming.
+      - Deliberately did NOT edit the shared `/opt/veridian/scripts/quality-gate.sh` (separate,
+        live, no-PR-gate, fleet-wide repo) to change its lock/requeue-fallback behavior: that
+        file's own extensive inline history (UMR-20260806-123316-cf9f) shows the
+        requeue-fails-so-hard-fail branch was a deliberate design choice, not an oversight, and
+        a live unreviewed edit to shared build-gate infra is out of proportion to a single
+        narrow RCA task's scope and risks colliding with other concurrent sessions depending on
+        that exact file.
+
 ## Remaining
-- [ ] None. PR #1055 itself stays open/unmerged pending resolution of the known repo-wide
-      branch-protection self-approval deadlock (tracked separately, not in this UMR's scope).
+- [ ] None on this UMR's actual RCA scope. PR #1055 itself stays open/unmerged pending
+      resolution of the known repo-wide branch-protection self-approval deadlock (tracked
+      separately).
+- [ ] GATE_FAIL build-lock verification: background build in progress against real lock
+      contention from an unrelated concurrent task (bounded by that task's own 900s timeout);
+      will record the real exit code once it completes.
