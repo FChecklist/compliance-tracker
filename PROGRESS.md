@@ -118,13 +118,28 @@
 - [x] PR mergeability flipped from `CONFLICTING`/`DIRTY` to `MERGEABLE` after the
       merge-resolution commit (`e900a3338`).
 
+- [x] Confirmed the post-sync-commit CI run: `audit-check` `SUCCESS`, and every other
+      required check (`Analyze`, `Asset Registry Coverage Check`, `Build`,
+      `Doc Cross-Reference Check`, `Doc Quarantine Banner Check`,
+      `Documentation Sentinel Check`, `E2E Tests`, `Guardrail Presence Check`, `Lint`,
+      `Metadata Index Coverage Check`, `Migration Number Collision Check`,
+      `Secret Scanning`, `Security Pattern Check`, `Terminology Guardrail Check`,
+      `Type Check`, `Unit Tests`) also `SUCCESS`. `gh pr view 1082` confirms
+      `mergeable=MERGEABLE`. Only non-required `Vercel` preview deploy still pending at
+      time of this checkpoint.
+
+## Task status
+This task's substantive RCA scope for UMR-20260808-095907-f9a4 is fully complete: the
+terminal record is corrected (`completed_unmerged`, evidence-gated, real commit
+`ad4fadcff` + real PR #1055), and that correction plus this task's own bookkeeping is
+committed here in PR #1082, which is now CI-green and `MERGEABLE` against `main`.
+
 ## Remaining
-- [ ] Confirm the post-sync-commit CI run shows `audit-check` `SUCCESS` and PR #1082 is
-      fully green/mergeable (in progress, monitoring).
-- [ ] Once green, this task's actual RCA scope (the substantive deliverable) is fully
-      done: the terminal record for UMR-20260808-095907-f9a4 is corrected
-      (`completed_unmerged`, evidence-gated) and that correction is committed here. PR
-      #1055 (the *underlying* worker's real, correct decline) itself stays open/unmerged
-      pending resolution of the known repo-wide branch-protection self-approval deadlock
-      (tracked separately, not in this task's scope) -- merging PR #1082 does not require
-      or depend on #1055 merging.
+- [ ] Merge PR #1082 once mergeable (attempting via `gh pr merge`; per the known,
+      previously-documented repo-wide branch-protection self-approval deadlock -- only one
+      real GitHub identity exists and the branch protection rule requires 1 review -- this
+      may not be mergeable without an Owner/reviewer action even though CI is fully green.
+      Not a defect in this task's work; tracked separately, same as PR #1055 and every
+      other open PR from this same identity).
+- [ ] PR #1055 (the *underlying* worker's real, correct decline) itself stays
+      open/unmerged pending resolution of that same deadlock -- out of this task's scope.
