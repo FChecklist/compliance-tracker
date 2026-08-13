@@ -36,10 +36,14 @@
       951ad5b246690a4169d430e4c4265328c2243e15 --pr-number 328 --repo veridian-scripts`
       (real, already-merged ancestor of origin/main -- unlike most siblings in this series,
       this one qualifies for `completed`, not `completed_unmerged`, because the delivering
-      commit is a genuine ancestor of origin/main).
-- [x] Recorded via `agent_work_briefing.py record-completion`.
-- [x] Wrote memory `veridian-umr-7433-killed-rca-gen1-fabricated-exemption-saga-original`
-      and linked it into the existing saga chain.
+      commit is a genuine ancestor of origin/main). Live row now shows
+      `status=completed`, `ts_completed=2026-08-13T22:24:05Z`.
+- [x] PR #1114 opened on compliance-tracker (docs-only, this PROGRESS.md):
+      https://github.com/FChecklist/compliance-tracker/pull/1114
+- [x] Recorded via `agent_work_briefing.py record-completion` for UMR-20260813-221551-3fc2.
+- [x] Wrote memory
+      `veridian-umr-7433-killed-rca-original-of-fabricated-exemption-saga-scope-since-delivered`
+      and linked it into the existing saga chain + MEMORY.md index.
 
 ## Remaining
 - [ ] None. (Structural gap still open for a future task, not this one:
