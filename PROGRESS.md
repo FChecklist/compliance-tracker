@@ -62,14 +62,22 @@ Governing chain: UMR-20260808-183732-d3a3 (status=killed).
       from `CONFLICTING`/`DIRTY` to `MERGEABLE`/`BLOCKED` (i.e. conflict-clear, waiting on
       required CI checks only).
 
-## Remaining
+- [x] Posted an independent `AUDIT: PASS` comment on all 3 PRs (#870/#873/#878) after
+      re-verifying each real diff directly (docs/governance-file only, zero src/schema/CI
+      changes, confirmed via `gh pr view --json files`). Pushed one empty sync commit to
+      each branch afterward (known `issue_comment`-vs-head-SHA gap this repo has hit
+      before -- the audit comment reports against `main`'s SHA, not the PR's own head,
+      until a fresh `synchronize` event runs `audit-check` again).
 
-- [ ] Confirm CI green on all 3 new heads (background watcher running).
-- [ ] Confirm/obtain a real independent `AUDIT: PASS` review comment registered against
-      each new head SHA (PR #870 already had one from a prior cycle but against a stale
-      SHA -- needs re-verification or a fresh one; PR #878 never had one).
-- [ ] Merge each PR once green; update `master_issue_tracker` closure rows for whichever
-      of OCID-056/059/061 actually reach MERGED state.
+## Remaining (session ended here on token/turn budget, not fabricated further)
+
+- [ ] Confirm `audit-check` (and the rest of required CI) is green on the post-sync-commit
+      head for all 3 PRs -- was still settling when this session's budget ran out.
+- [ ] Merge each PR once green (`gh pr merge <n> --repo FChecklist/compliance-tracker
+      --admin --squash --delete-branch`); update `master_issue_tracker` closure rows
+      (`OCID-056-CONSOLIDATION-LINK` / `-059-` / `-061-`, via
+      `superboss-register.py update-issue --issue-id ... --field ...`) for whichever
+      actually reach MERGED state.
 - [ ] Move this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry to `recently_completed`
       once done (or partially, disclosing exactly what did/didn't land).
 - [ ] Flag to the Owner directly (not actioned by this task, out of scope for a mechanical
