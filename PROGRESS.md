@@ -4,7 +4,9 @@
 - [x] Queried the real row: `python3 resource_governor.py --query-umr --umr-id UMR-20260808-110448-b85c`
   (full `inputs_json`/`outputs_json`/`reason`/`metadata_json`, not the SPEC's summary alone).
 - [x] Root-caused the mislabel and corrected the row's terminal status with real evidence.
-- [x] Filed this RCA.
+- [x] Filed this RCA (compliance-tracker PR #1083, commit `0fe99b78c`).
+- [x] Applied the correction: `mark-umr-terminal --status completed_unmerged --commit-sha
+  0fe99b78c --pr-number 1083 --repo compliance-tracker` -- confirmed accepted.
 
 ## RCA: UMR-20260808-110448-b85c ("killed")
 
@@ -54,12 +56,13 @@ that tried to build on that merge (`task-gateway.py` cmd_start) was independentl
 Nothing needs to be fixed or redispatched for b85c's own scope.
 
 **Correction applied.** `superboss-register.py mark-umr-terminal --umr-id
-UMR-20260808-110448-b85c --status completed_unmerged --commit-sha <this task's commit> --pr-number
-<this PR> --repo compliance-tracker --reason "..."` (same shape as the f9a4 precedent -- no new
-code artifact exists for the underlying decision itself, so this RCA's own PR is cited as the
-evidence, and `completed_unmerged` is used rather than `completed` because this repo's PRs are
-currently unmergeable via any channel -- see
-[[veridian-branch-protection-self-approval-deadlock-active]]).
+UMR-20260808-110448-b85c --status completed_unmerged --commit-sha 0fe99b78c --pr-number 1083
+--repo compliance-tracker --reason "..."` -- confirmed accepted
+(`ts_completed=2026-08-13T13:06:12Z`, `deterministic=true`). Same shape as the f9a4 precedent --
+no new code artifact exists for the underlying decision itself, so this RCA's own PR (#1083) is
+cited as the evidence, and `completed_unmerged` is used rather than `completed` because this
+repo's PRs are currently unmergeable via any channel -- see
+[[veridian-branch-protection-self-approval-deadlock-active]].
 
 **Not fixed here (disclosed, not hidden):** the structural gap itself -- `mark-umr-terminal`'s
 4-value enum has no evidence-free "declined, no artifact required" terminal status, so every
