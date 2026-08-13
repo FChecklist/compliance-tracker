@@ -60,6 +60,15 @@
       ff328e7/2fcd274, 2 unpushed commits) -- unchanged out-of-scope observation, not
       touched. No drift, no new work.
 
+- [x] Re-verified live again on resume (invocation 7/20, 2026-08-13T14:41Z checkpoint):
+      PR #296 still MERGED; gateway still active/enabled; /health still {"ok": true, ...}.
+      Live checkout still on the same unrelated concurrent session's WIP branch
+      (worker/task-20260813-091931-amendment--server-native-pm-escalation-p, now 3
+      unpushed commits ahead: ebe31a9/2fcd274/ff328e7) -- unchanged out-of-scope
+      observation, not touched. No drift, no new work. This RCA is fully closed;
+      further identical re-verify checkpoints add no value and will be skipped unless
+      live state actually changes.
+
 ## Remaining
 - [ ] None for this RCA's own scope. Separate, pre-existing, out-of-scope observation
       (not touched here): the live checkout at /opt/veridian/scripts is currently on
