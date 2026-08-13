@@ -44,16 +44,37 @@ Governing chain: UMR-20260808-183732-d3a3 (status=killed).
       comment yet. PR #873's `audit-check` already shows `pass` (but PR is still DIRTY,
       i.e. blocked on the merge conflict only, not CI).
 
+- [x] Resolved OCID-056 (PR #870), OCID-059 (PR #873), OCID-061 (PR #878) merge conflicts
+      on each branch directly (root cause fresh-checkout + `git merge --no-commit --no-ff
+      origin/main`, resolve, push). Learned mid-flight and corrected: this repo's actual
+      established convention (confirmed by re-reading the OCID-059 branch's own prior
+      commit messages, citing commit `d25c9314` and the OCID-055/PR #868 precedent) is
+      root `PROGRESS.md` carries only the most recently merged task's own short summary,
+      not an accumulated log -- corrected OCID-056's first merge commit (which had
+      wrongly accumulated/prepended) with a follow-up commit before moving on, applied the
+      correct pattern to OCID-059/061 from the start. `ai-os/MASTER-TRACKER.yaml`/`OS.yaml`
+      conflicts (OCID-061 only) resolved by keeping both sides' distinct entries, zero
+      duplication. All 3 `ai-os/boss/ACTIVE-CLAIMS.yaml` conflicts resolved the same way
+      (kept both sides' real entries; one region on OCID-061 had an empty HEAD side because
+      that branch had already fixed a duplicate `recently_completed:` key that
+      `origin/main` had independently already fixed too -- kept origin/main's already-
+      correct content, added nothing extra). All 3 pushed; live-reconfirmed all 3 flipped
+      from `CONFLICTING`/`DIRTY` to `MERGEABLE`/`BLOCKED` (i.e. conflict-clear, waiting on
+      required CI checks only).
+
 ## Remaining
 
-- [ ] Resolve OCID-056 (PR #870) merge conflict on its own branch (keep `origin/main`'s
-      content intact + append this branch's own section, zero history discarded), push,
-      re-verify CI green (including a fresh `audit-check` triggered by the new push),
-      post/re-confirm `AUDIT: PASS` with real evidence, merge.
-- [ ] Same for OCID-059 (PR #873).
-- [ ] Same for OCID-061 (PR #878).
-- [ ] Update `master_issue_tracker` closure rows for whichever of OCID-056/059/061
-      actually reach MERGED state.
+- [ ] Confirm CI green on all 3 new heads (background watcher running).
+- [ ] Confirm/obtain a real independent `AUDIT: PASS` review comment registered against
+      each new head SHA (PR #870 already had one from a prior cycle but against a stale
+      SHA -- needs re-verification or a fresh one; PR #878 never had one).
+- [ ] Merge each PR once green; update `master_issue_tracker` closure rows for whichever
+      of OCID-056/059/061 actually reach MERGED state.
 - [ ] Move this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry to `recently_completed`
       once done (or partially, disclosing exactly what did/didn't land).
+- [ ] Flag to the Owner directly (not actioned by this task, out of scope for a mechanical
+      rebase): OCID-056's own discovery report documents a still-apparently-unresolved
+      urgent finding -- a live Supabase `service_role` key for project
+      `jusqumifsmtcaujqyjuy` (MeetTrack's real production DB) committed in plaintext to
+      `CLAUDE-HANDOFF.md`, sitting 9 days without a recorded Owner rotation decision.
 - [ ] `agent_work_briefing.py record-completion --umr-id UMR-20260813-101750-c377`.
