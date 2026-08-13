@@ -10,3 +10,7 @@
 
 ## Remaining
 - [x] None. This task is a pure duplicate of two already-completed RCAs for the same UMR — closing docs-only, no code change.
+
+## CI notes
+- PR #1118 opened, docs-only (`PROGRESS.md`). All checks passed except `audit-check`, which required two corrections to the structured verdict comment format (missing `Severity Classified`/`Verdict` bare-enum values on the first attempt) — see PR comments for the final `AUDIT: PASS` verdict with all 8 required fields.
+- CI run `31753466974`'s `Build` job hung `in_progress` for 30+ min against a real assigned runner (baseline for this job is ~2.5 min from recent successful runs) with zero other concurrent CI runs competing for capacity — genuinely stuck, not queued/contended. Cancelled (`gh run cancel 31753466974`) and re-triggered via a fresh empty commit rather than waiting indefinitely (GitHub Actions' default 360min job timeout would not have caught this for hours).
