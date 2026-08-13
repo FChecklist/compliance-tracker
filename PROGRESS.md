@@ -44,6 +44,15 @@
 - [x] Recorded completion via agent_work_briefing.py record-completion
       (UMR-20260813-101757-f13c).
 
+- [x] Re-verified live on resume (invocation 4/20, 2026-08-13T11:29Z checkpoint):
+      PR #296 confirmed MERGED (mergedAt 2026-08-13T11:05:24Z);
+      `systemctl --user is-active/is-enabled veridian-superboss-gateway.service` ->
+      active/enabled; `curl 127.0.0.1:8790/health` -> {"ok": true, ...}. Original
+      UMR-20260808-150937-43d0 row intentionally left status=killed (it genuinely was
+      killed -- honest history, same pattern as UMR-cebd; the RCA's own completion is
+      tracked separately via UMR-20260813-101757-f13c per agent_work_briefing.py). No
+      new work found or needed.
+
 ## Remaining
 - [ ] None for this RCA's own scope. Separate, pre-existing, out-of-scope observation
       (not touched here): the live checkout at /opt/veridian/scripts is currently on
