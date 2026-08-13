@@ -36,11 +36,12 @@
       completion. Same mislabel class as sibling f9f4 and the rest of the
       `gh-token-lacks-workflow-scope` mislabel series memory.
 - [x] Corrected via `superboss-register.py mark-umr-terminal --status completed_unmerged` citing
-      this RCA's own commit as evidence (same pattern used for sibling f9f4, PR #1111) -- see commit
-      SHA recorded below once pushed.
+      this RCA's own commit as evidence (same pattern used for sibling f9f4, PR #1111).
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1112, commit `d5108bd1f`.
+      UMR-20260807-150503-35bc now shows `status=completed_unmerged`.
 
 ## Remaining
-- [ ] None. RCA complete, terminal status corrected, PR opened.
+- [ ] None. RCA complete, terminal status corrected, PR #1112 opened.
 
 ## Note
 `ai-os/boss/ACTIVE-CLAIMS.yaml` does not exist in the live `/opt/veridian/ai-os` checkout at task
