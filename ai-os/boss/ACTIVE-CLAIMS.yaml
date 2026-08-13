@@ -5892,6 +5892,41 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260813-150556-rca--umr-20260813-101802-3ad2-killed) -- RCA on killed UMR-20260813-101802-3ad2 (dispatch-tracking row for task-20260813-115810-rca--umr-20260808-110448-b85c-killed); real work was genuinely completed after a stuck-first-invocation SIGKILL, mislabeled killed [DONE]"
+    claimed_at: "2026-08-13T13:16Z (this session, closed same session)"
+    claim: |
+      GOVERNING CHAIN: this task's own dispatching UMR (PM-sentinel tick), UMR-20260813-131646-007b.
+      RCA target: UMR-20260813-101802-3ad2, resource_governor row status=killed, reason
+      "stuck-task SIGKILL: no exit 60s after SIGTERM", unit_name
+      veridian-worker@task-20260813-115810-rca--umr-20260808-110448-b85c-killed.service.
+
+      ROOT CAUSE (verified live, not restated blind): invocation 1 of that service ran
+      11:58:14-12:58:19 (~1h) and got stuck; SIGTERM at 12:58:19, no exit within 60s ->
+      SIGKILL, which is what UMR-20260813-101802-3ad2's row captured. But systemd auto-restarted
+      the unit (task.yaml shows "resume=1, lifetime invocation 2/20" starting 12:58:51, before
+      the governor even finished recording the kill at 12:59:27) and the resumed worker
+      completed the REAL underlying RCA work: root-caused UMR-20260808-110448-b85c's own
+      mislabel, applied the correction live (`mark-umr-terminal --status completed_unmerged`,
+      verified via `resource_governor.py --query-umr --umr-id UMR-20260808-110448-b85c` --
+      status is genuinely completed_unmerged citing PR #1083/commit 0fe99b78c), and filed
+      compliance-tracker PR #1083 (open, correctly unmerged per branch-protection self-approval
+      deadlock). Task then hit a `next build` 900s timeout on an unrelated, pre-existing
+      quality-gate flake (repo-wide build, not scoped to the docs-only diff -- gate script's own
+      comment cites a prior RCA, task-20260727-043407, for this exact pattern); credit
+      accountant correctly declined a 2nd AI auto-fix retry, citing memory that the real
+      deliverable was already complete, leaving task.yaml at status=blocked (not a failure --
+      a correct refusal to burn spend on an already-finished task). Same class of stale/mislabel
+      as [[veridian-umr-0faf-killed-rca-real-work-mislabeled]] and
+      [[veridian-umr-f9a4-killed-rca-real-work-mislabeled]]: a dispatch-tracking UMR row frozen
+      at its first-invocation outcome, not updated to reflect the real work the auto-restarted
+      worker went on to complete.
+
+      OUTCOME: UMR-20260813-101802-3ad2 corrected to status=completed_unmerged via
+      `mark-umr-terminal`, citing PR #1083/commit 0fe99b78c as evidence (the real work this
+      dispatch produced). Unfixed gap flagged, not fixed here (same recurring class as
+      [[veridian-umr-f13c-killed-rca-real-work-already-done-plus-hard-stop-restart-gap]]):
+      scan_stuck_tasks' SIGKILL-on-first-invocation write is never reconciled against a later
+      successful resume under the same task_dir/service unit.
   - session_label: "claude-code (task-20260813-104656-rca--umr-20260808-183732-d3a3-killed) -- RCA on killed UMR-20260808-183732-d3a3 already independently completed today by task-20260813-091906 (root cause: credit-accountant.py FTS false positive, fixed PR #291 veridian-scripts); picked up that RCA's own disclosed remaining scope: OCID-056/059/061 mechanical rebase+re-audit [DONE, all 3 PRs merged]"
     claimed_at: "2026-08-13T10:55Z (this session, closed same session)"
     claim: |
