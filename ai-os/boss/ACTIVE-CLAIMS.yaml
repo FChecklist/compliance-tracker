@@ -40,6 +40,20 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260813-083439-resume-ocid-020-021-real-remaining-scope, UMR-20260813-082609-873e / UMR-20260813-083422-15e7) -- resume OCID-020/021 remaining scope: merge PR #1070 (P04 H6 fix), re-run gtm_check_ux_audit.py + gtm_check_browser_compatibility.py + gtm_check_production_readiness_audit.py, honest P04/P03 disposition"
+    claimed_at: "2026-08-13T08:40Z"
+    claim: |
+      SPEC (UMR-20260813-082609-873e resuming SIGKILL'd UMR-20260808-175055-cebd,
+      parent UMR-20260802-165606-4413/OCID-020 + UMR-20260802-173631-ca85/OCID-021,
+      pm_decisions_pending id=519): update PR #1070 branch, wait for CI, merge,
+      wait for Vercel prod deploy, re-verify H6 live via gtm_check_ux_audit.py,
+      update master_issue_tracker OCID020021-P04 check_again_notes. Re-assess P04
+      overall disposition honestly (H2/H4/H10 remain real open, separately
+      dispositioned). P03 (webkit libs): NOT re-attempting apt-get/dpkg-deb
+      approach again (already failed twice) -- only seeking a real Owner decision
+      or a genuinely different fix path. File scope: PR #1070's branch only
+      (src/components/ContactUsForm.tsx, already committed), master_issue_tracker
+      DB rows OCID020021-P03/P04, this task's own PROGRESS.md.
   - session_label: "claude-code (UMR-20260806-132527-30dc, child UMR-20260806-133845-32eb) -- real OCID-020 category 23 (UX audit) fail-root-cause + minimal fix, targeting the 4 real severity>=3 heuristics (H2/H4/H9/H10) from the 2026-08-06T10:31:26Z evidence"
     claimed_at: "2026-08-06T13:45Z"
     claim: |
