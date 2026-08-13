@@ -1,17 +1,54 @@
-# PROGRESS -- task-20260813-144956-rca--umr-20260813-091801-0faf-killed
+# PROGRESS -- task-20260813-161127-rca--umr-20260813-101750-c377-killed
+
+Governing chain: UMR-20260813-101750-c377 (status=killed).
 
 ## Completed
-- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260813-091801-0faf` live: status=killed, `unit_name=veridian-worker@task-20260813-093559-rca--tracked-chain-head-umr-20260802-173.service`, recorded reason: "real systemd state 'inactive', no PR was ever opened, real task.yaml status='blocked' -- no live process and no real deliverable; mechanically correctable to killed (orphaned dispatch, never produced a real artifact)."
-- [x] Inspected the dispatched task's own artifacts on disk (`ai-os/tasks/task-20260813-093559-rca--tracked-chain-head-umr-20260802-173/`): `result.json`, `task.yaml`, `quality-gate-0.json`, `quality-gate-1.json`, `worker.log`, and its pushed branch `worker/task-20260813-093559-rca--tracked-chain-head-umr-20260802-173` (2 real commits, `84e47726e` + `85f95426d`).
-- [x] Queried the underlying chain-head row live: `resource_governor.py --query-umr --umr-id UMR-20260802-173631-ca85` now shows **status=completed** (ts_completed 2026-08-13T09:38:21Z), citing PR #732 (merge commit `b69c78b334a605b8a71903f1d08bbb2e6b515ea2`), verified via `git merge-base --is-ancestor` as a real ancestor of `origin/main`. This is the correct, real, verified terminal state the killed task was dispatched to produce.
-- [x] **Root cause determined**: the dispatched worker (`task-20260813-093559-rca...`) genuinely completed its real assigned scope in its first invocation -- it queried ca85 live, traced the "killed" status to a stale artifact of the 2026-08-07 bulk disk-pressure PM HOLD (`UMR-20260807-051828-6715`), independently verified PR #732 was really merged and a real ancestor of `origin/main`, and correctly wrote `mark-umr-terminal --status completed` onto ca85's row with that evidence -- a real, live, still-standing DB correction, confirmed by my own re-query above. It then committed + pushed 2 commits documenting this to its own worker branch (never merged/no PR opened yet).
-  - The task's own local `quality-gate.sh` **build** gate then TIMED OUT twice in a row (`quality-gate-0.json` and `quality-gate-1.json`, both `exit_code:124`, both `"[quality-gate.sh] gate 'build' TIMED OUT after 900s"`) -- a documented, recurring, host-contention failure mode (the task's own PROGRESS.md cites 3 prior independent RCAs of this exact signature: 2026-07-26 OOM, 2026-07-27 unbounded hang, 2026-07-31 host-wide RAM/swap contention -- see `task-20260727-043407`), **not** a regression caused by this task's diff, which is `PROGRESS.md`-only (zero application code touched, confirmed via the task's own `git diff --stat origin/main...HEAD` check).
-  - The auto-fix retry invocation (`.claude-out-fix-1.json`) then misfired -- it invoked a `/loop`-specific tool it should not have used outside that context, produced no further action ("I mistakenly used a `/loop`-specific tool there... I don't need to do anything further this turn"), and the task sat with `task.yaml status=blocked` until the stuck-task supervisor SIGKILLed the systemd unit.
-  - Two consecutive identical-approach gate failures (build timeout) is exactly this protocol's own circuit-breaker trigger condition, so the SIGKILL itself was correct process -- but the row's own recorded `reason` text ("no real deliverable") is factually wrong: a real deliverable exists and is still live (ca85's verified `completed` row, confirmed above), it just never got wrapped in a merged PR because the gate loop consumed the run before a PR was opened.
-- [x] This is the same class of finding as prior RCAs on this chain (`UMR-20260808-095907-f9a4`, `UMR-20260808-175055-b85c`, PRs #1082/#1083): real, verified work exists, but the terminal label undercounts it because the mechanical killer only checked for a PR/live-process, not the live DB state the work actually produced.
-- [x] Recorded honest terminal outcome for `UMR-20260813-091801-0faf` via `superboss-register.py mark-umr-terminal --status completed_unmerged`, citing commit `85f95426d` (real, pushed, not yet an ancestor of `origin/main`) as evidence, plus the live-verified ca85 completion as the substantive real deliverable.
-- [x] Recorded completion via `agent_work_briefing.py record-completion --umr-id UMR-20260813-124037-f8c3`.
+- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260813-101750-c377`
+      directly (not the SPEC summary alone). Confirmed real reason: "stuck-task
+      SIGKILL: no exit 60s after SIGTERM", unit_name
+      `veridian-worker@task-20260813-104656-rca--umr-20260808-183732-d3a3-killed.service`.
+- [x] Read that killed task's real `task.yaml` (`status: blocked`,
+      `restart_count: 18`, `execution_seconds: 3570`) and its full checkpoint
+      history. Found it was NOT stuck on incomplete real work: the actual scope
+      (RCA on UMR-20260808-183732-d3a3 + its disclosed remaining scope
+      OCID-056/059/061 mechanical rebase) was fully merged to `main` via
+      PR #870 (2026-08-13T11:20:14Z), #873 (2026-08-13T11:26:51Z), #878
+      (2026-08-13T11:33:14Z).
+- [x] Root cause: the task then looped (18 restarts) trying to merge its own
+      trailing bookkeeping close-out PR (PROGRESS.md +
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` only), which kept flipping back to
+      `CONFLICTING` as unrelated `main` drift landed faster than it could
+      rebase. An earlier restart of the same task DID successfully open and
+      merge that close-out as PR #1081 (commit `823624a97`, merged
+      2026-08-13T12:24:56Z) -- confirmed already present in this workspace's
+      own `git log`. A later restart, apparently unaware #1081 had already
+      landed, opened a redundant duplicate, PR #1085, with the identical
+      diff; #1085 never merged (stuck `CONFLICTING`/`DIRTY`) and that's what
+      the stuck-task SIGKILL actually caught.
+- [x] Live-reverified before acting (not just trusting the checkpoint note):
+      `master_issue_tracker` rows `OCID-056/059/061-CONSOLIDATION-LINK` are
+      all `is_closed=YES` (`superboss-register.py list-issues`); `origin/main`'s
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` carries no lingering entry for this task
+      (already reconciled via #1081).
+- [x] Closed PR #1085 as superseded/redundant, with an explanatory comment
+      citing the real evidence (already-merged #1081, already-closed issue
+      rows).
+- [x] Marked `UMR-20260813-101750-c377` terminal via `superboss-register.py
+      mark-umr-terminal --status completed --pr-number 1081 --commit-sha
+      823624a97...` -- correcting the killed label; the underlying work was
+      genuinely complete and merged, the kill only caught a stale duplicate
+      PR from a stuck retry loop.
+- [x] Recorded completion via `agent_work_briefing.py record-completion`
+      for this task's own UMR (UMR-20260813-141610-273a).
 
 ## Remaining
-- [ ] None for this UMR's own scope. Orphaned branch `worker/task-20260813-093559-rca--tracked-chain-head-umr-20260802-173` (2 unmerged commits) is left in place as the real evidence trail for `completed_unmerged`; not opening a duplicate PR for it since the substantive real work (ca85's DB correction) is already live and independently verified -- a PR here would only be paperwork, and this task's own PR (this branch) carries the same RCA narrative.
-- [ ] Unfixed gap, flagged not fixed here (out of scope): the stuck-task killer's reason text conflates "no PR / no live process" with "no real deliverable" -- for DB-only correction tasks (mark-umr-terminal writes, no app code diff) this produces a false-negative label. Same root category as the `completed`/`completed_unmerged` enum gap already flagged in prior RCAs (`UMR-20260808-175055-b85c`, PR #1083).
+- [ ] None. Real work was already complete before this RCA started; this RCA's
+      only real action was correcting the terminal-status mislabel and
+      closing the stale duplicate PR.
+
+## Task status
+Complete. No code/schema changes needed -- this was a pure status-correction +
+duplicate-PR cleanup RCA, same class as prior RCAs in this chain (see
+`ai-os/boss/COMPLETED.yaml` / prior UMR-*-killed RCAs this week for the
+recurring pattern: a stuck-task SIGKILL on a task whose real work already
+landed, caught only on a trailing bookkeeping/merge retry loop).
