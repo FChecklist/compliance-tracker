@@ -3022,6 +3022,65 @@ open_items:
         Real, session-wide tooling lesson: prefer `\grep`/`\find` or a Python subprocess call over the
         bare commands in this Bash tool's shell for anything where an exact file list or count matters.
 
+    - id: GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT
+      name: "No shared/canonical intent-resolution layer across VERIDIAN's real input surfaces -- each of the four intake paths resolves to a different backend shape independently"
+      old_ids: []
+      detail: |
+        Real, live finding, `UMR-20260802-165606-4413` (OCID-020) / `UMR-20260802-173631-ca85`
+        (OCID-021), OCID-061 discovery/mapping dispatch (`ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md`).
+        Discovery only, per that dispatch's own scope -- no runtime built or modified.
+
+        Mapped the four intake surfaces the dispatch named:
+        (1) Mode pill + cascading "Chain Selector" (`src/components/veri-chat/ChainSelector.tsx`,
+        `VeriComposer.tsx:533`) -- real, wired, resolves to `{modePill, pathKeys}` via
+        `resolveDynamicChainId()` in `task-service.ts`.
+        (2) Free chat (`composerMode === "discuss"`, `VeriComposer.tsx:520`) -- real, wired, calls
+        `sendMessage()` -> `generateAiReply()` in `chat-service.ts` (real LLM call via
+        `resolveModelConfig(orgId, "user_assistant_oa")`, lines ~668/923).
+        (3) Speech-to-text (`src/lib/whisper-client.ts`) -- real code, wired only into the separate
+        Voice Tickets upload-and-extract flow (`voice-ticket-service.ts`,
+        `src/app/api/voice-tickets/route.ts`, `src/app/(app)/voice-tickets/page.tsx`), NOT into the
+        composer/mode-pill input bar (zero mic/audio/SpeechRecognition references in
+        `VeriComposer.tsx`). Additionally not currently operational even on its own path:
+        `whisperApiKey()` (`whisper-client.ts`) fails loud because `OPENAI_API_KEY` is not
+        provisioned in this codebase's secrets as of this wave (confirmed via the file's own
+        2026-07-14 header comment -- `GROQ_API_KEY`/`OPENROUTER_API_KEY`/`CEREBRAS_API_KEY` are the
+        only LLM provider keys actually set).
+        (4) API/webhook entry points -- real outbound webhooks exist
+        (`src/app/api/settings/webhooks/route.ts`, org-registered URL+secret, fixed `VALID_EVENTS`
+        list), and narrow real inbound surfaces exist (PWA Web Share Target at
+        `src/app/api/veri-chat/share-target/route.ts`; guest-chat, partner-portal, public-portal
+        ticket routes) -- but no generic "submit an intent" inbound API/webhook was found that
+        routes an arbitrary external payload into the same pipeline the other three surfaces use.
+
+        Searched repo-wide (`src/`, `ai-os/`, root docs) for a shared abstraction tying these
+        together: `canonical intent object`, `IntentObject`, `intent resolution`, `hidden runtime`,
+        `universal input`/`universal runtime` -- zero real matches in product code or architecture
+        docs. The only near-hits are `Study_by_Claude.md:469`'s benchmark-comparison section heading
+        ("Intent Resolution Pipeline & Intent Learning Loop", describing an external CSV benchmark's
+        wishlist, not existing code) and `ai-os/SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19.md:206`'s
+        use of "intent resolution" in the ordinary-English sense to describe PROJEXA Copilot's
+        `dispatchTool()` (`task-execution-engine.ts:90`) -- itself a fixed-`codeReference` tool
+        dispatcher, not a general-purpose intake normalizer. Confirmed directly, not assumed: this
+        is a real, confirmed gap -- the four intake surfaces each resolve independently
+        (Chain Selector -> `{modePill, pathKeys}`; free chat -> `generateAiReply()`; voice tickets ->
+        transcript + AI-suggested fields via `voice-ticket-service.ts`; share-target/guest-chat/
+        partner-portal each with their own service functions) with no shared intent-resolution layer
+        or canonical intent object anywhere in between.
+      status: open
+      owner: "unassigned -- discovery only, per OCID-061's own dispatch scope; a fresh PM decision
+        with real success criteria is required before any implementation is authorized."
+      blocker: "None technical -- this is unbuilt, not blocked. Needs a PM decision on whether/how to
+        build a shared intent-resolution layer, once OCID-061's full (currently truncated) prompt and
+        its real success criteria arrive."
+
+    - id: GAP-OCID059-BROWSER-TIER-SELECTION-NOT-EXECUTION
+      name: "Browser execution tier SELECTION is live-wired; actual per-tier local model EXECUTION is real, tested, and unwired -- a more precise, narrower framing than 'browser execution tiers exist'"
+      detail: "src/lib/browser-execution/client-compile.ts::compileInBrowser() (called live from src/components/veri-chat/VeriComposer.tsx:245) only calls tier-orchestrator.ts::planExecution() (tier selection) and prompt-compiler's analyzeLightweight() (deterministic JS classification) -- it never calls webllm-engine.ts::startLiteLlmSession(), npu-engine.ts, builtin-ai-engine.ts, or transformers-engine.ts's real inference functions. Confirmed via git grep: zero non-test callers anywhere in src/app or src/components for any of those 4 engine files, nor for worker-pool.ts, cross-tier-storage.ts, or model-cache.ts. The internal gate functions that would trigger them (shouldAttemptWebLlm/shouldAttemptNpu/shouldAttemptBuiltinAi in tier-orchestrator.ts) are only called from inside their own matching engine file as a self-guard, never from client-compile.ts. Real npm dependencies for this DO exist (@mlc-ai/web-llm ^0.2.84, @huggingface/transformers ^4.2.0, both in package.json), and all 4 engine files pass their own unit tests as part of the 108/108-passing browser-execution suite -- this is real, tested code, just not reachable from any live user action today."
+      size: M
+      recommendation: "Whoever picks up real browser-execution implementation work should wire client-compile.ts (or a new caller) to actually invoke the selected tier's real engine function when shouldAttemptWebLlm/Npu/BuiltinAi returns true, rather than only reporting which tier was selected -- reusing this existing, tested code rather than building a second version."
+      status: open
+      first_raised: "OCID-059 discovery, 2026-08-04 (ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md, discovery/verification only, no implementation authorized -- SEC-07 lock applies to any real fix)"
     - id: GAP-OCID-FABRICATED-PARENT-CHAIN-REFERENCES
       name: "Dispatch prompts have repeatedly asserted OCID/UMR parent references that do not exist anywhere in the repository, with no permanent record of the negative finding until now"
       old_ids: []
@@ -3435,7 +3494,6 @@ open_items:
         Not actioned by OCID-054 (discovery-only scope)."
       status: open
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
-
 
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
