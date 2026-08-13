@@ -1,59 +1,77 @@
-# PROGRESS -- task-20260804-054220-register-ocid-061--universal-determinist
-
-SPEC: OCID-061 input-intake discovery/mapping (discovery only, no runtime build).
-Provisional parent OCID-021 (`UMR-20260802-173631-ca85`) / OCID-020
-(`UMR-20260802-165606-4413`).
+# PROGRESS -- task-20260813-115810-rca--umr-20260808-110448-b85c-killed
 
 ## Completed
-- [x] Registered claim, confirmed provisional parent OCID/UMR pairing against an
-      independent concurrent registration (OCID-053 cross-reference table).
-- [x] Mapped all four intake surfaces with file:line citations: mode pill/Chain
-      Selector (REAL, wired), free chat (REAL, wired), speech-to-text (PARTIAL --
-      real code, wired only to Voice Tickets, not operational --
-      `OPENAI_API_KEY` unprovisioned), API/webhook entry points (REAL outbound +
-      narrow real inbound surfaces, no generic inbound intent gateway).
-- [x] Confirmed NOT FOUND: no canonical intent object / shared intent-resolution
-      layer / "hidden runtime" exists anywhere in this codebase -- real, confirmed
-      gap, not an undocumented existing mechanism.
-- [x] Wrote `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md`; added
-      `GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT` to `ai-os/MASTER-TRACKER.yaml`
-      (open, unassigned -- discovery only).
-- [x] Found + fixed, in the same cycle: a genuine pre-existing duplicate top-level
-      `recently_completed:` YAML key in `ai-os/boss/ACTIVE-CLAIMS.yaml` that was
-      silently causing standard YAML parsers to discard real historical entries.
-      Merged into one list.
-- [x] Committed, pushed, opened PR #878.
-- [x] `task-20260813-104656-rca--umr-20260808-183732-d3a3-killed` (this UMR chain,
-      resuming this branch's own real remaining scope after 9 days of main drift):
-      merged current `origin/main` in, resolved real conflicts (a 3-way conflict
-      where both sides had independently replaced a much larger historical base
-      with their own short summary) by keeping this task's own short summary,
-      matching this repo's established convention -- root `PROGRESS.md` carries
-      the most recently merged task's own summary, not an accumulated log --
-      `ai-os/MASTER-TRACKER.yaml` (kept both entries), `ai-os/OS.yaml` (kept both
-      index entries), and `ai-os/boss/ACTIVE-CLAIMS.yaml` (merged real, zero
-      duplicates, zero history discarded). Pushed; CI re-running against the new
-      head.
-- [x] Same task, 2nd rebase this cycle: PR #870 (OCID-056) merged to `main` first,
-      which moved `ai-os/boss/ACTIVE-CLAIMS.yaml`/`PROGRESS.md` again and flipped
-      this PR to `CONFLICTING`. Merged current `origin/main` in once more (this
-      file replaced with this same short summary, `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      merged real, zero duplicates); posted a fresh structured 8-field
-      `AUDIT: PASS` comment and a follow-up empty sync commit per
-      `scripts/validate-audit-verdict.ts`'s real contract (bare-word enum fields,
-      all 8 labeled fields present).
-- [x] Same task, 3rd rebase this cycle: PR #873 (OCID-059) merged to `main` next,
-      moving `PROGRESS.md`/`ai-os/MASTER-TRACKER.yaml`/`ai-os/OS.yaml`/
-      `ai-os/boss/ACTIVE-CLAIMS.yaml` again and flipping this PR to `CONFLICTING`
-      a second time. Merged current `origin/main` in once more, same convention
-      (this file replaced with this same short summary, `MASTER-TRACKER.yaml` and
-      `OS.yaml` kept both sides' distinct entries, `ACTIVE-CLAIMS.yaml` merged
-      real with zero duplicates, new OCID-059 certification doc from `origin/main`
-      carried through cleanly).
+- [x] Queried the real row: `python3 resource_governor.py --query-umr --umr-id UMR-20260808-110448-b85c`
+  (full `inputs_json`/`outputs_json`/`reason`/`metadata_json`, not the SPEC's summary alone).
+- [x] Root-caused the mislabel and corrected the row's terminal status with real evidence.
+- [x] Filed this RCA.
+
+## RCA: UMR-20260808-110448-b85c ("killed")
+
+**What the row actually was.** An `owner_dispatch_gateway`/`veridian_task_create` dispatch
+(`task_identity=owner-task-20260808-110446-2738296`) asking an interactive session to
+re-review `FChecklist/veridian-ai-os#12` ("stop-work-order-lifted-2026-08-08-v2") for merge,
+now that the prior "FChecklist is an org, not a personal account" premise had been checked
+and found false. The row's real `reason` (45s later, `ts_completed=2026-08-08T11:05:33Z`) is
+a full, first-person, well-reasoned analysis: it explicitly *retracts* the org/personal-account
+point as wrong, but still declines to merge, because the dispatch's own honest caveat conceded
+the actual load-bearing question -- no git/GitHub metadata on this shared server can prove a
+specific human (vs. automation using the same stored credentials) was behind the commit. **No
+merge performed.** At the time this ran, `gh pr view 12` confirms PR #12 was still open
+(it was independently merged 13 minutes later, at `2026-08-08T11:18:50Z`, by a different
+channel -- not by this UMR).
+
+**Why it shows `status=killed`.** This is a mislabeling, not a crash -- same class as
+[[veridian-umr-6eea-killed-rca-mislabeled-real-deliverable]]/[[veridian-umr-f9a4-killed-rca-real-work-mislabeled]]/
+[[veridian-umr-1d97-boss-worker-tiernote-mislabeled-killed]]. Concretely:
+- `unit_name` and `ts_dispatched` are both `NULL` on this row -- by design for this channel.
+  `reconcile_dispatched_dead_zone.py`'s own docstring confirms `task_kind='veridian_task_create'`
+  rows from `owner_dispatch_gateway` are relayed straight into a live interactive Claude Code
+  session (`dispatch-owner-task.sh`), never spawned as a systemd unit -- so neither
+  `scan_stuck_tasks()` (requires `unit_name`) nor `reconcile_owner_dispatch_status.py` (requires
+  `status='running'` + `unit_name`) could have (and, checked directly, did not -- no
+  `reconcile_owner_dispatch_status` key in `metadata_json`) touched this row.
+- `superboss-register.py mark-umr-terminal` only accepts a 4-value `--status` enum:
+  `completed | completed_unmerged | failed | killed`. `completed`/`completed_unmerged` are
+  gated by `validate_umr_terminal_completion_evidence()` and structurally REQUIRE a real
+  `--file-path` that exists on disk or a real `--commit-sha` -- neither of which this task
+  produced, because the *correct* outcome of a sound merge-review was "don't merge," not a new
+  artifact. `failed` would mischaracterize a genuinely correct decision as a failure. That
+  leaves `killed` as the only evidence-free option in the enum, which is what got recorded --
+  a structural gap (no "declined / judgment call, no artifact needed" terminal status exists),
+  not a process crash. `pm-sentinel-tick.sh`'s Check 2a then swept this up days later as a
+  "killed-status row needing RCA," which is what produced this task.
+
+**Is there remaining scope?** No. The underlying question this row was evaluating
+("should PR #12 be merged") has already been superseded twice over by later, more decisive
+generations of the same "stop-work-order-lifted" saga (see
+[[veridian-stop-work-order-lift-7th-gen-real-merged-pr-still-live-blocked]]): PR #12 *did* get
+merged (by a different channel, 13 min after this row completed), and a subsequent dispatch
+that tried to build on that merge (`task-gateway.py` cmd_start) was independently declined
+(compliance-tracker PR #1057, still open) because *actually executing* the real governance gate
+(`resource_governor.py::_stop_work_order_block_reason`) against live system state returns
+`BLOCKED` -- a more decisive, mechanical check than the identity-proof reasoning this row used.
+Nothing needs to be fixed or redispatched for b85c's own scope.
+
+**Correction applied.** `superboss-register.py mark-umr-terminal --umr-id
+UMR-20260808-110448-b85c --status completed_unmerged --commit-sha <this task's commit> --pr-number
+<this PR> --repo compliance-tracker --reason "..."` (same shape as the f9a4 precedent -- no new
+code artifact exists for the underlying decision itself, so this RCA's own PR is cited as the
+evidence, and `completed_unmerged` is used rather than `completed` because this repo's PRs are
+currently unmergeable via any channel -- see
+[[veridian-branch-protection-self-approval-deadlock-active]]).
+
+**Not fixed here (disclosed, not hidden):** the structural gap itself -- `mark-umr-terminal`'s
+4-value enum has no evidence-free "declined, no artifact required" terminal status, so every
+future pure-judgment/decline-only interactive dispatch will hit the same `killed` mislabel and
+generate the same Check-2a RCA churn. A real fix would need a 5th enum value (e.g.
+`declined`/`completed_no_action`) threaded through the sqlite CHECK constraint, `UMR_STATUSES`,
+`validate_umr_terminal_completion_evidence()`, and every consumer that branches on the terminal
+set (`directive_engine.py`, `gtm_check_ai_testing.py`, `prune_task_node_modules.py`,
+`triage_owner_umr_24h.py`, `pm-sentinel-tick.sh` Check 2a itself, etc.) -- real, wide blast
+radius, out of scope for a single-row RCA. Left as a known limitation for a dedicated follow-up.
 
 ## Remaining
-- [ ] Confirm CI green (all 8 required checks, including `audit-check`) on this
-      new head.
-- [ ] Merge PR #878; move the ACTIVE-CLAIMS entry to `recently_completed`.
-- [ ] No implementation performed or authorized this cycle -- a fresh PM decision
-      is still required before building any shared intent-resolution layer.
+- [ ] (Follow-up, not this task) consider adding a 5th `mark-umr-terminal` status for
+  evidence-free judgment/decline outcomes, so future pure-decision dispatches stop being
+  mislabeled `killed`.
