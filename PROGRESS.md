@@ -37,6 +37,9 @@ investigative/corrective work but each got blocked before completing the actual 
       traceability.
 - [x] Recorded completion via `agent_work_briefing.py record-completion` for this task's own
       governing UMR (UMR-20260813-191649-30eb).
+- [x] Committed and pushed; opened PR #1108: https://github.com/FChecklist/compliance-tracker/pull/1108
+      Live-reverified post-write: `resource_governor.py --query-umr` now shows
+      `status: completed_unmerged` for UMR-20260813-091825-7ad8.
 
 ## Remaining
 - [ ] None for this dispatch. Remaining PRs #801/#884/#799 (mergeable, behind, not conflicting)
