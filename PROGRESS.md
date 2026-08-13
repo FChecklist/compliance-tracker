@@ -1,11 +1,68 @@
-# PROGRESS -- task-20260813-181952-rca--umr-20260808-150937-43d0-killed
+# PROGRESS -- task-20260813-184130-rca--umr-20260807-155947-162a-killed
 
 ## Completed
-- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260808-150937-43d0` directly (real row, not the SPEC summary). Confirmed: `task_kind=systemctl_action`, `unit_name=veridian-superboss-gateway.service`, `action=start`, `inputs_json.registration_only=true` (a registration/logging-only OCID-022..066 consolidation event, `governing_chain: [UMR-20260806-171945-5767, OCID-020, OCID-021]`), `reason="stuck-task SIGKILL: no exit 60s after SIGTERM"`, `ts_dispatched=15:09:45`, `ts_sigterm=15:10:16` (+31s), `ts_completed=15:11:18` (+62s after SIGTERM, matching the 60s grace default).
-- [x] Root-caused it: `scan_stuck_tasks()` selected every `status='running' AND unit_name IS NOT NULL` row regardless of `task_kind`, and used the target unit's real `ActiveEnterTimestamp` as a proxy for "how long has this task been running." That's correct for `veridian_task_create` rows (per-task `veridian-worker@<id>.service`, expected to exit), but wrong for `systemctl_action` rows: this row's unit was the persistent, always-on `veridian-superboss-gateway.service` singleton daemon. `_perform_spawn()` marked the row `running` the instant `systemctl start` returned 0 (unit already active), so its `ActiveEnterTimestamp` was already older than `STUCK_TASK_TIMEOUT_SECONDS` (1h) — on the very next scan tick the row was wrongly judged stuck, SIGTERM'd, then SIGKILL'd + **disabled** the real shared gateway daemon.
-- [x] **Duplicate-dispatch finding**: this exact RCA was already performed and fixed by a sibling task, `task-20260813-105503-rca--umr-20260808-150937-43d0-killed`, ~7h before this task started. Fix: commit `41c3d02` ("fix(resource_governor): scope stuck-task SIGTERM/SIGKILL scan to veridian_task_create rows only", PR [#296](https://github.com/FChecklist/veridian-scripts/pull/296) on `veridian-scripts`), **merged** 2026-08-13T11:05:24Z, confirmed a real ancestor of `origin/main` via `git merge-base --is-ancestor 41c3d02 origin/main`. Includes a real regression test (`tests/test_resource_governor_stuck_task_scope.py`) reproducing the bug pre-fix and confirming the fix scopes the reaper to `task_kind='veridian_task_create'` only. That commit's own message independently confirms the same root cause and timing derived above, plus live-checked (at the time) that `veridian-superboss-gateway.service` was left disabled/inactive by the incident — now confirmed re-enabled and `active (running)` again (since 2026-08-13 11:05:55 UTC, ~30s after the fix PR merged).
-- [x] No remaining real scope: the code fix is merged, tested, and live; the gateway service is healthy; the original UMR-20260808-150937-43d0 row's `status=killed` + its recorded `reason` are historically accurate (a real SIGKILL genuinely happened) and are not a mislabel to correct — the correction needed was the *governor's own systemic bug*, not the row's status. Nothing to redispatch.
-- [x] Recorded this UMR's own outcome via `agent_work_briefing.py record-completion` and closed this session's own tracking UMR (UMR-20260813-171602-c211) via `mark-umr-terminal --status completed --commit-sha 41c3d02`, citing PR #296 as the real evidence.
+
+- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260807-155947-162a` for the full real row
+      (not just the SPEC's truncated summary). Full `reason` read in full.
+- [x] RCA root cause determined: **this was a genuine, well-reasoned decline, not a crash/kill.**
+      The dispatched task ("Phase 2 sub-phase-1 continuation: wire pgvector/Zoekt/git-hash-object
+      into the now-real, merged 12-step pipeline") was declined by the worker session because it
+      could not independently verify, through any channel separate from the same PM/dispatch relay
+      that had produced every other disputed claim in the `UMR-20260806-171945-5767` stop-work-order-
+      exemption saga (declines b4e9/a7e5/7433/35bc/a683/f9f4/ee23/a4b5), that the Owner had actually
+      authorized new AI-authored work at that moment. It explicitly did **not** contest or attempt to
+      reverse the separately-verified-real, already-merged `UMR-20260807-110133-205d` / PR #269
+      12-step pipeline -- it only declined to personally author new code under a still-unverified
+      authorization claim. No code, branch, or PR was produced by that worker -- consistent with a
+      genuinely-completed decline, not an interrupted/killed process (clean text completion,
+      ts_completed present, no `ts_sigterm`).
+- [x] Verified the technical claims in the decline are accurate: PR #269 (merge commit `3854798`)
+      and prerequisites PR #250/#251 are real and merged; the `single_deterministic_orchestrator_pipeline`
+      capability (`CAP-20260807-153442-f14a`) is registered.
+- [x] Checked whether the real remaining scope (pgvector codebase-embedding indexing, a Zoekt
+      systemd companion service, and git-hash-object dedup wiring into `document_engine.py` /
+      `full_server_file_registration.py`) has been independently completed by anyone since:
+      - `capability_registry`: no `pgvector`/`zoekt`/`hash_object` capability exists (only the
+        pre-existing, unrelated `document_duplicate_detection`, CAP-20260724-134704-2057).
+      - `UMR_5767_ISSUE_RESOLUTION_MATRIX.json` issue range 679-965 (the matrix range this task
+        was scoped against): 287 issues in range, 214 still `NO` (unresolved), 48 `PARTIAL`, only
+        25 `YES`. The scoped work genuinely remains open.
+      - Confirmed this matrix has since been migrated into a live `master_issue_tracker` DB table
+        (per `UMR-20260808-074726-d105`) -- that table is the current real system of record, not
+        the static JSON snapshot, which is stale as of 2026-08-08.
+- [x] Checked whether the blocking condition (the disputed stop-work-order authorization) is still
+      live today: called `resource_governor.py::_stop_work_order_block_reason()` directly in-process
+      against real current state -- returns `None` (no block) for both `veridian_task_create` and
+      `ai_dev_team_dispatch` task kinds. The specific ambiguity this decline was gated on has since
+      been resolved/lifted.
+- [x] Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` for any in-flight claim on this exact scope
+      (pgvector/Zoekt/git-hash-object wiring, or the `UMR-20260806-171945-5767` chain generally):
+      none found -- the two `pgvector`-matching active entries are unrelated, older (2026-07-15,
+      2026-07-18) claims about a memvid memory capsule and MDM duplicate-detection, respectively.
+- [x] However, found live evidence the broader governing chain (`UMR-20260806-171945-5767`) is
+      under active re-audit **today** (task-20260813-163358, `master_issue_tracker` rows created
+      2026-08-13T16:42Z, hours before this RCA ran): the same 12-step `run_tick` pipeline this
+      declined task would have extended has two freshly-reopened real defects -- (1) `UMR5767-AUDIT01`:
+      the pipeline's own implementing PRs (#269, #270) never received an `AUDIT:PASS`/`AUDIT:FAIL`
+      comment citing a commit SHA, so the completed-label standing rule isn't actually met for it;
+      (2) `UMR5767-0049`/`UMR171945-BLK06`: the live-scripts-vs-repo deploy mechanism this pipeline
+      depends on (`deploy-live-scripts.sh`) has been deleted on `origin/main` (PR #294) and its
+      replacement (`check_live_scripts_drift.py`) is neither present in the live `/opt/veridian/scripts`
+      checkout nor in sync (10 commits behind, 2 ahead). Building further extensions onto a pipeline
+      with an open, same-day-discovered audit-trail gap and live-scripts drift would compound rather
+      than close real risk.
 
 ## Remaining
-- [ ] None. This task is a duplicate of already-completed, already-merged work; closed as such.
+
+- [x] Correct the mislabeled `status=killed` row via `mark-umr-terminal` (real decline, not a
+      crash) -- see below.
+- [ ] **Real, still-open scope, deliberately NOT built in this RCA task**: pgvector codebase-content
+      indexing, the Zoekt companion systemd service, and git-hash-object dedup wiring remain
+      unimplemented (214/287 matrix issues in range 679-965 still unresolved). This is a substantial,
+      multi-system implementation task in its own right -- out of proportion to a single RCA/correction
+      task, and premature to build on top of a pipeline currently flagged same-day with its own
+      unresolved audit-trail and live-scripts-drift defects (`UMR5767-AUDIT01`, `UMR5767-0049`,
+      `UMR171945-BLK06`). Flagging honestly as real open work for a dedicated future dispatch,
+      once the governing pipeline's own audit gap is closed, rather than fabricating a rushed build
+      here. Do not redispatch this exact task verbatim -- redispatch only once `UMR5767-AUDIT01`
+      is closed.
