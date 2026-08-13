@@ -13,7 +13,10 @@
 - [x] Recorded completion via `agent_work_briefing.py record-completion` against this RCA task's own UMR (`UMR-20260813-101754-61b2`).
 
 ## Remaining
-- [ ] None for the RCA itself (unchanged). See quality-gate addendum below for the auto-fix loop's own finding.
+- [ ] Watch CI on PR #1080 (opened invocation 3/20 -- branch was pushed by a prior invocation but no PR existed yet); merge once green.
+
+## PR
+- PR #1080: https://github.com/FChecklist/compliance-tracker/pull/1080 (opened invocation 3/20; branch/commits were already pushed by a prior invocation, PR itself had never been created)
 
 ## Quality-gate auto-fix addendum (attempt 1/2, GATE_FAIL on this task's own build gate)
 
