@@ -53,12 +53,18 @@
       tracked separately via UMR-20260813-101757-f13c per agent_work_briefing.py). No
       new work found or needed.
 
+- [x] Re-verified live again on resume (invocation 6/20, 2026-08-13T13:33Z checkpoint):
+      PR #296 still MERGED; gateway still active/enabled; /health still {"ok": true, ...}.
+      Live checkout still on an unrelated concurrent session's WIP branch
+      (worker/task-20260813-091931-amendment--server-native-pm-escalation-p, now
+      ff328e7/2fcd274, 2 unpushed commits) -- unchanged out-of-scope observation, not
+      touched. No drift, no new work.
+
 ## Remaining
 - [ ] None for this RCA's own scope. Separate, pre-existing, out-of-scope observation
       (not touched here): the live checkout at /opt/veridian/scripts is currently on
       branch worker/task-20260813-091931-amendment--server-native-pm-escalation-p (an
-      unrelated concurrent session's WIP, 2 commits ahead of origin/main, unpushed) --
-      the merged fix (PR #296) is on GitHub main but the live checkout won't run it until
-      that branch situation resolves and a sync/deploy happens. Flagging, not fixing --
-      switching branches on a shared live checkout out from under another active session
-      would be its own risk.
+      unrelated concurrent session's WIP, unpushed) -- the merged fix (PR #296) is on
+      GitHub main but the live checkout won't run it until that branch situation
+      resolves and a sync/deploy happens. Flagging, not fixing -- switching branches on
+      a shared live checkout out from under another active session would be its own risk.
