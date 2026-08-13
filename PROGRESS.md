@@ -69,6 +69,27 @@ Governing chain: UMR-20260808-183732-d3a3 (status=killed).
       before -- the audit comment reports against `main`'s SHA, not the PR's own head,
       until a fresh `synchronize` event runs `audit-check` again).
 
+- [x] **Invocation 2 finding**: the prior session's `AUDIT: PASS` comments on all 3 PRs
+      were free-text, not the 8-field structured format `scripts/validate-audit-verdict.ts`
+      actually requires (`Objective Understood`/`Standards Reviewed`/`Scope Confirmed`/
+      `Evidence Recorded`/`Severity Classified`/`Verdict`/`Corrective Action Owner`/
+      `Re-Audit Scheduled`, one `Label: value` line each, enum fields bare-word only --
+      confirmed by reading `src/lib/audit-protocol.ts`'s `validateAuditProtocolFields()`
+      directly, not guessed). That is the real reason `audit-check` still showed
+      `FAILURE` even after the earlier sync commits: the parser found an `AUDIT: PASS`
+      line but the required narrative fields were missing, so
+      `validateAuditProtocolFields()` rejected it. Re-posted a fully compliant 8-field
+      `AUDIT: PASS` comment on all 3 PRs (#870, #873, #878). Confirmed via
+      `gh run list --workflow=mandatory-audit-check.yml`: the 3 new `issue_comment`-
+      triggered runs (11:12:35-36 UTC) all completed `SUCCESS` -- but per the known
+      issue_comment-vs-head-SHA gap (documented in this repo's own workflow comments and
+      this task's memory), that run reports against `main`'s SHA, not the PR's actual
+      head, so the PR's own `statusCheckRollup` still showed `audit-check: FAILURE`
+      immediately after. Pushed one more empty sync commit to each of the 3 branches
+      (`59b7b0d87` OCID-056, `cf9d4bd7d` OCID-059, `1bd279cc7` OCID-061) to generate the
+      `synchronize` event needed for a fresh `pull_request`-triggered run to evaluate
+      against the correct head SHA this time.
+
 ## Remaining (session ended here on token/turn budget, not fabricated further)
 
 - [ ] Confirm `audit-check` (and the rest of required CI) is green on the post-sync-commit
