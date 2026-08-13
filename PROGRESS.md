@@ -41,4 +41,11 @@ failure' against a killed-task RCA is misapplied automation." Not retrying a
 Opened PR #1081 (https://github.com/FChecklist/compliance-tracker/pull/1081)
 for this bookkeeping diff instead, so it lands via the normal PR/CI path
 (GitHub Actions, not this box's local quality-gate wrapper). CI running as of
-2026-08-13 invocation 5.
+2026-08-13 invocation 5. Posted the required structured 8-field `AUDIT: PASS`
+comment (independently re-verified: gh pr view --json files == exactly the 2
+bookkeeping files; #870/#873/#878 confirmed MERGED; tracker rows confirmed
+is_closed=YES). Hit the known `audit-check`/`issue_comment` SHA-mismatch bug
+(see [[veridian-audit-check-issue-comment-sha-bug]]) -- the comment-triggered
+run reports against main's SHA, not the PR head; a follow-up synchronize
+event is needed to get the PR's actual required-check status to reflect the
+pass. All other CI checks passing as of this checkpoint.
