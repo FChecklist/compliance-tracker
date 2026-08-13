@@ -42,6 +42,14 @@ Provisional parent OCID-021 (`UMR-20260802-173631-ca85`) / OCID-020
       `AUDIT: PASS` comment and a follow-up empty sync commit per
       `scripts/validate-audit-verdict.ts`'s real contract (bare-word enum fields,
       all 8 labeled fields present).
+- [x] Same task, 3rd rebase this cycle: PR #873 (OCID-059) merged to `main` next,
+      moving `PROGRESS.md`/`ai-os/MASTER-TRACKER.yaml`/`ai-os/OS.yaml`/
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` again and flipping this PR to `CONFLICTING`
+      a second time. Merged current `origin/main` in once more, same convention
+      (this file replaced with this same short summary, `MASTER-TRACKER.yaml` and
+      `OS.yaml` kept both sides' distinct entries, `ACTIVE-CLAIMS.yaml` merged
+      real with zero duplicates, new OCID-059 certification doc from `origin/main`
+      carried through cleanly).
 
 ## Remaining
 - [ ] Confirm CI green (all 8 required checks, including `audit-check`) on this
