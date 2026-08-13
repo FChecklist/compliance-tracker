@@ -10,5 +10,7 @@
 - [x] Recorded completion via `agent_work_briefing.py record-completion --umr-id UMR-20260813-161737-5103`.
 - [x] Wrote a memory entry for this RCA (cross-linking the recurring saga/pattern memories) and added it to MEMORY.md.
 
+- [x] Opened PR #1099 documenting this RCA: https://github.com/FChecklist/compliance-tracker/pull/1099
+
 ## Remaining
-- [ ] None. RCA complete: mislabel corrected (killed -> completed), no remaining code gap (already closed by PR #272).
+- [ ] None. RCA complete: mislabel corrected (killed -> completed), no remaining code gap (already closed by PR #272). PR #1099 pending merge (branch protection requires PR review; per known limitation `veridian-branch-protection-self-approval-deadlock-active`, may need --admin merge).
