@@ -37,3 +37,8 @@ per the gate's own reviewer comment (increment 4): "This is an RCA task for a
 killed process, not a code/feature task -- auto-fixing a 'quality gate
 failure' against a killed-task RCA is misapplied automation." Not retrying a
 3rd time per this task's own circuit-breaker protocol.
+
+Opened PR #1081 (https://github.com/FChecklist/compliance-tracker/pull/1081)
+for this bookkeeping diff instead, so it lands via the normal PR/CI path
+(GitHub Actions, not this box's local quality-gate wrapper). CI running as of
+2026-08-13 invocation 5.
