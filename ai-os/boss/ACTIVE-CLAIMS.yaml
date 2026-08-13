@@ -5892,6 +5892,47 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-045443-register-ocid-059--universal-browser--pw) -- OCID-059: real browser runtime / PWA / synchronization-engine / offline-queue certification (discovery+verification only, no implementation) [DONE, PR opened]"
+    claimed_at: "2026-08-04T04:55Z (this session, closed same session)"
+    claim: |
+      SPEC (PM registration of a new OCID): claimed parent chain OCID-058 (`UMR-20260804-040009-09bc`)
+      -> OCID-057 (`UMR-20260804-035943-3c38`) -> OCID-056/055/054/053 -> OCID-020/021. Independently
+      verified before treating any of it as real, per this repo's own standing practice (state drifts
+      within seconds under 4+ concurrent sessions): OCID-053 (`8bd602d9`), OCID-054 (`03f60ffd`),
+      OCID-055 (`865ce964`), OCID-056 (`caa85c95`), OCID-057 (`050b8e2c`) are all real, merged commits
+      on `origin/main` -- confirmed directly via `git log --all`. **OCID-058 is NOT real yet**: zero
+      commits, zero PRs, zero branches, zero grep hits for its UMR anywhere in this repo; its own task
+      directory (`task-20260804-045439-register-ocid-058--universal-task-regist`, created 4s before
+      this task) shows `status: in_progress` with an empty `worker.log` -- a real, currently-running
+      sibling task, not yet real committed content. Not reaching into that task's workspace (would be
+      exactly the collision this registry exists to prevent). This task's real parent is therefore the
+      actual highest real merged OCID on `main`, OCID-057, not the not-yet-real OCID-058 the SPEC
+      names -- flagging this rather than silently accepting the SPEC's framing, same treatment given to
+      OCID-012 (per this SPEC's own instruction: OCID-012 re-confirmed fake again this session, zero
+      matches in the real UMR chain).
+
+      Real scope, completed: honest discovery/verification only (SPEC explicitly prohibits redesigning
+      runtime architecture) of `src/lib/browser-execution/*` (tier-detection/tier-orchestrator/
+      client-compile/sync-engine/worker-pool/cross-tier-storage/model-cache/webllm-npu-builtin-ai-
+      transformers engines), `src/app/manifest.ts`, and any service worker (none found). Real findings:
+      (1) `bun test src/lib/browser-execution/` re-run live, 108/108 pass, matching prior citations;
+      (2) tier SELECTION is live-wired (`client-compile.ts::compileInBrowser()` <- `VeriComposer.tsx:245`)
+      but per-tier local model EXECUTION (webllm/npu/builtin-ai/transformers engines) is real, tested,
+      and has zero non-test callers anywhere -- a narrower, previously-unstated-at-this-precision
+      finding, newly tracked as `GAP-OCID059-BROWSER-TIER-SELECTION-NOT-EXECUTION`; (3) independently
+      re-confirmed OCID-051's PWA finding (real manifest.ts + Web Share Target, zero service worker)
+      and OCID-028's sync-engine.ts finding (real, tested offline-queue/conflict-resolution/delta-sync
+      primitives, zero live callers; `task-service.ts::updateTask()` still unconditional last-write-win)
+      are both still accurate as of 2026-08-04. Produced
+      `ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md`, indexed in
+      `ai-os/OS.yaml`. Also found and fixed a fresh instance of the recurring PROGRESS.md
+      wholesale-replace regression (same class as the 2a36479c/3ef1d3f1 fixes) in this task's own
+      workspace before committing.
+    scope_note: >-
+      File scope: new `ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md`,
+      `ai-os/OS.yaml` (index entry), `ai-os/MASTER-TRACKER.yaml` (one new gap entry, no gap redesign),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/ code changes -- discovery/
+      verification only per SPEC.
   - session_label: "claude-code (task-20260804-040801-register-ocid-056--platform-security-rec) -- OCID-056 platform security discovery/audit (credential register + exposure report + permission audit + environment security report) [DONE, reports committed]"
     claimed_at: "2026-08-04T04:08Z (this session)"
     claim: |
