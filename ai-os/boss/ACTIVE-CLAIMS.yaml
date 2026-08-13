@@ -5912,6 +5912,48 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260813-083439-resume-ocid-020-021-real-remaining-scope, UMR-20260813-082609-873e / UMR-20260813-083422-15e7) -- resume OCID-020/021 remaining scope: merged PR #1070 (P04 H6 fix), fixed the PR's audit-check CI failure (bare-enum Severity Classified/Verdict field bug), re-verified H6 live post-deploy, honest P04/P03 disposition [DONE]"
+    claimed_at: "2026-08-13T08:40Z (this session, closed same session)"
+    claim: |
+      SPEC (UMR-20260813-082609-873e resuming SIGKILL'd UMR-20260808-175055-cebd,
+      parent UMR-20260802-165606-4413/OCID-020 + UMR-20260802-173631-ca85/OCID-021,
+      pm_decisions_pending id=519): update PR #1070 branch, wait for CI, merge,
+      wait for Vercel prod deploy, re-verify H6 live via gtm_check_ux_audit.py,
+      update master_issue_tracker OCID020021-P04 check_again_notes. Re-assess P04
+      overall disposition honestly (H2/H4/H10 remain real open, separately
+      dispositioned). P03 (webkit libs): NOT re-attempting apt-get/dpkg-deb
+      approach again (already failed twice) -- only seeking a real Owner decision
+      or a genuinely different fix path.
+
+      Real outcome: PR #1070's `audit-check` was failing on a prior cycle's
+      genuinely valid audit content whose `Severity Classified` field carried
+      prose beyond the bare enum value -- `validateAuditProtocolFields()`
+      requires an exact match. Posted a corrected comment (same content,
+      compliant field format), updated the branch, all CI green, merged
+      `fe12d80e` (2026-08-13T08:44:04Z). Waited for the real Vercel prod
+      deploy, re-ran `gtm_check_ux_audit.py` against `https://projexa-ai.com`
+      twice (1st hit a transient AI-parse `blocked`, 2nd clean): H6 confirmed
+      fixed (all 4 `/contact` fields `hasLabel:true`). H2/H4/H10 remain real,
+      unchanged in substance, correctly left open/dispositioned -- updated
+      `master_issue_tracker` `OCID020021-P04.check_again_notes` with this
+      real result, left `is_closed=NO`/`solution_applied=PARTIAL` (honest,
+      not fabricated closed). P03: no re-attempt of the already-failed
+      apt-get/dpkg-deb approach; opened a genuine `pm_decisions_pending`
+      row (id=522) asking for a real Owner decision (grant root/sudo,
+      commit a patch-package fix, or accept webkit as permanently
+      excluded) -- no self-approval, `master_issue_tracker` P03 state left
+      unchanged. Did not re-run `gtm_check_browser_compatibility.py` /
+      `gtm_check_production_readiness_audit.py` (P5) this cycle -- SPEC
+      gates that on P03/P04 having a real further fix or Owner sign-off,
+      neither landed yet; re-running now would only reproduce the same
+      known state at real AI-credit cost.
+    scope_note: >-
+      File scope: `src/components/ContactUsForm.tsx` (PR #1070, already
+      committed by a prior cycle, this session only merged it), this repo's
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` + `PROGRESS.md`, `master_issue_tracker`
+      DB rows `OCID020021-P03`/`P04` (P04 `check_again_notes` field only,
+      P03 untouched), one new `pm_decisions_pending` row (id=522). No other
+      src/ changes.
   - session_label: "claude-code (task-20260803-085553-register-ocid-043-universal-external-exe) -- OCID-043 Universal External Execution Runtime: real discovery-only inventory of existing worker/dispatch/sentinel/review/PR/merge/lock components an external-execution runtime would reuse, per SEC-07 gate [DONE, docs-only]"
     claimed_at: "2026-08-03T09:00Z (this session, closed same session)"
     claim: |
