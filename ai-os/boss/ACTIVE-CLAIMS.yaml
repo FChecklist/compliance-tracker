@@ -5944,6 +5944,70 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260814-125852-post-merge-verification-audit-of-the-two) -- post-merge Tier-1 re-audit of PR #801 + PR #908 against their real final head SHAs, since neither prior AUDIT comment covered the state that actually merged [DONE, both AUDIT:PASS posted]"
+    claimed_at: "2026-08-14T12:58Z (this session, closed same session)"
+    claim: |
+      SPEC: PR #801 (head 4fbd98397a4e85711c5feeaa4733d988649ed953, merged 12:31:40Z) and PR #908
+      (head c99aad3bec7dd8cc75e079e85493438a5f462f85, merged 12:36:53Z) both merged with existing
+      AUDIT comments that never cited the actual final head SHA -- PR #801's (2026-08-08) cited no
+      SHA and predates 8 further main-drift merges; PR #908's two (2026-08-14T09:35/09:37) cited
+      caf24e2f, but 4 further main-drift merges landed after that before the real merge. Both merged
+      mechanically because scripts/validate-audit-verdict.ts doesn't check SHA correspondence -- the
+      prior task's own entry above documents relying on that mechanical pass instead of a fresh
+      comment.
+
+      Real, independent Tier-1 audit performed (detached worktree at both exact SHAs, not a
+      self-report): both PRs are purely additive `ai-os/` governance YAML/Markdown (OS.yaml index
+      entry + new OCID-046 discovery doc for #801; one ACTIVE-CLAIMS.yaml entry for #908), zero
+      src/schema/CI-workflow changes -- correcting the dispatching SPEC's own premise that these
+      were "real code, not progress docs" (true they're outside progress/, false that they're
+      application code). Confirmed via blob-hash diff that each PR's own substantive payload is
+      byte-identical to what it was at branch creation -- the later main-drift merges only pulled in
+      unrelated concurrent-session content (plus one incidental beneficial dedup of a pre-existing
+      duplicate entry, not introduced by either PR). Both ai-os/OS.yaml and
+      ai-os/boss/ACTIVE-CLAIMS.yaml parse as valid YAML at both exact head SHAs, zero conflict
+      markers, OS.yaml's new index path resolves to a real file. Ran the real test suite (`bun test`,
+      matching ci.yml's Unit Tests job) from a clean worktree at origin/main tip: real exit code 0,
+      2549 pass / 0 fail / 5084 expect() calls across 224 files. No defect found -- no fix PR needed.
+
+      Posted fresh, structurally-valid AUDIT:PASS comments (all 8 fields, verified against
+      validateAuditProtocolFields()'s real regex/enum contract) on both PRs, each quoting the
+      PR's own real final head SHA and the files audited. Priority-4 (UMR-20260808-183732-d3a3,
+      P4/OCID-022-066) can honestly be called closed as of this audit -- both verdicts are genuine
+      PASS against the real merged content, tests are green, no functional defect exists. The
+      process gap (audits not re-run against the final SHA before merge) is real and worth naming,
+      but did not in fact let a broken change through this time.
+    scope_note: >-
+      File scope: two GitHub PR comments (not repo files), this ACTIVE-CLAIMS.yaml entry,
+      PROGRESS.md, this task's own progress/*.md. Zero src/, schema, migration, or CI-workflow
+      changes -- no defect was found to fix.
+  - session_label: "claude-code (task-20260814-131840-rca--umr-20260806-211546-cf3c-killed) -- RCA of UMR-20260806-211546-cf3c status=killed: real work already merged, PM-hold mislabel, marked completed [DONE, closed same session]"
+    claimed_at: "2026-08-14T13:19Z (this session, closed same session)"
+    claim: |
+      SPEC: RCA the outer dispatch UMR `UMR-20260806-211546-cf3c` (task_kind=`veridian_task_create`,
+      unit `task-20260807-002908-pm-overrides-a-false-positive-credit-acc`), status=`killed`, own
+      `reason` field explicitly self-describing as "PM HOLD, NOT A VERDICT ON THE WORK" (bulk
+      disk-pressure hold from the `UMR-20260807-051828-6715` re-adjudication).
+
+      Live re-verification (not trusted from SPEC summary): the underlying task
+      `task-20260807-002908-...` ran to real completion at 2026-08-07T00:50Z, ~7h *before* the kill
+      timestamp (07:56Z) -- it reused/finished blocked task `task-20260806-205209`'s work, fixed
+      `generate_platform_completion_checklist.py` in place (git-archive snapshot isolation instead of
+      live-worktree glob, fixing both a denominator-drift and a numerator-collapse-to-zero bug), proved
+      it with 3 reproducible pytest runs, and shipped `FChecklist/veridian-scripts#238` (MERGED, commit
+      `726f7c4`). Evidence was written onto real child UMR `UMR-20260806-182453-702a`, confirmed
+      `status=completed` in the register. Confirmed `726f7c433561bc35c09084ec8a7d2aaf0d984ab9` is a real
+      ancestor of `origin/main` in the local `veridian-scripts` checkout before using it as the terminal
+      commit-sha.
+
+      Same self-correcting/PM-hold-mislabel pattern as sibling RCAs `UMR-ec65`/`UMR-eb50` -- see
+      `[[veridian-killed-rca-series-index]]`. No code fix needed (real fix already shipped days earlier
+      under `702a`); action taken was `superboss-register.py mark-umr-terminal --umr-id
+      UMR-20260806-211546-cf3c --status completed --commit-sha 726f7c433561bc35c09084ec8a7d2aaf0d984ab9
+      --pr-number 238 --repo veridian-scripts`.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry, this task's own `progress/*.md`, `PROGRESS.md` header. No
+      src/, schema, or CI changes -- register-only RCA closure.
   - session_label: "claude-code (task-20260814-121422-audit-and-merge-d3a3s-final-2-real-prs-8) -- final gap of UMR-20260808-183732-d3a3: audited+merged PR #801 and PR #908 [DONE, both MERGED]"
     completed_at: "2026-08-14T12:36Z (this session)"
     claim: |
