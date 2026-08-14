@@ -35,12 +35,17 @@ gap: PR #801 and PR #908, both OPEN -- audit against current head, merge if clea
       resync-with-main cycles (main kept advancing from other concurrent sessions faster
       than one CI run, `strict` branch protection requires being fully up to date at
       merge time) before all 8 required checks landed green on the same head simultaneously.
-- [ ] PR #908: real conflict resolved (965a47c8), synced twice more (498498ff, then
-      c99aad3b -- both auto-merged cleanly, no new conflicts each time main moved), CI
-      running on c99aad3b, will merge once all 8 required checks are green on that head.
+- [x] PR #908: real conflict resolved (965a47c8), synced twice more (498498ff, then
+      c99aad3b -- both auto-merged cleanly, no new conflicts each time main moved). All 8
+      required checks passed on c99aad3b. **MERGED** at 2026-08-14T12:36:53Z, merge commit
+      682270c0f421.
+- [x] Verified both merges landed in origin/main's real history (`git log origin/main`).
+- [x] Moved ACTIVE-CLAIMS entry from `active:` to `recently_completed:` with real final
+      outcome.
+- [x] Recorded completion via `agent_work_briefing.py record-completion`.
 
 ## Remaining
-- [ ] Confirm PR #908 merges cleanly (main is moving fast from other concurrent sessions;
-      may need another resync cycle if it falls BEHIND again before CI finishes)
+- [x] None -- task complete. Both PR #801 and PR #908 are MERGED. This closes the final
+      remaining gap of UMR-20260808-183732-d3a3 (all 10/10 items now done).
 - [ ] Record completion via agent_work_briefing.py record-completion
 - [ ] Move ACTIVE-CLAIMS entry from active: to recently_completed:
