@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260804-091309-register-ocid-065--deterministic-browser) -- OCID-065: real completeness + zero-duplication audit of OCID-061/062/063 (verification/gap-analysis only, no code) [PUSHED, PR #884 OPEN]"
+    claimed_at: "2026-08-04T09:13Z (this session)"
+    claim: |
+      SPEC (PM dispatch, real parent OCID-061 `UMR-20260804-044535-7214` ->
+      OCID-021 `UMR-20260802-173631-ca85` -> OCID-020 `UMR-20260802-165606-4413`,
+      governed by the Mandatory Governance Directive `UMR-20260804-051521-7099`):
+      audit whether OCID-061/062/063's recent design notes enhance existing
+      components or introduce duplicate architecture; certify whether intent/
+      tasks stay inside the existing UMR/UTR concepts with no new parallel
+      registry/cache/execution-engine. Verification and gap-analysis only --
+      explicitly no new architecture/registry/DB/table/framework authorized.
+      File scope: one new canonical audit doc under `ai-os/`, `ai-os/OS.yaml`
+      index entry, `ai-os/MASTER-TRACKER.yaml` (status-note only, no new gap
+      duplicating PR #878's own pending GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes.
   - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
     claimed_at: "2026-08-03T08:56Z (this session)"
     claim: |
@@ -538,8 +553,6 @@ active:
       content, none of which covers the organization/role/rights model this
       OCID is scoped to. File scope: the new doc, `PROGRESS.md`, this entry.
       No src/, schema, or CI changes.
-  - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [IN PROGRESS]"
-    claimed_at: "2026-08-04T06:08Z (this session)"
   - session_label: "claude-code (docs/ocid039-active-claims-completion-correction) -- housekeeping: correct stale 'PR #789 OPEN' label in this file's own active: section to reflect PR #789's real, independently-verified merge (commit 4284570af7d5d7ff2a4e6f1c32676794d3001ff9) [PUSHED]"
     claimed_at: "2026-08-04T08:10Z (this session)"
     claim: |
@@ -5892,6 +5905,53 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
+    completed_at: "2026-08-07T (this session)"
+    merged_as: |
+      PR #1016 (https://github.com/FChecklist/compliance-tracker/pull/1016) -- NOT YET MERGED.
+      All required CI checks green (Lint, Type Check, Build, Unit Tests, E2E Tests, audit-check,
+      Guardrail Presence Check, Asset Registry Coverage Check, Metadata Index Coverage Check,
+      Terminology Guardrail Check, Migration Number Collision Check, Secret Scanning, Security
+      Pattern Check) and a genuine 8-field `AUDIT: PASS` verdict posted and re-verified against
+      the correct head SHA (`d018506d5`). Blocked purely by the standing structural deadlock in
+      [[veridian-branch-protection-self-approval-deadlock-active]]: main requires 1 approving PR
+      review, `enforce_admins` is on, and every credential in this environment resolves to the
+      same single GitHub identity (`FChecklist`) -- `gh pr merge --admin` structurally cannot
+      self-approve. 8th confirmation of this exact pattern (PRs #959, #981, #999, #1012, #1014,
+      #1017, #1018 all hit it before). Did not burn a `gh pr merge` attempt given 7 prior
+      identical failures with no new information to gain. Left OPEN, MERGEABLE, BLOCKED for the
+      Owner to either provision a second reviewer identity or grant a bounded review-count
+      exception -- this is outside this session's authority to resolve unilaterally per
+      AGENTS.md Rule 9 (no guardrail weakening without explicit Owner sign-off).
+    summary: |
+      This task's own prompt.txt/spec was never written to the workspace
+      (task.yaml has no spec field beyond the title; 13 prior invocations
+      all failed/blocked, mostly on OpenRouter credit-accountant pre-flight
+      rejections, zero real work landed). Audited the existing CRM/Sales
+      module for a genuine open gap rather than re-doing already-shipped
+      work (lead-to-opportunity pipeline, AI scoring/analysis, follow-up-
+      task chaining, Sales Pipeline dashboard/KPI widget all already built).
+      Real gap found: crm-accounts-service.ts got an owner-or-manager RBAC
+      gate in Wave 4 (2026-07-17) but crm_leads/crm_opportunities never did
+      -- any authenticated org member (viewer rank included) could
+      create/edit any lead or opportunity and silently reassign ownership
+      via plain PATCH { ownerId } with zero rank check, through the native
+      /api/crm/leads* and /api/crm/opportunities* routes. Added
+      canEditLead/canReassignOrDeleteLead/canEditOpportunity/
+      canReassignOrDeleteOpportunity/canCreateCrmRecord to crm-service.ts
+      (same shape as the accounts-service precedent), wired into
+      createLead/updateLead/createOpportunity/updateOpportunity via a new
+      optional CrmContext.role field (so the many other CrmContext call
+      sites, incl. all v1/projexa/** routes which already gate at the route
+      layer via requireRoleOrScope, are unaffected), updated the 4 native
+      CRM route files to pass dbUser.role. Added crm-service.test.ts (27
+      pure/no-DB tests, same pattern as crm-accounts-service.test.ts).
+      Verified: bun test on both crm test files (65 pass/0 fail), eslint on
+      all touched files (clean). File scope: src/lib/services/crm-service.ts,
+      crm-service.test.ts, the 4 route.ts files under
+      src/app/api/crm/{leads,opportunities}/. v1/projexa/** routes
+      deliberately untouched (already gated, and their API-key-auth path has
+      no dbUser.role to thread through without added risk).
   - session_label: "claude-code (task-20260813-104656-rca--umr-20260808-183732-d3a3-killed) -- RCA on killed UMR-20260808-183732-d3a3 already independently completed today by task-20260813-091906 (root cause: credit-accountant.py FTS false positive, fixed PR #291 veridian-scripts); picked up that RCA's own disclosed remaining scope: OCID-056/059/061 mechanical rebase+re-audit [DONE, all 3 PRs merged]"
     claimed_at: "2026-08-13T10:55Z (this session, closed same session)"
     claim: |
@@ -6504,6 +6564,35 @@ recently_completed:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
+  - session_label: "claude-code (task-20260803-085546-register-ocid-041-universal-external-exe) -- OCID-041 VERIDIAN Universal External Execution Foundation, real discovery/requirement-mapping artifact, documentation only [PUSHED, PR #799 OPEN]"
+    claimed_at: "2026-08-03T09:05Z (this session, PR opened same session)"
+    claim: |
+      SPEC (Owner directive, tier 1, parented to `UMR-20260802-173631-ca85`
+      [OCID-021, ERP Functional Completeness Master Program], citing OCID-022
+      through OCID-040 and SEC-07 in `ai-os/CONSTITUTION.yaml`): the real UMR
+      registration for OCID-041 (`UMR-20260803-084109-6875`) already merged to
+      main in PR #793 (commit 8cdbe5ea, this same day, ~17 minutes before this
+      task dispatched) -- confirmed present in this branch's own history before
+      starting. That amendment's own text explicitly states it registered the
+      UMR/parent/lock relationship only and did NOT perform the substantive
+      discovery/requirement-mapping work OCID-041 itself calls for ("No worker
+      has yet been dispatched for OCID-041 as of this amendment"). This task
+      IS that dispatched discovery work: a real inventory of the external
+      execution design requirements stated in the Owner directive, a real
+      mapping of each requirement to existing VERIDIAN UMR/UTM/worker/
+      dispatch/review/constitution components, real gap identification, and
+      one real canonical artifact. Discovery/documentation only, consistent
+      with SEC-07 (OCID-020 `UMR-20260802-165606-4413` independently
+      confirmed still open per `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`)
+      -- no worker runtime, server runtime, or CONSTITUTION.yaml functional
+      changes; no real external provider execution path wired; OCID-041 not
+      marked complete.
+    scope_note: >-
+      File scope (expected): one new canonical artifact under `ai-os/`
+      (OCID-041 discovery/requirement-mapping document), `ai-os/OS.yaml`
+      and/or `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` index registration,
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration,
+      worker runtime, or CI changes -- documentation only.
   - session_label: "claude-code (task-20260803-085550-register-ocid-042-universal-context-pack) -- OCID-042 VERIDIAN Universal Context Packaging Runtime, discovery only [DONE, docs-only]"
     claimed_at: "2026-08-03T09:00Z (this session, closed same session)"
     claim: |
