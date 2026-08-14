@@ -5932,6 +5932,53 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
+    completed_at: "2026-08-07T (this session)"
+    merged_as: |
+      PR #1016 (https://github.com/FChecklist/compliance-tracker/pull/1016) -- NOT YET MERGED.
+      All required CI checks green (Lint, Type Check, Build, Unit Tests, E2E Tests, audit-check,
+      Guardrail Presence Check, Asset Registry Coverage Check, Metadata Index Coverage Check,
+      Terminology Guardrail Check, Migration Number Collision Check, Secret Scanning, Security
+      Pattern Check) and a genuine 8-field `AUDIT: PASS` verdict posted and re-verified against
+      the correct head SHA (`d018506d5`). Blocked purely by the standing structural deadlock in
+      [[veridian-branch-protection-self-approval-deadlock-active]]: main requires 1 approving PR
+      review, `enforce_admins` is on, and every credential in this environment resolves to the
+      same single GitHub identity (`FChecklist`) -- `gh pr merge --admin` structurally cannot
+      self-approve. 8th confirmation of this exact pattern (PRs #959, #981, #999, #1012, #1014,
+      #1017, #1018 all hit it before). Did not burn a `gh pr merge` attempt given 7 prior
+      identical failures with no new information to gain. Left OPEN, MERGEABLE, BLOCKED for the
+      Owner to either provision a second reviewer identity or grant a bounded review-count
+      exception -- this is outside this session's authority to resolve unilaterally per
+      AGENTS.md Rule 9 (no guardrail weakening without explicit Owner sign-off).
+    summary: |
+      This task's own prompt.txt/spec was never written to the workspace
+      (task.yaml has no spec field beyond the title; 13 prior invocations
+      all failed/blocked, mostly on OpenRouter credit-accountant pre-flight
+      rejections, zero real work landed). Audited the existing CRM/Sales
+      module for a genuine open gap rather than re-doing already-shipped
+      work (lead-to-opportunity pipeline, AI scoring/analysis, follow-up-
+      task chaining, Sales Pipeline dashboard/KPI widget all already built).
+      Real gap found: crm-accounts-service.ts got an owner-or-manager RBAC
+      gate in Wave 4 (2026-07-17) but crm_leads/crm_opportunities never did
+      -- any authenticated org member (viewer rank included) could
+      create/edit any lead or opportunity and silently reassign ownership
+      via plain PATCH { ownerId } with zero rank check, through the native
+      /api/crm/leads* and /api/crm/opportunities* routes. Added
+      canEditLead/canReassignOrDeleteLead/canEditOpportunity/
+      canReassignOrDeleteOpportunity/canCreateCrmRecord to crm-service.ts
+      (same shape as the accounts-service precedent), wired into
+      createLead/updateLead/createOpportunity/updateOpportunity via a new
+      optional CrmContext.role field (so the many other CrmContext call
+      sites, incl. all v1/projexa/** routes which already gate at the route
+      layer via requireRoleOrScope, are unaffected), updated the 4 native
+      CRM route files to pass dbUser.role. Added crm-service.test.ts (27
+      pure/no-DB tests, same pattern as crm-accounts-service.test.ts).
+      Verified: bun test on both crm test files (65 pass/0 fail), eslint on
+      all touched files (clean). File scope: src/lib/services/crm-service.ts,
+      crm-service.test.ts, the 4 route.ts files under
+      src/app/api/crm/{leads,opportunities}/. v1/projexa/** routes
+      deliberately untouched (already gated, and their API-key-auth path has
+      no dbUser.role to thread through without added risk).
   - session_label: "claude-code (task-20260813-104656-rca--umr-20260808-183732-d3a3-killed) -- RCA on killed UMR-20260808-183732-d3a3 already independently completed today by task-20260813-091906 (root cause: credit-accountant.py FTS false positive, fixed PR #291 veridian-scripts); picked up that RCA's own disclosed remaining scope: OCID-056/059/061 mechanical rebase+re-audit [DONE, all 3 PRs merged]"
     claimed_at: "2026-08-13T10:55Z (this session, closed same session)"
     claim: |
