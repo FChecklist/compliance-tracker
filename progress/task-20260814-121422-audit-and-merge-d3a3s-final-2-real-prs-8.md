@@ -31,7 +31,16 @@ gap: PR #801 and PR #908, both OPEN -- audit against current head, merge if clea
       (known infra quota issue, `api-deployments-free-per-day` / build-rate-limit -- not a
       required check, doesn't block merge).
 
+- [x] PR #801: **MERGED** at 2026-08-14T12:31:40Z, merge commit e6f013d5959c. Needed 2
+      resync-with-main cycles (main kept advancing from other concurrent sessions faster
+      than one CI run, `strict` branch protection requires being fully up to date at
+      merge time) before all 8 required checks landed green on the same head simultaneously.
+- [ ] PR #908: real conflict resolved (965a47c8), synced twice more (498498ff, then
+      c99aad3b -- both auto-merged cleanly, no new conflicts each time main moved), CI
+      running on c99aad3b, will merge once all 8 required checks are green on that head.
+
 ## Remaining
-- [ ] Confirm all required checks green on both PRs, then merge each
+- [ ] Confirm PR #908 merges cleanly (main is moving fast from other concurrent sessions;
+      may need another resync cycle if it falls BEHIND again before CI finishes)
 - [ ] Record completion via agent_work_briefing.py record-completion
 - [ ] Move ACTIVE-CLAIMS entry from active: to recently_completed:
