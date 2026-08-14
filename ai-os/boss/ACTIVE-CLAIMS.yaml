@@ -6564,6 +6564,35 @@ recently_completed:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
+  - session_label: "claude-code (task-20260803-085546-register-ocid-041-universal-external-exe) -- OCID-041 VERIDIAN Universal External Execution Foundation, real discovery/requirement-mapping artifact, documentation only [PUSHED, PR #799 OPEN]"
+    claimed_at: "2026-08-03T09:05Z (this session, PR opened same session)"
+    claim: |
+      SPEC (Owner directive, tier 1, parented to `UMR-20260802-173631-ca85`
+      [OCID-021, ERP Functional Completeness Master Program], citing OCID-022
+      through OCID-040 and SEC-07 in `ai-os/CONSTITUTION.yaml`): the real UMR
+      registration for OCID-041 (`UMR-20260803-084109-6875`) already merged to
+      main in PR #793 (commit 8cdbe5ea, this same day, ~17 minutes before this
+      task dispatched) -- confirmed present in this branch's own history before
+      starting. That amendment's own text explicitly states it registered the
+      UMR/parent/lock relationship only and did NOT perform the substantive
+      discovery/requirement-mapping work OCID-041 itself calls for ("No worker
+      has yet been dispatched for OCID-041 as of this amendment"). This task
+      IS that dispatched discovery work: a real inventory of the external
+      execution design requirements stated in the Owner directive, a real
+      mapping of each requirement to existing VERIDIAN UMR/UTM/worker/
+      dispatch/review/constitution components, real gap identification, and
+      one real canonical artifact. Discovery/documentation only, consistent
+      with SEC-07 (OCID-020 `UMR-20260802-165606-4413` independently
+      confirmed still open per `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`)
+      -- no worker runtime, server runtime, or CONSTITUTION.yaml functional
+      changes; no real external provider execution path wired; OCID-041 not
+      marked complete.
+    scope_note: >-
+      File scope (expected): one new canonical artifact under `ai-os/`
+      (OCID-041 discovery/requirement-mapping document), `ai-os/OS.yaml`
+      and/or `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` index registration,
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration,
+      worker runtime, or CI changes -- documentation only.
   - session_label: "claude-code (task-20260803-085550-register-ocid-042-universal-context-pack) -- OCID-042 VERIDIAN Universal Context Packaging Runtime, discovery only [DONE, docs-only]"
     claimed_at: "2026-08-03T09:00Z (this session, closed same session)"
     claim: |
