@@ -5944,6 +5944,38 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260814-141803-rca--umr-20260806-183347-06b0-killed) -- RCA of UMR-20260806-183347-06b0 status=killed: real work already merged 9h before dispatch, stale-resubmission mislabel, marked completed [DONE, closed same session]"
+    claimed_at: "2026-08-14T14:39Z (this session, closed same session)"
+    claim: |
+      SPEC: RCA the outer dispatch UMR `UMR-20260806-183347-06b0` (task_kind=`veridian_task_create`,
+      submitted 2026-08-06T18:33:47Z), status=`killed`, `reason` field describing a worker judgment
+      call deferring "Implement the already PM approved workspace retention policy, disk is at 92
+      percent" under the Owner absolute stop-work order (`task-20260806-165921`), stating "Not marked
+      completed -- nothing was implemented."
+
+      Live re-verification (`resource_governor.py --query-umr`, not trusted from SPEC summary): that
+      premise was false by the time 06b0 was even submitted. The retention-policy deliverable
+      (`prune_memory_backups.py` + retention timer) was already built and merged via
+      `FChecklist/veridian-scripts#151` (commit `14d9511d`, merged 2026-08-06T09:15:18Z -- over 9h
+      *before* 06b0's submission), and independently re-verified twice more that same day at
+      15:18-15:23Z (~3h before 06b0's submission) by sibling tasks
+      `task-20260806-151752-complete-the-unfinished-disk-retention-s` and
+      `task-20260806-151757-deduplicate-the-disk-retention-work--one` (cases #15/#17 of a documented
+      recurring `dispatch-tick.py`-class stale-resubmission pattern; both also found the parent UMR
+      `UMR-20260806-084306-f599` had already self-corrected to `killed`/"Terminated on a false
+      premise"). `UMR-06b0` is a further instance of that same pattern. Live-verified before acting:
+      `gh pr view 151` (`MERGED`, `14d9511d6d5e80a5dee1b7d5119a3c06b84dc77f`) and
+      `git merge-base --is-ancestor` confirmed a real `origin/main` ancestor in the local
+      `veridian-scripts` checkout.
+
+      Same self-correcting/stale-resubmission pattern as sibling RCAs `UMR-ec65`/`UMR-eb50`/`UMR-cf3c`
+      -- see `[[veridian-killed-rca-series-index]]`. No code fix needed (real fix already shipped ~9h
+      before dispatch); action taken was `superboss-register.py mark-umr-terminal --umr-id
+      UMR-20260806-183347-06b0 --status completed --commit-sha 14d9511d6d5e80a5dee1b7d5119a3c06b84dc77f
+      --pr-number 151 --repo veridian-scripts`.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry, this task's own `progress/*.md`. No src/, schema, or CI
+      changes -- register-only RCA closure.
   - session_label: "claude-code (task-20260814-125852-post-merge-verification-audit-of-the-two) -- post-merge Tier-1 re-audit of PR #801 + PR #908 against their real final head SHAs, since neither prior AUDIT comment covered the state that actually merged [DONE, both AUDIT:PASS posted]"
     claimed_at: "2026-08-14T12:58Z (this session, closed same session)"
     claim: |
