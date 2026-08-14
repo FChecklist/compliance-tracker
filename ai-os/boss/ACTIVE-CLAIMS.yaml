@@ -5945,6 +5945,46 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260804-164222-ocid-059-registration-only-universal-bro) -- OCID-059 registration-only dispatch: real duplicate-dispatch finding for both OCID-058 and OCID-059, no re-registration [DONE, closed same session]"
+    claimed_at: "2026-08-04T16:42Z (this session, closed same session)"
+    claim: |
+      SPEC (registration-only dispatch): claimed zero duplication independently confirmed via a
+      `umr_tasks` query for OCID-059, parent chain OCID-058 immediately preceding it. Instructed to
+      write a canonical registration document minting a fresh real UMR for OCID-059 linked to OCID-058
+      as predecessor, capturing the full real directive text, explicitly not certifying anything, and
+      explicitly recording that real certification stays locked behind the OCID-020 through OCID-040
+      gate.
+
+      Re-ran the SPEC's own `umr_tasks` check (`resource_governor.py --query-umr --search "OCID-058"`
+      / `"OCID-059"`) -- both genuinely return zero rows, confirming that half of the SPEC's premise.
+      But (same conclusion the OCID-053 registration-only dispatch reached earlier the same day, commit
+      `17fbf61e`) a `umr_tasks` miss is not evidence of non-duplication. A live `gh pr list`/`git log
+      --all` sweep found real, current, active duplication instead: OCID-059 already has an open
+      registration/certification PR (**#873**, opened 2026-08-04T05:04:57Z, last updated
+      2026-08-04T16:31:26Z -- 11 minutes before this task started) and OCID-058 already has its own
+      open registration PR (**#875**, opened 2026-08-04T05:07:34Z, last updated 2026-08-04T16:29:25Z --
+      13 minutes before this task started). Both pass every real CI check (Build/Type Check/Lint/Unit/
+      E2E/Guardrail Presence/Metadata Index Coverage/Terminology Guardrail/Doc Cross-Reference/Secret
+      Scanning/CodeQL) and are blocked only on the `audit-check` gate (no `AUDIT: PASS`/`FAIL` comment
+      posted yet) and an unrelated Vercel preview-deploy rate limit -- not stale, not abandoned. A third
+      session (OCID-062 entry, this same file) had already independently flagged this exact overlap
+      ("OCID-058 through OCID-060 already claimed by open PRs #866-875") before this task was ever
+      dispatched.
+
+      **Decision: did not mint a new UMR, did not re-register OCID-058 or OCID-059.** Real substantive
+      work already exists in PRs #875 and #873; a third competing registration would only add
+      reconciliation overhead, not close a real gap. Recommended real next step (not performed, out of
+      this task's registration-only scope): rebase both PRs onto current `origin/main`, get each a
+      genuine independent `AUDIT: PASS`/`FAIL` comment, merge. Also flagged for a future PM/audit pass
+      (not resolved here): PR #873 titles itself "...Runtime Certification" for content its own body
+      calls "discovery/verification-only (no implementation)" -- worth a second look against the
+      standing OCID-020-through-OCID-040 lock (`ai-os/CONSTITUTION.yaml` `SEC-07`), which is not yet
+      clear (OCID-020's most recent re-verification pass, this branch's own parent history, found a new
+      live regression rather than closing out).
+    scope_note: >-
+      File scope: PROGRESS.md, this ACTIVE-CLAIMS.yaml entry only. Zero src/, schema, DB, credential,
+      or runtime/browser/PWA/offline-sync code changes. Zero new UMR minted. Zero re-registration
+      performed.
   - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
     completed_at: "2026-08-07T (this session)"
     merged_as: |
