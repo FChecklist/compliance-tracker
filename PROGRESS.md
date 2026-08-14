@@ -326,3 +326,11 @@ in shared registry files), nothing from either side dropped:
 
 ## Remaining
 - [ ] Not started
+
+## Re-checked 2026-08-14 (invocation 20/20, continued) -- merge pushed, CI in progress
+Pushed merge commit `3c0a56f90` resolving the conflict documented above. `gh pr view 1018` now
+confirms `mergeable: MERGEABLE` (conflict cleared), `mergeStateStatus: BLOCKED` (back to the
+standing, already-documented reviewer-identity self-approval deadlock -- unchanged, not a new
+issue). Watching CI on the new head SHA before deciding whether a follow-up audit-check
+synchronize commit is needed (per the known issue-comment-vs-head-SHA gap noted earlier in this
+file).
