@@ -43,7 +43,6 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/frameworks",
   "/fraud-cases",
   "/gst-reconciliation",
-  "/help",
   "/home",
   "/hr",
   "/hr-compliance",

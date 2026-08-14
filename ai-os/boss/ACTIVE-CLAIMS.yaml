@@ -5943,6 +5943,38 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+
+  - session_label: "claude-code (server-side, task-20260814-095559-fix-the-two-failing-go-to-market-certifi) -- OCID-020 category 17/23 real re-fix"
+    claimed_at: "2026-08-14T10:20:00Z (this session)"
+    claim: >-
+      GTM certification categories 17 (browser compatibility) and 23 (UX
+      audit) are still real fails as of a fresh 2026-08-14 read of
+      gtm_certification_categories. Category 17's webkit failure is a
+      confirmed, re-verified root-only OS dependency gap (Playwright's own
+      "Host system is missing dependencies" error for libgles2/
+      gstreamer1.0-libav) -- infra, not front-end; sudo confirmed blocked
+      again this session (`sudo -n`/`-S` genuinely require a password) and
+      the unprivileged-userns workaround is blocked by
+      apparmor_restrict_unprivileged_userns=1. No product-code change
+      possible for category 17; documenting honestly rather than gaming it.
+      Category 23's live H2/H4/H10 severity-3 findings root-cause to OCID-038
+      GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH Stage 1
+      (resolvePreAuthBrandByHost) being applied only to /login, not to
+      /signup, /pricing, /contact, or a pre-auth /help page -- continuing
+      that already-approved (UMR-20260804-090421-c647) pattern to the
+      remaining pre-auth pages.
+    scope_note: >-
+      File scope in THIS repo: src/app/signup/page.tsx (split into a server
+      wrapper + src/app/signup/signup-form.tsx client component, mirroring
+      src/app/login/page.tsx + login-form.tsx), src/app/pricing/page.tsx
+      (same split, new src/app/pricing/pricing-content.tsx),
+      src/app/contact/page.tsx (generateMetadata + resolved brand, nav/footer
+      consistency), new src/app/help/page.tsx (real pre-auth help content,
+      does not touch the existing authenticated src/app/(app)/help/page.tsx).
+      Does not touch org-branding-service.ts's resolution logic itself, only
+      consumes it. Does not touch category 17's check script or any
+      Playwright/system dependency.
+
 recently_completed:
   - session_label: "claude-code (task-20260814-121422-audit-and-merge-d3a3s-final-2-real-prs-8) -- final gap of UMR-20260808-183732-d3a3: audited+merged PR #801 and PR #908 [DONE, both MERGED]"
     completed_at: "2026-08-14T12:36Z (this session)"
