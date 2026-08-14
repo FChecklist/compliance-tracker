@@ -3211,6 +3211,36 @@ open_items:
         or any new architecture -- reuses existing, tested engines only.
       status: open
       first_raised: "This session, 2026-08-04, OCID-062 discovery pass (UMR-20260802-173631-ca85 OCID-021, UMR-20260802-165606-4413 OCID-020)"
+
+    - id: GAP-OCID-061-CANONICAL-DOC-TRUNCATED-UNMERGED
+      name: "CORRECTED 2026-08-13: this gap was FALSE -- OCID-061's canonical discovery artifact (PR #878) is real and complete, not truncated"
+      old_ids: []
+      detail: |
+        CORRECTED 2026-08-13 (real independent audit re-verification, PR #884's merge-conflict
+        resolution cycle, governing chain UMR-20260808-183926-70b6): the original claim below was
+        independently re-verified via `git cat-file -s`/`-p` against
+        `origin/worker/task-20260804-054220-register-ocid-061--universal-determinist` and found FALSE.
+        `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md` on PR #878 is 8754 bytes / 139
+        lines, a complete document with all 5 headed sections (mode pill/Chain Selector, free chat,
+        speech-to-text, API/webhook, canonical intent object) and a proper closing section -- not 31
+        lines, not truncated, not ending in a tool-output-truncation artifact. The original finding was
+        itself a victim of this sandbox's own known `git show` output-truncation bug. See
+        `ai-os/VERIDIAN_OCID_065_COMPLETENESS_AND_ZERO_DUPLICATION_AUDIT_2026-08-04.md` SS2 for the full
+        correction record (original incorrect text preserved there, not deleted).
+
+        Original (incorrect) detail, preserved for the record: "PR #878
+        (`worker/task-20260804-054220-register-ocid-061--universal-determinist`) is real, OPEN,
+        `mergeable: CONFLICTING`, not merged to `origin/main`. Its intended canonical artifact,
+        `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md`, is genuinely only 31 lines on
+        that branch, covers 1 of the 4 required intake surfaces, and ends mid-sentence with a literal
+        `... more files changed` tool-output-truncation artifact committed as if it were real content."
+      status: closed
+      owner: "n/a -- closed as a false finding, not a real gap. PR #878 may still have its own,
+        separate, unaddressed merge-conflict state against current main -- out of scope for this
+        correction."
+      blocker: "None -- closed."
+      first_raised: "2026-08-04, OCID-065 audit"
+
     - id: GAP-VERI-TODO-STUCK-LOADING-NOT-READY
       name: "VERI To Do task list can show \"Loading...\" for 6+ real seconds, and VERI Chat composer submission produced one real \"VERI AI isn't ready yet\" toast error (severity: unconfirmed, medium-priority to investigate -- real but not yet reproduced enough times to characterize)"
       old_ids: []
