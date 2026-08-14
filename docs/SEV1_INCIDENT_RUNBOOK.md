@@ -106,7 +106,9 @@ In rough order of "fastest way to stop the bleeding" to "proper fix":
    dashboard (project `prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII`) or via the Vercel
    API. This does **not** require a new commit/PR and is the fastest real
    mitigation available — use it before attempting a code fix under
-   pressure.
+   pressure. **CLI-based, scriptable drill + exact commands:**
+   `docs/runbooks/rollback.md` (`node scripts/rollback-drill.mjs` for the
+   read-only identification step).
 2. **Secret rotation** — if a key is leaked/compromised: rotate it at the
    provider (Supabase/Groq/OpenRouter/etc.), update the GitHub Secret, then
    run the existing `Sync Env Vars to Vercel` workflow
