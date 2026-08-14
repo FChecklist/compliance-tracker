@@ -40,18 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260814-071834-rca--umr-20260807-101751-68ff-killed) -- RCA of UMR-20260807-101751-68ff (killed) [IN PROGRESS]"
-    claimed_at: "2026-08-14T07:18Z (this session)"
-    claim: |
-      SPEC (governing chain: this task's own dispatching UMR, PM-sentinel tick): RCA of
-      UMR-20260807-101751-68ff, status=killed, real recorded reason: a PM's own deliberate
-      withdrawal of a "review, merge and deploy PR 249" dispatch after reading the Owner's
-      absolute stop-work order for the first time and correctly recognizing PR-review/push work
-      was in scope of it -- not a bug, crash, or infra failure. Read-only RCA: querying
-      resource_governor.py, gh pr view 249, and the live `_stop_work_order_block_reason()` gate
-      directly (no code change expected). File scope: this session's own
-      `progress/task-20260814-071834-rca--umr-20260807-101751-68ff-killed.md`, this
-      ACTIVE-CLAIMS.yaml entry, and a `mark-umr-terminal` DB write via superboss-register.py.
   - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
     claimed_at: "2026-08-03T08:56Z (this session)"
     claim: |
@@ -5904,6 +5892,19 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260814-071834-rca--umr-20260807-101751-68ff-killed) -- RCA of UMR-20260807-101751-68ff (killed)"
+    completed_at: "2026-08-14T07:21Z (this session)"
+    merged_as: |
+      No code fix required. RCA found UMR-20260807-101751-68ff status=killed was a PM's own
+      deliberate, reasoned withdrawal of a "review, merge, deploy PR 249" dispatch, correctly
+      recognizing PR-review/push work was in explicit scope of the Owner's absolute stop-work
+      order (task-20260806-165921-owner-absolute-stop-work-order--complete/prompt.txt) -- not a
+      bug/crash/infra failure. Verified live 2026-08-14: PR 249 (FChecklist/veridian-scripts) is
+      state=MERGED (2026-08-13T10:39:54Z, independent path) and
+      `resource_governor.py::_stop_work_order_block_reason("veridian_task_create", ...)` executed
+      live now returns None (the order has genuinely lifted). Terminal outcome recorded via
+      `superboss-register.py mark-umr-terminal --status killed` citing this evidence; full detail
+      in `progress/task-20260814-071834-rca--umr-20260807-101751-68ff-killed.md`.
   - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
     completed_at: "2026-08-07T (this session)"
     merged_as: |
