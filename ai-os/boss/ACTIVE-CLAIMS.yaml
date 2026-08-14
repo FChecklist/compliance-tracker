@@ -5892,6 +5892,27 @@ active:
       migration is done, not a live conflict.
 
 recently_completed:
+  - session_label: "claude-code (task-20260814-061732-rca--umr-20260813-130245-6a26-killed) -- RCA of UMR-20260813-130245-6a26 (killed) + finished its real stranded remaining scope"
+    completed_at: "2026-08-14T (this session)"
+    merged_as: |
+      https://github.com/FChecklist/veridian-scripts/pull/357 -- NOT YET MERGED (opened this
+      session, subject to the normal CI/review gate). UMR-20260813-130245-6a26 marked
+      `completed_unmerged` via `superboss-register.py mark-umr-terminal` citing commit
+      `9a1809d0c9f29db1a62023874b0d2cb139e388dc`.
+    summary: |
+      RCA found two real, independent causes: invocation 1 of
+      task-20260813-150119-remove-0-byte-decoy-register-files-that was a genuine stuck-task
+      SIGKILL (no dispatch-gateway bug); invocation 2 (resumed) did real substantive work (24-file
+      DB-path-resolution rewrite delegating to resolve_superboss_db_path(), 4 zero-byte decoy
+      files archived) but stopped cleanly on its own session-budget exhaustion before opening a
+      PR, leaving the real commit stranded unopened, unmerged, and 77 commits behind main. This
+      session rebased it clean (zero conflicts), independently re-verified all 24 files compile,
+      completed the outstanding real hard-fail proof-run (item F), opened the PR above with an
+      honest callout of item D (4 pre-existing fail-open exception wrappers) as a deferred
+      follow-up decision, and recorded the terminal outcome. File scope this session: this
+      ACTIVE-CLAIMS entry, `progress/task-20260814-061732-rca--umr-20260813-130245-6a26-killed.md`
+      in compliance-tracker (this repo); real code changes are in FChecklist/veridian-scripts PR
+      #357 (separate repo), not this repo.
   - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
     completed_at: "2026-08-07T (this session)"
     merged_as: |
