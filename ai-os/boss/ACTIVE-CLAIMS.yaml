@@ -5667,6 +5667,27 @@ active:
       This PR is CI-green, audited, and ready -- it needs the Owner (or a
       provisioned second reviewer identity) to actually merge it.
 
+      2026-08-14 (invocation 18) real state change, not a re-confirmation:
+      `origin/main` had moved ~100+ commits since this PR's merge-base;
+      `gh pr view 1021` now showed `mergeStateStatus: DIRTY` /
+      `mergeable: CONFLICTING`. Found the real conflicts via `git
+      merge-tree` -- exactly 2 files, both classic "two sessions appended
+      near the same anchor in a shared file" collisions: root `PROGRESS.md`
+      (this task's entry vs. an unrelated concurrent
+      `task-20260718-081006-crm---sales-modules` entry) and
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` (this task's 3
+      exemption rows vs. a concurrent GST-reconciliation task's 1 row).
+      Merged `origin/main` in, resolved both by union (kept both sides --
+      neither was wrong), re-ran `scripts/check-terminology-guardrail.mjs
+      --diff-only` locally (passed) before committing, pushed merge commit
+      `185f72fa0`. Re-checked: `mergeable` is back to `MERGEABLE`;
+      `mergeStateStatus` is `BLOCKED` -- confirms the only remaining blocker
+      is the known review-requirement self-approval deadlock (unchanged),
+      not the conflict. CI re-running on the new merge commit. Did not
+      re-attempt `gh pr merge` (still the same known deadlock, no new
+      signal there). `.github/workflows/sync-vercel-env-staging.yml`
+      remains unpushed (workflow OAuth scope still absent) -- unchanged.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 # Restored 2026-07-19 (this session): this key had gone missing on main --
