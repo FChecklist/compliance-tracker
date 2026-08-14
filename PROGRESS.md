@@ -1,61 +1,23 @@
-# PROGRESS -- task-20260813-171844-rca--umr-20260808-183732-d3a3-killed
-
+# PROGRESS -- task-20260813-231636-rca--umr-20260808-175055-cebd-killed
 ## Completed
+- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260808-175055-cebd` directly (not trusting SPEC summary). Confirmed row unchanged from prior investigations: `status=killed`, `reason="stuck-task SIGKILL: no exit 60s after SIGTERM"`, `ts_sigterm=2026-08-08T18:51:44Z`, `ts_completed=2026-08-08T18:52:48Z` (~64s after SIGTERM, matches the 60s grace-period kill).
+- [x] Checked own memory first (per this repo's own established practice) and found this exact UMR already has **two** prior RCA closures:
+  - 1st RCA (`task-20260813-105054-rca--umr-20260808-175055-cebd-killed`, commit `ad143bfe9`): genuine root cause established — `scan_stuck_tasks()` correctly SIGKILLed a service invocation that hung inside the quality-gate `next build` step (Turbopack build's own internal hang, same class as a pre-existing `task-20260727-043407` RCA). Task identity self-healed to an honest `blocked` state in its own `task.yaml`. Real remaining scope (PR #1070 merge, P03 webkit escalation, P04 re-check) was independently picked up and closed same-day by a separate follow-on UMR chain (UMR-20260813-082609-873e / UMR-20260813-083422-15e7) via PR #1070 (merged `fe12d80e`) + PR #1076 (merged), documented in `ai-os/boss/ACTIVE-CLAIMS.yaml`'s `recently_completed`.
+  - 2nd RCA (`task-20260813-181942-rca--umr-20260808-175055-cebd-killed`, PR #1100, merge `6579b5a13`): re-dispatch of the identical question hours later; re-verified live state unchanged, closed as a documented duplicate (docs-only PR, no code).
+- [x] Re-verified live state as of this (3rd) dispatch, 2026-08-13T23:16Z: `resource_governor.py` row byte-identical to both prior investigations; `git log --all` confirms `ad143bfe9` and `6579b5a13` both present on `main`; `gh pr view 1100` confirms `state=MERGED`, `mergeCommit=6579b5a13`; `ai-os/boss/ACTIVE-CLAIMS.yaml` still references the `UMR-20260813-082609-873e` resume chain that closed the real remaining scope. Nothing has changed since the 2nd RCA closed.
+- [x] `mark-umr-terminal` correctly **not** called a third time — there is nothing new to correct; the row is an accurate historical record and both prior RCAs already reached and recorded the honest terminal conclusion.
+## Remaining
+- [x] None. This task is a pure duplicate of two already-completed RCAs for the same UMR — closing docs-only, no code change.
+## CI notes
+- PR #1118 opened, docs-only (`PROGRESS.md`). All checks passed except `audit-check`, which required two corrections to the structured verdict comment format (missing `Severity Classified`/`Verdict` bare-enum values on the first attempt) — see PR comments for the final `AUDIT: PASS` verdict with all 8 required fields.
+- CI run `31753466974`'s `Build` job hung `in_progress` for 30+ min against a real assigned runner (baseline for this job is ~2.5 min from recent successful runs) with zero other concurrent CI runs competing for capacity — genuinely stuck, not queued/contended. Cancelled (`gh run cancel 31753466974`) and re-triggered via a fresh empty commit rather than waiting indefinitely (GitHub Actions' default 360min job timeout would not have caught this for hours).
+- Re-run (`31753721688`) then also stalled on `Build` (~15+ min, same slow-runner pattern). Before cancelling a 2nd time, cross-checked a concurrent sibling PR's CI run (`31753835743`, branch `worker/task-20260813-231714-...`) and found its `Type Check`/`Lint` jobs equally stalled at the same moment — confirms a systemic shared-runner slowdown across the whole CI fleet right now, not something specific to or caused by this PR/branch. Per this task's own circuit-breaker instruction (stop after a 2nd consecutive identical-approach failure), did **not** cancel/retrigger a 3rd time — let the run continue and waited it out instead of intervening again.
 
-- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260808-183732-d3a3`
-      directly (did not trust the SPEC summary blind). Found the row's own
-      real `reason` already contained a full RCA: the deterministic-reviewer
-      "system_index match" verdict was a false positive of
-      `credit-accountant.py`'s check-duplicate FTS matcher against
-      `worker-entrypoint.sh`'s own unquoted search terms -- independently
-      fixed via PR #291 (veridian-scripts, merged 2026-08-13T08:40:22Z). That
-      RCA had already been done by a prior task chain
-      (`task-20260813-091906-rca---resume-priority-4--umr-d3a3--ocid`), not
-      this task -- this is a 3rd RCA dispatch for the same UMR (siblings:
-      `task-20260813-091906-...` and `task-20260813-104656-rca--umr-...`).
-- [x] Read both prior sibling tasks' own real PROGRESS.md to establish live
-      state rather than re-deriving from scratch:
-      - `task-20260813-091906`: did the real RCA + closed 2/10 items
-        (OCID-042/045, PR #800/#796) + disclosed 3/10 as its own genuinely
-        unaddressed remaining scope (OCID-056/059/061) + confirmed the other
-        5/10 (OCID-041/043/044/046/065) were being actively, non-duplicately
-        redispatched under a separate UMR (UMR-20260808-183926-70b6).
-      - `task-20260813-104656`: picked up that disclosed remaining scope and
-        genuinely closed it -- real content PRs #870/#873/#878 (compliance-tracker)
-        all rebased through repeated main-drift conflicts, AUDIT:PASS posted,
-        CI green, merged live 2026-08-13T11:20-11:34Z; tracker rows
-        OCID-056/059/061-CONSOLIDATION-LINK closed; bookkeeping PR #1081
-        merged 2026-08-13T12:24:56Z -> `823624a97`.
-- [x] Independently re-verified live, not trusted from sibling PROGRESS.md
-      say-so: `superboss-register.py list-issues --linked-ocid OCID-0NN` for
-      all 5 items (042/045/056/059/061) -- all `is_closed=YES` with real PR
-      citations in `apply_fix_notes`. `git merge-base --is-ancestor
-      823624a97 origin/main` in the live `compliance-tracker` checkout --
-      confirmed real ancestor. `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no live
-      claim references this UMR or these OCIDs (nothing to collide with).
-- [x] Root cause of the ORIGINAL mislabel identified: this UMR's own real
-      work (its disclosed remaining scope) finished genuinely AFTER the row
-      had already been mark-umr-terminal'd to `status=killed` (the only
-      terminal status available at the time that fit a "partial, honestly
-      disclosed" outcome -- `mark-umr-terminal` still has no `declined`/
-      `partial` status, the same structural gap behind this whole recurring
-      series, see memory). The row was never revisited once the remainder
-      landed, so it sat mislabeled `killed` despite 100% of this UMR's own
-      real scope being done and merged to `main`.
-- [x] Corrected via `superboss-register.py mark-umr-terminal --umr-id
-      UMR-20260808-183732-d3a3 --status completed --commit-sha
-      823624a97dffa79c0a23370687c4006055c76e3f --pr-number 1081 --repo
-      compliance-tracker`, citing the real evidence chain above in
-      `--reason`. Verified: `823624a97` is a real ancestor of
-      `origin/main` in the live `compliance-tracker` checkout (gate
-      required, and passed, for `--status completed`).
-
-## Task status
-Real RCA + correction complete: `UMR-20260808-183732-d3a3` is no longer
-mislabeled `killed` -- corrected to `completed` in `superboss-register.sqlite`,
-citing PR #1081 (compliance-tracker, merge commit `823624a97`) as the closing
-artifact, with the full 10-item evidence chain in the reason field. No code
-change was needed or made -- this task's real scope was a database-record
-correction on an already-resolved gap, same pattern as prior tasks in this
-recurring killed-RCA-mislabel series (see memory index). Nothing further to
-redispatch: all of this UMR's own scope is genuinely closed.
+## Addendum (task-20260813-171844-rca--umr-20260808-183732-d3a3-killed, PR 1106)
+- RCA of UMR-20260808-183732-d3a3 (status was killed) found its own real remaining scope already
+  merged (see task-20260813-104656 PRs 870/873/878 for OCID-056/059/061, and 800/796 for
+  OCID-042/045). Corrected the mislabel via mark-umr-terminal to status completed, commit sha
+  823624a97dffa79c0a23370687c4006055c76e3f, pr number 1081.
+  That DB write already landed live (independent of this PR own merge state) before this task
+  worker stalled waiting on a CI/merge-monitor callback for this PR and was SIGKILLed by the
+  stuck-task watchdog, root-caused by a follow-on RCA, UMR-20260813-171554-e01e.
