@@ -40,6 +40,28 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260814-201850-rca--umr-20260808-215121-1e87-killed) -- RCA of killed UMR-20260808-215121-1e87 [DONE, docs-only, duplicate confirmation]"
+    claimed_at: "2026-08-14T20:18Z (this session, closed same session)"
+    claim: |
+      SPEC (PM-sentinel tick dispatch): RCA `resource_governor.py --query-umr --umr-id
+      UMR-20260808-215121-1e87` (`status=killed`). Per AGENTS.md Rule 12, checked session
+      auto-memory index first: direct hit `veridian-umr-1e87-killed-deliberate-probe-not-bug.md`
+      already documented 3 prior independent confirmations that this row is a deliberate,
+      self-terminating test-only probe -- `status=killed` is correct, not a bug, no fix
+      needed/possible. Independently re-queried the live row myself per this task's own
+      instructions (not trusting the memory hit or SPEC summary alone); result matched the
+      memory verbatim.
+
+      Found one previously-unrecorded 4th confirmation via this task's own governing-UMR
+      `cross_repo_pr_check` (`UMR-20260814-201824-8f17`): PR compliance-tracker#1165,
+      governing UMR `UMR-20260814-141626-29ec`, already `status=completed_unmerged`. This
+      task is therefore the **5th** independent dispatch of the identical RCA target, a pure
+      duplicate. Updated `veridian-umr-1e87-killed-deliberate-probe-not-bug.md` memory with
+      both this and the PR #1165 confirmation so the next dispatch sees an accurate count.
+    scope_note: >-
+      File scope: `progress/task-20260814-201850-rca--umr-20260808-215121-1e87-killed.md`
+      (this task's own per-task progress file, per updated protocol), `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      (this entry). No source code touched -- correctly-behaving probe row, docs-only PR.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
