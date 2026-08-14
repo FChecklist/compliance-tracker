@@ -10598,3 +10598,24 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (task-20260814-082938-rca--umr-20260807-063918-f15d-killed) -- RCA UMR-20260807-063918-f15d killed"
+    claimed_at: "2026-08-14T08:29Z (this session)"
+    claim: |
+      SPEC: RCA the killed UMR-20260807-063918-f15d (a registration-only backfill row for
+      pre-existing task-20260803-032332, decided rejected_duplicate 2026-08-03).
+
+      Found this is a DUPLICATE DISPATCH: an earlier task the same day,
+      `task-20260814-021600-rca--umr-20260807-063918-f15d-killed`, already ran this identical
+      RCA (see its `progress/task-20260814-021600-rca--umr-20260807-063918-f15d-killed.md`,
+      commit c04fd5448) and reached the same conclusion this session independently
+      re-verified: `resource_governor.py --query-umr` reason text matches verbatim; referenced
+      task.yaml confirms `status: rejected_duplicate`, zero files modified;
+      claude-control PR #123 and compliance-tracker PR #763 both confirmed real/MERGED
+      (re-checked live via `gh pr view` this session, 2026-08-03T03:52-03:53Z). Correctly
+      killed, no mislabel, no redispatch, no `mark-umr-terminal` call needed (row already
+      correctly terminal). No source code touched -- this is a docs/RCA-only closure, consistent
+      with the task's own objective (no named source file). Closing as duplicate; no scope
+      collision with any other in-flight claim.
+    scope_note: >-
+      File scope: `progress/task-20260814-082938-rca--umr-20260807-063918-f15d-killed.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`. No code changes -- RCA confirmed no redispatch/fix needed.
