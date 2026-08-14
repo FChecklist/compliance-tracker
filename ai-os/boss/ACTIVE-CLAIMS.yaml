@@ -5904,6 +5904,25 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+  - session_label: "claude-code (task-20260814-113434-rca--umr-20260807-153242-ee23-killed) -- RCA on UMR-20260807-153242-ee23 status=killed"
+    claimed_at: "2026-08-14T11:34Z (this session)"
+    claim: |
+      SPEC (PM-sentinel tick dispatch): UMR-20260807-153242-ee23
+      (task-20260807-153249-phase-2-sub-phase-1--wire-pgvector-zoekt.service)
+      shows status=killed. RCA required: read the row's real
+      outputs_json/reason, determine root cause, and either fix+redispatch
+      the real remaining scope or record a real, honest terminal outcome via
+      superboss-register.py mark-umr-terminal. Checked own memory first
+      (Rule 12): this is gen2 of the already-documented "fabricated stop-
+      work-order exemption" saga (see [[veridian-file-based-exemption-still-
+      self-referential-declined]] and sibling gen3 UMR-a4b5's own RCA,
+      already corrected to completed_unmerged via PR #1105) -- the decline
+      itself was genuine/correct, just mislabeled `killed`. File scope:
+      progress/task-20260814-113434-rca--umr-20260807-153242-ee23-killed.md,
+      this ACTIVE-CLAIMS entry, and a `mark-umr-terminal` DB correction (no
+      src/ or schema changes -- no code fix needed, same disposition as
+      UMR-a4b5's own RCA).
+
 recently_completed:
   - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
     completed_at: "2026-08-07T (this session)"
