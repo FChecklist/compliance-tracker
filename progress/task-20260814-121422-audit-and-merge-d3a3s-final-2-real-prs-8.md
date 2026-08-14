@@ -21,10 +21,17 @@ gap: PR #801 and PR #908, both OPEN -- audit against current head, merge if clea
       entries + 1 branch-only entry = 273 merged, zero entries dropped) -- pushed 965a47c8,
       now MERGEABLE (was CONFLICTING/DIRTY). CI running.
 
+- [x] CI on both re-triggered after push. `audit-check` (the Rule-10 judgment-tier gate)
+      passed automatically on both -- these are `worker/*` branches (Claude Code session),
+      not `ai-team/<role>/*` dispatch branches, so the mandatory-audit-check gate doesn't
+      apply here (only judgment-tier AI-team role dispatches need a posted AUDIT:PASS/FAIL
+      comment). All other required checks (Lint, Type Check, Guardrail Presence, Asset
+      Registry Coverage, Unit Tests, Metadata Index Coverage) passing on both as of last
+      check; Build/CodeQL/Vercel still finishing. Vercel preview deploy failing on both
+      (known infra quota issue, `api-deployments-free-per-day` / build-rate-limit -- not a
+      required check, doesn't block merge).
+
 ## Remaining
-- [ ] PR #801: verify CI passes, get fresh audit if the existing 2026-08-08 AUDIT:PASS
-      comment doesn't cover the new sync commit, merge
-- [ ] PR #908: verify CI passes, get fresh independent audit of the new conflict-resolution
-      merge commit 965a47c8 (prior AUDIT:PASS comments covered caf24e2f, now stale), merge
+- [ ] Confirm all required checks green on both PRs, then merge each
 - [ ] Record completion via agent_work_briefing.py record-completion
 - [ ] Move ACTIVE-CLAIMS entry from active: to recently_completed:
