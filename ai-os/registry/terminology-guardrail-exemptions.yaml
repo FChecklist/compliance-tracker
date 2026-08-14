@@ -1149,3 +1149,31 @@ exemptions:
     findings_by_category:
       indian_gstin_literal: 2
       hardcoded_iso_date: 3
+  - file: "src/app/(app)/help/page.tsx"
+    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14): 1 genuine dated gap-closure comment (line 9) documenting why this route now serves real pre-auth FAQ content instead of redirecting anonymous visitors to /login -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: "src/app/(app)/layout.tsx"
+    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14): 1 genuine dated gap-closure comment (line 4) documenting why this layout now skips the authenticated-only AppShell chrome for anonymous /help visitors -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/contact/page.tsx
+    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14): 3 genuine dated gap-closure comments (lines 10, 37, 83) documenting the real per-host brand-name and 'Pricing' nav-link-parity fix for the H2/H4 consistency findings -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 3
+  - file: src/app/pricing/page.tsx
+    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14): 1 genuine dated gap-closure comment (line 8) documenting the real per-host brand-name fix for the H2/H4 consistency finding -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/pricing/pricing-content.tsx
+    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14): 1 genuine dated gap-closure comment (line 156) documenting the real per-host brand-name fix for the H2/H4 consistency finding -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/signup/page.tsx
+    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14): 1 genuine dated gap-closure comment (line 12) documenting the real per-host brand-name fix for the H2/H4 consistency finding -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/signup/signup-form.tsx
+    reason: "OCID-020 GTM category 23 real UX-audit fix (task-20260814-095559-fix-the-two-failing-go-to-market-certifi, 2026-08-14): 1 genuine dated gap-closure comment (line 27) documenting the real per-host brand resolution used by this form -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
