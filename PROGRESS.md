@@ -293,3 +293,36 @@ changed. Same standing structural deadlock (single GitHub identity, branch prote
 requires 1 approving review + enforce_admins). Nothing left for this session to do; blocker
 requires Owner action (provision second reviewer identity, grant review-count exception, or
 merge directly).
+
+## Re-checked 2026-08-14 (invocation 20/20) -- merge conflict with origin/main resolved
+`gh pr view 1018` now returned `mergeStateStatus: DIRTY`, `mergeable: CONFLICTING` (a real
+change from invocations 17-19's steady `BLOCKED`/`REVIEW_REQUIRED` -- `origin/main` had
+advanced 88 commits since this branch's last merge, three files now genuinely conflicting:
+`PROGRESS.md`, `ai-os/boss/ACTIVE-CLAIMS.yaml`, `ai-os/registry/terminology-guardrail-exemptions.yaml`
+(confirmed via `git merge-tree` before touching anything). Merged `origin/main` in and
+resolved all three -- every conflict was additive/non-overlapping (different tasks' entries
+in shared registry files), nothing from either side dropped:
+- `ai-os/boss/ACTIVE-CLAIMS.yaml`: kept this session's `active:` entry plus origin/main's
+  own newer `active:`/`recently_completed:` entries, both intact.
+- `ai-os/registry/terminology-guardrail-exemptions.yaml`: kept this task's 9 exemption
+  entries plus origin/main's newer `reconciliation-engine.test.ts` entry.
+- `PROGRESS.md`: this shared changelog file's `origin/main` tip had been reset to a
+  118-byte stub for an unrelated task (`task-20260814-021600`), discarding the much larger
+  accumulated history the merge-base version still had -- not something to refight here.
+  Kept this task's full section on top, appended `origin/main`'s stub below unchanged,
+  same precedent as this file's own prior conflict-resolution note above
+  (task-20260805-151445's entry: "keeping this section on top and appending the complete,
+  untruncated origin/main history below unchanged").
+- Validated both YAML files still parse (`python3 -c "import yaml; yaml.safe_load(...)"`).
+- Not yet done as of this note: push, re-confirm CI green on the new merge commit, and
+  re-check whether the standing reviewer-identity self-approval deadlock (still the
+  documented blocker independent of this conflict) has changed.
+
+---
+
+# PROGRESS -- task-20260814-021600-rca--umr-20260807-063918-f15d-killed
+
+## Completed
+
+## Remaining
+- [ ] Not started

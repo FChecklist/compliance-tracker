@@ -1180,3 +1180,8 @@ exemptions:
     reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): 1 genuine dated test-name comment documenting the new CRM -> 'sales' product-branch gate test case -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/gst/reconciliation-engine.test.ts
+    reason: "GTM cat13 AI-testing (OCID-020, UMR-20260807-153553-449c, PR #1051): 5 genuine test-fixture literals in the new reconciliation-engine test suite -- 2 fake counterparty GSTINs (GSTIN_A/GSTIN_B constants, lines 23-24) and 3 fixture invoiceDate literals (lines 30/63/64) exercised by exact/tolerance/probable-match assertions -- load-bearing test data, not real business hardcoding, same class as this codebase's other exempted *.test.ts fixture files."
+    findings_by_category:
+      indian_gstin_literal: 2
+      hardcoded_iso_date: 3
