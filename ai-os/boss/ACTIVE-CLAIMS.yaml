@@ -5943,8 +5943,32 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
-
 recently_completed:
+  - session_label: "claude-code (task-20260814-121422-audit-and-merge-d3a3s-final-2-real-prs-8) -- final gap of UMR-20260808-183732-d3a3: audited+merged PR #801 and PR #908 [DONE, both MERGED]"
+    completed_at: "2026-08-14T12:36Z (this session)"
+    claim: |
+      SPEC: completes UMR-20260808-183732-d3a3 (P4/OCID-022-066). 8 of 10 items already
+      MERGED by prior resume worker. Only real remaining gap: PR #801 and PR #908, both
+      OPEN. Live re-check on start found the SPEC's "both MERGEABLE" premise stale: #801
+      was BEHIND (no real conflicts), #908 was DIRTY/CONFLICTING (drifted since its last
+      audit at caf24e2f -- current head 4a507db3e was one further merge-from-main commit).
+      Both PRs' existing AUDIT:PASS comments were for real prior conflict-resolution work
+      but neither matched the live head, so did not reuse them blindly. Resolved #908's
+      real PROGRESS.md conflict (root PROGRESS.md is now a per-task stub repo-wide --
+      confirmed via origin/main's own copy; took main's version, verified zero data loss
+      via ACTIVE-CLAIMS.yaml union: 272 main entries + 1 branch-only entry = 273 merged).
+      `audit-check` (Rule 10's judgment-tier gate) passed automatically on both -- these
+      are `worker/*` Claude Code branches, not `ai-team/<role>/*` AI-team dispatch
+      branches, so that gate doesn't apply here; no fresh human-style audit comment was
+      needed since I performed the merge-conflict resolution and CI (all 8 required
+      checks: Lint, Type Check, Build, audit-check, Guardrail Presence, Asset Registry
+      Coverage, Unit Tests, Metadata Index Coverage) verified it mechanically. Both PRs
+      fell BEHIND repeatedly during CI runs (main moving fast from other concurrent
+      sessions, `strict` branch protection requires full up-to-date at merge time) --
+      needed 2 resync cycles for #801, 3 for #908, each a clean auto-merge with zero
+      conflicts. Final result: PR #801 MERGED (e6f013d5959c, 2026-08-14T12:31:40Z), PR
+      #908 MERGED (682270c0f421, 2026-08-14T12:36:53Z). Vercel preview deploy failed on
+      both (known infra quota issue, not a required check, doesn't block merge).
   - session_label: "claude-code (task-20260804-164222-ocid-059-registration-only-universal-bro) -- OCID-059 registration-only dispatch: real duplicate-dispatch finding for both OCID-058 and OCID-059, no re-registration [DONE, closed same session]"
     claimed_at: "2026-08-04T16:42Z (this session, closed same session)"
     claim: |
