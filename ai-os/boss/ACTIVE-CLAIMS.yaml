@@ -40,6 +40,18 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260814-071919-rca--umr-20260807-003517-23bb-killed) -- RCA of UMR-20260807-003517-23bb (status=killed) [IN PROGRESS]"
+    claimed_at: "2026-08-14T07:19Z (this session)"
+    claim: |
+      SPEC (PM-sentinel tick): UMR-20260807-003517-23bb shows status=killed, reason "Declined on
+      principle, not attempted" for a request to build new /proc-based attribution tooling to
+      identify the caller stopping veridian-directive-engine.service, citing proposal 296 as
+      justification for bypassing the standing Owner absolute stop-work order
+      (`ai-os/tasks/task-20260806-165921-owner-absolute-stop-work-order--complete`). Read-only RCA:
+      query the real row, verify pm_decisions_pending #296 and the stop-work-order's live state,
+      determine whether the decline was correct or needs redispatch, record honest terminal
+      outcome. File scope: `progress/task-20260814-071919-rca--umr-20260807-003517-23bb-killed.md`,
+      this ACTIVE-CLAIMS entry. No src/ changes expected (read-only investigation).
   - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
     claimed_at: "2026-08-03T08:56Z (this session)"
     claim: |
