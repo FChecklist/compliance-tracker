@@ -1696,6 +1696,35 @@ speculatively authored ahead of their own real dependency chain.
 
 ---
 
+## Amendment (2026-08-03, later same day): OCID-041 real discovery/requirement-mapping artifact produced
+
+The dispatched-worker-scale discovery work the amendment above explicitly flagged as undone for OCID-041
+("No worker has yet been dispatched for OCID-041 as of this amendment") has now been produced under
+OCID-041's own already-real UMR (`UMR-20260803-084109-6875`) — no new UMR minted, this is the same
+registration's own deliverable. Canonical artifact:
+`ai-os/VERIDIAN_UNIVERSAL_EXTERNAL_EXECUTION_FOUNDATION_2026-08-03.md` (registered in `ai-os/OS.yaml`).
+
+Real, honest scope of what this artifact does and does not do: a full decomposition of the Owner
+directive's OCID-041 mission into 28 discrete requirements (R1-R28), a requirement-by-requirement mapping
+against existing, already-built VERIDIAN components (file:line cited, independently verified this same
+cycle via a dedicated read-only discovery pass — not narrated from a prior document's summary), and 5
+named, honest gaps (GAP-041-1 through GAP-041-5). The central finding: the real, used worker-dispatch path
+(`task-gateway.py`/`worker-entrypoint.sh`) has zero provider abstraction today (hardcoded to Claude Code
+CLI); the only place multi-provider routing already exists in this codebase (`roster.ts`, `llm-client.ts`,
+including live model strings for `z-ai/glm-5.2`, `google/gemini-2.5-pro`, `deepseek/deepseek-v4-pro`) sits
+on the AI-Team advisory surface, which has no live callers in production. VERIDIAN's existing
+task/workflow/security/audit/review/governance-authority mechanisms already treat the executor as
+non-authoritative, so R3-R10 (sole-authority requirements) are a genuine reuse opportunity, not a gap.
+
+Still locked, still discovery-only: this artifact does not implement anything, does not wire any external
+provider execution path, does not modify `CONSTITUTION.yaml` or worker/server runtime, and does not mark
+OCID-041 complete. Same `SEC-07` gate as before (OCID-020, `UMR-20260802-165606-4413`, independently
+reconfirmed still open this same cycle via `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`)
+applies unchanged, requiring the same fresh, explicit Owner override in chat before any of R1/R2/R11-19's
+real gaps may be closed.
+
+---
+
 ## Amendment (2026-08-03): OCID-042 substantive discovery performed — VERIDIAN Universal Context Packaging Runtime v0.1
 
 Real dispatched worker task (`veridian-worker@task-20260803-085550-register-ocid-042-universal-context-
