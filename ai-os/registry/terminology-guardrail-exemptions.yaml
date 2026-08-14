@@ -1156,3 +1156,8 @@ exemptions:
     reason: "Cloud Deployment / Deployment Automation gap-closure (task-20260718-164005, 2026-08-07): new file, 1 genuine dated comment (line 6) documenting the real, live Vercel project verification date this drill's fixtures are modeled on -- not example/placeholder data."
     findings_by_category:
       hardcoded_iso_date: 1
+  - file: src/lib/gst/reconciliation-engine.test.ts
+    reason: "GTM cat13 AI-testing (OCID-020, UMR-20260807-153553-449c, PR #1051): 5 genuine test-fixture literals in the new reconciliation-engine test suite -- 2 fake counterparty GSTINs (GSTIN_A/GSTIN_B constants, lines 23-24) and 3 fixture invoiceDate literals (lines 30/63/64) exercised by exact/tolerance/probable-match assertions -- load-bearing test data, not real business hardcoding, same class as this codebase's other exempted *.test.ts fixture files."
+    findings_by_category:
+      indian_gstin_literal: 2
+      hardcoded_iso_date: 3
