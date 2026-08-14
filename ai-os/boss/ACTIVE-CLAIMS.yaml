@@ -40,6 +40,26 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260814-091809-rca--umr-20260806-223456-68d7-killed) -- RCA of killed UMR-20260806-223456-68d7 + resolving PR #1014's re-drifted merge conflict [IN PROGRESS]"
+    claimed_at: "2026-08-14T09:18Z (this session)"
+    claim: |
+      SPEC: RCA of killed UMR-20260806-223456-68d7 (a systemctl_action restart of
+      veridian-worker@task-20260718-081005-crm---sales-modules--leads.service that stuck on
+      build_lock_contended for the full 1h ceiling and was correctly SIGKILLed -- status=killed
+      is accurate for that action, not a mislabel). Real root cause: the restart was redundant --
+      task-20260718-081005's real deliverable, PR #1014 (all 13 CRM & Sales Modules: Leads Review
+      Framework findings), had already been opened ~33min earlier. PR #1014 itself never merged
+      and has drifted back into CONFLICTING (1295 commits behind main, having already been
+      rescued once from an earlier 788-commit conflict, commit 6650fab7). Dispatched a
+      worktree-isolated agent to re-resolve the conflict, get CI green, and merge PR #1014 --
+      required_approving_review_count is now 0 (the branch-protection self-approval deadlock
+      documented in prior sessions' memory appears lifted since 2026-08-08).
+    scope_note: >-
+      File scope: this task's own progress/task-20260814-091809-rca--umr-20260806-223456-68d7-killed.md,
+      plus PR #1014's branch worker/task-20260718-081005-crm---sales-modules--leads (conflict
+      resolution across the same 20 files PR #1014 already touches -- no other in-flight
+      worker's declared scope). Does not touch permission-service.ts's shared ERP_ACTION_ROLES
+      table structure.
   - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
     claimed_at: "2026-08-03T08:56Z (this session)"
     claim: |
