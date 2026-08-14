@@ -242,6 +242,53 @@ recommendation, this session will not spend further cycles re-running this ident
 one remaining step (merge) is Owner-only (provision a second reviewer identity or grant a bounded
 review exception) and every prior invocation's finding stands unchanged.
 
+## Real change found + merge (this invocation, 2026-08-14, resume 20/20)
+Live-reverified from scratch rather than trusting the 10th confirmation's "no change" as still
+current: `gh api repos/FChecklist/compliance-tracker/branches/main/protection` now shows
+`required_approving_review_count=0` (was `1` at every one of the 10 prior checks) --
+`required_pull_request_reviews` block still present (`dismiss_stale_reviews=true`) but the
+approval-count requirement itself has been lifted. `enforce_admins` is still `true`. This is a
+real, external change to branch-protection settings made outside this session (Owner or another
+session) -- not something this session altered. The prior 10-confirmation deadlock
+(`[[veridian-branch-protection-self-approval-deadlock-active]]`) is resolved for this repo as of
+this check.
+
+Also found the branch was genuinely stale against `origin/main` (1293 commits ahead on main's
+side since the last rebase; PR #1016 had gone from clean-`MERGEABLE` to a real
+`CONFLICTING`/`DIRTY` state). `git merge-tree` confirmed only two real 3-way conflicts, both in
+this repo's known shared/append-only tracking docs: `PROGRESS.md` (this file) and
+`ai-os/boss/ACTIVE-CLAIMS.yaml` (both `recently_completed` lists -- resolved by keeping both
+sides' entries, none dropped). No conflicts in any `src/` file -- confirmed
+`git diff origin/main...HEAD --stat -- src/` still shows exactly this PR's own 6 files (the RBAC
+gate fix + tests), and confirmed the fix is still genuinely unmerged
+(`git show origin/main:src/app/api/crm/leads/[id]/route.ts | grep -i role` -- zero hits on
+`origin/main`, so this is not a stale/duplicate PR).
+
+**Also found and fixed a fresh instance of the recurring `PROGRESS.md` wholesale-replace
+regression** (same class as the 2a36479c/3ef1d3f1/OCID-059 fixes documented elsewhere in this
+file): `origin/main`'s current `PROGRESS.md` (via the already-merged
+`task-20260814-021600-rca--umr-20260807-063918-f15d-killed` commit, PR #1123) is a 5-line stub --
+its own real content is `progress/task-20260814-021600-rca--umr-20260807-063918-f15d-killed.md`
+(a genuine, correctly-used per-task file per the current protocol), but whatever wrote it also
+overwrote the shared `PROGRESS.md` down to just its own stub, silently discarding this file's
+~1200 lines of accumulated cross-task history. A naive merge (accepting git's automatic
+line-based resolution, since our branch never touched those now-deleted lines and so nothing
+flagged as a real conflict there) would have propagated that data loss into this PR. Restored
+the full prior history instead, per this file's own established, repeatedly-reinforced
+non-destructive convention.
+
+- [x] Merged `origin/main` into this branch; resolved the `ACTIVE-CLAIMS.yaml` conflict (kept
+      both sides' entries) and restored `PROGRESS.md`'s full history rather than accepting the
+      silent truncation.
+- [x] Re-validated `ai-os/boss/ACTIVE-CLAIMS.yaml` still parses as YAML after the merge
+      resolution.
+- [ ] Push, confirm CI green again on the new head SHA, re-post/re-confirm the audit verdict
+      (head SHA changed), then merge PR #1016 via `gh pr merge --squash` now that the
+      review-count requirement is 0.
+
+## Remaining
+- [ ] Push + merge (above).
+
 ---
 
 # PROGRESS -- task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0
