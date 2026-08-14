@@ -5903,6 +5903,23 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (task-20260814-121422-audit-and-merge-d3a3s-final-2-real-prs-8) -- final gap of UMR-20260808-183732-d3a3: audit+merge PR #801 and PR #908 [IN PROGRESS]"
+    claimed_at: "2026-08-14T (this session)"
+    claim: |
+      SPEC: completes UMR-20260808-183732-d3a3 (P4/OCID-022-066). 8 of 10
+      items already MERGED by prior resume worker. Only real remaining gap:
+      PR #801 and PR #908, both OPEN, need a fresh audit against their
+      current head before merging (or reuse an existing AUDIT:PASS comment
+      if it already matches current headRefOid). Live re-check on start:
+      PR #801 is BEHIND main but MERGEABLE (no real conflicts) -- needs a
+      branch-update sync, not new audited content. PR #908 is DIRTY/
+      CONFLICTING against current main (drifted since its last audit at
+      caf24e2f -- current head 4a507db3e is one merge-from-main commit
+      further) -- needs real conflict resolution + a fresh independent
+      audit before merge. File scope: no src/ changes expected -- this is
+      PR merge-conflict resolution on ai-os/boss/ACTIVE-CLAIMS.yaml /
+      PROGRESS.md style append-only files plus this task's own
+      progress/task-20260814-121422-audit-and-merge-d3a3s-final-2-real-prs-8.md.
 
 recently_completed:
   - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
