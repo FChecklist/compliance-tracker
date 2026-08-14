@@ -38,7 +38,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const opportunity = await createOpportunity({ orgId, userId: dbUser.id }, body)
+    const opportunity = await createOpportunity({ orgId, userId: dbUser.id, role: dbUser.role }, body)
     return NextResponse.json(opportunity, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
