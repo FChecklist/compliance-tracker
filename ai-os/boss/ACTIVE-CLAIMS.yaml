@@ -5891,6 +5891,30 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 
+  - session_label: "claude-code (worker task-20260814-062124-rca--umr-20260808-150937-43d0-killed) -- RCA of UMR-20260808-150937-43d0 (killed, systemctl_action row)"
+    claimed_at: "2026-08-14T06:21Z (this session)"
+    claim: |
+      SPEC: PM-sentinel tick RCA task for UMR-20260808-150937-43d0
+      (status=killed, task_kind=systemctl_action, unit_name=
+      veridian-superboss-gateway.service, reason="stuck-task SIGKILL: no
+      exit 60s after SIGTERM"). Verified via `resource_governor.py
+      --query-umr` that this exact UMR is already the confirmed live
+      incident cited by name in `resource_governor.py`'s own
+      `scan_stuck_tasks()` docstring: a prior RCA
+      (UMR-20260813-101757-f13c, see
+      [[veridian-umr-f13c-killed-rca-real-work-already-done-plus-hard-stop-restart-gap]]
+      in this session's memory) already root-caused, fixed, and merged the
+      real fix (veridian-scripts PR #296, commit 41c3d02, confirmed a real
+      ancestor of veridian-scripts `origin/main`), and confirmed the
+      service was restored. Live-reverified in this task: the gateway
+      service is `active (running)`/`enabled` right now. No code fix
+      needed in compliance-tracker -- this is a docs-only closure recording
+      the correction onto UMR-20260808-150937-43d0's own row via
+      `mark-umr-terminal`, which had never itself been updated (only the
+      RCA-of-the-RCA UMR-f13c row was). File scope: this
+      ACTIVE-CLAIMS.yaml entry, `progress/task-20260814-062124-rca--umr-20260808-150937-43d0-killed.md`,
+      a new `ai-os/registry/UMR-20260808-150937-43d0-RCA.md`.
+
 recently_completed:
   - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
     completed_at: "2026-08-07T (this session)"
