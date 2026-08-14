@@ -42,26 +42,32 @@
 11. **Added 2026-07-14 (Boss directive, after the Owner confirmed 4 parallel Claude sessions were active across this codebase at once, with no way for one to see another's in-flight work):** Before selecting any gap/task to work on, every session must read `ai-os/boss/ACTIVE-CLAIMS.yaml` and register its own claim there per that file's own protocol, before starting real work. This does not replace Rule 6's PR/CI gate (which still prevents actual data loss) — it exists to prevent the different problem of two sessions independently spending a full work cycle building the same gap at once. Honest limitation, same class as Rule 10's: this is a cooperative registry enforced by each session's own discipline, not a technical lock — nothing stops a session from skipping it, the same way nothing cryptographically stops a skipped audit comment.
 
 12. **Added 2026-08-14 (Owner-approved, addendum to P1 UMR-20260806-171945-5767; citation:
-    `OWNER_DECISIONS_NEEDED_2026-07-23.yaml` entry `id=crontab-drift-approved-2026-08-14`,
-    `status=approved`):** Real indexes already exist and are already used by the deterministic
-    dedup reviewer for dispatch-level decisions — `system_index`, `capability_registry`,
-    `wiring_registry` (all three: `/opt/veridian/ai-os/memory/superboss-register.sqlite`),
-    `CLAUDE_MEMORY_INDEX.md`, `dead_ends.json`, `open_questions.json` (all three:
-    `/opt/veridian/ai-os/memory/`). A cross-repo audit on 2026-08-14 found zero instances of
-    any "check the index first" instruction in any real `AGENTS.md`, so different worker
-    tasks were repeatedly re-discovering the same real facts via fresh exploratory search,
-    wasting real tokens. Every worker must: (a) before broad exploratory search, check
-    whether the fact needed is already answered by one of the six indexes above, and cite
-    what was checked in the PR description or progress log, even if the check came up empty;
-    (b) only do fresh search for what those indexes don't already answer — this is not a
-    reason to skip real verification of current state, only a reason not to duplicate a
-    search someone already did; (c) if a fresh search turns up a genuinely new fact worth
-    reuse, write it back to the appropriate index (`capability_registry`/`wiring_registry`
-    via `superboss-register.py`, `CLAUDE_MEMORY_INDEX.md`, `dead_ends.json`,
-    `open_questions.json`) so the next worker doesn't have to rediscover it; (d) this does
-    not relax any rule above — a cited index lookup is never a substitute for the audit,
-    test, or completion requirements this file otherwise imposes. Does not assume zoekt or
-    any other code-search service is running — no zoekt systemd unit exists as of this
+    `/opt/veridian/ai-os/OWNER_DECISIONS_NEEDED_2026-07-23.yaml` entry
+    `id=crontab-drift-approved-2026-08-14`, `status=approved`):** Real indexes already exist
+    (on the host filesystem, outside this repo's own tree — not paths inside
+    `compliance-tracker`) and are already used by the deterministic dedup reviewer for
+    dispatch-level decisions — `system_index`, `capability_registry`, `wiring_registry` (all
+    three: `/opt/veridian/ai-os/memory/superboss-register.sqlite`),
+    `/opt/veridian/ai-os/memory/CLAUDE_MEMORY_INDEX.md`,
+    `/opt/veridian/ai-os/memory/dead_ends.json`,
+    `/opt/veridian/ai-os/memory/open_questions.json`. A cross-repo audit on 2026-08-14 found
+    zero instances of any "check the index first" instruction in any real `AGENTS.md`, so
+    different worker tasks were repeatedly re-discovering the same real facts via fresh
+    exploratory search, wasting real tokens. Every worker must: (a) before broad exploratory
+    search, check whether the fact needed is already answered by one of the six indexes
+    above, and cite what was checked in the PR description or progress log, even if the check
+    came up empty; (b) only do fresh search for what those indexes don't already answer —
+    this is not a reason to skip real verification of current state, only a reason not to
+    duplicate a search someone already did; (c) if a fresh search turns up a genuinely new
+    fact worth reuse, write it back to the appropriate index (`capability_registry`/
+    `wiring_registry` via `superboss-register.py`,
+    `/opt/veridian/ai-os/memory/CLAUDE_MEMORY_INDEX.md`,
+    `/opt/veridian/ai-os/memory/dead_ends.json`,
+    `/opt/veridian/ai-os/memory/open_questions.json`) so the next worker doesn't have to
+    rediscover it; (d) this does not relax any rule above — a cited index lookup is never a
+    substitute for the audit, test, or completion requirements this file otherwise imposes.
+    Does not assume zoekt or any other code-search service is running — no zoekt systemd
+    unit exists as of this
     writing; verify what's actually available before relying on it.
 
 ## Contact
