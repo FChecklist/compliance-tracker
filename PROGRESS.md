@@ -1,7 +1,7 @@
-# PROGRESS -- task-20260814-161750-rca--umr-20260807-151622-15cd-killed
+# PROGRESS -- task-20260814-171926-rca--umr-20260814-170119-7a8a-status-run
 
 ## Completed
-- [x] RCA complete. Confirmed UMR-20260807-151622-15cd's `status=killed` is correct and this is the **3rd duplicate dispatch** of an already-resolved RCA (veridian-scripts PR #324, compliance-tracker PR #1146). No code fix or DB write needed. Full evidence chain: `progress/task-20260814-161750-rca--umr-20260807-151622-15cd-killed.md`.
+- [x] RCA complete. UMR-20260814-170119-7a8a's `status=running` was stale (exit-write-back-bug class): live `systemctl`/`journalctl` confirmed the dispatched unit exited cleanly, and `gh pr view` confirmed the real underlying work (veridian-scripts PR #376, rebased into PR #380) MERGED at 17:15:34Z with the merge commit a real ancestor of `origin/main`. Corrected via `superboss-register.py mark-umr-terminal --status completed`, citing full live evidence. Full evidence chain: `progress/task-20260814-171926-rca--umr-20260814-170119-7a8a-status-run.md`.
 
 ## Remaining
 - [ ] None.
