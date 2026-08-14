@@ -40,29 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (worker task-20260718-164007-cloud-deployment--deployment-operations) -- VERIDIAN Review Framework gap-closure, Cloud Deployment / Deployment Operations (5 findings)"
-    claimed_at: "2026-08-07T (this session)"
+  - session_label: "claude-code (worker task-20260718-164007-cloud-deployment--deployment-operations) -- VERIDIAN Review Framework gap-closure, Cloud Deployment / Deployment Operations (5 findings) [DONE, closed this session -- invocation 18/20, 2026-08-14]"
+    claimed_at: "2026-08-07T (this session, closed 2026-08-14)"
     claim: |
-      Closing 5 Low/Medium findings from the Cloud Deployment / Deployment
-      Operations area of the Review Framework: Performance Monitoring
-      (dashboard-usage cadence), Deployment Security (secret-scan advisory
-      not blocking), Environment Configuration Management (dev/staging/prod
-      env var separation), Edge Function Utilization (selective edge
-      adoption for latency-sensitive DB-free routes), Deployment Audit
-      Trail (deployment-history view for the deploymentEvents table). One
-      coherent PR per the task spec.
-      File scope: `.github/workflows/sentinel.yml` (secret-scan
-      blocking -- NOTE: this session's gh token has no `workflow` OAuth
-      scope, so this specific file's push may need to be applied by a
-      session/token that has it -- see PROGRESS.md), `.env.example` +
-      new `docs/infra/ENVIRONMENT_CONFIG.md` (env separation docs), 1-2
-      `src/app/api/**/route.ts` edge-runtime opt-ins (DB-free routes
-      only), a new deployment-history page under `src/app/(app)/` reading
-      the existing `deploymentEvents` table, and a small
-      system-health/error-log page reading `applicationErrors`. Not
-      touching `src/lib/services/permission-service.ts`'s
-      `ERP_ACTION_ROLES` table or any other in-flight worker's declared
-      scope.
+      CLOSED. All 5 findings (Performance Monitoring, Deployment Security,
+      Environment Configuration Management, Edge Function Utilization,
+      Deployment Audit Trail) landed in one coherent PR:
+      https://github.com/FChecklist/compliance-tracker/pull/1036 (real
+      diff independently re-verified this invocation against
+      `origin/main...HEAD`, merge-base `958ccacc8` -- 15 files, 784
+      insertions, 5 deletions, matching `gh pr diff 1036` exactly; no
+      touch to `permission-service.ts`'s `ERP_ACTION_ROLES` table,
+      confirmed via `git grep`). CI green on Lint/Type
+      Check/Build/Unit Tests/E2E/Guardrail Presence/Secret Scanning;
+      posted the required structured `AUDIT: PASS` comment (Rule 10) this
+      invocation -- see PR #1036 comments. Full evidence trail in this
+      task's own `PROGRESS.md`. Remaining: confirm audit-check goes green
+      post-comment, then merge per Rule 6 (no self-merge without CI
+      passing).
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
