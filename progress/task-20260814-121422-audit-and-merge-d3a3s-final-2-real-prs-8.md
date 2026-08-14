@@ -21,15 +21,21 @@ gap: PR #801 and PR #908, both OPEN -- audit against current head, merge if clea
       entries + 1 branch-only entry = 273 merged, zero entries dropped) -- pushed 965a47c8,
       now MERGEABLE (was CONFLICTING/DIRTY). CI running.
 
-- [x] CI on both re-triggered after push. `audit-check` (the Rule-10 judgment-tier gate)
-      passed automatically on both -- these are `worker/*` branches (Claude Code session),
-      not `ai-team/<role>/*` dispatch branches, so the mandatory-audit-check gate doesn't
-      apply here (only judgment-tier AI-team role dispatches need a posted AUDIT:PASS/FAIL
-      comment). All other required checks (Lint, Type Check, Guardrail Presence, Asset
-      Registry Coverage, Unit Tests, Metadata Index Coverage) passing on both as of last
-      check; Build/CodeQL/Vercel still finishing. Vercel preview deploy failing on both
-      (known infra quota issue, `api-deployments-free-per-day` / build-rate-limit -- not a
-      required check, doesn't block merge).
+- [x] CI on both re-triggered after push. `audit-check` passed on both without a new
+      comment being posted -- **correction of an earlier wrong guess in this log**: this is
+      NOT because worker/* branches are exempt from Rule 10's gate. `scripts/
+      validate-audit-verdict.ts` requires *some* structured AUDIT:PASS/FAIL comment to
+      exist on the PR (any PR), but does not check it against the current headRefOid --
+      PR #801/#908 already carried prior valid-format audit comments from earlier sessions
+      (2026-08-08 and 2026-08-14) that satisfied the mechanical check even though they
+      predated my sync/conflict-resolution commits. Confirmed the hard way on this task's
+      own bookkeeping PR #1151, which had zero prior audit comments and genuinely failed
+      `audit-check` (`##[error]No structured audit verdict found`) until one was posted.
+      All other required checks (Lint, Type Check, Guardrail Presence, Asset Registry
+      Coverage, Unit Tests, Metadata Index Coverage) passing on both as of last check;
+      Vercel preview deploy failing on both (known infra quota issue,
+      `api-deployments-free-per-day` / build-rate-limit -- not a required check, doesn't
+      block merge).
 
 - [x] PR #801: **MERGED** at 2026-08-14T12:31:40Z, merge commit e6f013d5959c. Needed 2
       resync-with-main cycles (main kept advancing from other concurrent sessions faster
@@ -43,9 +49,17 @@ gap: PR #801 and PR #908, both OPEN -- audit against current head, merge if clea
 - [x] Moved ACTIVE-CLAIMS entry from `active:` to `recently_completed:` with real final
       outcome.
 - [x] Recorded completion via `agent_work_briefing.py record-completion`.
+- [x] Opened PR #1151 for this task's own bookkeeping diff (ACTIVE-CLAIMS.yaml +
+      progress/*.md). It genuinely failed `audit-check` (no prior audit comment existed on
+      this PR, unlike #801/#908) -- dispatched an independent subagent auditor per Rule 7c
+      (I performed this work, so I cannot self-certify), which verified the diff scope,
+      ACTIVE-CLAIMS.yaml integrity, and the real MERGED state of #801/#908 against live
+      GitHub state, and posted a genuine `AUDIT: PASS` comment:
+      https://github.com/FChecklist/compliance-tracker/pull/1151#issuecomment-5293406946
+- [x] Pushing this commit as a synchronize event to re-trigger `audit-check` against the
+      correct head SHA (a known bug: the issue_comment-triggered re-run reports against
+      main's tip SHA, not the PR's actual head -- confirmed via
+      `gh api .../actions/runs`, needs a follow-up push to resolve).
 
 ## Remaining
-- [x] None -- task complete. Both PR #801 and PR #908 are MERGED. This closes the final
-      remaining gap of UMR-20260808-183732-d3a3 (all 10/10 items now done).
-- [ ] Record completion via agent_work_briefing.py record-completion
-- [ ] Move ACTIVE-CLAIMS entry from active: to recently_completed:
+- [ ] Confirm PR #1151 goes green and merges
