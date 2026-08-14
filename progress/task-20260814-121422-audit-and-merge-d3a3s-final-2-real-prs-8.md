@@ -56,6 +56,11 @@ gap: PR #801 and PR #908, both OPEN -- audit against current head, merge if clea
       ACTIVE-CLAIMS.yaml integrity, and the real MERGED state of #801/#908 against live
       GitHub state, and posted a genuine `AUDIT: PASS` comment:
       https://github.com/FChecklist/compliance-tracker/pull/1151#issuecomment-5293406946
+- [x] First audit comment failed `scripts/validate-audit-verdict.ts`'s strict enum parsing
+      (`Severity Classified:` must be a bare word from {critical,high,medium,low,none},
+      had trailing rationale text) -- had the same auditor re-post a corrected, format-
+      compliant comment, real verdict unchanged (PASS):
+      https://github.com/FChecklist/compliance-tracker/pull/1151#issuecomment-5293427837
 - [x] Pushing this commit as a synchronize event to re-trigger `audit-check` against the
       correct head SHA (a known bug: the issue_comment-triggered re-run reports against
       main's tip SHA, not the PR's actual head -- confirmed via
