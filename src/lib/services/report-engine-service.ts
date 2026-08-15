@@ -1784,7 +1784,7 @@ export async function getFullReportCatalog(ctx: { orgId: string }): Promise<Full
 
 export async function getFullReportCatalogByDomain(ctx: { orgId: string }): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
   const all = await getFullReportCatalog(ctx)
-  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
+  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] }
   for (const entry of all) byDomain[entry.domain].push(entry)
   return byDomain
 }

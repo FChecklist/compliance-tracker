@@ -13,7 +13,7 @@ export const dynamic = "force-dynamic";
 // module, matching how crm/accounts already stood on its own.
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { UserPlus, Target, Building2, Users, Megaphone, Sparkles, TrendingUp } from "lucide-react";
+import { UserPlus, Target, Building2, Users, Megaphone, Sparkles, TrendingUp, Kanban } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
@@ -22,6 +22,14 @@ type Counts = { leads: number; opportunities: number; accounts: number; contacts
 const MODULES = [
   { key: "leads", href: "/crm/leads", label: "Leads", icon: UserPlus, description: "Prospects not yet a client" },
   { key: "opportunities", href: "/crm/opportunities", label: "Opportunities", icon: Target, description: "Deals in progress, tracked stage by stage" },
+  // Sales Pipeline closure (2026-08-07): the config-driven Kanban board
+  // (drag-and-drop stage transitions, search/filter/bulk-reassign, AI
+  // pipeline insight) lives on its own page rather than a card grid tile,
+  // matching how the Wave 3 refactor (2026-07-21) moved every other
+  // sub-area's full management UI off this overview and onto a dedicated
+  // route. No live `counts` entry for it (it's not a flat record count --
+  // it's the same opportunities already counted above, viewed by stage).
+  { key: "pipeline", href: "/crm/pipeline", label: "Pipeline", icon: Kanban, description: "Kanban board -- drag deals through your configured stages" },
   { key: "accounts", href: "/crm/accounts", label: "Accounts", icon: Building2, description: "Company-level records and subsidiary hierarchy" },
   { key: "contacts", href: "/crm/contacts", label: "Contacts", icon: Users, description: "Every named person across your account book" },
   { key: "campaigns", href: "/crm/campaigns", label: "Campaigns", icon: Megaphone, description: "Marketing efforts leads can be attributed to" },
@@ -78,7 +86,9 @@ export default function CrmPage() {
                 <CardContent className="p-5 space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="grid place-items-center size-9 rounded-lg bg-ct-saffron/10"><Icon className="size-4.5 text-ct-saffron" /></div>
-                    <span className="text-2xl font-heading text-ct-navy">{counts ? counts[m.key as keyof Counts] : "—"}</span>
+                    {m.key !== "pipeline" && (
+                      <span className="text-2xl font-heading text-ct-navy">{counts ? counts[m.key as keyof Counts] : "—"}</span>
+                    )}
                   </div>
                   <p className="text-sm font-semibold text-ct-navy">{m.label}</p>
                   <p className="text-xs text-ct-muted">{m.description}</p>

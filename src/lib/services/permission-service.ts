@@ -239,6 +239,18 @@ export const ERP_ACTION_ROLES = {
   "erp.banking.import_statement": "member", // upload a bank statement file -- routine data entry, does not post to GL
   "erp.banking.match_line": "member", // link a bank line to an existing JE -- routine reconciliation, doesn't move money
   "erp.banking.ignore_line": "member", // mark a line as ignored -- routine reconciliation cleanup
+
+  // Sales Pipeline (VERIDIAN Review Framework gap-closure, task-20260718-
+  // 082004, 2026-08-07): a single additive key, not a full RBAC pass over
+  // CRM leads/opportunities (those routes' own "Access Control" finding, if
+  // any, is a separate workstream -- confirmed not in this task's 14
+  // findings). Configuring the org's pipeline stage definitions (which
+  // stages exist, which are terminal/won/lost) reshapes how every rep's
+  // Kanban board and stage-transition validation behaves org-wide -- same
+  // "master-data configuration = manager" bar as
+  // erp.fixed_assets.category_manage/erp.chart_of_accounts.create above,
+  // not routine data entry.
+  "crm.pipeline_stages.manage": "manager",
 } as const satisfies Record<string, UserRole>
 
 export type ErpAction = keyof typeof ERP_ACTION_ROLES

@@ -79,6 +79,8 @@ registered:
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped company-level account record, same class as crm_leads/crm_opportunities -- auto_register_asset_trg attached, name_column=name, owner_column=owner_id, no purpose/active column (no genuine fit)"
   - table: crm_contacts
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped person record belonging to a crm_account -- auto_register_asset_trg attached, name_column=name, no owner_column (belongs to the account, not assigned to a rep directly, matching clients/erp_customers' own NULL-owner precedent), no purpose/active column"
+  - table: crm_pipeline_stages
+    reason: "VERIDIAN Review Framework gap-closure, Sales Pipeline (drizzle/0225, 2026-08-07): org-scoped per-entityType pipeline/stage config, same class as hr_holidays (has a genuine display-name column) unlike the already-exempted crm_stage_history ledger -- auto_register_asset_trg attached, name_column=label, no owner/purpose/active column"
   - table: crm_activities
     reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): Tasks/Meetings/Calls tied to any CRM record (lead/opportunity/account/contact) via a polymorphic entity_type+entity_id link -- auto_register_asset_trg attached (asset_registration_config row + trigger created in drizzle/0251 itself), asset_type other, name_column=subject, owner_column=assigned_to_id, org_column=org_id, no purpose/active column (no genuine fit)"
   - table: crm_campaigns
