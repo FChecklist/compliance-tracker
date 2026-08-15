@@ -1,0 +1,15 @@
+{
+  "path": ["src"],
+  "ignore": [
+    "src/components/ui/**",
+    "**/*.test.ts",
+    "**/*.test.tsx",
+    "src/lib/db/schema.ts"
+  ],
+  "minLines": 15,
+  "minTokens": 70,
+  "threshold": 4,
+  "reporters": ["consoleFull"],
+  "absolute": false,
+  "gitignore": true
+}
