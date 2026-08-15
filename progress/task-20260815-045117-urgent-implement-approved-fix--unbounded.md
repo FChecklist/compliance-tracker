@@ -114,6 +114,35 @@ nothing was written back. The one-off scratch `.py` files used to run those
 read-only queries were deleted immediately after use and were never
 committed.
 
+## Root cause of the duplicate dispatch (found via `--query-umr --umr-id`)
+
+Querying `UMR-20260806-141250-1ceb` directly (not `--search`, which is a
+full-text match and returned 0 hits on the bare UMR id) showed the real
+mechanism: this row's own `reason` field read *"reconcile_dispatched_dead_zone.py
+auto-reset (UMR-20260806-115605-854d): status='dispatched' for 12305.9 real
+minutes (>15.0 threshold), no real task directory, no real systemd unit, no
+real ocid_artifact_links evidence."* The original 2026-08-06 worker did the
+real work and got PR #176 merged, but never called `mark-umr-terminal` to
+close its own `umr_tasks` row out — so ~8.5 days later the dead-zone
+reconciler (correctly, from its own vantage point) treated the still-open
+row as abandoned and reset it to dispatchable, and it got redispatched today
+as this task, reusing the same UMR id. This is a bookkeeping-completeness
+gap in the *original* task, not a flaw in today's dedup check.
+
+## record-completion evidence (real, independently verified)
+
+Ran `python3 agent_work_briefing.py record-completion --umr-id
+UMR-20260806-141250-1ceb ...` citing `--umr-commit-sha
+4d0a0b0b2c5f243580a33eb1ea34d73c033cb69f --umr-pr-number 176 --umr-repo
+veridian-scripts --files-touched superboss-register.py --files-touched
+plan_generator.py --files-touched tests/test_reuse_check_unbounded_metadata_fix.py`.
+The tool's own independent GitHub check confirmed: *"veridian-scripts#176
+independently confirmed via GitHub: 3 non-docs-only file(s) in its real diff
+(state=MERGED, merged_at=2026-08-06T16:36:44Z)"* — `verified: true`. The
+`umr_tasks` row is now genuinely `status=completed`,
+`ts_completed=2026-08-15T04:57:21Z`, closing the bookkeeping gap that caused
+the erroneous re-dispatch in the first place.
+
 ## Completed
 - [x] Step zero: real dedup check via `resource_governor.py --query-umr`
       (`--search "reuse_check_result"`, `--search "proposal 86"`, `--search
@@ -136,13 +165,16 @@ committed.
       re-confirmation, not new code.
 
 ## Remaining
-- [ ] None. No code change is needed or was made — the approved fix already
-      exists, merged, deployed, and tested under this same UMR. Flagging
-      for the PM/owner that this task was re-dispatched after already
-      completing (worth checking whatever triggered the 2026-08-15 04:51
-      re-dispatch of an UMR that closed out 2026-08-06, in case the
-      dispatch-dedup mechanism itself has a gap here — same class of issue
-      as prior duplicate-dispatch findings in this codebase's history).
+- [ ] None for this task. Root cause of the re-dispatch identified above
+      (original worker never called `mark-umr-terminal`, so
+      `reconcile_dispatched_dead_zone.py` reset the row after ~8.5 days and
+      it was redispatched under the same UMR id) and closed by this task's
+      own `record-completion` call. Worth a PM/owner note: consider whether
+      `mark-umr-terminal` should be enforced more strongly at the end of a
+      worker's own successful PR-merge path so this class of "real work
+      done, bookkeeping left open -> dead-zone reconciler resurrects it ->
+      duplicate dispatch" doesn't recur for other tasks; out of this task's
+      own approved scope to fix, noted for a future gap.
 
 ## Note on the completion gate
 
