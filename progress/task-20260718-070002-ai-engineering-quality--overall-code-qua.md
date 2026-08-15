@@ -271,3 +271,17 @@ here for whoever picks this back up.
       self-approval deadlock -- see
       [[veridian-branch-protection-self-approval-deadlock-active]] if
       `gh pr merge` fails even with --admin).
+
+## Invocation 19/20 resume (this session)
+- [x] Re-verified: working tree clean, on correct branch
+      (worker/task-20260718-070002-ai-engineering-quality--overall-code-qua),
+      nothing uncommitted, PROGRESS.md matches actual state -- no drift.
+- [x] Re-checked `gh pr checks 1220` at resume: since the invocation-18
+      checkpoint, Guardrail Presence Check, Terminology Guardrail Check,
+      Lint, and audit-check are now confirmed PASS (in addition to the
+      previously-passing structural checks). Only CodeQL (Analyze) and
+      Type Check remain pending; Vercel still fails on the pre-existing
+      build-rate-limit (infra, not code -- see prior invocation's note).
+- [x] Armed a background Monitor polling `gh pr checks 1220` every 30s to
+      report the moment Analyze/Type Check land, instead of foreground
+      sleep-polling. Will act on its notification.
