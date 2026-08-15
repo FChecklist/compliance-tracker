@@ -5944,6 +5944,37 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-064006-ai-engineering-quality--ai-modification) -- Review Framework gap-closure: AI Engineering Quality / AI-Modification Readiness (2 findings)"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "PR pending -- pushed on this task's own branch, not yet opened/merged at claim time"
+    summary: |
+      Two Review Framework findings closed in one PR (same module/area,
+      per the task's own instruction not to split them): (1) [Low] Code
+      Readability for AI -- "comment discipline not enforced by tooling":
+      added scripts/check-service-header-comment.mjs, a new CI job
+      (.github/workflows/ci.yml) requiring every src/lib/services/*.ts
+      file to carry a real leading header comment; verified against the
+      real baseline (184/184 pass) and against a synthetic no-header file
+      (correctly fails). Also registered this new check's own CI wiring in
+      scripts/check-guardrail-presence.mjs's manifest so it can't be
+      silently dropped later. (2) [Medium] AI Modification Readiness --
+      "no single readiness score; depends heavily on which file": added
+      scripts/report-high-risk-files.mjs (a lightweight, non-CI-blocking
+      report script, same precedent as report-cognitive-brain-coverage.ts)
+      flagging files that are both large (>=400 lines) and untested (no
+      colocated *.test.ts); ran it for real (25/1347 scanned files match,
+      led by src/lib/db/schema.ts at ~10,200 lines) and added a new
+      "High-Risk Files" section to CLAUDE.md listing the real current
+      output for agents to apply extra caution against, with an explicit
+      honest-limitation note (line-count+no-test is a proxy, not a real
+      risk score). Did not touch permission-service.ts's ERP_ACTION_ROLES
+      (out of scope for this gap; task's own instruction). Also found and
+      discarded a stray uncommitted edit to the shared root PROGRESS.md
+      left by a prior invocation of this same task (it had reset that
+      OTHER task's -- the cost-estimate entry right below -- committed
+      content to a blank template); created this task's own
+      progress/task-20260718-064006-ai-engineering-quality--ai-modification.md
+      instead, per protocol.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
