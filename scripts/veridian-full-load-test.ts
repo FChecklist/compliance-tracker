@@ -326,7 +326,7 @@ async function main() {
           fileType: "image/png", uploadedById: entry.persona.userId,
         }).returning());
         await withRetry(`doc extract for ${entry.persona.userId}`, () => extractDocumentContent(
-          { orgId: DEMO_ORG_ID, userId: entry.persona.userId, documentId: docRow.id, imageBase64: PLACEHOLDER_PNG_BASE64, mimeType: "image/png" }
+          { orgId: DEMO_ORG_ID, userId: entry.persona.userId, documentId: docRow.id, fileBase64: PLACEHOLDER_PNG_BASE64, mimeType: "image/png" }
         ));
         executed++;
         // extractDocumentContent returns void by design (fire-and-forget

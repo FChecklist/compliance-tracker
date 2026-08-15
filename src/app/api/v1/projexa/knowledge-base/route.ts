@@ -30,11 +30,11 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  if (!ctx.dbUser) return NextResponse.json({ error: "This action requires a real user session, not an API key" }, { status: 400 })
+  const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
 
   try {
     const body = await request.json()
-    const result = await createKbPage({ orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }, body)
+    const result = await createKbPage({ orgId: ctx.orgId, userId: actorId, isRealUser: Boolean(ctx.dbUser) }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

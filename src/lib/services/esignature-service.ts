@@ -16,6 +16,87 @@ import { createClient } from "@supabase/supabase-js"
 
 export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
+// A projection of an esignature_signers row carrying only the fields the
+// transition logic below needs to see. Kept as a structural type (not the
+// full Drizzle row type) so the pure helpers are unit-testable without a
+// database -- tests build these by hand the same way
+// erp-fixed-assets-service.test.ts exercises generateDepreciationSchedule.
+export type SignerProjection = {
+  status: string // 'pending' | 'signed' | 'declined' (see esignature_signers.status in schema.ts)
+  signOrder: number | null // null = parallel signing, no ordering enforced
+}
+
+export type SignatureRequestStatus =
+  | "pending"
+  | "partially_signed"
+  | "completed"
+  | "declined"
+  | "voided"
+
+/**
+ * Pure decision: given the full set of signers as they stand *after* one
+ * signer just signed, what (if anything) should the parent
+ * esignature_requests.status move to?
+ *
+ * - everyone signed  -> "completed"
+ * - at least one (but not all) signed -> "partially_signed"
+ * - nobody signed yet -> null (caller keeps request.status unchanged)
+ *
+ * Extracted verbatim from the branch that used to live inline at the bottom
+ * of submitSignature(); the caller maps null -> "leave it alone" exactly as
+ * the original `allSigned ? "completed" : anySigned ? "partially_signed" :
+ * request.status` ternary did. Pure (no I/O, no Date.now) so it can be
+ * unit-tested the same way generateDepreciationSchedule already is.
+ */
+export function computeSignatureRequestStatusAfterSign(
+  signers: SignerProjection[]
+): "completed" | "partially_signed" | null {
+  if (signers.length === 0) return null
+  const allSigned = signers.every((s) => s.status === "signed")
+  if (allSigned) return "completed"
+  const anySigned = signers.some((s) => s.status === "signed")
+  return anySigned ? "partially_signed" : null
+}
+
+/**
+ * Pure decision: when a signer event (sign or decline) lands on an
+ * e-signature request whose linked entity is a construction change order,
+ * should the change order itself transition, and to what?
+ *
+ * - a *sign* that completes the request (allSigned) approves the change order
+ * - a *decline* by any signer rejects the change order immediately
+ * - any other event (partial sign, or a sign/decline against a non-change_order
+ *   linked entity like 'document' or 'erp_contract') returns null -- no
+ *   transition. document/erp_contract have no status field to move.
+ *
+ * `now` is passed in (rather than read via new Date()) purely so this stays
+ * deterministic and testable; the live caller passes `new Date()`. The
+ * returned approvedAt mirrors the inline code path it replaces (set only on
+ * approval, never on rejection -- matching markChangeOrderRejected()'s own
+ * field set). Pure otherwise.
+ */
+export function changeOrderTransitionAfter(
+  event: "sign" | "decline",
+  linkedEntityType: string,
+  signers: SignerProjection[],
+  now: Date
+): { status: "approved" | "rejected"; approvedAt?: Date } | null {
+  if (linkedEntityType !== "change_order") return null
+  if (event === "sign") {
+    // Only an all-signed completion approves -- a partial sign leaves the
+    // change order at "pending_approval" (matches the allSigned guard in
+    // submitSignature's change_order branch).
+    if (signers.length > 0 && signers.every((s) => s.status === "signed")) {
+      return { status: "approved", approvedAt: now }
+    }
+    return null
+  }
+  // event === "decline": any decline rejects immediately, regardless of how
+  // many others had already signed (matches declineSignature's unconditional
+  // change_order branch -- it doesn't check allSigned/anySigned).
+  return { status: "rejected" }
+}
+
 const BUCKET = "compliance-documents"
 const TOKEN_VALIDITY_DAYS = 30
 
@@ -187,29 +268,35 @@ export async function submitSignature(token: string, input: { signatureImageData
   }).where(eq(esignatureSigners.id, signer.id)).returning()
 
   const remainingSigners = await rawDb.query.esignatureSigners.findMany({ where: eq(esignatureSigners.requestId, request.id) })
-  const allSigned = remainingSigners.every((s) => s.status === "signed")
-  const anySigned = remainingSigners.some((s) => s.status === "signed")
+  // The request-status transition is now decided by the pure
+  // computeSignatureRequestStatusAfterSign() helper (above); null means "no
+  // change", preserving the original `... : request.status` fallback exactly.
+  const newStatus = computeSignatureRequestStatusAfterSign(remainingSigners)
   await rawDb.update(esignatureRequests).set({
-    status: allSigned ? "completed" : anySigned ? "partially_signed" : request.status,
-    completedAt: allSigned ? new Date() : undefined,
+    status: newStatus ?? request.status,
+    completedAt: newStatus === "completed" ? new Date() : undefined,
   }).where(eq(esignatureRequests.id, request.id))
 
   // Wave 141's construction-change-order-service.ts built markChangeOrderApproved()/
   // markChangeOrderRejected() specifically for this moment ("Called from the
   // e-signature completion path") but nothing ever called them -- a change
   // order sent for approval would sit at "pending_approval" forever even
-  // after every signer signed. Updating the linked entity directly here
-  // (not importing those functions) both avoids a circular import
-  // (construction-change-order-service.ts already imports
-  // createSignatureRequest from this file) and sidesteps the fact that those
-  // functions require a real ctx.userId, which doesn't exist on this public,
-  // tokenized-signer-access path. approvedById is deliberately left
-  // untouched (no real dbUser performed this action -- an external signer
-  // did); only status and approvedAt are set. Only change_order is handled --
-  // document/erp_contract have no status field to transition.
-  if (allSigned && request.linkedEntityType === "change_order") {
+  // after every signer signed. The change-order transition is now decided by
+  // the pure changeOrderTransitionAfter() helper (above), which returns the
+  // exact {status, approvedAt?} to apply or null for no transition. This
+  // avoids a circular import (construction-change-order-service.ts already
+  // imports createSignatureRequest from this file) and sidesteps the fact
+  // that markChangeOrderApproved/Rejected require a real ctx.userId, which
+  // doesn't exist on this public, tokenized-signer-access path. approvedById
+  // is deliberately left untouched (no real dbUser performed this action -- an
+  // external signer did); only status and approvedAt are set. Only
+  // change_order is handled -- document/erp_contract have no status field to
+  // transition (the helper returns null for them).
+  const coTransition = changeOrderTransitionAfter("sign", request.linkedEntityType, remainingSigners, new Date())
+  if (coTransition) {
     await rawDb.update(constructionChangeOrders).set({
-      status: "approved", approvedAt: new Date(),
+      status: coTransition.status,
+      ...(coTransition.approvedAt ? { approvedAt: coTransition.approvedAt } : {}),
     }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
   }
 
@@ -231,12 +318,16 @@ export async function declineSignature(token: string, reason?: string) {
 
   // Same rationale as submitSignature() above -- a decline should reject the
   // linked change order rather than leaving it stuck at "pending_approval"
-  // forever. Matches markChangeOrderRejected()'s own field set exactly
-  // (status only, no approvedById/approvedAt -- that function never sets
-  // them for a rejection either).
-  if (request.linkedEntityType === "change_order") {
+  // forever. The transition is now decided by the pure
+  // changeOrderTransitionAfter() helper (above), which for a decline event
+  // against a change_order returns {status:"rejected"} (no approvedAt --
+  // matching markChangeOrderRejected()'s own field set exactly). null for
+  // document/erp_contract (no status field).
+  const coTransition = changeOrderTransitionAfter("decline", request.linkedEntityType, [], new Date())
+  if (coTransition) {
     await rawDb.update(constructionChangeOrders).set({
-      status: "rejected",
+      status: coTransition.status,
+      ...(coTransition.approvedAt ? { approvedAt: coTransition.approvedAt } : {}),
     }).where(and(eq(constructionChangeOrders.id, request.linkedEntityId), eq(constructionChangeOrders.orgId, request.orgId)))
   }
 

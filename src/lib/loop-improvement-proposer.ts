@@ -14,6 +14,7 @@
 // writes" posture (see api-token-audit.ts's own header comment for the
 // precedent this follows).
 import { db, loopImprovements } from "@/lib/db"
+import { notifyLoopInsight } from "@/lib/loop-insight-notifier"
 
 export type LoopImprovementProposal = {
   loopId: string
@@ -36,4 +37,21 @@ export async function proposeLoopImprovement(input: LoopImprovementProposal): Pr
     improvementDelta: input.improvementDelta != null ? String(input.improvementDelta) : null,
     isDeployed: false,
   })
+
+  // V2-9 (CSV row #18): surface this loop-derived insight to the affected
+  // users via the existing `notifications` channel instead of letting it sit
+  // invisible in loop_improvements. This is the single chokepoint every
+  // loop already calls, so wiring it here means every loop-derived
+  // proposal surfaces automatically -- no per-loop edits. Fire-and-forget
+  // by design: a notification is a best-effort nudge, not a correctness-
+  // critical write, so a failure here must NEVER break or fail the proposal
+  // capture that just succeeded above (same "must never block the caller"
+  // discipline task-reflection.ts / activity-log-service.ts hold). The
+  // proposal row is already persisted, so the insight is captured
+  // regardless of whether the nudge lands.
+  try {
+    await notifyLoopInsight(input)
+  } catch (err) {
+    console.error("proposeLoopImprovement: insight notification failed (non-fatal, proposal still captured):", err)
+  }
 }

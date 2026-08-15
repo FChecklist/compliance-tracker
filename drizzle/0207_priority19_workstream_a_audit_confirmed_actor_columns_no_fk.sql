@@ -3,7 +3,7 @@
 -- every remaining compliance.users-referencing actor column
 -- (control/priority19_dubai_e2e_testing_plan.md Part 2 implementation
 -- plan, Workstream A(b)). Same bug class PR #349
--- (drizzle/0204_pms_issues_created_by_no_fk.sql) fixed on pms_issues.
+-- (drizzle/0258_pms_issues_created_by_no_fk.sql) fixed on pms_issues.
 --
 -- METHOD (matches this codebase own PR #349 discipline of scoping
 -- FK-drop fixes narrowly, not sweeping every column that merely shares the
