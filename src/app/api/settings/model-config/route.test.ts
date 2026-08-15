@@ -2,7 +2,7 @@
 // VERIDIAN Review Framework gap-closure, AI Platform / BYOAI: "not all 6
 // supported providers are equally validated/tested for BYO keys."
 //
-// PR #384 (2026-07-16) already added the real connectivity check
+// PR #384 already added the real connectivity check
 // (testProviderConnection(), src/lib/orchestra-model-resolver.ts) that runs
 // before a BYO config is persisted, and orchestra-model-resolver.test.ts
 // covers that function directly -- but only with openai/groq mock fetches,
