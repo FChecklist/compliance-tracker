@@ -3,7 +3,7 @@
 // routes, which can change without notice. Same service calls either way.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listBoqs, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
+import { listBoqs, getBoq, createBoq, ServiceError } from "@/lib/services/construction-boq-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -15,7 +15,15 @@ export async function GET(request: NextRequest) {
 
   try {
     const boqs = await listBoqs({ orgId: ctx.orgId }, projectId)
-    return NextResponse.json({ boqs })
+    // PROJEXA's Work Progress Report needs each line item's rate/amount to
+    // compute the report's Amt/Percentage columns, and this was previously
+    // the only external-facing BOQ endpoint -- it returned headers only
+    // (title/version/status), no line items, with no other v1 route
+    // exposing them. Additive-only: enriches each boq with `lineItems` by
+    // reusing the existing getBoq() service (same data getBoq(id) already
+    // returns internally), no schema or service-layer change.
+    const boqsWithLineItems = await Promise.all(boqs.map((boq) => getBoq({ orgId: ctx.orgId! }, boq.id)))
+    return NextResponse.json({ boqs: boqsWithLineItems })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("v1 construction BOQ list error:", error)

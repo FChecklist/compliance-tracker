@@ -4,7 +4,7 @@
 // touch the DB and are deliberately left untested here, matching this
 // repo's established pattern (see delegation-service.test.ts's own note).
 import { describe, expect, test } from "bun:test"
-import { validateReportDefinitionInput, deriveReportDomainFromClassifications, type CreateReportDefinitionInput } from "./report-engine-service"
+import { validateReportDefinitionInput, deriveReportDomainFromClassifications, buildAggregationNote, isBillingScheduleDue, type CreateReportDefinitionInput } from "./report-engine-service"
 
 const BASE: CreateReportDefinitionInput = {
   name: "Test Report",
@@ -75,5 +75,66 @@ describe("deriveReportDomainFromClassifications", () => {
   test("anything else falls through to custom", () => {
     expect(deriveReportDomainFromClassifications(["sales"])).toBe("custom")
     expect(deriveReportDomainFromClassifications([])).toBe("custom")
+  })
+})
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain Reports & Dashboards" -- runAggregationFromConfig() now always
+// returns a generated note; this is its pure derivation logic.
+describe("buildAggregationNote", () => {
+  test("describes a grouped count with no filter", () => {
+    const note = buildAggregationNote({ tableKey: "crm_leads", groupByColumn: "status", aggregation: "count" })
+    expect(note).toContain("Count of records")
+    expect(note).toContain(`"crm_leads"`)
+    expect(note).toContain(`grouped by "status"`)
+  })
+
+  test("describes an ungrouped sum", () => {
+    const note = buildAggregationNote({ tableKey: "erp_sales_orders", aggregation: "sum", aggregationColumnKey: "grandTotal" })
+    expect(note).toContain(`Sum of "grandTotal"`)
+    expect(note).toContain("as a single ungrouped total")
+  })
+
+  test("includes an applied filter", () => {
+    const note = buildAggregationNote({
+      tableKey: "compliance_items", aggregation: "count",
+      filterEquals: { columnKey: "status", value: "overdue" },
+    })
+    expect(note).toContain("filtered to rows where")
+    expect(note).toContain("overdue")
+  })
+
+  test("includes a company scope when applied", () => {
+    const note = buildAggregationNote({ tableKey: "erp_sales_orders", aggregation: "count" }, { companyId: "co_1" })
+    expect(note).toContain("company = co_1")
+  })
+})
+
+// SD-002 (Billing Due List, 2026-07-30): the one pure predicate the
+// computeBillingDueList() formula filters through -- see that function's
+// own header comment (report-engine-service.ts) for why the DB-touching
+// query itself is left untested, matching this file's established
+// pattern above.
+describe("isBillingScheduleDue", () => {
+  const ACTIVE_UNBILLED = { nextBillingDate: "2026-07-15", lastInvoiceId: null, isActive: true }
+
+  test("due when active, unbilled, and nextBillingDate is in the past", () => {
+    expect(isBillingScheduleDue(ACTIVE_UNBILLED, "2026-07-30")).toBe(true)
+  })
+
+  test("due when nextBillingDate exactly equals asOfDate", () => {
+    expect(isBillingScheduleDue(ACTIVE_UNBILLED, "2026-07-15")).toBe(true)
+  })
+
+  test("not due when nextBillingDate is still in the future", () => {
+    expect(isBillingScheduleDue(ACTIVE_UNBILLED, "2026-07-01")).toBe(false)
+  })
+
+  test("not due when already invoiced this cycle (lastInvoiceId set)", () => {
+    expect(isBillingScheduleDue({ ...ACTIVE_UNBILLED, lastInvoiceId: "inv_123" }, "2026-07-30")).toBe(false)
+  })
+
+  test("not due when the schedule is inactive (e.g. a completed one-off milestone)", () => {
+    expect(isBillingScheduleDue({ ...ACTIVE_UNBILLED, isActive: false }, "2026-07-30")).toBe(false)
   })
 })
