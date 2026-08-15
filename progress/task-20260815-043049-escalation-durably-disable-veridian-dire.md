@@ -67,6 +67,9 @@ DB writes: `log-action` -> `ACT-20260815-043529-a473`; `mark-umr-terminal` ->
 `UMR-20260806-110055-de92` status=`completed`, `ts_completed`=2026-08-15T04:35:46Z;
 `agent_work_briefing.py record-completion` -> `AGENT-20260806-110055-de92`.
 
+## PR
+https://github.com/FChecklist/compliance-tracker/pull/1203 (branch `worker/task-20260815-043049-escalation-durably-disable-veridian-dire`, commit `86662d3a3`)
+
 ## Out-of-scope items observed, not acted on
 - `UMR-20260806-102737-d780` (the originally-escalated UMR) is already `status=failed` in `umr_tasks` -- left as-is, not this task's scope to touch.
 - One queued `umr_tasks` row, `UMR-20260815-043150-1c54` / task_identity
