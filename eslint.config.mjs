@@ -2,6 +2,7 @@ import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypescript from "eslint-config-next/typescript";
 import { dirname } from "path";
 import { fileURLToPath } from "url";
+import veridianLocalRules from "./eslint-rules/require-auth-in-api-routes.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -50,6 +51,17 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "no-undef": "off",
     "no-unreachable": "off",
     "no-useless-escape": "off",
+  },
+}, {
+  // Design Pattern Consistency gap-closure: requireAuth()/requireAuthOrApiKey()/
+  // validateApiKey() presence in API route files, lint-visible instead of
+  // convention-only. See eslint-rules/require-auth-in-api-routes.mjs's own
+  // header for why this is "warn" (CI-visible, not CI-blocking) and scoped
+  // only to route.ts files.
+  files: ["src/app/api/**/route.ts"],
+  plugins: { veridian: veridianLocalRules },
+  rules: {
+    "veridian/require-auth-in-api-routes": "warn",
   },
 }, {
   ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "public/litert-spike/wasm/**", "public/litert-spike-embeddings/wasm/**"]

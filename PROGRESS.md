@@ -79,11 +79,49 @@ abandoned work.
   subdirectories / 880 files / zero README or index anywhere. Addressed below with
   a real, narrowly-scoped fix instead.
 
+- [x] **[Low] Component Reusability -- REUSABLE-UTILITIES.md.** Data-driven (real
+  `git grep` import-site counts, not guesses): auth/tenant-isolation, data access,
+  AI/LLM orchestration, dispatch, UI primitives, and formatting helpers, each with
+  real import counts. Also documents a real, un-fixed gap found along the way: 2
+  separate `ServiceError` classes exist (`compliance-service.ts`,
+  `workspace-memory-service.ts`), neither canonical -- noted honestly rather than
+  silently picking one to promote.
+
+- [x] **[Low] Design Pattern Consistency -- lint-enforced requireAuth() presence.**
+  New `eslint-rules/require-auth-in-api-routes.mjs` (local ESLint plugin, flat-config
+  compatible) + wired into `eslint.config.mjs`, scoped to `src/app/api/**/route.ts`
+  only. Checks for `requireAuth(`/`requireAuthOrApiKey(`/`validateApiKey(` anywhere
+  in the route file; reports if none found.
+  Deliberately **"warn", not "error"**: a real repo-wide scan found 825/878
+  route.ts files already call one of those directly; the other ~53 are legitimate,
+  intentional exceptions (pre-auth flows like passcode-login/SSO, public
+  token-based access like client-portal/[token] and esignature sign/[token],
+  contact/forge public forms, health checks, internal cron routes). CI's `lint`
+  job runs `eslint .` with no `--max-warnings` flag, so ESLint's default
+  behavior (warnings don't fail the run) means this is CI-visible without being
+  CI-blocking -- verified: `bun run lint` on the full repo exits 0 with 54 new
+  warnings (the known exceptions) plus the handful of pre-existing unrelated
+  warnings, same as before this change. An "error" severity would have failed
+  CI repo-wide for every concurrently in-flight PR touching any of those 53
+  files, which would have been a disproportionate blast radius for a Low-priority
+  finding -- explicitly did not do that.
+  The "ServiceError usage" half of this finding's recommended approach is
+  deliberately NOT lint-enforced: as documented in REUSABLE-UTILITIES.md, there
+  isn't yet one canonical ServiceError class to enforce (2 competing
+  definitions), and many services (e.g. the pure computation-engine dispatchers
+  extracted in this same PR) legitimately never need a domain error type --
+  enforcing it now would either be a no-op or actively wrong. Real prerequisite
+  (consolidate the 2 ServiceError classes) is called out as a separate follow-up,
+  not done here.
+
+- [x] **[Medium] File & Folder Organization -- src/app/api/README.md.** Real
+  navigation index for the 129 top-level route groups / ~880 files (previously
+  zero README/index anywhere in that tree), grouped by domain (compliance,
+  governance, audit, ERP, CRM, HR, Legal, Construction/PROJEXA, AI/Orchestra,
+  Chat, Access/Platform, versioned v1 API). See "Findings that don't match
+  current reality" above for why the ai-os/ subtree half of this same finding
+  was NOT acted on.
+
 ## Remaining
-- [ ] [Low] Component Reusability -- add REUSABLE-UTILITIES.md index.
 - [ ] [Medium] Low Coupling / High Cohesion -- investigate current FK constraint
       coverage on org/user scoping; add incrementally if safe, or document why not.
-- [ ] [Low] Design Pattern Consistency -- custom lint rule for requireAuth()/
-      ServiceError usage in new API routes/services.
-- [ ] [Medium] File & Folder Organization -- add a real navigation README to
-      src/app/api/ (129 subdirs, 0 nav aid today; see finding above).
