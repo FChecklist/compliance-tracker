@@ -17,6 +17,10 @@ routes authenticate via `requireAuthOrApiKey()` (session cookie **or**
 `Authorization: Bearer <api-key>` / API-key header — see
 `src/lib/supabase/auth-guard.ts` and `src/lib/api-key-auth.ts`).
 
+**Rate limiting:** API-key-authenticated requests are subject to a
+per-key rate limit — see [`docs/API_RATE_LIMITS.md`](./API_RATE_LIMITS.md)
+for the default (unlimited), how to set a cap, and how enforcement works.
+
 **How this document is maintained:** compiled directly from the git history
 of `src/app/api/v1/**/route.ts` (every commit that added, removed, or
 materially changed a route under this path), not hand-written release notes
