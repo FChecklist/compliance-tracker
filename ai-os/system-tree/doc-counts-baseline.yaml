@@ -1,0 +1,23 @@
+# Baseline counts for scripts/check-doc-drift.mjs (AI Documentation /
+# Documentation Lifecycle gap-closure, VERIDIAN Review Framework, 2026-08-15).
+#
+# Recorded against compliance-tracker @ origin/main HEAD 45435c9c4 (the
+# state ai-os/system-tree/00-*/10-*/11-*/12-*/13-*/50-*.yaml were last
+# fully re-synthesized against, Round 2, plus this Round 3's guardrails
+# pass). These are cheap, mechanically-verifiable counts, NOT a claim that
+# system-tree's narrative content is fully up to date -- see
+# scripts/check-doc-drift.mjs's own header for what this check does and
+# does not guarantee.
+#
+# To refresh: re-run the same counts (grep -c 'complianceSchemaDB\.table('
+# / '\.enum(' against src/lib/db/schema.ts; git ls-files for the three
+# glob counts) and update both `counts` below and this file's own header
+# comment with the new HEAD commit, in the same PR that refreshes
+# system-tree's content.
+tolerance_pct: 10
+counts:
+  tables: 444
+  enums: 130
+  api_routes: 1003
+  app_pages: 164
+  components: 82

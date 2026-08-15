@@ -46,9 +46,35 @@
 #  - Added the reverse cross-reference API-02/API-06 -> PRX-06 (Round 1
 #    Finding 4) so a reader starting from the compliance-tracker side of
 #    the construction API surface is pointed at its actual consumer.
+#
+# ROUND 3 CHANGELOG (VERIDIAN Review Framework gap-closure, "AI
+# Documentation / Documentation Lifecycle", 2026-08-15 -- see
+# SYSTEM-AUDIT-ROUND-3.md for the full audit):
+#  - Added explicit `guardrails` content to 5 highest-risk
+#    compliance-tracker domains (of the 48 still empty after Round 2):
+#    GOV-18 (this file's own governance-manifest protection, honestly
+#    scoped as cooperative-not-technical), DB-02 (compliance-status
+#    transitions have no dedicated sign-off step beyond the ordinary
+#    member/manager edit-vs-delete split), DB-05 and UI-07 (2 REAL, newly
+#    confirmed gaps -- ingestion confirm/reject and API-key/webhook
+#    minting both call requireAuth() with zero role check -- tracked as
+#    GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE and
+#    GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING in MASTER-TRACKER.yaml),
+#    UI-02 (also corrects a stale prior finding: audit-finding `ownerId`
+#    is now functionally wired for access scoping, not "label only").
+#  - Deliberately smaller than Round 2's 11-domain batch: this round
+#    prioritized re-verifying every claim directly against current code
+#    (1,349 commits of drift since Round 2) over maximizing count. The
+#    remaining 43/94 empty-guardrail domains are unaddressed, not
+#    reviewed-and-intentionally-skipped the way Round 2 handled its
+#    47 leftover domains -- a future round should continue from here.
+#  - doc-counts-baseline.yaml + scripts/check-doc-drift.mjs added
+#    (separate from this file) as the "Automatic Documentation
+#    Generation"/"Documentation Accuracy" findings' lighter-weight CI
+#    diff-check.
 
 tree_version: 2
-round: 2
+round: 3
 copied_from:
 - 10-compliance-tracker-governance.yaml
 - 11-compliance-tracker-api.yaml
@@ -573,7 +599,14 @@ domains:
   - ai-os/boss/ROSTER.yaml is the RUNTIME AI-OS agent roster (VEDABOSS/ZAI/SENTINEL) -- explicitly distinct
     from src/lib/ai-team/roster.ts's 57-role build-time org chart (GOV-05). Two different things sharing
     the word 'roster' -- do not conflate.
-  guardrails: []
+  guardrails:
+  - "System-Tree Audit Round 3 (2026-08-15): these files are protected only by cooperative,
+    reviewable-diff mechanisms, not a runtime lock -- CI's Guardrail Presence Check (Rule 9,
+    scripts/check-guardrail-presence.mjs, fails the build if a named marker string disappears
+    from its manifest) and the ACTIVE-CLAIMS registry (Rule 11, self-registered per-session,
+    not technically enforced). Both rules explicitly self-disclose this same limitation in
+    AGENTS.md's own text -- nothing here prevents an agent from skipping either step, only PR/CI
+    review can catch it after the fact."
   workflow: []
   source: 10-compliance-tracker-governance
   repo: compliance-tracker
@@ -1039,7 +1072,15 @@ domains:
     amount.'
   - 'compliance_type enum: GST, TDS, MCA, PF, ESIC, INCOME_TAX, ROC, LABOUR, ENVIRONMENTAL, OTHER.'
   - 'compliance_status enum: pending, in_progress, completed, overdue, not_applicable, draft.'
-  guardrails: []
+  guardrails:
+  - "System-Tree Audit Round 3 (2026-08-15): PATCH /api/compliance/[id] (status/field edits) requires
+    only requireRoleOrScope(ctx, 'member', 'write'); DELETE requires 'manager' (verified
+    src/app/api/compliance/[id]/route.ts:26,49). There is no dedicated approval/signoff step separate
+    from the ordinary edit gate for compliance_status transitions themselves (e.g. marking an item
+    'completed') -- self-certification by any member-rank user, including the assignee, is the de
+    facto control, not a maker-checker split. Not flagged as a defect requiring a code change here
+    (that is a product decision, not this pass's call); recorded so a reader checking 'what enforces
+    sign-off on this domain' gets the accurate answer: nothing beyond the ordinary role floor."
   workflow:
   - See API-01's workflow -- this is the table it operates on.
   source: 12-compliance-tracker-database
@@ -1112,7 +1153,15 @@ domains:
   rules:
   - ingestion_batch_status / ingestion_item_status enums drive the shared staged-import pattern reused
     by both compliance/import (API-01) and gst-reconciliation/import (API-11) and documents/ingest (API-12).
-  guardrails: []
+  guardrails:
+  - "System-Tree Audit Round 3 (2026-08-15), real finding: POST /api/ingest/[batchId]/confirm (the
+    batch-commit step -- its own code comment calls it 'the point of no return', inserting all
+    approved/edited items into compliance_items) and PATCH /api/ingest/[batchId]/items/[itemId]
+    (per-item approve/edit/reject) both call requireAuth() only -- no requireRole/requireRoleOrScope
+    gate at all (verified confirm/route.ts and items/[itemId]/route.ts, 2026-08-15). Any authenticated
+    org member of any rank, including viewer, can confirm or reject an entire ingestion batch. Not
+    fixed in this pass (docs-only gap-closure task); tracked as GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE
+    in ai-os/MASTER-TRACKER.yaml for a follow-up implementation task."
   workflow:
   - File uploaded -> staged as ingestion_items -> reviewed row-by-row -> confirmed/rejected -> confirmed
     rows promoted into their real target table.
@@ -1540,7 +1589,17 @@ domains:
   rules:
   - /penalties is a real calculator UI over GOV-07's tax engines (income-tax-engine.ts, tds-engine.ts,
     gst-engine.ts), not a separate calculation implementation.
-  guardrails: []
+  guardrails:
+  - "System-Tree Audit Round 3 (2026-08-15): /compliance write actions and /ingest's confirm/reject step
+    inherit DB-02's and DB-05's API-level role gaps respectively (see those domains) -- the UI itself adds
+    no separate rank check, it simply renders whatever the API allows. /audit-engagements' CAPA findings
+    ARE role-gated at the API (POST and PATCH /api/audit-findings both require 'manager', verified
+    src/app/api/audit-findings/route.ts and [id]/route.ts) and `ownerId` is now functionally used to scope
+    a non-manager's visible-findings list (risk-register-service.ts:74), not merely a display label -- this
+    corrects an earlier (pre-2026-08) evaluation finding that called ownership 'label only'; the residual
+    gap is narrower: ownerId is fixed to the creator at POST time with no reassignment/transfer endpoint,
+    so a finding can't be handed off to its actual responsible owner after creation."
+  workflow: []
   workflow:
   - Item created/imported -> tracked through /compliance/[id]'s tabs -> reported on via /reports -> penalties
     calculated when overdue -> everything auditable via /audit.
@@ -1630,7 +1689,15 @@ domains:
   - /settings is the single largest settings surface, backed by ~10 dedicated sub-panel components (AiConfigSection,
     AiAssistantsSection, PersonalAiConfigSection, OrchestraModelConfigSection, ApiKeySection, WebhookSection,
     MfaSection, SsoSection, PmsEnablementSection) -- see UI-13.
-  guardrails: []
+  guardrails:
+  - "System-Tree Audit Round 3 (2026-08-15), real finding: ApiKeySection and WebhookSection's mint/create
+    actions call POST /api/settings/api-keys and POST /api/settings/webhooks, both of which call
+    requireAuth() only -- no requireRole/requireRoleOrScope gate (verified api-keys/route.ts:39-40,
+    webhooks/route.ts:80-81, 2026-08-15). Any authenticated org member of any rank can mint a
+    write-scoped API key or register an outbound webhook from this page; there is no admin/manager-rank
+    restriction, distinct from most of the rest of /settings' write actions. Not fixed in this pass
+    (docs-only gap-closure task); tracked as GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING in
+    ai-os/MASTER-TRACKER.yaml for a follow-up implementation task."
   workflow: []
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
