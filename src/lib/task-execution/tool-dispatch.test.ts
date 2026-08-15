@@ -19,9 +19,8 @@ describe("task-execution tool-dispatch split", () => {
     expect(new Set(all).size).toBe(all.length)
   })
 
-  test("COMPLIANCE_TOOL_CODES covers the original compliance-domain code references", () => {
+  test("COMPLIANCE_TOOL_CODES covers the original compliance-domain code references (minus create_compliance_item, deliberately kept inline in task-execution-engine.ts -- see its own comment)", () => {
     expect([...COMPLIANCE_TOOL_CODES].sort()).toEqual([
-      "create_compliance_item",
       "get_compliance_stats",
       "get_overdue_items",
       "get_penalty_estimate",

@@ -1,4 +1,4 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, ne, inArray, sql } from "drizzle-orm";
 import { escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
@@ -12,6 +12,8 @@ import { searchAssistantMemories, recordAssistantMemory } from "@/lib/services/a
 import { assertValidDispatchOutput } from "@/lib/dispatch-output-validator";
 import { assertBusinessRulesBeforeExecution } from "@/lib/business-rule-validator";
 import { crossVerifyEmi, crossVerifyGratuity, assertCalculationVerified } from "@/lib/calculation-cross-verification";
+import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance-service";
+import { logActivity } from "@/lib/audit";
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
@@ -103,8 +105,57 @@ registerAllGuardrails();
 // ai-os/boss/ACTIVE-CLAIMS.yaml), so restructuring it here would conflict
 // with all of them for a Medium-severity finding whose recommended fix is
 // "extract distinct responsibilities," not "touch the actively-shared one."
+//
+// One case, "create_compliance_item", is deliberately kept inline here
+// rather than moved into compliance-tools.ts with the rest of that
+// domain: its logActivity() call is a named guardrail anchor
+// (scripts/check-guardrail-presence.mjs requires "logActivity(" to appear
+// literally in this file, "so the marker check still catches... its use
+// in the core task-execution path") -- relocating a named guardrail
+// requires the owner's explicit written sign-off + a manifest update per
+// AGENTS.md Operating Rule 9, which this refactor doesn't have. See
+// compliance-tools.ts's own comment on COMPLIANCE_TOOL_CODES for the same
+// note from the other side.
 export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
   assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
+
+  // Gap closure, 2026-07-10 (CAPABILITY_COVERAGE.md): create_compliance_item
+  // was registered with zero implementation. Safe to auto-dispatch here for
+  // the same reason update_compliance_status is (see compliance-tools.ts) --
+  // capability-tree-service.ts's "Create New" leaf collects
+  // title/type/dueDate/amount through inputFields (a validated form, never
+  // LLM-guessed) and bakes departmentId into fixedInputs (a real click, not
+  // typed text). Mirrors createComplianceItem() in compliance-service.ts's
+  // own validation/insert shape, inlined here rather than calling that
+  // function directly since it expects a fuller ServiceContext
+  // (actor/request) this dispatch path doesn't carry.
+  if (codeReference === "create_compliance_item") {
+    const departmentId = String(context?.inputs?.departmentId ?? "");
+    const title = String(context?.inputs?.title ?? "").trim();
+    const complianceType = String(context?.inputs?.complianceType ?? "");
+    const dueDateRaw = String(context?.inputs?.dueDate ?? "");
+    const amountRaw = context?.inputs?.amount;
+    if (!departmentId || !title || !(VALID_COMPLIANCE_TYPES as readonly string[]).includes(complianceType)) {
+      throw new Error("Missing or invalid departmentId/title/complianceType");
+    }
+    const parsedDueDate = new Date(dueDateRaw);
+    if (isNaN(parsedDueDate.getTime())) throw new Error("A valid dueDate (YYYY-MM-DD) is required");
+    const dept = await db.query.departments.findFirst({ where: and(eq(departments.id, departmentId), eq(departments.orgId, orgId)) });
+    if (!dept) throw new Error("Department not found");
+
+    const [item] = await db.insert(complianceItems).values({
+      title, complianceType: complianceType as typeof VALID_COMPLIANCE_TYPES[number],
+      dueDate: parsedDueDate, departmentId, orgId,
+      amount: amountRaw != null && amountRaw !== "" ? String(amountRaw) : null,
+    }).returning({ id: complianceItems.id, title: complianceItems.title, dueDate: complianceItems.dueDate });
+
+    const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+    if (dbUser) {
+      await logActivity({ tx: db, action: "create", entityType: "ComplianceItem", entityId: item.id, details: `Created compliance item: ${item.title}`, orgId, dbUser });
+    }
+    return item;
+  }
+
   if (COMPLIANCE_TOOL_CODES.has(codeReference)) return dispatchComplianceTool(db, orgId, userId, codeReference, context);
   if (GST_TOOL_CODES.has(codeReference)) return dispatchGstTool(db, orgId, userId, codeReference, context);
   if (CONSTRUCTION_TOOL_CODES.has(codeReference)) return dispatchConstructionTool(orgId, userId, codeReference, context);
