@@ -318,6 +318,63 @@ in shared registry files), nothing from either side dropped:
   re-check whether the standing reviewer-identity self-approval deadlock (still the
   documented blocker independent of this conflict) has changed.
 
+## Re-checked 2026-08-15 (invocation 14) -- finished the prior invocation's checkpoint, pushed, further conflicts resolved
+Resumed with invocation 20's merge conflict resolution already staged but never committed.
+Committed it first (`4c51cc563`), then re-fetched `origin/main`: it had advanced a further 136
+commits since invocation 20's merge-base (not just the 88 already resolved), reintroducing 3
+real conflicts on top of the same 3 files -- confirmed via `git merge-tree` before touching
+anything, then a real `git merge origin/main`:
+- `PROGRESS.md`: found and removed a genuine leftover diff3 artifact from invocation 20's own
+  resolution -- a duplicated `||||||| <base>` block (the full text of the
+  `task-20260718-081006-crm---sales-modules--opportunities` section, byte-identical to the
+  real copy immediately above it) that had been left in the file rather than stripped, because
+  the outer `<<<<<<<`/`=======`/`>>>>>>>` markers were edited but the inner `|||||||` diff3
+  base section was missed. Removed the duplicate block; the real section (kept once) is
+  unaffected. New conflict from this round: `origin/main` had appended a fresh
+  `task-20260815-044325-pm-approval-of-proposal-62-build-lock-co` stub section -- kept on top
+  of this task's own content per the same "ours-on-top, theirs-appended-below" precedent used
+  every prior round.
+- `ai-os/boss/ACTIVE-CLAIMS.yaml`: `origin/main` added 2 new `active:` entries
+  (`task-20260718-065003-ai-engineering-quality--error-handling`,
+  `task-20260718-071005-ai-model-lifecycle---benchmarking--evalu`) ahead of this session's own
+  entry in the list; combined all three, nothing dropped.
+- `ai-os/registry/terminology-guardrail-exemptions.yaml`: both sides had independently bumped
+  `src/lib/db/schema.ts`'s `hardcoded_iso_date` baseline off the same base value of 84 --
+  this task's own invocation-20 bump to 86 (+2, `crmPipelineStages`/currency columns) and
+  `origin/main`'s new AI Model Lifecycle task's bump to 85 (+1, `aiTeamRoleOverrides`
+  candidate-model columns). Reconciled to 87 (84 + 2 + 1), combined `reason` text citing both
+  bumps -- neither side's real, evidenced comment was dropped.
+- Verified: both YAML files parse (`yaml.safe_load`), zero conflict markers remain anywhere in
+  the tree (`grep -rl` for `<<<<<<<`/`|||||||`/`=======`/`>>>>>>>` across the working tree,
+  excluding `.git`/`node_modules`, returns nothing), `bun test
+  src/lib/services/crm-service.test.ts` -- **49/49 pass** (this task's original 10 +
+  invocation-20's merged-in 12 + this round brought in no new test changes to this file, so the
+  count is unchanged from invocation 20's own 22/22 note plus tests other concurrent work added
+  to the same file since).
+- Pushed commit `1efd9f094`. Fresh CI run on this commit surfaced one genuine new failure:
+  **Migration Number Collision Check** -- `origin/main` had independently landed its own
+  `drizzle/0313_ai_team_role_overrides_rollout.sql` (the AI Model Lifecycle task's candidate-
+  model/rollout-percentage columns) while this branch's `drizzle/0313_sales_pipeline_module.sql`
+  (itself already a renumber from `0225`, see invocation 20 in `veridian-branch-protection-self-
+  approval-deadlock-active` memory) was in flight -- same class of same-cycle collision as
+  invocation 20's original 0225 collision, just one number later. Renumbered ours to
+  `drizzle/0314_sales_pipeline_module.sql` (next free number after `origin/main`'s real highest,
+  0313, re-verified live via `git ls-tree origin/main -- drizzle/`, not guessed), and updated
+  the 2 in-code comment cross-references in `crm-service.ts` (the `listPipelineStages()`
+  doc-comment and its "config table" comment, lines 688/707) -- the theirs-side `drizzle/0313`
+  references in `schema.ts`/`roster-overrides.ts` (the AI Model Lifecycle task's own migration)
+  are correctly untouched. All other CI jobs passed clean on the first run (Lint, Type Check,
+  Unit Tests, audit-check -- correctly picked up the pre-existing `AUDIT: PASS` comment per
+  `[[veridian-audit-check-issue-comment-sha-bug]]`'s documented behavior of re-validating on
+  every `synchronize` regardless of comment age -- Guardrail Presence, Asset Registry Coverage,
+  Metadata Index Coverage, Terminology Guardrail, Doc Quarantine/Cross-Reference/Sentinel,
+  Secret Scanning, Security Pattern); only `Vercel` failed, with the same known unrelated infra
+  `build-rate-limit` message as every prior round. Pushed the renumber fix; new CI run in
+  progress on the fresh commit as of this checkpoint.
+- This task's own implementation (all 14 findings) remains unchanged and complete -- this
+  invocation's work was entirely conflict-resolution/CI-collision bookkeeping to keep PR #1018
+  mergeable against a fast-moving `main`, not new feature work.
+
 ---
 
 # PROGRESS -- task-20260814-021600-rca--umr-20260807-063918-f15d-killed
