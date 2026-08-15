@@ -1,0 +1,2538 @@
+meta:
+  task: task-20260728-050704-sap-informed-veridian-phase-0--baseline
+  purpose: 'Phase 0 of a larger Owner directive (SAP architecture understanding + VERIDIAN completion).
+    Inventory-only: real, evidence-based baseline of what business-domain modules/tables/API-routes VERIDIAN
+    (compliance-tracker + PROJEXA) currently has. No schema design, no SAP research, no code changes in
+    this phase.'
+  generated_date: '2026-07-28'
+  primary_sources:
+  - source: ai-os/DATABASE_CATALOG.json
+    detail: 'Machine-generated (extract-db-schema-catalog.mjs, real drizzle-orm getTableConfig introspection,
+      not AI-written). 449 tables. NOTE: its own source_file field shows it was generated from a task-20260726-102520
+      workspace snapshot of schema.ts, i.e. it is already ~2 days stale relative to current main -- see
+      discrepancy note below.'
+  - source: claude-control repo's ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json
+    detail: 'Lives in the separate claude-control repo (/opt/veridian/repos/claude-control/ai-os/), NOT
+      in compliance-tracker -- the spec''s path (ai-os/WIRING_ENGINE_REGISTRY_2026-07-25.json, relative
+      to compliance-tracker) does not exist in this repo; confirmed via git log --all and find, zero hits.
+      7711 entities: 5019 function, 1940 file, 444 supabase_table, 195 ai_role, 40 script, 20 engine,
+      14 cron_job, 10 gateway, 9 governance_doc, 7 github_repo, 6 route, 4 browser_component, 3 vercel_project.
+      The 6 ''route'' entities are intent-to-engine chat-dispatch traces (e.g. ChainSelector.tsx -> payroll-engine.ts),
+      not REST API routes -- not usable for a per-endpoint domain inventory. Its 1371 ''function'' entities
+      whose path contains src/app/api/ (one per exported HTTP method per route.ts) were used as a real
+      cross-check that direct grep of src/app/api found genuine route files, not as the primary route
+      list itself (direct `find src/app/api -name route.ts` is the primary source for the routes section
+      below).'
+  - source: src/lib/db/schema.ts (direct grep, current main HEAD)
+    detail: '11305 lines. Real pattern used in this codebase is `export const X = complianceSchemaDB.table(''x'',
+      {...})` / `platformSchemaDB.table(...)` -- NOT the literal `pgTable(` call the spec''s own suggested
+      sanity-check command greps for (see sanity_checks below: that command legitimately returns 0, which
+      is itself a real finding, not a broken check). Used to (a) get the real current total table count
+      (464, vs DATABASE_CATALOG.json''s stale 449) and (b) pull real file:line + real columns for the
+      15 tables added to schema.ts since the DATABASE_CATALOG.json snapshot.'
+  - source: src/app/api/ (direct find, current main HEAD)
+    detail: '959 real route.ts files (`find $(pwd)/src/app/api -name route.ts`). NOTE: the same `find`
+      command run with a relative path in this sandboxed shell silently truncated to 51 results with no
+      error -- confirmed the truncation happens inside the shell''s own output-capture layer (it affected
+      a file written via `>` redirection too, not just terminal display), not a real difference in the
+      filesystem. Always used the absolute-path form after discovering this. Flagging this as an environment
+      quirk worth knowing for any future session doing large-output grep/find in this sandbox.'
+  schema_drift_since_database_catalog_snapshot:
+    note: 'DATABASE_CATALOG.json (449 tables) is stale relative to current main (464 tables, verified
+      via direct grep). Diffed export names: 15 new tables added, 0 removed. All 15 new tables were read
+      directly from current schema.ts and are included in the domain inventory below, each flagged with
+      a `note` field.'
+    new_tables_since_snapshot:
+    - businessHoursSchedules
+    - constructionInterimBillLineItems
+    - constructionInterimBills
+    - escalationRules
+    - hrEmployeeLoans
+    - hrExpenseClaims
+    - hrLoanInstallments
+    - hrShiftRosterAssignments
+    - hrShiftTypes
+    - performanceReviewGoals
+    - performanceReviewRaters
+    - publicTicketSubmissionAttempts
+    - slaPolicies
+    - ticketEscalationEvents
+    - ticketTeams
+  out_of_scope_per_owner_directive: 'Manufacturing / Production-Planning / Plant-Maintenance: explicitly
+    excluded per the Owner''s own directive. Verified via grep (manufactur|production_plan|bom|bill_of_material|work_order|routing|plant_maint)
+    across table names and route paths: zero real hits (the only substring matches were aiRoutingPolicies/aiRoutingAuditLog
+    -- AI model routing, unrelated). This domain genuinely does not exist yet in this codebase, so ''excluded''
+    and ''absent'' happen to coincide here -- noted for honesty, not assumed.'
+  adjacent_domains_found_but_not_requested: 'Not inventoried in detail (out of this task''s 8-domain scope)
+    but flagged for awareness: fm* (13 tables, e.g. fmAmcContracts/fmAssets/fmPpmSchedules/fmVisitors
+    -- Facility Management, closely adjacent to SAP Plant Maintenance conceptually though not literally
+    excluded by name); legal* / litigationMatters (Legal Matter Management); firm* (CA/professional-services-firm
+    practice management -- engagements, timesheets, invoices); interior* (Interior Design FF&E/floor-plans/mood-boards);
+    posh* (POSH Act compliance); veriReward*; plus ~230 AI-OS/platform/governance tables (abac_*, approval_*,
+    audit_*, ai_*, orchestra_*, loop_*, prompt_*, worker_agent_*, task_*, etc.) that are VERIDIAN AI OS
+    infrastructure, not ERP/business-domain data.'
+tables_by_domain:
+  CRM:
+    table_count: 8
+    tables:
+    - export_name: crmAccounts
+      table_name: crm_accounts
+      schema: complianceSchemaDB
+      column_count: 26
+      file: src/lib/db/schema.ts
+      line: 4920
+      description: 'Master/reference data (crm accounts). Key columns: name, industry, website, billing_line1,
+        billing_line2, billing_city.'
+    - export_name: crmActivities
+      table_name: crm_activities
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 5008
+      description: 'Status-tracked record (crm activities). Key columns: entity_type, entity_id, activity_type,
+        subject, due_date, status.'
+    - export_name: crmCampaigns
+      table_name: crm_campaigns
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 5026
+      description: 'Status-tracked record (crm campaigns). Key columns: name, campaign_type, status, start_date,
+        end_date, budgeted_cost.'
+    - export_name: crmContacts
+      table_name: crm_contacts
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 4974
+      description: 'Master/reference data (crm contacts). Key columns: account_id, name, title, email,
+        phone, is_primary.'
+    - export_name: crmLeads
+      table_name: crm_leads
+      schema: complianceSchemaDB
+      column_count: 24
+      file: src/lib/db/schema.ts
+      line: 4778
+      description: 'Status-tracked record (crm leads). Key columns: name, contact_email, contact_phone,
+        source, status, owner_id.'
+    - export_name: crmLostReasons
+      table_name: crm_lost_reasons
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 5000
+      description: 'Master/reference data (crm lost reasons). Key columns: reason_text, is_active.'
+    - export_name: crmOpportunities
+      table_name: crm_opportunities
+      schema: complianceSchemaDB
+      column_count: 24
+      file: src/lib/db/schema.ts
+      line: 4832
+      description: 'Master/reference data (crm opportunities). Key columns: lead_id, client_id, name,
+        stage, estimated_value, expected_close_date.'
+    - export_name: crmStageHistory
+      table_name: crm_stage_history
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 4893
+      description: 'Change/event log (crm stage history). Key columns: entity_type, entity_id, from_stage,
+        to_stage, note, changed_by_id.'
+  Sales:
+    table_count: 19
+    tables:
+    - export_name: erpCustomers
+      table_name: erp_customers
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 6512
+      description: 'Master/reference data (erp customers). Key columns: customer_name, client_id, gstin,
+        pan_number, default_payment_terms_days, credit_limit.'
+    - export_name: erpQuotations
+      table_name: erp_quotations
+      schema: complianceSchemaDB
+      column_count: 17
+      file: src/lib/db/schema.ts
+      line: 6561
+      description: 'Transactional document (erp quotations) -- status + amount tracked. Key columns: customer_id,
+        lead_id, quotation_number, quotation_date, valid_till, status.'
+    - export_name: erpQuotationItems
+      table_name: erp_quotation_items
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 6620
+      description: 'Line items of erp quotation. Key columns: quotation_id, item_id, description, quantity,
+        rate, amount.'
+    - export_name: erpSalesOrders
+      table_name: erp_sales_orders
+      schema: complianceSchemaDB
+      column_count: 17
+      file: src/lib/db/schema.ts
+      line: 6630
+      description: 'Transactional document (erp sales orders) -- status + amount tracked. Key columns:
+        customer_id, opportunity_id, quotation_id, so_number, order_date, delivery_date.'
+    - export_name: erpSalesOrderItems
+      table_name: erp_sales_order_items
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 6668
+      description: 'Line items of erp sales order. Key columns: sales_order_id, item_id, description,
+        quantity, rate, amount.'
+    - export_name: erpSalesInvoices
+      table_name: erp_sales_invoices
+      schema: complianceSchemaDB
+      column_count: 23
+      file: src/lib/db/schema.ts
+      line: 6076
+      description: 'Transactional document (erp sales invoices) -- status + amount tracked. Key columns:
+        client_id, customer_id, invoice_number, posting_date, due_date, currency_id.'
+    - export_name: erpSalesInvoiceItems
+      table_name: erp_sales_invoice_items
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 6154
+      description: 'Line items of erp sales invoice. Key columns: invoice_id, item_id, description, quantity,
+        rate, amount.'
+    - export_name: erpSalesReturns
+      table_name: erp_sales_returns
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 8154
+      description: 'Status-tracked record (erp sales returns). Key columns: customer_id, sales_invoice_id,
+        warehouse_id, reason, status, credit_note_id.'
+    - export_name: erpSalesReturnItems
+      table_name: erp_sales_return_items
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 8169
+      description: 'Line items of erp sales return. Key columns: return_id, item_id, quantity, rate, reason.'
+    - export_name: erpSalesCreditNotes
+      table_name: erp_sales_credit_notes
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 7203
+      description: 'Transactional document (erp sales credit notes) -- status + amount tracked. Key columns:
+        customer_id, sales_invoice_id, credit_note_number, posting_date, reason, status.'
+    - export_name: erpSalesCreditNoteItems
+      table_name: erp_sales_credit_note_items
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7218
+      description: 'Line items of erp sales credit note. Key columns: credit_note_id, item_id, description,
+        quantity, rate, amount.'
+    - export_name: erpDeliveryNotes
+      table_name: erp_delivery_notes
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 6679
+      description: 'Status-tracked record (erp delivery notes). Key columns: customer_id, sales_order_id,
+        delivery_number, posting_date, status.'
+    - export_name: erpDeliveryNoteItems
+      table_name: erp_delivery_note_items
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 6691
+      description: 'Line items of erp delivery note. Key columns: delivery_note_id, sales_order_item_id,
+        item_id, quantity, warehouse_id.'
+    - export_name: erpPricingRules
+      table_name: erp_pricing_rules
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 7960
+      description: 'Master/reference data (erp pricing rules). Key columns: name, applies_to, target_id,
+        discount_type, discount_value, min_qty.'
+    - export_name: salesCommissionPlans
+      table_name: sales_commission_plans
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 9103
+      description: 'Master/reference data (sales commission plans). Key columns: product_key, partner_type,
+        commission_type, rate, flat_amount, currency.'
+    - export_name: salesCommissionAccruals
+      table_name: sales_commission_accruals
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 9126
+      description: 'Transactional document (sales commission accruals) -- status + amount tracked. Key
+        columns: sales_referral_id, sales_partner_id, product_key, sales_commission_plan_id, deal_value,
+        amount.'
+    - export_name: salesPartners
+      table_name: sales_partners
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 9041
+      description: 'Status-tracked record (sales partners). Key columns: name, email, phone, partner_type,
+        status, company_name.'
+    - export_name: salesReferrals
+      table_name: sales_referrals
+      schema: complianceSchemaDB
+      column_count: 16
+      file: src/lib/db/schema.ts
+      line: 9084
+      description: 'Status-tracked record (sales referrals). Key columns: sales_partner_id, sales_referral_link_id,
+        product_key, status, ip_address, user_agent.'
+    - export_name: salesReferralLinks
+      table_name: sales_referral_links
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 9063
+      description: 'Master/reference data (sales referral links). Key columns: sales_partner_id, product_key,
+        token, label, is_active, click_count.'
+  Purchase:
+    table_count: 27
+    tables:
+    - export_name: erpSuppliers
+      table_name: erp_suppliers
+      schema: complianceSchemaDB
+      column_count: 17
+      file: src/lib/db/schema.ts
+      line: 6298
+      description: 'Master/reference data (erp suppliers). Key columns: supplier_name, supplier_type,
+        gstin, pan_number, default_payment_terms_days, vendor_risk_profile_id.'
+    - export_name: erpSupplierBankAccounts
+      table_name: erp_supplier_bank_accounts
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 6338
+      description: 'Master/reference data (erp supplier bank accounts). Key columns: supplier_id, account_holder_name,
+        bank_name, account_number_encrypted, account_number_last4, ifsc_code.'
+    - export_name: erpSupplierPortalLinks
+      table_name: erp_supplier_portal_links
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 6391
+      description: 'Master/reference data (erp supplier portal links). Key columns: supplier_id, token,
+        expires_at, revoked_at.'
+    - export_name: erpSupplierQualifications
+      table_name: erp_supplier_qualifications
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 6359
+      description: 'Status-tracked record (erp supplier qualifications). Key columns: supplier_id, status,
+        criteria, score, notes, reviewed_by_id.'
+    - export_name: erpSupplierQuotations
+      table_name: erp_supplier_quotations
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 7548
+      description: 'Status-tracked record (erp supplier quotations). Key columns: rfq_id, supplier_id,
+        quotation_number, posting_date, valid_till, status.'
+    - export_name: erpSupplierQuotationItems
+      table_name: erp_supplier_quotation_items
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7561
+      description: 'Line items of erp supplier quotation. Key columns: quotation_id, item_id, description,
+        quantity, rate.'
+    - export_name: erpSupplierSanctionChecks
+      table_name: erp_supplier_sanction_checks
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 6377
+      description: 'Master/reference data (erp supplier sanction checks). Key columns: supplier_id, checked_by_id,
+        lists_checked, match_found, match_details, result_status.'
+    - export_name: erpPurchaseRequisitions
+      table_name: erp_purchase_requisitions
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 7502
+      description: 'Status-tracked record (erp purchase requisitions). Key columns: requisition_number,
+        requested_by_id, department_id, purpose, posting_date, status.'
+    - export_name: erpPurchaseRequisitionItems
+      table_name: erp_purchase_requisition_items
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7514
+      description: 'Line items of erp purchase requisition. Key columns: requisition_id, item_id, description,
+        quantity, estimated_rate.'
+    - export_name: erpRfqs
+      table_name: erp_rfqs
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7523
+      description: 'Status-tracked record (erp rfqs). Key columns: rfq_number, requisition_id, posting_date,
+        status.'
+    - export_name: erpRfqItems
+      table_name: erp_rfq_items
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 7534
+      description: 'Line items of erp rfq. Key columns: rfq_id, item_id, description, quantity.'
+    - export_name: erpRfqSuppliers
+      table_name: erp_rfq_suppliers
+      schema: complianceSchemaDB
+      column_count: 3
+      file: src/lib/db/schema.ts
+      line: 7542
+      description: 'Master/reference data (erp rfq suppliers). Key columns: rfq_id, supplier_id.'
+    - export_name: erpRfqNegotiationRounds
+      table_name: erp_rfq_negotiation_rounds
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7598
+      description: 'Master/reference data (erp rfq negotiation rounds). Key columns: quotation_id, round_number,
+        proposed_rate, notes.'
+    - export_name: erpRfqReverseAuctions
+      table_name: erp_rfq_reverse_auctions
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 7615
+      description: 'Status-tracked record (erp rfq reverse auctions). Key columns: rfq_id, start_at, end_at,
+        status, current_lowest_bid, current_leader_supplier_id.'
+    - export_name: erpRfqAuctionBids
+      table_name: erp_rfq_auction_bids
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7630
+      description: 'Master/reference data (erp rfq auction bids). Key columns: auction_id, supplier_id,
+        bid_amount, submitted_at.'
+    - export_name: erpRfqScoringCriteria
+      table_name: erp_rfq_scoring_criteria
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7576
+      description: 'Master/reference data (erp rfq scoring criteria). Key columns: rfq_id, name, weight.'
+    - export_name: erpRfqQuotationScores
+      table_name: erp_rfq_quotation_scores
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7585
+      description: 'Master/reference data (erp rfq quotation scores). Key columns: quotation_id, criterion_id,
+        score, scored_by_id, notes.'
+    - export_name: erpPurchaseOrders
+      table_name: erp_purchase_orders
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 6402
+      description: 'Transactional document (erp purchase orders) -- status + amount tracked. Key columns:
+        supplier_id, po_number, order_date, expected_delivery_date, status, currency_id.'
+    - export_name: erpPurchaseOrderItems
+      table_name: erp_purchase_order_items
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 6433
+      description: 'Line items of erp purchase order. Key columns: purchase_order_id, item_id, description,
+        quantity, rate, amount.'
+    - export_name: erpPurchaseReceipts
+      table_name: erp_purchase_receipts
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 6444
+      description: 'Status-tracked record (erp purchase receipts). Key columns: supplier_id, purchase_order_id,
+        receipt_number, posting_date, status, putaway_status.'
+    - export_name: erpPurchaseReceiptItems
+      table_name: erp_purchase_receipt_items
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 6463
+      description: 'Line items of erp purchase receipt. Key columns: receipt_id, purchase_order_item_id,
+        item_id, quantity, warehouse_id, rate.'
+    - export_name: erpPurchaseInvoices
+      table_name: erp_purchase_invoices
+      schema: complianceSchemaDB
+      column_count: 20
+      file: src/lib/db/schema.ts
+      line: 6171
+      description: 'Transactional document (erp purchase invoices) -- status + amount tracked. Key columns:
+        supplier_id, invoice_number, posting_date, due_date, currency_id, exchange_rate.'
+    - export_name: erpPurchaseInvoiceItems
+      table_name: erp_purchase_invoice_items
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 6203
+      description: 'Line items of erp purchase invoice. Key columns: invoice_id, item_id, description,
+        quantity, rate, amount.'
+    - export_name: erpPurchaseReturns
+      table_name: erp_purchase_returns
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 8178
+      description: 'Status-tracked record (erp purchase returns). Key columns: supplier_id, purchase_invoice_id,
+        warehouse_id, reason, status, credit_note_id.'
+    - export_name: erpPurchaseReturnItems
+      table_name: erp_purchase_return_items
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 8193
+      description: 'Line items of erp purchase return. Key columns: return_id, item_id, quantity, rate,
+        reason.'
+    - export_name: erpPurchaseCreditNotes
+      table_name: erp_purchase_credit_notes
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 7228
+      description: 'Transactional document (erp purchase credit notes) -- status + amount tracked. Key
+        columns: supplier_id, purchase_invoice_id, credit_note_number, posting_date, reason, status.'
+    - export_name: erpPurchaseCreditNoteItems
+      table_name: erp_purchase_credit_note_items
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7243
+      description: 'Line items of erp purchase credit note. Key columns: credit_note_id, item_id, description,
+        quantity, rate, amount.'
+  Inventory:
+    table_count: 17
+    tables:
+    - export_name: erpItems
+      table_name: erp_items
+      schema: complianceSchemaDB
+      column_count: 17
+      file: src/lib/db/schema.ts
+      line: 6720
+      description: 'Master/reference data (erp items) -- the item/product/service master. Key columns:
+        item_code, item_name, item_group_id, uom, is_stock_item, is_sales_item.'
+    - export_name: erpItemGroups
+      table_name: erp_item_groups
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 6712
+      description: 'Master/reference data (erp item groups). Key columns: group_name, parent_group_id.'
+    - export_name: erpItemBatches
+      table_name: erp_item_batches
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7889
+      description: 'Master/reference data (erp item batches). Key columns: item_id, batch_number, manufacturing_date,
+        expiry_date.'
+    - export_name: erpItemSerials
+      table_name: erp_item_serials
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7899
+      description: 'Status-tracked record (erp item serials). Key columns: item_id, serial_number, status,
+        warehouse_id.'
+    - export_name: erpItemUomConversions
+      table_name: erp_item_uom_conversions
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7880
+      description: 'Master/reference data (erp item uom conversions). Key columns: item_id, uom, conversion_factor.'
+    - export_name: erpWarehouses
+      table_name: erp_warehouses
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 6702
+      description: 'Master/reference data (erp warehouses). Key columns: warehouse_name, parent_warehouse_id,
+        is_group, address.'
+    - export_name: erpStockLedgerEntries
+      table_name: erp_stock_ledger_entries
+      schema: complianceSchemaDB
+      column_count: 17
+      file: src/lib/db/schema.ts
+      line: 6752
+      description: 'Master/reference data (erp stock ledger entries). Key columns: item_id, warehouse_id,
+        posting_date, voucher_type, voucher_id, quantity_change.'
+    - export_name: erpStockReconciliations
+      table_name: erp_stock_reconciliations
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 6783
+      description: 'Status-tracked record (erp stock reconciliations). Key columns: warehouse_id, posting_date,
+        status.'
+    - export_name: erpStockReconciliationItems
+      table_name: erp_stock_reconciliation_items
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 6793
+      description: 'Line items of erp stock reconciliation. Key columns: reconciliation_id, item_id, counted_qty,
+        valuation_rate, system_qty.'
+    - export_name: erpStockValuationLayers
+      table_name: erp_stock_valuation_layers
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 7288
+      description: 'Master/reference data (erp stock valuation layers). Key columns: item_id, warehouse_id,
+        stock_ledger_entry_id, receipt_date, original_qty, remaining_qty.'
+    - export_name: erpReorderLevels
+      table_name: erp_reorder_levels
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 7312
+      description: 'Master/reference data (erp reorder levels). Key columns: item_id, warehouse_id, reorder_point,
+        reorder_qty, safety_stock, min_level.'
+    - export_name: erpAbcClassifications
+      table_name: erp_abc_classifications
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7330
+      description: 'Master/reference data (erp abc classifications). Key columns: item_id, classification,
+        consumption_value, computed_at.'
+    - export_name: erpCycleCountPlans
+      table_name: erp_cycle_count_plans
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7339
+      description: 'Status-tracked record (erp cycle count plans). Key columns: warehouse_id, name, status,
+        scheduled_date.'
+    - export_name: erpCycleCountLines
+      table_name: erp_cycle_count_lines
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7350
+      description: 'Line items of erp cycle count. Key columns: plan_id, item_id, system_qty, counted_qty,
+        status, counted_by_id.'
+    - export_name: erpLandedCostVouchers
+      table_name: erp_landed_cost_vouchers
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 6484
+      description: 'Master/reference data (erp landed cost vouchers). Key columns: purchase_receipt_id,
+        posting_date.'
+    - export_name: erpLandedCostCharges
+      table_name: erp_landed_cost_charges
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 6493
+      description: 'Master/reference data (erp landed cost charges). Key columns: voucher_id, expense_type,
+        amount, description.'
+    - export_name: erpLandedCostAllocations
+      table_name: erp_landed_cost_allocations
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 6502
+      description: 'Master/reference data (erp landed cost allocations). Key columns: voucher_id, receipt_item_id,
+        allocated_amount.'
+  Accounting / GST:
+    table_count: 41
+    tables:
+    - export_name: erpAccounts
+      table_name: erp_accounts
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 5904
+      description: 'Master/reference data (erp accounts). Key columns: account_name, account_number, parent_account_id,
+        root_type, account_type, is_group.'
+    - export_name: erpAccountingPeriods
+      table_name: erp_accounting_periods
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 6943
+      description: 'Status-tracked record (erp accounting periods). Key columns: fiscal_year_id, period_name,
+        start_date, end_date, status, closed_by_id.'
+    - export_name: erpJournalEntries
+      table_name: erp_journal_entries
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 5985
+      description: 'Transactional document (erp journal entries) -- status + amount tracked. Key columns:
+        entry_number, posting_date, reference_type, reference_id, user_remark, is_opening_entry.'
+    - export_name: erpJournalEntryLines
+      table_name: erp_journal_entry_lines
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 6012
+      description: 'Line items of erp journal entry. Key columns: journal_entry_id, account_id, party_type,
+        party_id, debit, credit.'
+    - export_name: erpPaymentEntries
+      table_name: erp_payment_entries
+      schema: complianceSchemaDB
+      column_count: 22
+      file: src/lib/db/schema.ts
+      line: 6038
+      description: 'Transactional document (erp payment entries) -- status + amount tracked. Key columns:
+        payment_type, party_type, party_id, paid_amount, received_amount, bank_account_id.'
+    - export_name: erpCashAccounts
+      table_name: erp_cash_accounts
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7173
+      description: 'Master/reference data (erp cash accounts). Key columns: account_name, gl_account_id,
+        is_petty_cash.'
+    - export_name: erpCashVouchers
+      table_name: erp_cash_vouchers
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 7182
+      description: 'Transactional document (erp cash vouchers) -- status + amount tracked. Key columns:
+        cash_account_id, voucher_number, voucher_type, amount, party_type, party_id.'
+    - export_name: erpBankAccounts
+      table_name: erp_bank_accounts
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 5955
+      description: 'Master/reference data (erp bank accounts). Key columns: account_name, bank_name, account_number,
+        ifsc_or_swift, currency_id, gl_account_id.'
+    - export_name: erpBankStatementImports
+      table_name: erp_bank_statement_imports
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7458
+      description: 'Master/reference data (erp bank statement imports). Key columns: bank_account_id,
+        file_name, total_lines, imported_by_id, imported_at.'
+    - export_name: erpBankStatementLines
+      table_name: erp_bank_statement_lines
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 7468
+      description: 'Line items of erp bank statement. Key columns: import_id, transaction_date, description,
+        reference_no, debit_amount, credit_amount.'
+    - export_name: erpCostCenters
+      table_name: erp_cost_centers
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7158
+      description: 'Master/reference data (erp cost centers). Key columns: name, parent_cost_center_id,
+        is_group, department_id, project_id.'
+    - export_name: erpBudgets
+      table_name: erp_budgets
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 8218
+      description: 'Status-tracked record (erp budgets). Key columns: fiscal_year_id, cost_center_id,
+        name, action_if_exceeded, status, submitted_at.'
+    - export_name: erpBudgetLineItems
+      table_name: erp_budget_line_items
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 8233
+      description: 'Line items of erp budget line. Key columns: budget_id, account_id, annual_amount.'
+    - export_name: erpFiscalYears
+      table_name: erp_fiscal_years
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 5919
+      description: 'Master/reference data (erp fiscal years). Key columns: year_name, start_date, end_date,
+        is_closed.'
+    - export_name: erpCurrencies
+      table_name: erp_currencies
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 5929
+      description: 'Master/reference data (erp currencies). Key columns: code, name, symbol, is_base_currency.'
+    - export_name: erpExchangeRates
+      table_name: erp_exchange_rates
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 5939
+      description: 'Master/reference data (erp exchange rates). Key columns: from_currency_id, to_currency_id,
+        rate, rate_date, source.'
+    - export_name: erpFixedAssets
+      table_name: erp_fixed_assets
+      schema: complianceSchemaDB
+      column_count: 18
+      file: src/lib/db/schema.ts
+      line: 6230
+      description: 'Transactional document (erp fixed assets) -- status + amount tracked. Key columns:
+        asset_name, asset_category_id, department_id, custodian_user_id, location, purchase_date.'
+    - export_name: erpAssetCategories
+      table_name: erp_asset_categories
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 6218
+      description: 'Master/reference data (erp asset categories). Key columns: category_name, default_depreciation_method,
+        default_useful_life_months, asset_account_id, depreciation_expense_account_id, accumulated_depreciation_account_id.'
+    - export_name: erpAssetDisposals
+      table_name: erp_asset_disposals
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 6274
+      description: 'Transactional document (erp asset disposals) -- status + amount tracked. Key columns:
+        asset_id, disposal_date, disposal_type, sale_value, journal_entry_id, status.'
+    - export_name: erpAssetMovements
+      table_name: erp_asset_movements
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 6261
+      description: 'Master/reference data (erp asset movements). Key columns: asset_id, movement_date,
+        from_location, to_location, from_custodian_id, to_custodian_id.'
+    - export_name: erpDepreciationSchedules
+      table_name: erp_depreciation_schedules
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 6251
+      description: 'Master/reference data (erp depreciation schedules). Key columns: asset_id, schedule_date,
+        depreciation_amount, accumulated_depreciation_after, is_posted, journal_entry_id.'
+    - export_name: erpPeriodClosingChecklistItems
+      table_name: erp_period_closing_checklist_items
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 6972
+      description: 'Line items of erp period closing checklist. Key columns: period_id, title, task_type,
+        status, assigned_to_id, completed_by_id.'
+    - export_name: erpTaxTemplates
+      table_name: erp_tax_templates
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 5968
+      description: 'Master/reference data (erp tax templates). Key columns: name, is_sales_tax, is_purchase_tax.'
+    - export_name: erpTaxTemplateItems
+      table_name: erp_tax_template_items
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 5977
+      description: 'Line items of erp tax template. Key columns: tax_template_id, tax_account_id, rate,
+        description.'
+    - export_name: erpTaxWithholdingCategories
+      table_name: erp_tax_withholding_categories
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 7827
+      description: 'Master/reference data (erp tax withholding categories). Key columns: category_name,
+        tax_deduction_basis.'
+    - export_name: erpTaxWithholdingRates
+      table_name: erp_tax_withholding_rates
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7835
+      description: 'Master/reference data (erp tax withholding rates). Key columns: category_id, from_date,
+        to_date, rate, single_threshold, cumulative_threshold.'
+    - export_name: erpEInvoiceLogs
+      table_name: erp_e_invoice_logs
+      schema: complianceSchemaDB
+      column_count: 18
+      file: src/lib/db/schema.ts
+      line: 6133
+      description: 'Transactional document (erp e invoice logs) -- status + amount tracked. Key columns:
+        reference_type, reference_id, status, invoice_data, irn, ack_number.'
+    - export_name: erpStatutoryRules
+      table_name: erp_statutory_rules
+      schema: complianceSchemaDB
+      column_count: 13
+      file: src/lib/db/schema.ts
+      line: 7730
+      description: 'Master/reference data (erp statutory rules). Key columns: rule_type, state, effective_from,
+        effective_to, employee_rate, employer_rate.'
+    - export_name: challans
+      table_name: challans
+      schema: complianceSchemaDB
+      column_count: 13
+      file: src/lib/db/schema.ts
+      line: 315
+      description: 'Master/reference data (challans). Key columns: compliance_item_id, bsr_code, challan_serial_number,
+        payment_date, amount, bank_name.'
+    - export_name: gstAiReviewReports
+      table_name: gst_ai_review_reports
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 9737
+      description: 'Master/reference data (gst ai review reports). Key columns: return_period_id, report_text,
+        risk_flags, provider, model.'
+    - export_name: gstCanonicalInvoices
+      table_name: gst_canonical_invoices
+      schema: complianceSchemaDB
+      column_count: 21
+      file: src/lib/db/schema.ts
+      line: 9610
+      description: 'Master/reference data (gst canonical invoices). Key columns: client_id, batch_id,
+        direction, period, source_type, counterparty_gstin.'
+    - export_name: gstCanonicalInvoiceItems
+      table_name: gst_canonical_invoice_items
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 9634
+      description: 'Line items of gst canonical invoice. Key columns: invoice_id, hsn_sac_code, description,
+        quantity, rate, taxable_value.'
+    - export_name: gstGstinMaster
+      table_name: gst_gstin_master
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 9650
+      description: 'Master/reference data (gst gstin master). Key columns: gstin, checksum_valid, legal_name,
+        trade_name, state_code, lookup_status.'
+    - export_name: gstHsnMaster
+      table_name: gst_hsn_master
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 9665
+      description: 'Master/reference data (gst hsn master). Key columns: hsn_sac_code, description, default_gst_rate_percent,
+        is_service.'
+    - export_name: gstImportBatches
+      table_name: gst_import_batches
+      schema: complianceSchemaDB
+      column_count: 18
+      file: src/lib/db/schema.ts
+      line: 9561
+      description: 'Transactional document (gst import batches) -- status + amount tracked. Key columns:
+        client_id, source_type, direction, period, file_name, file_type.'
+    - export_name: gstImportStagingRows
+      table_name: gst_import_staging_rows
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 9600
+      description: 'Master/reference data (gst import staging rows). Key columns: batch_id, source_row,
+        raw_data, mapped_data, mapping_confidence.'
+    - export_name: gstReconciliationMatches
+      table_name: gst_reconciliation_matches
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 9706
+      description: 'Master/reference data (gst reconciliation matches). Key columns: run_id, purchase_invoice_id,
+        gstr2b_invoice_id, match_type, confidence_score, delta_amount.'
+    - export_name: gstReconciliationRuns
+      table_name: gst_reconciliation_runs
+      schema: complianceSchemaDB
+      column_count: 16
+      file: src/lib/db/schema.ts
+      line: 9687
+      description: 'Transactional document (gst reconciliation runs) -- status + amount tracked. Key columns:
+        client_id, period, purchase_batch_id, gstr2b_batch_id, status, total_purchase_rows.'
+    - export_name: gstReturnPeriods
+      table_name: gst_return_periods
+      schema: complianceSchemaDB
+      column_count: 13
+      file: src/lib/db/schema.ts
+      line: 9718
+      description: 'Transactional document (gst return periods) -- status + amount tracked. Key columns:
+        client_id, period, gstin, return_type, status, generated_json.'
+    - export_name: gstSourceProfiles
+      table_name: gst_source_profiles
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 9586
+      description: 'Master/reference data (gst source profiles). Key columns: client_id, source_type,
+        name, column_mapping.'
+    - export_name: gstValidationFindings
+      table_name: gst_validation_findings
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 9674
+      description: 'Master/reference data (gst validation findings). Key columns: batch_id, invoice_id,
+        rule_code, severity, message, suggested_fix.'
+  HR:
+    table_count: 43
+    tables:
+    - export_name: employeeProfiles
+      table_name: employee_profiles
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 5068
+      description: 'Master/reference data (employee profiles). Key columns: user_id, employee_code, job_title,
+        employment_type, date_of_joining, date_of_birth.'
+    - export_name: hrAttendanceRecords
+      table_name: hr_attendance_records
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 5297
+      description: 'Status-tracked record (hr attendance records). Key columns: user_id, date, status,
+        check_in_at, check_out_at, hours_worked.'
+    - export_name: hrComplianceItems
+      table_name: hr_compliance_items
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 3157
+      description: 'Line items of hr compliance. Key columns: item, governing_law, state, due_date, status,
+        client_id.'
+    - export_name: hrHolidays
+      table_name: hr_holidays
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 5391
+      description: 'Master/reference data (hr holidays). Key columns: date, name.'
+    - export_name: holidayListFilings
+      table_name: holiday_list_filings
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 3180
+      description: 'Status-tracked record (holiday list filings). Key columns: state, year, status, client_id.'
+    - export_name: leaveBalances
+      table_name: leave_balances
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 5122
+      description: 'Master/reference data (leave balances). Key columns: user_id, leave_type, year, total_days,
+        used_days.'
+    - export_name: leavePolicyEntries
+      table_name: leave_policy_entries
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 3170
+      description: 'Master/reference data (leave policy entries). Key columns: leave_type, governing_law,
+        entitlement, client_id.'
+    - export_name: leaveRequests
+      table_name: leave_requests
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 5098
+      description: 'Status-tracked record (leave requests). Key columns: user_id, leave_type, start_date,
+        end_date, num_days, reason.'
+    - export_name: candidates
+      table_name: candidates
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 8007
+      description: 'Master/reference data (candidates). Key columns: name, email, phone, source.'
+    - export_name: jobApplications
+      table_name: job_applications
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 8017
+      description: 'Master/reference data (job applications). Key columns: job_opening_id, candidate_id,
+        stage, rejected_reason, offer_amount, offer_accepted_at.'
+    - export_name: jobOpenings
+      table_name: job_openings
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 7993
+      description: 'Status-tracked record (job openings). Key columns: title, department_id, job_description,
+        employment_type, num_positions, status.'
+    - export_name: interviewFeedback
+      table_name: interview_feedback
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 8031
+      description: 'Master/reference data (interview feedback). Key columns: application_id, interviewer_id,
+        round_name, scheduled_at, rating, recommendation.'
+    - export_name: performanceReviews
+      table_name: performance_reviews
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 8056
+      description: 'Status-tracked record (performance reviews). Key columns: cycle_id, employee_profile_id,
+        reviewer_id, self_rating, manager_rating, strengths.'
+    - export_name: performanceReviewCycles
+      table_name: performance_review_cycles
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 8045
+      description: 'Status-tracked record (performance review cycles). Key columns: name, start_date,
+        end_date, status.'
+    - export_name: onboardingSteps
+      table_name: onboarding_steps
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 1012
+      description: 'Master/reference data (onboarding steps). Key columns: user_id, step, completed, completed_at.'
+    - export_name: departments
+      table_name: departments
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 194
+      description: 'Master/reference data (departments). Key columns: name, description, head_id.'
+    - export_name: erpPayrollRuns
+      table_name: erp_payroll_runs
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7746
+      description: 'Status-tracked record (erp payroll runs). Key columns: month, year, status, processed_at.'
+    - export_name: erpPayslips
+      table_name: erp_payslips
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 7757
+      description: 'Transactional document (erp payslips) -- status + amount tracked. Key columns: payroll_run_id,
+        employee_id, gross_earnings, total_deductions, net_pay, status.'
+    - export_name: erpPayslipLines
+      table_name: erp_payslip_lines
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 7769
+      description: 'Line items of erp payslip. Key columns: payslip_id, component_id, label, line_type,
+        amount.'
+    - export_name: erpSalaryComponents
+      table_name: erp_salary_components
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 7690
+      description: 'Master/reference data (erp salary components). Key columns: name, component_type,
+        calculation_type, default_percentage, default_amount, is_statutory.'
+    - export_name: erpSalaryStructures
+      table_name: erp_salary_structures
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 7705
+      description: 'Master/reference data (erp salary structures). Key columns: employee_id, effective_from,
+        ctc_annual, state.'
+    - export_name: erpSalaryStructureComponents
+      table_name: erp_salary_structure_components
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 7718
+      description: 'Master/reference data (erp salary structure components). Key columns: structure_id,
+        component_id, amount, percentage.'
+    - export_name: erpIncomeTaxSlabs
+      table_name: erp_income_tax_slabs
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7788
+      description: 'Master/reference data (erp income tax slabs). Key columns: name, effective_from, standard_deduction,
+        is_active.'
+    - export_name: erpIncomeTaxSlabRates
+      table_name: erp_income_tax_slab_rates
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 7798
+      description: 'Master/reference data (erp income tax slab rates). Key columns: slab_id, from_amount,
+        to_amount, percent_deduction.'
+    - export_name: erpEmployeeTaxExemptions
+      table_name: erp_employee_tax_exemptions
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 7811
+      description: 'Master/reference data (erp employee tax exemptions). Key columns: employee_id, financial_year,
+        category, amount.'
+    - export_name: trainingCourses
+      table_name: training_courses
+      schema: complianceSchemaDB
+      column_count: 13
+      file: src/lib/db/schema.ts
+      line: 10989
+      description: 'Status-tracked record (training courses). Key columns: title, description, category,
+        created_by, status, passing_score_percent.'
+    - export_name: trainingModules
+      table_name: training_modules
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 11019
+      description: 'Master/reference data (training modules). Key columns: course_id, title, description,
+        sort_order.'
+    - export_name: trainingLessons
+      table_name: training_lessons
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 11030
+      description: 'Master/reference data (training lessons). Key columns: module_id, course_id, title,
+        content_type, content, video_url.'
+    - export_name: trainingEnrollments
+      table_name: training_enrollments
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 11077
+      description: 'Status-tracked record (training enrollments). Key columns: employee_id, course_id,
+        training_path_id, status, enrolled_at, started_at.'
+    - export_name: trainingCompletions
+      table_name: training_completions
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 11109
+      description: 'Master/reference data (training completions). Key columns: enrollment_id, completed_at,
+        score, passed, best_attempt_id.'
+    - export_name: trainingAssessments
+      table_name: training_assessments
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 11045
+      description: 'Master/reference data (training assessments). Key columns: course_id, module_id, title,
+        description, passing_score_percent, max_attempts.'
+    - export_name: trainingAssessmentAttempts
+      table_name: training_assessment_attempts
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 11092
+      description: 'Master/reference data (training assessment attempts). Key columns: assessment_id,
+        enrollment_id, employee_id, attempt_number, submitted_answers, score.'
+    - export_name: trainingQuestions
+      table_name: training_questions
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 11059
+      description: 'Master/reference data (training questions). Key columns: assessment_id, question_text,
+        question_type, options, correct_answer, points.'
+    - export_name: trainingPaths
+      table_name: training_paths
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 11120
+      description: 'Master/reference data (training paths). Key columns: name, description, target_department_id,
+        target_role, is_active, created_by.'
+    - export_name: trainingPathCourses
+      table_name: training_path_courses
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 11133
+      description: 'Master/reference data (training path courses). Key columns: training_path_id, course_id,
+        sort_order, is_required.'
+    - export_name: trainingPathAssignments
+      table_name: training_path_assignments
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 11143
+      description: 'Master/reference data (training path assignments). Key columns: training_path_id,
+        employee_id, assigned_via, assigned_via_department_id, assigned_via_role, assigned_by.'
+    - export_name: hrEmployeeLoans
+      table_name: hr_employee_loans
+      schema: complianceSchemaDB
+      column_count: 17
+      file: src/lib/db/schema.ts
+      line: 5211
+      description: 'Transactional document (hr employee loans) -- status + amount tracked. Key columns:
+        employee_id, loan_type, principal_amount, reason, num_installments, installment_amount.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: hrExpenseClaims
+      table_name: hr_expense_claims
+      schema: complianceSchemaDB
+      column_count: 17
+      file: src/lib/db/schema.ts
+      line: 5164
+      description: 'Transactional document (hr expense claims) -- status + amount tracked. Key columns:
+        user_id, category, amount, expense_date, description, receipt_url.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: hrLoanInstallments
+      table_name: hr_loan_installments
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 5237
+      description: 'Transactional document (hr loan installments) -- status + amount tracked. Key columns:
+        loan_id, installment_number, due_month, due_year, amount, status.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: hrShiftTypes
+      table_name: hr_shift_types
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 5355
+      description: 'Master/reference data (hr shift types). Key columns: name, start_time, end_time.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: hrShiftRosterAssignments
+      table_name: hr_shift_roster_assignments
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 5364
+      description: 'Master/reference data (hr shift roster assignments). Key columns: user_id, shift_type_id,
+        start_date, end_date.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: performanceReviewGoals
+      table_name: performance_review_goals
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 8105
+      description: 'Status-tracked record (performance review goals). Key columns: review_id, title, weight_percent,
+        rating, comments, status.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: performanceReviewRaters
+      table_name: performance_review_raters
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 8118
+      description: 'Transactional document (performance review raters) -- status + amount tracked. Key
+        columns: review_id, rater_id, rater_role, rating, feedback, status.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+  Project Management:
+    table_count: 27
+    tables:
+    - export_name: projects
+      table_name: projects
+      schema: complianceSchemaDB
+      column_count: 16
+      file: src/lib/db/schema.ts
+      line: 3905
+      description: 'Master/reference data (projects). Key columns: product_id, client_id, name, description,
+        is_active, issue_prefix.'
+    - export_name: pmsIssues
+      table_name: pms_issues
+      schema: complianceSchemaDB
+      column_count: 23
+      file: src/lib/db/schema.ts
+      line: 4036
+      description: 'Master/reference data (pms issues). Key columns: client_id, project_id, type_id, status_id,
+        priority, number.'
+    - export_name: pmsIssueAssignees
+      table_name: pms_issue_assignees
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 4070
+      description: 'Master/reference data (pms issue assignees). Key columns: issue_id, user_id.'
+    - export_name: pmsIssueLabels
+      table_name: pms_issue_labels
+      schema: complianceSchemaDB
+      column_count: 3
+      file: src/lib/db/schema.ts
+      line: 4102
+      description: 'Master/reference data (pms issue labels). Key columns: issue_id, label_id.'
+    - export_name: pmsIssueRelations
+      table_name: pms_issue_relations
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 4079
+      description: 'Master/reference data (pms issue relations). Key columns: issue_id, related_issue_id,
+        relation_type, lag_days.'
+    - export_name: pmsIssueStatuses
+      table_name: pms_issue_statuses
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 4003
+      description: 'Master/reference data (pms issue statuses). Key columns: project_id, name, group,
+        color, position, is_default.'
+    - export_name: pmsIssueTypes
+      table_name: pms_issue_types
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 3988
+      description: 'Master/reference data (pms issue types). Key columns: name, icon, color, is_epic,
+        is_default.'
+    - export_name: pmsLabels
+      table_name: pms_labels
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 4093
+      description: 'Master/reference data (pms labels). Key columns: project_id, name, color.'
+    - export_name: pmsMilestones
+      table_name: pms_milestones
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 4127
+      description: 'Status-tracked record (pms milestones). Key columns: project_id, name, description,
+        status, target_date.'
+    - export_name: pmsSprints
+      table_name: pms_sprints
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 4142
+      description: 'Status-tracked record (pms sprints). Key columns: project_id, name, goal, start_date,
+        end_date, status.'
+    - export_name: pmsSprintIssues
+      table_name: pms_sprint_issues
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 4156
+      description: 'Master/reference data (pms sprint issues). Key columns: sprint_id, issue_id.'
+    - export_name: pmsEstimatePoints
+      table_name: pms_estimate_points
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 4118
+      description: 'Master/reference data (pms estimate points). Key columns: scheme_id, value, position.'
+    - export_name: pmsEstimateSchemes
+      table_name: pms_estimate_schemes
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 4110
+      description: 'Master/reference data (pms estimate schemes). Key columns: project_id, name.'
+    - export_name: pmsResourceAllocations
+      table_name: pms_resource_allocations
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 4445
+      description: 'Master/reference data (pms resource allocations). Key columns: project_id, user_id,
+        issue_id, allocated_hours_per_day, start_date, end_date.'
+    - export_name: pmsTimeEntries
+      table_name: pms_time_entries
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 4205
+      description: 'Master/reference data (pms time entries). Key columns: issue_id, user_id, hours, spent_on,
+        activity_type, comments.'
+    - export_name: pmsBudgets
+      table_name: pms_budgets
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 4241
+      description: 'Master/reference data (pms budgets). Key columns: project_id, name, fixed_date, author_id.'
+    - export_name: pmsBudgetLineItems
+      table_name: pms_budget_line_items
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 4251
+      description: 'Line items of pms budget line. Key columns: budget_id, kind, user_id, description,
+        amount, hours.'
+    - export_name: pmsBillableRates
+      table_name: pms_billable_rates
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 4229
+      description: 'Master/reference data (pms billable rates). Key columns: user_id, hourly_rate, valid_from.'
+    - export_name: pmsMeetings
+      table_name: pms_meetings
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 4264
+      description: 'Master/reference data (pms meetings). Key columns: project_id, title, scheduled_at,
+        duration_minutes, recurrence_rule.'
+    - export_name: pmsMeetingAgendaItems
+      table_name: pms_meeting_agenda_items
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 4275
+      description: 'Line items of pms meeting agenda. Key columns: meeting_id, position, title, issue_id,
+        duration_minutes.'
+    - export_name: pmsMeetingOutcomes
+      table_name: pms_meeting_outcomes
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 4284
+      description: 'Master/reference data (pms meeting outcomes). Key columns: meeting_id, notes.'
+    - export_name: pmsMeetingParticipants
+      table_name: pms_meeting_participants
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 4291
+      description: 'Master/reference data (pms meeting participants). Key columns: meeting_id, user_id,
+        response_status.'
+    - export_name: pmsWikiPages
+      table_name: pms_wiki_pages
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 4187
+      description: 'Master/reference data (pms wiki pages). Key columns: project_id, parent_page_id, slug,
+        title, content, version.'
+    - export_name: pmsSavedViews
+      table_name: pms_saved_views
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 4168
+      description: 'Master/reference data (pms saved views). Key columns: project_id, owned_by_id, name,
+        filters, display_filters, access.'
+    - export_name: pmsScheduleBaselines
+      table_name: pms_schedule_baselines
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 4423
+      description: 'Master/reference data (pms schedule baselines). Key columns: project_id, name, captured_by_id.'
+    - export_name: pmsBaselineIssueSnapshots
+      table_name: pms_baseline_issue_snapshots
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 4432
+      description: 'Master/reference data (pms baseline issue snapshots). Key columns: baseline_id, issue_id,
+        baseline_start_date, baseline_due_date.'
+    - export_name: pmsWorkflowTransitions
+      table_name: pms_workflow_transitions
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 4026
+      description: 'Master/reference data (pms workflow transitions). Key columns: issue_type_id, role,
+        from_status_id, to_status_id.'
+  Helpdesk:
+    table_count: 13
+    tables:
+    - export_name: tickets
+      table_name: tickets
+      schema: complianceSchemaDB
+      column_count: 16
+      file: src/lib/db/schema.ts
+      line: 5410
+      description: 'Status-tracked record (tickets). Key columns: client_id, conversation_id, subject,
+        category, priority, status.'
+    - export_name: ticketIntelligenceItems
+      table_name: ticket_intelligence_items
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 5595
+      description: 'Line items of ticket intelligence. Key columns: ticket_id, requested_by_id, status,
+        ai_summary, ai_suggested_work_items, ai_generated_at.'
+    - export_name: ticketIntelligenceActionItems
+      table_name: ticket_intelligence_action_items
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 5613
+      description: 'Line items of ticket intelligence action. Key columns: ticket_intelligence_item_id,
+        suggested_index, task_id.'
+    - export_name: ticketSatisfactionSurveys
+      table_name: ticket_satisfaction_surveys
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 5532
+      description: 'Master/reference data (ticket satisfaction surveys). Key columns: ticket_id, csat_score,
+        nps_score, comment.'
+    - export_name: problemRecords
+      table_name: problem_records
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 5560
+      description: 'Status-tracked record (problem records). Key columns: title, root_cause, status, resolved_at.'
+    - export_name: problemTickets
+      table_name: problem_tickets
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 5572
+      description: 'Master/reference data (problem tickets). Key columns: problem_id, ticket_id, linked_at.'
+    - export_name: fieldServiceDispatches
+      table_name: field_service_dispatches
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 5543
+      description: 'Status-tracked record (field service dispatches). Key columns: ticket_id, technician_user_id,
+        scheduled_at, status, address_text, completed_at.'
+    - export_name: ticketTeams
+      table_name: ticket_teams
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 5451
+      description: 'Master/reference data (ticket teams). Key columns: name, description, lead_user_id,
+        is_default.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: businessHoursSchedules
+      table_name: business_hours_schedules
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 5462
+      description: 'Master/reference data (business hours schedules). Key columns: name, timezone, weekly_hours.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: slaPolicies
+      table_name: sla_policies
+      schema: complianceSchemaDB
+      column_count: 13
+      file: src/lib/db/schema.ts
+      line: 5473
+      description: 'Master/reference data (sla policies). Key columns: name, team_id, priority, category,
+        first_response_hours, resolution_hours.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: escalationRules
+      table_name: escalation_rules
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 5489
+      description: 'Master/reference data (escalation rules). Key columns: sla_policy_id, threshold_percent,
+        escalate_to_team_id, escalate_to_user_id, notify_user_ids, step_order.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: ticketEscalationEvents
+      table_name: ticket_escalation_events
+      schema: complianceSchemaDB
+      column_count: 4
+      file: src/lib/db/schema.ts
+      line: 5503
+      description: 'Change/event log (ticket escalation events). Key columns: ticket_id, escalation_rule_id,
+        fired_at.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: publicTicketSubmissionAttempts
+      table_name: public_ticket_submission_attempts
+      schema: complianceSchemaDB
+      column_count: 5
+      file: src/lib/db/schema.ts
+      line: 834
+      description: 'Master/reference data (public ticket submission attempts). Key columns: ip_address,
+        was_successful.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+  Construction / BoQ:
+    table_count: 18
+    tables:
+    - export_name: constructionActivities
+      table_name: construction_activities
+      schema: complianceSchemaDB
+      column_count: 8
+      file: src/lib/db/schema.ts
+      line: 9856
+      description: 'Master/reference data (construction activities). Key columns: project_id, category_id,
+        name, unit, planned_quantity.'
+    - export_name: constructionAttendance
+      table_name: construction_attendance
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 9989
+      description: 'Status-tracked record (construction attendance). Key columns: project_id, roster_id,
+        attendance_date, status, hours_worked, daily_cost.'
+    - export_name: constructionBoqs
+      table_name: construction_boqs
+      schema: complianceSchemaDB
+      column_count: 12
+      file: src/lib/db/schema.ts
+      line: 9794
+      description: 'Status-tracked record (construction boqs). Key columns: project_id, version, parent_boq_id,
+        title, status, approved_by_id.'
+    - export_name: constructionBoqLineItems
+      table_name: construction_boq_line_items
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 9809
+      description: 'Line items of construction boq line. Key columns: boq_id, activity_id, item_code,
+        description, unit, quantity.'
+    - export_name: constructionCategories
+      table_name: construction_categories
+      schema: complianceSchemaDB
+      column_count: 6
+      file: src/lib/db/schema.ts
+      line: 9847
+      description: 'Master/reference data (construction categories). Key columns: project_id, name, parent_category_id.'
+    - export_name: constructionChangeOrders
+      table_name: construction_change_orders
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 10150
+      description: 'Status-tracked record (construction change orders). Key columns: project_id, number,
+        title, description, reason, cost_impact.'
+    - export_name: constructionExpenseEntries
+      table_name: construction_expense_entries
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 10062
+      description: 'Master/reference data (construction expense entries). Key columns: project_id, expense_head,
+        description, amount, expense_date, linked_entity_type.'
+    - export_name: constructionKpiDefinitions
+      table_name: construction_kpi_definitions
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 10020
+      description: 'Master/reference data (construction kpi definitions). Key columns: project_id, metric_name,
+        target_value, unit, period, owner_id.'
+    - export_name: constructionKpiEntries
+      table_name: construction_kpi_entries
+      schema: complianceSchemaDB
+      column_count: 9
+      file: src/lib/db/schema.ts
+      line: 10032
+      description: 'Master/reference data (construction kpi entries). Key columns: kpi_definition_id,
+        period, actual_value, filled_by_id, approval_status, approved_by_id.'
+    - export_name: constructionLabourRoster
+      table_name: construction_labour_roster
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 9976
+      description: 'Master/reference data (construction labour roster). Key columns: project_id, name,
+        trade, skill_level, vendor_id, daily_rate.'
+    - export_name: constructionPunchListItems
+      table_name: construction_punch_list_items
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 10130
+      description: 'Line items of construction punch list. Key columns: project_id, number, description,
+        location, trade, priority.'
+    - export_name: constructionRfis
+      table_name: construction_rfis
+      schema: complianceSchemaDB
+      column_count: 15
+      file: src/lib/db/schema.ts
+      line: 10089
+      description: 'Status-tracked record (construction rfis). Key columns: project_id, number, subject,
+        question, status, ball_in_court.'
+    - export_name: constructionSiteDiaries
+      table_name: construction_site_diaries
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 9921
+      description: 'Master/reference data (construction site diaries). Key columns: project_id, diary_date,
+        weather, work_done, visitors, issues.'
+    - export_name: constructionSubmittals
+      table_name: construction_submittals
+      schema: complianceSchemaDB
+      column_count: 14
+      file: src/lib/db/schema.ts
+      line: 10110
+      description: 'Status-tracked record (construction submittals). Key columns: project_id, number,
+        title, spec_section, type, status.'
+    - export_name: constructionWorkProgressEntries
+      table_name: construction_work_progress_entries
+      schema: complianceSchemaDB
+      column_count: 10
+      file: src/lib/db/schema.ts
+      line: 9870
+      description: 'Master/reference data (construction work progress entries). Key columns: project_id,
+        activity_id, entry_date, quantity_done, percent_complete, remarks.'
+    - export_name: costPayments
+      table_name: cost_payments
+      schema: complianceSchemaDB
+      column_count: 11
+      file: src/lib/db/schema.ts
+      line: 535
+      description: 'Master/reference data (cost payments). Key columns: compliance_cost_id, amount, payment_date,
+        payment_method, reference_number, receipt_document_id.'
+    - export_name: constructionInterimBills
+      table_name: construction_interim_bills
+      schema: complianceSchemaDB
+      column_count: 13
+      file: src/lib/db/schema.ts
+      line: 9891
+      description: 'Master/reference data (construction interim bills). Key columns: project_id, boq_id,
+        bill_number, bill_date, retention_percent, gross_amount.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+    - export_name: constructionInterimBillLineItems
+      table_name: construction_interim_bill_line_items
+      schema: complianceSchemaDB
+      column_count: 7
+      file: src/lib/db/schema.ts
+      line: 9907
+      description: 'Line items of construction interim bill line. Key columns: interim_bill_id, boq_line_item_id,
+        cumulative_percent_complete, cumulative_amount, previous_billed_amount, current_bill_amount.'
+      note: added to schema.ts after the ai-os/DATABASE_CATALOG.json 2026-07-26 snapshot -- not in that
+        catalog, confirmed live via direct grep of current schema.ts
+api_routes_by_domain:
+  CRM:
+    route_file_count: 26
+    directories:
+    - dir: src/app/api/crm/
+      count: 26
+      examples:
+      - src/app/api/crm/accounts/[id]/contacts/route.ts
+      - src/app/api/crm/accounts/[id]/link-opportunity/route.ts
+      - src/app/api/crm/accounts/[id]/route.ts
+  Sales:
+    route_file_count: 45
+    directories:
+    - dir: src/app/api/sales-hq/
+      count: 9
+      examples:
+      - src/app/api/sales-hq/commission-accruals/[id]/mark-paid/route.ts
+      - src/app/api/sales-hq/commission-accruals/[id]/void/route.ts
+      - src/app/api/sales-hq/commission-plans/route.ts
+    - dir: src/app/api/erp/selling/
+      count: 2
+      examples:
+      - src/app/api/erp/selling/customers/[id]/route.ts
+      - src/app/api/erp/selling/customers/route.ts
+    - dir: src/app/api/erp/quotations/
+      count: 2
+      examples:
+      - src/app/api/erp/quotations/[id]/negotiation-rounds/route.ts
+      - src/app/api/erp/quotations/[id]/scores/route.ts
+    - dir: src/app/api/erp/sales-invoices/
+      count: 3
+      examples:
+      - src/app/api/erp/sales-invoices/[id]/e-invoice/route.ts
+      - src/app/api/erp/sales-invoices/[id]/submit/route.ts
+      - src/app/api/erp/sales-invoices/route.ts
+    - dir: src/app/api/erp/sales-credit-notes/
+      count: 2
+      examples:
+      - src/app/api/erp/sales-credit-notes/[id]/submit/route.ts
+      - src/app/api/erp/sales-credit-notes/route.ts
+    - dir: src/app/api/erp/pricing-rules/
+      count: 1
+      examples:
+      - src/app/api/erp/pricing-rules/route.ts
+    - dir: src/app/api/erp/returns/sales/
+      count: 5
+      examples:
+      - src/app/api/erp/returns/sales/[id]/approve/route.ts
+      - src/app/api/erp/returns/sales/[id]/credit-note/route.ts
+      - src/app/api/erp/returns/sales/[id]/receive/route.ts
+    - dir: src/app/api/v1/projexa/quotations/
+      count: 5
+      examples:
+      - src/app/api/v1/projexa/quotations/[id]/convert/route.ts
+      - src/app/api/v1/projexa/quotations/[id]/pdf/route.ts
+      - src/app/api/v1/projexa/quotations/[id]/revisions/route.ts
+    - dir: src/app/api/v1/projexa/sales-orders/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/sales-orders/[id]/route.ts
+      - src/app/api/v1/projexa/sales-orders/bulk-status/route.ts
+      - src/app/api/v1/projexa/sales-orders/route.ts
+    - dir: src/app/api/v1/projexa/sales-invoices/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/sales-invoices/[id]/cancel/route.ts
+      - src/app/api/v1/projexa/sales-invoices/[id]/payments/route.ts
+      - src/app/api/v1/projexa/sales-invoices/route.ts
+    - dir: src/app/api/v1/projexa/sales-pipeline/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/sales-pipeline/route.ts
+    - dir: src/app/api/v1/projexa/credit-notes/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/credit-notes/route.ts
+    - dir: src/app/api/v1/projexa/leads/
+      count: 4
+      examples:
+      - src/app/api/v1/projexa/leads/[id]/history/route.ts
+      - src/app/api/v1/projexa/leads/[id]/route.ts
+      - src/app/api/v1/projexa/leads/bulk-reassign/route.ts
+    - dir: src/app/api/v1/projexa/opportunities/
+      count: 4
+      examples:
+      - src/app/api/v1/projexa/opportunities/[id]/history/route.ts
+      - src/app/api/v1/projexa/opportunities/[id]/route.ts
+      - src/app/api/v1/projexa/opportunities/bulk-reassign/route.ts
+  Purchase:
+    route_file_count: 54
+    directories:
+    - dir: src/app/api/erp/buying/
+      count: 20
+      examples:
+      - src/app/api/erp/buying/goods-receipts/[id]/landed-costs/route.ts
+      - src/app/api/erp/buying/goods-receipts/[id]/putaway/route.ts
+      - src/app/api/erp/buying/goods-receipts/[id]/route.ts
+    - dir: src/app/api/erp/procurement/
+      count: 6
+      examples:
+      - src/app/api/erp/procurement/quotations/route.ts
+      - src/app/api/erp/procurement/requisitions/[id]/submit/route.ts
+      - src/app/api/erp/procurement/requisitions/route.ts
+    - dir: src/app/api/erp/rfqs/
+      count: 2
+      examples:
+      - src/app/api/erp/rfqs/[id]/auctions/route.ts
+      - src/app/api/erp/rfqs/[id]/scoring-criteria/route.ts
+    - dir: src/app/api/erp/purchase-invoices/
+      count: 2
+      examples:
+      - src/app/api/erp/purchase-invoices/[id]/submit/route.ts
+      - src/app/api/erp/purchase-invoices/route.ts
+    - dir: src/app/api/erp/purchase-credit-notes/
+      count: 2
+      examples:
+      - src/app/api/erp/purchase-credit-notes/[id]/submit/route.ts
+      - src/app/api/erp/purchase-credit-notes/route.ts
+    - dir: src/app/api/erp/auctions/
+      count: 2
+      examples:
+      - src/app/api/erp/auctions/[id]/bids/route.ts
+      - src/app/api/erp/auctions/[id]/close/route.ts
+    - dir: src/app/api/v1/erp/procurement/requisitions/
+      count: 1
+      examples:
+      - src/app/api/v1/erp/procurement/requisitions/route.ts
+    - dir: src/app/api/v1/projexa/procurement/
+      count: 11
+      examples:
+      - src/app/api/v1/projexa/procurement/goods-receipts/[id]/submit/route.ts
+      - src/app/api/v1/projexa/procurement/goods-receipts/route.ts
+      - src/app/api/v1/projexa/procurement/purchase-orders/[id]/submit/route.ts
+    - dir: src/app/api/v1/projexa/purchase-orders/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/purchase-orders/route.ts
+    - dir: src/app/api/v1/projexa/vendors/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/vendors/route.ts
+    - dir: src/app/api/v1/projexa/vendor-risk/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/vendor-risk/route.ts
+    - dir: src/app/api/erp/returns/purchase/
+      count: 5
+      examples:
+      - src/app/api/erp/returns/purchase/[id]/approve/route.ts
+      - src/app/api/erp/returns/purchase/[id]/credit-note/route.ts
+      - src/app/api/erp/returns/purchase/[id]/dispatch/route.ts
+  Inventory:
+    route_file_count: 25
+    directories:
+    - dir: src/app/api/erp/inventory/
+      count: 11
+      examples:
+      - src/app/api/erp/inventory/abc-classification/route.ts
+      - src/app/api/erp/inventory/cycle-count-lines/[id]/adjust/route.ts
+      - src/app/api/erp/inventory/cycle-count-lines/[id]/count/route.ts
+    - dir: src/app/api/erp/stock/
+      count: 6
+      examples:
+      - src/app/api/erp/stock/batches/route.ts
+      - src/app/api/erp/stock/items/route.ts
+      - src/app/api/erp/stock/serials/[id]/status/route.ts
+    - dir: src/app/api/v1/erp/inventory/
+      count: 3
+      examples:
+      - src/app/api/v1/erp/inventory/issues/route.ts
+      - src/app/api/v1/erp/inventory/ledger/route.ts
+      - src/app/api/v1/erp/inventory/receipts/route.ts
+    - dir: src/app/api/v1/projexa/inventory/
+      count: 4
+      examples:
+      - src/app/api/v1/projexa/inventory/items/route.ts
+      - src/app/api/v1/projexa/inventory/stock-balance/route.ts
+      - src/app/api/v1/projexa/inventory/stock-entries/route.ts
+    - dir: src/app/api/v1/projexa/materials/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/materials/route.ts
+  Accounting / GST:
+    route_file_count: 91
+    directories:
+    - dir: src/app/api/erp/accounts/
+      count: 1
+      examples:
+      - src/app/api/erp/accounts/route.ts
+    - dir: src/app/api/erp/bank-accounts/
+      count: 1
+      examples:
+      - src/app/api/erp/bank-accounts/route.ts
+    - dir: src/app/api/erp/bank-reconciliation/
+      count: 6
+      examples:
+      - src/app/api/erp/bank-reconciliation/[id]/lines/route.ts
+      - src/app/api/erp/bank-reconciliation/import/route.ts
+      - src/app/api/erp/bank-reconciliation/lines/[id]/ignore/route.ts
+    - dir: src/app/api/erp/budgets/
+      count: 5
+      examples:
+      - src/app/api/erp/budgets/[id]/cancel/route.ts
+      - src/app/api/erp/budgets/[id]/route.ts
+      - src/app/api/erp/budgets/[id]/submit/route.ts
+    - dir: src/app/api/erp/cash-accounts/
+      count: 1
+      examples:
+      - src/app/api/erp/cash-accounts/route.ts
+    - dir: src/app/api/erp/cash-vouchers/
+      count: 1
+      examples:
+      - src/app/api/erp/cash-vouchers/route.ts
+    - dir: src/app/api/erp/companies/
+      count: 2
+      examples:
+      - src/app/api/erp/companies/[id]/route.ts
+      - src/app/api/erp/companies/route.ts
+    - dir: src/app/api/erp/cost-centers/
+      count: 1
+      examples:
+      - src/app/api/erp/cost-centers/route.ts
+    - dir: src/app/api/erp/currencies/
+      count: 1
+      examples:
+      - src/app/api/erp/currencies/route.ts
+    - dir: src/app/api/erp/e-invoice-logs/
+      count: 2
+      examples:
+      - src/app/api/erp/e-invoice-logs/[id]/cancel/route.ts
+      - src/app/api/erp/e-invoice-logs/[id]/generate/route.ts
+    - dir: src/app/api/erp/exchange-rates/
+      count: 3
+      examples:
+      - src/app/api/erp/exchange-rates/latest/route.ts
+      - src/app/api/erp/exchange-rates/refresh/route.ts
+      - src/app/api/erp/exchange-rates/route.ts
+    - dir: src/app/api/erp/fiscal-years/
+      count: 1
+      examples:
+      - src/app/api/erp/fiscal-years/route.ts
+    - dir: src/app/api/erp/fixed-assets/
+      count: 9
+      examples:
+      - src/app/api/erp/fixed-assets/[id]/disposals/route.ts
+      - src/app/api/erp/fixed-assets/[id]/movements/route.ts
+      - src/app/api/erp/fixed-assets/[id]/route.ts
+    - dir: src/app/api/erp/journal-entries/
+      count: 3
+      examples:
+      - src/app/api/erp/journal-entries/[id]/route.ts
+      - src/app/api/erp/journal-entries/[id]/submit/route.ts
+      - src/app/api/erp/journal-entries/route.ts
+    - dir: src/app/api/erp/payment-entries/
+      count: 7
+      examples:
+      - src/app/api/erp/payment-entries/[id]/audit-log/route.ts
+      - src/app/api/erp/payment-entries/[id]/cancel/route.ts
+      - src/app/api/erp/payment-entries/[id]/decide/route.ts
+    - dir: src/app/api/erp/periods/
+      count: 7
+      examples:
+      - src/app/api/erp/periods/[id]/checklist/route.ts
+      - src/app/api/erp/periods/[id]/close/route.ts
+      - src/app/api/erp/periods/[id]/reopen/route.ts
+    - dir: src/app/api/erp/reports/
+      count: 4
+      examples:
+      - src/app/api/erp/reports/balance-sheet/route.ts
+      - src/app/api/erp/reports/cash-flow/route.ts
+      - src/app/api/erp/reports/profit-and-loss/route.ts
+    - dir: src/app/api/erp/subscription-plans/
+      count: 1
+      examples:
+      - src/app/api/erp/subscription-plans/route.ts
+    - dir: src/app/api/erp/subscriptions/
+      count: 2
+      examples:
+      - src/app/api/erp/subscriptions/[id]/route.ts
+      - src/app/api/erp/subscriptions/route.ts
+    - dir: src/app/api/erp/tax-templates/
+      count: 1
+      examples:
+      - src/app/api/erp/tax-templates/route.ts
+    - dir: src/app/api/erp/tax-withholding-categories/
+      count: 1
+      examples:
+      - src/app/api/erp/tax-withholding-categories/route.ts
+    - dir: src/app/api/gst-reconciliation/
+      count: 10
+      examples:
+      - src/app/api/gst-reconciliation/import/[batchId]/confirm/route.ts
+      - src/app/api/gst-reconciliation/import/[batchId]/findings/route.ts
+      - src/app/api/gst-reconciliation/import/[batchId]/mapping/route.ts
+    - dir: src/app/api/tds-returns/
+      count: 2
+      examples:
+      - src/app/api/tds-returns/24q/route.ts
+      - src/app/api/tds-returns/26q/route.ts
+    - dir: src/app/api/challans/
+      count: 2
+      examples:
+      - src/app/api/challans/[id]/route.ts
+      - src/app/api/challans/route.ts
+    - dir: src/app/api/v1/erp/budgets/
+      count: 2
+      examples:
+      - src/app/api/v1/erp/budgets/[id]/route.ts
+      - src/app/api/v1/erp/budgets/route.ts
+    - dir: src/app/api/v1/projexa/accounts/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/accounts/route.ts
+    - dir: src/app/api/v1/projexa/journal-entries/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/journal-entries/[id]/route.ts
+      - src/app/api/v1/projexa/journal-entries/route.ts
+    - dir: src/app/api/v1/projexa/bank-reconciliation/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/bank-reconciliation/route.ts
+    - dir: src/app/api/v1/projexa/fiscal-years/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/fiscal-years/route.ts
+    - dir: src/app/api/v1/projexa/currencies/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/currencies/route.ts
+    - dir: src/app/api/v1/projexa/cost-centers/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/cost-centers/route.ts
+    - dir: src/app/api/v1/projexa/balance-sheet/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/balance-sheet/route.ts
+    - dir: src/app/api/v1/projexa/profit-and-loss/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/profit-and-loss/route.ts
+    - dir: src/app/api/v1/projexa/profit-and-loss-by-project/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/profit-and-loss-by-project/route.ts
+    - dir: src/app/api/v1/projexa/trial-balance/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/trial-balance/route.ts
+    - dir: src/app/api/v1/projexa/ar-aging/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/ar-aging/route.ts
+    - dir: src/app/api/v1/projexa/credit-notes/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/credit-notes/route.ts
+    - dir: src/app/api/v1/projexa/finance-dashboard/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/finance-dashboard/route.ts
+    - dir: src/app/api/v1/projexa/expenses/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/expenses/route.ts
+  HR:
+    route_file_count: 104
+    directories:
+    - dir: src/app/api/hr/
+      count: 20
+      examples:
+      - src/app/api/hr/attendance/bulk/route.ts
+      - src/app/api/hr/attendance/check-in/route.ts
+      - src/app/api/hr/attendance/check-out/route.ts
+    - dir: src/app/api/hr-compliance/
+      count: 2
+      examples:
+      - src/app/api/hr-compliance/[id]/route.ts
+      - src/app/api/hr-compliance/route.ts
+    - dir: src/app/api/erp/payroll/
+      count: 11
+      examples:
+      - src/app/api/erp/payroll/employees/[id]/income-tax-slab/route.ts
+      - src/app/api/erp/payroll/employees/[id]/tax-exemptions/route.ts
+      - src/app/api/erp/payroll/income-tax-slabs/route.ts
+    - dir: src/app/api/recruitment/
+      count: 8
+      examples:
+      - src/app/api/recruitment/applications/[id]/hire/route.ts
+      - src/app/api/recruitment/applications/[id]/interviews/route.ts
+      - src/app/api/recruitment/applications/[id]/stage/route.ts
+    - dir: src/app/api/performance-reviews/
+      count: 11
+      examples:
+      - src/app/api/performance-reviews/cycles/[id]/activate/route.ts
+      - src/app/api/performance-reviews/cycles/[id]/close/route.ts
+      - src/app/api/performance-reviews/cycles/route.ts
+    - dir: src/app/api/leave-holiday/
+      count: 1
+      examples:
+      - src/app/api/leave-holiday/route.ts
+    - dir: src/app/api/training/
+      count: 22
+      examples:
+      - src/app/api/training/assessments/[id]/questions/route.ts
+      - src/app/api/training/assessments/[id]/route.ts
+      - src/app/api/training/courses/[id]/assessment/route.ts
+    - dir: src/app/api/v1/projexa/hr/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/hr/departments/route.ts
+      - src/app/api/v1/projexa/hr/org-chart/route.ts
+    - dir: src/app/api/v1/projexa/employees/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/employees/[id]/route.ts
+      - src/app/api/v1/projexa/employees/route.ts
+    - dir: src/app/api/v1/projexa/payroll/
+      count: 12
+      examples:
+      - src/app/api/v1/projexa/payroll/employees/[id]/income-tax-slab/route.ts
+      - src/app/api/v1/projexa/payroll/employees/[id]/tax-exemptions/route.ts
+      - src/app/api/v1/projexa/payroll/income-tax-slabs/route.ts
+    - dir: src/app/api/v1/projexa/attendance/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/attendance/route.ts
+    - dir: src/app/api/v1/projexa/leave/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/leave/balances/route.ts
+      - src/app/api/v1/projexa/leave/requests/[id]/decision/route.ts
+      - src/app/api/v1/projexa/leave/requests/route.ts
+    - dir: src/app/api/v1/projexa/recruitment/
+      count: 8
+      examples:
+      - src/app/api/v1/projexa/recruitment/applications/[id]/hire/route.ts
+      - src/app/api/v1/projexa/recruitment/applications/[id]/interviews/route.ts
+      - src/app/api/v1/projexa/recruitment/applications/[id]/stage/route.ts
+    - dir: src/app/api/v1/projexa/labour/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/labour/route.ts
+  Project Management:
+    route_file_count: 70
+    directories:
+    - dir: src/app/api/pms/
+      count: 33
+      examples:
+      - src/app/api/pms/billable-rates/route.ts
+      - src/app/api/pms/budgets/[id]/line-items/route.ts
+      - src/app/api/pms/budgets/[id]/route.ts
+    - dir: src/app/api/projects/
+      count: 2
+      examples:
+      - src/app/api/projects/[id]/route.ts
+      - src/app/api/projects/route.ts
+    - dir: src/app/api/v1/pms/
+      count: 2
+      examples:
+      - src/app/api/v1/pms/meetings/route.ts
+      - src/app/api/v1/pms/time-entries/route.ts
+    - dir: src/app/api/v1/projexa/schedule/
+      count: 10
+      examples:
+      - src/app/api/v1/projexa/schedule/baselines/[id]/route.ts
+      - src/app/api/v1/projexa/schedule/baselines/route.ts
+      - src/app/api/v1/projexa/schedule/gantt/route.ts
+    - dir: src/app/api/v1/projexa/scope/
+      count: 4
+      examples:
+      - src/app/api/v1/projexa/scope/[id]/compare/route.ts
+      - src/app/api/v1/projexa/scope/[id]/revisions/route.ts
+      - src/app/api/v1/projexa/scope/[id]/route.ts
+    - dir: src/app/api/v1/projexa/project-budgets/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/project-budgets/route.ts
+    - dir: src/app/api/v1/projexa/projects/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/projects/route.ts
+    - dir: src/app/api/v1/projexa/timesheets/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/timesheets/[id]/route.ts
+      - src/app/api/v1/projexa/timesheets/route.ts
+    - dir: src/app/api/v1/projexa/meetings/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/meetings/[id]/outcomes/route.ts
+      - src/app/api/v1/projexa/meetings/[id]/route.ts
+      - src/app/api/v1/projexa/meetings/route.ts
+    - dir: src/app/api/v1/projexa/wiki/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/wiki/[id]/route.ts
+      - src/app/api/v1/projexa/wiki/by-slug/route.ts
+      - src/app/api/v1/projexa/wiki/route.ts
+    - dir: src/app/api/v1/projexa/risks/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/risks/[id]/route.ts
+      - src/app/api/v1/projexa/risks/route.ts
+    - dir: src/app/api/v1/projexa/kpis/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/kpis/route.ts
+    - dir: src/app/api/v1/projexa/predictions/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/predictions/[activityId]/route.ts
+    - dir: src/app/api/v1/projexa/reports/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/reports/[reportName]/route.ts
+      - src/app/api/v1/projexa/reports/catalog/route.ts
+      - src/app/api/v1/projexa/reports/definitions/[id]/run/route.ts
+    - dir: src/app/api/v1/projexa/dashboard/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/dashboard/[projectId]/route.ts
+      - src/app/api/v1/projexa/dashboard/route.ts
+  Helpdesk:
+    route_file_count: 28
+    directories:
+    - dir: src/app/api/tickets/
+      count: 7
+      examples:
+      - src/app/api/tickets/[id]/dispatches/route.ts
+      - src/app/api/tickets/[id]/guest-access/route.ts
+      - src/app/api/tickets/[id]/installed-product/route.ts
+    - dir: src/app/api/ticket-intelligence/
+      count: 3
+      examples:
+      - src/app/api/ticket-intelligence/[id]/dismiss/route.ts
+      - src/app/api/ticket-intelligence/[id]/promote/route.ts
+      - src/app/api/ticket-intelligence/[id]/route.ts
+    - dir: src/app/api/ticket-teams/
+      count: 2
+      examples:
+      - src/app/api/ticket-teams/[id]/route.ts
+      - src/app/api/ticket-teams/route.ts
+    - dir: src/app/api/sla-policies/
+      count: 2
+      examples:
+      - src/app/api/sla-policies/[id]/route.ts
+      - src/app/api/sla-policies/route.ts
+    - dir: src/app/api/escalation-rules/
+      count: 1
+      examples:
+      - src/app/api/escalation-rules/route.ts
+    - dir: src/app/api/business-hours-schedules/
+      count: 1
+      examples:
+      - src/app/api/business-hours-schedules/route.ts
+    - dir: src/app/api/problem-records/
+      count: 3
+      examples:
+      - src/app/api/problem-records/[id]/route.ts
+      - src/app/api/problem-records/[id]/tickets/route.ts
+      - src/app/api/problem-records/route.ts
+    - dir: src/app/api/field-service-dispatches/
+      count: 1
+      examples:
+      - src/app/api/field-service-dispatches/[dispatchId]/route.ts
+    - dir: src/app/api/support-sessions/
+      count: 4
+      examples:
+      - src/app/api/support-sessions/[id]/end/route.ts
+      - src/app/api/support-sessions/on-my-org/route.ts
+      - src/app/api/support-sessions/start/route.ts
+    - dir: src/app/api/voice-tickets/
+      count: 3
+      examples:
+      - src/app/api/voice-tickets/[id]/action-items/route.ts
+      - src/app/api/voice-tickets/[id]/route.ts
+      - src/app/api/voice-tickets/route.ts
+    - dir: src/app/api/installed-products/
+      count: 1
+      examples:
+      - src/app/api/installed-products/route.ts
+  Construction / BoQ:
+    route_file_count: 65
+    directories:
+    - dir: src/app/api/construction/
+      count: 27
+      examples:
+      - src/app/api/construction/activities/route.ts
+      - src/app/api/construction/ai/diff-drawings/route.ts
+      - src/app/api/construction/ai/estimate-progress/route.ts
+    - dir: src/app/api/v1/construction/
+      count: 11
+      examples:
+      - src/app/api/v1/construction/attendance/route.ts
+      - src/app/api/v1/construction/boq/[id]/compare/route.ts
+      - src/app/api/v1/construction/boq/[id]/revisions/route.ts
+    - dir: src/app/api/v1/projexa/change-orders/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/change-orders/[id]/route.ts
+      - src/app/api/v1/projexa/change-orders/[id]/signature-status/route.ts
+      - src/app/api/v1/projexa/change-orders/route.ts
+    - dir: src/app/api/v1/projexa/floor-plans/
+      count: 7
+      examples:
+      - src/app/api/v1/projexa/floor-plans/[id]/placements/[placementId]/route.ts
+      - src/app/api/v1/projexa/floor-plans/[id]/placements/route.ts
+      - src/app/api/v1/projexa/floor-plans/[id]/rooms/[roomId]/route.ts
+    - dir: src/app/api/v1/projexa/ffe/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/ffe/[id]/route.ts
+      - src/app/api/v1/projexa/ffe/margin-summary/route.ts
+      - src/app/api/v1/projexa/ffe/route.ts
+    - dir: src/app/api/v1/projexa/design-materials/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/design-materials/route.ts
+    - dir: src/app/api/v1/projexa/mood-boards/
+      count: 3
+      examples:
+      - src/app/api/v1/projexa/mood-boards/[id]/items/[itemId]/route.ts
+      - src/app/api/v1/projexa/mood-boards/[id]/route.ts
+      - src/app/api/v1/projexa/mood-boards/route.ts
+    - dir: src/app/api/v1/projexa/permits/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/permits/route.ts
+    - dir: src/app/api/v1/projexa/punch-list/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/punch-list/[id]/route.ts
+      - src/app/api/v1/projexa/punch-list/route.ts
+    - dir: src/app/api/v1/projexa/rfis/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/rfis/[id]/route.ts
+      - src/app/api/v1/projexa/rfis/route.ts
+    - dir: src/app/api/v1/projexa/site-diary/
+      count: 1
+      examples:
+      - src/app/api/v1/projexa/site-diary/route.ts
+    - dir: src/app/api/v1/projexa/submittals/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/submittals/[id]/route.ts
+      - src/app/api/v1/projexa/submittals/route.ts
+    - dir: src/app/api/v1/projexa/work-progress/
+      count: 2
+      examples:
+      - src/app/api/v1/projexa/work-progress/activities/route.ts
+      - src/app/api/v1/projexa/work-progress/route.ts
+projexa_module_exposure:
+  summary: PROJEXA's own REST API surface (src/app/api/v1/projexa/*, 171 route.ts files, verified via
+    direct find) plus a separate, much narrower AI-chat 'module chain' surface, which changed materially
+    TODAY (2026-07-28) via two coordinated, cross-repo, already-MERGED PRs.
+  rest_api_surface:
+    path: src/app/api/v1/projexa/*
+    count: 171
+    detail: Real per-feature REST endpoints PROJEXA's own UI pages call directly (not via AI chat). Heaviest
+      exposure is PROJEXA's home turf -- construction/PM (schedule 10, procurement 11, payroll 12, floor-plans
+      7, recruitment 8, quotations 5) -- but real coverage now spans Sales, Purchase, Accounting/GST-adjacent
+      financial reporting (balance-sheet, profit-and-loss, trial-balance, ar-aging), and HR. See api_routes_by_domain
+      above for the v1/projexa/* rows inside each domain's directories list -- this section only adds
+      the cross-domain summary + what's conspicuously ABSENT below.
+  conspicuously_absent_from_v1_projexa: 'Directly grepped src/app/api/v1/projexa/* subdirectory names
+    against the full domain route inventory above; the following domain surfaces genuinely have NO v1/projexa/*
+    proxy at all (zero matches, not a naming difference): (1) Helpdesk/ticketing -- zero tickets/ticket-teams/sla-policies/escalation-rules
+    presence under v1/projexa, despite the full Helpdesk REST surface existing at src/app/api/tickets/*
+    etc.; (2) GST-specific compliance (gst-reconciliation, tds-returns, e-invoice-logs, challans, HSN/GSTIN
+    master data) -- v1/projexa has general ledger/reporting endpoints but none of the GST-specific ones;
+    (3) Training/L&D (22 routes exist at src/app/api/training/*, none under v1/projexa); (4) Performance
+    reviews (11 routes exist at src/app/api/performance-reviews/*, none under v1/projexa, despite payroll/attendance/leave/recruitment
+    all being present).'
+  ai_chat_module_chain_surface:
+    route: GET /api/v1/projexa/module-chain
+    backing_function: buildCapabilityTree() in src/lib/services/capability-tree-service.ts
+    status_as_of_2026-07-28: MERGED TODAY, not yet-in-progress -- verified via `gh pr view` on both PRs'
+      real state field (not just body text, which said 'Not merging, needs supervisor audit' -- a supervisor
+      evidently audited and merged both after that text was written).
+    compliance_tracker_pr:
+      number: 609
+      title: Expose full VERIDIAN module chain to PROJEXA via /api/v1/projexa/module-chain
+      merged_at: '2026-07-28T04:11:24Z'
+    projexa_pr:
+      number: 59
+      title: Wire full VERIDIAN module chain into PROJEXA's chat composer
+      merged_at: '2026-07-28T03:19:17Z'
+    before_this_pr_pair: 'PROJEXA''s chat composer only offered its own narrow Construction Intelligence
+      chain (buildConstructionNodes(), a project-scoped subtree: dashboard/budget-status/KPI-status/AI-progress-summary/AI-risk
+      per project, plus 2 org-wide leaves -- delayed activities, over-budget projects).'
+    after_this_pr_pair: 'PROJEXA''s chat composer now also offers the SAME full module chain a compliance-tracker
+      org''s own /chat page sees via buildCapabilityTree(): DB-driven ERP Product/Customer/Vendor branch
+      nodes (branchNodes), product/entity nodes, compliance-item nodes, calculator nodes, GST-reconciliation
+      nodes, Reports & Analysis (both the saved-report deep-link set and the unified Reports & Analysis
+      catalog), Dynamic-Chain/''learned capabilities'' nodes, and CRM quick-create nodes -- with the construction_intelligence
+      branch explicitly filtered out of this new response (PROJEXA already gets that branch from its own
+      pre-existing /api/v1/projexa/capability-tree, so returning it twice would create a second source
+      of truth).'
+    important_distinction: This module-chain wiring is an AI-CHAT capability surface (what the chat composer's
+      chain selector can dispatch to), not the same thing as the 171-route REST API surface above (what
+      PROJEXA's own UI pages call directly for CRUD). A domain being newly chat-visible via module-chain
+      does NOT mean PROJEXA's own UI has a page for it yet -- e.g. GST reconciliation is now chat-reachable
+      via module-chain but still has no v1/projexa/* REST route and (per this task's own out-of-scope-for-PROJEXA-UI-audit
+      note) no known dedicated PROJEXA UI page as of this inventory.
+sanity_checks:
+  grep_pgTable_literal:
+    command: grep -c "pgTable(" src/lib/db/schema.ts
+    result: 0
+    explanation: 'This is a REAL finding, not a broken check: this codebase''s real Drizzle table-declaration
+      pattern is `complianceSchemaDB.table(...)` / `platformSchemaDB.table(...)` (both schemas built off
+      `pgSchema(''compliance''|''platform'')` then `.table(...)`), never the bare `pgTable(` call the
+      spec''s own suggested command was written against. Confirmed by reading schema.ts''s own imports
+      (line 1: only pgSchema/pgEnum/text/... imported from drizzle-orm/pg-core, no pgTable) and its first
+      table declaration (line 28, `organisations`).'
+  actual_table_declaration_count:
+    command: grep -cE "^export const [a-zA-Z0-9]+ = (complianceSchemaDB|platformSchemaDB)\.table\(" src/lib/db/schema.ts
+    result: 464
+    cross_check_against_database_catalog: 449 (DATABASE_CATALOG.json's table_count field) + 15 (real new
+      tables found by diffing export names between the catalog and current schema.ts, 0 removed) = 464.
+      Matches exactly.
+  phase_0_baseline_yaml_git_log:
+    command: git log --oneline -1 -- ai-os/tasks/sap_mapping/PHASE_0_BASELINE.yaml
+    result_before_this_commit: (empty -- file did not exist yet, confirmed before writing it)
+  table_route_grand_totals:
+    total_tables_in_schema_ts: 464
+    tables_categorized_into_8_domains: 213
+    tables_out_of_scope_or_governance_infra: 251
+    total_route_ts_files_in_src_app_api: 959
+    route_files_categorized_into_8_domains: 508
+    route_files_out_of_scope_or_governance_infra: 451

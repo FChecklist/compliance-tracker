@@ -228,7 +228,7 @@ const TOOL_DEFINITIONS = [
 ]
 
 // ---------------------------------------------------------------------------
-// Wave 3: tool definitions now sourced from compliance.worker_agents
+// Wave 3: tool definitions now sourced from platform.worker_agents
 // (tier='global', is_immutable=true -- these 7 rows were seeded from the
 // TOOL_DEFINITIONS array above, one per existing tool). Falls back to the
 // hardcoded array if the table is empty or the query fails, so this stays

@@ -14,6 +14,7 @@ import {
   erpStatutoryRules, erpPayrollRuns, erpPayslips, erpPayslipLines,
   erpIncomeTaxSlabs, erpIncomeTaxSlabRates, erpEmployeeTaxExemptions,
   employeeProfiles, users, organisations,
+  hrEmployeeLoans, hrLoanInstallments, hrExpenseClaims,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, lte, or, isNull, gte, sql } from "drizzle-orm"
@@ -173,6 +174,45 @@ function computeEarning(componentType: string, calcType: string, amount: string 
 }
 
 /**
+ * Phase 0 HR gap-closure (2026-07-27): pure helper (no DB access -- exported
+ * so it can be unit-tested directly, matching this codebase's established
+ * convention) building the payslip lines for a single employee's due loan
+ * installment (deduction) and approved-but-unpaid expense reimbursements
+ * (earning), plus the two running totals processPayrollRun needs.
+ *
+ * Deliberate simplification: `dueInstallment` deducts the earliest still-
+ * `pending` installment on an active loan on every processed run, in
+ * installment-number order -- it does NOT match a specific installment's
+ * stored dueMonth/dueYear against this run's own month/year. A payroll run
+ * skipped or processed out of order still deducts exactly one installment
+ * per run, never zero and never more than one -- the schedule's
+ * dueMonth/dueYear remain useful as the originally-planned timeline, but
+ * actual deduction pacing follows real processed runs, not the calendar.
+ *
+ * Reimbursements are added to net pay directly (not folded into
+ * grossEarnings) -- they are not taxable salary income, so they must not
+ * feed PF/ESI/PT/TDS computation, which already happened by the time this
+ * is called in processPayrollRun.
+ */
+export function buildLoanAndReimbursementLines(
+  dueInstallment: { installmentNumber: number; amount: number } | null,
+  reimbursementClaims: { id: string; category: string; amount: number }[]
+): { lines: { componentId: null; label: string; lineType: "earning" | "deduction"; amount: number }[]; loanDeductionTotal: number; reimbursementTotal: number } {
+  const lines: { componentId: null; label: string; lineType: "earning" | "deduction"; amount: number }[] = []
+  let loanDeductionTotal = 0
+  if (dueInstallment) {
+    lines.push({ componentId: null, label: `Loan Repayment (Installment ${dueInstallment.installmentNumber})`, lineType: "deduction", amount: dueInstallment.amount })
+    loanDeductionTotal = dueInstallment.amount
+  }
+  let reimbursementTotal = 0
+  for (const claim of reimbursementClaims) {
+    lines.push({ componentId: null, label: `Expense Reimbursement (${claim.category})`, lineType: "earning", amount: claim.amount })
+    reimbursementTotal += claim.amount
+  }
+  return { lines, loanDeductionTotal, reimbursementTotal }
+}
+
+/**
  * Runs payroll for every employee with an active salary structure as of the
  * run's month/year: computes gross earnings from the structure, then
  * applies the configurable PF/ESI/Professional Tax rules (never hardcoded
@@ -299,7 +339,36 @@ export async function processPayrollRun(ctx: ErpContext, runId: string) {
       lines.push({ componentId: null, label: tdsLabel, lineType: "deduction", amount: tdsAmount })
       totalDeductions += tdsAmount
 
-      const netPay = grossEarnings - totalDeductions
+      // Phase 0 HR gap-closure (2026-07-27): the next due loan installment
+      // (deduction) and any approved-but-unpaid expense claims
+      // (reimbursement, an earning) for this employee -- see
+      // buildLoanAndReimbursementLines' own comment for the pacing/tax
+      // rationale.
+      const activeLoan = await db.query.hrEmployeeLoans.findFirst({
+        where: and(eq(hrEmployeeLoans.orgId, ctx.orgId), eq(hrEmployeeLoans.employeeId, structure.employeeId), eq(hrEmployeeLoans.status, "active")),
+      })
+      let dueInstallment: { installmentNumber: number; amount: number } | null = null
+      if (activeLoan) {
+        const pending = await db.query.hrLoanInstallments.findFirst({
+          where: and(eq(hrLoanInstallments.loanId, activeLoan.id), eq(hrLoanInstallments.status, "pending")),
+          orderBy: (t, { asc }) => asc(t.installmentNumber),
+        })
+        if (pending) dueInstallment = { installmentNumber: pending.installmentNumber, amount: Number(pending.amount) }
+      }
+
+      const claimUserId = employeeProfile?.userId
+      const approvedClaims = claimUserId
+        ? await db.query.hrExpenseClaims.findMany({ where: and(eq(hrExpenseClaims.orgId, ctx.orgId), eq(hrExpenseClaims.userId, claimUserId), eq(hrExpenseClaims.status, "approved")) })
+        : []
+
+      const { lines: extraLines, loanDeductionTotal, reimbursementTotal } = buildLoanAndReimbursementLines(
+        dueInstallment,
+        approvedClaims.map((c) => ({ id: c.id, category: c.category, amount: Number(c.amount) }))
+      )
+      lines.push(...extraLines)
+      totalDeductions += loanDeductionTotal
+
+      const netPay = grossEarnings - totalDeductions + reimbursementTotal
 
       const [payslip] = await db.insert(erpPayslips).values({
         orgId: ctx.orgId, payrollRunId: runId, employeeId: structure.employeeId,
@@ -308,6 +377,23 @@ export async function processPayrollRun(ctx: ErpContext, runId: string) {
 
       await db.insert(erpPayslipLines).values(lines.map((l) => ({ payslipId: payslip.id, componentId: l.componentId, label: l.label, lineType: l.lineType, amount: l.amount.toString() })))
       payslips.push(payslip)
+
+      if (dueInstallment && activeLoan) {
+        await db.update(hrLoanInstallments).set({ status: "deducted", payrollRunId: runId, deductedAt: new Date() })
+          .where(and(eq(hrLoanInstallments.loanId, activeLoan.id), eq(hrLoanInstallments.installmentNumber, dueInstallment.installmentNumber)))
+        const newOutstanding = Math.max(0, Number(activeLoan.outstandingBalance ?? 0) - dueInstallment.amount)
+        const isFullyRepaid = dueInstallment.installmentNumber >= activeLoan.numInstallments
+        await db.update(hrEmployeeLoans).set({
+          outstandingBalance: newOutstanding.toString(),
+          status: isFullyRepaid ? "closed" : "active",
+          updatedAt: new Date(),
+        }).where(eq(hrEmployeeLoans.id, activeLoan.id))
+      }
+
+      if (approvedClaims.length > 0) {
+        await db.update(hrExpenseClaims).set({ status: "paid", payrollRunId: runId, reimbursedAt: new Date(), updatedAt: new Date() })
+          .where(and(eq(hrExpenseClaims.orgId, ctx.orgId), eq(hrExpenseClaims.userId, claimUserId!), eq(hrExpenseClaims.status, "approved")))
+      }
     }
 
     const [updatedRun] = await db.update(erpPayrollRuns).set({ status: "processed", processedAt: new Date() }).where(eq(erpPayrollRuns.id, runId)).returning()

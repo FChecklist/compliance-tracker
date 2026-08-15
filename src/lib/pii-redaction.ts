@@ -61,12 +61,39 @@ const PATTERNS: { label: string; regex: RegExp }[] = [
   { label: "PHONE", regex: /\b(?:\+?91[\s-]?)?[6-9]\d{9}\b/g },
 ]
 
+export type PiiFinding = { label: string; matchedText: string }
+
+// Shared core for redactPii() and findPii() below -- a single pass so a
+// match's redacted-text-token and its recorded finding can never drift out
+// of sync with each other (redactPii() replacing something findPii() didn't
+// also report, or vice versa).
+function redactWithFindings(text: string): { findings: PiiFinding[]; redactedText: string } {
+  const findings: PiiFinding[] = []
+  let result = text
+  for (const { label, regex } of PATTERNS) {
+    result = result.replace(regex, (match) => {
+      findings.push({ label, matchedText: match })
+      return `[REDACTED:${label}]`
+    })
+  }
+  return { findings, redactedText: result }
+}
+
 /** Deterministic, regex-based -- no LLM call. Order matters (see comments above). */
 export function redactPii(text: string): string {
   if (!text) return text
-  let result = text
-  for (const { label, regex } of PATTERNS) {
-    result = result.replace(regex, `[REDACTED:${label}]`)
-  }
-  return result
+  return redactWithFindings(text).redactedText
+}
+
+/**
+ * Same detection as redactPii(), returned as a typed finding list instead of
+ * (or alongside) the redacted string -- for callers that need to know WHAT
+ * was found, not just get it scrubbed (e.g. prompt-security's Layer 4, which
+ * reports piiMatches separately from the scrubbed text). Added for the
+ * phase_4 defense-in-depth audit fix: Layer 4 previously carried its own,
+ * narrower, divergent PII regex list instead of reusing this file.
+ */
+export function findPii(text: string): PiiFinding[] {
+  if (!text) return []
+  return redactWithFindings(text).findings
 }

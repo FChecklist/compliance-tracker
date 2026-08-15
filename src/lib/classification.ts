@@ -25,6 +25,7 @@ const ROLE_CLEARANCE: Record<UserRole, Classification> = {
   client_viewer: "company_wide",
   external_auditor: "confidential", // sees audit-relevant records, not board minutes
   viewer: "public",
+  stage_0: "public", // self-serve, zero-admin-approval guest -- not a full org member, same floor clearance as viewer
 }
 
 // Wave 21 (module reusability): optional org-level override of the

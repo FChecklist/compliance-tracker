@@ -1,0 +1,675 @@
+/**
+ * Mother Router (AIROUTER-01, CONTROLLER.yaml -- Owner directive 2026-07-18).
+ *
+ * A real, unifying AI model/provider registry + versioned routing policy +
+ * audit log, covering the 3 domain scopes the Owner named:
+ *   - "software_team"  -- AI Dev Team dispatch (roster.ts roles doing
+ *                          coding/architecture/testing/docs work)
+ *   - "end_user_org"    -- customer-facing product AI features, per org
+ *   - "sales_marketing" -- internal sales/marketing AI roles
+ *
+ * DELIBERATE SCOPE DECISION (read before extending this file): this module
+ * does NOT modify model-tier-eligibility.ts, orchestra-model-resolver.ts,
+ * roster.ts, or llm-client.ts. It calls into them exactly as they already
+ * are and layers registry/policy/audit metadata on top. A full rewrite of
+ * every one of their existing call sites to route through here was judged
+ * too large and too risky to attempt in one pass (several are
+ * guardrail-critical dispatch paths, e.g. /api/ai/team/dispatch) -- see this
+ * PR's PROGRESS.md. Existing callers of those 4 files need NOT change and
+ * keep working exactly as before; new/updated call sites should prefer
+ * resolveModel() below for the added audit trail and hot-swappable policy
+ * override.
+ *
+ * RE-VERIFIED 2026-07-20 (Owner directive, TASK 1.3 -- "complete the
+ * migration" was the ask; re-checking the actual scope first was the
+ * responsible response to it, not a full rewrite done blind): the
+ * original "~23+3" estimate above was stale. Mechanical grep of direct
+ * callers (excluding this file, tests, and the 4 modules themselves)
+ * found 35 unique files still calling resolveModelConfig() or
+ * checkTierEligibility() directly, spanning core business logic --
+ * crm-service.ts, fde-service.ts, gst/ai-review-report.ts,
+ * construction-ai-service.ts, ticket-intelligence-service.ts,
+ * veri-meeting-service.ts among them. This is NOT a stale-comment-only
+ * situation: the original author's risk assessment holds up under
+ * re-verification -- these are genuinely customer-facing, revenue- and
+ * compliance-adjacent dispatch paths, and a mass migration attempted in
+ * one pass, un-tested against a live deployment (Vercel's own build-rate-
+ * limit blocked live verification the same day this was re-checked),
+ * would be exactly the reckless shortcut this codebase's own audit
+ * protocol and this whole session's verification discipline exist to
+ * prevent. Decision: NOT migrated this pass. Recommended as a properly
+ * scoped, incrementally-tested follow-up (a handful of files at a time,
+ * each with its own test coverage and a real deploy to verify against)
+ * rather than declared closed by a mass edit. See
+ * ai-os/MASTER_INDEX.yaml registries.ai_router_migration_inventory_2026_07_20
+ * for the full 35-file list and this reasoning.
+ *
+ * NOTE: roster.ts already has an unrelated role literally named "ai_router"
+ * (roleKey: "ai_router", the task CLASSIFIER used by classifyTask() in
+ * team-service.ts). That is a different concept from this file's Mother
+ * Router (model/provider resolution registry) -- do not conflate them.
+ *
+ * Hot-reload: the active policy per scope is cached IN-PROCESS (a plain
+ * module-level Map) for POLICY_CACHE_TTL_MS: change a row in
+ * ai_routing_policies and the change is picked up on that PROCESS's next
+ * resolve() call once the TTL elapses, or immediately within that process
+ * if invalidateMotherRouterCache() is called -- no app restart required
+ * either way. Honest limitation: in a multi-instance/serverless deployment
+ * (this app runs on Vercel), invalidateMotherRouterCache() only clears the
+ * calling instance's own cache -- other running instances keep serving the
+ * pre-change policy for up to POLICY_CACHE_TTL_MS regardless. "No restart
+ * required" is true; "instant everywhere" is not, for Phase 1. See
+ * mother-router.test.ts for the resolution-logic proof (pure functions,
+ * not the cache/DB plumbing itself -- see this PR's PROGRESS.md for why).
+ *
+ * Rollback: ai_routing_policies is versioned per scope with a partial
+ * unique index enforcing only one active version at a time (see the
+ * migration). rollbackPolicy() flips is_active back to an older version
+ * inside one DB transaction (atomic -- never leaves 0 or 2 active rows for
+ * a scope); the very next resolveModel() call on the SAME process reflects
+ * it (immediate cache invalidation there), same multi-instance caveat as
+ * above for other processes. Known, accepted gap for Phase 1: two
+ * concurrent rollbackPolicy() calls for the same scope aren't mutually
+ * ordered by an optimistic-lock check -- whichever transaction commits
+ * last wins with no error to the other caller. Low real risk (an
+ * infrequent, human-triggered admin action) but not engineered around
+ * here -- see PROGRESS.md.
+ */
+import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users, tenantAiConfig } from "@/lib/db"
+import { and, count, eq, sql } from "drizzle-orm"
+import { checkTierEligibility, type TierEligibilityResult } from "@/lib/model-tier-eligibility"
+import { resolveModelConfig, platformApiKeyFor, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
+import { decryptApiKey } from "@/lib/ai-config-crypto"
+import { AI_TEAM_ROSTER } from "@/lib/ai-team/roster"
+import type { LLMProvider } from "@/lib/llm-client"
+import type { ComplexityTier } from "@/lib/task-tightening"
+import type { CapabilityCategory } from "./software-team-ladder"
+
+export type AiRouterScope = "software_team" | "end_user_org" | "sales_marketing" | "customer_success"
+
+// Roster.ts's own header: "Every model here is called via OpenRouter" -- see
+// team-service.ts's runRole()/classifyTask(), both hardcode provider
+// "openrouter" for every roster-driven dispatch. Mirrored here, not
+// reinvented, so software_team/sales_marketing resolutions return a
+// provider consistent with how they'll actually be dispatched.
+const ROSTER_PROVIDER: LLMProvider = "openrouter"
+
+/**
+ * Policy rule shape stored in ai_routing_policies.rule (jsonb). All fields
+ * optional -- an empty/partial rule is valid and simply means "no override
+ * for that axis," never an error.
+ */
+export type PolicyRule = {
+  /** software_team / sales_marketing / customer_success: override model for a specific role. */
+  preferredModelByRole?: Record<string, string>
+  /**
+   * software_team, AIROUTER-01 Phase 2 (Owner's Software Development Task
+   * Routing Matrix, Part C): override model for one of the 4 capability
+   * categories named in software-team-ladder.ts's CapabilityCategory --a
+   * FINER axis than preferredModelByTier below (e.g. distinguishes
+   * "single-file mechanical" from "architecture/design/analysis" even
+   * though task-tightening.ts's own ComplexityTier only has 3 values).
+   * Checked BEFORE preferredModelByTier when a capabilityCategory is
+   * supplied; always still run through checkTierEligibility() exactly like
+   * every other override here -- naming a model here can never bypass the
+   * tier-eligibility guardrail, only get silently downgraded to the
+   * tier-eligible baseline with the reason logged (see
+   * computeSoftwareTeamResolution() below).
+   */
+  preferredModelByCapabilityCategory?: Partial<Record<CapabilityCategory, string>>
+  /** software_team: override model for an entire complexity tier. Checked when preferredModelByRole/preferredModelByCapabilityCategory have no entry. */
+  preferredModelByTier?: Partial<Record<ComplexityTier, string>>
+  /** end_user_org: default provider/model for orgs on a given subscription aiPackage, used ONLY when the org has no active customer_model_config (BYO) of its own. */
+  preferredModelByPackage?: Record<string, { provider: LLMProvider; model: string }>
+}
+
+export type ActivePolicy = { version: number; rule: PolicyRule }
+
+export type MotherRouterResolution = {
+  provider: LLMProvider
+  model: string
+  reason: string
+  policyVersion?: number
+  /** software_team only -- whether the resolved model is actually eligible for the requested complexity tier. */
+  tierEligibility?: TierEligibilityResult
+  /**
+   * end_user_org only (phase_9_gateway_knowledge_sync_infrastructure,
+   * VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml) -- the full,
+   * ready-to-call config (apiKey/fallback/isCustomerConfigured included),
+   * so a caller like orchestrate/route.ts can resolve through this
+   * function ALONE (a real G05 hop) instead of also calling
+   * orchestra-model-resolver.ts's resolveModelConfig() independently
+   * afterwards to get the credentials this resolution's provider/model
+   * actually need. Always set together with provider/model for this scope
+   * (never provider/model without a matching resolvedConfig) -- undefined
+   * only in the "no baseline to resolve" branch of resolveModel()'s
+   * end_user_org case, which already signals "nothing to call" via
+   * model === "".
+   */
+  resolvedConfig?: ResolvedModelConfig
+}
+
+export type MotherRouterContext =
+  | {
+      scope: "software_team"
+      model: string
+      complexityTier: ComplexityTier
+      roleKey: string
+      capabilityCategory?: CapabilityCategory
+      // Super Boss v2 plan task V2-5 (BYOB bring-your-own-AI-model,
+      // 2026-07-20): the org a software_team dispatch is happening on behalf
+      // of. When present AND that org has an active tenant_ai_config row,
+      // the tenant's own model is PREFERRED for this dispatch -- but only
+      // after being run through the SAME checkTierEligibility() gate every
+      // policy override already passes through in
+      // computeSoftwareTeamResolution(). An ineligible tenant model silently
+      // downgrades to the roster baseline, NEVER bypasses the tier-
+      // eligibility guardrail (AGENTS.md Operating Rule 9 -- this is the
+      // rule the task's DONE CRITERIA "guardrail-no-bypass test green"
+      // names, and this optional field is the only new input the tenant-
+      // override path reads; the gate itself is the pre-existing
+      // checkTierEligibility() call, not a new call site, so no new
+      // entry is required in scripts/check-guardrail-presence.mjs's
+      // manifest). Optional: a software_team dispatch with no org context
+      // (e.g. a platform-level run) resolves exactly as before.
+      orgId?: string
+    }
+  | { scope: "end_user_org"; orgId: string; layerKey: string; sourceType?: string }
+  | { scope: "sales_marketing"; roleKey: string }
+  // AI Router registry-backed model resolution follow-up (2026-07-19): 4th
+  // scope, no real dispatch call site wired to it yet -- see this file's own
+  // DELIBERATE SCOPE DECISION header and computeCustomerSuccessResolution()
+  // below for the "registry exists, not every call site adopted yet" posture
+  // this already applies to the other 3 scopes.
+  | { scope: "customer_success"; roleKey: string }
+
+// ─── Hot-reload cache ───────────────────────────────────────────────────
+const POLICY_CACHE_TTL_MS = 60_000
+const policyCache = new Map<AiRouterScope, { fetchedAt: number; policy: ActivePolicy | null }>()
+
+/** Forces the next resolveModel() call for every scope to re-fetch its active policy from the DB, instead of waiting out POLICY_CACHE_TTL_MS. Call this right after writing/activating a new ai_routing_policies row if the change needs to take effect immediately. */
+export function invalidateMotherRouterCache(): void {
+  policyCache.clear()
+}
+
+async function getActivePolicy(scope: AiRouterScope): Promise<ActivePolicy | null> {
+  const cached = policyCache.get(scope)
+  if (cached && Date.now() - cached.fetchedAt < POLICY_CACHE_TTL_MS) return cached.policy
+
+  const row = await db.query.aiRoutingPolicies.findFirst({
+    where: and(eq(aiRoutingPolicies.scope, scope), eq(aiRoutingPolicies.isActive, true)),
+  })
+  const policy: ActivePolicy | null = row ? { version: row.version, rule: (row.rule as PolicyRule) ?? {} } : null
+  policyCache.set(scope, { fetchedAt: Date.now(), policy })
+  return policy
+}
+
+async function logRoutingDecision(scope: AiRouterScope, context: MotherRouterContext, resolution: MotherRouterResolution): Promise<void> {
+  // Audit logging must never be able to block or fail a real routing
+  // decision -- same "fire-and-forget, non-fatal" posture this codebase
+  // already uses for activity_log writes (e.g. dispatch/route.ts's
+  // recordActivity calls).
+  try {
+    await db.insert(aiRoutingAuditLog).values({
+      scope,
+      context: context as unknown as Record<string, unknown>,
+      resolvedProvider: resolution.provider,
+      resolvedModel: resolution.model,
+      policyVersion: resolution.policyVersion ?? null,
+      reason: resolution.reason,
+    })
+  } catch (error) {
+    console.error("[mother-router] failed to write ai_routing_audit_log row (non-fatal):", error)
+  }
+}
+
+// ─── Pure resolution logic (unit-testable without a DB connection) ────────
+
+/**
+ * software_team scope. `baselineModel` is the model roster.ts already
+ * assigns the role (targetRole.model in /api/ai/team/dispatch's own logic)
+ * -- this function never invents a model that isn't already either that
+ * baseline or an explicit policy override, and always runs the override
+ * candidate through the SAME checkTierEligibility() gate as the baseline,
+ * so a policy can never grant a tier a model hasn't earned.
+ *
+ * `tenantOverrideModel` (Super Boss v2 plan task V2-5, BYOB bring-your-own-
+ * AI-model, 2026-07-20): when an org has configured its own model in
+ * tenant_ai_config, that model is passed here and PREFERRED over both the
+ * baseline and any policy override -- but ONLY after being run through the
+ * SAME existing checkTierEligibility() gate as every other candidate below.
+ * An ineligible tenant model silently downgrades to the baseline, NEVER
+ * bypasses the tier-eligibility guardrail (AGENTS.md Operating Rule 9).
+ * This is the real enforcement of the task's DONE CRITERIA "guardrail-no-
+ * bypass test green": the tenant's preference can change WHICH eligible
+ * model runs, never whether the gate ran. The gate itself is the pre-
+ * existing checkTierEligibility() call this function already made for the
+ * baseline -- no new call site is wired, so no new entry is required in
+ * scripts/check-guardrail-presence.mjs's manifest (Rule 9's manifest tracks
+ * call sites, not arguments).
+ */
+export function computeSoftwareTeamResolution(
+  baselineModel: string,
+  complexityTier: ComplexityTier,
+  roleKey: string,
+  policy: ActivePolicy | null,
+  capabilityCategory?: CapabilityCategory,
+  tenantOverrideModel?: string
+): MotherRouterResolution {
+  // Super Boss v2 plan task V2-5 (BYOB): a tenant's own configured model
+  // takes PRIORITY over both the roster baseline and any ai_routing_policies
+  // override -- the org paid for / configured its own model specifically so
+  // its dispatches use it, not the platform's default. But the preference
+  // can NEVER skip the gate: the tenant model is run through the SAME
+  // checkTierEligibility() call the baseline and every policy override
+  // already pass through. Eligible -> use it (audit reason names the tenant
+  // config as the source). Ineligible -> silently fall through to the
+  // baseline path below (which itself re-runs the gate on the baseline and
+  // logs exactly why), never grant the tenant an ineligible model anyway.
+  // This branch is the single new tenant-aware code path; it reuses the
+  // existing checkTierEligibility() call, so it adds no new guardrail call
+  // site to the manifest.
+  if (tenantOverrideModel && tenantOverrideModel !== baselineModel) {
+    const tenantEligibility = checkTierEligibility(tenantOverrideModel, complexityTier)
+    if (tenantEligibility.eligible) {
+      return {
+        provider: ROSTER_PROVIDER,
+        model: tenantOverrideModel,
+        reason: `tenant_ai_config override for org (role ${roleKey}, ${complexityTier}) -- preferred over roster.ts baseline and routing policy`,
+        tierEligibility: tenantEligibility,
+      }
+    }
+    // Ineligible tenant model: do NOT grant it. Fall through to the
+    // baseline/policy resolution below, which logs the real model that ran
+    // and its own eligibility. The tenant's preference was heard and
+    // rejected at the gate -- exactly the no-bypass contract.
+  }
+
+  const override =
+    policy?.rule.preferredModelByRole?.[roleKey] ??
+    (capabilityCategory && policy?.rule.preferredModelByCapabilityCategory?.[capabilityCategory]) ??
+    policy?.rule.preferredModelByTier?.[complexityTier]
+
+  // No policy, or its rule has no entry for this role/tier at all -- the
+  // only case that's genuinely "no active policy" for audit purposes.
+  if (!override) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: "no active routing policy override -- roster.ts baseline assignment",
+      tierEligibility: checkTierEligibility(baselineModel, complexityTier),
+    }
+  }
+
+  // A policy exists and names a model -- even when it happens to match the
+  // baseline, the audit log must say a policy was actually consulted here
+  // (an independent review correctly flagged the prior version silently
+  // mislabeling this case as "no active policy," which would mislead an
+  // auditor reading ai_routing_audit_log later).
+  if (override === baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: `ai_routing_policies v${policy!.version} names the same model as the roster.ts baseline for ${roleKey} -- no change`,
+      policyVersion: policy!.version,
+      tierEligibility: checkTierEligibility(baselineModel, complexityTier),
+    }
+  }
+
+  const overrideEligibility = checkTierEligibility(override, complexityTier)
+  if (overrideEligibility.eligible) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: override,
+      reason: `ai_routing_policies v${policy!.version} override for ${roleKey} (${complexityTier})`,
+      policyVersion: policy!.version,
+      tierEligibility: overrideEligibility,
+    }
+  }
+
+  // Named override isn't eligible for this tier -- never silently grant it
+  // anyway. Fall back to the baseline and say exactly why.
+  return {
+    provider: ROSTER_PROVIDER,
+    model: baselineModel,
+    reason: `ai_routing_policies v${policy!.version} named "${override}" for ${roleKey} but it is not eligible for "${complexityTier}" tier -- falling back to roster.ts baseline`,
+    policyVersion: policy!.version,
+    tierEligibility: checkTierEligibility(baselineModel, complexityTier),
+  }
+}
+
+/**
+ * end_user_org scope. `baseline` is whatever orchestra-model-resolver.ts's
+ * existing resolveModelConfig() already returned -- completely unchanged
+ * logic (customer BYO config, cost-guard, source-type overrides all still
+ * apply exactly as before this file existed). This function only ever
+ * overrides the PLATFORM DEFAULT branch (isCustomerConfigured === false)
+ * with a subscription-package default when a policy names one -- an org's
+ * own configured BYO model is never touched.
+ *
+ * `resolvedConfig` (phase_9_gateway_knowledge_sync_infrastructure) mirrors
+ * provider/model with the real apiKey/fallback a caller needs to actually
+ * invoke the LLM. provider/model (the top-level, audit-logged fields)
+ * always reflect the named policy override regardless of whether it's
+ * actually callable right now -- unchanged from this function's original,
+ * already-tested contract. resolvedConfig is left undefined (not silently
+ * downgraded to baseline) when a package override names a provider with no
+ * platform API key configured, matching orchestra-model-resolver.ts's own
+ * resolveModelConfig() convention (`if (!apiKey) return null`, its
+ * platform-default branch) rather than inventing a new "cannot call this"
+ * signal -- a caller reading resolvedConfig already knows undefined means
+ * "nothing to call."
+ */
+export function computeEndUserOrgResolution(
+  baseline: ResolvedModelConfig,
+  aiPackage: string | null,
+  policy: ActivePolicy | null
+): MotherRouterResolution {
+  if (baseline.isCustomerConfigured) {
+    return {
+      provider: baseline.provider,
+      model: baseline.model,
+      reason: "org has an active customer_model_config (BYO) -- Mother Router never overrides an org's own configured model",
+      resolvedConfig: baseline,
+    }
+  }
+
+  const override = aiPackage ? policy?.rule.preferredModelByPackage?.[aiPackage] : undefined
+  if (override) {
+    const overrideApiKey = platformApiKeyFor(override.provider)
+    return {
+      provider: override.provider,
+      model: override.model,
+      reason: `ai_routing_policies v${policy!.version} default for aiPackage="${aiPackage}"`,
+      policyVersion: policy!.version,
+      resolvedConfig: overrideApiKey
+        ? { ...baseline, provider: override.provider, model: override.model, apiKey: overrideApiKey }
+        : undefined,
+    }
+  }
+
+  return {
+    provider: baseline.provider,
+    model: baseline.model,
+    reason: aiPackage
+      ? `no active routing policy default for aiPackage="${aiPackage}" -- platform default unchanged`
+      : "org has no resolvable subscription aiPackage -- platform default unchanged",
+    resolvedConfig: baseline,
+  }
+}
+
+/**
+ * sales_marketing scope -- new scope, no pre-existing resolver. Resolves
+ * strictly from roster.ts's own existing role->model assignment as the
+ * baseline (never invents a role or a model roster.ts doesn't already
+ * have); a policy may only override to a DIFFERENT model for that same
+ * role, never introduce a role that isn't in roster.ts.
+ */
+export function computeSalesMarketingResolution(
+  roleKey: string,
+  baselineModel: string | null,
+  policy: ActivePolicy | null
+): MotherRouterResolution {
+  if (!baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: "",
+      reason: `roleKey "${roleKey}" was not found in roster.ts, or has no model assigned (human/code-only role) -- nothing to resolve`,
+    }
+  }
+
+  const override = policy?.rule.preferredModelByRole?.[roleKey]
+  if (!override) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: "no active routing policy override -- roster.ts baseline assignment",
+    }
+  }
+  if (override === baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: `ai_routing_policies v${policy!.version} names the same model as the roster.ts baseline for ${roleKey} -- no change`,
+      policyVersion: policy!.version,
+    }
+  }
+
+  return {
+    provider: ROSTER_PROVIDER,
+    model: override,
+    reason: `ai_routing_policies v${policy!.version} override for ${roleKey}`,
+    policyVersion: policy!.version,
+  }
+}
+
+/**
+ * customer_success scope (AI Router registry-backed model resolution
+ * follow-up, 2026-07-19) -- new scope, no pre-existing resolver and no real
+ * dispatch call site wired to it yet (see this file's own DELIBERATE SCOPE
+ * DECISION header and MotherRouterContext's own comment on this variant).
+ * Identical resolution shape to computeSalesMarketingResolution() above:
+ * strictly resolves from roster.ts's own existing role->model assignment as
+ * the baseline (never invents a role or a model roster.ts doesn't already
+ * have); a policy may only override to a DIFFERENT model for that same
+ * role, never introduce a role that isn't in roster.ts.
+ */
+export function computeCustomerSuccessResolution(
+  roleKey: string,
+  baselineModel: string | null,
+  policy: ActivePolicy | null
+): MotherRouterResolution {
+  if (!baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: "",
+      reason: `roleKey "${roleKey}" was not found in roster.ts, or has no model assigned (human/code-only role) -- nothing to resolve`,
+    }
+  }
+
+  const override = policy?.rule.preferredModelByRole?.[roleKey]
+  if (!override) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: "no active routing policy override -- roster.ts baseline assignment",
+    }
+  }
+  if (override === baselineModel) {
+    return {
+      provider: ROSTER_PROVIDER,
+      model: baselineModel,
+      reason: `ai_routing_policies v${policy!.version} names the same model as the roster.ts baseline for ${roleKey} -- no change`,
+      policyVersion: policy!.version,
+    }
+  }
+
+  return {
+    provider: ROSTER_PROVIDER,
+    model: override,
+    reason: `ai_routing_policies v${policy!.version} override for ${roleKey}`,
+    policyVersion: policy!.version,
+  }
+}
+
+// ─── Subscription package resolution (Owner Phase 1: user-count-based) ────
+
+/**
+ * Resolves an org's subscription "aiPackage" (basic/standard/professional/
+ * enterprise -- Owner's Phase-1 packages, see the migration's seed data).
+ * Prefers an explicit organisations.subscriptionPlanId assignment; falls
+ * back to classifying by the org's REAL current user count against the
+ * seeded plans' userPackSize bands (ascending, smallest fitting band wins,
+ * Enterprise as the ceiling for anything larger). Returns null only when
+ * the org itself can't be found or no subscription_plans rows exist at all.
+ */
+export async function getOrgAiPackage(orgId: string): Promise<string | null> {
+  const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
+  if (!org) return null
+
+  if (org.subscriptionPlanId) {
+    const plan = await db.query.subscriptionPlans.findFirst({ where: eq(subscriptionPlans.id, org.subscriptionPlanId) })
+    const features = plan?.features as { aiPackage?: string } | undefined
+    if (features?.aiPackage) return features.aiPackage
+  }
+
+  // Independent queries -- run concurrently rather than paying their sum in
+  // sequence. A real `count(*)` (not a full row/id fetch) so this stays
+  // cheap for a large org's user table.
+  const [[{ value: userCount }], plans] = await Promise.all([
+    db.select({ value: count() }).from(users).where(eq(users.orgId, orgId)),
+    db.query.subscriptionPlans.findMany({
+      // GAP-OCID-049 live-reverify fix (UMR-20260804-221844-c915): the real
+      // subscription_plans table also carries 4 pre-existing legacy rows
+      // (Trial/Starter/Growth/Scale) seeded well before this task's own
+      // Basic/Standard/Professional/Enterprise scheme's migration -- see
+      // that migration's own file header for the real timeline -- that were
+      // never meant to participate in this fallback. This file's own header
+      // comment already names `features.aiPackage` as the deliberate
+      // discriminator for that scheme; filter on it here too so a legacy
+      // row can never win the band-fit `find()` below.
+      where: and(eq(subscriptionPlans.isActive, true), sql`${subscriptionPlans.features} ->> 'aiPackage' IS NOT NULL`),
+      orderBy: (t, { asc }) => asc(t.userPackSize),
+    }),
+  ])
+  if (plans.length === 0) return null
+
+  const fit = plans.find((p) => userCount <= p.userPackSize) ?? plans[plans.length - 1]
+  const features = fit.features as { aiPackage?: string } | undefined
+  return features?.aiPackage ?? null
+}
+
+// ─── Per-org BYO AI model (software_team scope, V2-5, 2026-07-20) ──────────
+
+export type ResolvedTenantAiConfig = {
+  provider: LLMProvider
+  model: string
+  apiKey: string
+  baseUrl: string | null
+}
+
+/**
+ * Resolves an org's own BYO AI model for the software_team scope
+ * (mother-router.ts's computeSoftwareTeamResolution / team-service.ts's
+ * runRole), the software_team-scope analog of orchestra-model-resolver.ts's
+ * resolveModelConfig() for the end_user_org scope.
+ *
+ * Uses the raw `db` client -- this is a platform-level resolution step that
+ * runs before any tenant-scoped transaction, not a per-request user action
+ * needing RLS (same posture resolveModelConfig() documents). The BYO API
+ * key is decrypted here via the same ai-config-crypto.ts decryptApiKey()
+ * every BYO path already uses and must never be returned to a client --
+ * callers use it to make the LLM call and discard it.
+ *
+ * Returns null when the org has no active tenant_ai_config row OR that row
+ * is inert (no encrypted_api_key AND/OR no model_name -- mirroring
+ * resolveModelConfig()'s own `customerConfig?.encryptedApiKey && modelName`
+ * gate, so an admin can save provider/model first and add the key in a
+ * follow-up edit without that half-configured row ever being "used"). A null
+ * return is the no-config-fallback case: the caller resolves exactly as
+ * before, no tenant override applied.
+ *
+ * Honest limitation: this resolver is the one place that actually decrypts
+ * the tenant key for a software_team dispatch. It is ONLY ever called from
+ * resolveModel()'s software_team branch (below) AND from the dispatch
+ * route's runRole() override path -- both server-side, both already behind
+ * requireAuth()'s admin gate at the route layer. Never exported to a client
+ * response.
+ */
+export async function resolveTenantAiConfig(orgId: string): Promise<ResolvedTenantAiConfig | null> {
+  const row = await db.query.tenantAiConfig.findFirst({
+    where: and(eq(tenantAiConfig.orgId, orgId), eq(tenantAiConfig.isActive, true)),
+  })
+  if (!row) return null
+  // Inert-row gate, same shape as resolveModelConfig()'s own check -- a
+  // half-configured row (model set but no key, or vice versa) is never
+  // "used," it falls through to the baseline.
+  if (!row.encryptedApiKey || !row.modelName) return null
+
+  const apiKey = await decryptApiKey(row.encryptedApiKey)
+  // lastUsedAt reflects the org's OWN real usage -- fire-and-forget, same
+  // non-blocking pattern as resolveModelConfig()'s own lastUsedAt write.
+  db.update(tenantAiConfig).set({ lastUsedAt: new Date() }).where(eq(tenantAiConfig.id, row.id)).then(() => {})
+  return {
+    provider: row.provider as LLMProvider,
+    model: row.modelName,
+    apiKey,
+    baseUrl: row.baseUrl,
+  }
+}
+
+// ─── Main entry point ──────────────────────────────────────────────────
+
+export async function resolveModel(context: MotherRouterContext): Promise<MotherRouterResolution> {
+  let resolution: MotherRouterResolution
+
+  if (context.scope === "software_team") {
+    // Super Boss v2 plan task V2-5 (BYOB): when an org context is present,
+    // resolve that org's own tenant_ai_config and pass the tenant's model
+    // (if any) into computeSoftwareTeamResolution as the preferred override
+    // candidate. computeSoftwareTeamResolution() gates it through the SAME
+    // checkTierEligibility() call as the baseline -- an ineligible tenant
+    // model silently downgrades, never bypasses the guardrail. A software
+    // team dispatch with no orgId, or one whose org has no active/inert-free
+    // tenant config, resolves exactly as before (tenantOverrideModel
+    // undefined -> the new branch is skipped, zero behavior change).
+    const tenantConfig = context.orgId ? await resolveTenantAiConfig(context.orgId) : null
+    const policy = await getActivePolicy(context.scope)
+    resolution = computeSoftwareTeamResolution(
+      context.model,
+      context.complexityTier,
+      context.roleKey,
+      policy,
+      context.capabilityCategory,
+      tenantConfig?.model
+    )
+  } else if (context.scope === "end_user_org") {
+    // 3 mutually independent fetches -- none consumes another's result --
+    // run concurrently instead of paying their summed latency in sequence.
+    const [policy, baseline, aiPackage] = await Promise.all([
+      getActivePolicy(context.scope),
+      resolveModelConfig(context.orgId, context.layerKey, context.sourceType),
+      getOrgAiPackage(context.orgId),
+    ])
+    if (!baseline) {
+      resolution = {
+        provider: "groq",
+        model: "",
+        reason: "resolveModelConfig() returned null (layer not found, cost-guard blocked the org, or no platform key is configured) -- no model to log as resolved",
+      }
+      await logRoutingDecision(context.scope, context, resolution)
+      return resolution
+    }
+    resolution = computeEndUserOrgResolution(baseline, aiPackage, policy)
+  } else if (context.scope === "sales_marketing") {
+    const policy = await getActivePolicy(context.scope)
+    const role = AI_TEAM_ROSTER.find((r) => r.roleKey === context.roleKey)
+    resolution = computeSalesMarketingResolution(context.roleKey, role?.model ?? null, policy)
+  } else {
+    const policy = await getActivePolicy(context.scope)
+    const role = AI_TEAM_ROSTER.find((r) => r.roleKey === context.roleKey)
+    resolution = computeCustomerSuccessResolution(context.roleKey, role?.model ?? null, policy)
+  }
+
+  await logRoutingDecision(context.scope, context, resolution)
+  return resolution
+}
+
+// ─── Emergency rollback ─────────────────────────────────────────────────
+
+export type RollbackResult = { ok: true } | { ok: false; error: string }
+
+/** Flips ai_routing_policies back to a previously-created version for a scope. Takes effect on the very next resolveModel() call for that scope (invalidates the cache immediately, not just relying on TTL expiry). */
+export async function rollbackPolicy(scope: AiRouterScope, toVersion: number): Promise<RollbackResult> {
+  const target = await db.query.aiRoutingPolicies.findFirst({
+    where: and(eq(aiRoutingPolicies.scope, scope), eq(aiRoutingPolicies.version, toVersion)),
+  })
+  if (!target) return { ok: false, error: `No ai_routing_policies row exists for scope="${scope}" version=${toVersion}` }
+
+  await db.transaction(async (tx) => {
+    await tx.update(aiRoutingPolicies).set({ isActive: false }).where(and(eq(aiRoutingPolicies.scope, scope), eq(aiRoutingPolicies.isActive, true)))
+    await tx.update(aiRoutingPolicies).set({ isActive: true }).where(eq(aiRoutingPolicies.id, target.id))
+  })
+  invalidateMotherRouterCache()
+  return { ok: true }
+}
