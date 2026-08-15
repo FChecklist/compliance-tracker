@@ -74,3 +74,11 @@ server.log
 # rather than committed. The model/vocab themselves are fetched directly from
 # HuggingFace at inference time (never written to disk here).
 /public/litert-spike-embeddings/wasm/
+
+# Static dependency index (scripts/build-dependency-index.ts) -- regenerated
+# on demand before a change, not committed. A checked-in copy would silently
+# go stale (nothing regenerates it in CI) and defeat the point of an
+# impact-analysis tool: `bun scripts/build-dependency-index.ts` before
+# touching a service/route, `--impact <path>` to query it. See
+# docs/DEPENDENCY_INDEX.md.
+/docs/dependency-index.json

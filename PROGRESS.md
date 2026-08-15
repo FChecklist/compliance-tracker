@@ -1,80 +1,133 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-071002-ai-maintainability--change-risk-manageme
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+VERIDIAN Review Framework gap-closure: "AI Maintainability / Change Risk
+Management," 5 findings. All addressed in this one PR (they share the same
+area, per this task's own instruction not to split into 5 PRs).
+
+Before writing any code, checked the current codebase against each gap
+description (per this task's own instruction that the framework evaluation
+may be stale): `git grep` for dependency-index/dependency-graph/impact-
+analysis/rollback-runbook/down-migration across `src/`, `scripts/`,
+`docs/`, `*.md` turned up nothing but unrelated Business-Continuity-
+Management "impact analysis" (`bcm-service.ts` -- disaster-recovery BIA, a
+different domain). None of the 5 findings were already resolved except
+#5 (Knowledge Sync), which turned out to be a genuine, confirmed duplicate
+-- see below.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] **[High] Impact Analysis Before Modification** + **[High] Dependency
+      Graph Accuracy** (same underlying work, per the second finding's own
+      recommendation: "Build the dependency index from row 74's
+      recommendation"). Built `scripts/build-dependency-index.ts`: a
+      static import-graph builder over `src/app/api`, `src/lib`,
+      `src/components` (which route/service/file imports which other
+      internal file, resolved through the `@/` alias and relative paths).
+      `bun scripts/build-dependency-index.ts` writes the graph;
+      `bun scripts/build-dependency-index.ts --impact <path>` (also
+      `bun run deps:impact <path>`) prints direct + transitive dependents
+      via BFS -- the real pre-modification blast radius, queryable, not
+      generic git/grep. Verified against the real repo (1349 files
+      scanned): e.g. `--impact src/lib/services/permission-service.ts`
+      correctly finds 59 real direct dependents. Pure graph-building core
+      (`extractImportSpecifiers`/`resolveImportPath`/`buildDependencyGraph`/
+      `computeImpact`) unit-tested in `scripts/build-dependency-index.test.ts`
+      (18 tests) against fake source/filesystem, matching this repo's
+      established pure-core/shell split (`model-scorecard-service.ts`).
+      Doc: `docs/DEPENDENCY_INDEX.md` (usage, scope, and the honest limits
+      -- static import graph only, not a runtime call graph; also notes the
+      row-37 FK-constraint follow-up as explicitly out of scope for this
+      pass, not attempted as a drive-by). Output JSON is gitignored
+      (regenerate on demand, never committed stale).
+
+- [x] **[High] Rollback Readiness**. `docs/ROLLBACK_RUNBOOK.md`: a real
+      ordered procedure (classify the deploy -> app-code rollback ->
+      database rollback -> post-rollback retrospective), distinct from and
+      cross-referencing the existing `docs/SEV1_INCIDENT_RUNBOOK.md`
+      (which already covers Vercel Instant Rollback for live incidents --
+      not duplicated here). `drizzle/down/` convention established for
+      down-migration scripts going forward, with one real worked example
+      (`0224_erp_exchange_rates_source_down.sql`, paired with the existing
+      forward migration) rather than only described in prose. Explicitly
+      did NOT attempt to retroactively backfill down migrations for all
+      230 existing forward migrations -- see `drizzle/down/README.md`'s
+      "Scope, stated honestly" section for why a blind mechanical pass
+      over 230 files (many additive, some genuinely irreversible without
+      re-verification) would risk shipping wrong down migrations, which is
+      worse than having none.
+
+- [x] **[Low] AI Confidence Before Code Changes**. Gap: "Confidence input
+      itself is not independently verified." Found the existing
+      `confidence-banding.ts` (Guardrail 9) bands a reported 0-100
+      confidence into a closure path, and `activity_log` already persists
+      `confidencePercentage`/`confidenceBand` plus real outcome signals
+      (`reviewDecision`, `reAuditRequestedAt`) -- but nothing previously
+      cross-checked the two. Built
+      `src/lib/services/confidence-correlation-service.ts`
+      (`getConfidenceOutcomeCorrelation`): aggregates activity_log by
+      confidence band and computes rejection rate + re-audit rate per
+      band, then flags "miscalibration" when a band whose reported
+      confidence implied a SAFER path (e.g. `auto_proceed`) shows a worse
+      re-audit rate than a band that implied a less-safe path (e.g.
+      `escalation_required`) -- i.e., the actual periodic check this
+      finding's recommendation asked for ("audit whether reported
+      confidence percentages correlate with actual outcome quality").
+      Exposed at `GET /api/ai/team/confidence-audit`
+      (`?sinceDays=<n>`, `veridian_admin`-gated), matching the sibling
+      `/api/ai/team/scorecard` governance-report pattern exactly. Pure
+      merge/scoring core unit-tested in
+      `confidence-correlation-service.test.ts` (12 tests), including the
+      miscalibration-detection logic itself.
+
+- [x] **[Medium] Knowledge Synchronization Between Code and
+      Documentation**. Confirmed as a genuine duplicate of the prior "AI
+      Documentation" row 67 finding (closed via PR #685 / #1039 / #1047 /
+      #1048) -- same gap description, same recommended approach verbatim
+      ("periodic manual audit passes as the practical complement to
+      structural CI checks"). Did not build a second semantic-drift
+      detector, per this task's own instruction to say so rather than make
+      an unnecessary change when a finding matches prior work. Instead:
+      `docs/KNOWLEDGE_SYNC_AUDIT.md` documents what the existing structural
+      check (`check-doc-cross-references.mjs`) does and doesn't cover
+      (link validity, not semantic accuracy), and turns the "periodic
+      manual audit" recommendation into a concrete checklist item attached
+      to the already-existing L6 (Weekly Strategic Review) cadence in
+      `audit-cadence.ts`, rather than inventing a new mechanism or
+      schedule.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+
+None of the 5 findings are outstanding. Two follow-ups were identified and
+explicitly deferred (named honestly rather than attempted as unscoped
+drive-bys):
+
+- Row 37's FK-constraint recommendation (data-layer dependency graph via
+  real foreign keys) -- a separate, larger, schema-migration-risk piece of
+  work spanning `schema.ts`'s hundreds of tables. See
+  `docs/DEPENDENCY_INDEX.md`'s "Related" section.
+- Retroactive down migrations for the 229 pre-existing forward migrations
+  that predate the `drizzle/down/` convention. See
+  `drizzle/down/README.md`'s "Scope, stated honestly" section.
+- CI enforcement of the `drizzle/down/` convention (currently PR-review-
+  enforced only) -- see `drizzle/down/README.md`'s "Not a CI gate" section
+  for why adding this now was out of scope (new-guardrail territory,
+  AGENTS.md Rule 9).
+
+## Verification
+
+- `bun install` (node_modules was empty in this workspace at task start).
+- `bun test scripts/build-dependency-index.test.ts
+  src/lib/services/confidence-correlation-service.test.ts` -- 30 pass, 0
+  fail.
+- `bun scripts/build-dependency-index.ts` -- ran against the real repo
+  (1349 files), wrote a real graph.
+- `bun scripts/build-dependency-index.ts --impact
+  src/lib/services/permission-service.ts` -- 59 real direct dependents,
+  spot-checked against `git grep` for the same import, matches.
+- Did not touch `src/lib/services/permission-service.ts`'s `ERP_ACTION_ROLES`
+  table or any in-flight worker's declared scope, per this task's own
+  constraint.
+- Full-project `tsc --noEmit` OOMs in this environment regardless of this
+  change (pre-existing environment limitation, not something introduced
+  here) -- no errors were reported against any of this PR's new files
+  before the OOM.
