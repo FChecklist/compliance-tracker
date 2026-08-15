@@ -98,11 +98,30 @@ against current code before acting).
 - [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`. Committed (`2f0a49a89`), pushed, opened
       **PR #1241**: https://github.com/FChecklist/compliance-tracker/pull/1241
 
+- [x] (invocation 15) All real checks green as of PR head `8cc044db1`: Type Check, Lint, Unit
+      Tests, Analyze, Doc Cross-Reference/Quarantine Banner/Asset Registry/Metadata Index/
+      Terminology/Guardrail Presence checks, Documentation Sentinel, Secret Scanning, Security
+      Pattern Check. (`Vercel` shows `fail` but it's an unrelated build-rate-limit infra error, not
+      a code defect -- not a required CI check.)
+- [x] Independently re-verified locally against the PR's actual head commit before auditing (not
+      just trusting CI's own green): `check-doc-drift.mjs`, `check-doc-quarantine-banner.mjs`,
+      `check-doc-cross-references.mjs` all pass; `MASTER-TRACKER.yaml` and `50-merged-tree.yaml`
+      both still `yaml.safe_load`-parseable.
+- [x] Posted the required structured 8-field `AUDIT: PASS` verdict comment on PR #1241
+      (https://github.com/FChecklist/compliance-tracker/pull/1241#issuecomment-5301653554).
+- [x] Confirmed (per this session's own memory `veridian-audit-check-issue-comment-sha-bug`) that
+      the `issue_comment`-triggered `audit-check` run reports against `main`'s SHA, not the PR's own
+      head -- so it does *not* clear the PR's own required-check state. `check-runs` on the PR's
+      actual head SHA (`8cc044db1`) still showed `audit-check: failure` from *before* the comment was
+      posted (09:40:39Z). This progress-file update doubles as the follow-up commit needed to fire a
+      `synchronize` event so `audit-check` (and the rest of CI) re-runs against a head SHA that
+      postdates the audit comment.
+
 ## Remaining
 
-- [ ] Watch PR #1241's CI to green, then post the required structured `AUDIT: PASS`/`FAIL` comment
-      (`scripts/validate-audit-verdict.ts` requires one on every PR into `main`, not just
-      AI-Dev-Team branches).
+- [ ] Watch PR #1241's `audit-check` (and `Build`, still `pending`) go green against this new head
+      commit, confirm `mergeStateStatus` clears from `BLOCKED`, then merge via `gh pr merge --squash`
+      (no direct push to `main` per Rule 6).
 - [ ] Not in this task's scope, left for follow-up implementation tasks: actually fixing
       `GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE` and
       `GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING` (both tracked, not fixed here -- this was a
