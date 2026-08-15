@@ -5944,6 +5944,46 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
+    claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
+    claim: |
+      SPEC: PM approval dispatch for `pm_decisions_pending` row 62 (build-lock serialization
+      fix), citing child UMR `UMR-20260806-121247-a93a`, investigation `UMR-20260806-120603-217b`,
+      governing closure mandate `UMR-20260806-071025-1d28`, PM report contract
+      `UMR-20260806-042531-be9c`. Required: root-cause a live-vs-disk lock-timeout discrepancy
+      before implementing (condition 1), a real before/after throughput proof (condition 2),
+      implement the approved fix with 4 safeguards, open a real PR in `veridian-scripts`, and
+      write evidence into `UMR-20260806-121247-a93a`.
+
+      Real, live-verified finding: this entire proposal was ALREADY fully closed 9 days before
+      this dispatch fired. `pm_decisions_pending` row 62 `status='completed'` (closed
+      `2026-08-06T12:24:22Z`). The fix + all 4 safeguards: `UMR-20260806-123316-cf9f`, PR #172,
+      commit `5cbbe1e`, merged `2026-08-06T15:56:16Z`. Condition 1 resolved in PR #172's own
+      completion evidence (traced to `systemctl --user show-environment` on manager PID 1023's
+      own global in-memory env, not any file/unit in the repo). Condition 2 resolved in PR #234
+      (`PROPOSAL_62_THROUGHPUT_PROOF_2026-08-06T2359Z.md`, commit `22471db`, merged
+      `2026-08-07T00:00:44Z`), which also honestly found a real requeue-CLI identity-mismatch
+      defect (9/11 real contention events); that defect was independently root-caused and fixed
+      later in PR #301 (commit `d02176b`, merged `2026-08-13T23:02:15Z`). `a93a` has no real row
+      in `umr_tasks` (confirmed live via direct read-only sqlite query) -- PR #234 already
+      documented this exact fact.
+
+      Did not fabricate a second real fix on top of an already-merged one. Instead re-verified
+      everything live (byte-identical diff of the deployed script vs. repo checkout; zero
+      processes currently in wchan `locks_lock_inode_wai`; 51/52 relevant tests passing) and
+      found one genuinely new fact: the stale global systemd env-var override from condition 1
+      is now gone (manager PID 1023 no longer exists -- a manager restart after 2026-08-06
+      organically cleared it), which made PR #172's own comment block factually stale (present
+      tense claiming a "set" override). Opened and merged a real, small closure PR (#408, commit
+      `7e3e862`, merge commit `f57c160`) in `veridian-scripts` (no branch protection there)
+      correcting that comment with a full citation trail -- no functional code change. Also
+      surfaced, but did NOT fix (different UMR/proposal, avoids scope creep): PR #168's own
+      `veridian-build-lock-liveness-guard.timer` is currently `disabled`/`inactive` on this host.
+    scope_note: >-
+      File scope: `veridian-scripts/quality-gate.sh` (comment-only, PR #408, merged), this
+      ACTIVE-CLAIMS.yaml entry, this task's own
+      `progress/task-20260815-044325-pm-approval-of-proposal-62-build-lock-co.md`. No src/,
+      schema, or CI-workflow changes in this repo; no functional change in veridian-scripts.
   - session_label: "claude-code (task-20260814-125852-post-merge-verification-audit-of-the-two) -- post-merge Tier-1 re-audit of PR #801 + PR #908 against their real final head SHAs, since neither prior AUDIT comment covered the state that actually merged [DONE, both AUDIT:PASS posted]"
     claimed_at: "2026-08-14T12:58Z (this session, closed same session)"
     claim: |
