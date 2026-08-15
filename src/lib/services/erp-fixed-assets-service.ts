@@ -32,17 +32,13 @@ import { requireErpEnabled } from "./erp-enablement-service"
 import { startApprovalWorkflow } from "./approval-workflow-service"
 import { createJournalEntry, submitJournalEntry, voidDraftJournalEntry, type JournalEntryLineInput } from "./erp-accounting-service"
 import { isPeriodOpenForDate } from "./erp-financial-report-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 // Matches erp-accounting-service.ts's createJournalEntry / erp-procurement-
 // workflow-service.ts's createPurchaseRequisition precedent exactly: "basic
 // create" operations accept either a real session user or a server-to-server
 // API key actor, while anything that starts an approval workflow or posts to
 // the GL (submit/dispose/depreciation-run) keeps requiring a real dbUser.
-export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
 
 function actorLogFields(ctx: ActorCtx) {
   return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }

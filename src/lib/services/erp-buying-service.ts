@@ -8,18 +8,14 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // Priority 17 Wave 1 (PROJEXA Procurement workflow exposure): widened to the
 // same dbUser-or-apiKey actor union already precedented by erp-invoicing-
 // service.ts's createSalesInvoice -- PROJEXA's callVeridian() proxy always
 // calls server-to-server with a shared Bearer API key, never a session
 // cookie.
-export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
 
 // Priority 17 Wave 1 (multi-currency Selling & Buying): identical
 // validation to erp-invoicing-service.ts's resolveInvoiceCurrency() (Wave

@@ -13,8 +13,8 @@ export { ServiceError }
 import { createId } from "@paralleldrive/cuid2"
 import { createHash } from "crypto"
 import { createClient } from "@supabase/supabase-js"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // A projection of an esignature_signers row carrying only the fields the
 // transition logic below needs to see. Kept as a structural type (not the

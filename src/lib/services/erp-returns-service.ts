@@ -16,8 +16,9 @@ import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
-import { recordStockReceipt, recordStockIssue, type ErpContext } from "./erp-inventory-service"
+import { recordStockReceipt, recordStockIssue } from "./erp-inventory-service"
 import { requireErpEnabled } from "./erp-enablement-service"
+import type { ErpContext } from "./actor-context"
 import { isSelfApproval } from "./approval-workflow-service"
 
 type ReturnItemInput = { itemId: string; quantity: number; rate?: number; reason?: string }
