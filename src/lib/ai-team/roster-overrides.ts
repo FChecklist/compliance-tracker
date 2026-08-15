@@ -18,6 +18,7 @@
 import { db, aiTeamRoleOverrides, aiModelRegistry } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { AI_TEAM_ROSTER, getRole } from "./roster"
+import { isEmergencyRevertActive } from "@/lib/ai-model-emergency-revert"
 
 // VERIDIAN Review Framework remediation (AI Router model-agnosticism gap,
 // 2026-07-19): before this, "known model" meant "already hardcoded
@@ -84,12 +85,21 @@ async function getRoleOverride(roleKey: string): Promise<string | null> {
  * must never be the reason an otherwise-working dispatch breaks -- an
  * override layer that can take down the whole AI Team on a transient DB
  * hiccup would be a net reliability regression, not an improvement.
+ *
+ * AI Model Lifecycle & Benchmarking gap-closure (2026-08-15,
+ * ai-model-emergency-revert.ts): when the platform-wide emergency revert is
+ * active, this skips the DB override entirely and returns roster.ts's own
+ * static default directly -- the same "revert everything to known-good,
+ * right now" switch orchestra-model-resolver.ts's getRoleModel() wires in
+ * for the customer-facing side. Does not delete the override row itself --
+ * it resumes taking effect the moment the revert is deactivated.
  */
 export async function resolveEffectiveModel(roleKey: string): Promise<string | null> {
   const role = getRole(roleKey)
   if (!role?.model) return role?.model ?? null
 
   try {
+    if (await isEmergencyRevertActive()) return role.model
     const override = await getRoleOverride(roleKey)
     if (override && (await isKnownModel(override))) return override
     return role.model

@@ -11409,6 +11409,36 @@ export const aiRoutingAuditLog = platformSchemaDB.table('ai_routing_audit_log', 
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// ─── AI Model Emergency Revert (VERIDIAN Review Framework remediation, AI
+// Model Lifecycle & Benchmarking gap-closure, 2026-08-15) ──────────────────
+// The named gap: "Deprecation/rollback is a manual git-revert process, not
+// an automated mechanism." Investigated first (see this PR's PROGRESS.md):
+// ai_model_registry.status ('deprecated') and ai_team_role_overrides
+// (setRoleOverride/clearRoleOverride) already make PER-ROW deprecation/
+// rollback a DB action, not a git revert -- and mother-router.ts's
+// rollbackPolicy() already exists for ai_routing_policies (left untouched
+// here, already self-documented as dormant -- see this table's own PR).
+// What was still missing: a single "revert EVERYTHING to known-good code
+// defaults, right now" switch -- without this, an operator dealing with a
+// misbehaving model still has to find and individually clear/deactivate
+// every affected registry row or role override.
+//
+// Append-only event log (same class as ai_routing_audit_log/activity_log
+// above), not a mutable singleton row -- the current state is "was the most
+// recent event an activation," derived in
+// src/lib/ai-model-emergency-revert.ts, so activation history is preserved
+// for free and there's no risk of two concurrent writers racing to update
+// the same row. `action` intentionally free text validated in code
+// (isActivate/isDeactivate), matching this table family's convention of
+// keeping enums for genuinely fixed domain values only.
+export const aiModelEmergencyRevertLog = platformSchemaDB.table('ai_model_emergency_revert_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  action: text('action').notNull(), // 'activated' | 'deactivated'
+  triggeredByUserId: text('triggered_by_user_id'),
+  reason: text('reason'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // ─── Task Register (AIROUTER-01 Phase 2, Software Team L0-L5, 2026-07-19)
 // ─────────────────────────────────────────────────────────────────────────
 // Genuinely distinct from ai_routing_audit_log above: that table logs

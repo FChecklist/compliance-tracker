@@ -48,13 +48,47 @@ Recommended: Add an emergency-revert config flag.
 ## Completed
 - [x] Investigation done, gap re-confirmed as real (not already resolved)
 - [x] Registered claim in ai-os/boss/ACTIVE-CLAIMS.yaml
+- [x] Schema (`ai_model_emergency_revert_log`, platform schema, append-only)
+      + hand-written migration `drizzle/0313_ai_model_emergency_revert_log.sql`
+      (NOTE: `bun run db:generate` was NOT used for the final migration --
+      the repo's own drizzle snapshot state is stale/incomplete
+      (`drizzle/meta/` only has `0000_snapshot.json` and `0265_snapshot.json`
+      committed, nothing for 0266-0312), so a real `db:generate` run diffed
+      against the 0265 snapshot and tried to re-create dozens of unrelated
+      already-applied tables. Discarded that output; hand-wrote a minimal
+      SQL migration for just this table + a matching `_journal.json` entry
+      instead. Pre-existing repo issue, out of scope to fix here -- flagging
+      for whoever next needs `db:generate` to work cleanly.)
+- [x] `src/lib/ai-model-emergency-revert.ts` (isEmergencyRevertActive/
+      activateEmergencyRevert/deactivateEmergencyRevert/
+      getEmergencyRevertStatus) + `.test.ts` (9 tests)
+- [x] Wired into `orchestra-model-resolver.ts`'s `getRoleModel()`
+- [x] Wired into `roster-overrides.ts`'s `resolveEffectiveModel()`
+- [x] Admin API route `POST/GET /api/ai/model-registry/emergency-revert`
+      (veridian_admin-gated)
+- [x] `asset-registry-coverage.yaml` exemption entry
+- [x] Tests: 50/50 pass across the 3 touched/new test files, in every file
+      order tried. Found + fixed a real (pre-existing-pattern, not
+      previously hit) bun `mock.module()` cross-file leak my own new test
+      file was causing -- `mock.restore()` does NOT undo a `mock.module()`
+      call, so the last thin `@/lib/db` mock in one test file can break
+      unrelated tests in a LATER file within the same `bun test` process.
+      Fixed by capturing the real `@/lib/db` module before mocking and
+      restoring it in `afterAll`. Full-suite `bun test`: 2544 pass / 2 fail
+      / 2 errors -- verified both the 2 fails (a pre-existing, same-class
+      cross-file mock leak between `departments/route.test.ts` and
+      `v1/tasks/[id]/status/route.test.ts`, nothing I touched) and the 2
+      errors (`Cannot find module '@fchecklist/veridian-ui-kit/*'`, a
+      missing workspace package) reproduce identically on a clean
+      `origin/main` checkout -- pre-existing, not a regression.
+- [x] ESLint clean on all touched/new files (0 errors, 0 warnings)
+- [x] `tsc --noEmit -p .` OOMs/times out in this environment even on a
+      clean checkout with no changes of mine (confirmed: same behavior
+      building the full project) -- a pre-existing environment resource
+      constraint, not something this change caused. Not able to get a full
+      project type-check to complete here; relying on ESLint (TS-aware)
+      + bun test's own transpilation + careful manual review instead.
 
 ## Remaining
-- [ ] Schema + migration
-- [ ] ai-model-emergency-revert.ts + tests
-- [ ] Wire into orchestra-model-resolver.ts
-- [ ] Wire into roster-overrides.ts
-- [ ] Admin API route
-- [ ] asset-registry-coverage.yaml entry
-- [ ] Run test suite, lint, typecheck
-- [ ] Commit, push, open PR
+- [ ] None for this finding. Full CI (which may have more headroom for
+      `tsc`/`next build` than this sandbox) is the real final check.

@@ -950,6 +950,8 @@ exempted:
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): no genuine display-name column -- scope (enum) + version (int) is a compound identity, not a per-row name, and rule is opaque policy jsonb. A versioned configuration record, same class as approval_workflow_step_approvals/access_review_certifications -- not a discoverable named asset."
   - table: ai_routing_audit_log
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): append-only audit log of routing decisions, no display-name column -- same class as the already-exempted activity_log/api_key_request_log."
+  - table: ai_model_emergency_revert_log
+    reason: "VERIDIAN Review Framework gap-closure (AI Model Lifecycle & Benchmarking, drizzle/0313, 2026-08-15): append-only activate/deactivate event log for the platform-wide emergency-revert kill switch (src/lib/ai-model-emergency-revert.ts) -- no genuine display-name column, same class as ai_routing_audit_log directly above. PLATFORM-WIDE by design (no org_id column -- this reverts platform-internal model resolution, not any single org's data)."
   - table: public_ticket_submission_attempts
     reason: "Helpdesk gap-closure (self-service portal, Phase 0 2026-07-27): a rate-limit/abuse log for the new unauthenticated public ticket-submission surface, not a platform business asset -- same class as other rate-limit/audit-log exemptions above."
   - table: ticket_teams

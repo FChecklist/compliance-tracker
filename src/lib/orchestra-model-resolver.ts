@@ -3,6 +3,7 @@ import { and, eq, isNull, isNotNull, or } from "drizzle-orm";
 import { decryptApiKey } from "@/lib/ai-config-crypto";
 import { canIncurCost } from "@/lib/cost-guard";
 import { callLLM, LLMHttpError, type LLMProvider, type LLMFallback } from "@/lib/llm-client";
+import { isEmergencyRevertActive } from "@/lib/ai-model-emergency-revert";
 
 export type ResolvedModelConfig = {
   provider: LLMProvider;
@@ -106,8 +107,20 @@ export function invalidateRoleRegistryCache(): void {
  * breaks. Logs a warning whenever the fallback path is actually hit, so a
  * silent registry gap is still visible in logs even though it doesn't break
  * anything.
+ *
+ * AI Model Lifecycle & Benchmarking gap-closure (2026-08-15,
+ * ai-model-emergency-revert.ts): when the platform-wide emergency revert is
+ * active, this skips the ai_model_registry lookup entirely and returns
+ * `fallback` (the hardcoded, code-deployed literal) directly -- the
+ * "revert everything to known-good, right now" switch this repo was
+ * missing (see that module's own header). Checked before the cache so an
+ * active revert can never be masked by a stale cached registry value.
  */
 async function getRoleModel(role: string, fallback: RoleModel): Promise<RoleModel> {
+  if (await isEmergencyRevertActive()) {
+    return fallback
+  }
+
   const cached = roleRegistryCache.get(role)
   if (cached && Date.now() - cached.fetchedAt < ROLE_REGISTRY_CACHE_TTL_MS) {
     return cached.value ?? fallback

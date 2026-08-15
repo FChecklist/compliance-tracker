@@ -31,6 +31,11 @@ import type { ResolvedModelConfig } from "./orchestra-model-resolver"
 afterEach(async () => {
   const { invalidateRoleRegistryCache } = await import("./orchestra-model-resolver")
   invalidateRoleRegistryCache()
+  // Same reasoning, same fix -- ai-model-emergency-revert.ts's own
+  // module-level cache (see the "an active platform-wide emergency revert"
+  // test below) must not leak a cached `active: true` into a later test.
+  const { invalidateEmergencyRevertCache } = await import("./ai-model-emergency-revert")
+  invalidateEmergencyRevertCache()
 })
 
 function config(overrides: Partial<ResolvedModelConfig> = {}): ResolvedModelConfig {
@@ -480,6 +485,45 @@ describe("registry-backed named-role lookup (platform_default / escalated_defaul
     } finally {
       if (originalOpenRouterKey === undefined) delete process.env.OPENROUTER_API_KEY
       else process.env.OPENROUTER_API_KEY = originalOpenRouterKey
+    }
+  })
+
+  // AI Model Lifecycle & Benchmarking gap-closure (2026-08-15,
+  // ai-model-emergency-revert.ts): proves getRoleModel() actually skips the
+  // ai_model_registry lookup -- not just that the flag exists -- by mocking
+  // an active registry override AND an active emergency revert, then
+  // asserting the hardcoded literal wins, not the override.
+  test("an active platform-wide emergency revert skips the registry lookup entirely, even when an active override row exists", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          aiModelRegistry: {
+            findFirst: mock(async () => ({ id: "reg-3", provider: "openai", model: "some-bad-promoted-model", role: "platform_default", status: "active" })),
+          },
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "some_layer", defaultModelConfig: {} })) },
+          // Most-recent-event = 'activated' -- what ai-model-emergency-
+          // revert.ts's isEmergencyRevertActive() reads. Deliberately NOT
+          // mocking that module itself (only @/lib/db, this file's one
+          // established mocking seam) so this proves the real wiring, not a
+          // stand-in for it.
+          aiModelEmergencyRevertLog: { findFirst: mock(async () => ({ action: "activated" })) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {}, aiModelEmergencyRevertLog: {},
+    }))
+    const originalGroqKey = process.env.GROQ_API_KEY
+    process.env.GROQ_API_KEY = "groq-test-key"
+    try {
+      const { resolvePlatformModelConfig, invalidateRoleRegistryCache } = await import("./orchestra-model-resolver")
+      const { invalidateEmergencyRevertCache } = await import("./ai-model-emergency-revert")
+      invalidateRoleRegistryCache() // see the first test's comment -- forces this test's own mock to actually be consulted
+      invalidateEmergencyRevertCache() // same reason, for ai-model-emergency-revert.ts's own module-level cache
+      const result = await resolvePlatformModelConfig("some_layer")
+      expect(result?.provider).toBe("groq")
+      expect(result?.model).toBe("openai/gpt-oss-120b") // hardcoded fallback, NOT the active registry override
+    } finally {
+      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY
+      else process.env.GROQ_API_KEY = originalGroqKey
     }
   })
 })

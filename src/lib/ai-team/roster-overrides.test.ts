@@ -106,3 +106,55 @@ describe("setRoleOverride validation (fails before any DB write)", () => {
     await expect(setRoleOverride("ai_router", "some/made-up-model", "user-1")).rejects.toThrow(/not a recognized model/)
   })
 })
+
+// AI Model Lifecycle & Benchmarking gap-closure (2026-08-15,
+// ai-model-emergency-revert.ts) -- see that module's own header for the
+// full investigation. resolveEffectiveModel() had no direct test coverage
+// before this wave; these tests cover both the pre-existing override
+// resolution and the new emergency-revert branch together.
+describe("resolveEffectiveModel", () => {
+  function mockDb(opts: { overrideModel?: string; emergencyRevertActive?: boolean }) {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          aiModelRegistry: { findMany: mock(async () => [{ model: "z-ai/glm-5.2" }, { model: opts.overrideModel ?? "z-ai/glm-5.2" }]) },
+          aiTeamRoleOverrides: {
+            findFirst: mock(async () => (opts.overrideModel ? { roleKey: "ai_router", model: opts.overrideModel } : undefined)),
+          },
+          // Same established seam as orchestra-model-resolver.test.ts's
+          // sibling test -- only @/lib/db is mocked, not
+          // ai-model-emergency-revert.ts itself, so this proves the real
+          // wiring.
+          aiModelEmergencyRevertLog: {
+            findFirst: mock(async () => (opts.emergencyRevertActive ? { action: "activated" } : undefined)),
+          },
+        },
+      },
+      aiModelRegistry: {}, aiTeamRoleOverrides: {}, aiModelEmergencyRevertLog: {},
+    }))
+  }
+
+  test("an active DB override wins over roster.ts's static default (no emergency revert)", async () => {
+    mockDb({ overrideModel: "z-ai/glm-5-turbo" })
+    const { resolveEffectiveModel } = await import("./roster-overrides")
+    const { invalidateEmergencyRevertCache } = await import("@/lib/ai-model-emergency-revert")
+    invalidateEmergencyRevertCache()
+    expect(await resolveEffectiveModel("ai_router")).toBe("z-ai/glm-5-turbo")
+  })
+
+  test("an active platform-wide emergency revert skips the DB override, even when one exists", async () => {
+    mockDb({ overrideModel: "z-ai/glm-5-turbo", emergencyRevertActive: true })
+    const { resolveEffectiveModel } = await import("./roster-overrides")
+    const { invalidateEmergencyRevertCache } = await import("@/lib/ai-model-emergency-revert")
+    invalidateEmergencyRevertCache()
+    expect(await resolveEffectiveModel("ai_router")).toBe("z-ai/glm-5.2") // roster.ts's static GLM_52 default, not the override
+  })
+
+  test("no override and no emergency revert resolves to roster.ts's static default", async () => {
+    mockDb({})
+    const { resolveEffectiveModel } = await import("./roster-overrides")
+    const { invalidateEmergencyRevertCache } = await import("@/lib/ai-model-emergency-revert")
+    invalidateEmergencyRevertCache()
+    expect(await resolveEffectiveModel("ai_router")).toBe("z-ai/glm-5.2")
+  })
+})
