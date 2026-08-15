@@ -40,6 +40,54 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260815-042936-real-reject-both-external-agent-pilot-su) -- real reject of the first two external-agent pilots (ZAI-COMMS-01/UMR-20260806-104534-b29c, DEEPSEEK-COMMS-02/UMR-20260806-104527-4f5f), src/app/sitemap.ts + src/app/layout.tsx"
+    claimed_at: "2026-08-15T04:29Z (this session)"
+    claim: |
+      SPEC (verbatim-equivalent duplicate of task-20260806-230706's own SPEC, itself already
+      registered/closed in this file's `recently_completed:` section, commit `755a6deb0`, PR #1007
+      -- read BEFORE starting per Rule 11): real-reject both first-attempt external-agent pilot
+      diffs (ZAI-COMMS-01 on `src/app/layout.tsx`: fabricated, referenced "Z.ai Code Scaffold"/
+      "Z.ai Team"/a `z-cdn.chatglm.cn` icon URL, none of which exist in the real file; DEEPSEEK-
+      COMMS-02 on `src/app/sitemap.ts`: real target line correct but invented surrounding import
+      lines, confirmed failing `git apply`); fix the root cause in prompt rendering (>=5 real
+      surrounding lines); then close both real points via the normal internal path (sitemap.ts
+      `BASE` -> `https://projexa-ai.com`, layout.tsx metadata `themeColor`/`icons.apple`/
+      `appleWebApp.capable`); quality-gate; PR; `gtm_certification_categories` evidence; child UMR
+      closure.
+
+      Independently re-confirmed (not just re-trusted) task-20260806-230706's own prior findings,
+      all still true live: (1) `umr_tasks` rows for both child UMRs already show
+      `status=completed`, `metadata_json` citing PR #978 (`04ab410d`, sitemap fix) and PR #979
+      (`577b66f9`, layout fix) -- both real, open, unmerged, `mergeable=MERGEABLE`,
+      `mergeStateStatus=BEHIND`, AUDIT:PASS already posted; (2) `render_external_agent_prompt()`
+      (`/opt/veridian/scripts/superboss-register.py:9295`) already embeds each file's ENTIRE real
+      content via `--- BEGIN FILE: {path} ---\n{body}\n--- END FILE ---` (`body = content`, not one
+      line), and `external_agent_dispatch` has ZERO rows for either UMR -- both pilots ran entirely
+      outside this tracked pipeline. The SPEC's proposed root cause ("prompt only supplied the
+      single target line") is FALSE for the one real prompt-rendering code path in this repo;
+      declining the requested >=5-line context change again, for the same reason already recorded.
+
+      NEW this session (branch-protection state has changed since 755a6deb0's own note about a
+      self-approval deadlock -- re-verified live, not re-trusted stale):
+      `required_approving_review_count` on `main` is now `0` (`gh api
+      repos/FChecklist/compliance-tracker/branches/main/protection`), so the prior
+      [[veridian-branch-protection-self-approval-deadlock-active]] blocker no longer applies.
+      Completion-gate note (`progress_completion_gate.py`, added 2026-08-14, postdates
+      task-20260806-230706): this task's own SPEC names `sitemap.ts`/`layout.tsx` as code
+      objectives, and neither PR #978 nor #979 carries this task's own task_id in its branch name,
+      so citing them alone would not satisfy `check_completion()` -- applying the SAME
+      already-audited fresh-file-read fix directly on THIS task's own branch (reading current
+      `origin/main` content myself, per the SPEC's own explicit instruction to read fresh rather
+      than reuse the fabricated diffs) rather than re-litigating already-settled root-cause/reject
+      evidence. Will close PR #978/#979/#1007 as superseded by this task's own consolidated PR
+      once merged, to avoid 3 overlapping open PRs touching the same 2 files.
+    scope_note: >-
+      File scope: `src/app/sitemap.ts` (BASE constant), `src/app/layout.tsx` (metadata object:
+      themeColor/icons.apple/appleWebApp), `progress/task-20260815-042936-real-reject-both-external-agent-pilot-su.md`
+      (new, this task's own per-task progress file per protocol), `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      (this entry). `umr_tasks` metadata_json enrichment for both child UMRs via canonical
+      `update_umr_task()` (never raw SQL). No change to `render_external_agent_prompt()` or any
+      other prompt-rendering code -- declined, root cause debunked twice now.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
