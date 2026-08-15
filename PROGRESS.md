@@ -33,32 +33,62 @@ Task: close 15 VERIDIAN Review Framework findings for "Accounts & Contacts"
 - [ ] Confirmed genuinely OPEN (verified against current main, not the
       stale finding description) -- see Remaining below.
 
-## Remaining
-- [ ] Reporting & Export Accuracy -- crm_accounts/crm_contacts are absent
-      from report-engine-service.ts's ad-hoc data-source whitelist (unlike
-      crm_leads/crm_opportunities) and from report-catalog-service.ts's
-      REPORT_CATALOG.
-- [ ] AI Copilot / Worker Agent Integration Depth -- no aiScore-style
-      columns/analysis function for accounts (Wave 75 CRM Intelligence
-      pattern exists for leads/opportunities only).
-- [ ] Search, Filter & Bulk Operations (bulk half) -- no bulk-reassign (or
-      other bulk) endpoint for accounts, unlike
-      v1/projexa/leads/bulk-reassign's precedent.
-- [ ] Cross-Module Integration Consistency -- crm_accounts has no
-      erpCustomerId/clientId bridge columns (crm_leads/crm_opportunities
-      already bridge to erp_customers).
-- [ ] Notification & Alert Trigger Correctness -- no notification triggers
-      (contact added / account reassigned) despite a working generic
-      `notifications` table + established `db.insert(notifications)`
-      pattern used by 10+ other services.
-- [ ] Documentation & In-App Help Coverage -- no doc mentions CRM
-      accounts/contacts anywhere in docs/.
-- [ ] Data Import/Export Template Fidelity -- no CSV import/export for
-      accounts.
-- [ ] Error Handling & Data Validation Messaging -- reviewing whether
-      existing ServiceError-message pattern (consistent with every other
-      CRM route) needs anything beyond what's already there.
-- [ ] Localization Readiness -- checking whether this is applicable at all
-      (accounts currently carry no monetary/contract-value field, and
-      no CRM monetary field anywhere in this codebase carries a currency
-      column today either) before deciding whether to add anything.
+- [x] Reporting & Export Accuracy -- added crm_accounts + crm_contacts to
+      report-engine-service.ts's TABLE_REGISTRY (same whitelist mechanism
+      crm_leads/crm_opportunities already use for ad-hoc grouped reports;
+      they have no static REPORT_CATALOG entries either, so none added for
+      accounts/contacts -- matches precedent exactly).
+- [x] AI Copilot / Worker Agent Integration Depth -- extended the Wave 75
+      CRM Intelligence pattern to accounts: aiHealthScore/aiRiskFactors/
+      aiRecommendedAction/aiAnalyzedAt columns, analyzeAccountHealth() in
+      crm-accounts-service.ts (same resolveModelConfig -> enforcePolicy ->
+      callLLMJson -> recordOrchestraExecution chain as scoreLead/
+      analyzeOpportunity), POST /api/crm/accounts/:id/analyze, prompt
+      template crm_intelligence.analyze_account seeded via
+      drizzle/0314_crm_accounts_ai_and_bridge_columns.sql, UI wired into
+      the account detail page (same card shape as the opportunity
+      detail page's AI Analysis card).
+- [x] Search, Filter & Bulk Operations (bulk half) -- bulkReassignAccounts()
+      + POST /api/crm/accounts/bulk-reassign, same manager-rank gate and
+      shape as v1/projexa/leads/bulk-reassign.
+- [x] Cross-Module Integration Consistency -- added nullable erpCustomerId
+      + clientId bridge columns to crm_accounts (same convention as
+      crmOpportunities.erpCustomerId / crmLeads.clientId).
+- [x] Notification & Alert Trigger Correctness -- contact-added and
+      account-reassigned (single + bulk) now insert into the existing
+      `notifications` table via the same `db.insert(notifications)`
+      pattern 10+ other services already use.
+- [x] Documentation & In-App Help Coverage -- docs/features/crm-accounts-
+      contacts.md (new). In-app help itself (Help AI, `/api/help/ask`) is
+      freeform-QA over an org-authored KB + general model knowledge, not a
+      fixed doc index a code change updates -- noted honestly rather than
+      claimed as "wired in".
+- [x] Data Import/Export Template Fidelity -- GET /api/crm/accounts/export
+      (CSV, reuses report-export-shared.ts's rowsToCSV) and POST
+      /api/crm/accounts/import (multipart csv/xlsx/xls, reuses
+      src/lib/ingest/parser.ts#parseFile + a new header-aliasing mapper +
+      row-level partial-success import), wired into the accounts list
+      page (Export CSV / Import CSV buttons).
+- [x] Error Handling & Data Validation Messaging -- reviewed: the existing
+      ServiceError-message pattern is consistent with every other CRM
+      route; the import endpoint's row-level `{ row, name, error }` array
+      is the concrete artifact this finding was really asking for, and is
+      now in place.
+- [x] Localization Readiness -- confirmed not applicable and documented as
+      such (not force-added): no CRM monetary field anywhere in this
+      codebase, crm_opportunities.estimatedValue included, carries a
+      currency column today, and crm_accounts has no monetary/
+      contract-value field at all to make currency-aware. See docs/
+      features/crm-accounts-contacts.md's Localization section.
+
+## Verification
+- [x] `bunx tsc --noEmit` clean (0 errors, ran with
+      NODE_OPTIONS=--max-old-space-size=6144 -- the default heap OOMs on
+      this repo's full project graph regardless of this change).
+- [x] `bun run lint` 0 errors (same 3 pre-existing warnings PR #389/#402
+      already documented as unrelated: litigation/[id]/route.ts,
+      data-table.tsx, VeriComposer.tsx).
+- [x] `bun test` 2582 pass / 0 fail across 225 files (includes 5 new
+      mapAccountImportRows tests) -- no regressions.
+- [ ] `bun run build` -- running in background at the time of this
+      checkpoint; result not yet observed.

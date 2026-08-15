@@ -17,6 +17,7 @@ import {
   wouldCreateCycle, resolveAccountShippingAddress,
   canEditAccount, canReassignOrDeleteAccount, canCreateCrmRecord,
   extractDomain, findDuplicateAccountMatches, validateContactFormat,
+  mapAccountImportRows,
 } from "./crm-accounts-service"
 
 describe("wouldCreateCycle -- crm_accounts parent-account hierarchy integrity", () => {
@@ -221,5 +222,51 @@ describe("validateContactFormat -- email/phone format validation beyond DB NOT N
 
   test("rejects a malformed phone number", () => {
     expect(() => validateContactFormat({ phone: "123" })).toThrow(/valid phone/)
+  })
+})
+
+// VERIDIAN Review Framework "Accounts & Contacts" gap-closure (2026-08-15):
+// Data Import/Export Template Fidelity -- coverage for the CSV/XLSX header-
+// aliasing pure function (importAccountsFromRows itself is DB-backed, same
+// "no live DB from a .test.ts file" convention as the rest of this file).
+describe("mapAccountImportRows -- CSV/XLSX header aliasing for account import", () => {
+  test("maps canonical headers case-insensitively", () => {
+    const result = mapAccountImportRows(
+      ["Name", "Industry", "Website", "Owner Email"],
+      [{ Name: "Acme Retail", Industry: "Retail", Website: "acme.com", "Owner Email": "jane@acme.com" }]
+    )
+    expect(result).toEqual([{
+      name: "Acme Retail", industry: "Retail", website: "acme.com", lifecycleStage: undefined,
+      ownerEmail: "jane@acme.com", billingCity: undefined, billingCountry: undefined,
+    }])
+  })
+
+  test("recognizes alias headers (Company / City / Country)", () => {
+    const result = mapAccountImportRows(
+      ["Company", "City", "Country"],
+      [{ Company: "Acme", City: "Mumbai", Country: "India" }]
+    )
+    expect(result[0]).toEqual({
+      name: "Acme", industry: undefined, website: undefined, lifecycleStage: undefined,
+      ownerEmail: undefined, billingCity: "Mumbai", billingCountry: "India",
+    })
+  })
+
+  test("leaves name empty (not throwing) when the column is missing -- caller reports it as a row-level error", () => {
+    const result = mapAccountImportRows(["Industry"], [{ Industry: "Retail" }])
+    expect(result[0].name).toBe("")
+  })
+
+  test("treats blank/whitespace-only cells as absent, not empty strings", () => {
+    const result = mapAccountImportRows(["Name", "Website"], [{ Name: "Acme", Website: "   " }])
+    expect(result[0].website).toBeUndefined()
+  })
+
+  test("handles multiple rows independently", () => {
+    const result = mapAccountImportRows(
+      ["Name"],
+      [{ Name: "Acme" }, { Name: "Globex" }]
+    )
+    expect(result.map((r) => r.name)).toEqual(["Acme", "Globex"])
   })
 })
