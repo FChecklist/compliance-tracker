@@ -281,3 +281,44 @@ what was actually found vs. the original gap description.
       manually. Leaving the ACTIVE-CLAIMS.yaml entry under `active:`
       (not `recently_completed:`) since the PR is not actually merged
       yet -- moving it would misrepresent state to other sessions.
+- [x] Invocation 14 (2026-08-15): re-verified `required_approving_review_count`
+      via `gh api repos/.../branches/main/protection` -- it is now `0`
+      (`enforce_admins` still `true`), i.e. the temporary review-count
+      exception documented in
+      `ai-os/GOVERNANCE_RECORD_TEMPORARY_REVIEW_COUNT_EXCEPTION_2026-08-05.md`
+      is still active and NOT re-enabled. So the review-count deadlock that
+      blocked the previous invocation's merge attempt is no longer the real
+      blocker. The real blocker this invocation: `main` had moved 224
+      commits since the branch was last synced, so PR #1014 had gone
+      `DIRTY`/`CONFLICTING` again. Re-merged `origin/main`, resolved 5
+      conflicting files:
+      - `PROGRESS.md`: kept ours (repo convention), folded in this note
+        (main's incoming side was an unrelated task's empty stub).
+      - `ai-os/boss/ACTIVE-CLAIMS.yaml`: kept both sides' claim entries
+        (concurrent, non-overlapping sessions), dropped only the conflict
+        markers.
+      - `src/lib/services/crm-service.ts`: main independently added a real
+        owner-or-manager RBAC gate (`canCreateCrmRecord`/`canEditLead`/
+        `canReassignOrDeleteLead`, `ROLE_RANK`-based) to `createLead()`/
+        `updateLead()` since this branch was cut. Merged both: RBAC gate
+        runs first (`assertGate(...)` when `ctx.role` is provided, unchanged
+        opt-in shape), then this session's Zod validation, then this
+        session's status-transition validation -- all three now compose
+        instead of either replacing the other. Import list merged (both
+        branches added distinct new imports).
+      - `src/lib/services/crm-service.test.ts`: both branches added a pure-
+        predicate test file for different exports of the same module (mine:
+        `VALID_LEAD_TRANSITIONS`/Zod schemas; main's: the new RBAC gate
+        functions, plus Task #46's `computeRoundRobinAssignment`/
+        `aggregateLeadSourceEffectiveness` which both sides already had) --
+        merged into one file, one shared import line, all `describe` blocks
+        kept.
+      - `src/app/api/crm/leads/[id]/route.ts`: main's `PATCH` handler had
+        independently started passing `role: dbUser.role` into `updateLead()`
+        (to feed the new RBAC gate) but dropped this session's
+        `stageChangeNote` destructuring in the process. Merged: pass both
+        `role` and the split `patch`/`stageChangeNote`, matching
+        `updateLead()`'s real (now-merged) signature.
+      - Verified post-merge: `bun x eslint` clean on all 5 touched files
+        (see below); no stray conflict markers anywhere in the repo
+        (`git grep -n '^<<<<<<<\|^=======\|^>>>>>>>'`).

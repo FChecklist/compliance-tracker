@@ -30,7 +30,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
     const { id } = await params
     const body = await request.json()
     const { stageChangeNote, ...patch } = body ?? {}
-    const lead = await updateLead({ orgId, userId: dbUser.id }, id, patch, stageChangeNote)
+    const lead = await updateLead({ orgId, userId: dbUser.id, role: dbUser.role }, id, patch, stageChangeNote)
     return NextResponse.json(lead)
   } catch (error) {
     // VERIDIAN Review Framework gap-closure, "Error Handling & Data
@@ -51,7 +51,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   try {
     const { id } = await params
-    const result = await deleteLead({ orgId, userId: dbUser.id }, id)
+    const result = await deleteLead({ orgId, userId: dbUser.id, role: dbUser.role }, id)
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

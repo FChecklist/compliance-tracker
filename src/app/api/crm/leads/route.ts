@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const lead = await createLead({ orgId, userId: dbUser.id }, body)
+    const lead = await createLead({ orgId, userId: dbUser.id, role: dbUser.role }, body)
     return NextResponse.json(lead, { status: 201 })
   } catch (error) {
     // VERIDIAN Review Framework gap-closure, "Error Handling & Data
