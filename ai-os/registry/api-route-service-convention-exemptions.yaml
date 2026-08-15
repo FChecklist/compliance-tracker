@@ -1,0 +1,26 @@
+# VERIDIAN Review Framework gap-closure (AI Engineering Quality / Design
+# Pattern Consistency, 2026-08-15): exemption registry for
+# scripts/check-api-route-conventions.mjs, same reviewable-diff-ratchet
+# pattern as ai-os/registry/terminology-guardrail-exemptions.yaml.
+#
+# Scope: this check only looks at NEW files (added in a PR's own diff), not
+# the ~995 pre-existing route.ts files -- see that script's own header for
+# why a retroactive full-repo sweep is explicitly out of scope. Add an entry
+# here only for a genuinely new file that legitimately does not follow the
+# requireAuth()/ServiceError convention (public/token-authenticated route,
+# webhook signature check, pure read/compute service with no throw path),
+# with a real reason -- never to silence a real gap.
+
+exemptions:
+  - file: src/lib/services/dispatch-tool-service.ts
+    reason: >-
+      Behavior-preserving extraction out of task-execution-engine.ts
+      (2026-08-15, Code Modularity finding) -- every `throw new Error(...)`
+      here is copied unchanged from that file's original dispatchTool(),
+      which predates this repo's ServiceError convention and is consumed by
+      several call sites (executeStructuredDispatch, route handlers under
+      src/app/api/v1/projexa/*, dispatch-output-validator.ts) that already
+      handle a generic Error. Converting to ServiceError now would be an
+      out-of-scope behavior change (different HTTP status mapping) riding
+      on what should be a pure file-move; tracked as real follow-up debt,
+      not silently accepted.
