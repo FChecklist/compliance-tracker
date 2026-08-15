@@ -123,7 +123,8 @@ wiring lands.
 
 ## Remaining
 
-- [ ] Open PR, let CI run, merge per Rule 6
+- [x] Open PR: https://github.com/FChecklist/compliance-tracker/pull/1219
+- [ ] Let CI run, merge per Rule 6
 - [ ] Wire `route-error-handling-check` into `.github/workflows/ci.yml`
   (see "Known limitation" above -- needs a `workflow`-scoped push)
 - [ ] Once merged, move this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
