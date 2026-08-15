@@ -1,0 +1,17 @@
+fix(pr-1221): CodeQL tainted-format-string + terminology-guardrail exemption bumps
+
+- roster-overrides.ts: resolveDispatchModel's error-path console.error call
+  folded caller-controlled roleKey into its format-string (first) argument
+  while also passing a second arg (err). Node treats %s/%d in that
+  position as printf-style substitutions against the args that follow, so
+  an attacker-influenced roleKey could corrupt or inject log output (CodeQL
+  js/tainted-format-string, flagged High on PR 1221). Fixed by moving
+  roleKey into a plain data object instead of the format string.
+- ai-os/registry/terminology-guardrail-exemptions.yaml: bumped the
+  hardcoded_iso_date baseline for the 6 files this gap-closure diff
+  touches (each bump documents the real new dated comment or comments it
+  covers, same convention as every prior entry in this file). The
+  Terminology Guardrail Check count-ratchet flagged these as new debt
+  since the baseline predates this PR commit.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

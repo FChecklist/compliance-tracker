@@ -1,0 +1,11 @@
+docs: record PR 1221 CI fix-up + rebase resolution in task progress
+
+Documents the 3 real CI issues found live on PR 1221 (CodeQL
+tainted-format-string, terminology-guardrail count-ratchet, merge
+conflict against sibling PR 1219) and their fixes, plus the honest
+non-fix on Promptfoo Evals (own 15-minute timeout on a real live-LLM
+job, not a required status check per that workflow's own header) and
+Vercel (build-rate-limit, not a code issue). Full bun test re-verified
+clean post-rebase: 2577 pass / 0 fail across 225 files.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
