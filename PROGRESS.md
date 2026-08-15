@@ -1,5 +1,7 @@
 # PROGRESS -- task-20260718-074005-accessibility--wcag-compliance---visual
 
+PR: https://github.com/FChecklist/compliance-tracker/pull/1226 (open, CI running)
+
 VERIDIAN Review Framework gap-closure: Accessibility (WCAG Compliance) /
 Visual Accessibility. 2 findings, closed together in one PR since both are
 UI-accessibility remediation touching overlapping component files.
