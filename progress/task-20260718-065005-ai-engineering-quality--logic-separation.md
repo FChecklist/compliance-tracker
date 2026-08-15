@@ -88,6 +88,13 @@ Title: AI Engineering Quality: Logic Separation & Determinism (VERIDIAN Review F
 - [x] Registered/will retire this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry (move `active:` →
       `recently_completed:` once the PR is opened).
 
+- [x] Verified `node scripts/audit-deterministic-first-coverage.mjs` runs cleanly against the live
+      tree: 29 LLM-call-importing files found, 17 justified, 12 flagged for human review (mostly
+      `*-intelligence-service.ts`-style unstructured-input-extraction modules — plausible LLM uses,
+      flagged for a glance not because they're wrong). `node --check` passes; full `eslint` run
+      skipped (repo `node_modules` not installed in this workspace — `eslint-config-next` missing;
+      CI's own Lint job will run it for real on the PR).
+
 ## Remaining
 - [ ] Commit + push the real code/docs change, open PR, verify CI green.
 - [ ] Move this task's ACTIVE-CLAIMS entry to `recently_completed:`.
