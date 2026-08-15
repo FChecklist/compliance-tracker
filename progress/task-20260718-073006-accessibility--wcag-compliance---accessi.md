@@ -130,7 +130,86 @@ whoever has `workflow` scope to apply.
       Collision / Analyze (CodeQL) all **pass**. Only `Vercel` deploy check
       fails, and only on a pre-existing, unrelated `build-rate-limit`
       infra issue (visible in its own check URL), not caused by this PR.
-- [ ] `Build` / `E2E Tests` jobs were still pending as of the last check —
-      confirm they finish green (this is the one check that directly
-      exercises `e2e/accessibility.spec.ts` for real in CI) before treating
-      this as fully closed.
+- [x] `Build` finished green; `E2E Tests` finished **FAILURE** (real failure,
+      not the flaky Vercel infra one). Investigated with a real log pull
+      (`gh run view --job=<id> --log-failed`, since the unfiltered `--log`
+      silently truncates to ~31 lines here — new instance of the known
+      large-output-truncation issue, see memory
+      `veridian-shell-large-output-truncation-bug`): `webServer` (`bun run
+      dev`) never became ready within the 120s timeout, **zero** stdout
+      captured for the entire window (`Error: Timed out waiting 120000ms
+      for the server to start`).
+- [x] Root-caused with real local reproduction (this sandbox's port 3000 is
+      occupied by an unrelated system Grafana instance, so verified against
+      alternate ports 3011-3013 instead, and reverted the temporary
+      `package.json` port edit used only for that local test — never
+      committed). **Two distinct, independently-confirmed real bugs**, not
+      one guess:
+  1. `playwright.config.ts`'s `webServer` never actually received the
+     placeholder `DATABASE_URL`/Supabase env vars its own pre-existing
+     comment *claimed* it already used (matching the `build`/`unit-tests`
+     CI jobs' precedent) — the `e2e` job in `ci.yml` sets zero env vars, so
+     `src/proxy.ts`'s `createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!,
+     ...)` throws synchronously on every request. Confirmed locally:
+     reproducible `500 "Your project's URL and Key are required..."` on `/`
+     with those vars unset.
+  2. Even with (1) fixed, `/` and `/login` **still** 500'd: found a second,
+     previously-undiscovered real bug —
+     `resolvePreAuthBrandByHost()` (`src/lib/services/org-branding-service.ts`)
+     calls `db.query.productBranches.findFirst()` completely unguarded,
+     despite its own comment explicitly claiming "never throws". A DB
+     connection failure (e.g. the placeholder `DATABASE_URL`, which points
+     at nothing real in CI) propagates as an unhandled render error on
+     *every* unauthenticated request to `/` and `/login` (both call this
+     pre-auth, confirmed via `grep`). This directly corrects the earlier
+     "confirmed DB-free" claim in this file's own Completed section above
+     for those two specific routes — `/pricing`/`/terms`/`/privacy` really
+     are DB-free (re-verified, no `db`/`resolvePreAuthBrandByHost` import
+     anywhere under those route dirs), but `/` and `/login` are not, and
+     without this fix the accessibility scan would have been auditing a
+     generic Next.js crash page instead of real content even after fixing
+     (1).
+- [x] Fixed both, minimally and narrowly scoped to what's required:
+  - `playwright.config.ts`: `webServer.env` now supplies the placeholder
+    vars for real (only when unset in the parent env, so a real local
+    `.env.local`-configured Supabase project is never shadowed for
+    developer-run `bunx playwright test`); `webServer.timeout` raised
+    120s -> 300s (the separate `Build` job alone takes ~2m23s for a full
+    production build of this app's ~99 routes, so a cold Turbopack compile
+    of just the first dev-mode request under a resource-constrained CI
+    runner plausibly still exceeds 120s); `stdout`/`stderr` set to `'pipe'`
+    so a future webServer failure is diagnosable directly from the CI log
+    instead of the total silence seen this time.
+  - `src/lib/services/org-branding-service.ts`: wrapped
+    `resolvePreAuthBrandByHost()`'s DB query in try/catch, degrading to
+    `null` (platform-default branding, matching every other
+    "unmatched host" outcome this function already returns) on failure —
+    matches the function's own documented "never a broken UI" contract,
+    and is a real production-reliability fix independent of this CI job (a
+    transient DB outage should not 500 the public homepage/login page).
+- [x] Verified locally end-to-end before pushing:
+  - Before fix: `bun run dev` with CI-shaped env (placeholder/missing
+    `DATABASE_URL`/Supabase vars) -> `/` responds in 6-14s but with HTTP
+    500 (first the `proxy.ts` throw, then, once that's patched, the
+    `resolvePreAuthBrandByHost()` throw).
+  - After fix: `/` responds HTTP 200 with real rendered HTML in ~14s.
+  - `bun run lint` -> 0 errors (same 3 pre-existing warnings, unchanged).
+  - `bunx tsc --noEmit` -> 0 errors (needed `NODE_OPTIONS=--max-old-space-size=4096`
+    in this resource-constrained sandbox to avoid an OOM crash; not a CI
+    concern).
+  - `bun test` -> 2560 pass / 0 fail (unchanged).
+- [x] Committed (`0b435fd93`) and pushed to the same PR #1232 branch; fresh
+      CI run in progress on the new head SHA.
+- [ ] Confirm the fresh CI run (post-`0b435fd93`) goes fully green,
+      especially `E2E Tests` for real this time — check before declaring
+      this closed.
+- [ ] Re-post/re-verify the `AUDIT: PASS` comment applies to the new head
+      SHA (standard synchronize-after-comment fix, see memory
+      `veridian-audit-check-issue-comment-sha-bug`, if needed).
+- [ ] `gh pr merge` is expected to fail with the known repo-wide
+      self-approval branch-protection deadlock (`required_approving_review_count: 1`,
+      only one real GitHub identity exists here) — see memory
+      `veridian-branch-protection-self-approval-deadlock-active`. Do not
+      loop on merge attempts; one attempt is enough to reconfirm, document,
+      and leave for the Owner, same as every other PR in this repo right
+      now.
