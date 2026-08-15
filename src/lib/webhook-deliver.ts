@@ -1,6 +1,8 @@
 import { db, webhooks, webhookDeliveries } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq, and, sql } from "drizzle-orm";
 import crypto from "crypto";
+import { runWebhookDeliveryOutcomeMonitor } from "@/lib/monitors/webhook-delivery-outcome-monitor";
 
 export async function deliverWebhook(
   orgId: string,
@@ -25,7 +27,12 @@ export async function deliverWebhook(
       .update(body)
       .digest("hex");
 
+    let delivered = false;
+    let lastStatusCode: number | null = null;
+    let attemptsMade = 0;
+
     for (let attempt = 1; attempt <= 3; attempt++) {
+      attemptsMade = attempt;
       try {
         const response = await fetch(webhook.url, {
           method: "POST",
@@ -48,11 +55,13 @@ export async function deliverWebhook(
           success: response.status >= 200 && response.status < 300,
         });
 
+        lastStatusCode = response.status;
         if (response.status >= 200 && response.status < 300) {
           await db
             .update(webhooks)
             .set({ lastDeliveryAt: new Date(), lastStatusCode: response.status })
             .where(eq(webhooks.id, webhook.id));
+          delivered = true;
           break;
         }
 
@@ -71,10 +80,23 @@ export async function deliverWebhook(
           success: false,
         });
 
+        lastStatusCode = null;
         if (attempt < 3) {
           await new Promise((r) => setTimeout(r, Math.pow(5, attempt - 1) * 1000));
         }
       }
     }
+
+    // RES-02 Phase 1 (PLATFORM_STRATEGY.md 29.3): one outcome check per
+    // webhook per event, after the retry loop concludes -- not per attempt
+    // (a retry succeeding on attempt 2 is a successful delivery, not 2
+    // separate API_SUCCESS/API_FAILED events). Best-effort: a monitor
+    // failure must never break webhook delivery itself, which already
+    // completed above.
+    await withTenantContext({ orgId }, (tx) =>
+      runWebhookDeliveryOutcomeMonitor(tx, orgId, {
+        webhookId: webhook.id, eventType, succeeded: delivered, attempts: attemptsMade, lastStatusCode,
+      })
+    ).catch((err) => console.error(`[webhook-delivery-outcome-monitor] failed for webhook ${webhook.id}:`, err));
   }
 }

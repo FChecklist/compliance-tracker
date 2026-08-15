@@ -41,6 +41,29 @@
           "veriProjectsAi": "VERI Projects AI"
         }
       },
+      "construction": {
+        "title": "Construction",
+        "items": {
+          "siteDiary": "Site Diary",
+          "rfis": "RFIs",
+          "submittals": "Submittals",
+          "punchList": "Punch List",
+          "scope": "Scope (BOQ)",
+          "labour": "Labour",
+          "expenses": "Expenses"
+        }
+      },
+      "constructionDesign": {
+        "title": "Construction (Design & Progress)",
+        "items": {
+          "floorPlans": "Floor Plans",
+          "moodBoards": "Mood Boards",
+          "ffe": "FF&E",
+          "changeOrders": "Change Orders",
+          "workProgress": "Work Progress",
+          "dashboard": "Construction Dashboard"
+        }
+      },
       "theFirm": {
         "title": "The Firm",
         "items": {
@@ -202,11 +225,13 @@
           "tasks": "Tasks",
           "documents": "Documents",
           "enterpriseKpiHub": "Enterprise KPI Hub",
+          "aiObservability": "AI Observability",
           "knowledgeBase": "Knowledge Base",
           "automation": "Automation",
           "metricAlerts": "Metric Alerts",
           "ticketing": "Ticketing",
           "capabilityRegistry": "Capability Registry",
+          "taskDuplicates": "Duplicate Task Detection",
           "veriTodoAi": "VERI To Do AI",
           "veriMomAi": "VERI MOM AI",
           "voiceTickets": "Voice Tickets",

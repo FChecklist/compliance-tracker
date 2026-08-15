@@ -22,6 +22,11 @@ type ChatMessage = {
   guestName?: string | null;
   commitment: { status: string; assigneeId: string; dueDate: string | null } | null;
   mismatch: MismatchInfo | null;
+  // REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "AI Confidence Score"
+  // / "Communicates AI Limitations Honestly"): honest heuristic proxy from
+  // floor-tier-escalation.ts's hedging-detection signal, null for every
+  // non-AI message and every AI message from before this change.
+  confidenceLabel?: "high" | "medium" | "low" | null;
 };
 
 type ConversationSummary = {
@@ -209,6 +214,16 @@ export function ThreadView({
   );
 }
 
+// REVIEW-FRAMEWORK-WAVE4: labeled honestly as a heuristic proxy (title
+// tooltip), never presented as a calibrated model confidence score -- see
+// floor-tier-escalation.ts's deriveConfidenceLabel() for what actually
+// computes this.
+const CONFIDENCE_BADGE: Record<"high" | "medium" | "low", { label: string; className: string }> = {
+  high: { label: "High confidence", className: "bg-emerald-100 text-emerald-700" },
+  medium: { label: "Medium confidence", className: "bg-amber-100 text-amber-700" },
+  low: { label: "Low confidence", className: "bg-red-100 text-red-700" },
+};
+
 function MessageBubble({ message, currentUserId }: { message: ChatMessage; currentUserId: string }) {
   const isMe = message.senderId === currentUserId;
   // Wave 37: a guest-authored message also has senderId === null (same
@@ -216,6 +231,7 @@ function MessageBubble({ message, currentUserId }: { message: ChatMessage; curre
   // actually distinguishes the two, so this must be checked first.
   const isGuest = Boolean(message.isGuestMessage);
   const isAi = message.senderId === null && !isGuest;
+  const confidenceBadge = isAi && message.confidenceLabel ? CONFIDENCE_BADGE[message.confidenceLabel] : null;
 
   return (
     <div className={cn("flex my-1.5", isMe ? "justify-end" : "justify-start")}>
@@ -232,9 +248,17 @@ function MessageBubble({ message, currentUserId }: { message: ChatMessage; curre
         )}
       >
         {isAi && (
-          <div className="flex items-center gap-1 mb-1">
+          <div className="flex items-center gap-1.5 mb-1">
             <Bot className="size-3.5 text-ct-teal" />
             <span className="text-[10px] font-bold uppercase tracking-wide text-ct-teal">VERI</span>
+            {confidenceBadge && (
+              <span
+                className={cn("rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide", confidenceBadge.className)}
+                title="A heuristic proxy from VERI's own reply, not a calibrated confidence score"
+              >
+                {confidenceBadge.label}
+              </span>
+            )}
           </div>
         )}
         {isGuest && (
@@ -243,6 +267,16 @@ function MessageBubble({ message, currentUserId }: { message: ChatMessage; curre
           </div>
         )}
         <MessageContent content={message.content} />
+        {/* REVIEW-FRAMEWORK-WAVE4 ("Communicates AI Limitations Honestly" --
+            was a governance/documentation practice only, never a verified
+            end-user chat behavior). Fires only on a real low-confidence
+            signal, not on every message -- an honest, specific disclosure
+            rather than a blanket disclaimer nobody reads. */}
+        {isAi && message.confidenceLabel === "low" && (
+          <p className="mt-1.5 text-[11px] italic text-ct-muted border-t border-ct-teal/20 pt-1.5">
+            VERI wasn&apos;t fully confident in this answer — worth double-checking before you rely on it.
+          </p>
+        )}
         {message.isInstruction && message.commitment && (
           <span
             className={cn(

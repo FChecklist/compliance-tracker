@@ -48,10 +48,15 @@ export async function POST(request: NextRequest) {
     if (!name || typeof name !== "string" || name.trim().length === 0) {
       return NextResponse.json({ error: "Name is required" }, { status: 400 });
     }
+    // task-20260727-101145: "read:reports" is a narrower alternative to
+    // "read" -- a customer minting a key specifically to hand to an
+    // external AI (ChatGPT/z.ai) for src/app/api/v1/reports/** can scope it
+    // down to reports-only instead of the broad "read" scope every other
+    // /v1/* domain already accepts.
     const validScopes = (scopes || "read")
       .split(",")
       .map((s: string) => s.trim())
-      .filter((s: string) => s === "read" || s === "write");
+      .filter((s: string) => s === "read" || s === "write" || s === "read:reports");
     if (validScopes.length === 0) {
       return NextResponse.json({ error: "At least one valid scope (read/write) is required" }, { status: 400 });
     }

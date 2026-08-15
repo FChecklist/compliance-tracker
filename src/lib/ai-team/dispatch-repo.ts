@@ -11,8 +11,10 @@
 // `gh api repos/FChecklist/compliance-tracker/dispatches` directly.
 
 import { getRole, isAuditOrganizationRole } from "./roster"
+import { resolveEffectiveModel } from "./roster-overrides"
 import { validateTightTask, type TightTask } from "../task-tightening"
 import { checkTierEligibility } from "../model-tier-eligibility"
+import { checkForDuplicateDispatch, recordDispatchOutcome } from "./dispatch-outcomes"
 
 const REPO = "FChecklist/compliance-tracker"
 
@@ -22,6 +24,17 @@ const REPO = "FChecklist/compliance-tracker"
 // no existing caller to break. Validated here too (not just relying on
 // ai-workforce-agent.mjs's own validation) so a bad dispatch never even
 // reaches GitHub Actions.
+//
+// Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): every
+// real dispatch attempt past the role/audit-org guard clauses now writes
+// one platform.dispatch_outcomes row, success or failure -- see
+// dispatch-outcomes.ts's own header. Honest scope limit: this function's
+// own completion signal is "did the repository_dispatch event fire", NOT
+// "did the resulting PR land" -- ai-workforce-agent.mjs runs asynchronously
+// in GitHub Actions after this function returns, so prUrl is always null on
+// the row this function writes. Attaching the real PR outcome once the
+// workflow finishes is a real, separate follow-up (a webhook/callback into
+// this table), not fabricated here.
 export async function dispatchRepoTask(roleKey: string, task: TightTask): Promise<void> {
   const role = getRole(roleKey)
   if (!role || role.isHuman || role.isCodeOnly || !role.model) {
@@ -39,43 +52,86 @@ export async function dispatchRepoTask(roleKey: string, task: TightTask): Promis
     throw new Error(`Role '${roleKey}' is an audit-organization role and cannot be dispatched to modify production code -- audit independence (doer != certifier) requires it stay advisory-only. See roster.ts's isAuditOrganizationRole().`)
   }
 
-  const validation = validateTightTask(task)
-  if (!validation.valid) {
-    throw new Error(`Task is not tight enough to dispatch: ${validation.reason} ${validation.guidance}`)
+  const dispatchRequest = {
+    roleKey,
+    objective: task.objective,
+    scope: task.scope,
+    successCriteria: task.successCriteria,
+    complexityTier: task.complexityTier,
   }
 
-  // Wave 163: same tier-eligibility check as /api/ai/team/dispatch --
-  // this path has no live callers yet, but it's the trigger for
-  // ai-workforce-agent.mjs, so it gets the same enforcement rather than
-  // being left as the one dispatch surface without it.
-  const tierCheck = checkTierEligibility(role.model, task.complexityTier)
-  if (!tierCheck.eligible) {
-    throw new Error(`${tierCheck.reason} ${tierCheck.guidance}`)
+  // "Check before dispatch": surfaces a warning (console.error, high
+  // visibility without changing this function's void return type/breaking
+  // callers) rather than silently re-dispatching identical work -- never
+  // blocks, since a deliberate re-run (e.g. the prior attempt's PR was
+  // reverted) is a legitimate real use case.
+  const duplicateCheck = await checkForDuplicateDispatch(dispatchRequest)
+  if (duplicateCheck.isDuplicate) {
+    console.error(`[ai-team] dispatch_outcomes duplicate warning: ${duplicateCheck.message}`)
   }
 
-  const token = process.env.GITHUB_DISPATCH_PAT
-  if (!token) throw new Error("GITHUB_DISPATCH_PAT is not configured -- cannot fire repository_dispatch from the app.")
+  try {
+    const validation = validateTightTask(task)
+    if (!validation.valid) {
+      throw new Error(`Task is not tight enough to dispatch: ${validation.reason} ${validation.guidance}`)
+    }
 
-  const res = await fetch(`https://api.github.com/repos/${REPO}/dispatches`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      Accept: "application/vnd.github+json",
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      event_type: "ai-team-task",
-      client_payload: {
-        role_key: roleKey,
-        objective: task.objective,
-        scope: task.scope,
-        success_criteria: task.successCriteria,
-        complexity_tier: task.complexityTier,
-        expected_output: task.expectedOutput,
-        constraints: task.constraints ?? "",
-        known_context: task.knownContext ?? "",
+    // Wave 163: same tier-eligibility check as /api/ai/team/dispatch --
+    // this path has no live callers yet, but it's the trigger for
+    // ai-workforce-agent.mjs, so it gets the same enforcement rather than
+    // being left as the one dispatch surface without it.
+    //
+    // VERIDIAN Review Framework remediation (Multi-AI Provider Support gap,
+    // 2026-07-18): checked against the EFFECTIVE model (DB override if set),
+    // not role.model -- ai-workforce-agent.mjs (the process that actually
+    // runs this dispatch) independently resolves the same override for its
+    // OWN tier check and its actual OpenRouter call, so this pre-flight gate
+    // must agree with what will really run, not the static default.
+    const effectiveModel = (await resolveEffectiveModel(roleKey)) ?? role.model
+    const tierCheck = checkTierEligibility(effectiveModel, task.complexityTier)
+    if (!tierCheck.eligible) {
+      throw new Error(`${tierCheck.reason} ${tierCheck.guidance}`)
+    }
+
+    const token = process.env.GITHUB_DISPATCH_PAT
+    if (!token) throw new Error("GITHUB_DISPATCH_PAT is not configured -- cannot fire repository_dispatch from the app.")
+
+    const res = await fetch(`https://api.github.com/repos/${REPO}/dispatches`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/vnd.github+json",
+        "Content-Type": "application/json",
       },
-    }),
-  })
-  if (!res.ok) throw new Error(`Failed to dispatch ai-team-task: HTTP ${res.status} ${await res.text()}`)
+      body: JSON.stringify({
+        event_type: "ai-team-task",
+        client_payload: {
+          role_key: roleKey,
+          objective: task.objective,
+          scope: task.scope,
+          success_criteria: task.successCriteria,
+          complexity_tier: task.complexityTier,
+          expected_output: task.expectedOutput,
+          constraints: task.constraints ?? "",
+          known_context: task.knownContext ?? "",
+        },
+      }),
+    })
+    if (!res.ok) throw new Error(`Failed to dispatch ai-team-task: HTTP ${res.status} ${await res.text()}`)
+
+    void recordDispatchOutcome({
+      ...dispatchRequest,
+      dispatchPath: "repo_write",
+      status: "success",
+      modelUsed: effectiveModel,
+    })
+  } catch (err) {
+    void recordDispatchOutcome({
+      ...dispatchRequest,
+      dispatchPath: "repo_write",
+      status: "failure",
+      errorDetail: err instanceof Error ? err.message : String(err),
+    })
+    throw err
+  }
 }

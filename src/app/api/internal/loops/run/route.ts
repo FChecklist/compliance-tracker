@@ -14,6 +14,7 @@ import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit"
 import { runTierIntegrityAudit } from "@/lib/loops/tier-integrity-audit";
 import { runCapabilityIndexFreshnessAudit } from "@/lib/loops/capability-index-freshness-audit";
 import { runCostAnomalyAudit } from "@/lib/loops/cost-anomaly-audit";
+import { runModelPricingAudit } from "@/lib/loops/model-pricing-audit";
 import { purgeExpiredLlmResponseCache } from "@/lib/llm-response-cache";
 
 /**
@@ -106,11 +107,17 @@ async function runActiveLoops() {
   // VERIDIAN Review Framework gap-closure (AI Cost Governance & FinOps):
   // daily spend-anomaly detection (spike-relative-to-baseline, across
   // org/role/model). Not one of the 15 canonical loops -- piggybacks this
-  // existing daily cron rather than adding a 7th vercel.json entry, same
-  // reasoning as the two non-canonical audits above. Read-only: records
+  // existing daily cron rather than adding an 8th vercel.json entry, same
+  // reasoning as the other non-canonical audits above. Read-only: records
   // findings as loopImprovements proposals for human review, changes no
   // cap and disables nothing (see cost-anomaly-audit.ts's header).
   results.costAnomalyAudit = await runCostAnomalyAudit();
+
+  // AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18,
+  // "AI Cost Optimization" finding) -- same "piggyback the existing daily
+  // cron" reasoning as above: recurring MODEL_PRICING accuracy check, not
+  // one of the 15 canonical loops.
+  results.modelPricingAudit = await runModelPricingAudit();
 
   return results;
 }

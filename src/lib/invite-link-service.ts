@@ -28,12 +28,13 @@
 //     reachable by an unauthenticated caller with no Supabase identity at
 //     all; it only decides which ORG an already-authenticating identity
 //     lands in.
-import { db, organisations, orgInviteLinks, users, aiAssistants } from "@/lib/db"
+import { db, organisations, orgInviteLinks, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, desc, sql } from "drizzle-orm"
 import { randomBytes } from "crypto"
 import { hashSHA256 } from "@/lib/api-keys"
 import { canAssignSeat } from "@/lib/org-license-service"
+import { provisionAiAssistantsForUser } from "@/lib/services/subscription-plan-service"
 
 // Deliberately narrower than the full 10-value userRoleEnum -- same
 // restriction api/users/route.ts's VALID_ROLES already applies to
@@ -250,15 +251,10 @@ export async function consumeInviteLinkAndProvisionUser(
     isActive: true,
   }).returning()
 
-  // Wave 2 parity: every user gets 5 numbered AI Assistants, same as
-  // direct-add (api/users/route.ts) and normal signup (autoProvisionUser).
-  await db.insert(aiAssistants).values(
-    Array.from({ length: 5 }, (_, i) => ({
-      userId: newUser.id,
-      assistantNumber: i + 1,
-      label: `Assistant ${i + 1}`,
-    }))
-  )
+  // Wave 2 parity: every user gets AI Assistants provisioned at the org's
+  // real resolved subscription-plan tier, same as direct-add
+  // (api/users/route.ts) and normal signup (autoProvisionUser).
+  await provisionAiAssistantsForUser(newUser.id, row.orgId)
 
   return { ok: true, user: newUser }
 }

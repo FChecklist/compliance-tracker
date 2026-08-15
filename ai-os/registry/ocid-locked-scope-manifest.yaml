@@ -1,0 +1,55 @@
+# OCID-locked-scope manifest, real pre-merge SEC-07/Hard Rule 7 enforcement gate.
+#
+# UMR-20260805-025554-46f9 (Owner corrective action, citing UMR-20260805-025349-a6b8 /
+# OD-20260805-001, UMR-20260802-165606-4413, UMR-20260804-194323-0bc5): after the real
+# SEC-07 violation on PR #886 (OCID-038 real implementation merged while OCID-020 was not
+# yet independently verified complete, caught only AFTER merge) was recorded as a
+# permanent governance record (ai-os/GOVERNANCE_RECORD_HARD_RULE_7_VIOLATION_PR886_2026-08-05.md),
+# the Owner directed a real, deterministic PRE-MERGE gate so this class of violation is
+# blocked, not just detected afterward.
+#
+# This file lists real file-path glob patterns known, from real evidence, to belong to
+# each locked OCID's own real implementation scope -- the STARTER set for OCID-038 below
+# is seeded directly from PR #886's own real diff (the exact PR this whole gate exists
+# because of), not guessed. OCID-039/040/041..046 have zero real implementation merged
+# anywhere yet (confirmed: SEC-07 has locked them since before any real code existed under
+# them), so their own path lists start empty -- they rely entirely on the gate's OTHER,
+# independent detection signal (PR title/body self-identification, see
+# scripts/check-sec07-ocid-lock.mjs's own SELF_IDENTIFICATION_PATTERN) until real
+# implementation work under them establishes real files to add here.
+#
+# Deliberately NOT included in any path list below: drizzle/*.sql and src/lib/db/schema.ts.
+# Both are real, shared, cross-cutting files touched by nearly every feature PR in this
+# repo regardless of OCID -- locking them by path would block unrelated work platform-wide
+# for a false-positive reason. Migration/schema changes genuinely made as part of locked
+# OCID-038/039/040/041-046 work are still caught by the self-identification signal, the
+# same real signal that caught PR #886 in the first place (its own title and commit
+# message self-identified it as "OCID-038 real gap closure").
+#
+# Maintenance: when real implementation work is genuinely authorized under one of these
+# OCIDs (OCID-020 verified, or a real, explicit Owner override cited for that exact PR),
+# add the real new files it touches to that OCID's own list here, in the SAME PR, so the
+# next merge under that OCID scope is still caught correctly if the lock is ever
+# re-engaged (e.g., a future OCID being added to this same lock family).
+
+ocid_038:
+  description: "Real implementation under OCID-038 (Stage 1 pre-authentication domain-based brand resolution and onward) -- files seeded from PR #886's own real diff."
+  paths:
+    - "src/app/login/login-form.tsx"
+    - "src/app/login/page.tsx"
+    - "src/app/page.tsx"
+    - "src/app/layout.tsx"
+    - "src/lib/services/org-branding-service.ts"
+    - "src/lib/services/org-branding-service.test.ts"
+
+ocid_039:
+  description: "Real implementation under OCID-039 -- no real implementation has merged anywhere yet; relies on self-identification detection only until real files exist to list here."
+  paths: []
+
+ocid_040:
+  description: "Real implementation under OCID-040 -- no real implementation has merged anywhere yet; relies on self-identification detection only until real files exist to list here."
+  paths: []
+
+ocid_041_046:
+  description: "Real implementation under Group E (OCID-041 through OCID-046) -- no real implementation has merged anywhere yet; relies on self-identification detection only until real files exist to list here."
+  paths: []
