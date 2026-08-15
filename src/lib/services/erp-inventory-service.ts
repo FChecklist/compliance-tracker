@@ -15,8 +15,8 @@ export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { convertToStockUom } from "./erp-uom-batch-service"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext, ActorCtx } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // Priority 17 Wave 1 (PROJEXA Inventory/Stock exposure): recordStockReceipt/
 // recordStockIssue previously required a real dbUser session, but PROJEXA's
@@ -27,10 +27,6 @@ export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$
 // service.ts's createJournalEntry. logActivity already has the matching
 // dbUser-or-apiKey discriminated union (Wave 9); these two functions just
 // hadn't been wired to accept it yet.
-export type ActorCtx = { orgId: string; userId: string } & (
-  | { dbUser: typeof users.$inferSelect; apiKey?: never }
-  | { dbUser?: never; apiKey: { id: string; name: string } }
-)
 
 async function currentBalance(db: TenantDb, itemId: string, warehouseId: string): Promise<{ qty: number; value: number }> {
   const [row] = await db

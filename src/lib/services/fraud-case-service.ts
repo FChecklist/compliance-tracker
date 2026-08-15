@@ -11,6 +11,7 @@ import { and, eq, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { ActorCtx } from "./actor-context"
 
 export type FraudContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -19,7 +20,7 @@ export type FraudContext = { orgId: string; userId: string; dbUser: typeof users
 // Bearer-key caller never carries a session dbUser, so gating fraud-case
 // creation on FraudContext's strict dbUser would make it permanently
 // unreachable from PROJEXA rather than just "deferred".
-export type FraudActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+export type FraudActorCtx = ActorCtx
 
 export type FraudCaseInput = {
   title: string

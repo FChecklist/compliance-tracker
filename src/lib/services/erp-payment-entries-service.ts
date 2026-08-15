@@ -42,8 +42,8 @@ import { isPeriodOpenForDate } from "./erp-financial-report-service"
 import { findControlAccount } from "./erp-invoicing-service"
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { isSelfApproval } from "./approval-workflow-service"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export type PaymentEntryStatus = (typeof erpPaymentEntries.$inferSelect)["status"]
 

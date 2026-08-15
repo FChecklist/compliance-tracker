@@ -10,6 +10,7 @@ import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
+import { ActorCtx } from "./actor-context"
 
 export type AccessReviewContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -19,7 +20,7 @@ export type AccessReviewContext = { orgId: string; userId: string; dbUser: typeo
 // open a cycle and decide a certification, not just read one. The
 // isActive=false enforcement this decision drives (see this file's own
 // header) is real regardless of which actor kind triggered it.
-export type AccessReviewActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+export type AccessReviewActorCtx = ActorCtx
 
 export async function createAccessReviewCycle(ctx: AccessReviewActorCtx, input: { name: string; dueDate?: string }) {
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)

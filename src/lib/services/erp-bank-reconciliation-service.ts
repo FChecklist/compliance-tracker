@@ -14,8 +14,8 @@ import { parseFile } from "@/lib/ingest/parser"
 import type { ParsedRow } from "@/lib/ingest/types"
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 // Heuristic header matching -- every bank exports slightly different
 // column names (Date/Txn Date/Value Date, Narration/Description/

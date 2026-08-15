@@ -17,8 +17,9 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 import { resolveModuleRule } from "@/lib/module-rules-resolver"
+import { ActorCtx } from "./actor-context"
 
-export type GrcActorCtx = { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } })
+export type GrcActorCtx = ActorCtx
 
 function actorLogFields(ctx: GrcActorCtx) {
   return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }

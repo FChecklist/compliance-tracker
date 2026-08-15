@@ -13,8 +13,8 @@ export { ServiceError }
 import { createId } from "@paralleldrive/cuid2"
 import { createHash } from "crypto"
 import { createClient } from "@supabase/supabase-js"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 const BUCKET = "compliance-documents"
 const TOKEN_VALIDITY_DAYS = 30
