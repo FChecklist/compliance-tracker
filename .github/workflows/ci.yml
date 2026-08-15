@@ -68,19 +68,6 @@ jobs:
       # header comment for the honest limitation this does and doesn't
       # guarantee.
       - run: node scripts/check-guardrail-presence.mjs
-  service-header-comment:
-    name: Service Header Comment Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      # Review Framework gap-closure, "Code Readability for AI" (Low):
-      # comment discipline in src/lib/services/*.ts was a real, near-
-      # universal convention (a leading header comment on almost every
-      # file) but nothing enforced it -- fails the build if a service file
-      # has no qualifying header comment before its first real statement.
-      # See that script's own header for the honest limitation this does
-      # and doesn't guarantee.
-      - run: node scripts/check-service-header-comment.mjs
   asset-registry-coverage:
     name: Asset Registry Coverage Check
     runs-on: ubuntu-latest

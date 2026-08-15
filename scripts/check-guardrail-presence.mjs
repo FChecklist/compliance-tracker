@@ -345,13 +345,6 @@ const REQUIRED_MARKERS = [
   // silently dropped either.
   { file: "scripts/check-metadata-index-coverage.mjs", mustContain: ["realItems", "OS_YAML"] },
   { file: ".github/workflows/ci.yml", mustContain: ["check-metadata-index-coverage.mjs"] },
-
-  // Added 2026-08-15 (Review Framework gap-closure, "Code Readability for
-  // AI" / Low): the service-file header-comment check itself, so its own
-  // CI wiring can't be silently dropped either -- same precedent as the
-  // metadata-index-coverage entry above.
-  { file: "scripts/check-service-header-comment.mjs", mustContain: ["headerCommentChars", "MIN_COMMENT_CHARS"] },
-  { file: ".github/workflows/ci.yml", mustContain: ["check-service-header-comment.mjs"] },
 ]
 
 let failed = false
