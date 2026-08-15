@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { requirePmsEnabled } from "@/lib/services/pms-enablement-service"
-import { getWorkload, createResourceAllocation, ServiceError } from "@/lib/services/schedule-service"
+import { getWorkload, createResourceAllocation, getResourceConflicts, ServiceError } from "@/lib/services/schedule-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -40,7 +40,13 @@ export async function POST(request: NextRequest) {
       userId: body.userId, issueId: body.issueId, allocatedHoursPerDay: body.allocatedHoursPerDay,
       startDate: body.startDate, endDate: body.endDate,
     })
-    return NextResponse.json(row, { status: 201 })
+    // Gap closure (2026-07-27): warn immediately if this allocation pushes
+    // the user over capacity once every one of their OTHER projects'
+    // allocations is also counted -- see schedule-service.ts's
+    // detectResourceConflicts() for why this cross-project view differs
+    // from getWorkload()'s per-project one above.
+    const conflicts = await getResourceConflicts({ orgId: ctx.orgId }, { userId: body.userId })
+    return NextResponse.json({ ...row, conflicts }, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
     console.error("pms resource-allocations create error:", error)

@@ -21,6 +21,16 @@ type CommonLogActivityParams = {
   orgId: string
   clientId?: string | null
   request?: Request
+  // VERIDIAN Review Framework Wave 4, Track 1b item 2 (2026-07-18): optional
+  // and backward-compatible -- every pre-existing call site (13+, per the
+  // header above) passes neither field and behaves exactly as before. Set
+  // only by support-session-service.ts's startSupportSession/
+  // endSupportSession, and by any future call site made while a support
+  // session is active, so the impersonated org's own /audit page can show
+  // exactly which rows were performed by a support agent acting on their
+  // behalf, under which session, without a cross-org join (see
+  // schema.ts's auditLogs.supportSessionId/actingOnBehalfOfUserId columns).
+  supportSession?: { id: string; actingOnBehalfOfUserId: string }
 }
 
 // Wave 9: a write can now be driven by a real logged-in user OR an external
@@ -43,7 +53,7 @@ function extractIp(request?: Request): string | undefined {
 }
 
 export async function logActivity(params: LogActivityParams): Promise<void> {
-  const { tx, action, entityType, entityId, details, orgId, clientId, request } = params
+  const { tx, action, entityType, entityId, details, orgId, clientId, request, supportSession } = params
 
   // Denormalized snapshot, not a live join -- if this user is later renamed
   // or deactivated, this row must keep showing who they were AT THE TIME of
@@ -65,5 +75,7 @@ export async function logActivity(params: LogActivityParams): Promise<void> {
     details,
     ipAddress: extractIp(request),
     userAgent: request?.headers.get("user-agent") ?? undefined,
+    supportSessionId: supportSession?.id ?? null,
+    actingOnBehalfOfUserId: supportSession?.actingOnBehalfOfUserId ?? null,
   })
 }
