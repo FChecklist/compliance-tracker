@@ -67,5 +67,13 @@ Versioning, Webhooks) / API Developer Experience — 2 findings.
 - [x] No permission-service.ts / ERP_ACTION_ROLES changes — out of scope
       for this task and not touched.
 
+- [x] Committed the working tree (commit `630a37839`), pushed the branch,
+      and opened **PR #1230**:
+      https://github.com/FChecklist/compliance-tracker/pull/1230
+      Note: `bun test src/lib/supabase/api-key-auth.test.ts` passes (9/9);
+      full-repo `tsc --noEmit` OOMs in this environment (pre-existing,
+      unrelated to this change on this large monorepo — not something a
+      scoped diff can fix).
+
 ## Remaining
-- [ ] Open PR, let CI run, merge once green (Rule 6).
+- [ ] Watch CI on PR #1230, merge once green (Rule 6).
