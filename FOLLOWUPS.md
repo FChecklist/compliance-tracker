@@ -17,3 +17,35 @@ Remove an item once it's picked up as a real wave (reference the wave here first
 - **Fixed by:** `drizzle/0132_wave155_chat_system_prompt_v3_correction.sql` -- demotes both stray `production` rows and inserts v3 as v2's real content with Wave 155's two additions folded in. No functional content lost.
 - **Full sweep done same day:** queried every template for `>1` row labeled `production` -- found exactly one other instance, `fde.evaluate_request` (v1 + v2 both `production`, live since 2026-07-04). Resolver already served v2 (`MAX(version)`), so this was a pure data-hygiene fix with zero behavior change: demoted v1's stray label directly (no corresponding drizzle file existed for this one either, consistent with the same live-edit-outside-drizzle pattern). Zero other templates affected.
 - **Still open:** a DB constraint would make this class of bug structurally impossible instead of just detectable -- a partial unique index `CREATE UNIQUE INDEX ON compliance.prompt_versions (prompt_template_id) WHERE label = 'production'`. Not added yet: it's a real schema change (needs its own drizzle migration + verification that no code path ever relies on being able to hold two production labels transiently mid-transaction) rather than a one-line data fix, so scoping it as its own small wave rather than folding it into this hotfix.
+
+## FOLLOWUP-3: Wire `scripts/check-service-file-header-comment.mjs` into `.github/workflows/ci.yml`
+
+- **Deferred by:** task-20260718-111005-retry-0--ai-engineering-quality--ai-mod (VERIDIAN Review Framework gap-closure, "Code Readability for AI" finding).
+- **Why deferred:** the script itself (`scripts/check-service-file-header-comment.mjs`) is written, tested locally, and committed in this task's PR -- it fails the build if a NEW `src/lib/services/*.ts` file is missing a header comment, without retroactively failing on the 183/184 existing files that already carry one. What's missing is a one-line wiring into `.github/workflows/ci.yml` to actually run it in CI. This session's `gh` token lacks the `workflow` OAuth scope (`gist, read:org, repo` only), so GitHub rejects any `git push` whose branch touches `.github/workflows/*.yml` -- confirmed by a direct rejected push, not assumed. Without this step, the check would sit exactly like `check-migration-collision.mjs` (written, correct, never wired into any workflow, silently dormant) -- the outcome this follow-up exists specifically to avoid.
+- **What "done" looks like:** a session/owner with `workflow` scope (or a manual push) adds this job to `.github/workflows/ci.yml`, right after the `doc-cross-references` job and before `e2e`:
+
+  ```yaml
+    service-file-header-comment:
+      name: Service File Header Comment Check
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v7
+          with:
+            # Needs real history (not the default shallow fetch-depth: 1) so
+            # `git merge-base HEAD main` below can actually resolve -- a
+            # shallow checkout here would make this check silently see zero
+            # new files every run, the same dormant-check failure mode
+            # check-migration-collision.mjs has (it does the same merge-base
+            # diff, isn't wired into any workflow, and was never caught).
+            fetch-depth: 0
+        # Review Framework gap-closure, AI Engineering Quality ("Code
+        # Readability for AI", Low): comment discipline on src/lib/services/
+        # was a real, near-universal convention (183/184 existing files) but
+        # enforced by nothing. Fails the build if a NEW service file (added
+        # in this branch, relative to main) is missing a header comment. See
+        # the script's own header for exactly what counts and the honest
+        # limitation this does and doesn't guarantee.
+        - run: node scripts/check-service-file-header-comment.mjs
+  ```
+
+  Then confirm `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"` still parses, and that a throwaway branch adding a headerless `src/lib/services/__test.ts` file makes the new job fail (then delete the throwaway file/branch).

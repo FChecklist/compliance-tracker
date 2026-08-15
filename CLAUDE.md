@@ -27,6 +27,28 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `ai-os/` — AI-OS governance: `CONSTITUTION.yaml` (the constitution), `MASTER-TRACKER.yaml` (open work), `boss/` (ACTIVE-CLAIMS/COMPLETED/BOARD-stale), `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/` -- see `ai-os/OS.yaml` for what each covers, do not assume this is a small directory
 - `drizzle/` — Migration files
 
+## High-Risk Files (large + untested) — apply extra caution here
+
+Review Framework gap-closure, AI Modification Readiness (Medium): there is no single automated "AI modification readiness score" for this repo — readiness genuinely depends on which file. Rather than build a scoring system, this is a point-in-time list (computed 2026-08-15 by `git ls-files` line counts + presence/absence of a co-located `*.test.ts`) of the largest business-logic files with **zero** test coverage — the files where an agent is most likely to introduce a regression it can't catch itself before a human/CI does. This list will drift as files change size or gain tests; if you're about to make a nontrivial change to a file not listed here, don't assume it's safe purely because it's absent — re-check size and test coverage yourself (`wc -l <file>` and whether `<file>.test.ts` exists) rather than trusting this list as current.
+
+For any of these: read the whole file before editing (don't rely on a partial grep match), make the smallest coherent change, and prefer adding a test alongside the change over editing blind.
+
+| File | Lines | Why it's high-risk |
+|---|---|---|
+| `src/lib/db/schema.ts` | ~10,200 | The entire Drizzle schema for every table in the app, in one file — a single typo'd column/relation can break unrelated features far from your change. No test file (schema correctness is enforced by `db:generate`/`db:push` + the app failing to build, not a unit test). |
+| `src/lib/services/erp-invoicing-service.ts` | ~700 | Core ERP invoicing business logic (money-handling), no test file. |
+| `src/app/api/mcp/route.ts` | ~590 | Single route handling every MCP tool call — a mistake here can break tool access repo-wide, no test file. |
+| `src/lib/services/erp-accounting-service.ts` | ~560 | Core ERP accounting logic (money-handling), no test file. |
+| `src/lib/services/erp-selling-service.ts` | ~540 | Core ERP selling/order logic, no test file. |
+| `src/lib/services/erp-payroll-service.ts` | ~510 | Payroll calculation logic (money + compliance-sensitive), no test file. |
+| `src/lib/services/compliance-service.ts` | ~510 | Core compliance-tracking logic — this app's namesake domain, no test file. |
+| `src/lib/activity-log-service.ts` | ~500 | Cross-cutting audit-log writer used by many other services — a silent regression here weakens traceability everywhere else, no test file. |
+| `src/lib/supabase/auth-guard.ts` | ~460 | `requireAuth()` lives here and every API route depends on it (see AI-OS Rules below) — a mistake is a security regression, not just a bug, no test file. |
+| `src/lib/services/erp-financial-report-service.ts` | ~460 | Financial reporting/aggregation logic, no test file. |
+| `src/lib/services/erp-contract-service.ts` | ~460 | ERP contract lifecycle logic, no test file. |
+
+Note: `src/lib/services/permission-service.ts` (RBAC's `ERP_ACTION_ROLES` table) is **not** on this list — it already has a co-located `permission-service.test.ts`, and per this file's own in-flight-work conventions its shared table structure should only ever be extended additively (new keys), not restructured, regardless of this list.
+
 ## Design Tokens
 - Navy: #1C2B3A | Saffron: #F5820A | Teal: #0E7C6E | Cream: #FFFDF9
 - Fonts: DM Serif Display (headings) + Inter (body)
