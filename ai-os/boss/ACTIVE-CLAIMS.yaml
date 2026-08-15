@@ -5609,7 +5609,7 @@ active:
       AUDIT: PASS comment (8 fields). Full CI green (Lint/Type Check/Unit
       Tests/Build/E2E/CodeQL/Sentinel/audit-check) except Vercel preview
       (rate-limited, non-required, same as prior rescue sessions' precedent).
-      TIER2 (touches drizzle/0225 + schema.ts) -- NOT self-merged. Reported
+      TIER2 (touches drizzle/0315 + schema.ts) -- NOT self-merged. Reported
       to Owner as ready for sign-off.
   - session_label: "claude-code (task-20260719-004409-gap-closure--umr-03) -- UMR-03 gap closure (instruction-execution-cache)"
     claimed_at: "2026-07-19T (this session)"
@@ -6137,7 +6137,7 @@ recently_completed:
       file.
 
       Also built model-lifecycle-service.ts + model_lifecycle_reviews
-      (drizzle/0225, append-only) -- the MODEL-granularity counterpart of
+      (drizzle/0315, append-only) -- the MODEL-granularity counterpart of
       agent_review_records/agent-review-service.ts (ARR, MASTER-
       TRACKER.yaml closed_priorities #25), which only ever ran its
       promote/maintain/retrain/deprecate cycle at roster.ts role_key
@@ -6150,7 +6150,7 @@ recently_completed:
       route, matching /review-registry's own API-only convention.
 
       Deliberately NOT applied live -- this headless worker session has
-      no DATABASE_URL/Supabase MCP access; drizzle/0225 is a real,
+      no DATABASE_URL/Supabase MCP access; drizzle/0315 is a real,
       reviewed migration file only, flagged honestly in MASTER-
       TRACKER.yaml priority 26 for a session with live DB access to
       apply. bunx tsc --noEmit clean, eslint clean, bun test 1437 pass/0
@@ -8612,7 +8612,7 @@ recently_completed:
       diff. Posted structured AUDIT: PASS comment (8 fields). Full CI
       green (Lint/Type Check/Unit Tests/Build/E2E/CodeQL/Sentinel/
       audit-check) except Vercel preview (rate-limited, non-required, same
-      as prior rescue sessions' precedent). TIER2 (touches drizzle/0225 +
+      as prior rescue sessions' precedent). TIER2 (touches drizzle/0315 +
       schema.ts) -- NOT self-merged. Reported to Owner as ready for
       sign-off, with the 0225-collision risk flagged for whoever applies
       it live.
@@ -10224,7 +10224,7 @@ recently_completed:
       out-of-scope-for-this-claim gap: no scope='product_orchestra' row of
       any kind existed anywhere in the codebase before this change).
       Scope: added tokenUsageLedger.cacheSavingsUsd column (migration
-      drizzle/0225), estimateCacheSavingsUsd() in llm-client.ts (Anthropic's
+      drizzle/0315), estimateCacheSavingsUsd() in llm-client.ts (Anthropic's
       documented 90% cache-read discount), logTokenUsage() now computes and
       stores it, recordPromptCacheMetric() now also calls logTokenUsage()
       (scope: product_orchestra) alongside its existing prompt_cache_metrics

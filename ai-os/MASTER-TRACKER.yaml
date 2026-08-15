@@ -4692,7 +4692,7 @@ closed_priorities:
       judgment-tier work platform-wide, and a model can cross a real
       threshold even when no single role dispatching it alone clears
       agent-review-service.ts's own MIN_DISPATCHES_FOR_VERDICT floor. Built
-      `model_lifecycle_reviews` (drizzle/0225, append-only, mirrors
+      `model_lifecycle_reviews` (drizzle/0315, append-only, mirrors
       agent_review_records' own shape at model instead of role_key grain)
       + `model-lifecycle-service.ts`. Deliberately REUSES
       agent-review-service.ts's computeReviewRates()/computeReviewVerdict()
@@ -4713,7 +4713,7 @@ closed_priorities:
 
       Deliberately NOT applied live -- this headless worker session has no
       DATABASE_URL/Supabase MCP access (confirmed: `env | grep -i
-      database_url` empty), so drizzle/0225_model_lifecycle_reviews.sql is
+      database_url` empty), so drizzle/0315_model_lifecycle_reviews.sql is
       a real, reviewed migration file only; a session with live DB access
       needs to apply it before /api/ai/team/model-lifecycle's DB-backed
       reads/writes will work. Flagged honestly rather than silently

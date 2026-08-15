@@ -28,7 +28,7 @@ on this gap/file area. Registered this session's own claim under
       tier-split -- COST_GRANULARITY_NOTE) and `hallucinationScore`
       (honest null + HALLUCINATION_SCORE_NOTE, never fabricated). Wired
       into `getModelScorecard()`.
-- [x] `src/lib/db/schema.ts` + `drizzle/0225_model_lifecycle_reviews.sql`:
+- [x] `src/lib/db/schema.ts` + `drizzle/0315_model_lifecycle_reviews.sql`:
       new append-only `model_lifecycle_reviews` table, mirrors
       `agent_review_records`' shape at model instead of role_key grain.
 - [x] `model-lifecycle-service.ts` (new): `mergeEscalationByModel()`,
@@ -63,7 +63,7 @@ on this gap/file area. Registered this session's own claim under
       / `check-migration-collision.mjs` all pass.
 
 ## Honestly NOT done / flagged
-- `drizzle/0225_model_lifecycle_reviews.sql` is NOT applied live -- this
+- `drizzle/0315_model_lifecycle_reviews.sql` is NOT applied live -- this
   headless worker session has no `DATABASE_URL`/Supabase MCP access
   (confirmed empty). A session with live DB access needs to apply it
   before `/api/ai/team/model-lifecycle`'s DB-backed reads/writes work.
