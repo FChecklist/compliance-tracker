@@ -40,6 +40,45 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-111007-retry-0--ai-engineering-quality--code-s) -- AI Engineering Quality / Code Structure & Modularity gap-closure (5 findings), invocation 15/20 2026-08-15: real PR in progress, about to commit/push"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      5 findings closed in one PR (per task spec): (1) [Medium] Code
+      Modularity -- task-execution-engine.ts's dispatchEngine() CRM +
+      Accounting Computation Engine categories extracted (pure code
+      motion) into new src/lib/engine-handlers/*.ts modules; schema.ts's
+      matching half of this finding confirmed already deliberately
+      deferred (its own header documents why -- 110 concurrent
+      ACTIVE-CLAIMS.yaml matches on schema.ts today, re-confirmed the
+      same collision risk still holds) -- no schema.ts split attempted.
+      (2) [Low] Component Reusability -- new docs/REUSABLE-UTILITIES.md.
+      (3) [Medium] Low Coupling/High Cohesion -- real FK constraints added
+      on users.orgId/departments.orgId/complianceItems.orgId ->
+      organisations.id (schema.ts + hand-written NOT VALID migration
+      drizzle/0315_add_org_fk_constraints.sql; NOT applied to any live DB
+      by this session). (4) [Low] Design Pattern Consistency -- new
+      scripts/check-route-auth-guard.mjs (requireAuth()/ServiceError
+      diff-scoped CI check, same shape as check-route-error-handling.mjs)
+      -- NOT wired into ci.yml (this session's gh token lacks `workflow`
+      scope, same known limitation as [[gh-token-lacks-workflow-scope]]).
+      (5) [Medium] File & Folder Organization -- ai-os subtree half
+      confirmed already substantially resolved via OS.yaml's existing
+      navigation section; API-routes half was a real gap, closed with new
+      docs/API-ROUTES-INDEX.md.
+      Also flagged (not fixed, out of scope): drizzle/meta/_journal.json
+      is missing entries for migrations 0311-0314 which already exist on
+      disk -- a real meta-snapshot/git drift, documented in the new
+      migration file's own header for whoever next runs
+      `drizzle-kit generate` here.
+    scope_note: >-
+      File scope: src/lib/task-execution-engine.ts, new
+      src/lib/engine-handlers/{crm,accounting}-engine-dispatch.ts,
+      src/lib/db/schema.ts (orgId FK additions only, 3 tables), new
+      drizzle/0315_add_org_fk_constraints.sql, new
+      scripts/check-route-auth-guard.mjs, new docs/REUSABLE-UTILITIES.md,
+      new docs/API-ROUTES-INDEX.md, PROGRESS.md. Did not touch
+      src/lib/services/permission-service.ts or any other in-flight
+      worker's declared scope, per this task's own prompt.txt instruction.
   - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
