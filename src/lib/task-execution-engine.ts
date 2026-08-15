@@ -1,7 +1,8 @@
-import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, dynamicChains, entityRelationships } from "@/lib/db";
+import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, ne, inArray, sql } from "drizzle-orm";
-import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
+import { escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
+import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router";
 import { callLLMJson } from "@/lib/llm-client";
 import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
@@ -42,8 +43,16 @@ import { resolvePackageVariablesOrThrow, MissingInformationError } from "@/lib/s
 // specific to how task-execution-engine.ts phrases a planning-prompt hint,
 // not a generic UMR query concern.
 import { queryByKeywords, type PlatformAsset } from "@/lib/services/asset-query-service";
+// VCEL Calculation Auditability + Version Control (VERIDIAN Review
+// Framework gap closure, 2026-07-18): invokeEngine() is the thin
+// invoke-and-audit wrapper every engine dispatch now goes through (see
+// engine-invocation.ts's own header); CalculationBreakdown is the optional
+// step-by-step shape an engine's output may carry (breakdown.ts).
+import { invokeEngine } from "@/lib/engines/engine-invocation";
+import type { CalculationBreakdown } from "@/lib/engines/breakdown";
+import type { CalculationMessage } from "@/lib/structured-message";
 // VERIDIAN Review Framework gap-closure (AI Engineering Quality: Overall
-// Code Quality, 2026-08-15): this file used to be 2437 lines mixing three
+// Code Quality, 2026-08-15): this file used to be 2437+ lines mixing three
 // distinct responsibilities -- tool dispatch, computation-engine dispatch,
 // and task orchestration. The first two are now their own modules (see
 // each one's own header for why); this file keeps only the orchestration
@@ -88,7 +97,6 @@ registerAllGuardrails();
  * prompt, and a new memory is recorded summarizing the outcome, closing the
  * write-then-read loop for that assistant's future tasks.
  */
-
 // Structured dispatch: the worker agent is already known (a human clicked it
 // via the chain selector, re-verified server-side in task-service.ts), so
 // there's no LLM discretion to guard against -- deliberately does NOT run
@@ -303,12 +311,52 @@ async function executeStructuredDispatch(orgId: string, userId: string, taskId: 
   });
 }
 
+// Calculation Explainability (VERIDIAN Review Framework gap closure,
+// 2026-07-18): true only for the representative statutory engines that
+// were given a real `breakdown` field (income tax, GST split, gratuity,
+// TDS -- see breakdown.ts's own header for which). Every other engine's
+// output is untouched by this check and falls through to the pre-existing
+// plain "Result: {...}" chat message, exactly as before this gap closure.
+function extractBreakdown(output: unknown): CalculationBreakdown | null {
+  if (!output || typeof output !== "object" || !("breakdown" in output)) return null;
+  const breakdown = (output as { breakdown?: unknown }).breakdown;
+  if (!breakdown || typeof breakdown !== "object" || !Array.isArray((breakdown as { steps?: unknown }).steps)) return null;
+  return breakdown as CalculationBreakdown;
+}
+
+// camelCase engine-result key -> "Title Case" label, e.g. "grossTax" ->
+// "Gross Tax". Pure string formatting, no engine-specific knowledge.
+function humanizeResultKey(key: string): string {
+  const spaced = key.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  return spaced.charAt(0).toUpperCase() + spaced.slice(1);
+}
+
 async function executeEngineDispatch(orgId: string, userId: string, taskId: string, engineKey: string, engineInputs: Record<string, unknown>): Promise<void> {
   await withTenantContext({ orgId, userId }, async (db) => {
     try {
-      const output = await dispatchEngine(db, orgId, engineKey, engineInputs);
+      const output = await invokeEngine(
+        db, { orgId, userId, taskId }, engineKey,
+        (inputs: Record<string, unknown>) => dispatchEngine(db, orgId, userId, engineKey, inputs),
+        engineInputs
+      );
       assertValidDispatchOutput(output);
-      await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
+      const breakdown = extractBreakdown(output);
+      if (breakdown) {
+        const engineRow = await db.query.computationEngines.findFirst({
+          where: eq(computationEngines.engineKey, engineKey),
+          columns: { name: true, engineVersion: true },
+        });
+        const result = Object.entries(output as Record<string, unknown>)
+          .filter(([key]) => key !== "breakdown")
+          .map(([key, value]) => ({ label: humanizeResultKey(key), value: String(value) }));
+        const structured: CalculationMessage = {
+          type: "calculation", engineName: engineRow?.name ?? engineKey, engineVersion: engineRow?.engineVersion,
+          result, steps: breakdown.steps,
+        };
+        await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: JSON.stringify(structured) });
+      } else {
+        await db.insert(taskChatMessages).values({ taskId, role: "assistant", content: `Result: ${JSON.stringify(output)}` });
+      }
       await updateTaskStatusAndReflect(db, orgId, taskId, "completed");
     } catch (err) {
       const message = err instanceof Error ? err.message : "unknown error";
@@ -430,7 +478,19 @@ async function executePackageDispatch(
       );
       if (!policyDecision.allowed) throw new Error(refusalMessageFor(policyDecision));
 
-      const modelConfig = await resolveModelConfig(orgId, "task_oa");
+      // GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED fix (2026-08-04): resolves
+      // through Mother Router's end_user_org scope instead of calling
+      // orchestra-model-resolver.ts's resolveModelConfig() directly -- the
+      // exact same incremental-migration pattern orchestrate/route.ts already
+      // proved out for the same "task_oa" layer (see that route's own
+      // "Phase 9 ... crossed Gateway G05 for real" comment). Internally still
+      // calls the same resolveModelConfig() for the baseline (customer BYO
+      // config, cost-guard, source-type overrides all unchanged) and returns
+      // it via resolvedConfig -- this is additive (real ai_routing_audit_log
+      // coverage + any active end_user_org routing policy override), never a
+      // behavior change for a BYO-configured org (computeEndUserOrgResolution
+      // returns the baseline untouched whenever isCustomerConfigured is true).
+      const modelConfig = (await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" })).resolvedConfig ?? null;
       if (!modelConfig) throw new Error("No LLM provider is configured for this organisation (task_oa layer).");
 
       const systemPrompt =
@@ -444,7 +504,7 @@ async function executePackageDispatch(
       let effectiveConfig = modelConfig;
       const callPackage = () => callLLMJson<{ result: string }>(
         effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
-        systemPrompt, userMessage, { temperature: 0.1, maxTokens: 500 }, effectiveConfig.fallback
+        systemPrompt, userMessage, { temperature: 0.1, maxTokens: 500, enablePromptCache: true }, effectiveConfig.fallback
       );
       let { data, usage } = await callPackage();
 
@@ -458,7 +518,7 @@ async function executePackageDispatch(
       if (!modelConfig.isCustomerConfigured) {
         const lowConfidence = detectLowConfidenceResponse(data.result ?? "");
         if (lowConfidence.detected) {
-          const escalated = escalatedPlatformConfig();
+          const escalated = await escalatedPlatformConfig();
           if (escalated) {
             effectiveConfig = escalated;
             ({ data, usage } = await callPackage());
@@ -702,7 +762,10 @@ export async function executeTask(
       console.error("Priority 6: UMR lookup failed for NOVEL-classified task, continuing without a hint:", err);
     }
 
-    const modelConfig = await resolveModelConfig(orgId, "task_oa");
+    // GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED fix (2026-08-04): same
+    // Mother Router migration as executePackageDispatch() above -- see that
+    // call site's comment for the full rationale.
+    const modelConfig = (await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" })).resolvedConfig ?? null;
     if (!modelConfig) {
       await markTaskOutcome(orgId, userId, taskId, "failed", "No LLM provider is configured for this organisation (task_oa layer). Set one up in Settings → AI Configuration.");
       return;
@@ -800,7 +863,7 @@ export async function executeTask(
       // above (the PACKAGE_AVAILABLE path), which runs the floor tier by
       // design and only escalates reactively if a package execution itself
       // hedges mid-flight.
-      const escalated = escalatedPlatformConfig();
+      const escalated = await escalatedPlatformConfig();
       if (escalated) {
         effectiveConfig = escalated;
         escalation = {
@@ -819,9 +882,19 @@ export async function executeTask(
     // TS's narrowing can't see that through the nested retry try/catch.
     let result!: PlanningResult;
     let usage!: Awaited<ReturnType<typeof callLLMJson<PlanningResult>>>["usage"];
+    // TASK 1.2 (2026-07-20): systemPrompt here is a DB-stored template
+    // (resolvePromptTemplate("task_execution.planning_system")) with only
+    // {{PURPOSE_CLAUSE}} substituted -- the exact "resolved+substituted
+    // template IS the static prefix boundary" shape callAnthropic's own
+    // header describes as the ideal caching case, and this is the real
+    // "AI Dev Team dispatch re-sends its full system prompt uncached"
+    // call site the Owner's finding named. enablePromptCache is a no-op
+    // for providers that don't support this shape (GLM/undocumented,
+    // most non-Anthropic OpenRouter models) -- see callOpenAICompatible's
+    // own header for exactly which providers this currently helps.
     const callPlanning = () => callLLMJson<PlanningResult>(
       effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey, systemPrompt, userMessage,
-      { temperature: 0.3, maxTokens: 800 }, effectiveConfig.fallback
+      { temperature: 0.3, maxTokens: 800, enablePromptCache: true }, effectiveConfig.fallback
     );
     try {
       ({ data: result, usage } = await callPlanning());
@@ -869,7 +942,7 @@ export async function executeTask(
     if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
       const lowConfidence = detectLowConfidenceResponse(result.summary ?? "");
       if (lowConfidence.detected) {
-        const escalated = escalatedPlatformConfig();
+        const escalated = await escalatedPlatformConfig();
         if (escalated) {
           const retried = await callLLMJson<{ summary: string; steps: { agentName: string | null; description: string }[] }>(
             escalated.provider, escalated.model, escalated.apiKey, systemPrompt, userMessage,

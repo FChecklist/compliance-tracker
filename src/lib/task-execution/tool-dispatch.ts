@@ -3,11 +3,12 @@ import { type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, gte, lte, ne, sql } from "drizzle-orm";
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance-service";
 import { logActivity } from "@/lib/audit";
+import { assertBusinessRulesBeforeExecution } from "@/lib/business-rule-validator";
 
 /**
  * VERIDIAN Review Framework gap-closure (AI Engineering Quality: Overall
  * Code Quality, 2026-08-15): extracted from task-execution-engine.ts, which
- * had grown to 2437 lines mixing three distinct responsibilities (tool
+ * had grown to 2437+ lines mixing three distinct responsibilities (tool
  * dispatch, computation-engine dispatch, and task orchestration) in one
  * file. This module owns exactly one of those: `dispatchTool()`, the
  * allowlisted switch that resolves a worker agent's `codeReference` to a
@@ -25,6 +26,7 @@ import { logActivity } from "@/lib/audit";
  * behind in that file.
  */
 export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
+  assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
