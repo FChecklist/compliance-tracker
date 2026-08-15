@@ -40,8 +40,33 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
-    claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
+  - session_label: "claude-code (task-20260718-071004-ai-model-lifecycle---benchmarking--depre) -- AI Model Lifecycle & Benchmarking: Model deprecation/rollback gap-closure"
+    claimed_at: "2026-08-15T07:00Z (this session)"
+    claim: |
+      Investigated first: orchestra-model-resolver.ts's ai_model_registry
+      role lookup + status enum ('active'/'disabled'/'deprecated'),
+      roster-overrides.ts's per-role DB override (setRoleOverride/
+      clearRoleOverride, PATCH /api/ai/team/dispatch), and mother-router.ts's
+      rollbackPolicy() (versioned ai_routing_policies, no API route exposes
+      it, table has zero real insert call sites -- effectively dormant).
+      All 3 are per-item/per-scope mechanisms; none is a single "revert
+      everything to known-good code defaults right now" switch -- an
+      operator facing a bad promoted model still has to find and clear each
+      override/registry row individually, or git-revert code. Building
+      exactly the recommended fix: a platform-wide emergency-revert flag
+      (new small table + admin-gated API route) that, when active, makes
+      orchestra-model-resolver.ts's getRoleModel() and roster-overrides.ts's
+      resolveEffectiveModel() both skip their DB lookups and return the
+      hardcoded/static code-default model directly. File scope:
+      src/lib/db/schema.ts (new table), new src/lib/ai-model-emergency-
+      revert.ts (+.test.ts), src/lib/orchestra-model-resolver.ts,
+      src/lib/ai-team/roster-overrides.ts, new admin API route under
+      src/app/api/ai/model-registry/emergency-revert/, drizzle migration,
+      ai-os/registry/asset-registry-coverage.yaml exemption entry. Does NOT
+      touch mother-router.ts's rollbackPolicy()/ai_routing_policies (a
+      separate, already-documented, honestly-disclosed-as-dormant
+      mechanism -- out of scope for this narrowly-named finding) or
+      permission-service.ts's ERP_ACTION_ROLES.
     claim: |
       SPEC (this task's own prompt.txt, citing real UMR `UMR-20260803-084718-ce79`, OCID-046, parented
       to OCID-045 `UMR-20260803-084637-ada4` -- itself registered this same cycle, discovery-only,
