@@ -64,3 +64,29 @@ is still accurate.
 - [ ] None — finding is closed. (No code enforcement changes needed; the
       gap was purely a missing docs page, per the finding's own
       "Recommended approach.")
+
+## Resume (invocation 15) — PR #1222 landing
+
+Work itself was already done and committed by invocation ~14 (commit
+`fa6e86d56`). This invocation found the PR open (#1222) but not merged:
+`audit-check` was failing (no structured audit verdict comment posted yet,
+per Rule 7c/10 — `.github/workflows/mandatory-audit-check.yml` +
+`scripts/validate-audit-verdict.ts` require one on every PR, not just
+`ai-team/*` branches — see memory
+`veridian-audit-check-applies-to-all-prs-not-just-ai-team`), and the branch
+was `BEHIND` main.
+
+- [x] Merged `origin/main` into this branch (clean, no conflicts — picked
+      up an unrelated route-error-handling gap-closure from a sibling
+      session) and pushed.
+- [x] Re-verified the PR's own diff against live code before self-auditing
+      (not just trusting this file's own earlier claims) — confirmed
+      `src/lib/supabase/api-key-auth.ts`, `schema.ts:680`
+      `rateLimitPerMinute`, and the PATCH route's validation all match
+      what the new docs page says.
+- [x] Posted the required structured `AUDIT: PASS` comment (8 fields per
+      `audit-protocol.ts`'s `AuditProtocolFields`) on PR #1222.
+- [ ] Confirm all CI checks (incl. audit-check) go green on the latest
+      push, then merge via `gh pr merge --squash` (Rule 12: full autonomy,
+      no separate human sign-off needed for an already-approved,
+      docs-only, non-security/non-financial change).
