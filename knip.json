@@ -1,0 +1,31 @@
+{
+  "$schema": "https://unpkg.com/knip@6/schema.json",
+  "next": true,
+  "entry": [
+    "src/app/**/{page,layout,route,loading,error,global-error,not-found,template,default}.{ts,tsx}",
+    "src/middleware.ts",
+    "src/db/seed.ts",
+    "scripts/**/*.{mjs,ts}",
+    "next.config.ts",
+    "drizzle.config.ts",
+    "eslint.config.mjs",
+    "playwright.config.ts",
+    "sentry.*.config.ts",
+    "tailwind.config.ts",
+    "postcss.config.mjs",
+    "src/**/*.test.{ts,tsx}"
+  ],
+  "project": [
+    "src/**/*.{ts,tsx}",
+    "scripts/**/*.{mjs,ts}"
+  ],
+  "ignore": [
+    "src/lib/db/schema.ts",
+    "examples/**",
+    "public/**",
+    "mini-services/**",
+    "office-addin/**",
+    "services/**"
+  ],
+  "ignoreDependencies": []
+}

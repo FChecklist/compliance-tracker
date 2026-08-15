@@ -1,0 +1,9 @@
+{
+  "_comment": "Ratchet baseline for check-dead-code.mjs, recorded 2026-07-18 from `bunx knip --reporter json` against knip.json's tuned entry/project globs. A category may only go DOWN over time without editing this file -- if real cleanup lowers a count, update the number here in the same PR so the ratchet keeps tightening instead of quietly leaving slack. See check-dead-code.mjs's own header for why this is a ratchet, not a zero-findings gate.",
+  "files": 38,
+  "exports": 222,
+  "types": 106,
+  "dependencies": 29,
+  "devDependencies": 2,
+  "unlisted": 11
+}

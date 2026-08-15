@@ -1624,6 +1624,46 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-122002-retry-1--ai-engineering-quality--techni) -- AI Engineering Quality: Technical Debt & Complexity, 5 findings"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "not yet PR'd as of this entry -- branch worker/task-20260718-122002-retry-1--ai-engineering-quality--techni, pushing this same session"
+    summary: |
+      Re-verified all 5 VERIDIAN Review Framework findings against the live
+      codebase before writing anything -- all 5 still real gaps. Dead Code
+      Detection: knip (devDep) + knip.json (entry-tuned) +
+      scripts/check-dead-code.mjs, wired into CI as a ratchet vs
+      scripts/dead-code-baseline.json (not a zero-findings gate -- raw knip
+      run before tuning reported 158 mostly-false-positive "unused files",
+      tuned to 38 real). Duplicate Code Detection: jscpd (devDep) +
+      .jscpd.json (7% threshold, measured baseline 5.74%) +
+      scripts/check-duplicate-code.mjs, wired into CI, verified the
+      threshold flag actually gates (--threshold 1 fails, --threshold 7
+      passes). Technical Debt Score: scripts/compute-tech-debt-score.mjs,
+      composite of open MASTER-TRACKER items (18) + empty-guardrail % (0%,
+      all 9 guardrail-registrations.ts LEAFs are real wired call sites,
+      computed live via git grep not hardcoded) + stale-doc count (44) =
+      score 80, informational-only in CI (no defensible threshold yet).
+      Code Complexity Score: ESLint complexity rule (warn, threshold 20) in
+      eslint.config.mjs -- confirmed real signal, not just added tooling:
+      task-execution-engine.ts's dispatchEngine measured at complexity 372.
+      Refactoring Readiness: scripts/check-refactoring-readiness.mjs (ranks
+      untested src/lib files by lines x commits) plus one real test file
+      added off that list, src/lib/supabase/auth-guard.test.ts (19
+      tests/43 assertions) for ROLE_RANK/hasRole/requireRole/hasScope/
+      requireRoleOrScope -- the pure gate functions every requireAuth()-
+      protected route depends on, previously zero test coverage. Full
+      local verification before commit: bun test (1440 pass/0 fail),
+      bunx tsc --noEmit (0 errors), bun run lint (0 errors, 79 warnings,
+      all from the new complexity rule as designed). Did not touch
+      permission-service.ts's ERP_ACTION_ROLES (out of scope per this
+      task's own instructions). File scope: knip.json, .jscpd.json,
+      scripts/check-dead-code.mjs, scripts/check-duplicate-code.mjs,
+      scripts/compute-tech-debt-score.mjs, scripts/check-refactoring-readiness.mjs,
+      scripts/dead-code-baseline.json, eslint.config.mjs, package.json,
+      bun.lock, .github/workflows/ci.yml, src/lib/supabase/auth-guard.test.ts,
+      PROGRESS.md. Known risk: this session's gh token lacks the `workflow`
+      OAuth scope (may block pushing the ci.yml diff -- fallback is a
+      split PR, see PROGRESS.md).
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
