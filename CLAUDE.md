@@ -27,6 +27,18 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `ai-os/` — AI-OS governance: `CONSTITUTION.yaml` (the constitution), `MASTER-TRACKER.yaml` (open work), `boss/` (ACTIVE-CLAIMS/COMPLETED/BOARD-stale), `sentinel/`, `registry/`, `audit-tree/`, `system-tree/`, `tree4-unified/`, `engines/` -- see `ai-os/OS.yaml` for what each covers, do not assume this is a small directory
 - `drizzle/` — Migration files
 
+## High-Risk Files (Apply Extra Caution)
+Review Framework gap-closure, "AI Modification Readiness": this repo has no single per-file readiness score (and building a real one is out of scope for a lightweight fix) — what follows is a cheap, honest proxy instead: files that are both **large** (≥400 lines — more context an agent has to hold at once to change safely) and **untested** (no colocated `*.test.ts`/`*.test.tsx`). A file below has the least safety net if a change to it is wrong; read it fully before modifying, and prefer adding a colocated test alongside your change over editing blind. This is a snapshot, not a live query — regenerate it with `node scripts/report-high-risk-files.mjs` (see that script's own header for what it does and doesn't measure) after a wave that adds tests or splits a large file, and update this list if it changed.
+
+- `src/lib/db/schema.ts` (~10,200 lines) — the single biggest blast radius in the repo: every table for every module. A wrong migration or type change here is repo-wide, not local.
+- `src/lib/supabase/auth-guard.ts` (~460 lines) — `requireAuth()` backs every API route (CLAUDE.md's own "All API routes MUST call `requireAuth()`" rule); a subtle bug here is a security regression, not just a bug.
+- ERP service cluster, each ~450–700 lines, no colocated tests: `src/lib/services/erp-invoicing-service.ts`, `erp-accounting-service.ts`, `erp-selling-service.ts`, `erp-payroll-service.ts`, `erp-contract-service.ts`, `erp-financial-report-service.ts`, `erp-procurement-workflow-service.ts`.
+- Other untested large services: `src/lib/services/compliance-service.ts`, `activity-log-service.ts`, `veri-reward-service.ts`, `workspace-memory-service.ts`, `crm-service.ts`.
+- Large untested UI components: `src/components/veri-chat/VeriChatPanel.tsx`, `VeriComposer.tsx`, `src/components/AppSidebar.tsx`, `search-command.tsx`, `DocumentUploadSection.tsx`, `InviteUserModal.tsx`, `CustomReportsSection.tsx`, `WebhookSection.tsx`, `AiConfigSection.tsx` — plus `src/components/ui/sidebar.tsx`, which is vendored shadcn/ui, not hand-authored; prefer regenerating/upgrading it via shadcn's CLI over hand-editing.
+- `src/app/api/mcp/route.ts` (~590 lines) — the MCP tool-call surface; untested and large, same "read the whole thing first" caution applies.
+
+This list is not exhaustive (25 files matched at the time this was written — see the script for the current full set) and the ≥400-line/no-test-file bar is a heuristic, not a verdict: a short file with gnarly multi-tenant RLS logic can be riskier than a long mechanical one, and a file can have real indirect coverage this purely-textual check can't see.
+
 ## Design Tokens
 - Navy: #1C2B3A | Saffron: #F5820A | Teal: #0E7C6E | Cream: #FFFDF9
 - Fonts: DM Serif Display (headings) + Inter (body)
