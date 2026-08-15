@@ -47,6 +47,10 @@
 # Phase 5 retires this file once every remaining count is itself resolved.
 
 exemptions:
+  - file: playwright.config.ts
+    reason: "Accessibility (WCAG Compliance) gap-closure (2026-08-15): 1 pre-existing dated code comment (line 3, \"Fixed 2026-07-20\") documenting a prior E2E CI-crash fix -- not real business hardcoding, same pattern as this codebase's other dated gap-closure comments. Newly surfaced by this PR touching the file for an unrelated reason (adding webServer/baseURL for e2e/accessibility.spec.ts); the finding itself predates this PR and was never previously caught because --diff-only only scans files that change."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/lib/services/erp-selling-service.test.ts
     reason: "SD-007 Sales Order Document-Flow Overview (2026-07-30): 7 genuine test-fixture literal dates in buildFakeDb()'s mock quotation/sales-order/invoice/payment/credit-note/sales-return records (lines 30, 35, 39, 43, 47, 122) plus one matching expect() assertion (line 89) -- not real business hardcoding, same class as this codebase's other exempted test-fixture files."
     findings_by_category:
