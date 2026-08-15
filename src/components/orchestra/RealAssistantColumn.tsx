@@ -9,6 +9,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ASSISTANT_COLOR } from "@/lib/orchestra-mock-data";
 import { toast } from "sonner";
+import { FIXED_MODES, type CapabilityNode } from "@/components/veri-chat/veri-chat-context";
 
 type RealAssistant = {
   id: string;
@@ -44,11 +45,24 @@ function TaskIcon({ status }: { status: RealTask["status"] }) {
   return <CircleDashed className="size-3.5 text-muted-foreground/50" />;
 }
 
+// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "Reduces AI Questions
+// Through Structured Inputs" -- structured-input coverage was limited to
+// import flows and dialogue scripts; this composer was free-text-only with
+// zero structured input, unlike VeriComposer's ChainRows-driven dispatch).
+// Deliberately a compact, native 2-level cascading <select> (not the full
+// ChainRows tree walker VeriComposer uses) -- this is a small side-panel
+// card, not the main composer. Additive: leaving both selects on "General"
+// sends exactly the same free-text-only task this composer always has.
+type CategoryTree = CapabilityNode[];
+
 export function RealAssistantColumn({ assistant }: { assistant: RealAssistant }) {
   const [tasks, setTasks] = useState<RealTask[]>([]);
   const [loading, setLoading] = useState(true);
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [creating, setCreating] = useState(false);
+  const [categoryTree, setCategoryTree] = useState<CategoryTree>([]);
+  const [categoryKey, setCategoryKey] = useState("");
+  const [subCategoryKey, setSubCategoryKey] = useState("");
 
   const color = COLOR_CYCLE[(assistant.assistantNumber - 1) % COLOR_CYCLE.length];
   const c = ASSISTANT_COLOR[color];
@@ -66,17 +80,38 @@ export function RealAssistantColumn({ assistant }: { assistant: RealAssistant })
     fetchTasks();
   }, [fetchTasks]);
 
+  useEffect(() => {
+    fetch("/api/capability-tree")
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((d) => setCategoryTree((d.nodes ?? []).filter((n: CapabilityNode) => !FIXED_MODES.includes(n.key as never))))
+      .catch(() => setCategoryTree([]));
+  }, []);
+
   const doneCount = tasks.filter((t) => t.status === "completed").length;
+  const category = categoryTree.find((n) => n.key === categoryKey) ?? null;
+  const subOptions = category?.children ?? [];
+  const subCategory = subOptions.find((n) => n.key === subCategoryKey) ?? null;
 
   const createTask = async () => {
     const title = newTaskTitle.trim();
     if (!title) return;
     setCreating(true);
     try {
+      // Structured category, when picked, resolves a real Chain Selector
+      // path the same way VeriComposer's dispatch does (task-service.ts's
+      // createTask() requires >=2 levels once chainPathKeys is sent at all
+      // -- see validateChainDepth()) -- so a category alone with no
+      // sub-option picked yet is not sent as a partial/invalid chain.
+      const chainPathKeys = category && subCategory ? [category.key, subCategory.key] : undefined;
+      const chainPathLabels = category && subCategory ? [category.label, subCategory.label] : undefined;
       const res = await fetch("/api/tasks", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, assistantId: assistant.id }),
+        body: JSON.stringify({
+          title, assistantId: assistant.id,
+          modePill: chainPathKeys ? category!.label : undefined,
+          chainPathKeys, chainPathLabels,
+        }),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -142,7 +177,36 @@ export function RealAssistantColumn({ assistant }: { assistant: RealAssistant })
 
       {/* Add task -- real, not disabled. Creates a row in `tasks`; nothing
           auto-executes it yet, that's a later wave (task execution engine). */}
-      <div className="border-t px-1.5 py-1.5 flex gap-1.5">
+      <div className="border-t px-1.5 py-1.5 space-y-1.5">
+        {categoryTree.length > 0 && (
+          <div className="flex gap-1.5">
+            <select
+              aria-label="Task category (optional)"
+              value={categoryKey}
+              onChange={(e) => { setCategoryKey(e.target.value); setSubCategoryKey(""); }}
+              className="h-6 flex-1 min-w-0 rounded border bg-background px-1 text-[10px]"
+            >
+              <option value="">General (no category)</option>
+              {categoryTree.map((n) => (
+                <option key={n.key} value={n.key}>{n.label}</option>
+              ))}
+            </select>
+            {subOptions.length > 0 && (
+              <select
+                aria-label="Task sub-category"
+                value={subCategoryKey}
+                onChange={(e) => setSubCategoryKey(e.target.value)}
+                className="h-6 flex-1 min-w-0 rounded border bg-background px-1 text-[10px]"
+              >
+                <option value="">Pick one…</option>
+                {subOptions.map((n) => (
+                  <option key={n.key} value={n.key}>{n.label}</option>
+                ))}
+              </select>
+            )}
+          </div>
+        )}
+        <div className="flex gap-1.5">
         <Input
           placeholder={`New task for ${assistant.label}...`}
           value={newTaskTitle}
@@ -156,6 +220,7 @@ export function RealAssistantColumn({ assistant }: { assistant: RealAssistant })
         <Button size="icon" className="size-7 shrink-0" onClick={createTask} disabled={creating || !newTaskTitle.trim()}>
           {creating ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
         </Button>
+        </div>
       </div>
     </Card>
   );

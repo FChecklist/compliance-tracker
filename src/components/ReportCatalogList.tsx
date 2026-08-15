@@ -50,9 +50,10 @@ const DOMAIN_LABELS: Record<ReportDomain, string> = {
   construction: "Construction (PROJEXA)",
   "AI-ops": "AI Ops",
   custom: "Custom Reports",
+  CRM: "Sales & CRM",
 };
 
-const DOMAIN_ORDER: ReportDomain[] = ["compliance", "ERP", "construction", "AI-ops", "custom"];
+const DOMAIN_ORDER: ReportDomain[] = ["compliance", "ERP", "CRM", "construction", "AI-ops", "custom"];
 
 const STATUS_FILTERS = ["all", "built", "data_gap", "planned"] as const;
 type StatusFilter = (typeof STATUS_FILTERS)[number];
@@ -140,7 +141,7 @@ export default function ReportCatalogList() {
   }, [catalog, search, statusFilter]);
 
   const byDomain = useMemo(() => {
-    const grouped: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] };
+    const grouped: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] };
     for (const entry of filtered) grouped[entry.domain].push(entry);
     return grouped;
   }, [filtered]);

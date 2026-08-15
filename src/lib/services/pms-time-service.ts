@@ -62,6 +62,54 @@ export async function deleteTimeEntry(ctx: { orgId: string; userId: string }, en
   })
 }
 
+// Design Studio timesheets approval flow (Owner item 12, "IMPORTANT",
+// 2026-07-28): draft (designer editing, logTime's default) -> submitted
+// (designer done for the day) -> approved/rejected (manager review).
+// Modeled directly on construction-kpi-service.ts's submitKpiEntry/
+// approveKpiEntry -- role gating (submit=owner, approve/reject=manager+)
+// is enforced at the route layer via requireRole, self-approval blocked
+// here the same way approveKpiEntry blocks it.
+export async function submitTimeEntry(ctx: { orgId: string; userId: string }, entryId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.pmsTimeEntries.findFirst({ where: and(eq(pmsTimeEntries.id, entryId), eq(pmsTimeEntries.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Time entry not found", 404)
+    if (existing.userId !== ctx.userId) throw new ServiceError("Only the logging user may submit this entry", 403)
+    if (existing.approvalStatus !== "draft") throw new ServiceError("Only a draft time entry can be submitted", 400)
+
+    const [row] = await db.update(pmsTimeEntries)
+      .set({ approvalStatus: "submitted" })
+      .where(eq(pmsTimeEntries.id, entryId)).returning()
+    return row
+  })
+}
+
+async function reviewTimeEntry(ctx: { orgId: string; userId: string }, entryId: string, decision: "approved" | "rejected", rejectionReason?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.pmsTimeEntries.findFirst({ where: and(eq(pmsTimeEntries.id, entryId), eq(pmsTimeEntries.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Time entry not found", 404)
+    if (existing.approvalStatus !== "submitted") throw new ServiceError("Only a submitted time entry can be reviewed", 400)
+    if (existing.userId === ctx.userId) throw new ServiceError("The submitter cannot review their own time entry", 403)
+
+    const [row] = await db.update(pmsTimeEntries)
+      .set({
+        approvalStatus: decision,
+        approvedById: ctx.userId,
+        approvedAt: new Date(),
+        rejectionReason: decision === "rejected" ? (rejectionReason || null) : null,
+      })
+      .where(eq(pmsTimeEntries.id, entryId)).returning()
+    return row
+  })
+}
+
+export async function approveTimeEntry(ctx: { orgId: string; userId: string }, entryId: string) {
+  return reviewTimeEntry(ctx, entryId, "approved")
+}
+
+export async function rejectTimeEntry(ctx: { orgId: string; userId: string }, entryId: string, rejectionReason?: string) {
+  return reviewTimeEntry(ctx, entryId, "rejected", rejectionReason)
+}
+
 export async function listBillableRates(ctx: { orgId: string }) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.pmsBillableRates.findMany({ where: eq(pmsBillableRates.orgId, ctx.orgId), orderBy: (t, { desc }) => desc(t.validFrom) })
@@ -81,14 +129,30 @@ export async function setBillableRate(ctx: PmsContext, input: { userId?: string;
   })
 }
 
-/** Resolves the applicable rate for a user as of a given date -- most-recent validFrom <= asOf, falling back to the org default (userId null) if no per-user rate exists. */
+export type PmsBillableRateRow = { userId: string | null; hourlyRate: string | number; validFrom: string }
+
+/**
+ * Pure function, no DB access -- independently unit-testable (mirrors
+ * firm-billing-service.ts's resolveBillableRate design). Resolves the
+ * applicable rate for a user as of a given date -- most-recent
+ * validFrom <= asOf, falling back to the org default (userId null) if no
+ * per-user rate exists. Returns null (not 0) when nothing applies, so
+ * callers that must never silently invoice at a zero rate (e.g.
+ * pms-invoice-service.ts) can tell "no rate configured" apart from "a real
+ * zero rate".
+ */
+export function resolvePmsBillableRatePure(rates: PmsBillableRateRow[], userId: string, asOf: string): number | null {
+  const applicable = rates.filter((r) => r.validFrom <= asOf)
+  const perUser = applicable.filter((r) => r.userId === userId).sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0]
+  if (perUser) return Number(perUser.hourlyRate)
+  const orgDefault = applicable.filter((r) => r.userId === null).sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0]
+  return orgDefault ? Number(orgDefault.hourlyRate) : null
+}
+
+/** Resolves the applicable rate for a user as of a given date, defaulting to 0 when unconfigured -- used for internal cost-vs-budget estimates (pms-budget-service.ts), where a missing rate should not block the read. Real invoicing must not use this 0-fallback -- see resolvePmsBillableRatePure. */
 export async function resolveBillableRate(ctx: { orgId: string }, userId: string, asOf: string): Promise<number> {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const rates = await db.query.pmsBillableRates.findMany({ where: eq(pmsBillableRates.orgId, ctx.orgId) })
-    const applicable = rates.filter((r) => r.validFrom <= asOf)
-    const perUser = applicable.filter((r) => r.userId === userId).sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0]
-    if (perUser) return Number(perUser.hourlyRate)
-    const orgDefault = applicable.filter((r) => r.userId === null).sort((a, b) => b.validFrom.localeCompare(a.validFrom))[0]
-    return orgDefault ? Number(orgDefault.hourlyRate) : 0
+    return resolvePmsBillableRatePure(rates, userId, asOf) ?? 0
   })
 }

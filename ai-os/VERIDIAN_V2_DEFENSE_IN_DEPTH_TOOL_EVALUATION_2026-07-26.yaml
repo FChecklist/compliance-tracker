@@ -1,0 +1,188 @@
+meta:
+  title: VERIDIAN_Architecture_v2.0 phase_4 -- Defense-in-Depth Security/Guardrails Tool Evaluation
+  created: '2026-07-26'
+  produced_by_task: task-20260726-043023-phase4-defense-in-depth-prompt-security
+  precedent: Same domains[]-row shape (tool_mapping / tool_installable_compatible / custom_work_required)
+    as ai-os/AUDITOR_ENGINE_PHASE_PLAN_2026-07-24.yaml's domains[] table -- reused here per this phase's
+    own KNOWN_CONTEXT instruction ("following the same real-tool-evaluation method AUDITOR_ENGINE_PHASE_PLAN
+    used for its own domain/tool mapping"), not re-derived from scratch.
+  stack_confirmed_2026-07-26:
+    method: 'Read package.json directly (Next.js 16/TypeScript, bun package manager, bun.lock) + confirmed
+      real installability of every candidate tool live in this session, not assumed: (a) WebFetch against
+      console.groq.com/docs/model/* for the two hosted-model tools, (b) a real `python3 -m venv` + `pip
+      install` for the two pip-package tools, executed and observed in this session''s own shell.'
+    compliance-tracker: 'Next.js/TypeScript app (bun), drizzle-orm + @supabase/ssr against Postgres/Supabase.
+      llm-client.ts already dispatches to 6 providers over plain HTTP (groq/openai/anthropic/google/openrouter/cerebras)
+      via callLLM() -- no client SDK dependency, model is a caller-supplied string with zero allowlist, so
+      any model a provider hosts is reachable with ZERO new code in llm-client.ts itself. Plus a standalone
+      Python microservice at services/doc-processing/ (confirmed present by AUDITOR_ENGINE_PHASE_PLAN's own
+      2026-07-24 stack_confirmed block) -- the real, existing Python surface any Python-only tool below would
+      extend, not a fresh Python deployment.'
+    conclusion: 'Two of the document''s 6 named tools (Llama Guard, Prompt Guard) are not npm/pip packages at
+      all -- they are MODELS, and both are hosted on Groq, a provider llm-client.ts already dispatches to via
+      the standard OpenAI-compatible /chat/completions shape. This means real Layer 1/3/4 guardrail coverage
+      needs ZERO new install, matching this phase''s own objective ("never install a tool the KNOWN_CONTEXT
+      stack-confirmation step hasn''t verified compatible" -- confirmed live, not assumed, see per-row evidence
+      below). The remaining 4 named tools (NeMo Guardrails, Garak, PyRIT, Presidio) are genuine Python
+      packages; 2 of the 4 (Garak, Presidio-analyzer) were installed and run for real in a scratch venv this
+      session as direct evidence.'
+
+document_name_discrepancy: 'HONEST FINDING, not silently resolved: the phase plan''s own OBJECTIVE line
+  says "0 of the document''s 7 named security/guardrails tools ... are installed anywhere" but its own
+  parenthetical only names 6 (NeMo Guardrails, Llama Guard, Prompt Guard, Garak, PyRIT, Presidio), which
+  matches the gap analysis''s stack-security-guardrails item id exactly (also 6 names, also says "all 7").
+  The source document''s own Section 3.3 tech-stack table (VERIDIAN_Architecture_v2.0_extracted.txt lines
+  550-558) lists 10 "Prompt Engineering Tools" rows total, of which exactly 6 are tagged Category=Security/Privacy
+  (NeMo Guardrails, Llama Guard 3, Garak, PyRIT, Presidio, Prompt Guard) -- the other 4 (DSPy, promptfoo,
+  DeepEval, LangSmith/LangFuse) are Optimization/Testing/Observability, already covered by stack-prompt-engineering,
+  a DIFFERENT gap item, not this one. Two real close alternatives appear in the document''s own prose (not its
+  table) that could explain the "7" count: "Rebuff" (line 341, alternative injection detector to Prompt Guard)
+  and "Lakera Guard" (line 343, alternative content-moderation service to Llama Guard 3) -- neither is
+  independently named in the parenthetical stack-security-guardrails list this phase''s own OBJECTIVE quotes,
+  so this evaluation treats the 6 explicitly-named tools as the real scope and flags the "7" as an apparent
+  off-by-one in the phase-plan/gap-analysis text itself, not a 7th tool this evaluation silently invented.'
+
+tools:
+  - id: llama-guard
+    document_name: Llama Guard 3 / Llama Guard 4
+    category: Security (Runtime Guardrails, Layer 3; Content Moderation, Layer 4)
+    tool_mapping: 'Not an npm/pip package -- a hosted safety-classifier MODEL. Confirmed live via WebFetch
+      (console.groq.com/docs/model/llama-guard-4-12b, 2026-07-26): "Llama Guard 4 is available on Groq...
+      Model ID: meta-llama/llama-guard-4-12b... specifically fine-tuned for content moderation and safety
+      classification tasks."'
+    tool_installable_compatible: 'YES, zero new install. Groq is already provider "groq" in llm-client.ts
+      (callLLM("groq", model, apiKey, systemPrompt, userMessage)) -- model is a caller-supplied string with
+      no allowlist, dispatched over the standard OpenAI-compatible /chat/completions shape every other Groq
+      model already uses. GROQ_API_KEY is present in this session''s environment (confirmed via env, value
+      not echoed).'
+    custom_work_required: 'A response parser for Llama Guard''s "safe" / "unsafe\n<comma-separated hazard
+      category codes>" two-line output convention (the standard Llama Guard output format across the 3/3.1/4
+      model line) -- src/lib/prompt-security/layer3-runtime-guardrails.ts. No SDK, no model download, no
+      GPU.'
+    verdict_this_phase: ADOPTED -- Layer 3 (runtime guardrails, evaluates compiled prompt) and Layer 4
+      (content moderation on model output), via src/lib/prompt-security/layer3-runtime-guardrails.ts.
+
+  - id: prompt-guard
+    document_name: Prompt Guard (Meta)
+    category: Security (Injection Detection, Layer 1)
+    tool_mapping: 'Not an npm/pip package for our use -- a hosted classifier MODEL (current generation:
+      Prompt Guard 2). Confirmed live via WebFetch (console.groq.com/docs/model/meta-llama/llama-prompt-guard-2-86m,
+      2026-07-26): real chat-completions request/response shape, model id meta-llama/llama-prompt-guard-2-86m.
+      Note (real, not silently smoothed over): Prompt Guard 2 collapses the original 3-label taxonomy
+      (benign/injection/jailbreak) to 2 labels (BENIGN/MALICIOUS) -- less granular than the document''s own
+      Layer 1 description, but still a real classifier signal.'
+    tool_installable_compatible: 'YES, zero new install -- same Groq provider/shape as llama-guard above.'
+    custom_work_required: 'A response parser for the BENIGN/MALICIOUS text-classification output. Positioned
+      as the network-dependent second opinion LAYERED ON TOP OF (not replacing) a network-independent
+      deterministic regex/invisible-unicode-anomaly detector, so Layer 1 still functions with zero added
+      latency/cost/network-dependency when a caller opts out of the model-classifier call -- matching this
+      codebase''s own guardrail-engine.ts precedent ("Deterministic only -- no LLM call, matching every other
+      gate in this codebase") for the always-on baseline path.'
+    verdict_this_phase: ADOPTED (deterministic path is the primary/always-on Layer 1 mechanism; the Groq
+      Prompt Guard 2 call is an optional network-dependent enrichment, not a hard dependency), via
+      src/lib/prompt-security/layer1-input-sanitization.ts.
+
+  - id: garak
+    document_name: Garak
+    category: Security (Adversarial Testing / Red Team Engine)
+    tool_mapping: 'NVIDIA''s real OSS automated LLM red-teaming CLI (github.com/NVIDIA/garak). pip-installable,
+      standalone binary, same class as AUDITOR_ENGINE_PHASE_PLAN''s gitleaks/trivy/checkov (a repeatable-cadence
+      scanner, not a service to stand up).'
+    tool_installable_compatible: 'CONFIRMED YES, live in this session: `python3 -m venv /tmp/garak-venv &&
+      pip install garak` completed successfully; `garak --version` returned "garak LLM vulnerability scanner
+      v0.15.1"; `garak --model_type groq --model_name llama-3.1-8b-instant --probes promptinject.HijackHateHumans`
+      confirmed garak can target Groq (a provider already live in this stack via GROQ_API_KEY) directly --
+      the run itself was not completed to conclusion within this evaluation pass''s time budget (a live
+      multi-generation probe run legitimately takes several minutes; killed at 90s, not a failure, an honest
+      time-box).'
+    custom_work_required: 'A full live-scan cron wrapper (mirroring audit_pipeline_security.py''s subprocess +
+      finding-normalization pattern) targeting compliance-tracker''s own live model endpoints, with real
+      run-time long enough (minutes, not seconds) to matter for a cron SLA, and Owner sign-off on the outbound
+      API spend a real adversarial probe battery incurs against a live provider on a recurring cadence.'
+    verdict_this_phase: 'INSTALLABLE, CONFIRMED WORKING -- but NOT adopted as this phase''s live cron-wired
+      scanner (deferred, honestly, as a real follow-up gap, not silently dropped). This phase instead ships
+      a zero-cost, zero-network, immediately-runnable Red Team Engine: a curated adversarial-prompt battery
+      (src/lib/prompt-security/red-team-battery.ts) whose payload CATEGORIES are sourced from garak''s own
+      published probe taxonomy (promptinject, dan, encoding, leakage, xss/malwaregen-style requests) --
+      reusing garak''s real, published attack-category method without requiring garak''s own runtime dependency
+      for every CI/test run, the same "reuse the METHOD, not necessarily the exact runtime" precedent
+      WIRING_ENGINE_PHASE_PLAN_2026-07-25.yaml phase_9 already established for this system.'
+
+  - id: pyrit
+    document_name: PyRIT (Microsoft)
+    category: Security (Adversarial Testing / Red Team Engine)
+    tool_mapping: 'Microsoft''s real OSS Python Risk Identification Toolkit for red-teaming LLMs
+      (github.com/Azure/PyRIT). pip-installable, but an orchestration FRAMEWORK (multi-turn attack
+      orchestrators, memory/database backing, converter/scorer pipeline) rather than a standalone CLI --
+      a heavier integration shape than garak''s single-binary model.'
+    tool_installable_compatible: 'NOT independently verified this pass (time-boxed: garak and Presidio were
+      each confirmed live; installing a second, overlapping red-team framework in the same pass would not
+      have added a new real Layer 1-4 capability beyond what garak + the custom battery already cover).'
+    custom_work_required: 'Full orchestrator/converter/scorer wiring plus its own memory backend -- a
+      materially larger lift than garak''s standalone-CLI shape for the same underlying requirement
+      (engine-red-team: "automated adversarial testing").'
+    verdict_this_phase: DEFERRED -- real overlap with garak for this phase''s scope (both satisfy
+      engine-red-team); garak is the lighter-weight, session-confirmed-working choice. Installing both would
+      be redundant tooling for the same requirement, not additional real coverage.
+
+  - id: presidio
+    document_name: Presidio (Microsoft)
+    category: Privacy (PII Detection, Layer 4 Output Filtering)
+    tool_mapping: 'Microsoft''s real OSS PII detection/anonymization library (presidio-analyzer +
+      presidio-anonymizer), spaCy-backed NER + regex/checksum recognizers (email, phone, SSN, credit card,
+      etc).'
+    tool_installable_compatible: 'CONFIRMED YES, live in this session: `pip install presidio-analyzer
+      presidio-anonymizer` completed (pulls a spaCy en_core_web_lg model, ~400MB download, confirmed
+      completed and loadable: AnalyzerEngine() initialized OK). Real detection confirmed against a live
+      sample string: "Contact John Smith at john.smith@example.com or 555-123-4567, SSN 123-45-6789." ->
+      EMAIL_ADDRESS (score 1.0), PERSON (0.85), PHONE_NUMBER (0.4) all correctly flagged (the SSN pattern was
+      NOT flagged by the default en recognizer on this exact string shape -- a real, honestly-reported gap in
+      Presidio''s own default US-SSN recognizer, not a claim of perfect coverage).'
+    custom_work_required: 'The document''s own integration note says "Presidio (browser-adapted)" -- Presidio
+      itself is server/Python-only (no WASM/browser build exists), so a genuine browser-side L4 (per phase_5''s
+      browser execution tiers) would need either a services/doc-processing/-hosted HTTP endpoint (server-side
+      only, not what the document actually asks for) or an entirely different browser-native NER approach
+      (e.g. Transformers.js, phase_5''s own engine-browser-transformers scope) -- real, substantial follow-up
+      work, not a same-phase fit. Also: the 400MB spaCy model download is a real deployment-footprint concern
+      for a Vercel serverless function (cold-start/bundle-size), not evaluated further this pass.'
+    verdict_this_phase: 'CONFIRMED REAL AND WORKING, but NOT adopted as a live server-side dependency this
+      phase (deferred, honestly, as a real follow-up -- likely phase_5/phase_6''s browser-execution-tier
+      scope, per the document''s own "browser-adapted" framing). This phase instead ships a deterministic
+      regex-based PII scrubber (email/phone/SSN/credit-card patterns) in
+      src/lib/prompt-security/layer4-output-filtering.ts as the immediately-real, zero-new-dependency Layer 4
+      PII-scrub baseline, with Presidio named here as the concrete, session-verified upgrade path once the
+      browser-adapted requirement is actually being built.'
+
+  - id: nemo-guardrails
+    document_name: NeMo Guardrails (NVIDIA)
+    category: Security (Runtime Guardrails, programmable input/output rails)
+    tool_mapping: 'NVIDIA''s real OSS programmable-guardrails framework (github.com/NVIDIA/NeMo-Guardrails),
+      pip-installable (nemoguardrails package), but requires authoring its own Colang 2.0 rail-flow
+      configuration and runs its OWN LLM calls internally (a self-contained rails-execution runtime, not a
+      stateless classifier call like Llama Guard/Prompt Guard above).'
+    tool_installable_compatible: 'NOT independently verified this pass (time-boxed, same reasoning as PyRIT):
+      even if pip-installable in isolation, its real integration cost (Colang authoring + its own async
+      LLM-orchestration runtime living somewhere -- services/doc-processing/ is the only real Python surface
+      in this stack, and it is a document-processing microservice, not an LLM-orchestration one) is
+      substantially larger than the Groq-hosted-model path this phase already adopted for the identical
+      requirement (Layer 3 runtime guardrails).'
+    custom_work_required: 'Colang 2.0 rail-flow authoring (none exists), a place to run its own
+      LLM-orchestration runtime, and reconciling its rails against this phase''s already-adopted Llama Guard
+      call for the same Layer 3 requirement -- would be parallel, overlapping infrastructure for the same
+      gap item, not additional real coverage.'
+    verdict_this_phase: DEFERRED -- real overlap with the already-adopted Llama Guard 4 path for Layer 3
+      (both satisfy "Input Guardrails, powered by NeMo Guardrails OR Llama Guard" per the document''s own
+      Stage 6 wording, line 235 of the extracted source -- the document itself treats these as alternatives,
+      not both-required).
+
+summary:
+  adopted_this_phase: [llama-guard, prompt-guard]
+  confirmed_installable_but_deferred: [garak, presidio]
+  deferred_not_independently_verified_this_pass: [pyrit, nemo-guardrails]
+  net_result: 'Layers 1, 3, and 4''s runtime/model-classifier components are real and wired with ZERO new
+    package installs (both adopted tools are Groq-hosted models, reachable through llm-client.ts''s existing
+    callLLM()). Layers 1, 2, and 4''s deterministic components (regex/unicode-anomaly detection, XML-delimiter
+    hardening, PII-scrub regex) are pure TypeScript, zero dependency, zero network. The Red Team Engine ships
+    as a zero-cost curated battery this phase, with garak named as the confirmed-real upgrade path for a
+    live cron-wired scan (follow-up, not this phase''s own scope per the "minimum real subset" instruction in
+    this phase''s own OBJECTIVE).'

@@ -1,0 +1,12 @@
+-- AI Router registry-backed model resolution follow-up (2026-07-19): 4th
+-- ai_router_scope value, "customer_success" -- same posture mother-router.ts's
+-- own header already documents for its other 3 scopes ("registry exists,
+-- not every call site adopted yet"): no real dispatch call site is wired to
+-- this scope yet in this codebase; this migration + the corresponding
+-- mother-router.ts/schema.ts changes only make the scope/resolution-function
+-- plumbing ready for a future real integration.
+--
+-- ALTER TYPE ... ADD VALUE cannot run in the same transaction as other DDL
+-- (Postgres restriction) -- kept as its own migration file, same convention
+-- as drizzle/0035_wave45_openrouter_enum.sql.
+ALTER TYPE platform.ai_router_scope ADD VALUE IF NOT EXISTS 'customer_success';

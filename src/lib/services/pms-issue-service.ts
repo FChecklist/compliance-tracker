@@ -2,10 +2,10 @@
 // per-project issue numbering, and multi-assignee sync. Callers must have
 // already passed requirePmsEnabled() (enforced at the route layer).
 import {
-  pmsIssues, pmsIssueAssignees, pmsIssueRelations, pmsIssueLabels, projects,
+  pmsIssues, pmsIssueAssignees, pmsIssueRelations, pmsIssueLabels, pmsIssueStatuses, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, sql, type SQL } from "drizzle-orm"
+import { and, eq, inArray, or, sql, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
@@ -47,6 +47,30 @@ async function syncAssignees(db: TenantDb, issueId: string, userIds: string[] | 
   }
   await db.update(pmsIssues).set({ assigneeId: userIds[0] ?? null }).where(eq(pmsIssues.id, issueId))
 }
+
+// Dependency-blocking enforcement (Owner directive
+// PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION):
+// a 'blocks' row (issueId -> relatedIssueId) means issueId is the
+// predecessor of relatedIssueId; a 'blocked_by' row is the mirror, stored
+// from the successor's own perspective -- neither direction auto-creates
+// the other (addIssueRelation() below inserts exactly the one row it's
+// given), so both must be checked. Matches schedule-service.ts's own
+// normalizeEdges() semantics exactly (kept independent here rather than
+// imported, since it's a 6-line pure function and pms-issue-service.ts
+// should not take on a dependency on the read-only Gantt layer).
+export function predecessorIdsOf(
+  relations: Pick<typeof pmsIssueRelations.$inferSelect, "issueId" | "relatedIssueId" | "relationType">[],
+  issueId: string
+): string[] {
+  const ids: string[] = []
+  for (const r of relations) {
+    if (r.relationType === "blocked_by" && r.issueId === issueId) ids.push(r.relatedIssueId)
+    else if (r.relationType === "blocks" && r.relatedIssueId === issueId) ids.push(r.issueId)
+  }
+  return ids
+}
+
+const COMPLETED_STATUS_GROUP = "completed" as const
 
 async function syncLabels(db: TenantDb, issueId: string, labelIds: string[] | undefined) {
   if (labelIds === undefined) return
@@ -154,6 +178,44 @@ export async function updateIssue(ctx: PmsContext, issueId: string, patch: Issue
     const existing = await db.query.pmsIssues.findFirst({ where: and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Issue not found", 404)
 
+    // Dependency-blocking: only checked on a real status transition into
+    // the "completed" group -- issues with no pmsIssueRelations rows are
+    // untouched (predecessorIds is empty, the common case), matching this
+    // task's own "must not break the no-relations workflow" constraint.
+    if (patch.statusId !== undefined && patch.statusId !== existing.statusId) {
+      const newStatus = await db.query.pmsIssueStatuses.findFirst({
+        where: and(eq(pmsIssueStatuses.id, patch.statusId), eq(pmsIssueStatuses.orgId, ctx.orgId)),
+      })
+      if (!newStatus) throw new ServiceError("statusId not found", 404)
+
+      if (newStatus.group === COMPLETED_STATUS_GROUP) {
+        const relations = await db.query.pmsIssueRelations.findMany({
+          where: and(
+            eq(pmsIssueRelations.orgId, ctx.orgId),
+            or(eq(pmsIssueRelations.issueId, issueId), eq(pmsIssueRelations.relatedIssueId, issueId))
+          ),
+        })
+        const predecessorIds = predecessorIdsOf(relations, issueId)
+        if (predecessorIds.length > 0) {
+          const predecessors = await db.query.pmsIssues.findMany({
+            where: and(eq(pmsIssues.orgId, ctx.orgId), inArray(pmsIssues.id, predecessorIds)),
+          })
+          const statusIds = [...new Set(predecessors.map((p) => p.statusId))]
+          const statuses = await db.query.pmsIssueStatuses.findMany({
+            where: and(eq(pmsIssueStatuses.orgId, ctx.orgId), inArray(pmsIssueStatuses.id, statusIds)),
+          })
+          const groupByStatusId = new Map(statuses.map((s) => [s.id, s.group]))
+          const incomplete = predecessors.find((p) => groupByStatusId.get(p.statusId) !== COMPLETED_STATUS_GROUP)
+          if (incomplete) {
+            throw new ServiceError(
+              `Cannot mark "${existing.title}" complete: predecessor issue "${incomplete.title}" (#${incomplete.number}) is not yet complete.`,
+              409
+            )
+          }
+        }
+      }
+    }
+
     const { assigneeIds, labelIds, ...rest } = patch
     const updateValues: Record<string, unknown> = { ...rest, updatedAt: new Date() }
     if (assigneeIds !== undefined && assigneeIds.length > 0) updateValues.assignedById = ctx.userId
@@ -187,6 +249,42 @@ export async function addIssueRelation(
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const issue = await db.query.pmsIssues.findFirst({ where: and(eq(pmsIssues.id, issueId), eq(pmsIssues.orgId, ctx.orgId)) })
     if (!issue) throw new ServiceError("Issue not found", 404)
+
+    // Conflict check: a 'blocks'/'blocked_by' relation implies a
+    // predecessor/successor pair (see predecessorIdsOf()'s comment above
+    // for the direction convention). Reject only the narrow case where
+    // this new edge would leave an already-completed successor with an
+    // incomplete predecessor -- the same invariant updateIssue() enforces
+    // going forward, applied retroactively to the moment the edge itself
+    // is created. 'duplicates'/'relates_to' carry no such semantics.
+    if (input.relationType === "blocks" || input.relationType === "blocked_by") {
+      const predecessorId = input.relationType === "blocks" ? issueId : input.relatedIssueId
+      const successorId = input.relationType === "blocks" ? input.relatedIssueId : issueId
+
+      const relatedIssue = await db.query.pmsIssues.findFirst({
+        where: and(eq(pmsIssues.id, input.relatedIssueId), eq(pmsIssues.orgId, ctx.orgId)),
+      })
+      if (!relatedIssue) throw new ServiceError("relatedIssueId not found", 404)
+
+      const predecessorIssue = predecessorId === issueId ? issue : relatedIssue
+      const successorIssue = successorId === issueId ? issue : relatedIssue
+
+      const statuses = await db.query.pmsIssueStatuses.findMany({
+        where: and(
+          eq(pmsIssueStatuses.orgId, ctx.orgId),
+          inArray(pmsIssueStatuses.id, [...new Set([predecessorIssue.statusId, successorIssue.statusId])])
+        ),
+      })
+      const groupByStatusId = new Map(statuses.map((s) => [s.id, s.group]))
+      const successorComplete = groupByStatusId.get(successorIssue.statusId) === COMPLETED_STATUS_GROUP
+      const predecessorComplete = groupByStatusId.get(predecessorIssue.statusId) === COMPLETED_STATUS_GROUP
+      if (successorComplete && !predecessorComplete) {
+        throw new ServiceError(
+          `Cannot add this dependency: "${successorIssue.title}" (#${successorIssue.number}) is already complete, but its new predecessor "${predecessorIssue.title}" (#${predecessorIssue.number}) is not.`,
+          409
+        )
+      }
+    }
 
     const [row] = await db.insert(pmsIssueRelations).values({
       orgId: ctx.orgId, issueId, relatedIssueId: input.relatedIssueId,

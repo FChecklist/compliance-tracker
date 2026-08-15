@@ -26,6 +26,8 @@ import { checkQaPreCompletionGate } from "./qa-precompletion-gate"
 import { checkCommunicationGuardrails, type DraftedCommunicationForGuardrailCheck } from "./communication-guardrails"
 import { validateAuditProtocolFields, type AuditProtocolFields } from "./audit-protocol"
 import type { RiskLevel } from "./risk-classification"
+import { isValidGstinFormat, isValidGstinChecksum, isValidPanFormat } from "./engines/data-quality-engine"
+import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "./services/compliance-service"
 
 export const AI_TEAM_DISPATCH_LEAF = "ai_team.dispatch"
 export const AI_WORKFORCE_DISPATCH_LEAF = "ai_workforce.dispatch"
@@ -73,6 +75,38 @@ export const COMMUNICATION_DRAFT_SEND_LEAF = "communication.draft_send"
 // handover-protocol.ts had before this session wired each in). "input"
 // phase, same as every other "validates the submission itself" leaf above.
 export const AUDIT_PROTOCOL_COMPLIANCE_LEAF = "audit.protocol_compliance"
+
+// VERIDIAN Review Framework gap-closure ("Business Rule Validation Before
+// Execution" + "Calculation Cross-Verification"): the first "process"-phase
+// leaves in this registry -- every leaf above gates a governance SUBMISSION
+// ("input" phase); these gate a VCEL calculation DISPATCH's inputs before
+// task-execution-engine.ts's dispatchEngine() runs the actual computation
+// (see business-rule-validator.ts's own header for how this differs from
+// dispatch-output-validator.ts's existing POST-execution NaN/Infinity
+// check). Leaf keys are the real computation_engines.key values these
+// dispatch through -- reusing that existing identifier rather than minting
+// a parallel capability-tree key for the same concept.
+// All of these read inputs.gstRatePercent directly (gst-engine.ts's
+// splitGst()/calculateGst()/computeReverseChargeLiability() take a shared
+// GstSplitInput shape; gst_exclusive_engine/gst_inclusive_engine take the
+// rate as a separate positional arg but from the same inputs.gstRatePercent
+// field) -- one shared sanity check applies to all of them.
+export const GST_SPLIT_ENGINE_LEAVES = [
+  "gst_split_engine", "cgst_engine", "sgst_engine", "igst_engine", "utgst_engine",
+  "gst_calculation_engine", "reverse_charge_engine", "gst_exclusive_engine", "gst_inclusive_engine",
+]
+export const LOAN_ENGINE_LEAVES = ["emi_calculator", "loan_schedule_generator", "amortization_engine"]
+export const GRATUITY_CALCULATOR_LEAF = "gratuity_calculator"
+export const COMMISSION_CALCULATOR_LEAF = "commission_calculator"
+// Post-generation AI Output Validation by Business Rules: the one "output"-
+// phase leaf in this registry. Gates /api/documents/extract/route.ts's
+// AI-extracted fields (demandAmount/gstin/pan/complianceType) BEFORE they
+// reach the human review form that feeds compliance-item creation -- see
+// that route's own comment for why this is a warning (recorded + surfaced),
+// not a hard block: a human still reviews/edits every field before
+// anything is written, so this is a second, independent check on top of
+// that review, not a replacement for it.
+export const AI_DOCUMENT_EXTRACTION_LEAF = "ai.compliance_document_extraction"
 
 function tightTaskCheck(context: Record<string, unknown>) {
   // Wave 163 audit finding (chief_audit_officer's first real dispatch,
@@ -233,6 +267,135 @@ function qaPreCompletionCheck(context: Record<string, unknown>) {
   return { passed: false as const, reason: result.reason, guidance: result.guidance }
 }
 
+// Highest real GST rate a slab reaches (28% standard-goods slab); the extra
+// headroom to 40 catches a genuinely out-of-range figure (e.g. a rate typed
+// as a whole fraction like "1800" instead of "18") without false-flagging
+// any real compensation-cess-adjacent edge case.
+const MAX_GST_RATE_PERCENT = 40
+function gstRateSanityCheck(context: Record<string, unknown>) {
+  const rate = Number(context.gstRatePercent)
+  if (!Number.isFinite(rate) || rate < 0 || rate > MAX_GST_RATE_PERCENT) {
+    return {
+      passed: false as const, reason: "gst_rate_out_of_bounds",
+      guidance: `GST rate ${context.gstRatePercent} is outside the real-world 0-${MAX_GST_RATE_PERCENT}% range -- check for a data-entry error (e.g. a rate typed as a whole fraction instead of a percentage) before computing the split.`,
+    }
+  }
+  return { passed: true as const }
+}
+
+const MAX_LOAN_TENURE_MONTHS = 600 // 50 years -- no real Indian retail/business loan runs longer
+const MAX_LOAN_ANNUAL_RATE_PERCENT = 60 // generous ceiling covering even high-cost informal lending; catches a rate typed as basis points or with an extra zero
+const MAX_LOAN_PRINCIPAL = 1_000_000_000 // Rs 100 crore -- sanity ceiling, not a real regulatory limit
+function loanInputSanityCheck(context: Record<string, unknown>) {
+  const principal = Number(context.principal)
+  const rate = Number(context.annualRatePercent)
+  const tenure = Number(context.tenureMonths)
+  if (!Number.isFinite(principal) || principal <= 0 || principal > MAX_LOAN_PRINCIPAL) {
+    return {
+      passed: false as const, reason: "loan_principal_out_of_bounds",
+      guidance: `Principal ${context.principal} is not a positive number under the Rs ${MAX_LOAN_PRINCIPAL.toLocaleString("en-IN")} sanity ceiling -- check for a data-entry error before generating an amortization schedule.`,
+    }
+  }
+  if (!Number.isFinite(tenure) || tenure <= 0 || tenure > MAX_LOAN_TENURE_MONTHS) {
+    return {
+      passed: false as const, reason: "loan_tenure_out_of_bounds",
+      guidance: `Tenure ${context.tenureMonths} months is outside the 1-${MAX_LOAN_TENURE_MONTHS}-month (50-year) real-world range.`,
+    }
+  }
+  if (!Number.isFinite(rate) || rate < 0 || rate > MAX_LOAN_ANNUAL_RATE_PERCENT) {
+    return {
+      passed: false as const, reason: "loan_rate_out_of_bounds",
+      guidance: `Annual rate ${context.annualRatePercent}% is outside the 0-${MAX_LOAN_ANNUAL_RATE_PERCENT}% sanity range -- check whether this was entered as a monthly rate or basis points by mistake.`,
+    }
+  }
+  return { passed: true as const }
+}
+
+const MAX_MONTHLY_SALARY_FOR_GRATUITY = 10_000_000 // Rs 1 crore/month sanity ceiling
+const MAX_YEARS_OF_SERVICE = 60
+function gratuityInputSanityCheck(context: Record<string, unknown>) {
+  const salary = Number(context.lastDrawnMonthlySalary)
+  const years = Number(context.yearsOfService)
+  if (!Number.isFinite(salary) || salary <= 0 || salary > MAX_MONTHLY_SALARY_FOR_GRATUITY) {
+    return {
+      passed: false as const, reason: "gratuity_salary_out_of_bounds",
+      guidance: `Last drawn monthly salary ${context.lastDrawnMonthlySalary} is not a positive figure under the Rs ${MAX_MONTHLY_SALARY_FOR_GRATUITY.toLocaleString("en-IN")} sanity ceiling.`,
+    }
+  }
+  if (!Number.isFinite(years) || years < 0 || years > MAX_YEARS_OF_SERVICE) {
+    return {
+      passed: false as const, reason: "gratuity_years_out_of_bounds",
+      guidance: `Years of service ${context.yearsOfService} is outside the 0-${MAX_YEARS_OF_SERVICE}-year real-world range.`,
+    }
+  }
+  return { passed: true as const }
+}
+
+const MAX_COMMISSION_RATE_PERCENT = 50
+function commissionRateSanityCheck(context: Record<string, unknown>) {
+  const rate = Number(context.commissionRatePercent)
+  if (!Number.isFinite(rate) || rate < 0 || rate > MAX_COMMISSION_RATE_PERCENT) {
+    return {
+      passed: false as const, reason: "commission_rate_out_of_bounds",
+      guidance: `Commission rate ${context.commissionRatePercent}% is outside the 0-${MAX_COMMISSION_RATE_PERCENT}% sanity range for a sales commission.`,
+    }
+  }
+  return { passed: true as const }
+}
+
+// Sanity ceiling for a single notice/demand amount -- Rs 100 crore. Not a
+// real regulatory limit, just a bound past which an AI-hallucinated or
+// misread figure (e.g. an extra digit, or a total confused with a per-unit
+// rate) is far more likely than a genuine demand.
+const MAX_PLAUSIBLE_DEMAND_AMOUNT = 1_000_000_000
+
+function complianceExtractionOutputCheck(context: Record<string, unknown>) {
+  const gstin = context.gstin as string | null | undefined
+  if (gstin && (!isValidGstinFormat(gstin) || !isValidGstinChecksum(gstin))) {
+    return {
+      passed: false as const, reason: "extracted_gstin_invalid",
+      guidance: `The AI-extracted GSTIN "${gstin}" fails format or checksum validation -- verify it against the source document before creating a compliance item from it.`,
+    }
+  }
+
+  const pan = context.pan as string | null | undefined
+  if (pan && !isValidPanFormat(pan)) {
+    return {
+      passed: false as const, reason: "extracted_pan_invalid",
+      guidance: `The AI-extracted PAN "${pan}" doesn't match the AAAAA9999A format -- verify it against the source document before creating a compliance item from it.`,
+    }
+  }
+
+  const demandAmount = context.demandAmount
+  if (demandAmount !== null && demandAmount !== undefined) {
+    const amount = Number(demandAmount)
+    if (!Number.isFinite(amount) || amount < 0 || amount > MAX_PLAUSIBLE_DEMAND_AMOUNT) {
+      return {
+        passed: false as const, reason: "extracted_demand_amount_implausible",
+        guidance: `The AI-extracted demand amount (${demandAmount}) is not a plausible non-negative figure -- verify it against the source document before creating a compliance item from it.`,
+      }
+    }
+  }
+
+  const complianceType = context.complianceType as string | null | undefined
+  if (complianceType && !(VALID_COMPLIANCE_TYPES as readonly string[]).includes(complianceType)) {
+    return {
+      passed: false as const, reason: "extracted_compliance_type_invalid",
+      guidance: `The AI-extracted compliance type "${complianceType}" isn't one of the recognised types (${VALID_COMPLIANCE_TYPES.join(", ")}) -- pick the correct one before creating a compliance item from it.`,
+    }
+  }
+
+  const dueDate = context.dueDate as string | null | undefined
+  if (dueDate && Number.isNaN(Date.parse(dueDate))) {
+    return {
+      passed: false as const, reason: "extracted_due_date_invalid",
+      guidance: `The AI-extracted due date "${dueDate}" isn't a valid date -- verify it against the source document before creating a compliance item from it.`,
+    }
+  }
+
+  return { passed: true as const }
+}
+
 let registered = false
 
 // Wave 167 real bug found while reviewing the Handover Protocol PR: CI
@@ -320,4 +483,22 @@ export function registerAllGuardrails(): void {
   // genuinely enforced the moment a real audit-finding submission call
   // site adopts it, not left as a documented-only intention.
   registerGuardrail(AUDIT_PROTOCOL_COMPLIANCE_LEAF, { phase: "input", check: auditProtocolCheck })
+
+  // Business Rule Validation Before Execution (VERIDIAN Review Framework) --
+  // "process" phase, gating dispatchEngine()'s real computation_engines.key
+  // dispatch (task-execution-engine.ts, via business-rule-validator.ts)
+  // BEFORE the calculation runs, for the financially material engines named
+  // in that review: GST rate splits, EMI/loan amortization, gratuity, and
+  // sales commission.
+  for (const leaf of GST_SPLIT_ENGINE_LEAVES) registerGuardrail(leaf, { phase: "process", check: gstRateSanityCheck })
+  for (const leaf of LOAN_ENGINE_LEAVES) registerGuardrail(leaf, { phase: "process", check: loanInputSanityCheck })
+  registerGuardrail(GRATUITY_CALCULATOR_LEAF, { phase: "process", check: gratuityInputSanityCheck })
+  registerGuardrail(COMMISSION_CALCULATOR_LEAF, { phase: "process", check: commissionRateSanityCheck })
+
+  // AI Output Validation by Business Rules (VERIDIAN Review Framework) --
+  // "output" phase, gating the AI-extracted fields from
+  // /api/documents/extract/route.ts against real deterministic validators
+  // (GSTIN/PAN format+checksum, compliance-type enum, plausible amount/date
+  // bounds) before they reach the human review form.
+  registerGuardrail(AI_DOCUMENT_EXTRACTION_LEAF, { phase: "output", check: complianceExtractionOutputCheck })
 }

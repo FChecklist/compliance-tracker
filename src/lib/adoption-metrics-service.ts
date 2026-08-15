@@ -44,6 +44,12 @@ export type AdoptionMetrics = {
   reportsGenerated: number
   /** conversations.isAiThread=true count for this org. */
   aiConversations: number
+  /** V2-13 (CSV rows #16/#17/#20 "Mode Pills"): count of conversations.dynamicChainId IS NOT NULL for this org -- a Mode Pill/Chain Selector selection actually resolved a Dynamic Chain. */
+  modePillUsedCount: number
+  /** count of conversations.chainSelectorSkipped = true -- only ever set explicitly by createWorkflowThread()'s "Skip -- just start" path (chat-service.ts), so this never conflates with conversation flows where the Chain Selector was never offered at all (see computeModePillUsageRate's own comment). */
+  freeTextSkippedCount: number
+  /** % of conversations that went through the Chain Selector DECISION POINT (used a mode pill OR explicitly skipped) that used a mode pill. null when no conversation has reached that decision point yet -- honest, not fabricated as 0%. */
+  modePillUsageRate: number | null
   departmentsActive: number
   totalDepartments: number
   /** Not computable without a defined estimation methodology -- see this module's header. Never fabricated. */
@@ -52,6 +58,25 @@ export type AdoptionMetrics = {
   departmentBreakdown: DepartmentAdoption[]
   topPerformingDepartment: DepartmentAdoption | null
   lowestAdoptionDepartment: DepartmentAdoption | null
+}
+
+/**
+ * V2-13 (CSV rows #16/#17/#20 "Mode Pills"): the mode-pill-vs-free-text
+ * usage rate, given the two raw counts. Pure -- unit-testable without a DB,
+ * same split as chain-usage-ranking.ts's scoring/DB-aggregation separation.
+ * Denominator is deliberately the "reached a real decision point" total
+ * (modePillUsedCount + freeTextSkippedCount), not every conversation in the
+ * org -- most conversation-creation flows (the singleton VERI thread,
+ * direct/group chats with no chain selection) never offer the Chain
+ * Selector at all, so folding them into "free text" would inflate that
+ * bucket with conversations that never had a mode-pill option to begin
+ * with. See chat-service.ts's createWorkflowThread() for where
+ * chainSelectorSkipped is the one and only place it's ever explicitly set.
+ */
+export function computeModePillUsageRate(modePillUsedCount: number, freeTextSkippedCount: number): number | null {
+  const decided = modePillUsedCount + freeTextSkippedCount
+  if (decided === 0) return null
+  return Math.round((modePillUsedCount / decided) * 1000) / 10
 }
 
 /**
@@ -68,6 +93,7 @@ export async function computeOrgAdoptionMetrics(orgId: string): Promise<Adoption
     [taskCounts],
     [reportCounts],
     [aiConversationCounts],
+    [modePillCounts],
     [aiUserCounts],
     departmentRows,
     departmentBreakdown,
@@ -83,6 +109,10 @@ export async function computeOrgAdoptionMetrics(orgId: string): Promise<Adoption
     }).from(tasks).where(eq(tasks.orgId, orgId)),
     db.select({ reportsGenerated: count() }).from(savedReports).where(eq(savedReports.orgId, orgId)),
     db.select({ aiConversations: count() }).from(conversations).where(and(eq(conversations.orgId, orgId), eq(conversations.isAiThread, true))),
+    db.select({
+      modePillUsedCount: sql<number>`count(*) filter (where ${conversations.dynamicChainId} is not null)::int`,
+      freeTextSkippedCount: sql<number>`count(*) filter (where ${conversations.chainSelectorSkipped} = true)::int`,
+    }).from(conversations).where(eq(conversations.orgId, orgId)),
     db.select({ aiUsers: countDistinct(tokenUsageLedger.userId) }).from(tokenUsageLedger).where(eq(tokenUsageLedger.orgId, orgId)),
     db.select({ id: departments.id, name: departments.name }).from(departments).where(eq(departments.orgId, orgId)),
     // Per-department breakdown: active user count + completed-task count for
@@ -105,6 +135,8 @@ export async function computeOrgAdoptionMetrics(orgId: string): Promise<Adoption
   const activeUsers = userCounts?.activeUsers ?? 0
   const onboardedUsers = userCounts?.onboardedUsers ?? 0
   const aiUsers = aiUserCounts?.aiUsers ?? 0
+  const modePillUsedCount = modePillCounts?.modePillUsedCount ?? 0
+  const freeTextSkippedCount = modePillCounts?.freeTextSkippedCount ?? 0
 
   const departmentsActive = departmentBreakdown.filter((d) => d.activeUserCount > 0).length
 
@@ -127,6 +159,9 @@ export async function computeOrgAdoptionMetrics(orgId: string): Promise<Adoption
     meetingsManaged: meetingCounts?.meetingsManaged ?? 0,
     tasksCompleted: taskCounts?.tasksCompleted ?? 0,
     reportsGenerated: reportCounts?.reportsGenerated ?? 0,
+    modePillUsedCount,
+    freeTextSkippedCount,
+    modePillUsageRate: computeModePillUsageRate(modePillUsedCount, freeTextSkippedCount),
     aiConversations: aiConversationCounts?.aiConversations ?? 0,
     departmentsActive,
     totalDepartments: departmentRows.length,

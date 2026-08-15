@@ -11,11 +11,66 @@
 // hierarchy is approximated via the project lead's department
 // (`projects.leadUserId` -> `users.departmentId`), not a direct FK. This is
 // documented here rather than silently treated as exact.
-import { projects, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users } from "@/lib/db"
+import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+
+// Lists the org's active Products (business lines a new Project nests
+// under, e.g. "Villa Projects", "Commercial & Office Fit-outs") -- feeds
+// the Product picker in PROJEXA's Create Project dialog. Read-only, no
+// construction-specific filter (a Project's productId FK doesn't
+// distinguish construction vs any other domain -- see createProject below).
+export async function listActiveProducts(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.products.findMany({
+      where: and(eq(products.orgId, ctx.orgId), eq(products.isActive, true)),
+      columns: { id: true, name: true },
+      orderBy: (t, { asc }) => asc(t.name),
+    })
+  )
+}
+
+export type ProjectInput = { productId: string; name: string; description?: string; clientId?: string; startDate?: string; targetDate?: string }
+
+// Closes the one real gap found in a 2026-07-18 production-readiness pass:
+// every other PROJEXA entity (RFIs, submittals, punch list, ...) has a real
+// create path, but Projects itself -- the entity everything else nests
+// under -- had none. This is what "create new project" in VeriChat's
+// Discuss mode should have actually triggered (Discuss is a free-form LLM
+// endpoint with no dispatch capability by design -- see discuss/route.ts --
+// so the real fix is giving the product a genuine Create Project form, the
+// same pattern every other module already follows, not making Discuss
+// pretend to run actions it can't).
+//
+// ctx.userId is the caller's real user id when authenticated via session,
+// but PROJEXA's own server calls VERIDIAN via a per-org API key -- in that
+// path ctx.userId is the *key's* id (api_keys.id), not a row in `users`.
+// Unlike constructionRfis.raisedById (no FK), projects.leadUserId has a
+// real FK to users.id, so blindly writing ctx.userId here 500s every
+// API-key-authenticated create (caught live while verifying this endpoint,
+// not by typecheck/lint). isRealUser lets the caller say whether ctx.userId
+// actually resolves to a `users` row.
+export async function createProject(ctx: { orgId: string; userId: string; isRealUser?: boolean }, input: ProjectInput) {
+  if (!input.productId?.trim()) throw new ServiceError("productId is required", 400)
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const product = await db.query.products.findFirst({ where: and(eq(products.id, input.productId), eq(products.orgId, ctx.orgId)) })
+    if (!product) throw new ServiceError("Product not found for this organisation", 404)
+
+    const [row] = await db.insert(projects).values({
+      orgId: ctx.orgId, productId: input.productId, name: input.name.trim(),
+      description: input.description?.trim() || null,
+      clientId: input.clientId || null,
+      startDate: input.startDate || null,
+      targetDate: input.targetDate || null,
+      leadUserId: ctx.isRealUser ? ctx.userId : null,
+    }).returning()
+    return row
+  })
+}
 
 export type ProjectDashboard = {
   projectId: string

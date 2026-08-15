@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     await requirePmsEnabled(orgId)
     const body = await request.json()
     if (!body.projectId) return NextResponse.json({ error: "projectId is required" }, { status: 400 })
-    const result = await createWikiPage({ orgId, userId: dbUser.id, dbUser }, body.projectId, body)
+    const result = await createWikiPage({ orgId, userId: dbUser.id, isRealUser: true }, body.projectId, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

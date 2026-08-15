@@ -6,6 +6,10 @@ import { eq } from "drizzle-orm";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
 import { callLLMJson } from "@/lib/llm-client";
 import { storeEmbedding } from "@/lib/embeddings";
+import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
+import { registerAllGuardrails, AI_DOCUMENT_EXTRACTION_LEAF } from "@/lib/guardrail-registrations";
+
+registerAllGuardrails();
 
 const EXTRACTION_PROMPT = `You are a compliance document extraction AI for Indian regulatory filings. Extract structured information from the document text provided.
 
@@ -149,6 +153,20 @@ export async function POST(request: NextRequest) {
       modelConfig.fallback
     );
 
+    // AI Output Validation by Business Rules (VERIDIAN Review Framework):
+    // check the AI-generated fields against real deterministic validators
+    // (GSTIN/PAN format+checksum, compliance-type enum, plausible amount/
+    // date bounds) before they reach the human review form. A violation is
+    // surfaced (validationWarning below) and recorded for audit, not a hard
+    // 500 -- the extracted fields are still human-reviewed/editable before
+    // any compliance item is created (DocumentUploadSection.tsx), so this is
+    // a second, independent check layered on top of that review, not a
+    // replacement for it.
+    const outputCheck = evaluateGuardrails(AI_DOCUMENT_EXTRACTION_LEAF, "output", extractedData as unknown as Record<string, unknown>);
+    if (!outputCheck.passed) {
+      void recordGuardrailViolation(documentId ?? `upload-${fileName}`, AI_DOCUMENT_EXTRACTION_LEAF, "output", outputCheck);
+    }
+
     await withTenantContext({ orgId }, async (db) => {
       // Store extracted data in document if we have a documentId
       // (RLS ensures this can only affect a document in this org)
@@ -177,6 +195,7 @@ export async function POST(request: NextRequest) {
       documentId,
       fileName,
       extractedData,
+      validationWarning: outputCheck.passed ? null : outputCheck.guidance,
       source: "ai",
     });
   } catch (error) {
