@@ -41,6 +41,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-113005-retry-2--ai-engineering-quality--code-s) -- VERIDIAN Review Framework: AI Engineering Quality / Code Structure & Modularity gap-closure (5 findings)"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Closing 5 findings from the AI Engineering Quality review category, all
+      structural/organizational, not business logic: (1) Code Modularity --
+      split task-execution-engine.ts's dispatchTool()/dispatchEngine() into
+      new src/lib/services/tool-dispatch-service.ts and
+      engine-dispatch-service.ts (2,438 -> 994 lines; both re-exported/
+      imported from the original path so external call sites are unchanged).
+      Deliberately NOT splitting schema.ts in this same pass -- dozens of
+      other active/recent claims in this file touch schema.ts additively;
+      see PROGRESS.md for the full reasoning. (2) Component Reusability --
+      new REUSABLE-UTILITIES.md index (docs only). (3) Low Coupling -- FK
+      constraint coverage investigation, incremental if safe. (4) Design
+      Pattern Consistency -- new custom eslint rule for requireAuth()/
+      ServiceError usage in API routes/services (eslint.config.mjs +
+      possibly a new local rule file only -- not touching any existing
+      route's logic). (5) File & Folder Organization -- the finding's cited
+      "consolidate ai-os/'s overlapping subtrees per stale-doc-manifest.
+      yaml's stated direction" does not match reality (no such direction
+      exists in that file, confirmed by direct read) -- not doing that;
+      instead adding a real navigation README to src/app/api/ (129
+      subdirs, 0 nav aid today), which is what the finding's other half
+      actually supports.
+      File scope: src/lib/task-execution-engine.ts, new
+      src/lib/services/tool-dispatch-service.ts +
+      src/lib/services/engine-dispatch-service.ts, new
+      REUSABLE-UTILITIES.md, new src/app/api/README.md, eslint.config.mjs
+      (+ possibly a new local eslint rule file), src/lib/db/schema.ts
+      (FK-constraint columns only, additive, no table renames/moves) +
+      a matching drizzle/ migration if that finding turns out actionable.
+      Explicitly NOT touching src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES table structure, per this task's own instructions.
+      Explicitly NOT moving/splitting schema.ts itself.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
