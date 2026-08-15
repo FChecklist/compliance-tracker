@@ -168,9 +168,31 @@ VERIDIAN Review Framework gap-closure: AI Model Lifecycle & Benchmarking / Evalu
     the full-suite run above, which uses the same per-file isolation CI
     itself uses, is 0 fail.)
 
+- [x] Confirmed PR #1221's audit-check was showing FAIL because the
+      AUDIT: PASS comment posted via `issue_comment` re-triggers
+      `mandatory-audit-check.yml` against `main`'s SHA, not the PR head
+      (a real, previously-undocumented quirk -- verified live via
+      `gh run list --workflow=mandatory-audit-check.yml`: the
+      issue_comment-triggered run's `headSha`/`headBranch` matched
+      `main`, not this branch). This repo's `required_approving_review_
+      count` is 0, so the standing self-approval-deadlock constraint
+      from other repos in this fleet did NOT apply here -- checked live
+      via `gh api .../branches/main/protection`, not assumed. Fix: re-
+      ran the original `pull_request`-triggered audit-check job
+      (`gh run rerun <id> --failed`), which live-fetches PR comments via
+      the GitHub API at run time and picked up the already-posted
+      verdict -- passed. All 8 required branch-protection status checks
+      green; `mergeStateStatus` -> `UNSTABLE` (only 2 non-required,
+      pre-existing/unrelated checks failing: Vercel build-rate-limit,
+      Promptfoo Evals' own 15-min timeout -- both already documented
+      above as non-blockers). Merged via `gh pr merge 1221 --merge`
+      (commit `c51aab6a`).
+- [x] Closed this task's own `ai-os/boss/ACTIVE-CLAIMS.yaml` claim: moved
+      the entry from `active:` to `recently_completed:` with the final
+      PR/merge-commit citation, per that file's own protocol (step 3).
+
 ## Remaining
-- [ ] Push fix commit, confirm PR #1221's CI goes green + `mergeStateStatus`
-      turns `CLEAN`, then hand off (this repo's branch protection requires
-      a PR review from a second identity that doesn't exist here -- see
-      the standing `veridian-branch-protection-self-approval-deadlock`
-      constraint -- so this session cannot merge its own PR).
+- [x] None -- task complete. PR #1221 merged to main (commit `c51aab6a`).
+      Both VERIDIAN Review Framework findings closed (Finding 1 already
+      resolved pre-existing, Finding 2 implemented + tested + merged).
+      ACTIVE-CLAIMS.yaml claim closed.
