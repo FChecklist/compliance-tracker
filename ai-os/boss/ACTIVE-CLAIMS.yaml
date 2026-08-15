@@ -5943,8 +5943,26 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
-  - session_label: "claude-code (task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure) -- Owner standing mandate: closure of the Z.ai black-box audit of PROJEXA AI COM, one point at a time, governing UMR-20260806-101802-a350 [IN PROGRESS]"
-    claimed_at: "2026-08-15T04:00Z (this session)"
+  - session_label: "claude-code (task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure, CONTINUED by task-20260815-041523-z-ai-gtm-findings-files-are-now-real-and) -- Owner standing mandate: closure of the Z.ai black-box audit of PROJEXA AI COM, one point at a time, governing UMR-20260806-101802-a350 [IN PROGRESS]"
+    claimed_at: "2026-08-15T04:00Z (task-20260815-033857); continued 2026-08-15T~04:20Z (task-20260815-041523, this session)"
+    continuation_note: >-
+      task-20260815-033857's own worker unit went inactive mid-cycle (confirmed dead via
+      superboss-register.py umr_tasks, not a live competing session -- reconciler marked
+      UMR-20260806-101802-a350 completed_unmerged at 04:04:33Z citing this same branch/PR
+      still open with real commits) before it could mint child UMRs for the 4 points it
+      fixed or get its PR merged. task-20260815-041523 (this session) picked up that same
+      still-open PR (#1200), independently live-re-verified its 4 fix claims (CSP/XFO
+      headers absent, sitemap.xml wrong domain, /forgot-password 404 all reproduced
+      exactly as claimed pre-merge; passcode-login rate-limiting code independently
+      confirmed real), fixed a real CI failure the dead worker never got to (Terminology
+      Guardrail Check: 2 new unexempted hardcoded_iso_date findings in next.config.ts +
+      src/app/sitemap.ts from this PR's own dated verification comments -- registered
+      permanent exemptions in ai-os/registry/terminology-guardrail-exemptions.yaml,
+      re-ran the check locally to confirm it now passes clean), and is carrying this PR to
+      merge. Cherry-picked the dead worker's commit onto this session's own assigned
+      branch rather than pushing to the old branch directly, per this platform's
+      per-worker branch-isolation enforcement (pretooluse_worker_enforcement.py blocks a
+      worker from committing to any branch but its own).
     claim: |
       SPEC (Owner standing mandate, separate from and additional to OCID-020): merge Z.ai's 8
       real black-box report parts into one file, enumerate every real distinct point (CB/HP/MP/
