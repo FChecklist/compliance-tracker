@@ -222,6 +222,20 @@ function openRouterProviderFor(baseUrl: string, model: string): { order: string[
   return preferred ? { order: [preferred] } : undefined
 }
 
+// AI Model Lifecycle & Benchmarking gap-closure (Finding 3, provider-outage
+// correlation): exposes the same preference map above for
+// provider-outage-correlation-service.ts to resolve a role's real upstream
+// vendor (e.g. "DeepInfra" for GLM-5.2) rather than the flat "openrouter"
+// transport label every AI Dev Team call otherwise shares -- a second copy
+// of this map would silently drift from the one actually used to route
+// calls, so this reads the same source of truth. Returns null (not
+// "openrouter") when a model has no pinned preference -- OpenRouter picks
+// dynamically among that model's listed providers, so no single upstream
+// vendor label would be honest.
+export function getPreferredUpstreamProvider(model: string): string | null {
+  return OPENROUTER_PROVIDER_PREFERENCE[model] ?? null
+}
+
 async function callOpenAICompatible(
   baseUrl: string,
   apiKey: string,

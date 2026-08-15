@@ -10194,3 +10194,51 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
   assignedAt: timestamp('assigned_at').notNull().defaultNow(),
   dueDate: date('due_date', { mode: 'string' }),
 })
+
+// VERIDIAN Review Framework gap-closure: "AI Model Lifecycle & Benchmarking
+// / Ongoing Quality Monitoring" (ai-os/tasks/
+// task-20260718-130006-retry-2--ai-model-lifecycle---benchmark). See
+// drizzle/0225_model_lifecycle_benchmarking.sql's header for the full
+// investigation trail (why this is NOT a duplicate of model-scorecard-
+// service.ts's dispatch-outcome aggregation or agent_review_records'
+// deterministic promote/retrain verdict -- both real, neither is a
+// content-quality signal).
+//
+// Finding 1 (per-role quality regression over time): one row per (role,
+// scoring run) from an actual promptfoo-style assertion-scored probe pass
+// -- see model-quality-regression-service.ts. Platform-level (raw `db`,
+// not withTenantContext), same posture as model-scorecard-service.ts and
+// agent_review_records: one role_key's scoring runs are not tenant data.
+export const roleQualitySnapshots = complianceSchemaDB.table('role_quality_snapshots', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  roleKey: text('role_key').notNull(),
+  model: text('model').notNull(), // roster.ts RoleDefinition.model AT SCORING TIME -- snapshot, not a live join (same discipline as agent_review_records.model)
+  complexityTier: text('complexity_tier'), // model-tier-eligibility.ts ComplexityTier, denormalized for the cost-per-quality-point join (Finding 2)
+  score: numeric('score').notNull(), // 0-100, passedCount / testCaseCount
+  testCaseCount: integer('test_case_count').notNull(),
+  passedCount: integer('passed_count').notNull(),
+  failedCount: integer('failed_count').notNull(),
+  previousScore: numeric('previous_score'), // this role's own immediately-prior score, null on its first-ever run
+  scoreDelta: numeric('score_delta'), // score - previousScore, null when previousScore is null (no signal yet, not zero)
+  regressionDetected: boolean('regression_detected').notNull().default(false), // computeQualityRegression()'s verdict at insert time
+  triggeredBy: text('triggered_by').notNull().default('scheduled'), // 'scheduled' | 'manual', same convention as loop_executions.triggered_by
+  probeSetVersion: text('probe_set_version').notNull(), // QUALITY_PROBE_SET_VERSION at run time, so a probe-set edit doesn't silently make old/new scores look like a real regression
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Finding 3 (provider-outage historical incident correlation with role
+// failures): manually-recorded outage windows. Honestly scoped -- no
+// external provider status-page integration exists anywhere in this
+// codebase to auto-populate this (a real infrastructure decision, not a
+// migration); see provider-outage-correlation-service.ts. ended_at
+// nullable = an ongoing/unresolved outage.
+export const providerOutageWindows = complianceSchemaDB.table('provider_outage_windows', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  provider: text('provider').notNull(), // aiProviderEnum value for Orchestra-layer outages ('groq'|'openai'|'anthropic'|'google'|'openrouter'), OR an OPENROUTER_PROVIDER_PREFERENCE upstream label ('DeepInfra'|'DeepSeek', llm-client.ts) for AI-Dev-Team-side outages -- deliberately free text, not the enum, since it spans both
+  startedAt: timestamp('started_at').notNull(),
+  endedAt: timestamp('ended_at'),
+  source: text('source').notNull().default('manual'),
+  notes: text('notes'),
+  createdBy: text('created_by'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

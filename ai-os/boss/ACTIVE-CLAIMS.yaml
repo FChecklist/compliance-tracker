@@ -1621,6 +1621,43 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code (worker task-20260718-130006-retry-2--ai-model-lifecycle---benchmark) -- AI Model Lifecycle & Benchmarking: Ongoing Quality Monitoring"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure, "AI Model Lifecycle &
+      Benchmarking / Ongoing Quality Monitoring" (3 findings). Checked the
+      sibling task task-20260718-124004-retry-0--ai-model-lifecycle---benchmark
+      (same parent gap area, different sub-scope: "Evaluation & Promotion
+      Process" -- roster.ts rollout/shadow-testing + a model-promotion-
+      evaluation CI check) -- disjoint file scope, no collision, both
+      touched schema.ts/drizzle/ but at different tables/migration content
+      (that task: tokenUsageLedger.callTrack; this task: 2 new tables).
+      Finding 1 (per-role quality regression over time): new
+      role_quality_snapshots table + model-quality-regression-service.ts
+      (deterministic assertion-based probe scoring, not an LLM-judge call --
+      piggybacks the existing daily loop cron). Finding 2 (cost-per-
+      quality-point per model): model-cost-quality-service.ts, a pure join
+      of token_usage_ledger (existing) with role_quality_snapshots (new,
+      Finding 1). Finding 3 (provider-outage historical correlation with
+      role failures): new provider_outage_windows table (admin-recorded,
+      honestly scoped -- no external status-page integration exists in this
+      codebase) + provider-outage-correlation-service.ts. All 3 read
+      surfaces exposed as veridian_admin-gated GET (+ outage-correlation's
+      POST to record a window) routes under
+      src/app/api/ai/team/{quality-regression,cost-per-quality,outage-correlation}.
+      File scope: src/lib/db/schema.ts (2 new tables only), drizzle/0225_
+      model_lifecycle_benchmarking.sql, src/lib/llm-client.ts (additive
+      getPreferredUpstreamProvider export), src/lib/services/model-quality-
+      regression-service.ts, model-cost-quality-service.ts, provider-outage-
+      correlation-service.ts (new), the 3 API routes above (new). Does not
+      touch roster.ts/team-service.ts's rollout mechanics (sibling task's
+      scope) or agent_review_records/model-scorecard-service.ts (both
+      pre-existing, confirmed still a different signal -- dispatch-outcome,
+      not content-quality -- see each new file's own header). Migration NOT
+      applied to the live DB by this session -- left for the supervising
+      session, same convention as every other schema-touching claim in this
+      file.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
