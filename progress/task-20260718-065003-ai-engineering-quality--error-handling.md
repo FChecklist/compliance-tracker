@@ -127,14 +127,44 @@ wiring lands.
 - [x] Posted structured AUDIT: PASS comment (8-field protocol,
   validate-audit-verdict.ts), triggered a synchronize event afterward
   (empty commit) per the known issue_comment-vs-head-SHA quirk
-- [ ] Let CI run, merge per Rule 6
-- [ ] Wire `route-error-handling-check` into `.github/workflows/ci.yml`
-  (see "Known limitation" above -- needs a `workflow`-scoped push)
-- [ ] Once merged, move this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
-  from `active:` to `recently_completed:` per that file's own Rule 3
+- [x] Let CI run, merge per Rule 6 -- all 18 checks green (Lint, Type
+  Check, Build, Unit Tests, E2E Tests, audit-check, Guardrail Presence
+  Check, etc.; CodeQL reported NEUTRAL, not a failure). Merged via
+  `gh pr merge 1219 --squash` at 2026-08-15T07:16:19Z, merge commit
+  `5ef3ccfde`. Confirmed present on `origin/main` via `git fetch`.
+- [x] Once merged, move this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
+  from `active:` to `recently_completed:` per that file's own Rule 3 --
+  done, with the CI-wiring status corrected in that entry (see below --
+  an earlier draft of the entry wrongly said it was resolved; verified
+  live via `gh api .../pulls/1219/files` that it was not, and fixed the
+  entry before committing it).
+- [ ] **Still open**: wire `route-error-handling-check` into
+  `.github/workflows/ci.yml`. Confirmed via
+  `gh api repos/FChecklist/compliance-tracker/pulls/1219/files` that the
+  merged PR #1219 diff does **not** include a `.github/workflows/ci.yml`
+  change -- this session's `gh` token (account FChecklist; scopes
+  `gist, read:org, repo`) still lacks `workflow` scope as of merge time,
+  same constraint documented earlier in this file and in
+  `[[gh-token-lacks-workflow-scope]]` (session memory). The ready-to-apply
+  diff remains committed at `progress/ci-yml-route-error-handling-check.patch`.
+  Needs a future session with a `workflow`-scoped token, or the repository
+  owner directly, to apply it and open a small follow-up PR. The check
+  script itself is real, tested, and callable manually right now
+  (`node scripts/check-route-error-handling.mjs --base origin/main`)
+  regardless of when that follow-up lands.
 - Residual: 62 of the original 65 pre-existing `route.ts` files still lack
   try/catch (not fixed here -- see "Approach taken" above for why; the new
-  CI check prevents this number from growing but does not retroactively
-  fix it). Left as known, documented debt for a future wave/worker to pick
-  up incrementally, same posture as `check-migration-collision.mjs` takes
-  toward pre-existing migration-number collisions.
+  CI check, once wired, prevents this number from growing but does not
+  retroactively fix it). Left as known, documented debt for a future
+  wave/worker to pick up incrementally, same posture as
+  `check-migration-collision.mjs` takes toward pre-existing
+  migration-number collisions.
+
+## Task status: substantively complete, one follow-up blocked on token scope
+
+The gap-closure itself (structured logger + CI check utility + 3 sample
+fixes) is merged to `main`. The only remaining item -- wiring the new
+check into `.github/workflows/ci.yml` -- is blocked on a token permission
+this session does not have and cannot obtain. That follow-up is fully
+specified and ready to apply (`progress/ci-yml-route-error-handling-check.patch`)
+for whoever picks it up next.
