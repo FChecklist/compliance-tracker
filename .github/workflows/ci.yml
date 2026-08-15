@@ -130,6 +130,20 @@ jobs:
       # distinct reference styles it parses and the honest limitation this
       # does and doesn't guarantee.
       - run: node scripts/check-doc-cross-references.mjs
+  test-coverage-delta:
+    name: Test Coverage Delta Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      # VERIDIAN Review Framework gap-closure, retry 2 (2026-08-15): "AI Can
+      # Safely Modify Module" -- fails the build if a PR modifies a .ts file
+      # that had zero colocated test coverage before the PR, and the PR adds
+      # or modifies zero test files of its own. See the script's own header
+      # for the honest limitation (this checks a test was touched, not that
+      # it covers the change) and the deliberate .tsx exclusion.
+      - run: node scripts/check-test-coverage-delta.mjs
   e2e:
     name: E2E Tests
     needs: [build]

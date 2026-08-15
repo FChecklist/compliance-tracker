@@ -1,80 +1,30 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-123004-retry-2--ai-maintainability--ai-safe-ch
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+VERIDIAN Review Framework gap-closure: AI Maintainability / AI Safe-Change Capability (5 findings, one coherent PR).
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] Read the current codebase before assuming the 2026-07-18 evaluation is still accurate. Confirmed all 5 findings are still real:
+  - `bun test` in CI (`.github/workflows/ci.yml`'s `unit-tests` job) has no gate requiring new tests on PRs that touch previously-untested files.
+  - No coverage-gap/prioritization tooling existed anywhere in `scripts/`.
+  - Colocated-test coverage is genuinely low: 101/1549 `.ts`/`.tsx` source files (7%) have a colocated `*.test.ts`/`*.test.tsx`.
+  - `src/lib/db/schema.ts` (10197 lines) and `src/lib/task-execution-engine.ts` (2438 lines) are real outliers vs. the rest of the codebase.
+  - Header-comment discipline (finding 5, "No gap of note") is genuinely being maintained -- every `scripts/*.mjs`/`*.ts` file read while building this PR (`report-cognitive-brain-coverage.ts`, `check-migration-collision.mjs`, `check-doc-cross-references.mjs`, etc.) carries a substantive header comment explaining rationale. No action needed there; the new files this PR adds follow the same convention.
+
+- [x] **[Medium] AI Can Generate Tests for Module** + **[Medium] AI Can Refactor Module** (same recommendation: "raise test coverage starting with the highest-traffic untested files"): built `scripts/report-test-coverage-gap.ts` (+ `scripts/report-test-coverage-gap.test.ts`, 13 unit tests, all pure functions). Deterministic, zero AI/LLM calls, reads only git-tracked files. Two ranked lists:
+  - Largest files (split-priority order) -- feeds finding 1 below.
+  - Highest-traffic untested files, ranked by relative-import fan-in (a documented heuristic proxy for "traffic", not a real call graph -- see the script's own header for the honest limitation). Top hit: `src/lib/services/compliance-service.ts`, imported by ~124 files, zero test coverage.
+  - Wired as `bun run test:coverage-gap` in `package.json`. Not made a CI gate -- it's a prioritization report, not a pass/fail check.
+  - A real run's output is checked in at `docs/test-coverage-gap-report.md` as evidence + a concrete starting list (regenerate any time via the script above).
+
+- [x] **[Medium] AI Can Safely Modify Module** ("CI gate does not include comprehensive behavioral test coverage" -- "require a minimum test-coverage delta (or at least one new test) on PRs touching previously-untested files"): built `scripts/check-test-coverage-delta.mjs`, wired into `.github/workflows/ci.yml` as a new `test-coverage-delta` job (with `fetch-depth: 0` so `git merge-base` actually works against a full history, unlike the default shallow checkout). Fails the build if a PR modifies a `.ts` file with no colocated test at the PR's merge-base and adds/modifies zero test files. Deliberately scoped to `.ts` only, not `.tsx` -- confirmed before writing it that this repo has zero `*.test.tsx` files and no `@testing-library/react`/jsdom installed, so gating React components the same way would need a whole new test stack first (out of scope here) and would immediately block unrelated frontend PRs. Verified locally: passes on this PR's own diff (adds `report-test-coverage-gap.ts` + its colocated test in the same commit).
+
+- [x] **[Low] AI Can Safely Understand Module** ("understanding quality varies with file size" -- "prioritize splitting the largest files"): the coverage-gap report's "Largest files" section (`docs/test-coverage-gap-report.md`) is that prioritized list. Actually splitting `src/lib/db/schema.ts` / `task-execution-engine.ts` / etc. is real, large refactor work in its own right (not a small tooling addition) -- deliberately left as follow-up, now that a concrete, regeneratable priority list exists to drive it. Flagging this honestly rather than doing a rushed partial split under this PR's scope.
+
+- [x] **[Low] AI Can Explain Module Accurately** ("No gap of note" -- "maintain the existing header-comment discipline for new files"): confirmed still true, documented above. No code change; the two new files this PR adds follow the convention.
+
+- [x] `bun test` (1434 pass / 0 fail), `bunx tsc --noEmit` (clean, needed `NODE_OPTIONS=--max-old-space-size=4096` in this sandbox -- unrelated to this change, the full 1600+-file project graph is just heavy), `bunx eslint` on the new files (clean).
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+
+- [ ] None for this gap-closure. Follow-up (out of scope, tracked via the generated report, not a new gap): actually split `src/lib/db/schema.ts` and `src/lib/task-execution-engine.ts`, and start covering `src/lib/services/compliance-service.ts` (124-file fan-in, currently untested) -- both are large enough to be their own task.
