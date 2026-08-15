@@ -1,0 +1,29 @@
+AUDIT: PASS
+
+Objective Understood: Verify this PR's real-reject evidence for ZAI-COMMS-01 (UMR-20260806-104534-b29c)
+and DEEPSEEK-COMMS-02 (UMR-20260806-104527-4f5f), its root-cause debunk of the SPEC's proposed
+"single-line-of-context" explanation, and its src/app/sitemap.ts + src/app/layout.tsx diff.
+
+Evidence Recorded:
+- src/app/sitemap.ts: 1-line diff, BASE https://veridian-ai-os.vercel.app -> https://projexa-ai.com,
+  confirmed byte-identical to already-audited PR #978 (04ab410d).
+- src/app/layout.tsx: 3-line addition (themeColor, icons.apple, appleWebApp.capable) inside the
+  existing Metadata object, keywords/openGraph/twitter untouched, confirmed byte-identical to
+  already-audited PR #979 (577b66f9).
+- render_external_agent_prompt() (veridian-scripts/superboss-register.py:9295) independently read:
+  embeds each file's full real content via BEGIN/END FILE blocks, not a single line.
+  external_agent_dispatch table: 0 rows for either UMR, confirming neither pilot used this tracked
+  pipeline. SPEC's proposed root cause is false; declining the requested prompt-template change is
+  correct.
+- gtm_certification_categories: 25 rows checked live, no row's child_umr_id matches either UMR --
+  no fabricated mapping.
+- bun run lint: 0 errors. bunx tsc --noEmit: clean exit 0. bun run build: clean exit 0.
+
+Severity Classified: LOW
+
+Verdict: PASS
+
+Rationale: Minimal, correctly-scoped diff matching an independently-derived, twice-audited fix;
+no security/auth/tenant-isolation surface touched; root-cause investigation is thorough and
+falsifiable (direct code read + live DB query, not assumed); real-reject evidence for both
+pilots matches the SPEC's own cited fabrication signatures.

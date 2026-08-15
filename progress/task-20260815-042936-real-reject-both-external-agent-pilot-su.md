@@ -77,8 +77,21 @@ closure.
       `metadata.appleWebApp` = `{ capable: true }`. `keywords`/`openGraph`/`twitter` blocks left
       untouched.
 
+- [x] `bun run lint`: 0 errors, 3 pre-existing unrelated warnings (not touched by this diff).
+- [x] Re-checked `gtm_certification_categories` (25 rows, queried live) for a real mapping:
+      confirmed no row's `child_umr_id` matches either `UMR-20260806-104534-b29c` or
+      `UMR-20260806-104527-4f5f`; category 24 (lighthouse audit, the closest topical match --
+      covers PWA/SEO scoring) already carries `passed=1` from an unrelated prior run, predating
+      these two findings. Same honest conclusion as PR #1007's own audit: no real mapping exists,
+      none fabricated.
+- [~] `bunx tsc --noEmit` and `bun run build`: hit real OOM / silent-death failures in this shared,
+      memory-constrained environment (`free -h` showed 359Mi free / 5Gi swap in use with several
+      other concurrent sessions' processes competing) -- matches the exact "harness flakiness, not
+      a real code issue" pattern PR #978's/#979's own `verification` field already recorded for
+      the identical two files. Re-running build standalone (not concurrently with tsc) next.
+
 ## Remaining
-- [ ] Run real quality gate (lint/typecheck/build).
+- [ ] Confirm `bun run build` clean exit 0 (retry in progress).
 - [ ] Commit + push; open PR referencing both child UMRs and the real-reject evidence.
 - [ ] Post structured `AUDIT: PASS` verdict (Rule 10 mandatory-audit-check gate applies to every
       PR into `main`, per [[veridian-audit-check-applies-to-all-prs-not-just-ai-team]]).
@@ -86,6 +99,4 @@ closure.
       overlapping open PRs touching the same 2 files) -- comment citing this PR's number on each.
 - [ ] Update both child UMR rows (`b29c`, `4f5f`) via `update_umr_task()` (never raw SQL) with this
       task's own PR number/commit + a pointer to this progress file.
-- [ ] Re-check `gtm_certification_categories` (25 rows, none previously mapped per PR #1007's own
-      audit) for a real category this maps to; do not fabricate a link if none exists.
 - [ ] Merge once CI green.
