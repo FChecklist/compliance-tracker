@@ -112,15 +112,44 @@ hand:
       task (per `veridian-task-yaml-checkpoint-cross-contamination`
       memory -- did not act on either).
 
+- [x] Committed + pushed this branch, opened **PR #1282**.
+
 ## Remaining
-- [ ] Commit + push this branch, open a PR.
-- [ ] Post a genuine `AUDIT: PASS`/independent audit once CI is green (this
-      is largely re-verifying already-audited content, disclose that
-      explicitly rather than presenting it as a fresh audit).
-- [ ] Merge is expected to hit the same repo-wide review-identity deadlock
-      as PR #1047/#1048 -- do not loop on `gh pr merge` attempts (circuit
-      breaker: 2 identical failures = stop). Document and leave for the
-      Owner, same as every other PR in that memory's confirmation list.
+- [ ] **Real drift found post-push, disclosed honestly:** within the time it
+      took to open the PR, `origin/main` had already advanced ~1374 commits
+      past the `016c77614` snapshot this branch forked from (this repo runs
+      many parallel autonomous sessions merging continuously -- see
+      `veridian-live-concurrent-state-drift` memory). `gh pr view 1282`
+      shows `mergeStateStatus: DIRTY` / `mergeable: CONFLICTING`. Attempted
+      a real `git merge origin/main` to reconcile: 2 of the 3 resulting
+      conflicts (`ai-os/OS.yaml`, `ai-os/boss/ACTIVE-CLAIMS.yaml`) were
+      small and resolved cleanly (union of both sides -- the entries I'd
+      earlier dropped as "files no longer exist on main" turned out to have
+      been *reintroduced for real* by another concurrent PR in the
+      interim, confirmed via `git cat-file -e` against the new
+      `origin/main`), but the merge as a whole pulled in **hundreds of
+      unrelated files** (`git status` after the merge showed 150+ `A`/`M`
+      entries spanning `.github/workflows/`, `ai-os/*.md`/`*.json`
+      catalogs, `docs/`, etc. -- 8 days of this repo's real, unrelated
+      history that this branch's shallow-then-unshallowed fork point never
+      saw). Reconciling that scale of drift by hand is outside this task's
+      real scope and risks silently reverting other sessions' legitimate
+      work -- **aborted the merge** (`git merge --abort`) rather than push
+      a bloated, hard-to-review diff. Left PR #1282 as the clean, minimal,
+      correctly-scoped 13-file/852-line diff it actually is; its
+      `DIRTY`/`CONFLICTING` GitHub state reflects real main-branch velocity
+      at this repo's current scale, not a defect in this PR's own content.
+      A later session (or the Owner) should re-sync/re-open against
+      whatever `main` looks like when they pick this up, rather than this
+      session chasing a moving target it can't win.
+- [ ] Post a genuine `AUDIT: PASS`/independent audit once re-synced and CI
+      is green (this is largely re-verifying already-audited content,
+      disclose that explicitly rather than presenting it as a fresh audit).
+- [ ] Merge is separately also expected to hit the standing repo-wide
+      review-identity deadlock as PR #1047/#1048 did -- do not loop on
+      `gh pr merge` attempts (circuit breaker: 2 identical failures =
+      stop). Document and leave for the Owner, same as every other PR in
+      that memory's confirmation list.
 - [ ] `check-doc-scale-freshness.mjs` still not wired into `.github/workflows/ci.yml`
       -- blocked by this environment's `gh` token lacking the `workflow`
       OAuth scope ([[gh-token-lacks-workflow-scope]]), not something this
