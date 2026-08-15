@@ -162,6 +162,15 @@ Branch was 1356 commits behind origin/main at the start of this invocation
       `check-doc-cross-references.mjs` 500/500 resolved.
 
 ## Remaining
+- [x] Open PR: #1257
+      (https://github.com/FChecklist/compliance-tracker/pull/1257),
+      opened this invocation. Had to split out the `ci.yml` CI-wiring
+      hunk first -- this session's `gh` push credentials lack `workflow`
+      scope, confirmed via a real rejected push (not assumed); reverted
+      that one hunk to origin/main's version in a dedicated commit
+      (`d17bd0f02`) before pushing successfully.
+- [ ] Get CI green, merge (Rule 6), release the
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` entry once merged.
 - [ ] Fleet-coordinated follow-up for the full `schema.ts` / full
       `dispatchEngine()` split (see Code Modularity above) -- out of scope
       for a single session given current concurrent-edit density.
@@ -170,7 +179,5 @@ Branch was 1356 commits behind origin/main at the start of this invocation
 - [ ] Tiny follow-up PR to add the `route-requireauth-check` job to
       `.github/workflows/ci.yml` (needs `workflow`-scoped push credentials
       this session doesn't have -- see Design Pattern Consistency note
-      above; the check script itself is in this PR and runnable manually
+      above; the check script itself is in PR #1257 and runnable manually
       today).
-- [ ] Open PR, release the `ai-os/boss/ACTIVE-CLAIMS.yaml` entry once
-      merged, get CI green, merge (Rule 6).
