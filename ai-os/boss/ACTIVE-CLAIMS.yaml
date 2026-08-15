@@ -6083,8 +6083,9 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
-  - session_label: "claude-code (task-20260815-113913-rca--umr-20260806-183347-06b0-killed) -- RCA of UMR-20260806-183347-06b0 status=killed"
-    claimed_at: "2026-08-15T22:14Z (this session)"
+recently_completed:
+  - session_label: "claude-code (task-20260815-113913-rca--umr-20260806-183347-06b0-killed) -- RCA of UMR-20260806-183347-06b0 status=killed [DONE, closed same session]"
+    claimed_at: "2026-08-15T22:14Z (this session, closed same session)"
     claim: |
       Re-dispatch of the same UMR (06b0) already RCA'd by a prior sibling
       session (task-20260814-141803, same title) the day before: root cause
@@ -6096,15 +6097,12 @@ active:
       `mark-umr-terminal` action and opened PR #1166 with the write-up, but
       never actually ran the terminal-status command (no trace in its logs)
       and PR #1166 itself never merged (still OPEN, mergeStateStatus=DIRTY,
-      audit-check FAILING) -- live `--query-umr` on this invocation still
-      shows status=killed, unchanged. This session's scope: re-verify the
-      evidence live (done -- PR#151 commit is a real ancestor of
-      veridian-scripts' origin/main, deliverable file exists on disk), then
-      actually execute the `mark-umr-terminal` action (a live DB action,
-      independent of git/PR flow) that the prior session only planned, and
-      resolve PR #1166 (close as superseded, since the terminal-status write
-      doesn't depend on it merging).
-recently_completed:
+      audit-check FAILING) -- live `--query-umr` at the start of this
+      invocation still showed status=killed, unchanged. Actually ran
+      `mark-umr-terminal --status completed --commit-sha 14d9511d... --pr-number
+      151 --repo veridian-scripts` -- confirmed live: status=completed,
+      ts_completed=2026-08-15T22:17:23Z. Closed PR #1166 as superseded (the
+      terminal-status write is a live DB action independent of PR merge).
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
