@@ -5375,6 +5375,25 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code (worker task-20260718-115004-retry-1--ai-engineering-quality--logic) -- Review Framework gap-closure: AI Engineering Quality / Logic Separation & Determinism"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      4 findings from the review-framework evaluation: [Low] Deterministic
+      Logic Coverage (no periodic audit of new LLM-call sites for a
+      deterministic-first check), [Medium] Configuration Over Hardcoding
+      (leave as-is, document the trade-off pattern), [Low] Separation of
+      Business Logic (no gap of note -- maintain route-thin/service-thick),
+      [Low] Separation of AI Logic (no gap of note -- maintain "no LLM call
+      in gates" discipline). Verifying each against current code before
+      changing anything (evaluation may be stale per the task's own
+      instructions). Likely scope: a new scripts/check-*.mjs style audit
+      helper for LLM-call-site census + a short doc for the config-vs-
+      hardcoding trade-off pattern; NOT touching
+      src/lib/services/permission-service.ts's ERP_ACTION_ROLES table
+      structure (only additively, if at all). `gh pr list --state all` and
+      `git branch -r` checked at claim time -- no other branch/PR matches
+      this area.
+
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap-closure: AI Architecture / Domain Accuracy & Quality"
     claimed_at: "2026-07-18T (this session)"
     claim: |
