@@ -1031,9 +1031,13 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/supabase/api-key-auth.test.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated. Raised to 2 (2026-08-15, API Governance gap-closure, PR #1271): the new hit is this file's own dated header comment naming the wave that added the new describe() block (\"VERIDIAN Review Framework gap-closure (2026-08-15...)\"), same class as the pre-existing exemption -- not test fixture example data either."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 2
+  - file: src/lib/supabase/api-key-auth.ts
+    reason: "New exemption (2026-08-15, API Governance gap-closure, PR #1271): confirmed false positive on direct read. All 4 hits are dated wave/gap-closure header comments (\"Wave A ... 2026-07-17\", \"VERIDIAN Review Framework gap-closure (2026-08-15...)\") documenting when each piece of the demo-key gate/rate-limit logic was added, same class as task-execution-engine.ts's already-exempted changelog/gap-closure-date comments -- not human example/sample data, and this file is production code (not a *.test.ts fixture)."
+    findings_by_category:
+      hardcoded_iso_date: 4
   - file: src/lib/task-execution-engine.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 12 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
