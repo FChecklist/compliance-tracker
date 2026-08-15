@@ -64,6 +64,10 @@ resume of partial code changes.
       this change). `bunx eslint` clean on every touched/new file. Existing
       `task-execution-engine.test.ts` (7 tests) plus the new
       `engine-dispatch.test.ts` (35 tests) all pass, 42/42.
+- [x] Committed, pushed, and opened PR:
+      https://github.com/FChecklist/compliance-tracker/pull/1255
+- [x] Added a `recently_completed:` entry to `ai-os/boss/ACTIVE-CLAIMS.yaml`
+      for this task, per that file's own protocol.
 
 ## Remaining / explicitly not done
 
