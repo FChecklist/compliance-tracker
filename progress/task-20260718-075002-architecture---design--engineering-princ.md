@@ -89,11 +89,24 @@ anything (codebase has moved since the evaluation was written).
       `console.error` in the output is an intentionally-thrown error
       inside a passing negative-path test, not a real failure).
 
+- [x] Merged origin/main into this branch (was 1326 commits behind).
+      Resolved 8 real merge conflicts -- mostly import-line collisions
+      where a concurrent session had added a new import to the same line
+      range I touched. Along the way found one more real instance of the
+      duplicate-type pattern surfaced by the merge diff itself:
+      `fraud-case-service.ts`'s own `FraudContext` (dbUser-only, same
+      shape as `ErpContext`, previously unexported-by-name anywhere else)
+      -- aliased it to `ErpContext` too. Re-ran full verification
+      post-merge: `bunx tsc --noEmit` clean, `bun run lint` 0 errors,
+      `bun test src/lib/services` 1202 pass / 0 fail (grew from 719 --
+      main added many new test files during the gap), and all 4
+      governance checks (guardrail-presence, doc-quarantine-banner,
+      metadata-index-coverage, doc-cross-reference) still pass.
+- [x] Pushed branch, opened PR #1228 against main.
+- [x] Moved this task's ACTIVE-CLAIMS entry from `active:` to
+      `recently_completed:`.
+
 ## Remaining
-- [ ] Commit + push this branch, open PR (Rule 6 -- no direct push to
-      main). This PR bundles: the `docs/adr/` folder (findings 1+2), the
-      `src/lib/services/actor-context.ts` consolidation + 23 updated
-      service files (finding 3), the `ai-os/boss/ACTIVE-CLAIMS.yaml`
-      claim registration, and this progress file.
-- [ ] Move this task's ACTIVE-CLAIMS entry from `active:` to
-      `recently_completed:` once the PR is open (or merged).
+- [ ] PR #1228 needs CI to go green and then to be merged (Rule 6 -- no
+      direct push to main, this session cannot merge it itself if CI is
+      still running when this invocation ends).
