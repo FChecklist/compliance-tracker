@@ -48,7 +48,17 @@
 - [x] Committed + pushed after each meaningful unit.
 
 ## Remaining
-- [ ] Open this task's own PR against `main`.
+- [x] Opened this task's own PR against `main`: #1199.
+- [x] Posted the required `AUDIT: PASS` structured comment (8 fields, `validate-audit-verdict.ts`
+      format) -- honestly disclosed as a single-session self-audit, same limitation this repo's
+      own history already documents for single-agent sessions.
+- [x] CI's real `bunx tsc --noEmit` caught a genuine pre-existing type bug in the cherry-picked
+      script (line 206, `role` possibly-`undefined` per drizzle's own `$inferInsert` typing on a
+      column with a DB default) -- fixed with `NonNullable<...>`, pushed, re-triggered CI.
+- [ ] Confirm CI is fully green and PR is mergeable (branch-protection/self-approval identity
+      limitation may still apply -- see `[[veridian-branch-protection-self-approval-deadlock-active]]`
+      in this session's own memory; if so, this is left for the autonomous merge path per
+      AGENTS.md Rule 12, not force-merged here).
 
 ## Re-verification (for anyone independently re-checking this work)
 - Org: `org_id=dstmb99kn1hc4toxb6iqs1td`, `slug=meridian-test-industries-gtm-fixture-nonprod`.
