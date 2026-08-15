@@ -1624,6 +1624,32 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-111005-retry-0--ai-engineering-quality--ai-mod) -- AI Engineering Quality / AI-Modification Readiness gap-closure"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "compliance-tracker#1283 (PR opened, NOT merged)"
+    summary: |
+      Closed 2 findings from the Review Framework evaluation, both
+      re-verified against current code before implementing (found both
+      still genuinely open, not already resolved):
+      (1) [Low] Code Readability for AI -- confirmed 183/184 existing
+      src/lib/services/*.ts files already carry a header comment (real
+      convention) but nothing enforced it. Added
+      scripts/check-service-file-header-comment.mjs (fails only on NEW
+      service files missing a header, never retroactively). NOT wired into
+      .github/workflows/ci.yml in this PR -- this session's gh token lacks
+      the `workflow` OAuth scope, confirmed via a rejected push; the exact
+      job to add is recorded as FOLLOWUPS.md FOLLOWUP-3 for a
+      workflow-scoped session/owner to apply.
+      (2) [Medium] AI Modification Readiness -- confirmed no readiness-
+      score mechanism exists. Added a "High-Risk Files (large + untested)"
+      section to CLAUDE.md (src/lib/db/schema.ts ~10,200 lines + several
+      zero-test-coverage ERP/auth/compliance service files, computed from
+      real wc -l + test-presence data), with agent guidance and an
+      explicit staleness caveat rather than presenting it as live-scored.
+      Did not touch src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES structure (excluded from the list -- it already has
+      a test file; noted its additive-only extension policy per this
+      task's own scope instruction instead).
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
