@@ -104,3 +104,12 @@ Documentation Synchronization with Code).
       `progress_completion_gate.py`'s boilerplate-sentence false positive
       remains blocked by that script living in a different repo
       (`veridian-scripts`) outside this task's assigned scope.
+
+## Post-open notes
+- [x] PR #1285 opened, `AUDIT: PASS` verdict comment posted (all 8
+      required fields, `pass`/`none` bare enum words per
+      `validate-audit-verdict.ts`). Known pattern: an `issue_comment`-
+      triggered `audit-check` run reports against the default branch SHA,
+      not the PR head, until a follow-up `synchronize` event happens --
+      pushing this note as a small follow-up commit to force one so the
+      required check re-evaluates against the real head SHA.
