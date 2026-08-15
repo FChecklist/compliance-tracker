@@ -1,6 +1,9 @@
 import type { MetadataRoute } from "next";
 
 // Wave 113 SEO: index the public family, keep the app and APIs out.
+//
+// Owner mandate task-20260815-033857 (Z.ai black-box audit point P8-CB-09):
+// kept in sync with sitemap.ts's own BASE fix -- see that file's comment.
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
@@ -10,6 +13,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/home", "/settings", "/sales-hq", "/orchestra", "/partner/", "/r/"],
       },
     ],
-    sitemap: "https://veridian-ai-os.vercel.app/sitemap.xml",
+    sitemap: "https://projexa-ai.com/sitemap.xml",
   };
 }
