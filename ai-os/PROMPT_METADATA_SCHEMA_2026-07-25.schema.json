@@ -1,0 +1,202 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://veridian.internal/schemas/prompt-os/prompt-metadata-2026-07-25.schema.json",
+  "title": "VERIDIAN Prompt Metadata (compliance.prompt_versions.metadata)",
+  "description": "VERIDIAN_Architecture_v2.0.docx section 2.6 (\"Prompt Metadata Schema, 200+ Fields\") realized at minimum-viable field depth, per this phase's own CONSTRAINTS -- same precedent as AUDITOR_ENGINE_FINDING_RECORD_SCHEMA_2026-07-24.schema.json (claude-control) for a document-derived schema built to real, load-bearing depth rather than the document's full field count verbatim. Covers all 18 categories the document names; each category carries a handful of its 'Key Examples' fields (the document's own column), not its full 10-25+ field count -- individual implementations may extend a category's properties later without a migration, since this schema targets a `jsonb` column (compliance.prompt_versions.metadata, drizzle/0262) with additionalProperties left open per-category for exactly that reason. Every field on every prompt_versions row is optional (default {}) -- this schema describes the shape when a category IS populated, not a requirement that every version populate every category.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "functional": {
+      "type": "object",
+      "description": "Core identification and classification. Document category 'Functional', 25+ fields -- minimum-viable subset below.",
+      "additionalProperties": true,
+      "properties": {
+        "name": { "type": "string" },
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "domain": { "type": "string" },
+        "complexity": { "type": "string", "enum": ["low", "medium", "high"] },
+        "intent_map": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ui": {
+      "type": "object",
+      "description": "Discovery and presentation. Document category 'UI', 15+ fields.",
+      "additionalProperties": true,
+      "properties": {
+        "display_name": { "type": "string" },
+        "icon": { "type": "string" },
+        "category": { "type": "string" },
+        "tags": { "type": "array", "items": { "type": "string" } },
+        "search_keywords": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "workflow": {
+      "type": "object",
+      "description": "Orchestration and sequencing. Document category 'Workflow', 15+ fields.",
+      "additionalProperties": true,
+      "properties": {
+        "workflow_id": { "type": "string" },
+        "step_number": { "type": "integer" },
+        "dependencies": { "type": "array", "items": { "type": "string" } },
+        "timeout": { "type": "integer", "description": "ms" }
+      }
+    },
+    "business": {
+      "type": "object",
+      "description": "Business alignment and accountability. Document category 'Business', 15+ fields.",
+      "additionalProperties": true,
+      "properties": {
+        "business_unit": { "type": "string" },
+        "cost_center": { "type": "string" },
+        "sla": { "type": "string" },
+        "priority": { "type": "string", "enum": ["low", "medium", "high", "critical"] }
+      }
+    },
+    "validation": {
+      "type": "object",
+      "description": "Quality assurance and testing. Document category 'Validation', 15+ fields. Distinct from the `testing` category below: this is what a version REQUIRES to be considered valid; `testing` is what has ACTUALLY been run against it.",
+      "additionalProperties": true,
+      "properties": {
+        "required_vars": { "type": "array", "items": { "type": "string" } },
+        "output_schema": { "type": ["object", "null"], "description": "JSON Schema the rendered output must conform to, when the template demands strict-JSON output (mirrors the ai_router/orchestrate.* convention prompt-os-resolver.ts already documents)" },
+        "test_cases": { "type": "array", "items": { "type": "string" }, "description": "prompt_eval_cases.id references (compliance.prompt_eval_cases, Wave 94) -- not duplicated test data, just links" }
+      }
+    },
+    "analytics": {
+      "type": "object",
+      "description": "Performance monitoring and optimization. Document category 'Analytics', 20+ fields. Read-only/derived -- a real service should compute and write these, never accept them verbatim from an untrusted caller.",
+      "additionalProperties": true,
+      "properties": {
+        "usage_count": { "type": "integer" },
+        "avg_latency": { "type": "number" },
+        "p95_latency": { "type": "number" },
+        "hit_rate": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "security": {
+      "type": "object",
+      "description": "Access control and compliance. Document category 'Security', 15+ fields. Enforcement of these (e.g. an actual injection-risk gate) is phase_4 (Defense-in-Depth) scope -- this category just gives that phase somewhere real to read/write.",
+      "additionalProperties": true,
+      "properties": {
+        "security_class": { "type": "string" },
+        "injection_risk": { "type": "string", "enum": ["low", "medium", "high"] },
+        "pii_flag": { "type": "boolean" },
+        "audit_level": { "type": "string" }
+      }
+    },
+    "performance": {
+      "type": "object",
+      "description": "Execution planning and budgeting. Document category 'Performance', 15+ fields.",
+      "additionalProperties": true,
+      "properties": {
+        "token_budget": { "type": "integer" },
+        "latency_target": { "type": "integer", "description": "ms" },
+        "model_preference": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "ai": {
+      "type": "object",
+      "description": "Model selection and parameterization. Document category 'AI', 20+ fields.",
+      "additionalProperties": true,
+      "properties": {
+        "model_family": { "type": "string" },
+        "quantization": { "type": "string" },
+        "temperature": { "type": "number", "minimum": 0, "maximum": 2 },
+        "top_p": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "browser": {
+      "type": "object",
+      "description": "Browser capability matching. Document category 'Browser', 15+ fields -- relevant once phase_5 (Browser Execution Tiers) exists; this category has no live reader yet, same honest-limitation posture as every other not-yet-wired category here.",
+      "additionalProperties": true,
+      "properties": {
+        "webgpu_required": { "type": "boolean" },
+        "npu_capable": { "type": "boolean" },
+        "offline_capable": { "type": "boolean" }
+      }
+    },
+    "cache": {
+      "type": "object",
+      "description": "Cache strategy and invalidation. Document category 'Cache', 10+ fields.",
+      "additionalProperties": true,
+      "properties": {
+        "cache_ttl": { "type": "integer", "description": "seconds" },
+        "cache_key": { "type": "string" },
+        "semantic_threshold": { "type": "number", "minimum": 0, "maximum": 1 }
+      }
+    },
+    "gateway": {
+      "type": "object",
+      "description": "API gateway integration. Document category 'Gateway', 10+ fields. `gateway_id` should reference a real G01-G10 id from 20_ENGINES_10_GATEWAYS_PHASE_PLAN_2026-07-24.yaml (claude-control) once a category consumer exists.",
+      "additionalProperties": true,
+      "properties": {
+        "gateway_id": { "type": "string" },
+        "endpoint": { "type": "string" },
+        "rate_limit": { "type": ["integer", "null"] },
+        "auth_scope": { "type": "string" }
+      }
+    },
+    "version": {
+      "type": "object",
+      "description": "Version management and history. Document category 'Version', 15+ fields. The document's own `version`/`rollback_version` fields are real, first-class DB columns here (major/minor/patch, rolled_back_from_version_id -- drizzle/0262), not metadata -- this category only carries the softer descriptive fields.",
+      "additionalProperties": true,
+      "properties": {
+        "changelog": { "type": "string" },
+        "diff_hash": { "type": "string", "description": "sha256 of `content`, for cheap equality checks before running a full diffPromptVersions() call" }
+      }
+    },
+    "dependency": {
+      "type": "object",
+      "description": "Dependency resolution. Document category 'Dependency', 10+ fields.",
+      "additionalProperties": true,
+      "properties": {
+        "requires_engines": { "type": "array", "items": { "type": "string" } },
+        "requires_models": { "type": "array", "items": { "type": "string" } },
+        "requires_apis": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "execution": {
+      "type": "object",
+      "description": "Runtime behavior tracking. Document category 'Execution', 15+ fields. Overlaps `analytics` deliberately per the document's own two categories -- analytics is latency/hit-rate focused, execution is outcome/cost focused.",
+      "additionalProperties": true,
+      "properties": {
+        "execution_count": { "type": "integer" },
+        "success_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "error_rate": { "type": "number", "minimum": 0, "maximum": 1 },
+        "avg_cost": { "type": "number" }
+      }
+    },
+    "audit": {
+      "type": "object",
+      "description": "Governance and compliance audit. Document category 'Audit', 15+ fields. `approved_by`/`approval_chain` describe the approval-GATE state phase_3 (governance-lifecycle-state-machine's enforcement half) will read/write -- this phase only provides the storage shape.",
+      "additionalProperties": true,
+      "properties": {
+        "created_by": { "type": "string" },
+        "approved_by": { "type": ["string", "null"] },
+        "last_modified": { "type": "string", "format": "date-time" },
+        "approval_chain": { "type": "array", "items": { "type": "string" } }
+      }
+    },
+    "learning": {
+      "type": "object",
+      "description": "Continuous improvement signals. Document category 'Learning', 10+ fields. Natural future integration point for loop_improvements (compliance.loop_improvements, Wave 5) once a phase wires it.",
+      "additionalProperties": true,
+      "properties": {
+        "optimization_score": { "type": ["number", "null"] },
+        "staleness_index": { "type": ["number", "null"] },
+        "drift_detected": { "type": "boolean" }
+      }
+    },
+    "testing": {
+      "type": "object",
+      "description": "Quality assurance metrics. Document category 'Testing', 15+ fields. `test_coverage`/`regression_status` should be derived from real prompt_eval_runs rows (compliance.prompt_eval_runs, Wave 94) once a phase wires that aggregation -- never hand-entered.",
+      "additionalProperties": true,
+      "properties": {
+        "test_coverage": { "type": ["number", "null"], "minimum": 0, "maximum": 1 },
+        "regression_status": { "type": "string", "enum": ["passing", "failing", "unknown"] },
+        "red_team_score": { "type": ["number", "null"] }
+      }
+    }
+  }
+}
