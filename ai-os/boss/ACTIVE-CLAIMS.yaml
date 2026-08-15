@@ -6055,6 +6055,37 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-083004-cache---synchronization--cache-integrity) -- VERIDIAN Review Framework: Cache & Synchronization / Cache Integrity & Security (3 findings)"
+    completed_at: "2026-08-07T (this session)"
+    merged_as: "PR #1019 (https://github.com/FChecklist/compliance-tracker/pull/1019) -- open, CI running as of this update; not yet merged/audited"
+    summary: |
+      Closed all 3 findings in one PR (same module/area): [High] Cache
+      Security & Encryption -- src/lib/llm-response-cache.ts's `content`
+      column now encrypted at rest via the existing pgcrypto helper
+      (ai-config-crypto.ts), reused rather than a new scheme; [Medium]
+      Automatic Cache Invalidation -- added CACHE_TTL named presets + a
+      per-call ttlMs option (TTL tuning, per that finding's own recommended
+      approach, not a full event-bus); [Critical] Offline Cache Support --
+      new read-only offline shell (public/sw.js + public/offline.html +
+      OfflineShell.tsx + use-online-status.ts), allowlisted to FM
+      register-digitization rows GET + construction site-diary GET aliases,
+      cache-storage purged on logout. Confirmed site-diary has no (app)/ UI
+      yet (API-only) -- cached its GET endpoints anyway as forward-looking
+      infra rather than skipping the Critical finding. Added
+      llm-response-cache.test.ts (was 0 test coverage, now 8 passing tests).
+      Did not touch permission-service.ts's ERP_ACTION_ROLES.
+      CI fix, round 2: a first attempted fix for a CI-only (unreproducible
+      locally) `llm-client.test.ts` failure -- "capture+restore the real
+      `@/lib/llm-client` module" -- did not actually hold on CI's real file
+      order (re-verified live via the job's own log, not the PR summary).
+      Root cause: `llm-response-cache.test.ts` mocking
+      `@/lib/llm-client` via `mock.module()` at all leaks into
+      `llm-client.test.ts`'s own static import of that same module,
+      regardless of an `afterEach` restore call. Fixed by mocking
+      `globalThis.fetch` instead (removes the module-registry mutation
+      entirely) -- verified in both explicit file orders plus the full
+      local suite. See PROGRESS.md's "CI fix, round 2" section for full
+      detail.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |

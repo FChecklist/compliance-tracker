@@ -87,6 +87,18 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
       setLoggingOut(false);
       return;
     }
+    // Gap closure, 2026-08-07 ("Offline Cache Support"): the offline shell
+    // (OfflineShell.tsx / public/sw.js) caches org-scoped read-only data
+    // (FM register digitization rows, site diary lists) in the browser's
+    // Cache Storage. That storage is per-origin, not per-signed-in-user --
+    // on a shared/kiosk browser, the next person to sign in could otherwise
+    // still see the previous org's cached data until it happened to be
+    // overwritten. Best-effort and non-blocking, same as everything else in
+    // this handler being fire-and-forget-safe: an unsupported browser or a
+    // failed cache.delete must never block sign-out.
+    if (typeof caches !== "undefined") {
+      caches.keys().then((keys) => keys.forEach((key) => caches.delete(key))).catch(() => {});
+    }
     router.push("/login");
     router.refresh();
   };

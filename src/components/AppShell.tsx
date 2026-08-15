@@ -11,6 +11,10 @@ import GlobalChatDock, { isDockHiddenForPath } from "@/components/GlobalChatDock
 // render tree — imported and rendered here as a fixed-position floating
 // widget that lives for the entire authenticated session.
 import HelpWidget from "@/components/HelpWidget";
+// Gap closure, 2026-08-07 ("Offline Cache Support") -- registers the
+// read-only offline-shell service worker and surfaces the offline banner;
+// see OfflineShell.tsx's own header for full scope.
+import OfflineShell from "@/components/OfflineShell";
 import TaskVisibilityPanel from "@/components/TaskVisibilityPanel";
 import { VeriChatProvider } from "@/components/veri-chat/veri-chat-context";
 import VeriComposer from "@/components/veri-chat/VeriComposer";
@@ -186,6 +190,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="print:hidden">
         <HelpWidget />
       </div>
+      <OfflineShell />
     </VeriChatProvider>
   ) : (
     <>
@@ -221,6 +226,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <div className="print:hidden">
         <HelpWidget />
       </div>
+      <OfflineShell />
     </>
   );
 
