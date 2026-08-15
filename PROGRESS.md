@@ -27,4 +27,25 @@ VERIDIAN Review Framework gap-closure: AI Maintainability / AI Safe-Change Capab
 
 ## Remaining
 
-- [ ] None for this gap-closure. Follow-up (out of scope, tracked via the generated report, not a new gap): actually split `src/lib/db/schema.ts` and `src/lib/task-execution-engine.ts`, and start covering `src/lib/services/compliance-service.ts` (124-file fan-in, currently untested) -- both are large enough to be their own task.
+- [ ] **`.github/workflows/ci.yml` wiring could not be pushed by this session and had to be reverted before push** -- this session's `gh`/git push token lacks the GitHub `workflow` OAuth scope, so any push touching `.github/workflows/*.yml` is rejected outright (confirmed: pushing with the edit in place failed; pushing with it reverted succeeded). `scripts/check-test-coverage-delta.mjs` itself IS committed and pushed on this branch, and passes when run manually (verified locally against this PR's own diff). Whoever merges this PR (owner, or a session with `workflow` scope) needs to add this one job to `.github/workflows/ci.yml`, right before the existing `e2e:` job:
+
+  ```yaml
+    test-coverage-delta:
+      name: Test Coverage Delta Check
+      runs-on: ubuntu-latest
+      steps:
+        - uses: actions/checkout@v7
+          with:
+            fetch-depth: 0
+        # VERIDIAN Review Framework gap-closure, retry 2 (2026-08-15): "AI Can
+        # Safely Modify Module" -- fails the build if a PR modifies a .ts file
+        # that had zero colocated test coverage before the PR, and the PR adds
+        # or modifies zero test files of its own. See the script's own header
+        # for the honest limitation (this checks a test was touched, not that
+        # it covers the change) and the deliberate .tsx exclusion.
+        - run: node scripts/check-test-coverage-delta.mjs
+  ```
+
+  `fetch-depth: 0` is required (default checkout is shallow, breaks `git merge-base`).
+
+- [ ] Follow-up (out of scope, tracked via the generated report, not a new gap): actually split `src/lib/db/schema.ts` and `src/lib/task-execution-engine.ts`, and start covering `src/lib/services/compliance-service.ts` (124-file fan-in, currently untested) -- both are large enough to be their own task.
