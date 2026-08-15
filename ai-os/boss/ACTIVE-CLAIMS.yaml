@@ -1624,6 +1624,43 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-105006-retry-1--ai-documentation--ai-readable) -- AI-Readable Technical Documentation gap-closure"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "not yet merged -- PR pending, see this task's own progress/task-20260718-105006-retry-1--ai-documentation--ai-readable.md"
+    summary: |
+      Duplicate dispatch of the same 10-finding VERIDIAN Review Framework
+      gap already substantively closed by PR #1047 (task-20260807-071602,
+      see [[veridian-ai-readable-technical-docs-pr1047]]-class memory) --
+      that PR remains unmerged only because of the standing repo-wide
+      branch-protection self-approval deadlock
+      ([[veridian-branch-protection-self-approval-deadlock-active]]), and
+      by this task's own invocation (2026-08-15, 8 days later) had also
+      drifted to a real DIRTY/CONFLICTING merge state against current
+      main. Rather than re-authoring the same 8/10 findings from scratch,
+      cherry-picked PR #1047's own two real content commits
+      (fa4ac7cdc/aa0e2296a) onto this task's fresh branch off current
+      main, resolved 3 real merge conflicts (ai-os/OS.yaml,
+      docs/master/CAPABILITY_COVERAGE.md, PROGRESS.md) by keeping
+      current main's own since-reorganized/since-corrected content and
+      only re-adding what's genuinely still new (the
+      business-rules-registry.yaml index entry; dropped several
+      OS.yaml/CAPABILITY_COVERAGE.md entries whose referenced files no
+      longer exist on current main at all, confirmed via git cat-file -e
+      rather than assumed). Verified the reconstructed diff for real
+      (bun install + eslint on generate.ts, node --check + a live run of
+      check-doc-scale-freshness.mjs, YAML-parse of every touched YAML
+      file, a live import of generate.ts confirming both new PROJEXA
+      paths resolve in the generated spec, plus every fast local CI
+      script: check-metadata-index-coverage.mjs, check-doc-cross-
+      references.mjs, check-doc-quarantine-banner.mjs, check-guardrail-
+      presence.mjs, check-asset-registry-coverage.mjs,
+      check-migration-collision.mjs) before committing -- full tsc
+      --noEmit OOM'd locally on this repo's size (unrelated to this
+      diff), left for CI's own Type Check job. Remaining/deferred items
+      unchanged from PR #1047's own disclosure (Module Documentation
+      optional per-file index not built; check-doc-scale-freshness.mjs
+      still not wired into ci.yml,
+      [[gh-token-lacks-workflow-scope]]-blocked).
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"

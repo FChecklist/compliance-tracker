@@ -105,6 +105,8 @@ index:
       covers: "Enterprise Asset Registry scaffold. NOT YET POPULATED -- a real, named, still-open gap, not silently dropped."
     - path: ai-os/registry/stale-doc-manifest.yaml
       covers: "GAP-UNIFIED-SOT-REMAINDER (b) quarantine manifest -- every root-level stale doc moved to docs/archive/ plus every file already under the tree4-unified/audit-tree archive dirs, each must carry the exact ARCHIVED/STALE banner, enforced by scripts/check-doc-quarantine-banner.mjs on every PR."
+    - path: ai-os/registry/business-rules-registry.yaml
+      covers: "VERIDIAN Review Framework gap closure (AI-Readable Business Rules Documentation): consolidated per-domain (GST/Tax, Payroll, Fixed Assets, Procurement, HR/Attendance, CRM) index of real, already-enforced business rules, each cross-referenced to the exact file:line that enforces it. Hand-maintained, not CI-verified against code drift (see its own header) -- treat the code as authoritative if the two disagree."
     - path: ai-os/LIFECYCLE.yaml
       covers: "Which of the 11 lifecycle stages (UNDERSTAND..IMPROVE) the project is currently in. Currently MONITOR (ongoing operation, not a one-time build)."
     - path: scripts/check-doc-cross-references.mjs

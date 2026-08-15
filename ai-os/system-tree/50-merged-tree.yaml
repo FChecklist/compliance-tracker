@@ -1267,7 +1267,13 @@ domains:
   output: The scope object PMS issues, ERP contracts, and construction domains attach to via projectId.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - 1. A product or project is created (directly, or implicitly as the scope object for a PMS project /
+      ERP contract / construction project being set up).
+  - 2. Other domains attach to it by storing its id as a foreign key (projectId) rather than duplicating
+      product/project fields locally.
+  - 3. No dedicated lifecycle/state machine of its own -- the row simply exists as a stable attachment
+      point for the domains above; lifecycle (active/closed/etc.) is tracked per-consumer, not here.
   source: 12-compliance-tracker-database
   repo: compliance-tracker
 - id: DB-12
@@ -1595,7 +1601,14 @@ domains:
   guardrails:
   - SectorGate.tsx (SectorGateNotice) blocks sebi/rbi/irdai for orgs whose entityType doesn't match, at
     the UI layer.
-  workflow: []
+  workflow:
+  - 1. Page loads -> for sector-gated pages (sebi/rbi/irdai), SectorGate.tsx checks the org's entityType
+      first; a non-matching org sees SectorGateNotice instead of the module, no data fetched.
+  - 2. For non-gated pages (risks/vendor-risk/esg/whistleblower/bcm/it-dr/fraud-cases/contract-compliance/incidents),
+      the module's own list+detail flow renders directly (most of these are SimpleModulePage instances --
+      see UI-16).
+  - 3. /esg is the one exception with a real cross-module read dependency: its Social pillar score is
+      computed live from Policy + POSH module data on render, not entered independently on this page.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-06
@@ -1631,7 +1644,12 @@ domains:
     AiAssistantsSection, PersonalAiConfigSection, OrchestraModelConfigSection, ApiKeySection, WebhookSection,
     MfaSection, SsoSection, PmsEnablementSection) -- see UI-13.
   guardrails: []
-  workflow: []
+  workflow:
+  - 1. /users, /departments -- standard list+form CRUD against the users/departments tables, admin-role-gated
+      server-side.
+  - 2. /settings -- each side-nav item renders one of the ~10 dedicated sub-panel components (see UI-13),
+      independently fetching/saving its own slice of org or user config; there is no single "settings"
+      form/save action, each panel commits its own change immediately.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-08
@@ -1667,7 +1685,13 @@ domains:
   output: Rendered CRM/Sales-HQ workspace.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - 1. Lead created (Leads tab or /api/v1/projexa/leads) -- name required, optional source/owner/company.
+  - 2. Lead progresses to an Opportunity (Opportunities tab) -- crmOpportunities.stage tracks pipeline
+      position; opportunity carries an AI win-probability score (aiWinProbability) computed by crm-service.ts's
+      analyzeOpportunity(), not entered manually.
+  - 3. /sales-hq is a separate, admin-only aggregate view over the same underlying data (partners/referrals/commissions
+      plus VisitorIntelligencePanel's anonymous-visitor feed) -- not a further pipeline stage.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-10
@@ -1720,7 +1744,16 @@ domains:
   - Every ticket IS a VERI Chat conversation underneath -- not a separate messaging system, a real architectural
     reuse.
   guardrails: []
-  workflow: []
+  workflow:
+  - 1. Ticket flow: a ticket is created (or auto-detected via ticket-intelligence-service.ts's LLM-assisted
+      detection from a chat message), which wraps a new conversations row -- the ticket's own "messages"
+      are that conversation's messages, not a separate table. Guest access (no login) is supported on
+      the same conversation.
+  - 2. Meeting flow: a veri-meeting is created, participants/agenda captured, then AI-assisted intelligence
+      extraction (meeting_intelligence.extract prompt) generates minutes + action items, which surface
+      as linked tasks.
+  - 3. Knowledge base / Help Centre / team directory / clients roster are independent read/reference surfaces
+      with no shared workflow across them.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-12
@@ -1736,7 +1769,14 @@ domains:
   - Both are opt-in per org -- absent from the sidebar entirely for orgs that haven't enabled them, not
     just hidden/disabled.
   guardrails: []
-  workflow: []
+  workflow:
+  - 1. Org admin enables pmsEnabled/firmEnabled (module-enablement flag) -- only then does the sidebar
+      section and /pms or /the-firm-practice route appear at all.
+  - 2. /pms -- project selected from the list -> ProjectNav sub-tabs each independently fetch their own
+      slice (Issues/Board/Sprints/Wiki/Time/Budgets/Meetings/Roadmap) against the same projectId.
+  - 3. /the-firm-practice -- 'Practice Cockpit' tabs (Dashboard/Client & Engagements/Tax Cases/Time &
+      Billing) similarly each own their own data fetch, no shared cross-tab state beyond the selected
+      client/engagement context.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-13
@@ -1751,7 +1791,14 @@ domains:
   output: The consistent app frame around all ~130 pages.
   rules: []
   guardrails: []
-  workflow: []
+  workflow:
+  - 1. requireAuth() resolves the session server-side before AppShell renders at all (middleware-level
+      gate, not a client-side redirect-after-render).
+  - 2. AppShell composes sidebar (AppSidebar.tsx's getNavSections(), gated by accountType/pmsEnabled/firmEnabled)
+      + topbar + health ribbon + trial banner + onboarding checklist + the global chat dock/composer/panel
+      + help widget around whatever page component is being routed to.
+  - 3. This is a pure layout/composition shell -- it owns no domain data itself, each mounted piece (sidebar
+      nav, chat dock, health ribbon) independently fetches its own state.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: UI-14
@@ -1817,7 +1864,15 @@ domains:
   - ForgeIntakeComposer.tsx explicitly reuses VeriComposer's Mode-Pills/Chain-Selector mechanism for the
     PUBLIC (unauthenticated) lead-intake flow at /forge -- confirmed by code comment.
   guardrails: []
-  workflow: []
+  workflow:
+  - 1. SimpleModulePage instances: a module page mounts SimpleModulePage with its own table/columns/API
+      base path -- list renders, an inline form (not a separate create page) handles create/edit, StatusPill
+      renders any status-shaped field. One generic component, ~18-24 distinct module pages configure it
+      rather than each shipping bespoke CRUD UI.
+  - 2. Public /forge flow: ForgeIntakeComposer (unauthenticated) walks the same Mode-Pills/Chain-Selector
+      interaction as the authenticated VeriComposer, but submits to forgeProjectRequests instead of the
+      authenticated task-creation path -- a lead-capture form wearing the product's own primary interaction
+      pattern, not a separate bespoke intake form.
   source: 13-compliance-tracker-ui
   repo: compliance-tracker
 - id: PRX-01

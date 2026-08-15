@@ -6,6 +6,24 @@
 // receipts/issues), erp/procurement (requisitions), documents, and
 // pms/meetings + pms/time-entries -- the remaining ~30 domains are still
 // not yet on /api/v1, intentionally absent here rather than faked.
+//
+// task-20260801-173750 (AI-Readable API Documentation gap closure):
+// important correction to the paragraph above -- "not yet on /api/v1" was
+// stale for a large chunk of what it described. By the time that task ran,
+// src/app/api/v1/projexa/** alone had grown to ~200 real, already-shipped
+// route files (CRM leads/opportunities, HR/recruitment, payroll, risks,
+// procurement, sales invoices/orders, RFIs/submittals, and more) that this
+// generated spec simply never documented -- the backend work was done,
+// the OpenAPI coverage just never caught up. Added CRM leads/opportunities
+// that pass as a first incremental step (the pattern: pick a domain with
+// real external-integration demand, add its path+schema entries, repeat).
+// Prioritized remaining backlog (not exhaustive, ranked by likely external
+// demand): HR (employees/leave/recruitment -- payroll-adjacent integrations
+// are a common ask), Risk (risks/vendor-risk), Procurement (purchase-orders/
+// goods-receipts/RFQs, beyond the requisitions already covered), Sales
+// documents (sales-orders/sales-invoices/quotations), PMS issues (schedule/
+// board/sprints). Each of those domains' routes already exist and work
+// today -- this is a documentation gap, not a backend gap, for all of them.
 import { z } from "zod"
 import {
   createComplianceItemSchema, updateComplianceItemSchema,
@@ -238,6 +256,74 @@ export function generateOpenApiDocument() {
           tags: ["PROJEXA"], summary: "Structured construction data assistant -- dispatches one of the 7 registered construction worker agents by codeReference", operationId: "projexaAssistant",
           requestBody: { required: true, content: { "application/json": { schema: { $ref: "#/components/schemas/AssistantQuery" } } } },
           responses: { "200": { description: "OK" }, "400": { description: "Unknown codeReference or missing required input" } },
+        },
+      },
+
+      // ─── task-20260801-173750: AI-Readable API Documentation gap closure ──
+      // First incremental extension since Wave 124's projexa aliasing pass --
+      // both routes below already existed (thin aliases over crm-service.ts,
+      // src/app/api/v1/projexa/leads and /opportunities), just weren't
+      // documented in this generated spec. No new backend code; inline
+      // object schemas below (not $ref'd zod components, since these routes
+      // validate ad-hoc rather than via a src/lib/schemas/*.ts file) mirror
+      // the exact fields each route's own toLeadShape()/toOpportunityShape()
+      // returns. See this file's own top comment for the prioritized list
+      // of what's still undocumented.
+      "/projexa/leads": {
+        get: {
+          tags: ["PROJEXA"], summary: "List leads (paginated/filtered)", operationId: "projexaListLeads",
+          parameters: [
+            { name: "search", in: "query", required: false, schema: { type: "string" } },
+            { name: "status", in: "query", required: false, schema: { type: "string" } },
+            { name: "ownerId", in: "query", required: false, schema: { type: "string" } },
+            { name: "source", in: "query", required: false, schema: { type: "string" } },
+            { name: "companyId", in: "query", required: false, schema: { type: "string" } },
+            { name: "page", in: "query", required: false, schema: { type: "integer" } },
+            { name: "pageSize", in: "query", required: false, schema: { type: "integer" } },
+          ],
+          responses: { "200": { description: "OK" } },
+        },
+        post: {
+          tags: ["PROJEXA"], summary: "Create a lead", operationId: "projexaCreateLead",
+          requestBody: {
+            required: true, content: { "application/json": { schema: {
+              type: "object", required: ["name"],
+              properties: {
+                name: { type: "string" }, contactEmail: { type: "string" }, contactPhone: { type: "string" },
+                source: { type: "string" }, ownerId: { type: "string" }, companyId: { type: "string" },
+                nextActionDate: { type: "string" }, nextActionNote: { type: "string" },
+              },
+            } } },
+          },
+          responses: { "201": { description: "Created" }, "400": { description: "Requires a real user session or write-scoped API key" } },
+        },
+      },
+      "/projexa/opportunities": {
+        get: {
+          tags: ["PROJEXA"], summary: "List opportunities (paginated/filtered)", operationId: "projexaListOpportunities",
+          parameters: [
+            { name: "search", in: "query", required: false, schema: { type: "string" } },
+            { name: "stage", in: "query", required: false, schema: { type: "string" } },
+            { name: "ownerId", in: "query", required: false, schema: { type: "string" } },
+            { name: "erpCustomerId", in: "query", required: false, schema: { type: "string" } },
+            { name: "page", in: "query", required: false, schema: { type: "integer" } },
+            { name: "pageSize", in: "query", required: false, schema: { type: "integer" } },
+          ],
+          responses: { "200": { description: "OK" } },
+        },
+        post: {
+          tags: ["PROJEXA"], summary: "Create an opportunity", operationId: "projexaCreateOpportunity",
+          requestBody: {
+            required: true, content: { "application/json": { schema: {
+              type: "object", required: ["name"],
+              properties: {
+                name: { type: "string" }, leadId: { type: "string" }, clientId: { type: "string" }, erpCustomerId: { type: "string" },
+                stage: { type: "string" }, estimatedValue: { type: "string" }, expectedCloseDate: { type: "string" }, ownerId: { type: "string" },
+                nextActionDate: { type: "string" }, nextActionNote: { type: "string" },
+              },
+            } } },
+          },
+          responses: { "201": { description: "Created" }, "400": { description: "Requires a real user session or write-scoped API key" } },
         },
       },
     },

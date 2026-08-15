@@ -1,0 +1,202 @@
+# Business Rules Registry
+#
+# VERIDIAN Review Framework gap closure (task-20260801-173750, AI-Readable
+# Business Rules Documentation, [High]): gap was "no consolidated
+# business-rules documentation" -- rules existed (and still exist) only as
+# scattered inline logic across src/lib/engines/*.ts and
+# src/lib/services/*.ts, each independently discoverable only by reading
+# that specific file. This registry cross-references the real,
+# already-implemented rule to the exact file:line that enforces it -- it
+# does NOT invent new rules or restate them in a second, driftable form
+# (e.g. as a duplicated formula); every `enforced_by` entry names the real
+# function, and the rule's `summary` here is a short pointer, not a
+# reimplementation. Treat the code as authoritative; if this registry and
+# the code disagree, the code is right and this file is stale.
+#
+# Scope: seeded from the domains with the clearest, most citable
+# already-implemented rules (GST/Tax, Payroll, Fixed Assets, Procurement,
+# HR/Attendance) plus CRM (deliberately thin -- see that section's own
+# note). Not exhaustive of every validation in the codebase -- extend this
+# file additively as new domains get a similarly citable rule worth
+# indexing, rather than trying to backfill everything in one pass.
+#
+# Maintenance: this is a hand-maintained index, same genre as
+# docs/master/CAPABILITY_COVERAGE.md -- no CI check currently verifies an
+# `enforced_by` citation still resolves to real code (unlike
+# scripts/check-doc-cross-references.mjs, which only covers the 6
+# entry-point governance docs, not this file). A future extension of that
+# script to also parse this registry's `file`/`line` pairs would close that
+# gap; not built this pass -- flagging honestly rather than silently
+# leaving it unstated.
+
+meta:
+  created: "2026-08-01"
+  created_by: "task-20260801-173750-retry-ai-documentation-ai-readable-techn"
+  last_reverified: "2026-08-07 (task-20260807-071602, re-landing this registry after PR #684 went stale/unmerged -- every file:line citation below was re-grepped against current main and 4 had drifted by 1-6 lines from unrelated intervening edits; all 4 corrected to their real current line)."
+  purpose: >-
+    Per-domain index of real, already-enforced business rules, each
+    cross-referenced to the exact code that enforces it, so an AI agent (or
+    human) can answer "what business rule governs X, and where is it
+    enforced" without re-deriving it from scratch every session.
+
+domains:
+  gst_tax:
+    description: "GST/Tax compliance calculation and validation logic."
+    rules:
+      - name: reverse_charge_liability
+        summary: >-
+          Reverse Charge Mechanism (Sec 9(3)/9(4) CGST Act): when a supply
+          is flagged reverse-charge, the RECIPIENT (not the supplier) is
+          liable to pay GST, not just report it.
+        enforced_by:
+          file: src/lib/engines/in/gst-engine.ts
+          function: computeReverseChargeLiability
+          line: 97
+      - name: itc_eligibility_and_reversal
+        summary: >-
+          Input Tax Credit (Sec 16/17 CGST Act): eligible ITC = total ITC
+          available minus blocked-credit amount (Sec 17(5) categories),
+          with proportionate reversal applied for the exempt-supply ratio.
+        enforced_by:
+          file: src/lib/engines/in/gst-engine.ts
+          function: calculateEligibleItc
+          line: 104
+      - name: gst_interest_on_late_or_excess_itc
+        summary: >-
+          GST Interest (Sec 50 CGST Act): 18% p.a. on late tax payment,
+          24% p.a. on excess/ineligible ITC claimed -- different rates by
+          claim type, not a single flat interest rate.
+        enforced_by:
+          file: src/lib/engines/in/gst-engine.ts
+          function: calculateGstInterest
+          line: 113
+      - name: gst_rate_sanity_ceiling
+        summary: >-
+          AI-governance guardrail (not a statutory rule itself): any
+          AI-proposed GST rate outside 0-40% is rejected before it can
+          reach a calculation, catching a hallucinated/malformed rate
+          before it produces a wrong tax figure.
+        enforced_by:
+          file: src/lib/guardrail-registrations.ts
+          function: gstRateSanityCheck
+          line: 275
+
+  payroll:
+    description: "Statutory payroll calculations (gratuity, loans, commissions)."
+    rules:
+      - name: gratuity_statutory_cap
+        summary: >-
+          Payment of Gratuity Act: gratuity = (last drawn monthly salary x
+          15 / divisor) x years of service, where years of service round up
+          at the 6-month mark (Sec 4(2)) -- capped at Rs. 20 lakh
+          regardless of the raw formula result.
+        enforced_by:
+          file: src/lib/engines/payroll-engine.ts
+          function: calculateGratuity
+          line: 29
+          constant: "STATUTORY_CAP = 2_000_000 (line 27)"
+      - name: loan_and_commission_sanity_ceilings
+        summary: >-
+          AI-governance guardrails: loan tenure capped at 600 months (50
+          years), loan annual rate capped at 60%, loan principal capped at
+          Rs 100 crore, commission rate independently sanity-checked --
+          none are real regulatory limits, all are implausibility floors
+          that catch a hallucinated/malformed AI-proposed figure before it
+          reaches a payroll calculation.
+        enforced_by:
+          file: src/lib/guardrail-registrations.ts
+          function: "loan sanity checks + commissionRateSanityCheck"
+          line: 286
+
+  fixed_assets:
+    description: "Depreciation schedule calculation and validation."
+    rules:
+      - name: salvage_value_floor
+        summary: >-
+          Salvage value must be non-negative and strictly less than
+          acquisition cost -- enforced identically for both SLM and WDV
+          methods, rejecting a schedule that would depreciate an asset
+          below (or exactly to) its stated salvage value.
+        enforced_by:
+          file: src/lib/engines/fixed-asset-engine.ts
+          function: "straightLineDepreciation / writtenDownValueDepreciation"
+          line: 11
+      - name: mid_period_proration_with_trailing_true_up
+        summary: >-
+          A depreciation schedule for an asset acquired mid-period prorates
+          the FIRST period by the fraction of that period remaining, then
+          appends one trailing "true-up" period that absorbs exactly the
+          shortfall the proration created -- so the schedule always sums to
+          exactly (cost - salvage), regardless of purchase day, and never
+          silently under- or over-depreciates.
+        enforced_by:
+          file: src/lib/services/erp-fixed-assets-service.ts
+          function: firstPeriodProrationFactor
+          line: 110
+          note: "maxPeriods = usefulLifeMonths + 1 (lines 158, 177) is the true-up period."
+
+  procurement:
+    description: "Purchase requisition/order rules and approval-workflow floors."
+    rules:
+      - name: moq_and_order_multiple_rounding
+        summary: >-
+          A requisitioned quantity is rounded up to satisfy both the
+          supplier's minimum order quantity and its order-multiple
+          increment -- a requisition can never be submitted for a quantity
+          the supplier would reject.
+        enforced_by:
+          file: src/lib/engines/procurement-engine.ts
+          function: optimizeForMoq
+          line: 49
+      - name: four_eyes_floor_on_critical_actions
+        summary: >-
+          Critical-entity-type approval workflow steps (Approval Workflow
+          Engine, entity-agnostic) always require at least 2 approvals,
+          overriding any lower configured value -- a critical action cannot
+          be configured down to single-approver, only up.
+        enforced_by:
+          file: src/lib/services/approval-workflow-service.ts
+          function: enforceFourEyesFloor
+          line: 69
+          constant: "MIN_REQUIRED_APPROVALS_FOR_CRITICAL_ACTIONS = 2 (line 63)"
+
+  hr_attendance:
+    description: "Attendance percentage and leave-to-attendance sync rules."
+    rules:
+      - name: attendance_percent_formula
+        summary: "Attendance % = present days / total working days."
+        enforced_by:
+          file: src/lib/engines/hr-engine.ts
+          function: calculateAttendancePercent
+          line: 6
+      - name: approved_leave_auto_materializes_as_attendance
+        summary: >-
+          Once a leave request is approved, it materializes as an
+          attendance record automatically -- no separate manual
+          attendance-marking step for approved leave days.
+        enforced_by:
+          file: src/lib/services/hr-attendance-service.ts
+          function: syncLeaveIntoAttendance
+          line: 546
+          note: >-
+            Imported and called from src/lib/services/hr-service.ts (line
+            199) on leave-request approval -- the rule's call site and its
+            implementation live in two different files, both cited here.
+
+  crm:
+    description: "Lead/opportunity pipeline validation."
+    note: >-
+      Deliberately thin relative to the other 5 domains. CRM (crm-service.ts)
+      is gated by requireSalesEnabled() (branch-enablement, not a business
+      rule per se) plus basic required-field validation (e.g. "name is
+      required") -- no named calculation/business rule comparable to the
+      other domains was found here. Recorded honestly as a real (small)
+      domain with real (small) rules, not padded out to match the other
+      sections' length.
+    rules:
+      - name: name_required_on_lead_and_opportunity_creation
+        summary: "A lead or opportunity cannot be created without a name."
+        enforced_by:
+          file: src/lib/services/crm-service.ts
+          function: "createLead / createOpportunity"
+          line: 67

@@ -41,9 +41,12 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 
 ## Env Vars Required
 - `DATABASE_URL` — PostgreSQL connection string (Supabase pooler preferred)
+- `APP_RUNTIME_DATABASE_URL` — separate connection string, `app_runtime` role (RLS-enforcing) — every tenant-scoped query actually runs as this, not `DATABASE_URL` (was missing from this list; added by the AI-Readable Configuration Documentation gap closure)
 - `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role (server-side only)
+
+Full env var + notable in-code constant/flag index: [`docs/CONFIGURATION.md`](docs/CONFIGURATION.md).
 
 ## AI-OS Rules
 - Open tasks/gaps tracked in `ai-os/MASTER-TRACKER.yaml`; closed work logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
