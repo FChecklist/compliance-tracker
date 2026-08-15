@@ -433,7 +433,8 @@ function ComplianceRegisterView() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="size-7 text-ct-muted hover:text-ct-saffron"
+                        className="size-7 text-ct-muted hover:text-ct-saffron-text"
+                        aria-label="View compliance item"
                         onClick={(e) => {
                           e.stopPropagation();
                           router.push(`/compliance/${item.id}`);
@@ -460,6 +461,7 @@ function ComplianceRegisterView() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Previous page"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
               >
@@ -482,6 +484,8 @@ function ComplianceRegisterView() {
                     variant={page === pageNum ? "default" : "outline"}
                     size="icon"
                     className="size-8"
+                    aria-label={`Go to page ${pageNum}`}
+                    aria-current={page === pageNum ? "page" : undefined}
                     onClick={() => setPage(pageNum)}
                   >
                     {pageNum}
@@ -492,6 +496,7 @@ function ComplianceRegisterView() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Next page"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >

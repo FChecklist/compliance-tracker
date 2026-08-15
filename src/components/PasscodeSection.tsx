@@ -117,7 +117,7 @@ export default function PasscodeSection() {
           <Button variant="ghost" size="sm" className="h-7 text-ct-muted hover:text-ct-navy" onClick={() => setEditing(true)}>
             Change
           </Button>
-          <Button variant="ghost" size="icon" className="h-7 w-7 text-ct-muted hover:text-ct-error" onClick={removePasscode} disabled={removing}>
+          <Button variant="ghost" size="icon" className="h-7 w-7 text-ct-muted hover:text-ct-error" aria-label="Remove passcode" onClick={removePasscode} disabled={removing}>
             {removing ? <Loader2 className="size-3.5 animate-spin" /> : <Trash2 className="size-3.5" />}
           </Button>
         </div>

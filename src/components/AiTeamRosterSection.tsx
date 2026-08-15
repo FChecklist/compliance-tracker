@@ -166,7 +166,7 @@ export default function AiTeamRosterSection() {
                       <p className="text-[11px] text-ct-muted truncate">{r.roleKey} · {r.team}</p>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      {isOverridden && <Badge variant="secondary" className="text-[10px] bg-ct-accent text-ct-saffron">Overridden</Badge>}
+                      {isOverridden && <Badge variant="secondary" className="text-[10px] bg-ct-accent text-ct-saffron-text">Overridden</Badge>}
                       <Select value={selectValue} onValueChange={(v) => setPendingModel((p) => ({ ...p, [r.roleKey]: v }))}>
                         <SelectTrigger className="w-[220px] h-8 text-xs">
                           <SelectValue placeholder="Select model" />
@@ -184,6 +184,7 @@ export default function AiTeamRosterSection() {
                         disabled={savingRole === r.roleKey || !pendingModel[r.roleKey] || pendingModel[r.roleKey] === r.effectiveModel}
                         onClick={() => saveOverride(r.roleKey, pendingModel[r.roleKey])}
                         title="Save override"
+                        aria-label="Save override"
                       >
                         <Save className="size-3.5" />
                       </Button>
@@ -195,6 +196,7 @@ export default function AiTeamRosterSection() {
                           disabled={savingRole === r.roleKey}
                           onClick={() => clearOverride(r.roleKey)}
                           title="Reset to default"
+                          aria-label="Reset to default"
                         >
                           <RotateCcw className="size-3.5" />
                         </Button>

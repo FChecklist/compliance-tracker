@@ -123,7 +123,7 @@ export default function PartnerDashboardPage() {
             <div className="space-y-1.5 text-sm">
               <div className="flex items-center justify-between"><span className="text-ct-slate">Accrued</span><span className="font-medium text-ct-navy">₹{data.commission.accrued.toLocaleString("en-IN")}</span></div>
               <div className="flex items-center justify-between"><span className="text-ct-slate">Paid</span><span className="font-medium text-ct-navy">₹{data.commission.paid.toLocaleString("en-IN")}</span></div>
-              <div className="flex items-center justify-between border-t border-ct-border pt-1.5"><span className="text-ct-slate">Pending</span><span className="font-semibold text-ct-saffron">₹{data.commission.pending.toLocaleString("en-IN")}</span></div>
+              <div className="flex items-center justify-between border-t border-ct-border pt-1.5"><span className="text-ct-slate">Pending</span><span className="font-semibold text-ct-saffron-text">₹{data.commission.pending.toLocaleString("en-IN")}</span></div>
             </div>
           </div>
         </div>

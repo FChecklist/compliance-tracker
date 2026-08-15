@@ -234,12 +234,12 @@ export default function NewCompliancePage() {
         <div className="rounded-xl border border-ct-border bg-white shadow-card overflow-hidden">
           <CollapsibleTrigger className="w-full flex items-center justify-between px-4 py-3 hover:bg-muted/40 transition-colors">
             <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-ct-saffron" />
+              <Sparkles className="size-4 text-ct-saffron-text" />
               <span className="text-sm font-semibold text-ct-navy">Quick Add from Template</span>
               {selectedTemplate && (
                 <Badge
                   variant="secondary"
-                  className="text-[10px] px-1.5 py-0 bg-ct-saffron/10 text-ct-saffron border-ct-saffron/20 font-medium"
+                  className="text-[10px] px-1.5 py-0 bg-ct-saffron/10 text-ct-saffron-text border-ct-saffron/20 font-medium"
                 >
                   from template
                 </Badge>
@@ -280,7 +280,7 @@ export default function NewCompliancePage() {
               {/* Selected template indicator */}
               {selectedTemplate && (
                 <div className="flex items-center gap-2 text-xs text-ct-muted bg-ct-saffron/5 border border-ct-saffron/20 rounded-lg px-3 py-2">
-                  <Sparkles className="size-3.5 text-ct-saffron" />
+                  <Sparkles className="size-3.5 text-ct-saffron-text" />
                   <span>
                     Currently using: <strong className="text-ct-navy">{selectedTemplate.title}</strong>
                   </span>
@@ -364,7 +364,7 @@ export default function NewCompliancePage() {
             {selectedTemplate && (
               <Badge
                 variant="secondary"
-                className="text-[10px] px-1.5 py-0 bg-ct-saffron/10 text-ct-saffron border-ct-saffron/20 font-medium"
+                className="text-[10px] px-1.5 py-0 bg-ct-saffron/10 text-ct-saffron-text border-ct-saffron/20 font-medium"
               >
                 from template
               </Badge>

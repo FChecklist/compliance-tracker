@@ -12,7 +12,7 @@ import type { AiDecisionExplanation } from "@/lib/explainability/ai-decision-exp
 
 const CONFIDENCE_STYLES: Record<string, string> = {
   high: "border-ct-teal/40 bg-ct-teal/10 text-ct-teal",
-  medium: "border-ct-saffron/40 bg-ct-saffron/10 text-ct-saffron",
+  medium: "border-ct-saffron/40 bg-ct-saffron/10 text-ct-saffron-text",
   low: "border-ct-error/40 bg-ct-error/10 text-ct-error",
 };
 

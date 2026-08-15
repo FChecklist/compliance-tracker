@@ -138,7 +138,7 @@ export function ThreadView({
   return (
     <div className="flex flex-col h-full">
       <div className="px-4 py-3 border-b border-ct-border flex items-center gap-2">
-        {conversation.isAiThread && <Bot className="size-4 text-ct-saffron" />}
+        {conversation.isAiThread && <Bot className="size-4 text-ct-saffron-text" />}
         <h2 className="font-heading text-sm text-ct-navy">{title}</h2>
       </div>
 
@@ -205,7 +205,7 @@ export function ThreadView({
             rows={1}
             className="min-h-[44px] max-h-[200px] resize-none text-sm overflow-y-auto"
           />
-          <Button onClick={send} disabled={sending || !content.trim()} size="icon" className="shrink-0">
+          <Button onClick={send} disabled={sending || !content.trim()} size="icon" className="shrink-0" aria-label="Send message">
             <Send className="size-4" />
           </Button>
         </div>
@@ -263,7 +263,7 @@ function MessageBubble({ message, currentUserId }: { message: ChatMessage; curre
         )}
         {isGuest && (
           <div className="flex items-center gap-1 mb-1">
-            <span className="text-[10px] font-bold uppercase tracking-wide text-ct-saffron">{message.guestName || "Guest"} (external)</span>
+            <span className="text-[10px] font-bold uppercase tracking-wide text-ct-saffron-text">{message.guestName || "Guest"} (external)</span>
           </div>
         )}
         <MessageContent content={message.content} />
@@ -285,7 +285,7 @@ function MessageBubble({ message, currentUserId }: { message: ChatMessage; curre
                 ? "bg-red-100 text-red-700"
                 : message.commitment.status === "done_as_asked"
                   ? "bg-ct-teal/20 text-ct-teal"
-                  : "bg-ct-saffron/20 text-ct-saffron"
+                  : "bg-ct-saffron/20 text-ct-saffron-text"
             )}
           >
             Instruction · {message.commitment.status.replace(/_/g, " ")}

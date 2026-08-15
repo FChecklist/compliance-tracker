@@ -162,7 +162,7 @@ const columns: ColumnDef<ComplianceItem>[] = [
       return (
         <Link
           href={`/compliance/${item.id}`}
-          className="font-medium text-sm text-ct-navy hover:text-ct-saffron transition-colors truncate block max-w-[240px]"
+          className="font-medium text-sm text-ct-navy hover:text-ct-saffron-text transition-colors truncate block max-w-[240px]"
         >
           {item.title}
         </Link>
@@ -469,7 +469,7 @@ export default function ReportsPage() {
           <Link href="/reports/create">
             <Button
               variant="outline"
-              className="border-ct-saffron text-ct-saffron hover:bg-ct-saffron/10"
+              className="border-ct-saffron text-ct-saffron-text hover:bg-ct-saffron/10"
             >
               <Sparkles className="size-4 mr-2" />
               Need a Report? Upload &amp; let AI build it
@@ -512,7 +512,7 @@ export default function ReportsPage() {
         <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-              <FileSpreadsheet className="size-4 text-ct-saffron" />
+              <FileSpreadsheet className="size-4 text-ct-saffron-text" />
               Status Distribution
             </CardTitle>
           </CardHeader>

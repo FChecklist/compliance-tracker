@@ -105,7 +105,7 @@ export default function MfaSection() {
                 <span className="text-sm font-medium text-ct-navy">{f.friendlyName || "Authenticator App"}</span>
                 <Badge variant="secondary" className="ml-2 text-[9px]">active</Badge>
               </div>
-              <Button variant="ghost" size="icon" className="h-7 w-7 text-ct-muted hover:text-ct-error" onClick={() => removeFactor(f.id)}>
+              <Button variant="ghost" size="icon" className="h-7 w-7 text-ct-muted hover:text-ct-error" aria-label="Remove authenticator" onClick={() => removeFactor(f.id)}>
                 <Trash2 className="size-3.5" />
               </Button>
             </div>

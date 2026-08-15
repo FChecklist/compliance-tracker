@@ -255,7 +255,7 @@ function ReportRowActions({
       <Popover open={delegateOpen} onOpenChange={setDelegateOpen}>
         <PopoverTrigger asChild>
           <Button variant="ghost" size="sm" className="h-6 w-6 p-0" title="Delegate" disabled={busy !== null}>
-            <Share2 className="size-3 text-ct-saffron" />
+            <Share2 className="size-3 text-ct-saffron-text" />
           </Button>
         </PopoverTrigger>
         <PopoverContent className="w-64 space-y-2 p-3">

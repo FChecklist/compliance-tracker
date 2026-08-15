@@ -26,7 +26,7 @@ type FdeRequest = {
 
 const STATUS_META: Record<string, { label: string; color: string; icon: typeof CheckCircle2 }> = {
   matched_existing: { label: "Already covered", color: "bg-ct-teal/20 text-ct-teal", icon: CheckCircle2 },
-  proposed_agent: { label: "Proposing new agent", color: "bg-ct-saffron/20 text-ct-saffron", icon: Wrench },
+  proposed_agent: { label: "Proposing new agent", color: "bg-ct-saffron/20 text-ct-saffron-text", icon: Wrench },
   // Wave 46 (VERIDIAN AI Constitution): the Policy Enforcement Engine
   // refused this request before it ever reached an AI model -- deliberately
   // NOT labeled "Denied" in this user-facing badge.
@@ -39,7 +39,7 @@ const STATUS_META: Record<string, { label: string; color: string; icon: typeof C
 // computed on the backend per request row; we only surface it here.
 const REUSE_LEVEL_META: Record<string, { label: string; color: string }> = {
   exact_match: { label: "High Confidence", color: "bg-ct-teal/20 text-ct-teal" },
-  llm_assisted_match: { label: "Needs Confirmation", color: "bg-ct-saffron/20 text-ct-saffron" },
+  llm_assisted_match: { label: "Needs Confirmation", color: "bg-ct-saffron/20 text-ct-saffron-text" },
   new_proposal: { label: "New Capability", color: "bg-ct-cloud text-ct-muted" },
 };
 
@@ -82,7 +82,7 @@ export default function FdePage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Sparkles className="size-5 text-ct-saffron" />
+        <Sparkles className="size-5 text-ct-saffron-text" />
         <div>
           <h1 className="text-2xl font-heading text-ct-navy">Make Your Own Agents</h1>
           <p className="text-sm text-ct-muted mt-1">Describe something you want done in plain language. VERIDIAN first checks whether it can already do it, and only if nothing fits does it build you a brand-new AI agent for it (your admin approves before it goes live).</p>

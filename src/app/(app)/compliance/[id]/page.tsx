@@ -344,6 +344,7 @@ export default function ComplianceDetailPage() {
                     variant="ghost"
                     size="icon"
                     className="text-white/60 hover:text-white hover:bg-white/10"
+                    aria-label="Close"
                     onClick={() => router.push("/compliance")}
                   >
                     <X className="size-5" />
@@ -497,7 +498,7 @@ export default function ComplianceDetailPage() {
                           key={doc.id}
                           className="flex items-center gap-3 p-3 rounded-lg bg-white border border-ct-border"
                         >
-                          <FileText className="size-5 text-ct-saffron shrink-0" />
+                          <FileText className="size-5 text-ct-saffron-text shrink-0" />
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-ct-navy truncate">{doc.name}</p>
                             <p className="text-[10px] text-ct-muted">
@@ -550,7 +551,7 @@ export default function ComplianceDetailPage() {
                       data.comments.map((c) => (
                         <div key={c.id} className="flex items-start gap-3">
                           <Avatar className="h-7 w-7 mt-0.5">
-                            <AvatarFallback className="bg-ct-accent text-ct-saffron text-[10px] font-bold">
+                            <AvatarFallback className="bg-ct-accent text-ct-saffron-text text-[10px] font-bold">
                               {getInitials(c.author.name)}
                             </AvatarFallback>
                           </Avatar>
@@ -578,6 +579,7 @@ export default function ComplianceDetailPage() {
                     <Button
                       size="icon"
                       className="h-9 w-9 bg-ct-saffron hover:bg-ct-saffron-hover text-white shrink-0"
+                      aria-label="Send comment"
                       onClick={addComment}
                     >
                       <Send className="size-4" />

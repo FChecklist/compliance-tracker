@@ -366,7 +366,7 @@ export default function NoticeDetailPage() {
       <Card className="rounded-xl shadow-card bg-white p-6">
         <CardHeader className="p-0 pb-4 mb-4 border-b border-ct-border">
           <CardTitle className="text-base text-ct-navy flex items-center gap-2">
-            <FileText className="size-4 text-ct-saffron" />
+            <FileText className="size-4 text-ct-saffron-text" />
             Notice Details
           </CardTitle>
         </CardHeader>
@@ -437,7 +437,7 @@ export default function NoticeDetailPage() {
       <Card className="rounded-xl shadow-card bg-white p-6">
         <CardHeader className="p-0 pb-3 mb-3">
           <CardTitle className="text-base text-ct-navy flex items-center gap-2">
-            <FileText className="size-4 text-ct-saffron" />
+            <FileText className="size-4 text-ct-saffron-text" />
             Description
           </CardTitle>
         </CardHeader>
@@ -458,7 +458,7 @@ export default function NoticeDetailPage() {
       <Card className="rounded-xl shadow-card bg-white p-6">
         <CardHeader className="p-0 pb-3 mb-3">
           <CardTitle className="text-base text-ct-navy flex items-center gap-2">
-            <Clock className="size-4 text-ct-saffron" />
+            <Clock className="size-4 text-ct-saffron-text" />
             Update Status
           </CardTitle>
         </CardHeader>
@@ -498,7 +498,7 @@ export default function NoticeDetailPage() {
       <Card className="rounded-xl shadow-card bg-white p-6">
         <CardHeader className="p-0 pb-3 mb-3">
           <CardTitle className="text-base text-ct-navy flex items-center gap-2">
-            <FolderOpen className="size-4 text-ct-saffron" />
+            <FolderOpen className="size-4 text-ct-saffron-text" />
             Documents
           </CardTitle>
         </CardHeader>

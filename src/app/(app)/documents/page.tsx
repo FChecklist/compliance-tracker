@@ -71,7 +71,7 @@ function expiryBadge(expiryDate: string | null) {
   if (!expiryDate) return null;
   const daysLeft = Math.ceil((new Date(expiryDate).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
   if (daysLeft < 0) return <Badge className="bg-ct-error/10 text-ct-error border-ct-error/20 text-xs">Expired</Badge>;
-  if (daysLeft <= 30) return <Badge className="bg-ct-saffron/10 text-ct-saffron border-ct-saffron/20 text-xs">Expires in {daysLeft}d</Badge>;
+  if (daysLeft <= 30) return <Badge className="bg-ct-saffron/10 text-ct-saffron-text border-ct-saffron/20 text-xs">Expires in {daysLeft}d</Badge>;
   return <Badge variant="secondary" className="text-xs">Expires {new Date(expiryDate).toLocaleDateString()}</Badge>;
 }
 
@@ -367,7 +367,7 @@ export default function DocumentsPage() {
       {expiringCount > 0 && (
         <Card className="rounded-xl border-ct-saffron/30 bg-ct-saffron/5 shadow-none">
           <CardContent className="py-3 flex items-center gap-2 text-sm text-ct-navy">
-            <AlertTriangle className="size-4 text-ct-saffron shrink-0" />
+            <AlertTriangle className="size-4 text-ct-saffron-text shrink-0" />
             {expiringCount} document{expiringCount === 1 ? "" : "s"} expiring within 30 days.
           </CardContent>
         </Card>

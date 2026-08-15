@@ -8,7 +8,7 @@ import { LoginForm } from "./login-form";
 function LoginFallback() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-navy">
-      <Loader2 className="size-8 text-ct-saffron animate-spin" />
+      <Loader2 className="size-8 text-ct-saffron-text animate-spin" />
     </div>
   );
 }

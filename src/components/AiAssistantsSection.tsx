@@ -145,7 +145,7 @@ export default function AiAssistantsSection() {
               className="flex items-start gap-3 p-3 rounded-lg bg-white border border-ct-border"
             >
               <div className="size-8 rounded-full bg-ct-accent flex items-center justify-center shrink-0">
-                <Bot className="size-4 text-ct-saffron" />
+                <Bot className="size-4 text-ct-saffron-text" />
               </div>
               <div className="flex-1 min-w-0">
                 {editingId === a.id ? (
@@ -165,6 +165,7 @@ export default function AiAssistantsSection() {
                       size="icon"
                       className="h-7 w-7 text-ct-teal shrink-0"
                       disabled={saving}
+                      aria-label="Save label"
                       onClick={() => saveLabel(a.id)}
                     >
                       <Check className="size-3.5" />
@@ -174,6 +175,7 @@ export default function AiAssistantsSection() {
                       size="icon"
                       className="h-7 w-7 text-ct-muted shrink-0"
                       disabled={saving}
+                      aria-label="Cancel"
                       onClick={cancelEdit}
                     >
                       <X className="size-3.5" />
@@ -186,6 +188,7 @@ export default function AiAssistantsSection() {
                       variant="ghost"
                       size="icon"
                       className="h-6 w-6 text-ct-muted hover:text-ct-navy shrink-0"
+                      aria-label="Edit label"
                       onClick={() => startEdit(a)}
                     >
                       <Pencil className="size-3" />

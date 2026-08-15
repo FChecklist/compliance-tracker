@@ -330,7 +330,7 @@ export default function WorkspaceMemorySection() {
               {ev.direction === "export" ? (
                 <ArrowDownToLine className="size-4 text-ct-teal shrink-0" />
               ) : (
-                <ArrowUpFromLine className="size-4 text-ct-saffron shrink-0" />
+                <ArrowUpFromLine className="size-4 text-ct-saffron-text shrink-0" />
               )}
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">

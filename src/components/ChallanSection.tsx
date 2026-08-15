@@ -152,10 +152,10 @@ export default function ChallanSection({ complianceItemId }: ChallanSectionProps
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <Receipt className="size-4 text-ct-saffron" />
+          <Receipt className="size-4 text-ct-saffron-text" />
           <h3 className="text-sm font-semibold text-ct-navy">Challan Payments</h3>
           {challans.length > 0 && (
-            <Badge variant="secondary" className="bg-ct-accent text-ct-saffron text-[10px] px-1.5 font-medium">
+            <Badge variant="secondary" className="bg-ct-accent text-ct-saffron-text text-[10px] px-1.5 font-medium">
               {challans.length}
             </Badge>
           )}
@@ -285,6 +285,7 @@ export default function ChallanSection({ complianceItemId }: ChallanSectionProps
                       variant="ghost"
                       size="icon"
                       className="h-7 w-7 text-ct-muted hover:text-ct-error"
+                      aria-label="Delete challan"
                       onClick={() => handleDelete(c.id)}
                     >
                       <Trash2 className="size-3.5" />

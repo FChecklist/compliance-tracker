@@ -166,7 +166,7 @@ export function DashboardAnalytics() {
   if (loading) return <DashboardSkeleton />;
   if (notSetup) return (
     <div className="flex flex-col items-center justify-center min-h-[60vh] text-center px-4">
-      <ShieldCheck className="size-14 text-ct-saffron mb-4" />
+      <ShieldCheck className="size-14 text-ct-saffron-text mb-4" />
       <h2 className="font-heading text-2xl text-ct-navy mb-2">Account Setup Incomplete</h2>
       <p className="text-ct-muted max-w-md mb-6">
         Your account is not linked to an organisation yet. Please contact your administrator to complete your account setup.
@@ -228,7 +228,7 @@ export function DashboardAnalytics() {
       <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-            <TrendingUp className="size-4 text-ct-saffron" />
+            <TrendingUp className="size-4 text-ct-saffron-text" />
             Pendency by Department
           </CardTitle>
         </CardHeader>
@@ -280,12 +280,12 @@ export function DashboardAnalytics() {
           <CardHeader className="pb-2">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-                <Clock className="size-4 text-ct-saffron" />
+                <Clock className="size-4 text-ct-saffron-text" />
                 Upcoming Deadlines
               </CardTitle>
               <Link
                 href="/compliance"
-                className="text-xs text-ct-saffron hover:underline flex items-center gap-1 font-medium"
+                className="text-xs text-ct-saffron-text hover:underline flex items-center gap-1 font-medium"
               >
                 View all <ArrowUpRight className="size-3" />
               </Link>
@@ -317,7 +317,7 @@ export function DashboardAnalytics() {
                       <TableCell className="text-xs font-medium max-w-[140px] truncate">
                         <Link
                           href={`/compliance/${item.id}`}
-                          className="hover:text-ct-saffron transition-colors"
+                          className="hover:text-ct-saffron-text transition-colors"
                         >
                           {item.title}
                         </Link>

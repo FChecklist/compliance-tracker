@@ -35,12 +35,12 @@ type PunchItem = {
 
 const STATUS_COLORS: Record<string, string> = {
   open: "bg-red-100 text-red-700",
-  ready_for_review: "bg-ct-saffron/20 text-ct-saffron",
+  ready_for_review: "bg-ct-saffron/20 text-ct-saffron-text",
   verified_closed: "bg-green-100 text-green-700",
 };
 const PRIORITY_COLORS: Record<string, string> = {
   high: "bg-red-100 text-red-700",
-  medium: "bg-ct-saffron/20 text-ct-saffron",
+  medium: "bg-ct-saffron/20 text-ct-saffron-text",
   low: "bg-ct-cloud text-ct-muted",
 };
 

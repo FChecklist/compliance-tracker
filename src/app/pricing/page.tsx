@@ -185,7 +185,7 @@ export default function PricingPage() {
           variants={fadeUp}
           custom={0}
         >
-          <Badge className="bg-ct-accent text-ct-saffron text-xs font-semibold mb-4 px-3 py-1">
+          <Badge className="bg-ct-accent text-ct-saffron-text text-xs font-semibold mb-4 px-3 py-1">
             <Sparkles className="size-3 mr-1.5" />
             Pricing
           </Badge>
@@ -274,7 +274,7 @@ export default function PricingPage() {
                     >
                       <plan.icon
                         className={`size-5 ${
-                          plan.popular ? "text-ct-saffron" : "text-ct-slate"
+                          plan.popular ? "text-ct-saffron-text" : "text-ct-slate"
                         }`}
                       />
                     </div>
@@ -371,7 +371,7 @@ export default function PricingPage() {
                   <TableHead className="text-xs font-semibold text-ct-muted uppercase text-center">
                     Starter
                   </TableHead>
-                  <TableHead className="text-xs font-semibold text-ct-saffron uppercase text-center">
+                  <TableHead className="text-xs font-semibold text-ct-saffron-text uppercase text-center">
                     Professional
                   </TableHead>
                   <TableHead className="text-xs font-semibold text-ct-muted uppercase text-center">
@@ -426,7 +426,7 @@ export default function PricingPage() {
             custom={0}
           >
             <div className="inline-flex items-center justify-center size-12 rounded-xl bg-ct-accent mb-4">
-              <HelpCircle className="size-6 text-ct-saffron" />
+              <HelpCircle className="size-6 text-ct-saffron-text" />
             </div>
             <h2 className="font-heading text-2xl sm:text-3xl text-ct-navy">
               Frequently Asked Questions

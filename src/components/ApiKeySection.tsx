@@ -305,7 +305,7 @@ export default function ApiKeySection({ onKeysCountChange }: ApiKeySectionProps)
               key={k.id}
               className="flex items-center gap-3 p-3 rounded-lg bg-white border border-ct-border"
             >
-              <Key className="size-4 text-ct-saffron shrink-0" />
+              <Key className="size-4 text-ct-saffron-text shrink-0" />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
                   <span className="text-sm font-medium text-ct-navy truncate">{k.name}</span>
@@ -318,7 +318,7 @@ export default function ApiKeySection({ onKeysCountChange }: ApiKeySectionProps)
                     <Badge
                       key={s}
                       variant="secondary"
-                      className="text-[9px] px-1.5 py-0 bg-ct-accent text-ct-saffron font-medium"
+                      className="text-[9px] px-1.5 py-0 bg-ct-accent text-ct-saffron-text font-medium"
                     >
                       {s.trim()}
                     </Badge>
@@ -353,6 +353,7 @@ export default function ApiKeySection({ onKeysCountChange }: ApiKeySectionProps)
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-ct-muted hover:text-ct-error shrink-0"
+                aria-label="Delete API key"
                 onClick={() => handleDelete(k.id)}
               >
                 <Trash2 className="size-3.5" />

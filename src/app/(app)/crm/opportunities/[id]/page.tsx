@@ -29,7 +29,7 @@ type Activity = { id: string; activityType: string; subject: string; dueDate: st
 
 const STAGE_LABELS: Record<string, string> = { prospecting: "Prospecting", proposal: "Proposal", negotiation: "Negotiation", won: "Won", lost: "Lost" };
 const STAGE_COLORS: Record<string, string> = {
-  prospecting: "bg-ct-cloud text-ct-muted", proposal: "bg-ct-saffron/20 text-ct-saffron", negotiation: "bg-ct-teal/20 text-ct-teal",
+  prospecting: "bg-ct-cloud text-ct-muted", proposal: "bg-ct-saffron/20 text-ct-saffron-text", negotiation: "bg-ct-teal/20 text-ct-teal",
   won: "bg-green-100 text-green-700", lost: "bg-red-100 text-red-700",
 };
 
@@ -143,7 +143,7 @@ export default function OpportunityDetailPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="rounded-xl shadow-card bg-white md:col-span-2">
-          <CardHeader><CardTitle className="text-sm font-semibold text-ct-navy flex items-center gap-2"><Sparkles className="size-4 text-ct-saffron" /> AI Analysis</CardTitle></CardHeader>
+          <CardHeader><CardTitle className="text-sm font-semibold text-ct-navy flex items-center gap-2"><Sparkles className="size-4 text-ct-saffron-text" /> AI Analysis</CardTitle></CardHeader>
           <CardContent className="space-y-3">
             {opp.aiWinProbability != null ? (
               <>
