@@ -105,7 +105,32 @@ artifact upload) is pasted into the PR description as a fast-follow for
 whoever has `workflow` scope to apply.
 
 ## Remaining
-- [ ] Push the rebuilt branch, open the replacement PR (superseding #1232),
-      paste the `ci.yml` diff into the description as before.
-- [ ] Let real CI run green on the replacement PR before considering this
-      closed.
+- [x] Push the rebuilt branch. PR #1232 (opened before the rebase was
+      discovered) auto-updated in place on the force-push -- no need for a
+      separate replacement PR; its description was rewritten to match the
+      rebuilt diff, including the `ci.yml` follow-up diff.
+- [x] Fixed a real, PR-caused-but-not-PR-introduced CI failure: Terminology
+      Guardrail Check flagged `playwright.config.ts`'s pre-existing (main's
+      own, 2026-07-20-dated) "Fixed 2026-07-20" comment as 1 new unexempted
+      `hardcoded_iso_date` finding, surfaced only because this PR is the
+      first to touch that file since the comment was written (`--diff-only`
+      only scans changed files). Added the documented exemption entry
+      (`ai-os/registry/terminology-guardrail-exemptions.yaml`) per the
+      check script's own instructions, rather than rewording unrelated
+      content. Verified locally before pushing.
+- [x] Posted the required 8-field AUDIT: PASS comment (self-audit --
+      single-session, no separate implementer/auditor identity exists yet
+      per the repo's own documented limitation, see memory
+      `veridian-audit-pass-same-identity-limitation`).
+- [x] Real GitHub Actions CI on PR #1232, checked directly (not assumed):
+      Lint / Type Check / Unit Tests / Terminology Guardrail Check /
+      audit-check / Guardrail Presence Check / Secret Scanning / Security
+      Pattern Check / Doc Cross-Reference / Doc Quarantine Banner /
+      Metadata Index Coverage / Asset Registry Coverage / Migration Number
+      Collision / Analyze (CodeQL) all **pass**. Only `Vercel` deploy check
+      fails, and only on a pre-existing, unrelated `build-rate-limit`
+      infra issue (visible in its own check URL), not caused by this PR.
+- [ ] `Build` / `E2E Tests` jobs were still pending as of the last check —
+      confirm they finish green (this is the one check that directly
+      exercises `e2e/accessibility.spec.ts` for real in CI) before treating
+      this as fully closed.
