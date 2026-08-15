@@ -40,6 +40,36 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure"
+    claimed_at: "2026-08-15T05:35Z (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, VERIDIAN Review Framework 2 findings):
+      [Low] Error Handling Quality -- ~9% of API routes lack a visible
+      try/catch (recommended: ESLint rule or CI check requiring try/catch +
+      ServiceError handling in every route.ts); [Medium] Logging Quality --
+      no confirmed centralized structured logging utility (recommended: a
+      lightweight structured operational logger, correlation-ID aware,
+      distinct from the compliance audit_logs tables).
+      Re-verified both against current `main` before starting (per the
+      task prompt's own instruction not to trust the finding description
+      unchecked): 72/995 `route.ts` files (7.2%) still have no `try {`
+      anywhere in the file; no centralized structured logger exists
+      anywhere in `src/lib` (`orchestra-execution-logger.ts` is a
+      DB-persisted AI-execution-cost observability helper, unrelated).
+      Both findings still real.
+    scope_note: >-
+      File scope: new `src/lib/logger.ts` + `src/lib/logger.test.ts`, new
+      `scripts/check-route-error-handling.mjs`, `.github/workflows/ci.yml`
+      (new job), and try/catch fixes to a small sample of pre-existing
+      violation files not claimed elsewhere (`src/app/api/approvals/route.ts`,
+      `src/app/api/bcm/route.ts`, `src/app/api/board-evaluation/route.ts`).
+      Not touching `src/lib/services/permission-service.ts` (explicitly
+      out of scope per task prompt) or the ~62 remaining pre-existing
+      try/catch-less routes not listed above (left as documented residual
+      debt -- see this task's own `progress/*.md` for why: mass-editing 65+
+      files risks colliding with several other in-flight workers editing
+      `src/app/api/**` right now, for a Low-severity finding whose own
+      recommended fix is a forward-enforcing check, not a full rewrite).
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
