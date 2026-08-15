@@ -66,10 +66,24 @@ Process" -- close 2 findings (prompt.txt):
 - [x] Verification: `bunx tsc --noEmit` clean; `bun run lint` clean (only
       the same 3 pre-existing unrelated warnings PR #1221 already noted).
 
+- [x] (invocation 16/20) Merged current `origin/main` (was 8 commits
+      behind after invocation 14/20's PR #1017 merge) -- clean, no
+      conflicts. Re-verified `bunx tsc --noEmit` (needed
+      `NODE_OPTIONS=--max-old-space-size=4096`; default heap OOM'd in this
+      environment -- unrelated to this change, a plain resource limit) and
+      `bunx eslint src/lib/ai-team/roster.ts` both clean after the merge.
+- [x] Pushed branch and opened **PR #1270**:
+      https://github.com/FChecklist/compliance-tracker/pull/1270
+
 ## Remaining
-- [ ] Open the PR (branch already pushed / fast-forwarded to current
-      `main` + this doc comment) and let CI run per Rule 6.
-- [ ] Post the AUDIT verdict comment once CI is green (Rule 10 process --
-      this diff is not on an `ai-team/<role>/*` branch so the mandatory
-      merge-gate doesn't strictly apply, but doing it anyway is harmless
-      and consistent with prior closures in this task family).
+- [ ] Watch PR #1270 CI (Type Check / Lint / Unit Tests / Promptfoo Evals
+      still pending as of last check; `Vercel` preview failed on a build
+      rate-limit, not a real code issue; `audit-check` fails until the
+      AUDIT comment below is posted -- both expected at this stage).
+- [ ] Post the AUDIT verdict comment once the substantive CI checks are
+      green (Rule 10 process -- this diff is not on an `ai-team/<role>/*`
+      branch so the mandatory merge-gate doesn't strictly apply, but doing
+      it anyway is harmless and consistent with prior closures in this
+      task family).
+- [ ] Merge PR #1270 once green (per Rule 6, via PR -- no direct push to
+      `main`).
