@@ -45,6 +45,18 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role (server-side only)
 
+## High-Risk Files — Apply Extra Caution
+
+VERIDIAN Review Framework gap-closure, "AI Modification Readiness" (Medium): there is no single readiness score for this codebase, and readiness depends heavily on which file you're touching. Rather than build a scoring system, this is a snapshot list of files that are both **large** (≥300 lines) and **untested** (no matching `*.test.ts`) as of 2026-08-15 — the two attributes that make a change hardest for an AI agent to get right and hardest to verify mechanically. A file on this list isn't necessarily broken; it just means the usual safety net (small diff, existing test suite catching a regression) is weaker here, so read the whole file before editing, make the smallest change that closes the gap, and consider adding a test alongside your change rather than after.
+
+Regenerate this list yourself if it's gone stale: `git ls-files 'src/lib/**/*.ts' 'src/app/api/**/route.ts' | grep -v '\.test\.' | while read -r f; do t="${f%.ts}.test.ts"; l=$(wc -l < "$f"); [ "$l" -ge 300 ] && [ ! -f "$t" ] && echo "$l $f"; done | sort -rn` — this is a heuristic (line count is a crude proxy for complexity, and a missing same-name test file doesn't mean zero coverage if it's exercised via an integration/e2e test elsewhere), not a certified score. Extending this list is always fine; if you fix one (add real tests, or split it down under 300 lines), remove it in the same PR.
+
+- `src/lib/db/schema.ts` (10,196 lines) — special case, not a normal "add tests" candidate: this is the single Drizzle schema for every table in the `compliance` schema. Its real safety net is `bun run db:generate` + a reviewed migration diff, not a unit test. Still the single highest-blast-radius file to hand-edit in this repo — a wrong column type or dropped constraint here can break every service that touches that table.
+- `src/lib/supabase/auth-guard.ts` (456 lines) — every API route's `requireAuth()` comes from here (AI-OS Rules below). Untested and load-bearing for the entire auth boundary; treat any change here as security-sensitive even if it looks cosmetic.
+- `src/app/api/mcp/route.ts` (590 lines), `src/app/api/ai/orchestrate/route.ts` (391 lines) — the two largest untested API route handlers; both are AI/agent-facing entry points, not ordinary CRUD routes.
+- ERP service layer (largest untested files, `src/lib/services/`): `erp-invoicing-service.ts` (698), `erp-accounting-service.ts` (557), `erp-selling-service.ts` (540), `erp-payroll-service.ts` (513), `erp-financial-report-service.ts` (456), `erp-contract-service.ts` (456), `erp-procurement-workflow-service.ts` (452), `erp-goods-receipt-service.ts` (310).
+- Other large untested services (`src/lib/services/`): `compliance-service.ts` (509), `veri-reward-service.ts` (461), `workspace-memory-service.ts` (443), `crm-service.ts` (419), `sales-engine-service.ts` (396), `veri-meeting-service.ts` (379), `gst-reconciliation-service.ts` (378), `ticket-service.ts` (326), `fde-service.ts` (323), `construction-reports-service.ts` (312), `fm-register-digitization-service.ts` (309), `communication-drafting-service.ts` (301).
+
 ## AI-OS Rules
 - Open tasks/gaps tracked in `ai-os/MASTER-TRACKER.yaml`; closed work logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
 - `ai-os/CONSTITUTION.yaml` is supreme — never bypass a rule in it without the owner's explicit written instruction (see its own `amendment_rule`)

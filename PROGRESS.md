@@ -1,80 +1,27 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-113004-retry-2--ai-engineering-quality--ai-mod
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+Task: VERIDIAN Review Framework gap-closure, "AI Engineering Quality / AI-Modification Readiness" (2 findings). Note: 15 prior invocations of this task all failed pre-flight on a real (now-resolved) OpenRouter credit shortfall -- see task.yaml checkpoint history -- so no real work had been done before this run; this is a genuine first pass, not a resume of partial work.
+
+## Findings addressed
+
+### [Low] Code Readability for AI -- "Comment discipline not enforced by tooling"
+Re-verified against the live codebase first, per this task's own instruction not to trust the finding description blindly: 232/233 existing `src/lib/services/*.ts` files already carry a real header comment (only `context.ts` doesn't have one as literally the first line -- it has one starting line 3, after a single import, which is itself a legitimate precedent, not a gap). So the *convention* was never actually missing -- the finding is accurate about the specific gap it names: nothing enforced it, so a new file could silently skip it.
+
+Closed with a new CI check, `scripts/check-service-header-comment.mjs`, wired into `.github/workflows/ci.yml` as the `service-header-comment` job:
+- Scope: only **new** `src/lib/services/*.ts` files (added since the merge-base with `main`), not a retroactive rewrite of all 233 existing files -- matches the "new service files" wording in the finding's own recommended approach.
+- Requires a `//` comment block of >= 40 real characters within the first 15 lines, tolerating a small number of leading `import`/`export type` lines before it (the `context.ts` pattern), so it doesn't force one rigid physical layout.
+- Same enforcement class as this repo's existing `check-*.mjs` CI checks (`check-doc-quarantine-banner.mjs`, `check-migration-collision.mjs`): a reviewable-diff guarantee via PR/CI, not a runtime-unbypassable lock -- documented as such in the script's own header, not oversold.
+- Verified locally: correctly passes on the current tree (0 new service files against `main`), correctly fails against a deliberately-under-length test file, correctly passes the `context.ts`-style (comment-after-import) case, and correctly passes a normal comment-first file. Test files were scratch-only and removed before commit -- not part of the real diff.
+
+### [Medium] AI Modification Readiness -- "No single readiness score; depends heavily on which file"
+Recommended approach was explicitly *not* to build a scoring system but to flag high-risk files in CLAUDE.md -- did that. Added a new `## High-Risk Files -- Apply Extra Caution` section to `CLAUDE.md` listing every file that is both large (>= 300 lines) and untested (no matching `*.test.ts`) across `src/lib/**` and `src/app/api/**/route.ts`, as of 2026-08-15 (24 files, `src/lib/db/schema.ts` called out separately as a special case whose real safety net is the migration-review flow, not a unit test). Included the exact regeneration command and its documented limitations (line count is a crude complexity proxy; a missing `.test.ts` doesn't rule out integration/e2e coverage elsewhere) so this doesn't read as more authoritative than it is. Independently re-ran the regeneration command after writing the section and confirmed the list matches exactly.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
-
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` -- no existing active claim overlaps this task's file scope (`scripts/`, `.github/workflows/ci.yml`, `CLAUDE.md`).
+- [x] Re-read the live `src/lib/services/` implementation before writing any code (per this task's own instruction) rather than trusting the finding description as-is.
+- [x] Added `scripts/check-service-header-comment.mjs` and wired it into `.github/workflows/ci.yml`.
+- [x] Added the High-Risk Files section to `CLAUDE.md`.
+- [x] Did not touch `src/lib/services/permission-service.ts` or its `ERP_ACTION_ROLES` table -- out of scope for this task, confirmed untouched.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] The `.github/workflows/ci.yml` job wiring `service-header-comment` into CI is a **separate, second commit on this same branch, not yet pushed**: this session's `gh` push token lacks the `workflow` OAuth scope GitHub requires for any push that touches a `.github/workflows/*.yml` file (known, documented limitation, not specific to this task). `scripts/check-service-header-comment.mjs` itself is real, tested, and in the pushed commit -- it just isn't wired into a CI job yet. The owner (or a session with `workflow` scope) needs to either push the second local commit directly, or cherry-pick the one-job diff into `ci.yml` and push that. The exact diff is a single new job block, `service-header-comment`, inserted after `doc-cross-references` in `.github/workflows/ci.yml` -- see this branch's second commit for the literal content.

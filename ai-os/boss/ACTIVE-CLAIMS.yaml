@@ -41,6 +41,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-113004-retry-2--ai-engineering-quality--ai-mod) -- AI Engineering Quality / AI-Modification Readiness gap-closure"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure, 2 findings: [Low] "Code
+      Readability for AI" (comment discipline not enforced by tooling) and
+      [Medium] "AI Modification Readiness" (no single readiness score,
+      flag high-risk files in CLAUDE.md instead). Re-verified against the
+      live codebase first -- 232/233 existing src/lib/services/*.ts files
+      already carry a header comment, so the gap is specifically "never
+      enforced by tooling", not "convention missing".
+      Scope: new scripts/check-service-header-comment.mjs (CI check,
+      new-files-only via git-diff-against-merge-base, same class as
+      check-migration-collision.mjs/check-doc-quarantine-banner.mjs),
+      .github/workflows/ci.yml (+1 job wiring it in), CLAUDE.md (+1
+      section listing large-and-untested files as of 2026-08-15). Does
+      NOT touch src/lib/services/permission-service.ts or its
+      ERP_ACTION_ROLES table (out of scope per this task's own
+      instructions) and does not overlap any other active claim below.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
