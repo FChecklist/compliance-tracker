@@ -39,12 +39,41 @@
 // explicit `note`, matching this codebase's own established
 // "verdict: null, note" discipline (see taskReflections.differentAiTierFlag/
 // reusablePatternFlag in schema.ts) rather than inventing a number.
-import { db, activityLog } from "@/lib/db"
+//
+// AI Model Lifecycle & Benchmarking, Ongoing Quality Monitoring pass
+// (added later, this same file): this scorecard's own PLATFORM_STRATEGY.md
+// 30.2 status row admitted two gaps -- "no hallucination-score or cost
+// field yet (cost lives separately in token-usage-service.ts)". Cost is
+// closed below: token_usage_ledger (token-usage-service.ts) genuinely has
+// a `model` column already, grouped and merged in as a real, additive
+// total -- not a duplicate pipeline, the exact same ledger the Finance
+// summary already reads, just re-grouped for this shape. Honestly NOT
+// tier-split -- token_usage_ledger has no complexity_tier column (a
+// dispatch's cost isn't tagged with the tier it was validated against),
+// so costUsd is attached at model granularity and repeated identically
+// across that model's own tier rows; see COST_GRANULARITY_NOTE.
+// hallucination-score stays genuinely NOT computable, same honesty
+// discipline as ITERATION_COUNT_NOTE below -- confirmed by grep
+// (2026-08-15) that no persisted signal anywhere in this codebase scores
+// an individual dispatch's output for fabricated/incorrect claims; the
+// closest real things are auditFindingRate (a human/reviewer verdict on
+// the whole dispatch, not a hallucination-specific measure) and the
+// static communication-guardrails.ts pattern-matchers (regex rules on
+// draft communications, not a per-dispatch scored signal persisted
+// anywhere). Documented via HALLUCINATION_SCORE_NOTE rather than
+// fabricating a number.
+import { db, activityLog, tokenUsageLedger } from "@/lib/db"
 import { and, eq, gte, sql } from "drizzle-orm"
 import { getRole } from "@/lib/ai-team/roster"
 
 export const ITERATION_COUNT_NOTE =
   "Not computable from persisted data yet: the repo-write dispatch path (scripts/ai-workforce-agent.mjs's MAX_ITERATIONS tool-call loop) has no DATABASE_URL in CI and cannot persist a per-dispatch iteration count; the DB-backed advisory path (POST /api/ai/team/dispatch, runRole()) is a single non-looping LLM call, so an iteration count there would always trivially be 1 -- not a real distinguishing signal. Wiring iteration reporting requires an infrastructure decision (DB access from CI, or an authenticated callback), not a new column -- flagged honestly rather than fabricated."
+
+export const HALLUCINATION_SCORE_NOTE =
+  "Not computable from persisted data yet: no persisted signal anywhere in this codebase scores an individual dispatch's output for fabricated/incorrect claims. auditFindingRate (reviewDecision='rejected') is the closest real proxy but is a whole-dispatch pass/fail verdict from a human/reviewer, not a hallucination-specific measure; communication-guardrails.ts's pattern-matchers catch specific known phrasings (e.g. a hallucinated 'already sent' claim) at send-time but don't persist a per-dispatch score anywhere. Flagged honestly rather than fabricated -- matches ITERATION_COUNT_NOTE's own discipline."
+
+export const COST_GRANULARITY_NOTE =
+  "costUsd is real spend from token_usage_ledger (scope='ai_team_internal'), grouped by model -- token_usage_ledger has no complexity_tier column, so this total cannot be split per tier and is attached identically to every complexityTier row this model appears in. Do not sum costUsd.totalUsd across a single model's own tier rows -- that double-counts; sum across distinct MODELS only."
 
 /** One raw (role_key, complexity_tier) group as aggregated in SQL -- sums/counts only, so merging groups that share a resolved model is exact addition, not an average-of-averages approximation. */
 export type ScorecardGroupRow = {
@@ -77,6 +106,10 @@ export type ModelScorecardEntry = {
   /** auditFindingCount / reviewedCount. null when nothing has been reviewed yet (no signal, not zero). */
   auditFindingRate: number | null
   iterationCount: { avg: number | null; note: string }
+  /** Real spend from token_usage_ledger, grouped by model only (see COST_GRANULARITY_NOTE). null (not 0) when this model has no recorded ledger rows in the window -- same null-vs-zero discipline as avgDurationMs. */
+  costUsd: { totalUsd: number | null; note: string }
+  /** Honestly not computable yet -- see HALLUCINATION_SCORE_NOTE. */
+  hallucinationScore: { value: number | null; note: string }
 }
 
 /**
@@ -155,12 +188,37 @@ export function mergeScorecardGroups(
     auditFindingCount: m.auditFindingCount,
     auditFindingRate: m.reviewedCount > 0 ? m.auditFindingCount / m.reviewedCount : null,
     iterationCount: { avg: null, note: ITERATION_COUNT_NOTE },
+    // Filled in by attachModelCost() below -- kept absent here so this
+    // function stays a pure merge of activity_log-derived groups only,
+    // same pure-core/DB-shell split token_usage_ledger's own query needs
+    // to respect (a second, independent aggregate, not part of this one).
+    costUsd: { totalUsd: null, note: COST_GRANULARITY_NOTE },
+    hallucinationScore: { value: null, note: HALLUCINATION_SCORE_NOTE },
   }))
 
   // Highest-volume model+tier first -- same "most consequential first"
   // ordering convention as agent-directory-service.ts's common-errors query.
   entries.sort((a, b) => b.dispatchCount - a.dispatchCount)
   return entries
+}
+
+/** One model's real total spend in the window, from token_usage_ledger grouped by model. */
+export type ModelCostRow = { model: string; totalUsd: number }
+
+/**
+ * Pure: attaches each model's real ledger total onto every scorecard entry
+ * for that model (repeated across its tier rows -- see COST_GRANULARITY_NOTE
+ * on why this can't be tier-split), leaving costUsd.totalUsd null for a
+ * model with no matching ledger rows in the window rather than defaulting
+ * to 0. Kept separate from mergeScorecardGroups so that function's own
+ * activity_log-only contract (and its existing tests) stay untouched.
+ */
+export function attachModelCost(entries: ModelScorecardEntry[], costRows: ModelCostRow[]): ModelScorecardEntry[] {
+  const costByModel = new Map(costRows.map((r) => [r.model, r.totalUsd]))
+  return entries.map((entry) => {
+    const totalUsd = costByModel.get(entry.model)
+    return totalUsd === undefined ? entry : { ...entry, costUsd: { totalUsd, note: COST_GRANULARITY_NOTE } }
+  })
 }
 
 /**
@@ -193,5 +251,19 @@ export async function getModelScorecard(opts: { sinceDays?: number } = {}): Prom
     .where(sinceClause ? and(eq(activityLog.activityType, "ai_team_dispatch"), sinceClause) : eq(activityLog.activityType, "ai_team_dispatch"))
     .groupBy(activityLog.roleKey, activityLog.complexityTier)
 
-  return mergeScorecardGroups(rows, (roleKey) => (roleKey ? getRole(roleKey)?.model ?? "unclassified" : "unclassified"))
+  const entries = mergeScorecardGroups(rows, (roleKey) => (roleKey ? getRole(roleKey)?.model ?? "unclassified" : "unclassified"))
+
+  const costSinceClause = opts.sinceDays != null
+    ? gte(tokenUsageLedger.createdAt, new Date(Date.now() - opts.sinceDays * 86_400_000))
+    : undefined
+  const costRows: ModelCostRow[] = await db
+    .select({
+      model: tokenUsageLedger.model,
+      totalUsd: sql<number>`coalesce(sum(${tokenUsageLedger.estimatedCostUsd}), 0)::float`,
+    })
+    .from(tokenUsageLedger)
+    .where(costSinceClause ? and(eq(tokenUsageLedger.scope, "ai_team_internal"), costSinceClause) : eq(tokenUsageLedger.scope, "ai_team_internal"))
+    .groupBy(tokenUsageLedger.model)
+
+  return attachModelCost(entries, costRows)
 }

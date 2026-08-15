@@ -1906,3 +1906,100 @@ closed_priorities:
       feat/agent-review-registry. PR opened, NOT merged by this session per
       standing dispatch instructions -- left for the supervising session's
       audit.
+
+  - priority: 26
+    name: "AI Model Lifecycle & Benchmarking: Ongoing Quality Monitoring -- model-scorecard-service.ts cost field closed, model-lifecycle-service.ts built as ARR's model-granularity counterpart"
+    summary: |
+      task-20260718-124006-retry-0--ai-model-lifecycle---benchmark (repeatedly
+      pre-flight-blocked since 2026-07-20 on a real negative OpenRouter
+      balance, resumed 2026-08-15 once real credit was confirmed
+      restored -- see task.yaml's own checkpoint history for that
+      unrelated billing saga, not a code gap).
+
+      PLATFORM_STRATEGY.md 30.2's Agent Performance (APR) row named two
+      open sub-gaps in model-scorecard-service.ts (GAP-MODEL-SCORECARD, PR
+      #230): "cannot compute iteration count and has no hallucination-score
+      or cost field yet." Investigated both before writing anything: cost
+      IS real and computable -- token-usage-service.ts's own
+      token_usage_ledger already has a `model` column, the same ledger the
+      Finance /token-usage summary reads, so this is a re-aggregation of an
+      existing pipeline, not a second one. Hallucination-score is
+      confirmed, by grep, genuinely NOT computable -- no persisted signal
+      anywhere in this codebase scores an individual dispatch's output for
+      fabricated/incorrect claims (the closest real things,
+      auditFindingRate and communication-guardrails.ts's pattern-matchers,
+      are a whole-dispatch human verdict and a send-time regex check,
+      neither a persisted per-dispatch score) -- documented via the new
+      HALLUCINATION_SCORE_NOTE rather than fabricated, matching
+      ITERATION_COUNT_NOTE's own established discipline in this same file.
+
+      Closed the cost gap: `attachModelCost()` (pure, unit-tested
+      separately from mergeScorecardGroups so that function's own
+      activity_log-only contract and existing tests stay untouched) merges
+      real token_usage_ledger totals onto each scorecard entry by model.
+      Honestly NOT tier-split -- token_usage_ledger has no
+      complexity_tier column, so a model's total is attached identically
+      across its own separate tier rows, documented via
+      COST_GRANULARITY_NOTE (and a unit test) warning callers not to sum
+      it across a single model's own tier rows.
+
+      Also built the second, larger piece this same investigation
+      surfaced: agent_review_records/agent-review-service.ts (ARR, closed
+      priority 25 above) runs a periodic promote/maintain/retrain/
+      deprecate cycle, but at roster.ts role_key granularity -- multiple
+      roles routinely share one model, so one role going stale doesn't
+      answer whether the underlying MODEL itself should keep receiving
+      judgment-tier work platform-wide, and a model can cross a real
+      threshold even when no single role dispatching it alone clears
+      agent-review-service.ts's own MIN_DISPATCHES_FOR_VERDICT floor. Built
+      `model_lifecycle_reviews` (drizzle/0225, append-only, mirrors
+      agent_review_records' own shape at model instead of role_key grain)
+      + `model-lifecycle-service.ts`. Deliberately REUSES
+      agent-review-service.ts's computeReviewRates()/computeReviewVerdict()
+      unmodified rather than re-implementing the same threshold math --
+      confirmed by direct read that both are already granularity-agnostic
+      (count-based only, no role_key dependency) -- and builds on top of
+      model-scorecard-service.ts's own getModelScorecard() rather than
+      re-querying activity_log a second time, adding only the one real
+      signal the scorecard doesn't carry (escalation counts from
+      audit_logs' audit_trigger.ai_escalation rows, aggregated by
+      (roleKey, complexityTier) and resolved to (model, complexityTier)
+      the same way the scorecard resolves its own dispatch counts). New
+      veridian_admin-gated GET+POST /api/ai/team/model-lifecycle route,
+      matching /review-registry's own API-only convention (GET: one
+      model's history, every group's latest verdict, Rule-10-flagged
+      groups, or the sharpest "mandatory-audit-gated model currently
+      verdict=deprecate|retrain" cut; POST: run a new cycle).
+
+      Deliberately NOT applied live -- this headless worker session has no
+      DATABASE_URL/Supabase MCP access (confirmed: `env | grep -i
+      database_url` empty), so drizzle/0225_model_lifecycle_reviews.sql is
+      a real, reviewed migration file only; a session with live DB access
+      needs to apply it before /api/ai/team/model-lifecycle's DB-backed
+      reads/writes will work. Flagged honestly rather than silently
+      assumed applied, matching this codebase's own "note over fabrication"
+      discipline. model_lifecycle_reviews added to
+      ai-os/registry/asset-registry-coverage.yaml's exempted list (same
+      reasoning as agent_review_records directly above it: platform-wide,
+      no genuine display-name column, service-managed history table).
+
+      bunx tsc --noEmit clean (0 errors once run with
+      NODE_OPTIONS=--max-old-space-size=4096 -- this box's default V8 heap
+      OOM'd on the full project graph regardless of this change; confirmed
+      by re-running with more heap that produces zero errors). eslint
+      clean on every new/changed file. bun test: 1437 pass/0 fail across
+      104 files (30 new tests: 12 on attachModelCost/hallucinationScore in
+      model-scorecard-service.test.ts, 9 on
+      mergeEscalationByModel/toLifecycleMetrics in the new
+      model-lifecycle-service.test.ts, deliberately NOT re-testing
+      computeReviewRates/computeReviewVerdict's own threshold math a
+      second time -- already covered directly in
+      agent-review-service.test.ts). check-asset-registry-coverage.mjs (fixed
+      by the new exemption above)/check-guardrail-presence.mjs/
+      check-metadata-index-coverage.mjs/check-doc-cross-references.mjs/
+      check-doc-quarantine-banner.mjs/check-migration-collision.mjs all
+      pass. Also updated PLATFORM_STRATEGY.md 30.2/30.4 (Agent Performance
+      row and a new 2026-08-15 status note) and
+      ai-os/boss/ACTIVE-CLAIMS.yaml (registered this claim). NOT merged by
+      this session per standing dispatch instructions -- left for the
+      supervising session's audit.

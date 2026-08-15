@@ -6,7 +6,15 @@
 // ai-performance-report-service.ts's computeFailureRate/averageNumericColumn
 // for the same pure-core/DB-shell split).
 import { describe, expect, test } from "bun:test"
-import { mergeScorecardGroups, ITERATION_COUNT_NOTE, type ScorecardGroupRow } from "./model-scorecard-service"
+import {
+  mergeScorecardGroups,
+  attachModelCost,
+  ITERATION_COUNT_NOTE,
+  HALLUCINATION_SCORE_NOTE,
+  COST_GRANULARITY_NOTE,
+  type ScorecardGroupRow,
+  type ModelCostRow,
+} from "./model-scorecard-service"
 
 const resolveModel = (roleKey: string | null): string => {
   const roster: Record<string, string> = {
@@ -158,5 +166,68 @@ describe("mergeScorecardGroups -- iteration count (honestly not fabricated)", ()
     expect(entry.iterationCount.avg).toBeNull()
     expect(entry.iterationCount.note).toBe(ITERATION_COUNT_NOTE)
     expect(entry.iterationCount.note.length).toBeGreaterThan(20)
+  })
+})
+
+describe("mergeScorecardGroups -- hallucination score (honestly not fabricated)", () => {
+  test("every entry reports hallucinationScore.value as null with the real no-data-source explanation, never a fabricated number", () => {
+    const rows = [row({ roleKey: "ceo_technical_director", complexityTier: "judgment", dispatchCount: 4 })]
+    const [entry] = mergeScorecardGroups(rows, resolveModel)
+    expect(entry.hallucinationScore.value).toBeNull()
+    expect(entry.hallucinationScore.note).toBe(HALLUCINATION_SCORE_NOTE)
+    expect(entry.hallucinationScore.note.length).toBeGreaterThan(20)
+  })
+
+  test("mergeScorecardGroups alone (no attachModelCost call) also leaves costUsd.totalUsd null, not 0 -- cost is a separate merge step", () => {
+    const rows = [row({ roleKey: "ceo_technical_director", complexityTier: "judgment", dispatchCount: 4 })]
+    const [entry] = mergeScorecardGroups(rows, resolveModel)
+    expect(entry.costUsd.totalUsd).toBeNull()
+  })
+})
+
+describe("attachModelCost -- real ledger spend merged in at model granularity", () => {
+  function costRow(overrides: Partial<ModelCostRow>): ModelCostRow {
+    return { model: "z-ai/glm-5.2", totalUsd: 0, ...overrides }
+  }
+
+  test("attaches a matching model's real total, replacing the default null", () => {
+    const entries = mergeScorecardGroups(
+      [row({ roleKey: "ceo_technical_director", complexityTier: "judgment", dispatchCount: 5 })],
+      resolveModel
+    )
+    const [entry] = attachModelCost(entries, [costRow({ model: "z-ai/glm-5.2", totalUsd: 4.25 })])
+    expect(entry.costUsd.totalUsd).toBeCloseTo(4.25)
+    expect(entry.costUsd.note).toBe(COST_GRANULARITY_NOTE)
+  })
+
+  test("leaves costUsd.totalUsd null (not 0) for a model with no matching ledger rows", () => {
+    const entries = mergeScorecardGroups(
+      [row({ roleKey: "ceo_technical_director", complexityTier: "judgment", dispatchCount: 5 })],
+      resolveModel
+    )
+    const [entry] = attachModelCost(entries, [costRow({ model: "openai/gpt-oss-120b", totalUsd: 9 })])
+    expect(entry.costUsd.totalUsd).toBeNull()
+  })
+
+  test("a model's total is attached identically across its own separate complexityTier rows -- documented, not tier-split", () => {
+    const entries = mergeScorecardGroups(
+      [
+        row({ roleKey: "ceo_technical_director", complexityTier: "judgment", dispatchCount: 3 }),
+        row({ roleKey: "ceo_technical_director", complexityTier: "integrative", dispatchCount: 2 }),
+      ],
+      resolveModel
+    )
+    const withCost = attachModelCost(entries, [costRow({ model: "z-ai/glm-5.2", totalUsd: 7 })])
+    expect(withCost.every((e) => e.costUsd.totalUsd === 7)).toBe(true)
+  })
+
+  test("does not mutate its input array (pure)", () => {
+    const entries = mergeScorecardGroups(
+      [row({ roleKey: "ceo_technical_director", complexityTier: "judgment", dispatchCount: 5 })],
+      resolveModel
+    )
+    const before = entries[0].costUsd.totalUsd
+    attachModelCost(entries, [costRow({ model: "z-ai/glm-5.2", totalUsd: 4.25 })])
+    expect(entries[0].costUsd.totalUsd).toBe(before)
   })
 })

@@ -1599,6 +1599,68 @@ export const agentReviewRecords = complianceSchemaDB.table('agent_review_records
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// AI Model Lifecycle & Benchmarking: Ongoing Quality Monitoring -- the model
+// half of PLATFORM_STRATEGY.md 30.2's Agent Performance (APR) row, which by
+// its own admission stopped at model-scorecard-service.ts's live/ephemeral
+// aggregation ("real but narrow... no hallucination-score or cost field
+// yet"). Investigated before writing this table: agentReviewRecords (ARR,
+// directly above) already runs a periodic promote/maintain/retrain/
+// deprecate cycle, but at roster.ts role_key granularity -- a role's
+// standing, not a model's. Multiple roles routinely share one model (most
+// GLM_52 roles, for instance), so a role going stale says nothing about
+// whether the underlying MODEL itself should keep receiving judgment-tier
+// work platform-wide; that question needs its own append-only history at
+// model granularity, sourced from model-scorecard-service.ts's own
+// (model, complexityTier) merge (getModelScorecard()) plus escalation data
+// (audit_logs' audit_trigger.ai_escalation rows, same real source
+// agent-review-service.ts already uses -- re-aggregated here by model
+// instead of role_key). Deliberately NOT a live/ephemeral view like the
+// scorecard -- a track record over time needs to persist past rows, the
+// same "append-only, never upserted" reasoning agentReviewRecords documents
+// above, so model_lifecycle_reviews mirrors that table's shape at the model
+// grain rather than inventing a different convention.
+export const modelLifecycleReviews = complianceSchemaDB.table('model_lifecycle_reviews', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  model: text('model').notNull(), // e.g. "z-ai/glm-5.2" -- orchestra-model-resolver.ts's model id, resolved via roster.ts getRole() at aggregation time, same resolution model-scorecard-service.ts already relies on
+  complexityTier: text('complexity_tier').notNull(), // 'mechanical' | 'integrative' | 'judgment' | 'unknown' -- matches model-scorecard-service.ts's own bucketing (null complexityTier rows predate the 0165 column and bucket as 'unknown', never dropped)
+  periodStart: timestamp('period_start').notNull(),
+  periodEnd: timestamp('period_end').notNull(),
+  dispatchCount: integer('dispatch_count').notNull().default(0),
+  terminalCount: integer('terminal_count').notNull().default(0),
+  successCount: integer('success_count').notNull().default(0),
+  failureCount: integer('failure_count').notNull().default(0),
+  successRate: numeric('success_rate'), // successCount / terminalCount, null (not 0) when terminalCount = 0 -- same null-vs-zero discipline as agentReviewRecords/model-scorecard-service.ts
+  reviewedCount: integer('reviewed_count').notNull().default(0),
+  auditFindingCount: integer('audit_finding_count').notNull().default(0),
+  auditFindingRate: numeric('audit_finding_rate'),
+  escalationCount: integer('escalation_count').notNull().default(0),
+  escalationRate: numeric('escalation_rate'),
+  // Real spend for this model in the review window (token_usage_ledger,
+  // scope='ai_team_internal'), grouped by model only -- token_usage_ledger
+  // has no complexity_tier column, so this total is attached identically
+  // to every tier row of the same model in one cycle rather than
+  // fabricating a tier split; see model-lifecycle-service.ts's own
+  // COST_GRANULARITY_NOTE for the honest caveat against summing this
+  // across a model's own tier rows (that would double-count).
+  costUsd: numeric('cost_usd'),
+  // 'promote' | 'maintain' | 'retrain' | 'deprecate' -- computed by the
+  // exact same deterministic computeReviewVerdict() agentReviewRecords uses
+  // (agent-review-service.ts), reused rather than re-implemented (its
+  // threshold math is granularity-agnostic: it only needs dispatch/success/
+  // audit-finding/escalation counts, not a role_key specifically), applied
+  // here to a model's own aggregated numbers instead of one role's.
+  verdict: text('verdict').notNull(),
+  verdictReason: text('verdict_reason').notNull(),
+  // AGENTS.md Rule 10, same semantics as agentReviewRecords.trustTierFlag,
+  // computed against the MODEL directly (isModelEligibleForTier(model,...))
+  // rather than resolved through a role -- a model can carry this flag even
+  // if no single role dispatching it individually clears agentReviewRecords'
+  // own MIN_DISPATCHES_FOR_VERDICT floor.
+  trustTierFlag: text('trust_tier_flag'),
+  reviewedAt: timestamp('reviewed_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 // Wave 161 (VERIDIAN_DMP_DCF_CONSTITUTION.md, "Dynamic Chain as the Primary
 // System Object -- Phase 1"): the persisted backing store for a resolved
 // Chain Selector path -- the CapabilityNode tree itself stays computed

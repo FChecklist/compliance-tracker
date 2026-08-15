@@ -716,6 +716,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: messages
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: model_lifecycle_reviews
+    reason: "AI Model Lifecycle & Benchmarking: Ongoing Quality Monitoring (drizzle/0225, 2026-08-15): same class as agent_review_records directly above -- PLATFORM-WIDE by design (no org_id column; one model's dispatches routinely span multiple orgs) and no genuine display-name column (model identifies WHICH model a review row is about, e.g. 'z-ai/glm-5.2', not this specific append-only history row's own name -- same reasoning agent_review_records already gives for role_key). A service-managed governance history table (model-lifecycle-service.ts's runModelLifecycleReviewCycle), not runtime app CRUD the generic auto_register_asset trigger's ON CONFLICT UPDATE model fits."
   - table: module_rule_configs
     reason: "Priority 4 domain B reviewed 2026-07-12: NO genuine org_id column -- scoping is polymorphic via (scopeType, scopeId) where scopeType can be 'platform'|'product_branch'|'org'|'project'|'client'|'user'. This is exactly the cross-tenant-leak pattern the dispatch brief warned about (a real leak already happened once this session in another part of the registry): registering with org_column=NULL would silently mark every row platform-tier regardless of its real scope. Exempted rather than forcing a wrong mapping; also has no single display-name column (moduleKey+ruleKey compound)."
   - table: monitor_agents

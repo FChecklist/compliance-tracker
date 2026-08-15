@@ -1624,6 +1624,54 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-124006-retry-0--ai-model-lifecycle---benchmark) -- AI Model Lifecycle & Benchmarking: Ongoing Quality Monitoring"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "compliance-tracker (branch worker/task-20260718-124006-retry-0--ai-model-lifecycle---benchmark, PR to be opened -- NOT merged by this session per standing dispatch instructions, left for the supervising session's audit)"
+    claim: |
+      This task was repeatedly pre-flight-blocked since 2026-07-20 on a
+      real negative OpenRouter balance (see task.yaml's own checkpoint
+      history), unrelated to any code gap -- resumed 2026-08-15 once
+      credit was confirmed restored. Investigated PLATFORM_STRATEGY.md
+      30.2's Agent Performance (APR) row before writing anything: it
+      names two open sub-gaps in model-scorecard-service.ts
+      (GAP-MODEL-SCORECARD, PR #230) -- "cannot compute iteration count
+      and has no hallucination-score or cost field yet."
+    summary: |
+      Closed the real, computable half (cost): attachModelCost() merges
+      real spend from token-usage-service.ts's own token_usage_ledger
+      (grouped by model -- honestly NOT tier-split, that ledger has no
+      complexity_tier column) onto model-scorecard-service.ts's entries.
+      Confirmed the other half (hallucination-score) is genuinely NOT
+      computable from any persisted data today (no per-dispatch
+      correctness-scoring signal exists anywhere in this codebase) --
+      documented via HALLUCINATION_SCORE_NOTE, not fabricated, matching
+      ITERATION_COUNT_NOTE's own established discipline in that same
+      file.
+
+      Also built model-lifecycle-service.ts + model_lifecycle_reviews
+      (drizzle/0225, append-only) -- the MODEL-granularity counterpart of
+      agent_review_records/agent-review-service.ts (ARR, MASTER-
+      TRACKER.yaml closed_priorities #25), which only ever ran its
+      promote/maintain/retrain/deprecate cycle at roster.ts role_key
+      granularity. Deliberately REUSES agent-review-service.ts's
+      computeReviewRates()/computeReviewVerdict() unmodified (confirmed
+      by direct read they are already granularity-agnostic) rather than
+      re-implementing the same threshold math, and builds on top of
+      getModelScorecard() rather than re-querying activity_log a second
+      time. New veridian_admin-gated GET+POST /api/ai/team/model-lifecycle
+      route, matching /review-registry's own API-only convention.
+
+      Deliberately NOT applied live -- this headless worker session has
+      no DATABASE_URL/Supabase MCP access; drizzle/0225 is a real,
+      reviewed migration file only, flagged honestly in MASTER-
+      TRACKER.yaml priority 26 for a session with live DB access to
+      apply. bunx tsc --noEmit clean, eslint clean, bun test 1437 pass/0
+      fail (30 new tests), check-asset-registry-coverage.mjs (fixed by a
+      new model_lifecycle_reviews exemption entry, same reasoning as
+      agent_review_records)/check-guardrail-presence.mjs/check-metadata-
+      index-coverage.mjs/check-doc-cross-references.mjs/check-doc-
+      quarantine-banner.mjs/check-migration-collision.mjs all pass. Full
+      detail: MASTER-TRACKER.yaml closed_priorities #26.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
