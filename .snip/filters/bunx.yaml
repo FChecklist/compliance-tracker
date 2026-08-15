@@ -1,0 +1,59 @@
+name: "bunx"
+version: 1
+description: "Condensed bunx output: removes package-resolution noise, passes the wrapped tool's own output through untouched"
+
+# Custom VERIDIAN filter. bunx (bun's npx equivalent) has no built-in
+# coverage; the built-in npx.yaml is scoped to command="npx" only and does
+# not match "bunx". Modeled directly on that built-in's own generic-wrapper
+# design (deny-list only, no keep_lines) because bunx wraps an arbitrary
+# downstream tool (tsc, prettier, any one-off CLI) and this filter cannot
+# know that tool's own output shape -- an allow-list would risk silently
+# dropping output from a wrapped tool this filter was never designed for.
+# Real, common case on this project: `bunx tsc --noEmit` (confirmed via
+# `snip check` that plain "tsc" already has a built-in filter, but the
+# built-in's match is on command="tsc" literally and does not fire when
+# tsc is invoked as bunx's *argument* rather than as argv[0] -- this filter
+# only strips bunx's own resolution chatter around whatever tsc/etc. prints,
+# it does not re-apply tsc.yaml's own pipeline on top).
+#
+# Known, documented limitation (not solved here): this filter does not
+# delegate to the wrapped tool's own dedicated filter (e.g. tsc.yaml) the
+# way `snip run` would if you invoked tsc directly -- see this PR's
+# maintenance guide for the concrete recommendation (run `bunx tsc` as
+# `bun x tsc` is equivalent; for the tightest tsc-specific filtering,
+# install tsc as a direct devDependency script and invoke it as `tsc`,
+# not `bunx tsc`, so tsc.yaml's own built-in match fires).
+
+match:
+  command: "bunx"
+
+streams:
+  - stdout
+  - stderr
+
+pipeline:
+  - action: "strip_ansi"
+  - action: "remove_lines"
+    pattern: "^(Resolving dependencies|Resolved, downloaded and extracted|\\s*$)"
+  - action: "truncate_lines"
+    max: 300
+  - action: "head"
+    n: 150
+    overflow_msg: "... more output truncated"
+
+on_error: "passthrough"
+
+tests:
+  - name: "bunx with no extra resolution noise passes through"
+    input: |
+      src/lib/__snip_broken_temp.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'.
+    expected: |
+      src/lib/__snip_broken_temp.ts(1,7): error TS2322: Type 'string' is not assignable to type 'number'.
+  - name: "resolution chatter stripped, real error kept"
+    input: |
+      Resolving dependencies
+      Resolved, downloaded and extracted [1]
+
+      src/index.ts(3,1): error TS2304: Cannot find name 'foo'.
+    expected: |
+      src/index.ts(3,1): error TS2304: Cannot find name 'foo'.

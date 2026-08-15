@@ -2,8 +2,17 @@
 // orangehrm evaluated and rejected as software. Closes the confirmed gap:
 // `users` had auth fields + departmentId/reportingToId but no actual
 // employee master data, and leavePolicyEntries is policy text, not a
-// request/balance ledger. Payroll deliberately out of scope -- VERIDIAN
-// tracks payroll *compliance*, never runs payroll itself.
+// request/balance ledger.
+//
+// Correction (Phase 0 HR gap-closure, 2026-07-27): this file previously
+// claimed "Payroll deliberately out of scope -- VERIDIAN tracks payroll
+// *compliance*, never runs payroll itself." That was already wrong by the
+// time it was written and stayed uncorrected -- erp-payroll-service.ts
+// (Wave 56 onward) is a real, live payroll engine: processPayrollRun()
+// computes gross earnings from salary structures, applies admin-editable
+// PF/ESI/Professional Tax statutory rules, and generates real payslips.
+// Removed here so the next reader doesn't take the stale claim at face
+// value the way this task's own KNOWN_CONTEXT had to flag it explicitly.
 import { users, employeeProfiles, leaveRequests, leaveBalances, employmentStatusEnum } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
@@ -13,6 +22,7 @@ import { ServiceError } from "./compliance-service"
 // manual step -- see hr-attendance-service.ts's syncLeaveIntoAttendance for
 // the full rationale (weekend skipping, not clobbering a real check-in).
 import { syncLeaveIntoAttendance } from "./hr-attendance-service"
+import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
 
 export type HrContext = { orgId: string; userId: string }
@@ -154,6 +164,13 @@ export async function decideLeaveRequest(ctx: HrContext, requestId: string, deci
     const request = await db.query.leaveRequests.findFirst({ where: and(eq(leaveRequests.id, requestId), eq(leaveRequests.orgId, ctx.orgId)) })
     if (!request) throw new ServiceError("Leave request not found", 404)
     if (request.status !== "pending") throw new ServiceError("This request has already been decided", 400)
+    // Separation of Duties: a manager could otherwise approve/reject their
+    // own leave request (they hold sufficient rank, since the route only
+    // gates on role) -- same isSelfApproval() semantics as the shared
+    // Approval Workflow Engine.
+    if (isSelfApproval(request.userId, ctx.userId)) {
+      throw new ServiceError("You cannot approve or reject your own leave request -- an independent approver is required", 403)
+    }
 
     const [updated] = await db.update(leaveRequests)
       .set({ status: decision, approverId: ctx.userId, approvedAt: new Date(), updatedAt: new Date() })

@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import { Inter, DM_Serif_Display } from "next/font/google";
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
@@ -7,21 +6,21 @@ import { SpeedInsights } from "@vercel/speed-insights/next";
 import QueryProvider from "@/components/providers/QueryProvider";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
+import { veridianHeadingFont, veridianSansFont } from "@fchecklist/veridian-ui-kit/tokens/fonts";
 import "./globals.css";
 
-const inter = Inter({
-  variable: "--font-inter",
-  subsets: ["latin"],
-  display: "swap",
-});
-
-const dmSerifDisplay = DM_Serif_Display({
-  variable: "--font-dm-serif-display",
-  weight: "400",
-  subsets: ["latin"],
-  display: "swap",
-});
-
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, Stage 1 real
+// implementation (UMR-20260804-090421-c647): a real, independent review of
+// this branch's first attempt correctly caught that a dynamic
+// generateMetadata() calling headers() at the ROOT layout forces Next.js's
+// documented dynamic-API propagation across the ENTIRE route subtree --
+// every page under this layout, including purely static marketing pages
+// with no need for host-based branding, would silently lose static
+// generation and gain an unbounded per-request product_branches DB query.
+// Reverted to the exact original static export (unchanged from before this
+// OCID); the real per-request dynamic title now lives ONLY on the two real
+// pages that actually need it -- see their own generateMetadata() exports
+// in src/app/page.tsx and src/app/login/page.tsx.
 export const metadata: Metadata = {
   // Repositioned 2026-07-07 (Wave 112): the site root is now VERIDIAN
   // COGNITIVE AI OS — the research-lab identity above the whole product
@@ -74,7 +73,7 @@ export default async function RootLayout({
 
   return (
     <html lang={locale} suppressHydrationWarning>
-      <body className={`${inter.variable} ${dmSerifDisplay.variable} font-sans antialiased`}>
+      <body className={`${veridianSansFont.variable} ${veridianHeadingFont.variable} font-sans antialiased`}>
         <NextIntlClientProvider locale={locale} messages={messages}>
           <ThemeProvider
             attribute="class"
