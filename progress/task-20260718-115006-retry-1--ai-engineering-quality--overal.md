@@ -73,12 +73,35 @@
       self-report).
 
 ## Remaining
-- [ ] Commit + push this final diff; note PR #688 (never merged, now
-      CONFLICTING/DIRTY) as superseded in the new PR body, and leave a
-      comment on #688 pointing to the replacement so it/its branch can be
-      closed instead of left to rot.
-- [ ] Move this session's ACTIVE-CLAIMS.yaml entry to `recently_completed`
-      once the PR is up.
+- [x] Committed + pushed; PR #1258 opened; comment left on stale PR #688
+      pointing to the replacement.
+- [x] Moved this session's ACTIVE-CLAIMS.yaml entry to `recently_completed`.
+- [ ] **task-execution-engine.ts split had to be REVERTED from PR #1258.**
+      After the initial split+push, `origin/main` was found to have
+      diverged further mid-task: a new `invokeEngine()` audit-wrapper
+      architecture landed (engine-invocation.ts, breakdown.ts, plus
+      business-rule-validator.ts / calculation-cross-verification.ts /
+      mother-router.ts / new CRM engine services), none of which existed
+      when this task's split was built. Rebuilding the split against the
+      new content hit real tsc errors (missing-module + missing-export)
+      that ran out of remaining budget to safely resolve. Reverted
+      task-execution-engine.ts to origin/main's real current version rather
+      than ship a split that might not compile. **This finding's
+      task-execution-engine.ts split is a genuine remaining gap** -- needs
+      a fresh follow-up task once main settles.
+- [x] schema.ts navigational-aid comment DID survive and merge cleanly --
+      this is the one part of the finding actually closed by PR #1258.
+
+## Honest final state
+PR #1258 ships: (1) the schema.ts navigational-aid comment (real, merged
+clean), (2) ACTIVE-CLAIMS.yaml claim lifecycle. It does NOT ship the
+task-execution-engine.ts split -- that was built once, verified clean
+(tsc/test/lint all passed at that point), then had to be reverted after
+main moved out from under it before this task's own commits could be
+pushed+merged. A follow-up task should redo the same split (dispatchTool()/
+dispatchEngine() extraction into src/lib/services/task-execution/) against
+whatever main looks like when it runs, accounting for the new invokeEngine
+audit-wrapper layer this task discovered.
 
 ## Notes for reviewer
 - This finding ("Overall Code Quality Score") substantially overlapped
