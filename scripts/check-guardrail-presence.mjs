@@ -160,7 +160,16 @@ const REQUIRED_MARKERS = [
   // marker check still catches the function itself, or its use in the
   // core task-execution path, being silently gutted.
   { file: "src/lib/audit.ts", mustContain: ["export async function logActivity"] },
-  { file: "src/lib/task-execution-engine.ts", mustContain: ["logActivity("] },
+  // 2026-08-15 (Code Modularity gap-closure, VERIDIAN Review Framework):
+  // dispatchTool() -- the create_compliance_item branch's logActivity(
+  // call site this marker anchors -- moved out of task-execution-engine.ts
+  // into src/lib/services/dispatch-tool-service.ts (a pure file-move, same
+  // behavior, re-exported unchanged from task-execution-engine.ts so every
+  // external `import { dispatchTool } from "@/lib/task-execution-engine"`
+  // call site is unaffected). Marker relocated to match, per Operating
+  // Rule 9's own "extending/relocating coverage is always permitted"
+  // carve-out -- not a narrowing, the guardrail is still enforced.
+  { file: "src/lib/services/dispatch-tool-service.ts", mustContain: ["logActivity("] },
 
   // Mandatory Structured Handover Protocol (Wave 167,
   // ai-os/tree4-unified/10-merged-governance-layer.yaml U-D17.B1.S1,
@@ -211,7 +220,17 @@ const REQUIRED_MARKERS = [
   // real chain-scoped completion chokepoint, escalating via the executive
   // ladder on an "escalate"-action violation.
   { file: "src/lib/monitoring-engine.ts", mustContain: ["export function evaluateMonitoringRules", "export function parseMonitoringRules"] },
-  { file: "src/lib/task-execution-engine.ts", mustContain: ["enforceChainMonitoringRules", "nextEscalationRung({ reason: \"monitoring_rule_violation\" })"] },
+  { file: "src/lib/task-execution-engine.ts", mustContain: ["enforceChainMonitoringRules"] },
+  // 2026-08-15 (Code Modularity gap-closure): enforceChainMonitoringRules'
+  // own body (including this exact nextEscalationRung call) moved out of
+  // task-execution-engine.ts into src/lib/services/chain-completion-
+  // service.ts alongside recordChainWorkerAgentEdges -- both were already
+  // only ever called from task-execution-engine.ts's
+  // updateTaskStatusAndReflect (still true, see the entry above), so this
+  // is a pure file-move, not a behavior change. Marker relocated to match,
+  // same Operating Rule 9 carve-out as the dispatch-tool-service.ts entry
+  // above.
+  { file: "src/lib/services/chain-completion-service.ts", mustContain: ["export async function enforceChainMonitoringRules", "nextEscalationRung({ reason: \"monitoring_rule_violation\" })"] },
   { file: "src/lib/escalation-ladder.ts", mustContain: ["monitoring_rule_violation"] },
 
   // Added 2026-07-11 (tree4-unified/50-completion-plan area 3 "Guardrails",

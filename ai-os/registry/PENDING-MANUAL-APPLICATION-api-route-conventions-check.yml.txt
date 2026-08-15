@@ -1,0 +1,45 @@
+# VERIDIAN Review Framework gap-closure (AI Engineering Quality / Design
+# Pattern Consistency, 2026-08-15): the real, complete, ready-to-use CI job
+# for scripts/check-api-route-conventions.mjs, staged at this non-.github
+# path because the GitHub token available to this worker session lacks the
+# `workflow` OAuth scope -- confirmed live: `git push` of a commit touching
+# .github/workflows/ci.yml was rejected by GitHub with `[remote rejected]`
+# (real `git push` output, not assumed), same documented constraint as
+# ai-os/registry/PENDING-MANUAL-APPLICATION-sec07-ocid-lock-check.yml.txt
+# and ai-os/registry/PENDING-MANUAL-APPLICATION-reviewer-not-author-check.yml.txt
+# (both note the same root cause: "the session's own gh token can't push
+# branches touching .github/workflows/*.yml").
+#
+# NOT YET ACTIVE -- needs one real manual edit by someone with real
+# workflow-scope credentials: paste the job below into
+# .github/workflows/ci.yml, in the same position it was written in (right
+# after the terminology-guardrail-check job, right before
+# migration-collision-check), then commit + push directly (not through a
+# worker session).
+#
+# The script itself (scripts/check-api-route-conventions.mjs), its test
+# (scripts/check-api-route-conventions.test.ts, 10/10 passing), and its
+# exemption registry (ai-os/registry/api-route-service-convention-
+# exemptions.yaml) are all real, already merged, already runnable locally
+# (`node scripts/check-api-route-conventions.mjs --diff-only`) -- only the
+# CI wiring itself is blocked on this credential gap.
+
+  api-route-conventions-check:
+    name: API Route / Service Convention Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # VERIDIAN Review Framework gap-closure (AI Engineering Quality /
+      # Design Pattern Consistency, 2026-08-15): CLAUDE.md already states
+      # "All API routes MUST call requireAuth()" as a rule -- this is the
+      # mechanical half, same reviewable-diff-ratchet pattern as the
+      # Terminology Guardrail Check above, scoped to only NEW route.ts/
+      # service files in this PR (never a retroactive sweep of the ~995
+      # pre-existing routes). See that script's own header for the honest
+      # limitation this does and doesn't guarantee, and
+      # ai-os/registry/api-route-service-convention-exemptions.yaml for
+      # recorded exemptions.
+      - run: node scripts/check-api-route-conventions.mjs --diff-only

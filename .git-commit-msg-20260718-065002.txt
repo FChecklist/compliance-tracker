@@ -1,0 +1,20 @@
+code-structure gap-closure: fix guardrail markers + CI-wiring workflow-scope fallback
+
+- Fix scripts/check-guardrail-presence.mjs's two markers that moved with
+  the dispatch-tool-service.ts / chain-completion-service.ts extraction
+  (logActivity(, enforceChainMonitoringRules's nextEscalationRung call) --
+  relocated per Operating Rule 9's own "extending/relocating is always
+  permitted" carve-out, not a narrowing.
+- Revert the .github/workflows/ci.yml edit: a real `git push` of a commit
+  touching that file was rejected by GitHub (this session's gh token lacks
+  the `workflow` OAuth scope, confirmed live, same documented constraint as
+  the two existing PENDING-MANUAL-APPLICATION-*.yml.txt files). The new job
+  is staged instead at
+  ai-os/registry/PENDING-MANUAL-APPLICATION-api-route-conventions-check.yml.txt,
+  same pattern, ready for a real manual paste by someone with workflow
+  scope. Indexed in ai-os/OS.yaml alongside the exemptions registry entry.
+- All governance CI checks now pass locally: guardrail-presence (89/89),
+  metadata-index-coverage (182 indexed + 7 exempted / 185), doc-quarantine-
+  banner (44/44), doc-cross-references (502/502), asset-registry-coverage
+  (145 registered + 321 exempted / 443). Lint 0 errors, 17/17 new+touched
+  tests pass.
