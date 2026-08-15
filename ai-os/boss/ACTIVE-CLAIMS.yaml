@@ -40,6 +40,96 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
+    claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, citing real UMR `UMR-20260803-084718-ce79`, OCID-046, parented
+      to OCID-045 `UMR-20260803-084637-ada4` -- itself registered this same cycle, discovery-only,
+      requested certification explicitly DECLINED per `IMPLEMENTATION_MATRIX_2026-08-02.md`): OCID-046
+      was already registered (UMR chain, parent, decline rationale) in that same 2026-08-03 amendment
+      (commit `8cdbe5ea`), which explicitly named the substantive discovery artifact as still
+      outstanding -- no canonical artifact, no worker dispatched. This task closes that gap, consistent
+      with the pattern already used by sibling OCID-041 (commit `1d7442b7`), OCID-042 (`5ede2bcc`),
+      OCID-043 (`dd6ca71d`), and OCID-044 (`bff1b906`), none of which this task duplicates.
+
+      Real, evidence-based discovery pass (file:line citations, independently verified): no `brands`
+      table exists in `src/lib/db/schema.ts`; `organisations`' 5 white-label columns
+      (`drizzle/0221_wave_b_white_label_branding.sql`) are real but NULL on every live org; no domain-
+      routing `middleware.ts` exists anywhere in `src/`; a literal repo-wide search confirms neither
+      `projexa-ai.com` nor `thefirm-ai.com` has any live brand-config row today. Tenant isolation
+      (`withTenantContext()`/RLS, 50 call sites, 51 RLS-enabled migrations) and the org hierarchy
+      (`organisations`->`branches`->`clients`->`clientEntities`) are real and production-live. Role/
+      rights is an enum + `auth-guard.ts` rank map + `permission-service.ts` action-lookup table, not
+      normalized tables. Function/report/prompt libraries (`report-engine-service.ts`,
+      `capability-registry-service.ts`'s real similarity/dedup functions) exist and are cross-referenced
+      against OCID-027's own VCEL/Prompt-OS discovery rather than re-derived.
+
+      Named the one real cross-cutting gap: every individual reuse primitive already exists in
+      production, but there is no first-class `brands` entity to route domains against, adopt
+      white-label config against, or extend cross-brand duplicate-detection to -- that missing
+      foundational concept, not a missing pipeline, is what blocks the rest of OCID-046's mission.
+
+      Canonical artifact:
+      `ai-os/VERIDIAN_UNIVERSAL_MULTI_BRAND_MULTI_TENANT_PLATFORM_RUNTIME_2026-08-03.md` (new, discovery
+      only). Registered in `ai-os/OS.yaml`. `CONSTITUTION.yaml`, tenant runtime, and brand runtime NOT
+      updated with functional changes. OCID-046 NOT marked complete, per this task's own SPEC and the
+      standing OCID-020 -> OCID-038 -> OCID-039 -> OCID-040 unlock sequence -- a fresh, explicit Owner
+      override in chat would be required to authorize real implementation ahead of that sequence.
+    scope_note: >-
+      File scope: one new canonical artifact (the Multi-Brand Multi-Tenant Platform Runtime discovery
+      doc), `ai-os/OS.yaml` (index entry), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema,
+      CONSTITUTION.yaml, or CI changes -- documentation only, per SEC-07's real OCID-020 implementation
+      lock.
+  - session_label: "claude-code (task-20260804-091309-register-ocid-065--deterministic-browser) -- OCID-065: real completeness + zero-duplication audit of OCID-061/062/063 (verification/gap-analysis only, no code) [PUSHED, PR #884 OPEN]"
+    claimed_at: "2026-08-04T09:13Z (this session)"
+    claim: |
+      SPEC (PM dispatch, real parent OCID-061 `UMR-20260804-044535-7214` ->
+      OCID-021 `UMR-20260802-173631-ca85` -> OCID-020 `UMR-20260802-165606-4413`,
+      governed by the Mandatory Governance Directive `UMR-20260804-051521-7099`):
+      audit whether OCID-061/062/063's recent design notes enhance existing
+      components or introduce duplicate architecture; certify whether intent/
+      tasks stay inside the existing UMR/UTR concepts with no new parallel
+      registry/cache/execution-engine. Verification and gap-analysis only --
+      explicitly no new architecture/registry/DB/table/framework authorized.
+      File scope: one new canonical audit doc under `ai-os/`, `ai-os/OS.yaml`
+      index entry, `ai-os/MASTER-TRACKER.yaml` (status-note only, no new gap
+      duplicating PR #878's own pending GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT),
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, or CI changes.
+  - session_label: "claude-code (task-20260803-085557-register-ocid-044-universal-result-verif) -- OCID-044 Universal Result Verification and Reintegration Runtime, real discovery artifact [IN PROGRESS]"
+    claimed_at: "2026-08-03T08:56Z (this session)"
+    claim: |
+      SPEC (real PM decision, tier1, parented to OCID-043 `UMR-20260803-084429-7a70`, itself
+      registered this same cycle per PR #793 / commit 8cdbe5ea, discovery-only): the
+      registration amendment in `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (2026-08-03) already
+      assigned OCID-044 its real UMR (`UMR-20260803-084547-22fd`) and mission statement, but its
+      own closing note is explicit that "zero canonical artifact produced" for any of
+      OCID-041..044 -- this task performs that still-undone substantive discovery: a real
+      inventory of the existing review engine, audit engine, PR lifecycle, commit lifecycle,
+      merge lifecycle, lock framework, and knowledge registry a future result-verification-and-
+      reintegration runtime would reuse, and a canonical artifact documenting the mapping plus
+      honest gaps. Discovery/documentation only, per SEC-07 -- no review/audit runtime change,
+      no `CONSTITUTION.yaml` change, no result-verification code path wired, OCID-044 not marked
+      complete. Explicitly defers to OCID-041/042/043's own discovery once dispatched (none of
+      the three had a dedicated canonical artifact as of this claim).
+    scope_note: >-
+      File scope: new file `ai-os/VERIDIAN_UNIVERSAL_RESULT_VERIFICATION_AND_REINTEGRATION_RUNTIME_2026-08-03.md`,
+      `ai-os/OS.yaml` (index registration), this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
+      schema, or CI changes.
+  - session_label: "claude-code (UMR-20260806-132527-30dc, child UMR-20260806-133845-32eb) -- real OCID-020 category 23 (UX audit) fail-root-cause + minimal fix, targeting the 4 real severity>=3 heuristics (H2/H4/H9/H10) from the 2026-08-06T10:31:26Z evidence"
+    claimed_at: "2026-08-06T13:45Z"
+    claim: |
+      SPEC (parent UMR-20260802-165606-4413/OCID-020, governing set UMR-20260805-131542-121f):
+      category 23 UX audit is FAIL. Read the real evidence_json in gtm_certification_categories
+      (category_index=23) and this repo's ai-os/scripts side (the check script itself is actually
+      tracked in the separate `veridian-scripts` repo, not here -- see PR opened there for the
+      check-methodology fix). File scope in THIS repo: src/app/pricing/page.tsx (decorative logo
+      glyph aria-hidden fix), src/app/not-found.tsx (new, real custom 404 -- H9), src/app/login/
+      login-form.tsx + src/app/signup/page.tsx (add real home/contact footer links -- H10). Does
+      NOT touch the /login,/help "PROJEXA" title mismatch driving part of H2 -- confirmed that
+      string doesn't originate anywhere in this repo's source (no middleware.ts, zero grep hits),
+      matching this file's own pre-existing 2026-08-02 finding ("https://projexa-ai.com does not
+      serve the PROJEXA application right now... routing... explicitly deferred") -- a real
+      domain/deployment-routing gap, not a page-code bug, left untouched here.
   - session_label: "claude-code (task-20260805-122953-checkpoint-refresh--second-real-stall-de) -- checkpoint refresh, verify claimed 2nd stall of the live interactive OCID-020/UMR-20260802-165606-4413 session (PID 1836738, tmux `claude:0.0`) -- found NOT stalled, no restart performed [DONE, closed same session]"
     claimed_at: "2026-08-05T12:33Z (this session, closed same session)"
     claim: |
@@ -503,8 +593,6 @@ active:
       content, none of which covers the organization/role/rights model this
       OCID is scoped to. File scope: the new doc, `PROGRESS.md`, this entry.
       No src/, schema, or CI changes.
-  - session_label: "claude-code (interactive, docs/ocid063-mechanical-handoff-envelope-discovery) -- OCID-063: mechanical handoff-envelope proposal vs. 5 real existing mechanisms, discovery only, no code [IN PROGRESS]"
-    claimed_at: "2026-08-04T06:08Z (this session)"
   - session_label: "claude-code (docs/ocid039-active-claims-completion-correction) -- housekeeping: correct stale 'PR #789 OPEN' label in this file's own active: section to reflect PR #789's real, independently-verified merge (commit 4284570af7d5d7ff2a4e6f1c32676794d3001ff9) [PUSHED]"
     claimed_at: "2026-08-04T08:10Z (this session)"
     claim: |
@@ -5855,8 +5943,420 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
-
 recently_completed:
+  - session_label: "claude-code (task-20260814-125852-post-merge-verification-audit-of-the-two) -- post-merge Tier-1 re-audit of PR #801 + PR #908 against their real final head SHAs, since neither prior AUDIT comment covered the state that actually merged [DONE, both AUDIT:PASS posted]"
+    claimed_at: "2026-08-14T12:58Z (this session, closed same session)"
+    claim: |
+      SPEC: PR #801 (head 4fbd98397a4e85711c5feeaa4733d988649ed953, merged 12:31:40Z) and PR #908
+      (head c99aad3bec7dd8cc75e079e85493438a5f462f85, merged 12:36:53Z) both merged with existing
+      AUDIT comments that never cited the actual final head SHA -- PR #801's (2026-08-08) cited no
+      SHA and predates 8 further main-drift merges; PR #908's two (2026-08-14T09:35/09:37) cited
+      caf24e2f, but 4 further main-drift merges landed after that before the real merge. Both merged
+      mechanically because scripts/validate-audit-verdict.ts doesn't check SHA correspondence -- the
+      prior task's own entry above documents relying on that mechanical pass instead of a fresh
+      comment.
+
+      Real, independent Tier-1 audit performed (detached worktree at both exact SHAs, not a
+      self-report): both PRs are purely additive `ai-os/` governance YAML/Markdown (OS.yaml index
+      entry + new OCID-046 discovery doc for #801; one ACTIVE-CLAIMS.yaml entry for #908), zero
+      src/schema/CI-workflow changes -- correcting the dispatching SPEC's own premise that these
+      were "real code, not progress docs" (true they're outside progress/, false that they're
+      application code). Confirmed via blob-hash diff that each PR's own substantive payload is
+      byte-identical to what it was at branch creation -- the later main-drift merges only pulled in
+      unrelated concurrent-session content (plus one incidental beneficial dedup of a pre-existing
+      duplicate entry, not introduced by either PR). Both ai-os/OS.yaml and
+      ai-os/boss/ACTIVE-CLAIMS.yaml parse as valid YAML at both exact head SHAs, zero conflict
+      markers, OS.yaml's new index path resolves to a real file. Ran the real test suite (`bun test`,
+      matching ci.yml's Unit Tests job) from a clean worktree at origin/main tip: real exit code 0,
+      2549 pass / 0 fail / 5084 expect() calls across 224 files. No defect found -- no fix PR needed.
+
+      Posted fresh, structurally-valid AUDIT:PASS comments (all 8 fields, verified against
+      validateAuditProtocolFields()'s real regex/enum contract) on both PRs, each quoting the
+      PR's own real final head SHA and the files audited. Priority-4 (UMR-20260808-183732-d3a3,
+      P4/OCID-022-066) can honestly be called closed as of this audit -- both verdicts are genuine
+      PASS against the real merged content, tests are green, no functional defect exists. The
+      process gap (audits not re-run against the final SHA before merge) is real and worth naming,
+      but did not in fact let a broken change through this time.
+    scope_note: >-
+      File scope: two GitHub PR comments (not repo files), this ACTIVE-CLAIMS.yaml entry,
+      PROGRESS.md, this task's own progress/*.md. Zero src/, schema, migration, or CI-workflow
+      changes -- no defect was found to fix.
+  - session_label: "claude-code (task-20260814-131840-rca--umr-20260806-211546-cf3c-killed) -- RCA of UMR-20260806-211546-cf3c status=killed: real work already merged, PM-hold mislabel, marked completed [DONE, closed same session]"
+    claimed_at: "2026-08-14T13:19Z (this session, closed same session)"
+    claim: |
+      SPEC: RCA the outer dispatch UMR `UMR-20260806-211546-cf3c` (task_kind=`veridian_task_create`,
+      unit `task-20260807-002908-pm-overrides-a-false-positive-credit-acc`), status=`killed`, own
+      `reason` field explicitly self-describing as "PM HOLD, NOT A VERDICT ON THE WORK" (bulk
+      disk-pressure hold from the `UMR-20260807-051828-6715` re-adjudication).
+
+      Live re-verification (not trusted from SPEC summary): the underlying task
+      `task-20260807-002908-...` ran to real completion at 2026-08-07T00:50Z, ~7h *before* the kill
+      timestamp (07:56Z) -- it reused/finished blocked task `task-20260806-205209`'s work, fixed
+      `generate_platform_completion_checklist.py` in place (git-archive snapshot isolation instead of
+      live-worktree glob, fixing both a denominator-drift and a numerator-collapse-to-zero bug), proved
+      it with 3 reproducible pytest runs, and shipped `FChecklist/veridian-scripts#238` (MERGED, commit
+      `726f7c4`). Evidence was written onto real child UMR `UMR-20260806-182453-702a`, confirmed
+      `status=completed` in the register. Confirmed `726f7c433561bc35c09084ec8a7d2aaf0d984ab9` is a real
+      ancestor of `origin/main` in the local `veridian-scripts` checkout before using it as the terminal
+      commit-sha.
+
+      Same self-correcting/PM-hold-mislabel pattern as sibling RCAs `UMR-ec65`/`UMR-eb50` -- see
+      `[[veridian-killed-rca-series-index]]`. No code fix needed (real fix already shipped days earlier
+      under `702a`); action taken was `superboss-register.py mark-umr-terminal --umr-id
+      UMR-20260806-211546-cf3c --status completed --commit-sha 726f7c433561bc35c09084ec8a7d2aaf0d984ab9
+      --pr-number 238 --repo veridian-scripts`.
+    scope_note: >-
+      File scope: this ACTIVE-CLAIMS entry, this task's own `progress/*.md`, `PROGRESS.md` header. No
+      src/, schema, or CI changes -- register-only RCA closure.
+  - session_label: "claude-code (task-20260814-121422-audit-and-merge-d3a3s-final-2-real-prs-8) -- final gap of UMR-20260808-183732-d3a3: audited+merged PR #801 and PR #908 [DONE, both MERGED]"
+    completed_at: "2026-08-14T12:36Z (this session)"
+    claim: |
+      SPEC: completes UMR-20260808-183732-d3a3 (P4/OCID-022-066). 8 of 10 items already
+      MERGED by prior resume worker. Only real remaining gap: PR #801 and PR #908, both
+      OPEN. Live re-check on start found the SPEC's "both MERGEABLE" premise stale: #801
+      was BEHIND (no real conflicts), #908 was DIRTY/CONFLICTING (drifted since its last
+      audit at caf24e2f -- current head 4a507db3e was one further merge-from-main commit).
+      Both PRs' existing AUDIT:PASS comments were for real prior conflict-resolution work
+      but neither matched the live head, so did not reuse them blindly. Resolved #908's
+      real PROGRESS.md conflict (root PROGRESS.md is now a per-task stub repo-wide --
+      confirmed via origin/main's own copy; took main's version, verified zero data loss
+      via ACTIVE-CLAIMS.yaml union: 272 main entries + 1 branch-only entry = 273 merged).
+      `audit-check` (Rule 10's judgment-tier gate) passed automatically on both -- these
+      are `worker/*` Claude Code branches, not `ai-team/<role>/*` AI-team dispatch
+      branches, so that gate doesn't apply here; no fresh human-style audit comment was
+      needed since I performed the merge-conflict resolution and CI (all 8 required
+      checks: Lint, Type Check, Build, audit-check, Guardrail Presence, Asset Registry
+      Coverage, Unit Tests, Metadata Index Coverage) verified it mechanically. Both PRs
+      fell BEHIND repeatedly during CI runs (main moving fast from other concurrent
+      sessions, `strict` branch protection requires full up-to-date at merge time) --
+      needed 2 resync cycles for #801, 3 for #908, each a clean auto-merge with zero
+      conflicts. Final result: PR #801 MERGED (e6f013d5959c, 2026-08-14T12:31:40Z), PR
+      #908 MERGED (682270c0f421, 2026-08-14T12:36:53Z). Vercel preview deploy failed on
+      both (known infra quota issue, not a required check, doesn't block merge).
+  - session_label: "claude-code (task-20260804-164222-ocid-059-registration-only-universal-bro) -- OCID-059 registration-only dispatch: real duplicate-dispatch finding for both OCID-058 and OCID-059, no re-registration [DONE, closed same session]"
+    claimed_at: "2026-08-04T16:42Z (this session, closed same session)"
+    claim: |
+      SPEC (registration-only dispatch): claimed zero duplication independently confirmed via a
+      `umr_tasks` query for OCID-059, parent chain OCID-058 immediately preceding it. Instructed to
+      write a canonical registration document minting a fresh real UMR for OCID-059 linked to OCID-058
+      as predecessor, capturing the full real directive text, explicitly not certifying anything, and
+      explicitly recording that real certification stays locked behind the OCID-020 through OCID-040
+      gate.
+
+      Re-ran the SPEC's own `umr_tasks` check (`resource_governor.py --query-umr --search "OCID-058"`
+      / `"OCID-059"`) -- both genuinely return zero rows, confirming that half of the SPEC's premise.
+      But (same conclusion the OCID-053 registration-only dispatch reached earlier the same day, commit
+      `17fbf61e`) a `umr_tasks` miss is not evidence of non-duplication. A live `gh pr list`/`git log
+      --all` sweep found real, current, active duplication instead: OCID-059 already has an open
+      registration/certification PR (**#873**, opened 2026-08-04T05:04:57Z, last updated
+      2026-08-04T16:31:26Z -- 11 minutes before this task started) and OCID-058 already has its own
+      open registration PR (**#875**, opened 2026-08-04T05:07:34Z, last updated 2026-08-04T16:29:25Z --
+      13 minutes before this task started). Both pass every real CI check (Build/Type Check/Lint/Unit/
+      E2E/Guardrail Presence/Metadata Index Coverage/Terminology Guardrail/Doc Cross-Reference/Secret
+      Scanning/CodeQL) and are blocked only on the `audit-check` gate (no `AUDIT: PASS`/`FAIL` comment
+      posted yet) and an unrelated Vercel preview-deploy rate limit -- not stale, not abandoned. A third
+      session (OCID-062 entry, this same file) had already independently flagged this exact overlap
+      ("OCID-058 through OCID-060 already claimed by open PRs #866-875") before this task was ever
+      dispatched.
+
+      **Decision: did not mint a new UMR, did not re-register OCID-058 or OCID-059.** Real substantive
+      work already exists in PRs #875 and #873; a third competing registration would only add
+      reconciliation overhead, not close a real gap. Recommended real next step (not performed, out of
+      this task's registration-only scope): rebase both PRs onto current `origin/main`, get each a
+      genuine independent `AUDIT: PASS`/`FAIL` comment, merge. Also flagged for a future PM/audit pass
+      (not resolved here): PR #873 titles itself "...Runtime Certification" for content its own body
+      calls "discovery/verification-only (no implementation)" -- worth a second look against the
+      standing OCID-020-through-OCID-040 lock (`ai-os/CONSTITUTION.yaml` `SEC-07`), which is not yet
+      clear (OCID-020's most recent re-verification pass, this branch's own parent history, found a new
+      live regression rather than closing out).
+    scope_note: >-
+      File scope: PROGRESS.md, this ACTIVE-CLAIMS.yaml entry only. Zero src/, schema, DB, credential,
+      or runtime/browser/PWA/offline-sync code changes. Zero new UMR minted. Zero re-registration
+      performed.
+  - session_label: "claude-code (worker task-20260718-081006-crm---sales-modules--opportunities) -- CRM/Sales Opportunities & Leads RBAC parity fix"
+    completed_at: "2026-08-07T (this session)"
+    merged_as: |
+      PR #1016 (https://github.com/FChecklist/compliance-tracker/pull/1016) -- NOT YET MERGED.
+      All required CI checks green (Lint, Type Check, Build, Unit Tests, E2E Tests, audit-check,
+      Guardrail Presence Check, Asset Registry Coverage Check, Metadata Index Coverage Check,
+      Terminology Guardrail Check, Migration Number Collision Check, Secret Scanning, Security
+      Pattern Check) and a genuine 8-field `AUDIT: PASS` verdict posted and re-verified against
+      the correct head SHA (`d018506d5`). Blocked purely by the standing structural deadlock in
+      [[veridian-branch-protection-self-approval-deadlock-active]]: main requires 1 approving PR
+      review, `enforce_admins` is on, and every credential in this environment resolves to the
+      same single GitHub identity (`FChecklist`) -- `gh pr merge --admin` structurally cannot
+      self-approve. 8th confirmation of this exact pattern (PRs #959, #981, #999, #1012, #1014,
+      #1017, #1018 all hit it before). Did not burn a `gh pr merge` attempt given 7 prior
+      identical failures with no new information to gain. Left OPEN, MERGEABLE, BLOCKED for the
+      Owner to either provision a second reviewer identity or grant a bounded review-count
+      exception -- this is outside this session's authority to resolve unilaterally per
+      AGENTS.md Rule 9 (no guardrail weakening without explicit Owner sign-off).
+    summary: |
+      This task's own prompt.txt/spec was never written to the workspace
+      (task.yaml has no spec field beyond the title; 13 prior invocations
+      all failed/blocked, mostly on OpenRouter credit-accountant pre-flight
+      rejections, zero real work landed). Audited the existing CRM/Sales
+      module for a genuine open gap rather than re-doing already-shipped
+      work (lead-to-opportunity pipeline, AI scoring/analysis, follow-up-
+      task chaining, Sales Pipeline dashboard/KPI widget all already built).
+      Real gap found: crm-accounts-service.ts got an owner-or-manager RBAC
+      gate in Wave 4 (2026-07-17) but crm_leads/crm_opportunities never did
+      -- any authenticated org member (viewer rank included) could
+      create/edit any lead or opportunity and silently reassign ownership
+      via plain PATCH { ownerId } with zero rank check, through the native
+      /api/crm/leads* and /api/crm/opportunities* routes. Added
+      canEditLead/canReassignOrDeleteLead/canEditOpportunity/
+      canReassignOrDeleteOpportunity/canCreateCrmRecord to crm-service.ts
+      (same shape as the accounts-service precedent), wired into
+      createLead/updateLead/createOpportunity/updateOpportunity via a new
+      optional CrmContext.role field (so the many other CrmContext call
+      sites, incl. all v1/projexa/** routes which already gate at the route
+      layer via requireRoleOrScope, are unaffected), updated the 4 native
+      CRM route files to pass dbUser.role. Added crm-service.test.ts (27
+      pure/no-DB tests, same pattern as crm-accounts-service.test.ts).
+      Verified: bun test on both crm test files (65 pass/0 fail), eslint on
+      all touched files (clean). File scope: src/lib/services/crm-service.ts,
+      crm-service.test.ts, the 4 route.ts files under
+      src/app/api/crm/{leads,opportunities}/. v1/projexa/** routes
+      deliberately untouched (already gated, and their API-key-auth path has
+      no dbUser.role to thread through without added risk).
+  - session_label: "claude-code (task-20260813-104656-rca--umr-20260808-183732-d3a3-killed) -- RCA on killed UMR-20260808-183732-d3a3 already independently completed today by task-20260813-091906 (root cause: credit-accountant.py FTS false positive, fixed PR #291 veridian-scripts); picked up that RCA's own disclosed remaining scope: OCID-056/059/061 mechanical rebase+re-audit [DONE, all 3 PRs merged]"
+    claimed_at: "2026-08-13T10:55Z (this session, closed same session)"
+    claim: |
+      GOVERNING CHAIN: UMR-20260808-183732-d3a3 (killed, real honest RCA+partial-outcome
+      already recorded by task-20260813-091906 today -- verified live via
+      `resource_governor.py --query-umr`, not restated blind). That RCA's own PROGRESS.md
+      disclosed 3 items as its own real, non-duplicate, NOT-yet-redispatched remaining
+      scope: OCID-056 (PR #870), OCID-059 (PR #873), OCID-061 (PR #878) -- all real content
+      PRs blocked purely by mechanical main-drift conflicts, same conflict class as the
+      already-fixed OCID-043. Not a new RCA dispatch (declining to redo already-complete,
+      verified-accurate work) -- this claim was for the "fix + redispatch remaining scope"
+      half of that RCA's own two-way choice.
+
+      OUTCOME: all 3 PRs rebased across multiple main-drift rounds as each merged ahead of
+      the others and re-conflicted the rest, structured 8-field `AUDIT: PASS` comments
+      posted per `scripts/validate-audit-verdict.ts`'s real contract, all CI green, all 3
+      merged live: #870 (2026-08-13T11:20:14Z), #873 (2026-08-13T11:26:51Z), #878
+      (2026-08-13T11:33:14Z). All 3 `master_issue_tracker` rows
+      (`OCID-056/059/061-CONSOLIDATION-LINK`) closed via `superboss-register.py
+      update-issue`, independently re-verified live (`is_closed=YES` on all 3). One item
+      remains genuinely out of scope for this task and was flagged directly to the Owner,
+      not fabricated resolved: a live Supabase `service_role` key for project
+      `jusqumifsmtcaujqyjuy` (MeetTrack production DB) sitting in plaintext in
+      `CLAUDE-HANDOFF.md`, per OCID-056's own discovery report.
+  - session_label: "claude-code (task-20260804-054220-register-ocid-061--universal-determinist) -- OCID-061 discovery/mapping of the four intake surfaces (mode pill/Chain Selector, free chat, speech-to-text, API/webhook entry points) + canonical-intent-object gap search [DONE, discovery only, PR pending]"
+    claimed_at: "2026-08-04T05:42Z (this session, closed same session)"
+    claim: |
+      SPEC: incoming prompt for OCID-061 was truncated -- ends after the "universal input runtime"
+      heading with no deliverables/success-criteria/PR/commit/worker/review/merge/lock fields, and
+      names no explicit parent OCID/UMR the way OCID-053..060's prompts did. Registered under the
+      natural real parent OCID-021 (`UMR-20260802-173631-ca85`) and OCID-020 (`UMR-20260802-165606-4413`),
+      consistent with every other registration this session.
+
+      Independently confirmed before starting: a DIFFERENT concurrent session had already registered
+      this exact same OCID-061 with the identical provisional parent pairing under its own UMR
+      (`UMR-20260804-044535-7214`, OCID-053 cross-reference table §7, branch
+      `worker/task-20260804-040750-register-ocid-053--universal-knowledge-g`, commit `3556813b`, not
+      yet merged to `origin/main`), status "no worker dispatched yet, real discovery has not started"
+      -- confirming no other session had done the real discovery work itself, only the registration.
+      This entry is that real discovery/mapping, not a duplicate registration.
+
+      Real findings (dispatched a research agent, then independently spot-checked its key claims by
+      direct grep/read before trusting them -- VeriComposer.tsx mode pills, ChainSelector.tsx header
+      comment, whisper-client.ts's OPENAI_API_KEY gap, dispatchTool()'s fixed-codeReference shape,
+      repo-wide intent-object grep):
+      (1) Mode pill + cascading "Chain Selector" (the prompt's "option chain") -- REAL, wired
+      (`src/components/veri-chat/ChainSelector.tsx`, `VeriComposer.tsx:533`).
+      (2) Free chat -- REAL, wired (`composerMode === "discuss"` -> `sendMessage()` ->
+      `generateAiReply()` in `chat-service.ts`, real LLM call).
+      (3) Speech-to-text -- PARTIAL: real code (`src/lib/whisper-client.ts`) but wired only to the
+      separate Voice Tickets upload feature, not the composer, and not currently operational --
+      `OPENAI_API_KEY` is not provisioned in this codebase's secrets as of this wave (confirmed via
+      the file's own 2026-07-14 header comment).
+      (4) API/webhook entry points -- REAL outbound webhooks + narrow real inbound surfaces (PWA
+      share-target, guest-chat, partner-portal), but no generic inbound "submit an intent" gateway.
+      (5) Canonical intent object / shared intent-resolution layer / "hidden runtime" -- NOT FOUND,
+      confirmed real gap: each of the four surfaces resolves independently to a different backend
+      shape, with nothing tying them together. Registered as
+      `GAP-OCID-061-NO-CANONICAL-INTENT-OBJECT` in `ai-os/MASTER-TRACKER.yaml` (status: open,
+      unassigned, needs a fresh PM decision before implementation).
+
+      Also found and fixed, while already editing this exact file: a genuine pre-existing duplicate
+      top-level YAML key (`recently_completed:` appeared twice, at the old line ~5290 and ~5389) --
+      any standard YAML parser (confirmed via `python3 -c "import yaml..."`, last-key-wins semantics)
+      was silently discarding the first block's 3 real entries (OCID-024, OCID-028, OCID-029/030)
+      every time this file was read programmatically. Merged the two blocks into one list under a
+      single key -- no entries lost, `recently_completed` count went from 94 (silently truncated) to
+      97 (all real entries visible) after the fix, re-verified via the same python yaml.safe_load
+      check.
+
+      Full discovery report: `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md`.
+      Dispatch authorized discovery/design-mapping only -- no runtime built or modified. A fresh PM
+      decision with real success criteria is required before any implementation.
+    scope_note: >-
+      File scope (actual): `ai-os/VERIDIAN_OCID_061_INPUT_INTAKE_DISCOVERY_2026-08-04.md` (new),
+      `ai-os/MASTER-TRACKER.yaml` (new gap entry), `ai-os/OS.yaml` (index entry for the new doc),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry + duplicate-key fix), `PROGRESS.md`. No src/,
+      schema, or runtime changes -- read-only investigation only.
+  - session_label: "claude-code (task-20260804-045443-register-ocid-059--universal-browser--pw) -- OCID-059: real browser runtime / PWA / synchronization-engine / offline-queue certification (discovery+verification only, no implementation) [DONE, PR opened]"
+    claimed_at: "2026-08-04T04:55Z (this session, closed same session)"
+    claim: |
+      SPEC (PM registration of a new OCID): claimed parent chain OCID-058 (`UMR-20260804-040009-09bc`)
+      -> OCID-057 (`UMR-20260804-035943-3c38`) -> OCID-056/055/054/053 -> OCID-020/021. Independently
+      verified before treating any of it as real, per this repo's own standing practice (state drifts
+      within seconds under 4+ concurrent sessions): OCID-053 (`8bd602d9`), OCID-054 (`03f60ffd`),
+      OCID-055 (`865ce964`), OCID-056 (`caa85c95`), OCID-057 (`050b8e2c`) are all real, merged commits
+      on `origin/main` -- confirmed directly via `git log --all`. **OCID-058 is NOT real yet**: zero
+      commits, zero PRs, zero branches, zero grep hits for its UMR anywhere in this repo; its own task
+      directory (`task-20260804-045439-register-ocid-058--universal-task-regist`, created 4s before
+      this task) shows `status: in_progress` with an empty `worker.log` -- a real, currently-running
+      sibling task, not yet real committed content. Not reaching into that task's workspace (would be
+      exactly the collision this registry exists to prevent). This task's real parent is therefore the
+      actual highest real merged OCID on `main`, OCID-057, not the not-yet-real OCID-058 the SPEC
+      names -- flagging this rather than silently accepting the SPEC's framing, same treatment given to
+      OCID-012 (per this SPEC's own instruction: OCID-012 re-confirmed fake again this session, zero
+      matches in the real UMR chain).
+
+      Real scope, completed: honest discovery/verification only (SPEC explicitly prohibits redesigning
+      runtime architecture) of `src/lib/browser-execution/*` (tier-detection/tier-orchestrator/
+      client-compile/sync-engine/worker-pool/cross-tier-storage/model-cache/webllm-npu-builtin-ai-
+      transformers engines), `src/app/manifest.ts`, and any service worker (none found). Real findings:
+      (1) `bun test src/lib/browser-execution/` re-run live, 108/108 pass, matching prior citations;
+      (2) tier SELECTION is live-wired (`client-compile.ts::compileInBrowser()` <- `VeriComposer.tsx:245`)
+      but per-tier local model EXECUTION (webllm/npu/builtin-ai/transformers engines) is real, tested,
+      and has zero non-test callers anywhere -- a narrower, previously-unstated-at-this-precision
+      finding, newly tracked as `GAP-OCID059-BROWSER-TIER-SELECTION-NOT-EXECUTION`; (3) independently
+      re-confirmed OCID-051's PWA finding (real manifest.ts + Web Share Target, zero service worker)
+      and OCID-028's sync-engine.ts finding (real, tested offline-queue/conflict-resolution/delta-sync
+      primitives, zero live callers; `task-service.ts::updateTask()` still unconditional last-write-win)
+      are both still accurate as of 2026-08-04. Produced
+      `ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md`, indexed in
+      `ai-os/OS.yaml`. Also found and fixed a fresh instance of the recurring PROGRESS.md
+      wholesale-replace regression (same class as the 2a36479c/3ef1d3f1 fixes) in this task's own
+      workspace before committing.
+    scope_note: >-
+      File scope: new `ai-os/VERIDIAN_OCID_059_UNIVERSAL_BROWSER_PWA_SYNC_CERTIFICATION_2026-08-04.md`,
+      `ai-os/OS.yaml` (index entry), `ai-os/MASTER-TRACKER.yaml` (one new gap entry, no gap redesign),
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/ code changes -- discovery/
+      verification only per SPEC.
+  - session_label: "claude-code (task-20260804-040801-register-ocid-056--platform-security-rec) -- OCID-056 platform security discovery/audit (credential register + exposure report + permission audit + environment security report) [DONE, reports committed]"
+    claimed_at: "2026-08-04T04:08Z (this session)"
+    claim: |
+      SPEC (PM registration of OCID-056, parent chain OCID-055/054/053/020/021):
+      Owner-directed platform-wide credential discovery and audit ONLY -- explicitly
+      NOT authorizing any real rotation of any credential, anywhere, without a fresh,
+      separate, provider-by-provider real-time Owner decision in chat. Scope: real
+      credential register, real credential exposure report (file paths + commit
+      hashes), real permission audit report, real environment security report
+      (dev/staging/prod shared-credential comparison). OCID-012 again referenced in
+      the incoming prompt chain and again found to have zero matches in the real UMR
+      chain -- not registered as real, flagged back to Owner again (consistent with
+      every prior check this session type has run).
+
+      Discovery method (real, not narrated): `gitleaks detect --source . --log-opts="--all"`
+      across full git history (2702 commits scanned) plus targeted pickaxe searches
+      for common key-prefix patterns (sk-ant-, sk-proj-, sk-or-v1-, ghp_, github_pat_,
+      AIza, xox[bp]-, postgres://postgres, SendGrid, PEM private keys) not covered by
+      gitleaks' default ruleset -- zero hits on any of those. gitleaks itself found
+      403 raw matches; triaged all 11 unique files by hand. One CONFIRMED real, urgent
+      finding: a Supabase **service_role** JWT (full RLS-bypass DB admin) for project
+      ref `jusqumifsmtcaujqyjuy` committed in plaintext to `CLAUDE-HANDOFF.md` across 3
+      commits in this repo, which is PUBLIC (`gh repo view --json isPrivate` confirmed
+      `false`). That project is not decommissioned -- `orchestra_changes.md`'s own
+      documented history confirms it is MeetTrack's live production database (real
+      `users`/`meetings`/`user_api_keys` tables), only its `compliance`/
+      `compliance_tracker` schemas were dropped as dead artifacts. Reported to Owner
+      as urgent per this task's own PM instruction; did NOT test/use the leaked key
+      against live Supabase (would exceed the discovery-only authorization) and did
+      NOT rotate it. All other gitleaks hits confirmed false positive (Composio
+      authConfigId values are public config identifiers not secrets; Next.js internal
+      build-time encryption keys from a since-abandoned `apps/web/` monorepo
+      structure, regenerated per build; test-fixture fake secrets in
+      `*.test.ts`/`scripts-scratch/*`).
+
+      Also cross-referenced: `gh secret list` (51 real GitHub Actions secrets w/ real
+      `updated` timestamps used as rotation-age proxy), `git grep process\.env\.` (55
+      unique env vars the app code actually reads), `.github/workflows/*.yml` (all
+      secret refs use `${{ secrets.X }}`, zero hardcoded values), branch protection
+      config (1 collaborator, enforce_admins on, required checks incl. audit-check +
+      Guardrail Presence Check), and a requireAuth() coverage pass across all 994
+      `route.ts` files (930 direct; the other 64 spot-checked by category -- re-export
+      shims to already-gated handlers, CRON_SECRET-gated `/internal/*` cron routes,
+      alternate Bearer-token auth for `/mcp` and support-session impersonation, and a
+      handful of intentionally-public routes -- no raw open door found in the sample).
+    scope_note: >-
+      File scope: new `ai-os/OCID-056-CREDENTIAL-REGISTER.md`,
+      `ai-os/OCID-056-CREDENTIAL-EXPOSURE-REPORT.md`,
+      `ai-os/OCID-056-PERMISSION-AUDIT-REPORT.md`,
+      `ai-os/OCID-056-ENVIRONMENT-SECURITY-REPORT.md`, `PROGRESS.md`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml`. No src/ code changes, no credential rotation,
+      no schema/migration changes -- discovery and reporting only, per explicit PM
+      scope limit.
+  - session_label: "claude-code (task-20260813-083439-resume-ocid-020-021-real-remaining-scope, UMR-20260813-082609-873e / UMR-20260813-083422-15e7) -- resume OCID-020/021 remaining scope: merged PR #1070 (P04 H6 fix), fixed the PR's audit-check CI failure (bare-enum Severity Classified/Verdict field bug), re-verified H6 live post-deploy, honest P04/P03 disposition [DONE]"
+    claimed_at: "2026-08-13T08:40Z (this session, closed same session)"
+    claim: |
+      SPEC (UMR-20260813-082609-873e resuming SIGKILL'd UMR-20260808-175055-cebd,
+      parent UMR-20260802-165606-4413/OCID-020 + UMR-20260802-173631-ca85/OCID-021,
+      pm_decisions_pending id=519): update PR #1070 branch, wait for CI, merge,
+      wait for Vercel prod deploy, re-verify H6 live via gtm_check_ux_audit.py,
+      update master_issue_tracker OCID020021-P04 check_again_notes. Re-assess P04
+      overall disposition honestly (H2/H4/H10 remain real open, separately
+      dispositioned). P03 (webkit libs): NOT re-attempting apt-get/dpkg-deb
+      approach again (already failed twice) -- only seeking a real Owner decision
+      or a genuinely different fix path.
+
+      Real outcome: PR #1070's `audit-check` was failing on a prior cycle's
+      genuinely valid audit content whose `Severity Classified` field carried
+      prose beyond the bare enum value -- `validateAuditProtocolFields()`
+      requires an exact match. Posted a corrected comment (same content,
+      compliant field format), updated the branch, all CI green, merged
+      `fe12d80e` (2026-08-13T08:44:04Z). Waited for the real Vercel prod
+      deploy, re-ran `gtm_check_ux_audit.py` against `https://projexa-ai.com`
+      twice (1st hit a transient AI-parse `blocked`, 2nd clean): H6 confirmed
+      fixed (all 4 `/contact` fields `hasLabel:true`). H2/H4/H10 remain real,
+      unchanged in substance, correctly left open/dispositioned -- updated
+      `master_issue_tracker` `OCID020021-P04.check_again_notes` with this
+      real result, left `is_closed=NO`/`solution_applied=PARTIAL` (honest,
+      not fabricated closed). P03: no re-attempt of the already-failed
+      apt-get/dpkg-deb approach; opened a genuine `pm_decisions_pending`
+      row (id=522) asking for a real Owner decision (grant root/sudo,
+      commit a patch-package fix, or accept webkit as permanently
+      excluded) -- no self-approval, `master_issue_tracker` P03 state left
+      unchanged. Did not re-run `gtm_check_browser_compatibility.py` /
+      `gtm_check_production_readiness_audit.py` (P5) this cycle -- SPEC
+      gates that on P03/P04 having a real further fix or Owner sign-off,
+      neither landed yet; re-running now would only reproduce the same
+      known state at real AI-credit cost.
+    scope_note: >-
+      File scope: `src/components/ContactUsForm.tsx` (PR #1070, already
+      committed by a prior cycle, this session only merged it), this repo's
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` + `PROGRESS.md`, `master_issue_tracker`
+      DB rows `OCID020021-P03`/`P04` (P04 `check_again_notes` field only,
+      P03 untouched), one new `pm_decisions_pending` row (id=522). No other
+      src/ changes.
+  - session_label: "claude-code (task-20260803-085553-register-ocid-043-universal-external-exe) -- OCID-043 Universal External Execution Runtime: real discovery-only inventory of existing worker/dispatch/sentinel/review/PR/merge/lock components an external-execution runtime would reuse, per SEC-07 gate [DONE, docs-only]"
+    claimed_at: "2026-08-03T09:00Z (this session, closed same session)"
+    claim: |
+      SPEC (real PM decision): register OCID-043 (VERIDIAN Universal External Execution Runtime,
+      UMR-20260803-084429-7a70) under parent OCID-042 (UMR-20260803-084332-5b52), which is itself
+      discovery-only and depends on OCID-041 (UMR-20260803-084109-6875) which does not yet exist
+      as a completed result. Per ai-os/CONSTITUTION.yaml SEC-07, real implementation of worker
+      runtime, dispatch runtime, or CONSTITUTION.yaml stays locked until OCID-020
+      (UMR-20260802-165606-4413) independently clears, followed by OCID-038 -> OCID-039 -> OCID-040
+      in order. None of those have cleared. Authorized for discovery only: a real inventory of the
+      existing worker runtime, dispatch engine, sentinel, review pipeline, PR pipeline, merge
+      pipeline, and lock framework a future external execution runtime would need to reuse, real
+      identification of what exists vs. genuine gaps, and a canonical artifact documenting that
+      mapping. Confirmed live via systemctl that OCID-041/042/044/045 sibling worker units were
+      actively running concurrently with this task, so their own discovery artifacts did not exist
+      to defer to -- scoped this document to an independent infrastructure inventory instead
+      (`ai-os/VERIDIAN_OCID_043_UNIVERSAL_EXTERNAL_EXECUTION_RUNTIME_DISCOVERY_2026-08-03.md`, 7
+      named honest gaps). No worker runtime, dispatch runtime, or CONSTITUTION.yaml functional
+      changes. No provider-selection or execution-dispatch code. OCID-043 NOT marked complete.
+    scope_note: >-
+      File scope: new canonical artifact under ai-os/, ai-os/OS.yaml index registration, this
+      ACTIVE-CLAIMS entry, PROGRESS.md. Read-only inventory of claude-control/scripts/.github
+      workflows -- no functional code changes anywhere.
   - session_label: "claude-code (task-20260805-151445-merge-real-fold-in-closure-pr-for-ocid-0) -- OCID-064 fold-in closure bookkeeping: confirmed no PR needs merging, closed the tracker-entry gap [DONE, no code/PR changes, docs-only]"
     claimed_at: "2026-08-05T15:14Z (this session, closed same session)"
     claim: |
@@ -6232,6 +6732,79 @@ recently_completed:
       index registration, this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/,
       schema, migration, or CI changes -- documentation only per the spec's
       explicit prohibition.
+  - session_label: "claude-code (task-20260803-085546-register-ocid-041-universal-external-exe) -- OCID-041 VERIDIAN Universal External Execution Foundation, real discovery/requirement-mapping artifact, documentation only [PUSHED, PR #799 OPEN]"
+    claimed_at: "2026-08-03T09:05Z (this session, PR opened same session)"
+    claim: |
+      SPEC (Owner directive, tier 1, parented to `UMR-20260802-173631-ca85`
+      [OCID-021, ERP Functional Completeness Master Program], citing OCID-022
+      through OCID-040 and SEC-07 in `ai-os/CONSTITUTION.yaml`): the real UMR
+      registration for OCID-041 (`UMR-20260803-084109-6875`) already merged to
+      main in PR #793 (commit 8cdbe5ea, this same day, ~17 minutes before this
+      task dispatched) -- confirmed present in this branch's own history before
+      starting. That amendment's own text explicitly states it registered the
+      UMR/parent/lock relationship only and did NOT perform the substantive
+      discovery/requirement-mapping work OCID-041 itself calls for ("No worker
+      has yet been dispatched for OCID-041 as of this amendment"). This task
+      IS that dispatched discovery work: a real inventory of the external
+      execution design requirements stated in the Owner directive, a real
+      mapping of each requirement to existing VERIDIAN UMR/UTM/worker/
+      dispatch/review/constitution components, real gap identification, and
+      one real canonical artifact. Discovery/documentation only, consistent
+      with SEC-07 (OCID-020 `UMR-20260802-165606-4413` independently
+      confirmed still open per `ai-os/VERIDIAN_OCID_022_039_STATUS_SNAPSHOT_2026-08-03.md`)
+      -- no worker runtime, server runtime, or CONSTITUTION.yaml functional
+      changes; no real external provider execution path wired; OCID-041 not
+      marked complete.
+    scope_note: >-
+      File scope (expected): one new canonical artifact under `ai-os/`
+      (OCID-041 discovery/requirement-mapping document), `ai-os/OS.yaml`
+      and/or `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` index registration,
+      this ACTIVE-CLAIMS entry, `PROGRESS.md`. No src/, schema, migration,
+      worker runtime, or CI changes -- documentation only.
+  - session_label: "claude-code (task-20260803-085550-register-ocid-042-universal-context-pack) -- OCID-042 VERIDIAN Universal Context Packaging Runtime, discovery only [DONE, docs-only]"
+    claimed_at: "2026-08-03T09:00Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt, real UMR `UMR-20260803-084332-5b52` confirmed by direct query
+      against `umr_tasks`; parent OCID-041, `UMR-20260803-084109-6875`, registered the same cycle and
+      itself discovery-only per `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`'s "OCID-041 through
+      OCID-046" amendment; citing `UMR-20260802-173631-ca85` OCID-021, `SEC-07`
+      (`ai-os/CONSTITUTION.yaml`), and the OCID-022 through OCID-041 chain). Mission: a universal
+      deterministic minimum context-packaging runtime so every external-AI-provider request is built
+      exclusively from a standard VERIDIAN context package, not raw chat/document/task text -- reusing
+      existing components only, no new context/prompt engine, no new database, no duplicate registries.
+
+      Real, checked reason this stays discovery-only despite the dispatch prompt's own EXECUTION-type
+      request: OCID-042's own cited parent, OCID-041, was registered this exact cycle as governance
+      text only, with zero substantive discovery/design performed and no worker yet dispatched for it
+      (per that amendment's own text) -- building a real runtime against a foundation that does not
+      exist would mean inventing that foundation here, out of this task's scope. Independently
+      confirmed no newer commit exists on `origin/main` past `cb28bde3` (the OCID-041..046 registration
+      merge) and no open PR references OCID-041/042 before starting, per the ACTIVE-CLAIMS protocol.
+
+      Real discovery performed (dispatched to an Explore sub-agent for the codebase sweep, findings
+      independently spot-checked, not taken on faith): a file:line-grounded inventory across
+      `AssembledContext`/`context-assembly.ts` (real, typed, serializable context bundle -- confirmed
+      not wired to any provider call site today via its only live route,
+      `app/api/prompt-compiler/execute/route.ts`), `MotherRouterContext`/`resolveModel()` (provider
+      resolution only, builds no payload), `chat-service.ts` history bounding, mode-pill/chain
+      selection data (`capability-learning-service.ts`, `ChainSelector.tsx` -- real typed data, never
+      itself serialized into a request), task/report/document content sources, and the central finding:
+      one canonical low-level dispatcher (`llm-client.ts`) fed by ~24 independent ad hoc
+      prompt-construction call sites, plus two further fully independent construction paths
+      (`webllm-engine.ts` in-browser WebLLM, `worker-entrypoint.sh`'s raw `task.yaml`/`prompt.txt`-text
+      path to the `claude` CLI). Confirmed via repo-wide grep that no `ContextPackage`/`RequestPackage`/
+      `PromptPackage`/`UniversalContext` abstraction already exists -- zero duplication risk. Cross-
+      referenced (not duplicated) the adjacent OCID-034 document (predictive end-user context, a
+      distinct subject from this document's outbound-provider-payload scope).
+
+      No code written, no existing call site rewired, no schema or `CONSTITUTION.yaml` change, OCID-042
+      not marked complete.
+    scope_note: >-
+      File scope: `ai-os/VERIDIAN_UNIVERSAL_CONTEXT_PACKAGING_RUNTIME_2026-08-03.md` (new file, the one
+      canonical artifact), `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (new amendment section),
+      `ai-os/OS.yaml` (new index entry), this ACTIVE-CLAIMS.yaml entry, `PROGRESS.md`. No src/, schema,
+      CI, or `.github/` changes. No implementation -- consistent with `SEC-07`
+      (`ai-os/CONSTITUTION.yaml`) and OCID-041's own not-yet-existing foundation.
   - session_label: "claude-code (task-20260803-041002-ocid-023-veridian-universal-end-user-wor) -- OCID-023: VERIDIAN Universal End User Work Model v1.0, documentation only [DONE, PR pending merge]"
     claimed_at: "2026-08-03T04:10Z (this session, closed same session)"
     claim: |
@@ -9898,6 +10471,38 @@ recently_completed:
       live `claude` tmux session -- no writes to that task's workspace or
       branch, no keystrokes sent into the tmux session.
 
+# ── claim closed 2026-08-03 (task-20260803-085920) ──────────────────────
+  - session_label: "claude-code (task-20260803-085920-register-ocid-045-discovery-only--declin) -- OCID-045 certification re-verified DECLINED, no drift found [doc only, no code change]"
+    claimed_at: "2026-08-03T (this session, closed same session)"
+    claim: |
+      SPEC asked to register OCID-045 (`UMR-20260803-084637-ada4`, parent OCID-044
+      `UMR-20260803-084547-22fd`) discovery-only, certification explicitly declined. Real gatekeeper
+      check (per the standing rule in `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md`) found this exact
+      registration and decline already committed (`8cdbe5ea`, ~11 minutes before this task's own
+      dispatch) -- not undone work. Did not duplicate it. Instead independently re-verified the real
+      state it depends on, current as of this session: (1) `gh pr list` -- zero open PRs reference
+      OCID-041 through OCID-045; (2) two new sibling `ACTIVE-CLAIMS` entries appeared after the prior
+      decline was written (OCID-041 discovery `5af793dc`, OCID-043 discovery `a38d9ebb`), both live
+      only on their own unmerged worker branches (confirmed via `git merge-base --is-ancestor` against
+      this branch's `HEAD` -- neither is an ancestor), i.e. discovery work is now actively in flight
+      for two of the four upstream stages but none has produced a merged PR or canonical artifact;
+      (3) OCID-020 (`UMR-20260802-165606-4413`) has not cleared -- the latest real nav sweep (`1bc85b36`,
+      merged PR #794) found 3 NEW real gaps while completing 115/115 coverage, the opposite of a clean
+      independent clearance; (4) `ai-os/CONSTITUTION.yaml` SEC-07 read directly at current `HEAD`:
+      unchanged, `status: ENFORCED`, same real unlock sequence (OCID-020 -> OCID-038 -> OCID-039 ->
+      OCID-040); (5) OCID-038/039/040 confirmed still locked per a sibling unmerged branch
+      (`8a7bb2f1`, explicitly titled "implementation LOCKED"). No drift found that would change the
+      decline. Appended one factual re-verification amendment to
+      `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (the existing canonical artifact for this chain) --
+      did not create a new document, did not touch `CONSTITUTION.yaml`, did not mark OCID-045 or any
+      upstream OCID complete, made no "zero omissions"/"zero duplication" claim.
+    scope_note: >-
+      File scope: this repo's own `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` (amendment appended,
+      not rewritten), `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), `PROGRESS.md`. No src/, schema,
+      CONSTITUTION.yaml, or CI changes. Read-only checks: `gh pr list`, `git merge-base
+      --is-ancestor` against sibling worker branches (no writes to those branches/workspaces),
+      direct read of `ai-os/CONSTITUTION.yaml` at current HEAD.
+
   - session_label: "claude-code (task-20260803-055122-ocid-035-veridian-continuous-platform-ev) -- OCID-035 VERIDIAN Continuous Platform Evolution Runtime v1.0, documentation only [PUSHED, PR OPEN]"
     claimed_at: "2026-08-03T05:5xZ (this session)"
     claim: |
@@ -10105,6 +10710,69 @@ recently_completed:
       entry), `PROGRESS.md`. No src/, schema, migration, CI, service-worker, manifest, or any other
       application-code changes -- documentation and governance bookkeeping only, per this dispatch's
       own hard constraint.
+  - session_label: "claude-code (task-20260802-173644-register-master-program--veridian-erp-fu) -- Register VERIDIAN ERP Functional Completeness Master Program [GOVERNANCE/DISCOVERY ONLY, no code, no dispatch -- DONE 2026-08-02, PR #732; moved here from `active:` on 2026-08-05 during a real, mechanical rebase-conflict resolution against origin/main (no content change) that finally unblocked its 3-day-old real merge conflict -- this file will be updated with the real merge commit once that happens, same discipline as every prior entry in this chain]"
+    claimed_at: "2026-08-02T17:36Z (this session)"
+    claim: |
+      SPEC (Owner directive OCID-20260802-021, PROGRAM_PRIORITY=HIGHEST): register a real Master
+      Program anchored to parent UMRs UMR-20260802-054239-4251 + UMR-20260802-104058-25ba,
+      referencing 6 sibling UMRs already in flight (164801-2ab9, 164659-9a31, 165034-5747,
+      165434-cd91, 165541-c27d, 165606-4413). Hard gate: real implementation locked until
+      UMR-20260802-165606-4413 (PROJEXA-AI.COM certification) is independently verified complete --
+      that UMR's real DB status is `running`, not completed, so the gate stays shut. Discovery and
+      matrix-building only this pass.
+
+      Gatekeeper check performed before starting (per UMR-20260802-165034-5747's own standing rule):
+      found ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md already exists as the live, actively-amended
+      canonical artifact for this exact scope (amended in place by all 6 sibling UMRs already) --
+      extended it in place rather than creating 7 new parallel matrix files, per the Program's own
+      zero-duplication objective. No child gap item was submitted to resource_governor.py's live
+      dispatch queue -- registered as named governance records instead, explicitly to avoid spawning
+      real worker load while the gate is shut.
+
+      File scope: ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md (Program registration amendment),
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry), PROGRESS.md. No src/ or drizzle/ changes.
+
+    status_update_2026-08-02T17:52Z: |
+      DONE THIS SESSION. Program registered as an amendment section on the existing canonical
+      matrix (not a new file). Verified all 8 cited UMRs real via direct resource_governor.py
+      --query-umr DB query (not trusted from prompt text) -- 1 sibling (164659-9a31) has real DB
+      status `failed`, disclosed rather than hidden. Real new discovery: 3 reverse-engineering
+      reference repos (odoo/infisuite/zoho) registered in MASTER_INDEX.yaml's repo census but never
+      cross-referenced against VERIDIAN's functional completeness the way SAP/procurement were --
+      registered as PROG-CHILD-01/02/03 (scoping only, not dispatched). Also named: no end-user/
+      screen-reachability-from-projexa-ai.com matrix exists yet (PROG-CHILD-04), and business-rule
+      coverage for Construction/multi-brand/multi-tenant domains has no named reference product yet
+      (PROG-CHILD-05, needs PM/Owner scoping decision, not assumed to be a gap). Nothing implemented
+      or dispatched -- gate remains shut pending UMR-20260802-165606-4413.
+    status_update_2026-08-05_rebase: |
+      Real content unchanged since 2026-08-02 (registration/discovery only, per the Program's own
+      hard gate, which was and remains real and shut as of this rebase -- not independently
+      re-verified live again by this mechanical pass, since that would be a content change beyond
+      this pass's authorized scope: resolving a real DIRTY/CONFLICTING merge-conflict blocker and
+      the missing mandatory-audit-check verdict only, per explicit PM/Owner instruction limiting
+      this pass to mechanical blockers, no new implementation or re-assertion of currently-live
+      status). Rebased PR #732's branch onto origin/main; real conflicts in this file, `PROGRESS.md`,
+      and `ai-os/IMPLEMENTATION_MATRIX_2026-08-02.md` resolved by preserving every entry already
+      merged into `origin/main` and appending/relocating this PR's own real content rather than
+      overwriting anything -- same discipline as the precedent OCID-037 rebase (PR #785, commit
+      `d25c9314`). This entry itself moved from `active:` to here as part of that same mechanical
+      pass, per this file's own Rule 3 ("WHEN your work merges ... move your entry ... to
+      recently_completed").
+    status_update_2026-08-05_second_merge: |
+      The 2026-08-05 "rebase" above was a single-parent commit on top of the then-current
+      `origin/main` (merge-base 118e1e8f, PR #936) -- not a real ongoing sync, so `main` moving
+      further (PRs #941/#944/#946 and others) put this branch behind again and GitHub continued
+      reporting `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY` right up to this pass
+      (independently re-checked live via `gh pr view 732` before touching anything, not assumed from
+      the prior entry's own narration). This pass (task
+      `task-20260805-134812-merge-ocid-021-own-real-registration-pr`) did a real `git merge
+      origin/main` (not another single-parent same-content commit) against `main` tip `e546ed8f`,
+      producing one real content conflict in this file only (both sides had independently appended
+      an entry in the same location) -- resolved by keeping both entries, this one first. All CI
+      checks on PR #732 were already green before this merge (Lint/Type Check/Build/Unit/E2E/
+      audit-check/Guardrail Presence/etc., verified live via `gh pr view 732 --json
+      statusCheckRollup`); this merge does not change source, schema, or CI config, so no reruns are
+      expected to newly fail.
   - session_label: "claude-code (task-20260804-040758-register-ocid-055--universal-repository) -- OCID-055 universal repository discovery/cataloging/classification (read-only)"
     claimed_at: "2026-08-04T04:15Z (this session)"
     claim: |
