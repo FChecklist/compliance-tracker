@@ -26,14 +26,37 @@ import { defineConfig } from "@playwright/test";
 // in CI"): e2e/accessibility.spec.ts DOES need a live server to point
 // AxeBuilder at real rendered pages, unlike the phase_5 test above. webServer
 // below boots `next dev` itself (the e2e CI job runs on a bare checkout with
-// no build artifact to reuse from the separate `build` job) against the
-// same placeholder env vars the `build`/`unit-tests` CI jobs already use --
-// the pages under test (/, /login, /pricing, /terms, /privacy) are all
-// unauthenticated and DB-free, confirmed by reading each route before
-// adding it here, so the placeholder DATABASE_URL/Supabase vars never need
-// to resolve a real connection. reuseExistingServer keeps this fast for
-// local `bunx playwright test` runs against an already-running `bun run
-// dev`.
+// no build artifact to reuse from the separate `build` job). reuseExistingServer
+// keeps this fast for local `bunx playwright test` runs against an
+// already-running `bun run dev`.
+//
+// Fixed 2026-08-15 (real CI failure, PR #1232's E2E Tests job: webServer
+// never became ready within the original 120s timeout, zero stdout captured
+// -- Build times out at ~2m23s for a full production build of this
+// codebase's ~99 app routes, so a cold dev-mode compile of the first
+// request under a resource-constrained CI runner plausibly exceeds 120s
+// too). Two real, independently-verified fixes, not one guess:
+// (1) timeout raised to 300s to absorb a slow cold compile.
+// (2) `env` below actually supplies the placeholder DATABASE_URL/Supabase
+// vars this file's comment used to CLAIM were already being passed to the
+// `build`/`unit-tests` CI jobs' precedent, but never actually were -- the
+// `e2e` job in ci.yml sets zero env vars, so src/proxy.ts's
+// `createServerClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, ...)` throws
+// synchronously on every single request (confirmed locally: reproducible
+// 500 "Your project's URL and Key are required" on `/`), meaning even once
+// the timeout is fixed, AxeBuilder would have been auditing a generic
+// Next.js crash page instead of the real, intended (/, /login, /pricing,
+// /terms, /privacy) content. Only set when unset, so a real local
+// `.env.local`-configured Supabase project is never shadowed in local
+// `bunx playwright test` runs.
+const ciPlaceholderEnv = process.env.CI
+  ? {
+      DATABASE_URL: process.env.DATABASE_URL ?? "postgresql://postgres:placeholder@localhost:5432/postgres",
+      NEXT_PUBLIC_SUPABASE_URL: process.env.NEXT_PUBLIC_SUPABASE_URL ?? "https://placeholder.supabase.co",
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "placeholder-anon-key",
+    }
+  : undefined;
+
 export default defineConfig({
   testDir: "./e2e",
   use: {
@@ -43,6 +66,9 @@ export default defineConfig({
     command: "bun run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 300_000,
+    env: ciPlaceholderEnv,
+    stdout: "pipe",
+    stderr: "pipe",
   },
 });
