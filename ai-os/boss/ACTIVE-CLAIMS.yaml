@@ -1621,6 +1621,39 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code (worker task-20260718-115006-retry-1--ai-engineering-quality--overal) -- Overall Code Quality Score: task-execution-engine.ts split + schema.ts nav-aid + test coverage"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      VERIDIAN Review Framework finding "Overall Code Quality Score" (Medium):
+      split schema.ts by domain module and task-execution-engine.ts by
+      responsibility; raise test coverage on the largest files first.
+
+      Re-verified live before claiming: this is NOT a fresh gap. Open PR #688
+      (branch worker/task-20260801-173901-retry-ai-engineering-quality-code-struct,
+      2026-08-01) already did almost exactly this -- extracted
+      dispatchTool()/dispatchEngine() out of task-execution-engine.ts into
+      src/lib/services/task-execution/{tool-dispatch,engine-dispatch}.ts, and
+      deliberately deferred schema.ts's *physical* split (added a
+      navigational-aid comment instead) because schema.ts is a hot file many
+      PRs concurrently append to. `git merge-base --is-ancestor 8e2edde4a HEAD`
+      confirms that PR never landed on main, and `gh pr view 688` shows it's
+      now CONFLICTING/DIRTY after 2 weeks of churn (new dispatchEngine()
+      switch-cases from newly-registered engines).
+      9 open PRs currently touch schema.ts as of this claim (#1238, #1237,
+      #1234, #1231, #1229, #1227, #1212, #1046, #1020) -- the "don't force a
+      physical schema.ts split" reasoning still holds.
+
+      Plan: reconcile/replay PR #688's real extraction onto current main on
+      THIS task's own branch (worker/task-20260718-115006-retry-1--ai-engineering-quality--overal),
+      resolving the 2-weeks-of-drift conflicts directly, add/extend tests on
+      the extracted modules, and note PR #688 as superseded in the new PR
+      body so it can be closed instead of left to rot. File scope:
+      src/lib/task-execution-engine.ts, src/lib/task-execution-engine.test.ts,
+      new src/lib/services/task-execution/{tool-dispatch,engine-dispatch}.ts
+      (+ tests), src/lib/db/schema.ts (comment-only navigational aid, no
+      table/column changes). Not touching permission-service.ts's
+      ERP_ACTION_ROLES table or any other in-flight worker's declared scope.
+
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
