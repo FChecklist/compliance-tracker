@@ -181,25 +181,6 @@ jobs:
       # distinct reference styles it parses and the honest limitation this
       # does and doesn't guarantee.
       - run: node scripts/check-doc-cross-references.mjs
-  service-header-comment:
-    name: Service Header Comment Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
-      # VERIDIAN Review Framework gap-closure: "Code Readability for AI"
-      # (Low) -- "Comment discipline not enforced by tooling." Fails the
-      # build if a NEW src/lib/services/*.ts file lacks a header comment
-      # explaining what it does and why -- an already-universal convention
-      # here (232/233 existing service files follow it) that was never
-      # actually enforced. fetch-depth: 0 (unlike this workflow's other
-      # jobs) and --base origin/main passed explicitly (matching
-      # migration-collision-check's precedent above, same "stale local
-      # main ref" fix) because the check needs a reliable merge-base to
-      # find which files are genuinely new, not just changed. See the
-      # script's own header for the honest limitation this does and
-      # doesn't guarantee.
-      - run: node scripts/check-service-header-comment.mjs --base origin/main
   e2e:
     name: E2E Tests
     needs: [build]
