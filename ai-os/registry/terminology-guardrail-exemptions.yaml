@@ -1153,3 +1153,11 @@ exemptions:
     findings_by_category:
       indian_gstin_literal: 2
       hardcoded_iso_date: 3
+  - file: src/lib/supabase/api-key-auth.ts
+    reason: "First real baseline for this file (VERIDIAN Review Framework gap-closure, API Governance / API Developer Experience sandbox rate-limit ceiling, PR #1230, 2026-08-15): 4 genuine dated design-rationale comments -- 3 pre-existing (lines 24/30/34, Wave A's 2026-07-17 demo-key-gating writeup, predating this PR) plus 1 new (line 62, this PR's own 2026-08-15 gap-closure comment) -- documenting real prior/current findings, not example/placeholder data. First PR to touch this file since the terminology-guardrail exemptions manifest was seeded, so it had no prior baseline entry."
+    findings_by_category:
+      hardcoded_iso_date: 4
+  - file: src/lib/supabase/api-key-auth.test.ts
+    reason: "VERIDIAN Review Framework gap-closure (API Governance / API Developer Experience sandbox rate-limit ceiling, PR #1230, 2026-08-15): new file, 2 genuine dated design-rationale comments (line 2, citing the pre-existing 2026-07-17 Wave A demo-key context this test file's own new coverage extends; line 103, this PR's own 2026-08-15 gap-closure comment) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 2

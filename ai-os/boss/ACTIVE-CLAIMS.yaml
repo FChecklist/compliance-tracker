@@ -5307,6 +5307,27 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "worker/task-20260718-072006-api-governance--rate-limiting--versionin"
+    claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    claim: |
+      REVIEW-FRAMEWORK gap-closure: API Governance (Rate Limiting,
+      Versioning, Webhooks) / API Developer Experience -- 2 findings.
+      Finding 1 (Critical, "API changelog maintained for external
+      consumers") is ALREADY RESOLVED -- docs/API_CHANGELOG.md exists,
+      added 2026-07-16 in commit 7cf4599f9, well-maintained, covers the
+      full /api/v1/** surface. No action needed; will document as
+      already-resolved rather than making an unnecessary change.
+      Finding 2 (High, "Sandbox/test environment available for API
+      integrators") -- investigating current state before deciding scope;
+      recommended approach is reusing the existing Demo Company org as an
+      interim sandbox. Likely file scope if real work is needed: docs/
+      (developer-facing sandbox docs) and possibly a lightweight flag/
+      helper under src/lib/ -- NOT touching
+      src/lib/services/permission-service.ts's ERP_ACTION_ROLES table
+      structure (additive-only if touched at all, per task boundary).
+      Checked ACTIVE-CLAIMS.yaml live before claiming -- no other entry
+      touches API changelog, sandbox, or API Developer Experience areas.
+
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap-closure: AI Architecture / Domain Accuracy & Quality"
     claimed_at: "2026-07-18T (this session)"
     claim: |
