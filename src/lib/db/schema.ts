@@ -1355,6 +1355,16 @@ export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_override
   updatedByUserId: text('updated_by_user_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // VERIDIAN Review Framework gap-closure (2026-08-15, "AI Model Lifecycle
+  // & Benchmarking: A/B or shadow-testing capability for a candidate
+  // model" -- Critical). Both nullable/additive (drizzle/0313) -- NULL
+  // candidateModel or NULL/0 rolloutPercentage means no active rollout,
+  // identical to every row's behavior before this pair of columns existed.
+  // Read exclusively by roster-overrides.ts's resolveDispatchModel() --
+  // resolveEffectiveModel() (the plain override path every pre-existing
+  // caller uses) does not consult these at all.
+  candidateModel: text('candidate_model'),
+  rolloutPercentage: integer('rollout_percentage'),
 })
 
 // Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the AI Dev
