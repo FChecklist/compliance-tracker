@@ -22,5 +22,14 @@ be maintained with the same checklist -- see that file for full detail.)
       this task's own entries). Re-ran tests/tsc/eslint/migration-collision
       check after merge -- all clean.
 
+- [x] Merge pushed (`e7c8ad279`); task.yaml's `branch:` field briefly got
+      recorded as a scratch merge-test branch by an auto-checkpoint mid-merge
+      -- fixed via a fresh `veridian-task.py checkpoint` before the real
+      push, confirmed `branch: worker/task-20260718-073004-...` again before
+      pushing. PR #1231 is now `mergeable: MERGEABLE`; CI (Lint/Type Check/
+      Build/Unit Tests, Sentinel, Mandatory Audit Check, CodeQL) running.
+
 ## Remaining
-- [ ] None -- merge conflicts resolved, pushing merge commit.
+- [ ] Wait for CI to go green, then this needs an AUDIT:PASS/FAIL comment
+      per AGENTS.md Rule 10 before it can merge (this session did the
+      implementation, so per Rule 7(c) it should not self-audit).
