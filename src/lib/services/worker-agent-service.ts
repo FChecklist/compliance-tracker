@@ -30,7 +30,7 @@ export type WorkerAgentContext = { orgId: string; userId: string; dbUser: typeof
 const PROPOSABLE_TIERS = new Set(["user", "customer", "client"])
 
 // Real Agent Hierarchy Registry write path (see workerAgents.domainGroupId's
-// own comment in schema.ts and drizzle/0173_worker_agent_domain_groups.sql
+// own comment in schema.ts and drizzle/0256_worker_agent_domain_groups.sql
 // for the full "why not supervisorWorkerAgentId" reasoning). Mirrors exactly
 // the CASE expression the backfill migration used, so a newly proposed
 // agent's domain resolves to the same group an existing agent with the same

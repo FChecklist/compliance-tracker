@@ -56,6 +56,17 @@ export type CallLLMOptions = {
   // deliberately not touched this slice. Groq/OpenRouter/Cerebras/Google
   // get no special handling this slice either.
   enablePromptCache?: boolean;
+  // Super Boss v2 plan task V2-5 (BYOB bring-your-own-AI-model, 2026-07-20):
+  // optional OpenAI-compatible chat-completions endpoint that, when set,
+  // overrides dispatchLLM()'s per-provider default URL for the groq/openai/
+  // openrouter/cerebras (callOpenAICompatible) branches ONLY. Used by the
+  // software_team-scope tenant-override path (runRole in team-service.ts)
+  // so an org pointing its BYO model at a self-hosted OpenRouter-compatible
+  // gateway can do so with no code change. Undefined for every pre-existing
+  // call site -> dispatchLLM uses its hardcoded provider URL exactly as
+  // before (zero behavior change). Not honored for anthropic/google
+  // (their request shapes are not OpenAI-compatible).
+  baseUrl?: string;
 };
 
 export type LLMUsage = {
@@ -74,6 +85,15 @@ export type LLMUsage = {
 export type LLMResult = {
   content: string;
   usage: LLMUsage;
+  // AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18,
+  // "No systematic latency tracking or SLA enforcement"): wall-clock time
+  // from the first provider attempt through any retries/fallback, measured
+  // centrally in callLLM/callLLMJson/callLLMVision -- see LLM_LATENCY_SLA_MS
+  // below. Previously each call site tracked its own Date.now() before/after
+  // (or, e.g. the pre-fix api/help/ask/route.ts, didn't track it at all), so
+  // there was no guaranteed source of latency data; this field is populated
+  // for every call, no caller opt-in required.
+  durationMs: number;
 };
 
 // Wave 72 (AI_OS_CERTIFICATION.md §2.5, "Model Switching / Fallback -- NOT_BUILT"):
@@ -187,12 +207,62 @@ const MODEL_PRICING: Record<string, { promptPer1k: number; completionPer1k: numb
   "z-ai/glm-5.2": { promptPer1k: 0.00042, completionPer1k: 0.00132 },
   "z-ai/glm-5v-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
   "z-ai/glm-5-turbo": { promptPer1k: 0.0012, completionPer1k: 0.004 },
+  // VERIDIAN Review Framework remediation (AI Failover, 2026-07-18):
+  // orchestra-model-resolver.ts's platformFallbackFor() now uses this model
+  // as the escalated tier's own same-quality-class failover target -- a new
+  // consumer outside ai-team/roster.ts's existing AI Dev Team usage, so
+  // without this row estimateCostUsd() would silently return null for every
+  // customer-facing call that lands on this fallback branch, the same class
+  // of gap SOURCE_TYPE_MODEL_OVERRIDES' groq entry closed above. Verified
+  // live via openrouter.ai/api/v1/models/deepseek/deepseek-v4-pro/endpoints
+  // 2026-07-18, DeepSeek provider: $0.435 / $0.87 per 1M prompt/completion
+  // tokens.
+  "deepseek/deepseek-v4-pro": { promptPer1k: 0.000435, completionPer1k: 0.00087 },
 };
 
 export function estimateCostUsd(model: string, usage: LLMUsage): number | null {
   const pricing = MODEL_PRICING[model];
   if (!pricing) return null;
   return (usage.promptTokens / 1000) * pricing.promptPer1k + (usage.completionTokens / 1000) * pricing.completionPer1k;
+}
+
+// Anthropic's documented cache-hit discount: a cache read is billed at 10%
+// of the base input price (a 90% saving on those tokens) -- see
+// callAnthropic's cache_control comment above for the write-side premium
+// (1.25x, a cost rather than a saving on the call that populates the
+// cache). Only the read-side discount is counted as "savings" here;
+// estimateCostUsd above already excludes cache tokens from promptTokens
+// entirely (Anthropic's input_tokens does not include them), so this is
+// additive, not a correction to an existing charge.
+const ANTHROPIC_CACHE_READ_DISCOUNT = 0.9;
+
+/** Real $ saved on this call from Anthropic prompt-cache reads. null when caching wasn't attempted or the model has no pricing row -- never 0 standing in for "not attempted", same LLMUsage contract as cacheReadTokens itself. */
+export function estimateCacheSavingsUsd(model: string, usage: LLMUsage): number | null {
+  if (usage.cacheReadTokens === undefined) return null;
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return null;
+  return (usage.cacheReadTokens / 1000) * pricing.promptPer1k * ANTHROPIC_CACHE_READ_DISCOUNT;
+}
+
+// Cache & Synchronization: Cache Utilization & Prediction task (2026-08-07).
+// Same Anthropic published cache pricing as estimateCacheSavingsUsd above
+// (read = 0.1x base price), but additionally nets out the cache WRITE
+// premium (cacheCreationTokens billed at 1.25x base price) -- estimateCacheSavingsUsd
+// intentionally reports gross read-side savings only (see its own comment,
+// "additive, not a correction to an existing charge"); this function instead
+// answers "what did prompt caching net this account, all-in" for
+// prompt-cache/utilization.ts's per-layer/per-day report, where both cache
+// writes and cache reads happen across many calls and need to be reconciled
+// against each other, not just the read side. Same honest limitation as
+// both siblings: null for any model not in MODEL_PRICING, never a guessed
+// price. Approximation, not an invoice reconciliation: real provider billing
+// may round/bucket differently than this linear estimate.
+export function estimatePromptCacheSavingsUsd(model: string, cacheReadTokens: number, cacheCreationTokens: number): number | null {
+  const pricing = MODEL_PRICING[model];
+  if (!pricing) return null;
+  const readSavings = (cacheReadTokens / 1000) * pricing.promptPer1k * ANTHROPIC_CACHE_READ_DISCOUNT;
+  const writeOverhead = (cacheCreationTokens / 1000) * pricing.promptPer1k * 0.25;
+  return readSavings - writeOverhead;
 }
 
 // Wave 45: OpenRouter recommends (not requires) HTTP-Referer/X-Title for
@@ -222,6 +292,31 @@ function openRouterProviderFor(baseUrl: string, model: string): { order: string[
   return preferred ? { order: [preferred] } : undefined
 }
 
+// TASK 1.2 (Owner directive 2026-07-20): AI Dev Team dispatch
+// (task-execution-engine.ts) goes through this function, not
+// callAnthropic -- enablePromptCache was silently a no-op here before
+// this change (the option was defined on CallLLMOptions and read by
+// callAnthropic only; every other provider ignored it). Verified via
+// OpenRouter's own docs before writing anything (not assumed):
+//  - DeepSeek: caching is fully automatic on OpenRouter, no request
+//    field needed -- this function already gets that benefit for free
+//    on any DeepSeek-routed call, with or without this change.
+//  - Anthropic-family models (routed either directly or via
+//    OpenRouter's "anthropic/..." model IDs): OpenRouter passes
+//    through the same cache_control content-block shape Anthropic's
+//    own API uses -- implemented below, gated to only fire for
+//    anthropic/-prefixed model IDs so no other provider ever receives
+//    a field it might not understand.
+//  - GLM/Zhipu (the AIROUTER-01 default judgment model): OpenRouter's
+//    docs do not document caching support one way or the other for
+//    this provider. Deliberately NOT guessed at here -- sending an
+//    unverified cache_control shape to a live paid API on a guess
+//    risks a silently malformed request. Left as a known, honest open
+//    item (see ai-os/MASTER_INDEX.yaml) rather than fabricated.
+function isAnthropicModelId(model: string): boolean {
+  return model.toLowerCase().startsWith("anthropic/") || model.toLowerCase().startsWith("claude-")
+}
+
 async function callOpenAICompatible(
   baseUrl: string,
   apiKey: string,
@@ -229,11 +324,18 @@ async function callOpenAICompatible(
   systemPrompt: string,
   userMessage: string,
   options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
+  const cacheEligible =
+    Boolean(options?.enablePromptCache) &&
+    isAnthropicModelId(model) &&
+    systemPrompt.length >= ANTHROPIC_MIN_CACHEABLE_CHARS
   const body: Record<string, unknown> = {
     model,
     messages: [
-      { role: "system", content: systemPrompt },
+      {
+        role: "system",
+        content: cacheEligible ? [{ type: "text", text: systemPrompt, cache_control: { type: "ephemeral" } }] : systemPrompt,
+      },
       ...(options?.history ?? []).map((h) => ({ role: h.role, content: h.content })),
       { role: "user", content: userMessage },
     ],
@@ -278,7 +380,7 @@ async function callAnthropic(
   systemPrompt: string,
   userMessage: string,
   options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   // Anthropic's Messages API has no response_format=json_object equivalent --
   // ask for JSON-only output in the system prompt instead, same as every
   // other provider does when jsonMode is requested but not natively supported.
@@ -344,7 +446,7 @@ async function callGoogle(
   systemPrompt: string,
   userMessage: string,
   options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const prompt = options?.jsonMode
     ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.\n\n${userMessage}`
     : `${systemPrompt}\n\n${userMessage}`;
@@ -378,21 +480,53 @@ async function callGoogle(
   };
 }
 
-function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, systemPrompt: string, userMessage: string, options?: CallLLMOptions): Promise<LLMResult> {
+function dispatchLLM(provider: LLMProvider, model: string, apiKey: string, systemPrompt: string, userMessage: string, options?: CallLLMOptions): Promise<{ content: string; usage: LLMUsage }> {
+  // Super Boss v2 plan task V2-5 (BYOB): an explicit OpenAI-compatible
+  // baseUrl in options overrides the per-provider default for the four
+  // callOpenAICompatible branches. The tenant-override path (runRole) is
+  // the only caller that sets this today; every existing call site leaves
+  // it undefined and gets dispatchLLM's hardcoded provider URL exactly as
+  // before. Anthropic/Google keep their own non-OpenAI-compatible shapes
+  // and ignore this (a tenant BYO model routed through OpenRouter never
+  // lands on those branches anyway).
+  const overrideUrl = options?.baseUrl
   switch (provider) {
     case "groq":
-      return callOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "openai":
-      return callOpenAICompatible("https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://api.openai.com/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "openrouter":
-      return callOpenAICompatible("https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://openrouter.ai/api/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "cerebras":
-      return callOpenAICompatible("https://api.cerebras.ai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
+      return callOpenAICompatible(overrideUrl ?? "https://api.cerebras.ai/v1/chat/completions", apiKey, model, systemPrompt, userMessage, options);
     case "anthropic":
       return callAnthropic(apiKey, model, systemPrompt, userMessage, options);
     case "google":
       return callGoogle(apiKey, model, systemPrompt, userMessage, options);
   }
+}
+
+// AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18):
+// no live SLA target existed anywhere in this codebase for an LLM call --
+// picked as a conservative ceiling for an interactive chat/help reply (the
+// two heaviest real callers), above what even a retried call should
+// normally take. A breach only warns; it never fails or truncates the
+// call -- the reply the user is waiting on has already been paid for, so
+// discarding it would waste the exact cost this gap-closure wave is about
+// managing, not save it.
+const LLM_LATENCY_SLA_MS = 8000;
+
+function attachLatency<T extends { content: string; usage: LLMUsage }>(
+  result: T,
+  startedAt: number,
+  provider: LLMProvider,
+  model: string
+): T & { durationMs: number } {
+  const durationMs = Date.now() - startedAt;
+  if (durationMs > LLM_LATENCY_SLA_MS) {
+    console.warn(`[llm-client] SLA breach: ${provider}/${model} took ${durationMs}ms (SLA ${LLM_LATENCY_SLA_MS}ms)`);
+  }
+  return { ...result, durationMs };
 }
 
 /**
@@ -413,11 +547,14 @@ export async function callLLM(
   options?: CallLLMOptions,
   fallback?: LLMFallback
 ): Promise<LLMResult> {
+  const startedAt = Date.now();
   try {
-    return await withRetry(() => dispatchLLM(provider, model, apiKey, systemPrompt, userMessage, options));
+    const result = await withRetry(() => dispatchLLM(provider, model, apiKey, systemPrompt, userMessage, options));
+    return attachLatency(result, startedAt, provider, model);
   } catch (primaryError) {
     if (!fallback) throw primaryError;
-    return withRetry(() => dispatchLLM(fallback.provider, fallback.model, fallback.apiKey, systemPrompt, userMessage, options));
+    const result = await withRetry(() => dispatchLLM(fallback.provider, fallback.model, fallback.apiKey, systemPrompt, userMessage, options));
+    return attachLatency(result, startedAt, fallback.provider, fallback.model);
   }
 }
 
@@ -434,7 +571,7 @@ export async function callLLM(
 async function callVisionOpenAICompatible(
   baseUrl: string, apiKey: string, model: string, systemPrompt: string,
   imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const body: Record<string, unknown> = {
     model,
     messages: [
@@ -467,7 +604,7 @@ async function callVisionOpenAICompatible(
 async function callVisionAnthropic(
   apiKey: string, model: string, systemPrompt: string,
   imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const system = options?.jsonMode ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.` : systemPrompt;
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
@@ -494,7 +631,7 @@ async function callVisionAnthropic(
 async function callVisionGoogle(
   apiKey: string, model: string, systemPrompt: string,
   imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
-): Promise<LLMResult> {
+): Promise<{ content: string; usage: LLMUsage }> {
   const prompt = options?.jsonMode
     ? `${systemPrompt}\n\nRespond with ONLY valid JSON, no markdown or extra text.\n\n${instructionText}`
     : `${systemPrompt}\n\n${instructionText}`;
@@ -517,17 +654,10 @@ async function callVisionGoogle(
   };
 }
 
-/** Vision-capable counterpart to callLLM -- imageBase64 has no data: prefix, mimeType is e.g. "image/jpeg". */
-export async function callLLMVision(
-  provider: LLMProvider,
-  model: string,
-  apiKey: string,
-  systemPrompt: string,
-  imageBase64: string,
-  mimeType: string,
-  instructionText: string,
-  options?: CallLLMOptions
-): Promise<LLMResult> {
+function dispatchVisionLLM(
+  provider: LLMProvider, apiKey: string, model: string, systemPrompt: string,
+  imageBase64: string, mimeType: string, instructionText: string, options?: CallLLMOptions
+): Promise<{ content: string; usage: LLMUsage }> {
   switch (provider) {
     case "groq":
       return callVisionOpenAICompatible("https://api.groq.com/openai/v1/chat/completions", apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
@@ -542,6 +672,22 @@ export async function callLLMVision(
     case "google":
       return callVisionGoogle(apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
   }
+}
+
+/** Vision-capable counterpart to callLLM -- imageBase64 has no data: prefix, mimeType is e.g. "image/jpeg". */
+export async function callLLMVision(
+  provider: LLMProvider,
+  model: string,
+  apiKey: string,
+  systemPrompt: string,
+  imageBase64: string,
+  mimeType: string,
+  instructionText: string,
+  options?: CallLLMOptions
+): Promise<LLMResult> {
+  const startedAt = Date.now();
+  const result = await dispatchVisionLLM(provider, apiKey, model, systemPrompt, imageBase64, mimeType, instructionText, options);
+  return attachLatency(result, startedAt, provider, model);
 }
 
 // Wave 46 testing pass: some models routed through OpenRouter (confirmed
@@ -566,8 +712,8 @@ export async function callLLMJson<T>(
   userMessage: string,
   options?: CallLLMOptions,
   fallback?: LLMFallback
-): Promise<{ data: T; usage: LLMUsage }> {
-  const { content, usage } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true }, fallback);
+): Promise<{ data: T; usage: LLMUsage; durationMs: number }> {
+  const { content, usage, durationMs } = await callLLM(provider, model, apiKey, systemPrompt, userMessage, { ...options, jsonMode: true }, fallback);
   const data = JSON.parse(stripJsonFence(content)) as T;
 
   if (options?.expectedKeys?.length) {
@@ -575,5 +721,5 @@ export async function callLLMJson<T>(
     if (missing.length > 0) throw new LLMVerificationError(missing);
   }
 
-  return { data, usage };
+  return { data, usage, durationMs };
 }

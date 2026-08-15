@@ -36,4 +36,4 @@ DO $$ BEGIN
   CREATE POLICY service_role_bypass_tool_health_events ON compliance.tool_health_events FOR ALL TO service_role USING (true);
 EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-ALTER TABLE compliance.dynamic_chains ADD COLUMN IF NOT EXISTS monitoring_rules jsonb;
+ALTER TABLE platform.dynamic_chains ADD COLUMN IF NOT EXISTS monitoring_rules jsonb;

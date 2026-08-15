@@ -28,6 +28,14 @@ import {
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { logActivity } from "@/lib/audit"
+// Gap closure, 2026-07-18 (Exception Handling Framework pass): this module
+// used to define its own independent ServiceError class, identical in shape
+// to compliance-service.ts's -- the same instanceof footgun
+// sales-engine-service.ts's own 2026-07-09 gap closure already fixed for
+// itself (see that file's header). Re-exporting the canonical one closes it
+// here too, and picks up the new kind/retryable taxonomy for free.
+import { ServiceError } from "./compliance-service"
+export { ServiceError }
 
 // Telemetry closes the design doc's §2.5 finding: @memvid/sdk phones home a
 // path-hash + command-name event on every operation by default. Set before
@@ -41,12 +49,6 @@ const SIGNED_URL_TTL_SECONDS = 300
 const MAX_IMPORT_SIZE_BYTES = 25 * 1024 * 1024 // matches documents route's own bucket-limit ceiling
 const MAX_CONVERSATIONS = 20
 const MAX_MESSAGES_PER_CONVERSATION = 200
-
-export class ServiceError extends Error {
-  constructor(message: string, public status: number) {
-    super(message)
-  }
-}
 
 type CapsuleItemMetadata = {
   type: "saved_report" | "conversation"
