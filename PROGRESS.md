@@ -73,6 +73,21 @@ may be stale:
       out"; rate limiting actually landed in Wave 96, and versioning policy
       is now built via the above) to reflect the real, current state.
 
+## PR status
+
+- PR opened: https://github.com/FChecklist/compliance-tracker/pull/1225
+  (branch `worker/task-20260718-075004-architecture---design--reusability-acros`
+  → `main`).
+- Posted the required `AUDIT: PASS` structured verdict comment (Rule 10 /
+  `mandatory-audit-check.yml`) — passed validation.
+- The PR's initial `opened` pull_request event never triggered `CI.yml` or
+  `mandatory-audit-check.yml` at all (confirmed via the GitHub Checks API on
+  the PR's own head SHA — 0 check-runs beyond Vercel Preview Comments); only
+  the `issue_comment`-triggered audit-check run (from posting the AUDIT
+  comment) fired. Pushed an empty re-trigger commit
+  (`ca4b1398b`) to force a `synchronize` event and get a real CI run.
+  Monitoring for that result now.
+
 ## Remaining
 
 - [ ] None for these 2 findings — both closed as documentation-only
