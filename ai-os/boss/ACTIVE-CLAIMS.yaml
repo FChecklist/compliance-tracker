@@ -1624,6 +1624,38 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-075004-architecture---design--reusability-acros) -- VERIDIAN Review Framework: Architecture & Design / Reusability Across Scope, 2 Low findings"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "compliance-tracker (PR opened this session, see branch worker/task-20260718-075004-architecture---design--reusability-acros -- not yet merged, no self-merge per Rule 6)"
+    summary: |
+      Both findings checked against live code first, per the task's own
+      instruction that the evaluation may be stale. Finding 1 ("Feature
+      Reusability Across Projects/Modules", recommended fix "Add API
+      versioning e.g. /api/v1/projexa vs /api/v2/projexa before breaking
+      changes") turned out to be already built -- /api/v1/** has existed
+      since Wave 11 (2026-07-03) and /api/v1/projexa/** is a live ~60-route
+      alias namespace; what was genuinely missing (and already flagged by
+      ERP_BENCHMARK_COMPARISON.md's own INT004 row) was a written
+      versioning policy, not the mechanism -- added one as a new section in
+      docs/API_CHANGELOG.md (additive-vs-breaking rules, per-namespace
+      version scoping, 90-day deprecation window). Finding 2 ("Module
+      Reusability Across Industries", "document which of the 416 tables
+      are compliance-specific vs universal") had a real, previously
+      undocumented gap -- built scripts/classify-schema-tables.mjs (static
+      analysis of schema.ts, no DB access, re-runnable as the schema
+      grows) and generated docs/TABLE_REUSABILITY_CLASSIFICATION.md: of
+      431 live tables (grown from 416 since the evaluation), 322 (74.7%)
+      universal/platform, 87 (20.2%) compliance-specific, 22 (5.1%)
+      industry-vertical (PROJEXA construction/interior-design -- itself
+      live evidence of cross-industry reuse). Caught and fixed one real
+      classification bug during review: 10 generic platform-infra tables
+      (application_errors, platform_assets, instruction_packages, etc.)
+      only live under schema.ts's "Construction Intelligence (Wave 120)"
+      comment for chronological reasons and were initially mis-bucketed as
+      industry_vertical by the section-header fallback before an explicit
+      name rule was added. Doc-only changes (2 new files, 2 docs edited);
+      did not touch permission-service.ts's ERP_ACTION_ROLES or any other
+      in-flight track's scope.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
