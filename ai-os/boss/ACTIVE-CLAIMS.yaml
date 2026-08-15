@@ -40,7 +40,47 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
+  - session_label: "claude-code (task-20260718-064002-ai-documentation--ai-readable-technical, invocation 14/20) -- AI-Readable Technical Documentation gap, rebase-and-reopen of PR #1047/#1048 [DONE, PR opened]"
+    claimed_at: "2026-08-15T05:19Z (this session)"
+    claim: |
+      This task's own worker branch had sat untouched at its 2026-07-18 creation-time tip (016c77614,
+      ~920 commits / a month behind origin/main) across 13 prior invocations, and `origin/main`'s
+      history had since diverged from that tip enough that a direct merge failed outright
+      ("refusing to merge unrelated histories"). The real content work for this gap (10 VERIDIAN
+      Review Framework findings, task-20260801-173750) had already been done and independently
+      audited PASS in a prior redispatch (task-20260807-071602-retry-ai-documentation-ai-readable-
+      techn): PR #1047 (8/10 findings substantively closed -- `ai-os/registry/business-rules-
+      registry.yaml`, `docs/CONFIGURATION.md`, `docs/master/PROMPT_CATALOG.md`, 9 filled
+      `workflow: []` fields in `ai-os/system-tree/50-merged-tree.yaml`, 2 new PROJEXA routes in
+      `src/lib/openapi/generate.ts`, `scripts/check-doc-scale-freshness.mjs`,
+      `docs/master/CAPABILITY_COVERAGE.md` correction) + PR #1048 (ACTIVE-CLAIMS bookkeeping), both
+      blocked purely by the repo-wide reviewer-identity self-approval deadlock
+      ([[veridian-branch-protection-self-approval-deadlock-active]] in this session's memory), not by
+      any content defect -- see `docs/master/PROMPT_CATALOG.md`'s own header for the 1-round
+      independent-audit FAIL->fix->PASS cycle already completed on 2026-08-07.
+
+      By 2026-08-15 both #1047 and #1048 had drifted to `DIRTY`/`CONFLICTING` against current `main`
+      (8 days, ~900 commits of unrelated drift) -- this worker's own `pretooluse_worker_enforcement`
+      hook also blocks pushing to any branch other than this task's own assigned one, so the existing
+      PR branches could not be fixed in place from this session. Re-verified branch protection is
+      live at `required_approving_review_count: 0` now (dropped from 1 sometime after the deadlock's
+      25th documented confirmation) -- the self-approval deadlock itself may already be resolved,
+      pending a real merge attempt.
+
+      Real, verified fix this session: reset this task's own branch onto `origin/main` HEAD
+      (`69920f223`), cherry-picked the 2 real content commits from PR #1047's branch (`fa4ac7cdc`
+      the original 12-file gap-closure, `aa0e2296a` the independent-audit fix), both applied cleanly
+      except the shared `PROGRESS.md` (resolved to current `main`'s copy, per this repo's established
+      last-writer-wins convention for that file). Re-verified after rebase, against live code: the doc
+      scale freshness check (`node scripts/check-doc-scale-freshness.mjs`) still passes exactly
+      (284 migrations / 468 tables / 212 services / 995 routes / 188 pages, unchanged from 2026-08-07);
+      the prompt catalog's 27-literal-key + 2-dynamic-call-site count independently re-derived from a
+      fresh `resolvePromptTemplate(` grep across `src/` and still matches exactly (including the
+      27th key, `monitor.dispatch_completion_classification`, found via the named
+      `DISPATCH_COMPLETION_PROMPT_KEY` constant); both new PROJEXA OpenAPI routes and both new/edited
+      YAML files (`business-rules-registry.yaml`, `50-merged-tree.yaml`) still parse. Net diff vs
+      current `main`: 12 files, +725/-10, identical real content to PR #1047, zero merge conflicts.
+      Opened as a fresh PR from this task's own branch (superseding #1047/#1048's stuck copies).
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
       SPEC (this task's own prompt.txt, citing real UMR `UMR-20260803-084718-ce79`, OCID-046, parented
