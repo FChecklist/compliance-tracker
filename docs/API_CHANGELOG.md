@@ -17,6 +17,11 @@ routes authenticate via `requireAuthOrApiKey()` (session cookie **or**
 `Authorization: Bearer <api-key>` / API-key header — see
 `src/lib/supabase/auth-guard.ts` and `src/lib/api-key-auth.ts`).
 
+**Testing against this API safely:** see
+[`docs/API_SANDBOX.md`](./API_SANDBOX.md) for the interim sandbox (a
+rate-limited, opt-in demo org/key) integrators can test against instead of
+a real tenant.
+
 **How this document is maintained:** compiled directly from the git history
 of `src/app/api/v1/**/route.ts` (every commit that added, removed, or
 materially changed a route under this path), not hand-written release notes
