@@ -122,6 +122,55 @@ abandoned work.
   current reality" above for why the ai-os/ subtree half of this same finding
   was NOT acted on.
 
+- [x] **[Medium] Low Coupling / High Cohesion -- FK constraints, investigated,
+  deliberately NOT added.** Confirmed the gap is real: 0 of 343 `orgId` columns
+  in schema.ts carry a `.references()` today. Prototyped adding one
+  (`complianceItems.orgId -> organisations.id`, the most obviously-correct
+  starting point per the finding's own "starting with org/user scoping"
+  wording) and ran `bun run db:generate` to see what applying it would take.
+  Two independent findings changed the plan:
+  1. This worker sandbox has no `DATABASE_URL`/live DB access, so there is no
+     way to verify zero orphaned `org_id` values exist in production before a
+     constraint could safely be applied (Postgres refuses to add a violated FK
+     -- a safe failure, but only once run against real data).
+  2. `bun run db:generate` itself is unsafe here: `drizzle/meta/_journal.json`
+     is badly out of sync with the real `drizzle/*.sql` history (231 real
+     migration files, but the meta snapshot chain only knew about migration
+     0000) -- running it produced a 5,904-line "recreate almost the entire
+     schema from scratch" file (`0001_huge_hercules.sql`), not a small
+     targeted diff. Generated, inspected, and deleted it along with the stray
+     snapshot/journal entry it created -- confirmed `git status` clean before
+     moving on. `drizzle-kit generate` is not the mechanism this repo actually
+     uses for schema changes; hand-written migration files are (see e.g.
+     `drizzle/0224_crm_accounts_contacts_actor_columns_no_fk.sql`).
+  3. That same file (`0224_crm_accounts_contacts_actor_columns_no_fk.sql`)
+     surfaced the decisive reason to stop rather than ship even a schema-only,
+     unapplied FK: this exact codebase has a **documented, repeated bug
+     pattern** of adding an actor/reference FK constraint, then having to drop
+     it because PROJEXA's server-to-server API-key calls resolve the acting
+     "user" as the API key's own synthetic ID (`ctx.dbUser?.id ??
+     ctx.apiKey!.id`), which is not a row in `compliance.users` -- 6 separate
+     incidents on record (job_openings 0202, pms_issues 0204,
+     erp_sales_invoices 0205, crm_leads 0206, crm_opportunities 0207, and
+     crm_accounts/crm_contacts added in 0219 then reverted in 0224). My
+     proposed FK was org-scoping, not actor-scoping, so it is not necessarily
+     the same failure mode -- but confirming that would require auditing
+     every write path that sets `orgId` (including PROJEXA API-key routes,
+     webhooks, internal cron actors) for a synthetic/non-organisation value,
+     which needs the same live-data access this sandbox does not have.
+  Given a real, proven history of this exact change class breaking things
+  when shipped without full write-path verification, shipping an unverified
+  FK -- even schema-only and technically "unapplied" -- risks a future
+  session applying it blindly and repeating the pattern a 7th time.
+  **Conclusion: reverted the prototype, shipping nothing for this finding.**
+  Real next step (not done here, needs Supabase MCP / live DB access):
+  audit every `orgId`-setting write path for non-organisation values, then
+  add the FK with a session that can verify against live data before
+  applying.
+
 ## Remaining
-- [ ] [Medium] Low Coupling / High Cohesion -- investigate current FK constraint
-      coverage on org/user scoping; add incrementally if safe, or document why not.
+- (none -- all 5 findings addressed: 2 real code changes shipped, 1 real doc
+  index shipped, 1 real lint rule shipped, 1 real doc/nav fix shipped, and
+  2 sub-findings + 1 full finding investigated and deliberately not acted on
+  with reasoning recorded above, per this task's own "if the gap doesn't
+  match what you find, say so" instruction.)
