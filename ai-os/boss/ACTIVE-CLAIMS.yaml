@@ -40,6 +40,37 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-112006-retry-1--ai-engineering-quality--code-s) -- VERIDIAN Review Framework: AI Engineering Quality / Code Structure & Modularity gap-closure, 5 findings"
+    claimed_at: "2026-08-15T12:xx (this session, invocation 14/20 -- invocations 1-13 all died at PRE-FLIGHT credit_accountant rejection, no real work done before now)"
+    claim: |
+      5 findings (this task's own prompt.txt): [Medium] Code Modularity,
+      [Low] Component Reusability, [Medium] Low Coupling/High Cohesion,
+      [Low] Design Pattern Consistency, [Medium] File & Folder Organization.
+      Re-verified all 5 against current source before starting (schema.ts is
+      genuinely 11,543 lines/693KB; 323 orgId columns with zero FK
+      constraints; no REUSABLE-UTILITIES doc; eslint.config.mjs has nearly
+      every rule off with no requireAuth-enforcing check; ai-os/OS.yaml
+      already documents the audit-tree/system-tree/tree4-unified
+      relationship, so that half of the File & Folder Organization finding
+      is already resolved -- not duplicated here).
+      Collision check: dozens of active/recent entries in this file touch
+      schema.ts additively, and several touch task-execution-engine.ts's
+      dispatchEngine() switch specifically -- a full mechanical split of
+      either file (the finding's literal recommended approach) would
+      conflict with all of them. NOT doing that; instead extracted
+      dispatchTool() (a separate, uncontested ~265-line if-chain in the same
+      file) into src/lib/task-execution/{compliance,gst,construction}-tools.ts,
+      left dispatchEngine() itself untouched.
+      File scope: src/lib/task-execution-engine.ts (dispatchTool() only) +
+      new src/lib/task-execution/*.ts, new docs/architecture/
+      REUSABLE-UTILITIES.md, a small number of new FK constraints on
+      already-existing orgId columns in src/lib/db/schema.ts (org/user
+      scoping only, per the finding's own "incrementally" recommendation)
+      + one new drizzle/ migration (generated, NOT pushed to the live DB
+      from this session), new scripts/check-route-requireauth.mjs + a new
+      job in .github/workflows/ci.yml, new src/app/api/README.md. Not
+      touching src/lib/services/permission-service.ts's ERP_ACTION_ROLES
+      table structure (per this task's own prompt.txt instruction).
   - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
