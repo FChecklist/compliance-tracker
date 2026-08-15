@@ -322,3 +322,31 @@ what was actually found vs. the original gap description.
       - Verified post-merge: `bun x eslint` clean on all 5 touched files
         (see below); no stray conflict markers anywhere in the repo
         (`git grep -n '^<<<<<<<\|^=======\|^>>>>>>>'`).
+      - Also found and fixed a real migration-number collision the
+        automated check missed (it only diffs against `HEAD`, and at the
+        time I ran it mid-merge `HEAD` still pointed at the pre-merge
+        commit): `origin/main` had independently added its own
+        `drizzle/0313_ai_team_role_overrides_rollout.sql` since this
+        branch was cut, colliding with this session's own
+        `drizzle/0313_force_rls_crm_leads_stage_history.sql`. Renamed mine
+        to `0314` (next free number) and updated its
+        `drizzle/meta/_journal.json` entry to match. Note for a future
+        session, not fixed here (pre-existing on `main`, not introduced by
+        this branch): `origin/main`'s own `_journal.json` is missing
+        entries for both `0312_stage1_preauth_brand_host_lookup.sql` and
+        `0313_ai_team_role_overrides_rollout.sql` -- out of scope for this
+        CRM-Leads PR to correct.
+      - Ran `bun install` (bun.lock had also changed in the merge),
+        `bun x eslint` on all 3 touched TS/TSX-with-conflicts files (clean,
+        zero warnings), `bun test crm-service.test.ts
+        crm-accounts-service.test.ts sales-pipeline-dashboard-service.test.ts`
+        (108/108 pass), `node scripts/check-migration-collision.mjs` (OK)
+        and `node scripts/check-terminology-guardrail.mjs --diff-only` (OK)
+        after the fix.
+      - Committed the merge (`d4e6d025`) and pushed. CI re-triggered on
+        PR #1014 (`mergeable: MERGEABLE`, `mergeStateStatus: BLOCKED`
+        pending the fresh run -- not the review-count deadlock this time).
+        Re-confirmed `required_approving_review_count` is still `0`
+        (temporary exception from `UMR-20260805-091648-6793` still
+        active, not yet re-enabled) so once CI goes green this PR should
+        be mergeable without hitting the prior review-count deadlock.
