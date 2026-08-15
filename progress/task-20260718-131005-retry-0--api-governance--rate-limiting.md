@@ -69,6 +69,29 @@ Versioning, Webhooks) / API Developer Experience -- 2 findings:
 - [x] `bunx tsc --noEmit` clean; `bun run lint` clean (no new
       errors/warnings in changed files).
 
+- [x] Pushed, opened PR #1267, posted structured AUDIT: PASS verdict
+      comment (Rule 10, 8-field format per `src/lib/audit-protocol.ts`,
+      disclosed the same-identity non-independence limitation honestly),
+      pushed an empty re-trigger commit (known issue_comment-vs-head-SHA
+      audit-check bug). All CI checks green except Vercel (external
+      build-rate-limit, not this PR's doing).
+- [x] Discovered after opening the PR: two other OPEN, unmerged sibling
+      PRs (#1266 task-...-131006, #1222 task-...-073003) also touch
+      `docs/API_CHANGELOG.md`'s header (both adding rate-limiting
+      documentation, a different pair of findings than this task's two)
+      -- #1266 independently made the identical
+      `src/lib/api-key-auth.ts` -> `src/lib/supabase/api-key-auth.ts`
+      path-fix this PR also makes. Expected to produce a small, trivial
+      merge conflict on that shared file whichever of the 3 PRs merges
+      last -- not a duplicate-work situation (each PR's substantive
+      content, the changelog entry / sandbox doc here vs. rate-limit
+      docs there, is genuinely distinct), just concurrent-PR file
+      contention. Left for the supervising session to resolve at merge
+      time; not fixed here since it is not this PR's own conflict to
+      pre-resolve against a moving target.
+
 ## Remaining
-- [ ] Push commits, open PR, let CI run, post AUDIT verdict per Rule 10,
-      leave for supervising session's merge per standing convention.
+- [ ] None from this task's own scope -- both findings closed. Leaving
+      PR #1267 open for the supervising session's merge per standing
+      convention (Rule 6/10), and for it to arbitrate the 3-way
+      `docs/API_CHANGELOG.md` merge order noted above.
