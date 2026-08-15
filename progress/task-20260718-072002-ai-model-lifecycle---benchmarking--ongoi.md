@@ -6,17 +6,21 @@ Spec: VERIDIAN Review Framework gap-closure, 3 findings under "AI Model Lifecycl
 3. [High] Provider-outage historical incident correlation with role failures (outage-window table + correlation query)
 
 ## Completed
-- [x] Re-synced branch to origin/main (was 1326 commits behind; prior invocations 1-13 never did real work -- all blocked on stale credit_accountant_rejected false-positive per task.yaml history, now cleared)
-- [x] Checked ai-os/boss/ACTIVE-CLAIMS.yaml -- no collision with another session's in-flight work on this area
-- [x] Dispatched Explore agent to survey current state of: promptfoo config, roster.ts/model-tier-eligibility.ts, token-usage-service.ts, cost tracking, provider-outage/incident tables in schema.ts, and MASTER-TRACKER.yaml/COMPLETED.yaml for prior partial work on this exact gap
+- [x] Re-synced branch to origin/main, checked ACTIVE-CLAIMS.yaml (no collision), dispatched Explore agent
+- [x] Explore agent + a prior invocation of this task session had already implemented all 3 findings (found uncommitted on resume, invocation 15):
+  - `drizzle/0313_ai_model_lifecycle_benchmarking.sql` + `src/lib/db/schema.ts`: `platform.role_quality_runs` + `platform.provider_outage_windows` tables (hand-written migration, `platform` schema, RLS service_role-bypass-only -- mirrors `platform.dispatch_outcomes`/drizzle/0300 exactly)
+  - `src/lib/services/role-quality-regression-service.ts`: per-role recurring eval reusing `prompt-eval-service.ts`'s exact scoring logic (exported `renderTemplate`/`scoreKeywords`, additive), rolling-baseline regression detection (`computeRegression`, 5-run lookback, 15pp threshold), budget-gated real LLM calls
+  - `src/lib/services/cost-quality-service.ts`: joins `role_quality_runs` x `token_usage_ledger` on an exact per-run tag (`taskSummary = 'role_quality_run:<runId>'`), aggregates cost-per-passed-case by (role, model)
+  - `src/lib/services/provider-outage-service.ts`: `provider_outage_windows` CRUD + `correlateOutageWithRoleFailures()` (same-role before/during failure-rate delta against `platform.dispatch_outcomes`) + `findCandidateOutageWindows()` (auto-detected failure-cluster heuristic, admin-promotable, never auto-confirmed)
+  - Routes: `GET/POST /api/ai/team/role-quality`, `GET /api/ai/team/cost-quality`, `GET/POST /api/ai/team/provider-outages`, `GET /api/ai/team/provider-outages/candidates`, `GET/POST /api/internal/role-quality-regression/run` (cron entry point) -- all veridian_admin-gated via `requireAuth()` except the internal cron route (shared-secret, mirrors `/api/internal/cost-anomalies/run`)
+  - Tests: `cost-quality-service.test.ts`, `provider-outage-service.test.ts`, `role-quality-regression-service.test.ts` -- 25 tests, all pure-function coverage of the join/aggregation/clustering/regression logic
+- [x] Reviewed every new/changed file for correctness (this invocation) -- all sound, well-investigated (headers cite real prior-code absence, not assumed from the eval report), reuse existing infra instead of forking
+- [x] Found + fixed one real gap during review: the new cron route existed but was **never registered in `vercel.json`'s `crons` array** -- without that, "recurring job" would never actually run in prod. Added `{ "path": "/api/internal/role-quality-regression/run", "schedule": "30 10 * * *" }`.
+- [x] Found + fixed one real type error: `cost-quality-service.ts`'s `conditions` array needed an explicit `SQL[]` type annotation (matches this codebase's established pattern in audit-search-service.ts et al.) -- was failing `tsc --noEmit`.
+- [x] Verified: `bun install`, `bun test` (25/25 pass on the 3 new test files), `NODE_OPTIONS=--max-old-space-size=6144 bunx tsc --noEmit -p tsconfig.json` (clean, zero errors, whole project), `bun run lint` (0 errors, 3 pre-existing unrelated warnings), `node scripts/check-guardrail-presence.mjs` (88/88 markers present)
+- [x] Confirmed `dispatchOutcomes` schema fields (`roleKey`, `status`, `modelUsed`, `dispatchedAt`) match what `provider-outage-service.ts` queries; confirmed `src/lib/db/index.ts` re-exports `* from './schema'` so no wiring needed for the new tables to be importable
 
 ## Remaining
-- [ ] Read Explore agent findings; confirm which of the 3 findings are genuinely still open vs already resolved by code that's moved since the eval was written
-- [ ] Design + implement (only for findings confirmed still-open):
-  - [ ] Per-role quality regression: DB table for recurring eval-run scores + a recurring job/script that runs promptfoo-style scoring per role and writes results over time
-  - [ ] Cost-per-quality join: query/service joining token-usage-service cost data with the quality table above, keyed by model/role
-  - [ ] Outage-correlation: outage-window table + correlation query against role/task failure log
-- [ ] Register claim in ai-os/boss/ACTIVE-CLAIMS.yaml before starting real code edits
-- [ ] Do NOT touch permission-service.ts's shared ERP_ACTION_ROLES table structure (additive only if needed)
-- [ ] Add tests for new services
-- [ ] Commit, push, open PR
+- [ ] Register claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` (if not already present from an earlier invocation -- verify before re-adding)
+- [ ] Commit all files (schema, migration, journal, services+tests, routes, prompt-eval-service.ts export change, vercel.json cron entry)
+- [ ] Push branch, open PR
