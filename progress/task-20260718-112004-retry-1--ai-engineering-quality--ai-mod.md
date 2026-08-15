@@ -70,7 +70,16 @@ Readiness -- 2 findings:
       auto-enforcement step is blocked on this token limitation, not the
       substantive deliverable.
 
+- [x] Opened PR #1254 (https://github.com/FChecklist/compliance-tracker/pull/1254),
+      base `main`, head `worker/task-20260718-112004-retry-1--ai-engineering-quality--ai-mod`.
+      Full `ci.yml` hunk pasted in the PR description per the split above. State at
+      open: OPEN, MERGEABLE.
+
 ## Remaining
+- [ ] Watch PR #1254's CI run to green, merge once green (this repo requires PR/CI,
+      no direct push to `main` -- AGENTS.md Rule 6).
 - [ ] Owner/differently-scoped session: apply the `.github/workflows/ci.yml` hunk
-      (in this PR's description) so `service-header-comment-check` runs in CI.
+      (in this PR's description) so `service-header-comment-check` runs in CI --
+      left as a documented follow-up, not blocking this PR's merge since the check
+      script itself is a complete, real, independently-runnable deliverable.
 - [ ] Move ACTIVE-CLAIMS entry to recently_completed once this PR merges.
