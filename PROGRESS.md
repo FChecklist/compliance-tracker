@@ -1,5 +1,7 @@
 # PROGRESS -- task-20260718-122002-retry-1--ai-engineering-quality--techni
 
+PR: https://github.com/FChecklist/compliance-tracker/pull/1262 (open, CI running)
+
 VERIDIAN Review Framework gap-closure: AI Engineering Quality / Technical
 Debt & Complexity (5 findings). Verified each finding against the live
 codebase before writing code -- all 5 were still real gaps (nothing had
