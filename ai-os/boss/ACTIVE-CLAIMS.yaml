@@ -6084,6 +6084,50 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260718-120004-retry-2--ai-engineering-quality--logic) -- VERIDIAN Review Framework gap-closure: AI Engineering Quality / Logic Separation & Determinism (4 findings), PR #1242 [DONE, mergeable]"
+    claimed_at: "2026-08-15T09:47Z (this session, closed same session)"
+    claim: |
+      SPEC: close 4 review-framework findings in one coherent PR --
+      [Low] Deterministic Logic Coverage, [Medium] Configuration Over
+      Hardcoding, [Low] Separation of Business Logic, [Low] Separation of
+      AI Logic. Re-verified each against current code first, per the
+      task's own instruction (evaluation predates the codebase's current
+      state).
+
+      Only Deterministic Logic Coverage was still a real (small) gap: the
+      deterministic-first discipline itself was genuinely followed at
+      every existing callLLM()/callLLMJson()/callLLMVision() call site
+      (each carries its own rationale comment), but nothing made that
+      durable for future sites. Added
+      scripts/check-deterministic-llm-audit.mjs -- enumerates every real
+      call-site file against an explicit KNOWN_LLM_CALL_SITES manifest and
+      fails the moment an unaudited one appears. Protected via a new entry
+      in scripts/check-guardrail-presence.mjs. Real-world validated while
+      rebasing onto main: caught 3 genuine new call sites
+      (src/lib/prompt-security/*.ts, a prompt-injection defense layer that
+      landed after the manifest was first written) and 1 stale entry
+      (src/app/api/help/ask/route.ts, refactored to route through that new
+      layer) -- both reconciled in-PR, not hypothetical.
+
+      Other 3 findings confirmed already-resolved / no-gap with zero code
+      change, per the task's own instruction not to make unnecessary
+      changes: hardcoding decisions are documented inline at each site
+      (distributed, not centralized -- matches "leave as-is");
+      route-thin/service-thick holds (234 files under src/lib/services/);
+      all 5 gate files are pure/deterministic with zero direct LLM calls.
+
+      Known limitation, disclosed in PROGRESS.md: the new script is not
+      yet wired into .github/workflows/ci.yml -- this session's gh push
+      token lacks the `workflow` OAuth scope (any push touching that path
+      is rejected outright). The workflow edit was reverted out of the
+      branch per this repo's established workaround
+      ([[gh-token-lacks-workflow-scope]]); exact pending CI-job snippet is
+      documented in PROGRESS.md for a follow-up workflow-scoped push.
+
+      Did not touch src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES table structure or any other in-flight worker's
+      declared scope, per task instructions. PR #1242 against main,
+      mergeable, not merged (per Rule 6 -- no direct push to main).
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
