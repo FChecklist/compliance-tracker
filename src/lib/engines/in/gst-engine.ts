@@ -5,9 +5,16 @@
 // tax lines, not a computed split). GSTIN's first 2 digits are the state code
 // (standard GSTN convention), used here rather than a separate state field.
 import Decimal from "decimal.js"
+import type { CalculationBreakdown } from "@/lib/engines/breakdown"
 
 export type GstSplitInput = { taxableAmount: number; gstRatePercent: number; supplierStateCode: string; buyerStateCode: string }
-export type GstSplitResult = { cgst: number; sgst: number; igst: number; totalTax: number; totalAmount: number; isInterState: boolean }
+export type GstSplitResult = {
+  cgst: number; sgst: number; igst: number; totalTax: number; totalAmount: number; isInterState: boolean
+  // Calculation Explainability (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): optional, additive -- see income-tax-engine.ts's
+  // IncomeTaxResult for the same convention.
+  breakdown?: CalculationBreakdown
+}
 
 export function splitGst(input: GstSplitInput): GstSplitResult {
   const { taxableAmount, gstRatePercent, supplierStateCode, buyerStateCode } = input
@@ -22,6 +29,13 @@ export function splitGst(input: GstSplitInput): GstSplitResult {
     return {
       cgst: 0, sgst: 0, igst: round2(totalTax),
       totalTax: round2(totalTax), totalAmount: round2(amount.plus(totalTax)), isInterState: true,
+      breakdown: {
+        steps: [
+          { label: "Total GST (inter-state, IGST only)", formula: `${taxableAmount} x ${gstRatePercent}%`, value: round2(totalTax) },
+          { label: "IGST", value: round2(totalTax) },
+          { label: "Total amount", formula: `${taxableAmount} + ${round2(totalTax)}`, value: round2(amount.plus(totalTax)) },
+        ],
+      },
     }
   }
 
@@ -29,6 +43,14 @@ export function splitGst(input: GstSplitInput): GstSplitResult {
   return {
     cgst: round2(half), sgst: round2(half), igst: 0,
     totalTax: round2(totalTax), totalAmount: round2(amount.plus(totalTax)), isInterState: false,
+    breakdown: {
+      steps: [
+        { label: "Total GST (intra-state, CGST+SGST)", formula: `${taxableAmount} x ${gstRatePercent}%`, value: round2(totalTax) },
+        { label: "CGST (half)", formula: `${round2(totalTax)} / 2`, value: round2(half) },
+        { label: "SGST (half)", formula: `${round2(totalTax)} / 2`, value: round2(half) },
+        { label: "Total amount", formula: `${taxableAmount} + ${round2(totalTax)}`, value: round2(amount.plus(totalTax)) },
+      ],
+    },
   }
 }
 

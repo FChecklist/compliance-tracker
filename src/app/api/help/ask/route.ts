@@ -8,9 +8,31 @@ import { NextRequest, NextResponse } from "next/server";
 import { requireAuth } from "@/lib/supabase/auth-guard";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
-import { callLLM } from "@/lib/llm-client";
+import { runDefenseInDepth } from "@/lib/prompt-security";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { retrieveRelevantKbPages } from "@/lib/services/knowledge-base-service";
+import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale";
+import { normalizeForLlm } from "@/lib/prompt-normalizer";
+import { passesReplyGate } from "@/lib/ai-reply-gate";
+import { redactPii } from "@/lib/pii-redaction";
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
+import { compileStaticPrefix } from "@/lib/prompt-cache/compiler";
+import { recordPromptCacheMetric } from "@/lib/prompt-cache/metrics";
+
+// AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18,
+// "AI Context Compression" finding): this route used to call callLLM
+// directly with none of chat-service.ts's generateAiReply() pipeline --
+// no normalizeForLlm (the actual context-compression mechanism in this
+// codebase, stripping conversational filler before tokens leave the
+// tenant), no ai-reply-gate check against a hallucinated action claim, no
+// PII redaction before logging, and no orchestra_executions/prompt-cache
+// observability at all, so a Help AI call was invisible to every cost/
+// latency dashboard built on those tables. Wired in additively below --
+// the widget's request/response contract ({ question, currentPath } ->
+// { answer }) is unchanged.
+const FALLBACK_ANSWER =
+  "I wasn't able to give a reliable answer to that. Please rephrase, or check the relevant page directly.";
 
 export async function POST(request: NextRequest) {
   const { user, dbUser, orgId, response } = await requireAuth();
@@ -19,9 +41,10 @@ export async function POST(request: NextRequest) {
 
   const { question, currentPath } = await request.json();
 
-  let systemPrompt: string;
+  let systemPromptTemplate: string;
   try {
-    systemPrompt = await resolvePromptTemplate("help.ai_assistant_system");
+    const locale = await getPreferredAiResponseLocale();
+    systemPromptTemplate = await resolvePromptTemplate("help.ai_assistant_system", "production", locale);
   } catch {
     return NextResponse.json({
       answer:
@@ -45,15 +68,107 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "No AI model configured" }, { status: 400 });
   }
 
-  const result = await callLLM(
-    modelConfig.provider,
-    modelConfig.model,
-    modelConfig.apiKey,
-    systemPrompt + "\n\nCurrent page: " + currentPath,
-    question,
-    undefined,
-    modelConfig.fallback,
-  );
+  const systemPrompt = systemPromptTemplate + "\n\nCurrent page: " + currentPath;
+  // Same static-prefix caching signal chat-service.ts uses -- the resolved
+  // template + current page is identical across every question asked from
+  // that page, regardless of which user/org sent it. The KB grounding block
+  // below is per-question and deliberately kept OUT of this string (appended
+  // to the message instead) so it doesn't fragment the cache fingerprint --
+  // same reasoning chat-service.ts's generateAiReply() uses for
+  // userContextBlock (see its own comment on that pattern).
+  const { fingerprint: promptCacheFingerprint } = compileStaticPrefix(systemPrompt);
+  const normalizedQuestion = normalizeForLlm(question ?? "");
 
-  return NextResponse.json({ answer: result.content });
+  // AI Architecture / Explainability & Transparency gap-closure
+  // (2026-07-18): "Explain Software Functionality" -- ground the answer in
+  // the org's own knowledge base pages instead of pure freeform generation,
+  // when anything relevant is actually indexed. Best-effort: a retrieval
+  // failure falls back to the exact pre-existing ungrounded behavior rather
+  // than blocking the question.
+  const relevantPages = await retrieveRelevantKbPages({ orgId }, String(question ?? "")).catch(() => []);
+  const groundingBlock = relevantPages.length > 0
+    ? "\n\nRelevant knowledge base content (use this if it answers the question; say so honestly if it doesn't):\n" +
+      relevantPages.map((p) => `--- ${p.title} ---\n${(p.content ?? "").slice(0, 1500)}`).join("\n\n")
+    : "";
+  const messageForLlm = normalizedQuestion + groundingBlock;
+
+  const startedAt = Date.now();
+  try {
+    // Phase_4 defense-in-depth audit fix (2026-07-26): this used to call
+    // callLLM() directly with none of the new 4-layer prompt-security
+    // pipeline -- the only real LLM call site in the repo, left completely
+    // unprotected by a PR whose entire point was "defense in depth".
+    // groqApiKey is the platform's own Groq key (Llama Guard/Prompt Guard
+    // are always Groq-hosted regardless of which provider modelConfig
+    // resolves to, per defense-in-depth.ts's own option comment) -- null
+    // (Layer 3 skipped, Layer 1/2/4 still run) if it isn't configured.
+    // llmOptions/fallback forwarded so this loses none of the
+    // enablePromptCache/fallback behavior the direct callLLM() call had.
+    const defenseResult = await runDefenseInDepth({
+      provider: modelConfig.provider,
+      model: modelConfig.model,
+      apiKey: modelConfig.apiKey,
+      systemPrompt,
+      userMessage: messageForLlm,
+      groqApiKey: process.env.GROQ_API_KEY ?? null,
+      llmOptions: { enablePromptCache: true },
+      fallback: modelConfig.fallback,
+    });
+
+    if (defenseResult.blocked) {
+      recordOrchestraExecution({
+        orgId, userId: dbUser?.id, layerKey: "user_assistant_oa", eventType: "help.ask",
+        input: { currentPath, systemPrompt: redactPii(systemPrompt), question: redactPii(normalizedQuestion) },
+        output: { reason: "defense_in_depth_blocked", blockReason: defenseResult.blockReason },
+        status: "gated",
+        durationMs: Date.now() - startedAt,
+        provider: modelConfig.provider, model: modelConfig.model,
+      });
+      return NextResponse.json({ answer: FALLBACK_ANSWER });
+    }
+
+    const reply = defenseResult.content;
+    const usage = defenseResult.usage;
+
+    // Same software-first gate as chat-service.ts's generateAiReply() -- a
+    // raw LLM claim of completed action must never reach the user
+    // unfiltered, same reasoning even though Help AI has no tool-calling
+    // surface either.
+    const gateResult = passesReplyGate(reply);
+    recordOrchestraExecution({
+      orgId, userId: dbUser?.id, layerKey: "user_assistant_oa", eventType: "help.ask",
+      input: { currentPath, systemPrompt: redactPii(systemPrompt), question: redactPii(normalizedQuestion) },
+      output: gateResult.passed
+        ? { reply: redactPii(reply), replyLength: reply.length }
+        : { reason: gateResult.reason, matchedPhrase: "matchedPhrase" in gateResult ? gateResult.matchedPhrase : undefined },
+      status: gateResult.passed ? "completed" : "gated",
+      durationMs: Date.now() - startedAt,
+      provider: modelConfig.provider, model: modelConfig.model, usage: usage ?? undefined,
+    });
+    recordPromptCacheMetric({
+      orgId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
+      // Non-null: usage is only ever null on a blocked DefenseInDepthResult
+      // (no real callLLM() happened), and the `defenseResult.blocked` check
+      // above already returned in that case.
+      provider: modelConfig.provider, model: modelConfig.model, usage: usage!,
+    });
+
+    if (!gateResult.passed) {
+      return NextResponse.json({ answer: FALLBACK_ANSWER });
+    }
+    // Explicit "grounded or not" signal + sources -- the finding's own
+    // recommended approach ("retrieve relevant chunks before answering").
+    return NextResponse.json({
+      answer: reply,
+      sources: relevantPages.map((p) => ({ id: p.id, title: p.title, slug: p.slug })),
+    });
+  } catch (err) {
+    console.error("Help AI reply failed:", err);
+    recordOrchestraExecution({
+      orgId, userId: dbUser?.id, layerKey: "user_assistant_oa", eventType: "help.ask",
+      input: { currentPath }, status: "failed", durationMs: Date.now() - startedAt,
+      output: { error: err instanceof Error ? err.message : String(err) },
+    });
+    return NextResponse.json({ answer: "Something went wrong generating a reply. Please try again in a moment." });
+  }
 }

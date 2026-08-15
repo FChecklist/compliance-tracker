@@ -140,6 +140,33 @@ export function refusalMessageFor(decision: PolicyDecision): string {
   }
 }
 
+/**
+ * Gap closure (VERIDIAN Review Framework, Domain Accuracy finding): every
+ * enforcePolicy() call site above gates the INPUT (personal-use/injection/
+ * domain) -- none of them prove the model's OUTPUT was actually grounded in
+ * real data. report-engine-service.ts's ai_recipe executor and
+ * ai-report-builder-service.ts both already carry a system-prompt
+ * instruction ("use ONLY facts present in the provided data") but nothing
+ * enforced it: an ai_recipe report with no groundingQuery and no caller-
+ * supplied data ran the LLM with `groundingData ?? {}` and nothing stopped
+ * it from writing a fully invented "grounded" narrative.
+ *
+ * Deliberately does NOT inspect the model's reply text against the
+ * grounding data (e.g. substring-matching numbers): a model legitimately
+ * computing "42% of 120 rows" from real data produces a number that never
+ * appears verbatim in the source, so that check would flag every correct
+ * aggregate as ungrounded -- a false-positive machine, not a real
+ * safeguard. This only proves the one thing it safely CAN prove before any
+ * LLM call happens: was there real data to ground an answer in at all.
+ */
+export function hasGroundingData(groundingData: unknown): boolean {
+  if (groundingData === null || groundingData === undefined) return false
+  if (Array.isArray(groundingData)) return groundingData.length > 0
+  if (typeof groundingData === "object") return Object.keys(groundingData).length > 0
+  if (typeof groundingData === "string") return groundingData.trim().length > 0
+  return true
+}
+
 // User/admin-facing short label for a policy decision -- kept deliberately
 // gentle (never the word "denied") for anywhere this surfaces in the UI
 // (e.g. a request-history badge). The internal orchestraExecutions.status
