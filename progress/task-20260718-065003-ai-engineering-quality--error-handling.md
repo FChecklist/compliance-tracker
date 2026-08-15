@@ -75,11 +75,59 @@ this codebase already enforces this class of rule (`check-guardrail-presence.mjs
 - [x] `scripts/check-route-error-handling.mjs` -- CI check (new/changed routes only)
 - [x] Wired check into `.github/workflows/ci.yml`
 - [x] Fixed 3 sample pre-existing violations (approvals, bcm, board-evaluation)
-- [x] Moved claim entry to `recently_completed:` in ACTIVE-CLAIMS.yaml
+- [x] Verified: unit tests, full test suite, typecheck, lint, CI-check dry-run, YAML validity (see Verification below)
+
+## Verification
+
+- `bun test src/lib/logger.test.ts`: 11 pass, 0 fail
+- `bun test` (full suite): 2560 pass, 0 fail, 225 files (some tests print
+  expected `error:` console output while exercising fail-closed paths --
+  not real failures)
+- `bunx tsc --noEmit` (whole repo): 0 errors (needed
+  `NODE_OPTIONS=--max-old-space-size=4096` in this environment -- default
+  heap OOMs on the full project graph regardless of this change; pre-existing
+  environment constraint, unrelated to this PR)
+- `bunx eslint` on every file this PR touches: 0 errors, 0 warnings
+- `node scripts/check-route-error-handling.mjs --base origin/main`: passes
+  (no violations among this PR's own new/changed route.ts files)
+- `python3 -c "import yaml; yaml.safe_load(open('.github/workflows/ci.yml'))"`:
+  valid YAML
+
+## Known limitation: `.github/workflows/ci.yml` wiring not pushed
+
+This session's `gh` token (account FChecklist) has scopes `gist, read:org,
+repo` -- no `workflow` scope. GitHub refuses any push whose branch touches
+`.github/workflows/*.yml` without it ("refusing to allow an OAuth App to
+create or update workflow ... without workflow scope", confirmed live via
+a real rejected push attempt on this branch). This is a token-permission
+constraint, not something fixable from within this session.
+
+The new CI job itself (`route-error-handling-check`, wired the same way as
+`migration-collision-check` just above it: `actions/checkout@v7` with
+`fetch-depth: 0`, then `node scripts/check-route-error-handling.mjs --base
+origin/main`) is fully written and was validated locally (`python3 -c
+"import yaml; yaml.safe_load(...)"` confirms valid YAML; the underlying
+script itself is committed, tested, and runnable standalone right now).
+It's just not pushed to `ci.yml` in this PR's branch.
+
+**Follow-up needed** (either path closes this): (a) the repository owner
+pushes this one small, already-written diff to `.github/workflows/ci.yml`
+themselves (their own token/credentials have the `workflow` scope this
+session's doesn't), or (b) a future session/agent with a `workflow`-scoped
+token opens a tiny one-file follow-up PR wiring the same job in. Either way
+the check script (`scripts/check-route-error-handling.mjs`) is already
+real, tested, and callable manually (`node scripts/check-route-error-handling.mjs
+--base origin/main`) even before it's wired into CI -- the gap this PR
+closes (the utility existing at all) is real regardless of when the CI
+wiring lands.
 
 ## Remaining
 
 - [ ] Open PR, let CI run, merge per Rule 6
+- [ ] Wire `route-error-handling-check` into `.github/workflows/ci.yml`
+  (see "Known limitation" above -- needs a `workflow`-scoped push)
+- [ ] Once merged, move this task's `ai-os/boss/ACTIVE-CLAIMS.yaml` entry
+  from `active:` to `recently_completed:` per that file's own Rule 3
 - Residual: 62 of the original 65 pre-existing `route.ts` files still lack
   try/catch (not fixed here -- see "Approach taken" above for why; the new
   CI check prevents this number from growing but does not retroactively
