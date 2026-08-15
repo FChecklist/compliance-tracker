@@ -40,6 +40,21 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260815-032657-merge-pr-954-959-962--exact-blocker-is-r) -- PM diagnosis + merge of PR #954/#959/#962 [DONE, PR #962 merged; #954/#959 real conflicts left for a follow-up code task]"
+    claimed_at: "2026-08-15T00:00Z (this session, closed same session)"
+    claim: |
+      SPEC premise (formal review-approval gate `reviewDecision=REVIEW_REQUIRED` is the sole blocker on
+      all three PRs, needing a "second reviewer bot identity") was CORRECTED with live evidence: branch
+      protection `required_approving_review_count` is `0` (confirmed still true as of 2026-08-15, per
+      `ai-os/memory/dead_ends.json` DEADEND-20260814-0001), `reviewDecision` is empty/null on all three
+      PRs, and no second GitHub identity exists in this environment (gh auth + both PATs all resolve to
+      the single `FChecklist` account). Real blockers, confirmed via live trial merges: PR #954 (real
+      conflict `src/app/signup/page.tsx`) and PR #959 (real conflict `src/app/pricing/page.tsx`) need
+      code-level conflict resolution -- out of this task's scope, left as a follow-up. PR #962 (next/
+      postcss CVE patch) had no conflict, just `mergeStateStatus=BEHIND` under `strict: true` required
+      status checks -- updated branch, re-verified CI green + fresh `AUDIT: PASS`, merged via
+      `gh pr merge --squash`. See `progress/task-20260815-032657-merge-pr-954-959-962--exact-blocker-is-r.md`
+      for full evidence trail.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
