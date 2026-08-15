@@ -163,7 +163,11 @@ export async function resolveDispatchModel(roleKey: string, complexityTier?: Com
     if (randomValue * 100 < pct) return { model: override.candidateModel, variant: "candidate" }
     return { model: primary, variant: "primary" }
   } catch (err) {
-    console.error(`[roster-overrides] failed to resolve dispatch model for '${roleKey}', falling back to roster.ts's static default:`, err)
+    // roleKey is caller-controlled -- never fold it into console.error's first (format-string)
+    // argument; Node treats %s/%d/etc in that position as printf-style substitutions against the
+    // args that follow, so an attacker-influenced roleKey could otherwise corrupt/inject log
+    // output (CodeQL js/tainted-format-string). Pass it as plain data instead.
+    console.error("[roster-overrides] failed to resolve dispatch model, falling back to roster.ts's static default:", { roleKey, err })
     return { model: role.model, variant: "primary" }
   }
 }
