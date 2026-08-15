@@ -345,6 +345,19 @@ const REQUIRED_MARKERS = [
   // silently dropped either.
   { file: "scripts/check-metadata-index-coverage.mjs", mustContain: ["realItems", "OS_YAML"] },
   { file: ".github/workflows/ci.yml", mustContain: ["check-metadata-index-coverage.mjs"] },
+
+  // Added 2026-08-15 (task-20260718-120004-retry-2--ai-engineering-quality
+  // --logic, "Deterministic Logic Coverage" finding): the deterministic
+  // LLM-call-site audit gate itself, same enforcement class as the
+  // metadata-index coverage entry just above. The ci.yml wiring line is
+  // deliberately NOT added to this manifest yet -- this session's gh token
+  // lacks the `workflow` OAuth scope and cannot push a branch that edits
+  // .github/workflows/*.yml (see PROGRESS.md's "Known limitation" note for
+  // the exact one-line job block a workflow-scoped push needs to add).
+  // Once that follow-up lands, add
+  // { file: ".github/workflows/ci.yml", mustContain: ["check-deterministic-llm-audit.mjs"] }
+  // here to close the loop, matching every other check in this manifest.
+  { file: "scripts/check-deterministic-llm-audit.mjs", mustContain: ["KNOWN_LLM_CALL_SITES", "CALL_PATTERN"] },
 ]
 
 let failed = false

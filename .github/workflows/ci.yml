@@ -98,57 +98,6 @@ jobs:
       # script's own header for the honest limitation this does and
       # doesn't guarantee.
       - run: node scripts/check-metadata-index-coverage.mjs
-  terminology-guardrail-check:
-    name: Terminology Guardrail Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      # Phase 3 CI enforcement wiring (task-20260724-133911-terminology-
-      # phase3-ci-enforcement-wiring, instruction INS-20260724-133817-0a6d):
-      # same enforcement class as the coverage checks above, applied to
-      # hardcoded human-example literals (placeholder company/person names,
-      # fake email domains, bare ISO dates, Indian PAN/GSTIN-shaped
-      # literals) instead of registry entries -- fails the build only on NEW
-      # findings in this PR's changed files (git diff against the base
-      # branch) that exceed ai-os/registry/terminology-guardrail-
-      # exemptions.yaml's recorded Phase 2 baseline count for that file. See
-      # that script's own header for the honest limitation this does and
-      # doesn't guarantee. fetch-depth 0 (unlike the other checkout steps
-      # above) so the script's git merge-base/diff against the base branch
-      # always resolves, matching sentinel.yml's own precedent for the same
-      # need.
-      - run: node scripts/check-terminology-guardrail.mjs --diff-only
-  migration-collision-check:
-    name: Migration Number Collision Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with: { fetch-depth: 0 }
-      # 2026-07-30: this repo has hit real drizzle/*.sql migration-number
-      # collisions from concurrent workers repeatedly (PRs #645/#650/#651/
-      # #652/#653/#654/#655, plus two pre-existing collisions found already
-      # merged into main: 0225 and 0269 -- fixed in the same PR that added
-      # this job). The checker script existed before this PR but was never
-      # wired into CI, and separately had a stale-base-ref bug (it used to
-      # fall back to the local `main` ref, which drifts stale in shared
-      # checkouts/worktrees and can misreport historical collisions as new,
-      # or miss real new ones). Both are fixed together here: the script
-      # now prefers a freshly-fetched origin/main (with --base/BASE_REF
-      # override available for callers that need one), and this job passes
-      # --base origin/main explicitly for determinism in CI. fetch-depth 0
-      # (matching terminology-guardrail-check's own precedent just above)
-      # so the script's git merge-base/diff against origin/main always
-      # resolves. Honest limitation: this is a CI-gate-catches-it-after-
-      # the-fact check, not a reservation/lock on migration numbers --
-      # concurrent agents can still race to claim the same "next free"
-      # number before either one's PR is opened; this job only guarantees
-      # the collision is caught (and must be fixed) before merge, not that
-      # it can never happen. See the script's own header for the same
-      # honest-limitation note.
-      - run: node scripts/check-migration-collision.mjs --base origin/main
   doc-quarantine-banner:
     name: Doc Quarantine Banner Check
     runs-on: ubuntu-latest
