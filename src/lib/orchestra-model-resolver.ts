@@ -56,6 +56,53 @@ const PLATFORM_DEFAULT_MODEL = "openai/gpt-oss-120b";
 // when the free primary is actually down.
 const CEREBRAS_GPT_OSS_MODEL = "gpt-oss-120b"
 
+// VERIDIAN Review Framework gap-closure (2026-08-15), "AI Model Lifecycle &
+// Benchmarking: Model deprecation/rollback process defined" (Weight-5 High).
+// Real gap, confirmed by reading this file: the platform-default model
+// (PLATFORM_DEFAULT_PROVIDER/PLATFORM_DEFAULT_MODEL above, and each Orchestra
+// Layer's own defaultModelConfig) is a hardcoded constant / DB row with no
+// runtime override. If a provider deprecates or breaks the model currently
+// pinned there (the exact thing that already happened once this repo's own
+// history -- Wave 45's llama-3.3-70b-instruct default replaced by Wave
+// "2026-07-10"'s gpt-oss-120b), the ONLY way to revert is editing this file,
+// opening a PR, waiting on CI, merging, and redeploying -- fine for a
+// *planned* change (deserves the same review as any other code change), far
+// too slow for an *emergency* (a model returning 410 Gone, or a provider
+// incident) where every minute on the broken model is live-traffic impact.
+//
+// MODEL_EMERGENCY_REVERT is a live env var, "provider:model" format (e.g.
+// "groq:llama-3.3-70b-versatile"), read fresh on every resolution call --
+// no code change, no PR/CI/merge cycle, just a config flip + process
+// restart. When set, it overrides the platform-default branch of BOTH
+// resolveModelConfig() and resolvePlatformModelConfig() below, taking
+// priority over the hardcoded PLATFORM_DEFAULT_* constants AND any
+// per-layer defaultModelConfig override -- an emergency revert is meant to
+// be a single global "get everyone off the broken model NOW" switch, not
+// another per-layer knob to configure individually while the incident is
+// live. It deliberately does NOT touch an org's own BYO customer_model_config
+// (isCustomerConfigured: true) -- same "never override an org's own explicit
+// choice" boundary ESCALATED_MODEL above already holds to; an org that
+// happens to also be on the deprecated model made that choice itself and
+// reverts it the same way it configured it.
+export function emergencyRevertOverride(): { provider: LLMProvider; model: string } | null {
+  const raw = process.env.MODEL_EMERGENCY_REVERT;
+  if (!raw) return null;
+
+  const separatorIndex = raw.indexOf(":");
+  const provider = separatorIndex > 0 ? raw.slice(0, separatorIndex) : "";
+  const model = separatorIndex > 0 ? raw.slice(separatorIndex + 1).trim() : "";
+  const validProviders: LLMProvider[] = ["groq", "openrouter", "openai", "anthropic", "google", "cerebras"];
+
+  if (!validProviders.includes(provider as LLMProvider) || !model) {
+    console.warn(
+      `[model-emergency-revert] MODEL_EMERGENCY_REVERT is set to "${raw}" but is not valid "provider:model" (provider must be one of ${validProviders.join(", ")}) -- ignoring, no revert applied.`
+    );
+    return null;
+  }
+
+  return { provider: provider as LLMProvider, model };
+}
+
 function platformFallbackFor(primary: { provider: LLMProvider; model: string }): LLMFallback | undefined {
   // Same-model failover for the floor tier specifically: if Groq's
   // gpt-oss-120b is the primary and it fails, retry the SAME model on
@@ -343,8 +390,9 @@ export async function resolveModelConfig(orgId: string, layerKey: string, source
   }
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  const provider = (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
-  const model = defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
+  const revert = emergencyRevertOverride();
+  const provider = revert?.provider ?? (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
+  const model = revert?.model ?? defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
   const apiKey = platformApiKeyFor(provider);
   if (!apiKey) return null;
 
@@ -419,8 +467,9 @@ export async function resolvePlatformModelConfig(layerKey: string, sourceType?: 
   if (!layer) return null;
 
   const defaultConfig = layer.defaultModelConfig as { provider?: string; model?: string };
-  const provider = (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
-  const model = defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
+  const revert = emergencyRevertOverride();
+  const provider = revert?.provider ?? (defaultConfig.provider as LLMProvider) ?? PLATFORM_DEFAULT_PROVIDER;
+  const model = revert?.model ?? defaultConfig.model ?? PLATFORM_DEFAULT_MODEL;
   const platformApiKey = platformApiKeyFor(provider);
   if (platformApiKey) {
     return applySourceTypeOverride(

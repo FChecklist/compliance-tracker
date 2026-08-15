@@ -493,3 +493,173 @@ describe("BYO failure -> platform-default fallback (end-to-end, resolver + llm-c
     }
   })
 })
+
+// --- MODEL_EMERGENCY_REVERT (Review Framework gap-closure, 2026-08-15) ----
+// "AI Model Lifecycle & Benchmarking: Model deprecation/rollback process
+// defined" -- reverting the platform-default model previously required a
+// code edit + PR/CI/redeploy cycle. These tests cover emergencyRevertOverride()
+// directly (pure env-var parsing) plus its wiring into resolveModelConfig()'s
+// platform-default branch.
+describe("emergencyRevertOverride (pure env-var parsing)", () => {
+  function withEnv(value: string | undefined, fn: () => void) {
+    const original = process.env.MODEL_EMERGENCY_REVERT
+    if (value === undefined) delete process.env.MODEL_EMERGENCY_REVERT
+    else process.env.MODEL_EMERGENCY_REVERT = value
+    try {
+      fn()
+    } finally {
+      if (original === undefined) delete process.env.MODEL_EMERGENCY_REVERT
+      else process.env.MODEL_EMERGENCY_REVERT = original
+    }
+  }
+
+  test("unset (the default, every existing deployment): no-op, returns null", async () => {
+    const { emergencyRevertOverride } = await import("./orchestra-model-resolver")
+    withEnv(undefined, () => {
+      expect(emergencyRevertOverride()).toBeNull()
+    })
+  })
+
+  test("valid provider:model is parsed into a provider/model pair", async () => {
+    const { emergencyRevertOverride } = await import("./orchestra-model-resolver")
+    withEnv("groq:llama-3.3-70b-versatile", () => {
+      expect(emergencyRevertOverride()).toEqual({ provider: "groq", model: "llama-3.3-70b-versatile" })
+    })
+  })
+
+  test("a model name containing its own colon (e.g. an OpenRouter-style id) is preserved in full", async () => {
+    const { emergencyRevertOverride } = await import("./orchestra-model-resolver")
+    withEnv("openrouter:meta-llama/llama-3.3-70b-instruct:free", () => {
+      expect(emergencyRevertOverride()).toEqual({ provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" })
+    })
+  })
+
+  test("an unrecognized provider is ignored (warns, does not throw, no revert applied)", async () => {
+    const { emergencyRevertOverride } = await import("./orchestra-model-resolver")
+    const originalWarn = console.warn
+    console.warn = mock(() => {})
+    try {
+      withEnv("azure:some-model", () => {
+        expect(emergencyRevertOverride()).toBeNull()
+      })
+      expect(console.warn).toHaveBeenCalled()
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("missing the separator entirely is ignored, not misparsed", async () => {
+    const { emergencyRevertOverride } = await import("./orchestra-model-resolver")
+    const originalWarn = console.warn
+    console.warn = mock(() => {})
+    try {
+      withEnv("groq-llama-no-colon", () => {
+        expect(emergencyRevertOverride()).toBeNull()
+      })
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("a valid provider with an empty model is ignored, not resolved to an empty-string model", async () => {
+    const { emergencyRevertOverride } = await import("./orchestra-model-resolver")
+    const originalWarn = console.warn
+    console.warn = mock(() => {})
+    try {
+      withEnv("groq:", () => {
+        expect(emergencyRevertOverride()).toBeNull()
+      })
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+})
+
+describe("resolveModelConfig honors MODEL_EMERGENCY_REVERT on the platform-default branch", () => {
+  function mockPlatformDefaultDb() {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
+          customerModelConfig: { findFirst: mock(async () => undefined) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+    mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
+    mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
+  }
+
+  test("overrides both the hardcoded platform default AND the layer's own defaultModelConfig", async () => {
+    mockPlatformDefaultDb()
+    const originalRevert = process.env.MODEL_EMERGENCY_REVERT
+    const originalOpenRouterKey = process.env.OPENROUTER_API_KEY
+    process.env.MODEL_EMERGENCY_REVERT = "openrouter:meta-llama/llama-3.3-70b-instruct:free"
+    process.env.OPENROUTER_API_KEY = "openrouter-test-key"
+    try {
+      const { resolveModelConfig } = await import("./orchestra-model-resolver")
+      const result = await resolveModelConfig("org-1", "customer_account_oa")
+      expect(result?.provider).toBe("openrouter")
+      expect(result?.model).toBe("meta-llama/llama-3.3-70b-instruct:free")
+      expect(result?.isCustomerConfigured).toBe(false)
+    } finally {
+      if (originalRevert === undefined) delete process.env.MODEL_EMERGENCY_REVERT
+      else process.env.MODEL_EMERGENCY_REVERT = originalRevert
+      if (originalOpenRouterKey === undefined) delete process.env.OPENROUTER_API_KEY
+      else process.env.OPENROUTER_API_KEY = originalOpenRouterKey
+    }
+  })
+
+  test("never overrides an org's own active BYO customer_model_config during a platform-wide revert", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
+          customerModelConfig: {
+            findFirst: mock(async () => ({
+              id: "cfg-1", orgId: "org-1", orchestraLayerId: "layer-1",
+              provider: "anthropic", modelName: "claude-sonnet-5",
+              encryptedApiKey: "encrypted-blob", isActive: true,
+            })),
+          },
+        },
+        update: mockDbUpdateChain(),
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+    mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => `decrypted:${c}`) }))
+    mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
+
+    const originalRevert = process.env.MODEL_EMERGENCY_REVERT
+    process.env.MODEL_EMERGENCY_REVERT = "groq:llama-3.3-70b-versatile"
+    try {
+      const { resolveModelConfig } = await import("./orchestra-model-resolver")
+      const result = await resolveModelConfig("org-1", "customer_account_oa")
+      expect(result?.provider).toBe("anthropic")
+      expect(result?.model).toBe("claude-sonnet-5")
+      expect(result?.isCustomerConfigured).toBe(true)
+    } finally {
+      if (originalRevert === undefined) delete process.env.MODEL_EMERGENCY_REVERT
+      else process.env.MODEL_EMERGENCY_REVERT = originalRevert
+    }
+  })
+
+  test("unset MODEL_EMERGENCY_REVERT: platform default resolves exactly as before (regression guard)", async () => {
+    mockPlatformDefaultDb()
+    const originalRevert = process.env.MODEL_EMERGENCY_REVERT
+    const originalGroqKey = process.env.GROQ_API_KEY
+    delete process.env.MODEL_EMERGENCY_REVERT
+    process.env.GROQ_API_KEY = "groq-test-key"
+    try {
+      const { resolveModelConfig } = await import("./orchestra-model-resolver")
+      const result = await resolveModelConfig("org-1", "customer_account_oa")
+      expect(result?.provider).toBe("groq")
+      expect(result?.model).toBe("openai/gpt-oss-120b")
+    } finally {
+      if (originalRevert === undefined) delete process.env.MODEL_EMERGENCY_REVERT
+      else process.env.MODEL_EMERGENCY_REVERT = originalRevert
+      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY
+      else process.env.GROQ_API_KEY = originalGroqKey
+    }
+  })
+})
