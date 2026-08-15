@@ -40,6 +40,42 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260815-033541-owner-delegated-decision--provision-a-re) -- Owner-delegated: provision Meridian Test Industries dummy tenant + 4 role-based test accounts, run real GTM cat 15 (multi-tenant isolation) + cat 16 (role permission) tests"
+    claimed_at: "2026-08-15T00:00Z (this session, timestamp approximate -- no live clock tool)"
+    claim: |
+      SPEC (Owner-delegated real decision to the PM): provision one real, clearly-fictional
+      dummy test tenant ("Meridian Test Industries" or similar, non-production/test-flagged),
+      4 real test user accounts (owner/admin, manager, member, viewer -- standard B2B SaaS RBAC
+      pattern per descope.com + WorkOS guides), each a real DB row with real generated
+      credentials stored the same secure way as any other account (never plaintext committed).
+      Use these to run real GTM certification category 15 (multi-tenant isolation) and category
+      16 (role permission) tests, recording real pass/fail evidence into
+      gtm_certification_categories via the canonical writer only.
+
+      COLLISION CHECK performed before starting (per this file's own protocol): found this is a
+      RE-DISPATCH, not a fresh gap. An earlier session (task-20260806-215747-owner-delegated-
+      decision--provision-a-re) already built
+      `compliance-tracker/scripts/gtm-provision-cat15-16-test-tenant.ts` (commit `6077f3d24`,
+      still open, unmerged, CONFLICTING/DIRTY PR #1002, 9 days stale) and that provisioning
+      script DID actually run for real against the live app's `.env.local`
+      (`/opt/veridian/repos/compliance-tracker/.env.local`, real `GTM_TEST_MERIDIAN_*` keys
+      confirmed present, last modified 2026-08-06T22:14Z). However, independently queried the
+      live `gtm_certification_categories` / `ocid_master_standard_audit_log` tables directly
+      (never trusted PR #1002's own body text, which claims "PASS...verified directly against
+      the live DB" for both categories) and found the real last write for category 15/16 is
+      still `blocked` at `2026-08-06T17:07Z` -- BEFORE the 22:14Z provisioning run, meaning the
+      PR's claimed pass was never actually corroborated by a real DB write. `pm_decisions_pending`
+      id=69/70 (the two decisions this SPEC is the Owner's actual delegated response to) are
+      still `status=open`. Real remaining work: cherry-pick/land the provisioning script for
+      real (this task's own committed diff), actually re-run the two GTM check scripts for real
+      against the live app, and get a genuinely-corroborated pass/fail written to
+      `gtm_certification_categories`, then resolve pm_decisions_pending id=69/70 with real
+      evidence citations.
+
+      File scope: `compliance-tracker/scripts/gtm-provision-cat15-16-test-tenant.ts`,
+      `ai-os/boss/ACTIVE-CLAIMS.yaml` (this entry), this task's own
+      `progress/task-20260815-033541-owner-delegated-decision--provision-a-re.md`. No raw SQL
+      writes to `gtm_certification_categories` -- canonical `gtm_write_category_result.py` only.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
