@@ -1,0 +1,38 @@
+Manual follow-up patch: wire the Route Error Handling Check into
+.github/workflows/ci.yml. See progress/task-20260718-065003-ai-engineering-
+quality--error-handling.md, "Known limitation" section, for why this
+couldn't be pushed directly in this PR (gh token lacks the `workflow`
+OAuth scope).
+
+Apply by inserting the block below into .github/workflows/ci.yml,
+immediately after the `migration-collision-check:` job's
+`- run: node scripts/check-migration-collision.mjs --base origin/main`
+line and before the `doc-quarantine-banner:` job (i.e. as a new top-level
+job at the same indentation as the other `jobs:` entries).
+
+--- insert below this line ---
+  route-error-handling-check:
+    name: Route Error Handling Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { fetch-depth: 0 }
+      # VERIDIAN Review Framework gap-closure (task-20260718-065003-
+      # ai-engineering-quality--error-handling), [Low] Error Handling
+      # Quality: "~9% of API routes lack a visible try/catch." Same
+      # enforcement class as the coverage checks above -- fails the build
+      # only on NEW or MODIFIED src/app/api/**/route.ts files (relative to
+      # origin/main) that export an HTTP handler with no visible try/catch,
+      # so pre-existing debt doesn't retroactively fail every PR. fetch-depth
+      # 0 + --base origin/main, matching migration-collision-check's own
+      # precedent just above (same "stale local main ref" fix). See the
+      # script's own header for the honest limitation this does and doesn't
+      # guarantee.
+      - run: node scripts/check-route-error-handling.mjs --base origin/main
+--- insert above this line ---
+
+Validated locally before this commit: `python3 -c "import yaml;
+yaml.safe_load(open('.github/workflows/ci.yml'))"` on the file with this
+block applied reported valid YAML, and
+`node scripts/check-route-error-handling.mjs --base origin/main` (the
+script this job invokes) runs clean against this PR's own branch.

@@ -11,6 +11,7 @@ import {
   Link2,
   ArrowRight,
   CheckCircle2,
+  AlertTriangle,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -107,6 +108,7 @@ export function DocumentUploadSection() {
   // Extraction state
   const [extracting, setExtracting] = useState(false);
   const [extractedData, setExtractedData] = useState<ExtractedData | null>(null);
+  const [validationWarning, setValidationWarning] = useState<string | null>(null);
 
   // Edit form state
   const [editForm, setEditForm] = useState<Record<string, string>>({});
@@ -141,6 +143,7 @@ export function DocumentUploadSection() {
     if (e.dataTransfer.files?.[0]) {
       setFile(e.dataTransfer.files[0]);
       setExtractedData(null);
+      setValidationWarning(null);
     }
   }, []);
 
@@ -148,6 +151,7 @@ export function DocumentUploadSection() {
     if (e.target.files?.[0]) {
       setFile(e.target.files[0]);
       setExtractedData(null);
+      setValidationWarning(null);
     }
   };
 
@@ -157,6 +161,7 @@ export function DocumentUploadSection() {
 
     setExtracting(true);
     setExtractedData(null);
+    setValidationWarning(null);
 
     try {
       const formData = new FormData();
@@ -175,6 +180,7 @@ export function DocumentUploadSection() {
       const data = await res.json();
       const extracted = data.extractedData as ExtractedData;
       setExtractedData(extracted);
+      setValidationWarning((data.validationWarning as string | null | undefined) ?? null);
 
       // Populate edit form with extracted values
       const form: Record<string, string> = {};
@@ -338,6 +344,7 @@ export function DocumentUploadSection() {
                     e.stopPropagation();
                     setFile(null);
                     setExtractedData(null);
+                    setValidationWarning(null);
                   }}
                 >
                   <X className="size-3" /> Remove
@@ -429,6 +436,12 @@ export function DocumentUploadSection() {
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {validationWarning && (
+              <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs text-amber-800">
+                <AlertTriangle className="size-4 shrink-0 mt-0.5" />
+                <span>{validationWarning}</span>
+              </div>
+            )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {EDITABLE_FIELDS.map((key) => {
                 if (key === "description") return null; // Description shown separately below

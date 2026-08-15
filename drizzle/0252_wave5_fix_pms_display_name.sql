@@ -1,0 +1,11 @@
+-- Wave 5 (CRM+PROJEXA-merge plan, 2026-07-21): fix a real, live wrong-brand
+-- bug. The 'pms' product_branches row has shown "VERI PROJECTS AI" to every
+-- PM-branch customer since drizzle/0040_wave47_brand_refresh_product_names.sql
+-- renamed it from its original "VERIDIAN AI PMS" -- but the Owner's actual
+-- brand-naming directive is that the Project Management branch is sold and
+-- shown as "PROJEXA", a name that already exists as this repo's separate
+-- projexa-ai.com deployment (itself being folded into this repo as a brand-
+-- layer instance in a later wave of this same plan, not a coincidence).
+-- 'the_firm' already reads "THE FIRM AI OS", which matches the Owner's
+-- "THE FIRM" brand directive closely enough to leave untouched here.
+UPDATE platform.product_branches SET display_name = 'PROJEXA' WHERE branch_key = 'pms';

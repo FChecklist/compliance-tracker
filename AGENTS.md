@@ -41,5 +41,34 @@
 10. **Added 2026-07-11 (Boss directive, gap-analysis callout: "we wanted... peer review and also audit" — Rule 7(c) had been a written norm with zero CI enforcement until this rule):** Every AI Dev Team dispatch is classified into a complexity tier (`mechanical`/`integrative`/`judgment`, `src/lib/model-tier-eligibility.ts`) at dispatch time; a model that hasn't earned judgment-tier trust (currently: every model except `z-ai/glm-5.2` — `openai/gpt-5.5` was removed from the judgment tier 2026-07-14 per Owner directive, see `ai-os/CONSTITUTION.yaml`'s `ai_orchestra_tiers.levels[TIER-3]`) may **only** receive `mechanical`- or `integrative`-tier work, enforced at all three real dispatch surfaces (`/api/ai/team/dispatch`, `dispatch-repo.ts`, `ai-workforce-agent.mjs`), not just documented as a preference. Any PR from such a role's dispatch branch (`ai-team/<role>/*`) is **blocked from merging by CI** (`.github/workflows/mandatory-audit-check.yml`) until a comment starting with `AUDIT: PASS` or `AUDIT: FAIL` is posted — this is Rule 7(c) made a real merge gate instead of a habit. Honest limitation, not oversold: the check verifies an audit verdict was *asserted*, not that it was rigorous — the same class of guarantee as Rule 9's guardrail-presence check.
 11. **Added 2026-07-14 (Boss directive, after the Owner confirmed 4 parallel Claude sessions were active across this codebase at once, with no way for one to see another's in-flight work):** Before selecting any gap/task to work on, every session must read `ai-os/boss/ACTIVE-CLAIMS.yaml` and register its own claim there per that file's own protocol, before starting real work. This does not replace Rule 6's PR/CI gate (which still prevents actual data loss) — it exists to prevent the different problem of two sessions independently spending a full work cycle building the same gap at once. Honest limitation, same class as Rule 10's: this is a cooperative registry enforced by each session's own discipline, not a technical lock — nothing stops a session from skipping it, the same way nothing cryptographically stops a skipped audit comment.
 
+12. **Added 2026-08-14 (Owner-approved, addendum to P1 UMR-20260806-171945-5767; citation:
+    `/opt/veridian/ai-os/OWNER_DECISIONS_NEEDED_2026-07-23.yaml` entry
+    `id=crontab-drift-approved-2026-08-14`, `status=approved`):** Real indexes already exist
+    (on the host filesystem, outside this repo's own tree — not paths inside
+    `compliance-tracker`) and are already used by the deterministic dedup reviewer for
+    dispatch-level decisions — `system_index`, `capability_registry`, `wiring_registry` (all
+    three: `/opt/veridian/ai-os/memory/superboss-register.sqlite`),
+    `/opt/veridian/ai-os/memory/CLAUDE_MEMORY_INDEX.md`,
+    `/opt/veridian/ai-os/memory/dead_ends.json`,
+    `/opt/veridian/ai-os/memory/open_questions.json`. A cross-repo audit on 2026-08-14 found
+    zero instances of any "check the index first" instruction in any real `AGENTS.md`, so
+    different worker tasks were repeatedly re-discovering the same real facts via fresh
+    exploratory search, wasting real tokens. Every worker must: (a) before broad exploratory
+    search, check whether the fact needed is already answered by one of the six indexes
+    above, and cite what was checked in the PR description or progress log, even if the check
+    came up empty; (b) only do fresh search for what those indexes don't already answer —
+    this is not a reason to skip real verification of current state, only a reason not to
+    duplicate a search someone already did; (c) if a fresh search turns up a genuinely new
+    fact worth reuse, write it back to the appropriate index (`capability_registry`/
+    `wiring_registry` via `superboss-register.py`,
+    `/opt/veridian/ai-os/memory/CLAUDE_MEMORY_INDEX.md`,
+    `/opt/veridian/ai-os/memory/dead_ends.json`,
+    `/opt/veridian/ai-os/memory/open_questions.json`) so the next worker doesn't have to
+    rediscover it; (d) this does not relax any rule above — a cited index lookup is never a
+    substitute for the audit, test, or completion requirements this file otherwise imposes.
+    Does not assume zoekt or any other code-search service is running — no zoekt systemd
+    unit exists as of this
+    writing; verify what's actually available before relying on it.
+
 ## Contact
-Repository owner: raajat.agarwal@gmail.com | Z.ai user_id: 9f3b0147-85ba-4461-9e27-aa782b313285
+Repository owner: raajat.agarwal@gmail.com | Z.ai user_id: 9f3b0147-85ba-4461-9e27-aa782b31328512. **Added 2026-07-31 (Owner directive, live session, quoted verbatim):** "on my behalf to to server and take decisions for approvals etc. let server work independently with claude cli directly, no connection of work from this laptop... you are going in it do do approvals etc on my behalf... work is done by the server - claude code ai session directly, not via laptop, laptop can be closed, still the server and claude code cli will keep working even if laptop is switched off." When asked explicitly whether security-sensitive and financial-calculation items should still be held for review, the Owner confirmed **"Full autonomy, no exceptions."** Effective immediately: `scripts/supervisor-entrypoint.sh`s `HOLD_FOR_OWNER_SIGNOFF` and `tier2` branches no longer hold a task in `awaiting_human_approval` — any task whose own Superboss review verdict is `approve` and passes `scope-check.py` now merges autonomously via the same path `tier1` always used, regardless of risk tier or hold-flag (see claude-control PR #118 and its inline `AUTONOMOUS-FULL-APPROVAL-2026-07-31` comment block for the exact mechanism). This does **not** weaken the underlying review: a rejected verdict, or a real `scope-check.py` file-ownership violation, still blocks exactly as before — only the redundant additional human-confirmation step on top of an already-approved review was removed. The Owner is still notified (informational only, no action requested) whenever a formerly-held task merges this way. **To revert:** restore the pre-2026-07-31 if/elif chain in `scripts/supervisor-entrypoint.sh` from git history (claude-control PR #118) and remove this rule.
