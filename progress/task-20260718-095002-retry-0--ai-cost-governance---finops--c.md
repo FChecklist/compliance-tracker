@@ -121,12 +121,25 @@ re-verified this invocation).
       (`upgradeToPro=build-rate-limit`), not a code problem -- outside this
       session's control and not one of the required CI checks (Lint/Type
       Check/Build/Unit Tests per AGENTS.md Rule 6).
-- [ ] Will NOT self-merge or self-audit (per this claim's own statement) --
-      `audit-check` correctly shows FAILURE (it requires an independent
-      `AUDIT: PASS/FAIL` verdict comment before it passes) -- left for the
-      supervising session's mandatory audit comment
-      (`mandatory-audit-check.yml`) before merge. All other real CI checks
-      are green as of the last push.
+- [x] Post-fix CI run (commit `6ab0216d8`) confirmed via GitHub API (not
+      just the sometimes-lagging PR-checks rollup): Lint, Type Check, Unit
+      Tests, Analyze, Terminology Guardrail Check, Asset Registry/Metadata
+      Index/Doc Cross-Reference/Doc Quarantine Banner/Guardrail Presence/
+      Migration Number Collision/Secret Scanning/Security Pattern/
+      Documentation Sentinel/CodeQL -- all SUCCESS. `Build` was still
+      IN_PROGRESS as of the last check this session made (GitHub Actions
+      runner, same real `bun run build` that was also slow locally in this
+      shared environment -- not a code issue, a resource-contention one;
+      will complete on GitHub's own infrastructure independent of this
+      session). PR is `MERGEABLE` (post-merge-conflict-resolution).
+- [x] DONE from this session's side. Will NOT self-merge or self-audit (per
+      this claim's own statement) -- `audit-check` correctly shows FAILURE
+      (it requires an independent `AUDIT: PASS/FAIL` verdict comment before
+      it passes) -- left for the supervising session's mandatory audit
+      comment (`mandatory-audit-check.yml`) before merge. `Vercel` FAILURE
+      is a Vercel plan build-rate-limit (`upgradeToPro=build-rate-limit`),
+      not a code problem, not one of AGENTS.md Rule 6's required checks.
+      PR: https://github.com/FChecklist/compliance-tracker/pull/1281
 
 Scope note already in the PR body: finding #3 (FinOps dashboard
 reconciliation) is built as a reconciliation FRAMEWORK against a
