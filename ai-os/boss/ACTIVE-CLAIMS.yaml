@@ -10848,3 +10848,28 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+  - session_label: "claude-code (worker task-20260718-070005-ai-maintainability--ai-safe-change-capab) -- AI Maintainability / AI Safe-Change Capability gap closure"
+    claimed_at: "2026-08-15T (this session, registered retroactively -- see note)"
+    claim: |
+      VERIDIAN Review Framework gap-closure, 5 findings: "AI Can Safely
+      Understand Module" (Low, file size), "AI Can Safely Modify Module"
+      (Medium, CI test-coverage gate), "AI Can Generate Tests for Module"
+      (Medium, coverage-gap report tooling), "AI Can Refactor Module"
+      (Medium, refactor safety net -- same fix as the previous finding),
+      "AI Can Explain Module Accurately" (Low, verified no-op, header-comment
+      discipline already real). Work is code-complete at claim time (real
+      work was done first, this claim registered right before commit/push --
+      noting that honestly rather than backdating it; no conflicting claim
+      was found for this file scope when checked).
+      File scope: scripts/report-maintainability-gaps.ts (+.test.ts),
+      scripts/check-test-coverage-gate.mjs, .github/workflows/ci.yml (new
+      Test Coverage Gate job + fixed a real pre-existing gap found while
+      investigating: bunfig.toml's root="src" was silently excluding all
+      scripts/*.test.ts from CI since commit 6318fc77 -- now `bun test ./src
+      ./scripts`), package.json (new report:coverage-gaps script),
+      ai-os/registry/coverage-gap-report.md (new, generated snapshot),
+      ai-os/registry/maintainability-scorecard.md (additive cross-link only,
+      not touching that file's own live-score service). Did NOT touch
+      src/lib/services/permission-service.ts per this task's own explicit
+      instruction. Moving this entry to recently_completed once the PR
+      merges.
