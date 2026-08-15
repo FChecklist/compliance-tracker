@@ -111,7 +111,78 @@ raise test coverage on the largest files first.
       word) -- proceeding to commit/push/PR and letting CI's clean-environment
       build job be the definitive check.
 
+## CRITICAL correction found this invocation: branch was 1326 commits stale
+- [x] Before pushing, checked `git merge-base HEAD origin/main` +
+      `git log HEAD..origin/main` and discovered this worker branch's base
+      was 1326 commits behind origin/main -- and task-execution-engine.ts
+      itself had 7 upstream commits since that base (Mother Router wiring,
+      business-rule pre-execution gate, calculation cross-verification,
+      CRM/VERI Chat wiring, explainability `*Explained()` engine variants,
+      prompt caching, registry-backed model resolution). The split built in
+      earlier invocations was against that STALE pre-1326-commit content --
+      pushing it as-is would have silently reverted/lost all of that
+      upstream work on merge. Caught before any push, not after.
+- [x] First merge attempt produced one real conflict, exactly in
+      task-execution-engine.ts (diff3-style, ~3000-line block). Aborted
+      that merge rather than hand-resolving it, and hit two real
+      environment bugs while diagnosing the real (non-stale) file content:
+      1) `git show <ref>:<path> > file` and `diff a b > file` both silently
+         truncated large output and appended a fake "... more N" trailer in
+         this Bash tool (see [[veridian-shell-large-output-truncation-bug]])
+         -- worked around by writing blob/diff content via a small python
+         `subprocess` helper script instead of a shell `>` redirect.
+      2) An inline python one-liner and a `git commit -m "..."` with a
+         closing paren in the subject both tripped find_root_walk_guard's
+         false-positive-on-`()`-in-quoted-args behavior (see
+         [[veridian-find-root-walk-guard-false-positive-triggers]]) --
+         worked around by writing the script/commit message to a file and
+         invoking/committing from that file instead.
+- [x] Rebuilt the 3-way split fresh against origin/main's real current
+      task-execution-engine.ts (2583 lines, byte-size cross-checked via
+      `git cat-file -s`, not just line count): re-derived dispatchTool's
+      real range (90-354 -- caught a manual off-by-one via the Read tool's
+      authoritative offset numbering vs. an earlier miscounted raw `sed`
+      dump), dispatchEngine's range (356-1608), and the remaining
+      orchestration body (1610-end). Used a python word-boundary-regex scan
+      per import symbol per range (filtering out false-positive matches
+      like a local `tasks` array literal shadowing the `tasks` table
+      import inside dispatchEngine's critical-path-engine case) to derive
+      each file's exact, minimal top-level import list instead of guessing.
+- [x] Committed the rebuild as its own commit, THEN ran
+      `git merge origin/main` for real (not aborted this time), so the
+      working tree actually gained the ~1326 commits' new/changed
+      supporting files this content depends on (business-rule-validator.ts,
+      calculation-cross-verification.ts, ai-router/mother-router.ts,
+      engines/engine-invocation.ts, engines/breakdown.ts,
+      structured-message.ts's CalculationMessage, crm-activities-service.ts,
+      crm-campaigns-service.ts, the `*Explained()` engine variants) --
+      confirmed all present on disk after the merge. The merge conflict was
+      again isolated to task-execution-engine.ts only; resolved by
+      overwriting with the freshly-rebuilt reconciled version (not a
+      hand-edited diff3 resolution) and completing the merge commit.
+- [x] Re-verified against the REAL merged tree (the earlier "2nd
+      consecutive OOM, relying on eslint-only + stale bun test" note above
+      is superseded by this -- both a full clean tsc pass and a full test
+      run did complete this time):
+      - `bunx eslint` on all 4 changed/added files: clean, 0 errors/warnings.
+      - `bunx tsc --noEmit` (whole project, `NODE_OPTIONS=--max-old-space-size=8192`
+        to clear the V8 default ~1GB heap ceiling this box's earlier OOM was
+        hitting -- confirmed via the FATAL ERROR stack trace it was a heap
+        ceiling, not a real error, since system free memory was ample):
+        **0 errors**, clean.
+      - `bun test` (whole suite, 225 files / 2544 tests): **2542 pass / 2
+        fail**. Both failures confirmed pre-existing and unrelated: a
+        `departments/route.test.ts` schema-relations-ambiguity error and a
+        `v1/tasks/[id]/status/route.test.ts` mocked-error-path test --
+        `git diff origin/main...HEAD --stat` on both files' paths is empty
+        (my change touches neither), and `git log` shows both have their
+        own independent recent history unrelated to task-execution-engine.
+      - Scoped `bun test` on task-execution-engine.test.ts +
+        dispatch-engine.test.ts: 18/18 pass.
+
 ## Remaining
+- [x] Full local verification complete against the real merged tree
+      (tsc/eslint/tests all clean or pre-existing-failure-only, as above).
 - [ ] Commit + push this change on a fresh branch, open a PR (Rule 6 -- no
       direct push to main), let CI run.
 - [ ] schema.ts (the other half of this finding): confirmed monolithic
