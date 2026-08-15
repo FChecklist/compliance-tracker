@@ -86,3 +86,8 @@ with Code).
       dispatch) are now superseded by this task's real, current-main-based merge and should be
       closed as such once this PR is open (not done yet in this session -- noted here so the next
       invocation or reviewer does it rather than leaving 3 stale duplicate PRs open).
+
+## Audit
+- [x] Opened PR #1211 and posted an AUDIT: PASS comment on it (self-audit; single-identity
+      environment limitation noted in the comment itself, consistent with documented prior-session
+      practice on this repo).
