@@ -15,11 +15,34 @@ import { defineConfig } from "@playwright/test";
 // package preference and this config's own module resolution have a real
 // package to find.
 //
-// Wave 79 note (still true): zero E2E tests exist yet -- writing real
-// Playwright browser tests (server + auth fixtures) is separate, larger
-// scope. testDir scopes discovery to a dedicated e2e/ directory
-// (currently empty), so --pass-with-no-tests in the CI workflow still
-// applies honestly.
+// Wave 79 note (partially stale as of the Accessibility gap-closure below):
+// e2e/browser-execution-tiers.spec.ts (VERIDIAN_Architecture_v2.0 phase_5)
+// was the first real test added here and deliberately needs no server
+// (about:blank + page.evaluate against real browser globals). testDir
+// scopes discovery to a dedicated e2e/ directory.
+//
+// Accessibility gap-closure (Review Framework, Accessibility/WCAG
+// Compliance, Critical finding "Accessibility regression testing included
+// in CI"): e2e/accessibility.spec.ts DOES need a live server to point
+// AxeBuilder at real rendered pages, unlike the phase_5 test above. webServer
+// below boots `next dev` itself (the e2e CI job runs on a bare checkout with
+// no build artifact to reuse from the separate `build` job) against the
+// same placeholder env vars the `build`/`unit-tests` CI jobs already use --
+// the pages under test (/, /login, /pricing, /terms, /privacy) are all
+// unauthenticated and DB-free, confirmed by reading each route before
+// adding it here, so the placeholder DATABASE_URL/Supabase vars never need
+// to resolve a real connection. reuseExistingServer keeps this fast for
+// local `bunx playwright test` runs against an already-running `bun run
+// dev`.
 export default defineConfig({
   testDir: "./e2e",
+  use: {
+    baseURL: "http://localhost:3000",
+  },
+  webServer: {
+    command: "bun run dev",
+    url: "http://localhost:3000",
+    reuseExistingServer: !process.env.CI,
+    timeout: 120_000,
+  },
 });
