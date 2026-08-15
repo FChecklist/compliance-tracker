@@ -27,7 +27,85 @@ export { ServiceError, serviceErrorBody }
 // working unchanged. Only updateOpportunity() reads it, to decide whether a
 // caller is allowed to move a deal OUT of a closed (won/lost) stage --
 // see isValidStageTransition() below.
-export type CrmContext = { orgId: string; userId: string; actorRole?: UserRole }
+//
+// role (below, merged from the separate own-record-or-manager RBAC closure
+// landed on main the same window) is a second, independently-optional field
+// -- only the create/update entry points below (the ones reachable from the
+// native /api/crm/leads* and /api/crm/opportunities* routes, which always
+// authenticate via requireAuth() and so always have a real dbUser.role)
+// enforce it. Every other function in this file (scoring, analysis,
+// follow-up-task chaining, convert-to-client, the v1/projexa bulk-reassign
+// aliases which already gate at manager rank via requireRoleOrScope() at the
+// route layer) is unaffected by this field. Deliberately not unified into
+// one field: actorRole is typed UserRole (stage-transition rank lookup),
+// role is a plain string (RBAC gate functions below); merging them would
+// widen either type unnecessarily.
+export type CrmContext = { orgId: string; userId: string; actorRole?: UserRole; role?: string }
+
+// Gap found via a fresh audit immediately before this wave: crm-accounts-
+// service.ts got a real owner-or-manager RBAC gate in Wave 4 (17 Jul 2026,
+// canEditAccount/canReassignOrDeleteAccount/canCreateCrmRecord below) but
+// crm_leads/crm_opportunities -- the sibling tables one wave earlier -- never
+// did. Today any authenticated org member, including viewer/client_viewer/
+// external_auditor rank, can create/edit any lead or opportunity and can
+// silently reassign ownership via a plain PATCH { ownerId } with zero rank
+// check at all through the native CRM UI's own routes. Same shape as
+// crm-accounts-service.ts's gates, applied to the sibling tables (see that
+// file's own header for why this wasn't factored into one shared utility
+// yet -- no such utility exists in this codebase as of this wave either).
+const MANAGER_RANK = ROLE_RANK.manager // 3 -- manager/senior_professional/branch_manager/admin/veridian_admin
+const MEMBER_RANK = ROLE_RANK.member // 2 -- member/team_member and above (i.e. not viewer/client_viewer/external_auditor)
+
+export type AccessGateResult = { ok: true } | { ok: false; reason: string }
+
+/**
+ * Who may edit an existing lead's own fields (status, source, next-action,
+ * etc.) -- everything EXCEPT reassigning ownership, see
+ * canReassignOrDeleteLead below for that higher bar. A rep (member rank or
+ * above) may edit a lead they own, or an unowned lead; manager rank and
+ * above may edit any lead regardless of owner.
+ */
+export function canEditLead(actorRole: string, leadOwnerId: string | null, actorId: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MEMBER_RANK) return { ok: false, reason: "This action requires member role or higher" }
+  if (actorRank >= MANAGER_RANK) return { ok: true }
+  if (leadOwnerId === null || leadOwnerId === actorId) return { ok: true }
+  return { ok: false, reason: "Only this lead's owner or a manager can make this change" }
+}
+
+/** Reassigning a lead's owner is a team-lead-level action regardless of who currently owns it -- manager rank or above only. */
+export function canReassignOrDeleteLead(actorRole: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MANAGER_RANK) return { ok: false, reason: "This action requires manager role or higher" }
+  return { ok: true }
+}
+
+/** Same owner-or-manager shape as canEditLead, for opportunities. */
+export function canEditOpportunity(actorRole: string, opportunityOwnerId: string | null, actorId: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MEMBER_RANK) return { ok: false, reason: "This action requires member role or higher" }
+  if (actorRank >= MANAGER_RANK) return { ok: true }
+  if (opportunityOwnerId === null || opportunityOwnerId === actorId) return { ok: true }
+  return { ok: false, reason: "Only this opportunity's owner or a manager can make this change" }
+}
+
+/** Reassigning an opportunity's owner -- manager rank or above only, same shape as canReassignOrDeleteLead. */
+export function canReassignOrDeleteOpportunity(actorRole: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MANAGER_RANK) return { ok: false, reason: "This action requires manager role or higher" }
+  return { ok: true }
+}
+
+/** Creating a brand-new lead/opportunity has no existing owner to check against -- any rep (member rank+) can create. */
+export function canCreateCrmRecord(actorRole: string): AccessGateResult {
+  const actorRank = ROLE_RANK[actorRole as UserRole] ?? 0
+  if (actorRank < MEMBER_RANK) return { ok: false, reason: "This action requires member role or higher" }
+  return { ok: true }
+}
+
+function assertGate(gate: AccessGateResult): void {
+  if (!gate.ok) throw new ServiceError(gate.reason, 403)
+}
 
 export async function listLeads(ctx: { orgId: string }) {
   await requireSalesEnabled(ctx.orgId)
@@ -75,6 +153,7 @@ export async function createLead(
   input: { name: string; contactEmail?: string; contactPhone?: string; source?: string; ownerId?: string; companyId?: string; nextActionDate?: string; nextActionNote?: string }
 ) {
   await requireSalesEnabled(ctx.orgId)
+  if (ctx.role !== undefined) assertGate(canCreateCrmRecord(ctx.role))
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
 
@@ -101,6 +180,13 @@ export async function updateLead(
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Lead not found", 404)
+    if (ctx.role !== undefined) {
+      // Ownership reassignment (ownerId changing to a genuinely different
+      // value) is gated at manager rank regardless of who currently owns
+      // the lead; every other field edit follows the owner-or-manager gate.
+      const isReassignment = patch.ownerId !== undefined && (patch.ownerId || null) !== existing.ownerId
+      assertGate(isReassignment ? canReassignOrDeleteLead(ctx.role) : canEditLead(ctx.role, existing.ownerId, ctx.userId))
+    }
     const [updated] = await db.update(crmLeads).set({ ...patch, updatedAt: new Date() }).where(eq(crmLeads.id, leadId)).returning()
     if (patch.status && patch.status !== existing.status) {
       await db.insert(crmStageHistory).values({
@@ -181,6 +267,7 @@ export async function createOpportunity(
   }
 ) {
   await requireSalesEnabled(ctx.orgId)
+  if (ctx.role !== undefined) assertGate(canCreateCrmRecord(ctx.role))
   const name = input.name?.trim()
   if (!name) throw new ServiceError("name is required", 400)
   if (!input.leadId && !input.clientId && !input.erpCustomerId) throw new ServiceError("An opportunity needs a leadId, a clientId, or an erpCustomerId", 400)
@@ -228,6 +315,12 @@ export async function updateOpportunity(
       const actorRank = ctx.actorRole ? ROLE_RANK[ctx.actorRole] : 0
       const verdict = isValidStageTransition(existing.stage, patch.stage, stages, actorRank)
       if (!verdict.valid) throw new ServiceError(verdict.reason ?? "Invalid stage transition", 400)
+    }
+
+    if (ctx.role !== undefined) {
+      // Same reassignment-vs-edit split as updateLead above.
+      const isReassignment = patch.ownerId !== undefined && (patch.ownerId || null) !== existing.ownerId
+      assertGate(isReassignment ? canReassignOrDeleteOpportunity(ctx.role) : canEditOpportunity(ctx.role, existing.ownerId, ctx.userId))
     }
 
     const [updated] = await db.update(crmOpportunities)
@@ -1199,6 +1292,13 @@ export async function deleteLead(ctx: CrmContext, leadId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmLeads.findFirst({ where: and(eq(crmLeads.id, leadId), eq(crmLeads.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Lead not found", 404)
+    // Delete is a reassign-or-delete-grade action, same bar as an ownerId
+    // reassignment PATCH above -- canReassignOrDeleteLead exists precisely
+    // for this, matching deleteAccount's own assertGate(canReassignOrDelete
+    // Account(...)) precedent in crm-accounts-service.ts. This was the one
+    // real gap this PR's own audit pass caught before merge: the gate
+    // function was added and named for this call site but never wired here.
+    if (ctx.role !== undefined) assertGate(canReassignOrDeleteLead(ctx.role))
 
     const linkedOpportunities = await db.query.crmOpportunities.findMany({
       where: and(eq(crmOpportunities.leadId, leadId), eq(crmOpportunities.orgId, ctx.orgId)), columns: { id: true },
@@ -1227,6 +1327,10 @@ export async function deleteOpportunity(ctx: CrmContext, opportunityId: string) 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Opportunity not found", 404)
+    // Same reassign-or-delete-grade gate as deleteLead above -- see that
+    // function's comment for why this was added during this PR's own audit
+    // pass rather than left as a silent zero-gate hole in the delete path.
+    if (ctx.role !== undefined) assertGate(canReassignOrDeleteOpportunity(ctx.role))
     await db.delete(crmOpportunities).where(eq(crmOpportunities.id, opportunityId))
     return { id: opportunityId }
   })
