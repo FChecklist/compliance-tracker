@@ -9,9 +9,9 @@ export const dynamic = "force-dynamic";
 // before this wave) and a duplicate audit (surface candidate near-duplicate
 // worker agents/automation rules for a human to review -- never merges or
 // deletes anything itself).
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
-import { Loader2, Database, Search, AlertTriangle } from "lucide-react";
+import { Loader2, Database, Search, AlertTriangle, Gauge } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,15 +22,51 @@ type DuplicateCandidate = {
   score: number;
 };
 
+type CoverageByType = { total: number; indexed: number; coveragePercent: number };
+type CoverageReport = {
+  worker_agent: CoverageByType;
+  automation_rule: CoverageByType;
+  module: CoverageByType;
+  dynamic_chain: CoverageByType;
+  overall: CoverageByType;
+};
+
+const COVERAGE_LABELS: Record<keyof Omit<CoverageReport, "overall">, string> = {
+  worker_agent: "Worker agents",
+  automation_rule: "Automation rules",
+  module: "Modules",
+  dynamic_chain: "Dynamic chains",
+};
+
 export default function CapabilityRegistryPage() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [backfilling, setBackfilling] = useState(false);
   const [auditing, setAuditing] = useState(false);
+  const [checkingCoverage, setCheckingCoverage] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateCandidate[] | null>(null);
+  const [coverage, setCoverage] = useState<CoverageReport | null>(null);
 
   useEffect(() => {
     fetch("/api/me").then((r) => r.json()).then((d) => setIsAdmin(d.role === "admin"));
   }, []);
+
+  const checkCoverage = useCallback(async () => {
+    setCheckingCoverage(true);
+    try {
+      const res = await fetch("/api/capability-registry/coverage");
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      setCoverage(data);
+    } catch {
+      toast.error("Coverage check failed");
+    } finally {
+      setCheckingCoverage(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAdmin) checkCoverage();
+  }, [isAdmin, checkCoverage]);
 
   const runBackfill = async () => {
     setBackfilling(true);
@@ -39,6 +75,7 @@ export default function CapabilityRegistryPage() {
       if (!res.ok) throw new Error();
       const data = await res.json();
       toast.success(`Indexed ${data.agents} worker agents, ${data.rules} automation rules, ${data.modules} modules`);
+      if (data.coverage) setCoverage(data.coverage);
     } catch {
       toast.error("Backfill failed");
     } finally {
@@ -73,6 +110,37 @@ export default function CapabilityRegistryPage() {
           <p className="text-sm text-ct-muted mt-1">What VERI FDE checks before ever proposing a new Worker Agent -- a semantic index of every worker agent, automation rule, and module, so requests are matched against what already exists instead of re-deriving the same context every time.</p>
         </div>
       </div>
+
+      <Card className="rounded-xl shadow-card bg-white">
+        <CardContent className="pt-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Gauge className="size-4 text-ct-teal" />
+              <h2 className="text-sm font-semibold text-ct-navy">Index coverage</h2>
+            </div>
+            <Button onClick={checkCoverage} disabled={checkingCoverage} size="sm" variant="ghost">
+              {checkingCoverage ? <Loader2 className="size-4 animate-spin" /> : "Refresh"}
+            </Button>
+          </div>
+          <p className="text-xs text-ct-muted">How much of each source is actually present in the embedding index right now, measured directly against compliance.embeddings -- independent of whether a backfill run reported success.</p>
+          {coverage ? (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {(Object.keys(COVERAGE_LABELS) as (keyof typeof COVERAGE_LABELS)[]).map((key) => {
+                const c = coverage[key];
+                return (
+                  <div key={key} className="space-y-1">
+                    <p className="text-xs text-ct-muted">{COVERAGE_LABELS[key]}</p>
+                    <p className="text-lg font-semibold text-ct-navy">{c.coveragePercent}%</p>
+                    <p className="text-[11px] text-ct-muted">{c.indexed}/{c.total} indexed</p>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="text-xs text-ct-muted">{checkingCoverage ? "Checking..." : "No coverage data yet."}</p>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="rounded-xl shadow-card bg-white">

@@ -1,6 +1,8 @@
 import { db, webhooks, webhookDeliveries } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq, and } from "drizzle-orm";
 import crypto from "crypto";
+import { runWebhookDeliveryOutcomeMonitor } from "@/lib/monitors/webhook-delivery-outcome-monitor";
 
 type Webhook = typeof webhooks.$inferSelect;
 
@@ -13,7 +15,7 @@ function signBody(secret: string, body: string): string {
  * by the automatic retry loop (deliverWebhook) and the manual "Redeliver"
  * action (redeliverWebhookDelivery) so both attempts are signed, headered,
  * and recorded identically -- see webhook_deliveries.redelivery_of_id
- * (migration 0225) for how a manual replay is distinguished from an
+ * (migration 0313) for how a manual replay is distinguished from an
  * automatic one.
  */
 // Exported for unit testing (see webhook-deliver.test.ts) -- not part of the
@@ -74,8 +76,14 @@ export async function deliverWebhook(
     // A delivery that still fails after this is left as a terminal failed
     // row -- recoverable via the manual redeliverWebhookDelivery path below,
     // not by raising this cap.
+    let delivered = false;
+    let lastStatusCode: number | null = null;
+    let attemptsMade = 0;
+
     for (let attempt = 1; attempt <= 3; attempt++) {
+      attemptsMade = attempt;
       const outcome = await sendWebhookAttempt(webhook, eventType, payload);
+      lastStatusCode = outcome.statusCode;
 
       await db.insert(webhookDeliveries).values({
         webhookId: webhook.id,
@@ -92,6 +100,7 @@ export async function deliverWebhook(
           .update(webhooks)
           .set({ lastDeliveryAt: new Date(), lastStatusCode: outcome.statusCode })
           .where(eq(webhooks.id, webhook.id));
+        delivered = true;
         break;
       }
 
@@ -99,6 +108,18 @@ export async function deliverWebhook(
         await new Promise((r) => setTimeout(r, Math.pow(5, attempt - 1) * 1000));
       }
     }
+
+    // RES-02 Phase 1 (PLATFORM_STRATEGY.md 29.3): one outcome check per
+    // webhook per event, after the retry loop concludes -- not per attempt
+    // (a retry succeeding on attempt 2 is a successful delivery, not 2
+    // separate API_SUCCESS/API_FAILED events). Best-effort: a monitor
+    // failure must never break webhook delivery itself, which already
+    // completed above.
+    await withTenantContext({ orgId }, (tx) =>
+      runWebhookDeliveryOutcomeMonitor(tx, orgId, {
+        webhookId: webhook.id, eventType, succeeded: delivered, attempts: attemptsMade, lastStatusCode,
+      })
+    ).catch((err) => console.error(`[webhook-delivery-outcome-monitor] failed for webhook ${webhook.id}:`, err));
   }
 }
 
@@ -111,6 +132,12 @@ export async function deliverWebhook(
  * responsible for tenant scoping (webhook + delivery must already be
  * confirmed to belong to the requesting org before this is called -- see
  * POST /api/settings/webhooks/[id]/redeliver).
+ *
+ * Deliberately does NOT invoke runWebhookDeliveryOutcomeMonitor (RES-02
+ * Phase 1, see deliverWebhook above): that monitor's per-webhook-per-event
+ * accounting is for the automatic delivery pipeline; a manual replay is an
+ * explicit, human-initiated action already visible in the UI/audit trail,
+ * not a new automatic-pipeline outcome to alert on.
  */
 export async function redeliverWebhookDelivery(
   webhook: Webhook,

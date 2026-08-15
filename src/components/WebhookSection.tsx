@@ -59,7 +59,7 @@ interface DeliveryLog {
   attempt: number;
   // Set only on rows created by the manual "Redeliver" action (points back
   // at the original failed delivery it replayed) -- null for every row the
-  // automatic retry loop wrote. See migration 0225.
+  // automatic retry loop wrote. See migration 0313.
   redeliveryOfId: string | null;
   createdAt: string;
 }

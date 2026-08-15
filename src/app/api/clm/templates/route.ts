@@ -7,8 +7,14 @@ export async function GET() {
   if (response) return response
   if (!orgId) return NextResponse.json({ templates: [] })
 
-  const templates = await listContractTemplates({ orgId })
-  return NextResponse.json({ templates })
+  try {
+    const templates = await listContractTemplates({ orgId })
+    return NextResponse.json({ templates })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Contract template list error:", error)
+    return NextResponse.json({ error: "Failed to list templates" }, { status: 500 })
+  }
 }
 
 export async function POST(request: Request) {

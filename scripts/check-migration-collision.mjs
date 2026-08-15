@@ -9,19 +9,86 @@
 // so historical collisions that are already applied to production DBs don't
 // cause CI to fail on every PR.
 //
-// Usage: node scripts/check-migration-collision.mjs
+// Base ref resolution (fixed 2026-07-30 -- see PR discussion "stale local
+// main ref" incident): in shared checkouts/worktrees, the local `main` ref
+// is frequently stale relative to `origin/main` (e.g. an old worktree still
+// has `main` checked out and can't be fast-forwarded from another worktree).
+// A stale merge-base makes this script report pre-existing/historical
+// collisions as new, or miss real new ones -- false signal either way.
+// Resolution order, highest priority first:
+//   1. --base <ref> CLI argument
+//   2. BASE_REF environment variable
+//   3. origin/main (fetched fresh, best-effort, non-fatal if it fails --
+//      e.g. offline/shallow clone)
+//   4. local main
+//   5. HEAD~1
+//
+// Usage: node scripts/check-migration-collision.mjs [--base <ref>]
+//        BASE_REF=origin/main node scripts/check-migration-collision.mjs
 // Exit code 0 = no new collisions, 1 = new collision detected.
 
 import { readdirSync } from "fs"
-import { basename, join } from "path"
+import { basename } from "path"
 import { execSync } from "child_process"
 
 const drizzleDir = new URL("../drizzle", import.meta.url).pathname
 
-// Get list of SQL files changed or added (not deleted) relative to main
+function resolveBaseRef() {
+  // 1. Explicit --base <ref> CLI flag
+  const argIdx = process.argv.indexOf("--base")
+  if (argIdx !== -1 && process.argv[argIdx + 1]) {
+    return process.argv[argIdx + 1]
+  }
+
+  // 2. Explicit BASE_REF env var (lets CI / other agents pass the correct
+  // ref without relying on ambient local-branch state)
+  if (process.env.BASE_REF && process.env.BASE_REF.trim()) {
+    return process.env.BASE_REF.trim()
+  }
+
+  // 3. origin/main, refreshed best-effort. `git fetch` failure (offline,
+  // no remote, shallow clone with no network) is non-fatal -- we just fall
+  // through to whatever origin/main ref we already have, or further down
+  // the chain.
+  try {
+    execSync("git fetch origin main --quiet", { stdio: "ignore" })
+  } catch {
+    // ignore -- use whatever origin/main we already have, if anything
+  }
+  try {
+    execSync("git rev-parse --verify origin/main", { stdio: "ignore" })
+    return "origin/main"
+  } catch {
+    // origin/main not available locally at all, fall through
+  }
+
+  // 4. local main
+  try {
+    execSync("git rev-parse --verify main", { stdio: "ignore" })
+    return "main"
+  } catch {
+    // no local main either, fall through
+  }
+
+  // 5. last resort
+  return "HEAD~1"
+}
+
+const baseRef = resolveBaseRef()
+
+function mergeBaseWith(ref) {
+  try {
+    return execSync(`git merge-base HEAD ${ref} 2>/dev/null`, { encoding: "utf8" }).trim()
+  } catch {
+    return "HEAD~1"
+  }
+}
+
+// Get list of SQL files changed or added (not deleted) relative to the
+// resolved base ref
 let changedFiles = []
 try {
-  const mergeBase = execSync("git merge-base HEAD main 2>/dev/null || echo HEAD~1", { encoding: "utf8" }).trim()
+  const mergeBase = mergeBaseWith(baseRef)
   const output = execSync(
     `git diff --name-only --diff-filter=d ${mergeBase} HEAD -- drizzle/ 2>/dev/null | head -100`,
     { encoding: "utf8" }
@@ -71,7 +138,7 @@ if (collisions.length > 0) {
 // This catches the case where PR A adds 0224_foo.sql and PR B independently adds 0224_bar.sql
 let allExistingFiles = []
 try {
-  const mergeBase = execSync("git merge-base HEAD main 2>/dev/null || echo HEAD~1", { encoding: "utf8" }).trim()
+  const mergeBase = mergeBaseWith(baseRef)
   const existing = execSync(
     `git ls-tree -r --name-only ${mergeBase} -- drizzle/ 2>/dev/null`,
     { encoding: "utf8" }
@@ -115,5 +182,4 @@ if (crossCollisions.length > 0) {
   process.exit(1)
 }
 
-console.log(`OK: ${sqlFiles.length} new/changed migration files checked, no number collisions.`)
-process.exit(0)
+console.log(`OK: ${sqlFiles.length} new/changed migration files checked, no number collisions (base: ${baseRef}).`)

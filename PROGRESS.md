@@ -22,9 +22,11 @@ failed row with no recovery path in either the API or `WebhookSection.tsx`.
       (`src/lib/db/schema.ts`) -- set only on rows created by a manual
       redelivery, points back at the original failed delivery it replayed.
       Additive, no backfill needed.
-- [x] Migration `drizzle/0225_webhook_manual_redelivery.sql`
+- [x] Migration `drizzle/0313_webhook_manual_redelivery.sql`
       (`ADD COLUMN IF NOT EXISTS`, matches this repo's additive-column
-      convention).
+      convention). Originally authored as 0225; renumbered to 0313 while
+      merging main in (main had independently taken 0225 for an unrelated
+      migration by the time this branch caught up -- see "Merge" below).
 - [x] `src/lib/webhook-deliver.ts`: factored the actual HTTP-send-and-sign
       logic out of `deliverWebhook` into a shared `sendWebhookAttempt`, then
       added `redeliverWebhookDelivery(webhook, originalDelivery)` which
@@ -54,7 +56,25 @@ failed row with no recovery path in either the API or `WebhookSection.tsx`.
       `ERP_ACTION_ROLES` table (not needed for this gap -- webhook routes
       already gate on `requireAuth` + org-scoped tenant context, same as the
       existing GET/PATCH/DELETE routes in this file).
+- [x] Merge: PR #1231 came back `mergeable: CONFLICTING` against `main`
+      (this branch's workspace had gone shallow since 2026-07-18; unshallowed
+      via `git fetch --unshallow` to get a real merge-base). Real conflicts
+      in `src/lib/webhook-deliver.ts` -- `main` had independently added a
+      `webhook-delivery-outcome-monitor` (RES-02 Phase 1) call inside
+      `deliverWebhook`'s retry loop. Resolved by combining both: kept this
+      task's shared `sendWebhookAttempt()` abstraction and
+      `redeliverWebhookDelivery()`, plus `main`'s `delivered`/
+      `attemptsMade`/`lastStatusCode` tracking and post-loop
+      `runWebhookDeliveryOutcomeMonitor` call -- the manual redeliver path
+      deliberately does not invoke that monitor (it's for the automatic
+      pipeline, not a human-initiated replay). Also renumbered the migration
+      0225 -> 0313 (`main` had independently taken 0225 for an unrelated
+      migration by merge time). `PROGRESS.md`/`ai-os/boss/ACTIVE-CLAIMS.yaml`
+      conflicts were both shared/additive files -- kept this task's own
+      entries, `main`'s content for both is otherwise unrelated to this
+      task's scope. Re-ran `bun test`/`tsc`/`eslint` after resolving --
+      all clean.
 
 ## Remaining
 
-- [ ] None -- ready for PR/CI.
+- [ ] None -- merged with main, verified, ready for CI.
