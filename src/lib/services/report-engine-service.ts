@@ -53,7 +53,7 @@
 
 import {
   db, reportDefinitions,
-  crmLeads, crmOpportunities, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
+  crmLeads, crmOpportunities, crmAccounts, crmContacts, erpQuotations, erpSalesOrders, erpSalesInvoices, erpCustomers,
   salesReferrals, salesCommissionAccruals, veriMeetings,
   complianceItems, notices, risks, pmsIssues, pmsMilestones, incidents,
   constructionBoqs, constructionWorkProgressEntries, constructionAttendance, constructionLabourRoster,
@@ -245,6 +245,23 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
       aiWinProbability: crmOpportunities.aiWinProbability, aiRecommendedAction: crmOpportunities.aiRecommendedAction,
       expectedCloseDate: crmOpportunities.expectedCloseDate,
     },
+  },
+  // VERIDIAN Review Framework "Accounts & Contacts" gap-closure (Reporting &
+  // Export Accuracy): crm_accounts/crm_contacts had no reportable surface
+  // at all (unlike crm_leads/crm_opportunities just above) -- an org
+  // couldn't build even a simple "accounts by lifecycle stage" or "contacts
+  // per account" ad-hoc report via the Reports & Analysis Engine. Same
+  // whitelist convention as every other entry in this registry.
+  crm_accounts: {
+    table: crmAccounts, orgIdColumn: crmAccounts.orgId,
+    columns: {
+      lifecycleStage: crmAccounts.lifecycleStage, ownerId: crmAccounts.ownerId, industry: crmAccounts.industry,
+      companyId: crmAccounts.companyId, aiHealthScore: crmAccounts.aiHealthScore, parentAccountId: crmAccounts.parentAccountId,
+    },
+  },
+  crm_contacts: {
+    table: crmContacts, orgIdColumn: crmContacts.orgId,
+    columns: { accountId: crmContacts.accountId, isPrimary: crmContacts.isPrimary },
   },
   // Priority 17 final gap: companyId whitelisted here now that erp_quotations
   // carries the column -- direct continuation of #365, which left this exact
