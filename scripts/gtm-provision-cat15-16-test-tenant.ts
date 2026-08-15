@@ -82,7 +82,12 @@ const EMAIL_DOMAIN = "meridian-test-industries.veridiandemo.internal"
 
 type Persona = {
   key: "owner" | "manager" | "member" | "viewer"
-  role: typeof schema.users.$inferInsert["role"]
+  // NonNullable: the `role` column has a DB-side default ('member'), so
+  // drizzle's own $inferInsert type marks it optional/possibly-undefined --
+  // every PERSONA entry below always supplies a real, explicit value, so
+  // strip that possibility here rather than threading `| undefined`
+  // through every downstream use (results[], writeEnvLocal, etc).
+  role: NonNullable<typeof schema.users.$inferInsert["role"]>
   name: string
   email: string
 }
