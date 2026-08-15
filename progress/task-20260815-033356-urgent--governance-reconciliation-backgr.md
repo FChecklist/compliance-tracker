@@ -61,5 +61,15 @@
 - [x] `mark-umr-terminal --status completed_unmerged` called for UMR-20260806-095628-5547 citing
       this task's own real commit SHA (see commit below for the SHA).
 
+- [x] PR opened: https://github.com/FChecklist/compliance-tracker/pull/1196. `AUDIT: PASS` comment
+      posted (self-audit, same limitation as `veridian-audit-pass-same-identity-limitation` —
+      only one real GitHub identity exists in this repo). Per
+      `veridian-audit-check-issue-comment-sha-bug`, the issue_comment-triggered `audit-check` run
+      reports against `main`'s SHA, not the PR head, so this commit is the required follow-up
+      synchronize event to get a passing run against the real PR head SHA.
+
 ## Remaining
 - [ ] None — RCA complete, UMR terminal state recorded, no other stale agent found to act on.
+      Merge is expected to hit the known standing
+      `veridian-branch-protection-self-approval-deadlock-active` limitation (main requires 1 PR
+      review, only one real GitHub identity exists) — out of this task's own scope to fix.
