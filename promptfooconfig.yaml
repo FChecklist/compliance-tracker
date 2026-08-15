@@ -10,13 +10,39 @@
 # This config regression-tests VERIDIAN's own seeded `promptTemplates`
 # (Wave 22 Prompt OS) content directly -- not a copy, the literal
 # production-labeled prompt text pulled from the same source the app itself
-# resolves at runtime (see src/lib/prompt-os-resolver.ts). Run with:
+# resolves at runtime (see src/lib/prompt-os-resolver.ts) -- PLUS the
+# hardcoded (non-Prompt-OS) system prompts for the Reports & Analysis
+# Engine, and the Chief Audit Officer's verdict-contract instruction. Run
+# locally with:
 #   npm run test:prompts
-# Requires a real provider API key in the environment (GROQ_API_KEY by
-# default) -- this genuinely calls the LLM, so it is not run automatically
-# in CI/on every commit, only on demand.
+#
+# VERIDIAN Review Framework gap-closure (2026-07-18, AI Tests finding: "AI
+# output quality tests are narrow and not automated in CI"): this file
+# previously covered only chat + document extraction, and its own header
+# said it was "not run automatically in CI/on every commit, only on
+# demand." Both are now closed: coverage extends to reports (both AI
+# surfaces) and capability audit, and .github/workflows/ai-prompt-evals.yml
+# runs this eval automatically on any PR touching a prompt-bearing file,
+# using GROQ_API_KEY (a real, already-provisioned GitHub secret -- see that
+# workflow's own header for why OPENAI_API_KEY was dropped as the default
+# provider: it has never been configured anywhere in this repo's secrets,
+# confirmed via embeddings.ts's and whisper-client.ts's own header
+# comments, so the original `openai:gpt-4o-mini` provider id here could
+# never actually have run in CI even if it had been wired in).
+#
+# capability-audit-contract's `raw` text below is NOT a copy of the
+# `ai_team.chief_audit_officer` Prompt OS template (that template's persona
+# text is DB-managed, seeded live, and genuinely not tracked in git
+# anywhere in this repo -- confirmed by grepping every migration and seed
+# script for it). It IS the real, git-tracked, exported, pure
+# buildAuditPrompt() output from capability-audit-service.ts, reproduced
+# verbatim -- the literal instruction/JSON-contract text every real audit
+# call actually sends as its user message, and the exact contract
+# parseAuditVerdict() depends on. This eval tests that contract stays
+# round-trippable through a real model, not the DB-managed persona
+# wording.
 
-description: "VERIDIAN Prompt OS regression tests"
+description: "VERIDIAN Prompt OS + hardcoded system-prompt regression tests"
 
 prompts:
   - id: chat-ai-thread
@@ -28,9 +54,106 @@ prompts:
     raw: |
       You are a document analysis assistant for an Indian statutory compliance platform. You will be shown an image of an uploaded document (a notice, challan, receipt, or similar). Read it carefully and respond with ONLY JSON matching: { "summary": string, "documentType": string | null, "dates": string[], "amounts": string[], "referenceNumbers": string[], "parties": string[] }. "summary" is 1-3 sentences describing what the document is. "documentType" is your best guess at the kind of document (e.g. "GST notice", "TDS challan", "payment receipt") or null if unclear. Each other field is a list of the exact strings as they appear in the document (empty array if none found) -- do not invent or infer values that are not actually visible in the image.
 
+  # Reports & Analysis Engine, AI recipe executor -- literal
+  # AI_RECIPE_SYSTEM_PROMPT from report-engine-service.ts. Gap closure
+  # (Domain Accuracy finding, same PR): this call site now also runs
+  # enforcePolicy() + hasGroundingData() before ever reaching the model --
+  # this eval only covers the model-quality half (does it actually stay
+  # grounded in what it's given), the code-level gate covers the other half
+  # (does it ever run on nothing).
+  - id: reports-ai-recipe-system
+    label: "reports.ai_recipe_system (report-engine-service.ts)"
+    raw: |
+      You are an analysis assistant inside VERIDIAN AI OS. You will be given real, live data queried from the organisation's own records. Produce a concise analysis grounded ONLY in that data.
+
+      STRICT RULES:
+      - Use ONLY facts, numbers, and patterns present in the provided data. Never invent, estimate, or guess a figure not derivable from it.
+      - If the data is too sparse to support a real conclusion, say so plainly instead of padding with generic advice.
+
+      Respond with ONLY a JSON object of this exact shape, no markdown, no extra text:
+      { "columns": ["Column A", "Column B"], "rows": [ { "Column A": "value", "Column B": "value" } ], "narrative": "2-4 sentence grounded analysis" }
+
+      Recipe: {{RECIPE_KEY}}
+      Grounding note: {{GROUNDING_NOTE}}
+
+      Real data (the ONLY source of truth for this analysis):
+      {{GROUNDING_DATA}}
+
+  # "Need a Report / Need an Analysis" upload flow -- literal
+  # REPORT_PROPOSAL_SYSTEM_PROMPT from ai-report-builder-service.ts. Gap
+  # closure (same finding): this call site now also runs enforcePolicy()
+  # against the extracted upload text before the model call -- same split
+  # as reports-ai-recipe-system above.
+  - id: reports-ai-builder-system
+    label: "reports.ai_builder_system (ai-report-builder-service.ts)"
+    raw: |
+      You are a reporting assistant inside VERIDIAN AI OS, a compliance/GRC platform. A user has uploaded a file describing what they want analyzed or reported on. Your job is to propose a structured report built ONLY from the real content given to you.
+
+      STRICT RULES:
+      - Use ONLY numbers, labels, dates, and facts that are actually present in the provided content. Never invent, estimate, or guess a number that is not in the source.
+      - If the source content has no numeric/tabular data at all, produce a qualitative table instead (e.g. one row per topic/finding with a "Detail" column) -- do not fabricate metrics to fill a chart.
+      - Keep columns and rows faithful to what is in the source; do not add rows for things not mentioned in it.
+
+      Respond with ONLY a JSON object of this exact shape, no markdown, no extra text:
+      {
+        "title": "Short report title",
+        "summary": "1-3 sentence summary of what this report covers, grounded in the source content",
+        "columns": ["Column A", "Column B"],
+        "rows": [ { "Column A": "value", "Column B": "value" } ],
+        "chartType": "table" | "bar" | "pie" | "line",
+        "chartRows": [ { "groupValue": "label", "count": 0 } ]
+      }
+
+      chartRows is optional supporting data for a simple chart view (label + numeric value pairs derived from the real rows, e.g. a count or amount per category) -- leave it as an empty array if the data does not reduce to that shape. Set chartType to "table" whenever a chart would not be a faithful representation of the source data.
+
+      File name: {{FILE_NAME}}
+
+      Extracted content (the ONLY source of truth for this report):
+      {{EXTRACTED_CONTENT}}
+
+  # AI Dev Team, capability_audit-service.ts's Auditor -> Higher AI loop --
+  # see this file's header comment for exactly what this is and isn't a
+  # copy of.
+  - id: capability-audit-contract
+    label: "ai_team.chief_audit_officer verdict contract (buildAuditPrompt() output)"
+    raw: |
+      Capability under review: "{{CAPABILITY_KEY}}" (version {{VERSION}})
+      Mode pill: {{MODE_PILL}}
+      Path keys: {{PATH_KEYS}}
+
+      Recent classification history (rolling counts across {{TOTAL}} observed request(s)): {{FULL_SOFTWARE_PERCENT}}% required zero AI reasoning (FULL_SOFTWARE), {{PACKAGE_AVAILABLE_PERCENT}}% were handled by an approved cheap-model instruction package (PACKAGE_AVAILABLE), {{NOVEL_PERCENT}}% required a judgment-tier model reasoning fresh (NOVEL).
+
+      Question: can this task/capability be completed 100% by software -- zero AI reasoning required at request time -- either as it stands today or with a well-defined, buildable addition? If yes, name exactly what is missing using one or more of these categories: a function, a workflow, a business rule, a report, a configuration, a mode pill, a chain option, a piece of metadata, a validation rule, a screen, or an API. Give each named gap in concrete, specific terms -- what file/module/behavior it belongs to and what it must do -- not a vague category label alone. If the gap genuinely requires case-by-case human or AI judgment and cannot be closed in software, say so plainly and set fixableInSoftware to false.
+
+      Respond with your reasoning first, then end your reply with exactly one fenced json code block in this shape (omit any missing* key that does not apply; every included value must be a concrete, specific sentence, not a placeholder):
+      ```json
+      {"fixableInSoftware": true, "findings": {"missingValidation": "concrete description here"}, "reasoning": "one paragraph"}
+      ```
+
+# Platform default model (orchestra-model-resolver.ts's PLATFORM_DEFAULT_MODEL,
+# "openai/gpt-oss-120b" served via Groq's free tier -- see that file's own
+# comment, and AGENTS.md Operating Rule 8's named example) used for BOTH the
+# providers under test and (via defaultTest.options.provider below) the
+# llm-rubric grading calls. Not openai:gpt-4o-mini (this config's original
+# provider) -- OPENAI_API_KEY has never been provisioned in this repo's
+# secrets (Vercel or GitHub), confirmed live in whisper-client.ts's and
+# embeddings.ts's own header comments; a provider this eval can't actually
+# reach in CI isn't a real regression test.
 providers:
-  - id: openai:gpt-4o-mini
+  - id: openai:chat:openai/gpt-oss-120b
     label: default-test-provider
+    config:
+      apiBaseUrl: https://api.groq.com/openai/v1
+      apiKeyEnvar: GROQ_API_KEY
+
+defaultTest:
+  options:
+    provider:
+      text:
+        id: openai:chat:openai/gpt-oss-120b
+        config:
+          apiBaseUrl: https://api.groq.com/openai/v1
+          apiKeyEnvar: GROQ_API_KEY
 
 tests:
   - description: "chat.ai_thread_system stays on-topic for a compliance question"
@@ -48,3 +171,39 @@ tests:
         value: "summary"
       - type: llm-rubric
         value: "The response is valid JSON matching the required schema, and does not claim to have found specific dates/amounts/reference numbers unless they were actually described in the input."
+
+  - description: "reports.ai_recipe_system stays grounded in sparse real data instead of padding with generic advice"
+    vars:
+      RECIPE_KEY: "overdue_items_summary"
+      GROUNDING_NOTE: "Count of compliance items by status for this org, last 30 days"
+      GROUNDING_DATA: '{"total": 3, "byStatus": {"overdue": 1, "pending": 2}}'
+    assert:
+      - type: contains-json
+      - type: llm-rubric
+        value: "The response is a JSON object with columns/rows/narrative, and the narrative only cites the numbers 3, 1, and 2 (or plain restatements of them) -- it does not invent additional figures, percentages, or trends the 3-row input can't support."
+
+  - description: "reports.ai_builder_system produces a qualitative table (not fabricated metrics) from non-tabular source content"
+    vars:
+      FILE_NAME: "site-visit-notes.docx"
+      EXTRACTED_CONTENT: "Site visit on 12 March: roof leak reported in Block A, third floor. Fire extinguisher near the east stairwell was past its inspection date. No other issues noted."
+    assert:
+      - type: contains-json
+      - type: llm-rubric
+        value: "The response is a JSON object with title/summary/columns/rows, chartType is \"table\" (this source has no numeric/tabular data to chart), and every row is traceable to the roof leak or fire extinguisher findings actually described in the source -- no invented dates, counts, or severity ratings not present in the text."
+
+  - description: "capability-audit-contract stays parseable and honest when the input already shows 0% AI reasoning required"
+    vars:
+      CAPABILITY_KEY: "list_overdue_compliance_items"
+      VERSION: "1"
+      MODE_PILL: "Compliance > Reports"
+      PATH_KEYS: '["compliance", "reports", "overdue"]'
+      TOTAL: "50"
+      FULL_SOFTWARE_PERCENT: "100"
+      PACKAGE_AVAILABLE_PERCENT: "0"
+      NOVEL_PERCENT: "0"
+    assert:
+      - type: contains
+        value: "```json"
+      - type: contains-json
+      - type: llm-rubric
+        value: "The reply ends with exactly one fenced ```json code block containing a \"fixableInSoftware\" boolean key. Given that 100% of recent requests already required zero AI reasoning, the verdict should lean toward this being resolvable in software (fixableInSoftware true or a clear reasoning for why not), not a vague non-answer."

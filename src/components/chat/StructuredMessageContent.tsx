@@ -47,6 +47,52 @@ export function StructuredMessageContent({
     )
   }
 
+  // Calculation Explainability (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): a VCEL engine result, plus an optional step-by-step
+  // breakdown when the dispatched engine's output carried one (see
+  // src/lib/engines/breakdown.ts). `steps` renders as an ordered list
+  // rather than a second dl so it visually reads as "how we got the
+  // result above", not a second flat result.
+  if (data.type === "calculation") {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-sm">
+            {data.engineName}
+            {data.engineVersion && (
+              <span className="ml-1.5 text-xs font-normal text-muted-foreground">v{data.engineVersion}</span>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <dl className="text-sm space-y-1.5">
+            {data.result.map((item, i) => (
+              <div key={i} className="flex gap-2">
+                <dt className="font-medium">{item.label}</dt>
+                <dd className="break-words">{item.value}</dd>
+              </div>
+            ))}
+          </dl>
+          {data.steps && data.steps.length > 0 && (
+            <div className="border-t pt-2.5">
+              <p className="text-xs font-medium text-muted-foreground mb-1.5">How this was calculated</p>
+              <ol className="text-sm space-y-1.5">
+                {data.steps.map((step, i) => (
+                  <li key={i} className="flex flex-wrap items-baseline gap-x-2">
+                    <span className="text-xs text-muted-foreground">{i + 1}.</span>
+                    <span>{step.label}</span>
+                    {step.formula && <span className="text-xs text-muted-foreground">({step.formula})</span>}
+                    <span className="font-medium ml-auto">{step.value}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    )
+  }
+
   // data.type === "confirmation"
   return (
     <Card>
