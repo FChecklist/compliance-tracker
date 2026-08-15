@@ -128,11 +128,34 @@ Branch was 1356 commits behind origin/main at the start of this invocation
       top-level API route directories by domain area, generated from a
       real directory listing (not hand-guessed).
 
+## Update: all 5 findings now have real, verified changes
+- [x] Design Pattern Consistency: `scripts/check-route-requireauth.mjs`
+      added + wired into `.github/workflows/ci.yml` as its own job
+      (`route-requireauth-check`).
+- [x] File & Folder Organization: `src/app/api/README.md` added, all 138
+      real top-level route directories verified present (scripted diff
+      check, zero missing/extra).
+- [x] Found + fixed a real self-inflicted regression: extracting
+      `create_compliance_item` into `compliance-tools.ts` broke
+      `scripts/check-guardrail-presence.mjs` (it requires the literal
+      `logActivity(` call to stay in `task-execution-engine.ts` -- a named
+      guardrail anchor, AGENTS.md Rule 9). Fixed by keeping that one case
+      inline in `dispatchTool()` instead of extracting it (documented in
+      both files) rather than editing the guardrail manifest without
+      owner sign-off. `check-guardrail-presence.mjs` now passes (88/88).
+- [x] Re-ran: `tsc --noEmit` clean (needs
+      `NODE_OPTIONS=--max-old-space-size=6144`, pre-existing repo-scale
+      OOM issue at default heap), `bun test
+      src/lib/task-execution/tool-dispatch.test.ts` 7/7,
+      `schema.relations.test.ts` 1/1, `check-route-requireauth.mjs` /
+      `check-route-error-handling.mjs` both clean on the diff,
+      `check-doc-cross-references.mjs` 500/500 resolved.
+
 ## Remaining
 - [ ] Fleet-coordinated follow-up for the full `schema.ts` / full
       `dispatchEngine()` split (see Code Modularity above) -- out of scope
       for a single session given current concurrent-edit density.
 - [ ] Live `db:push` for the new FK-constraint migration -- owner/deploy
       action, not run from this session.
-- [ ] Open PR, register+release ai-os/boss/ACTIVE-CLAIMS.yaml entry, get CI
-      green, merge (Rule 6).
+- [ ] Open PR, release the `ai-os/boss/ACTIVE-CLAIMS.yaml` entry once
+      merged, get CI green, merge (Rule 6).
