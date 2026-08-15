@@ -1355,6 +1355,16 @@ export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_override
   updatedByUserId: text('updated_by_user_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // VERIDIAN Review Framework gap-closure (2026-08-15, "AI Model Lifecycle
+  // & Benchmarking: A/B or shadow-testing capability for a candidate
+  // model" -- Critical). Both nullable/additive (drizzle/0313) -- NULL
+  // candidateModel or NULL/0 rolloutPercentage means no active rollout,
+  // identical to every row's behavior before this pair of columns existed.
+  // Read exclusively by roster-overrides.ts's resolveDispatchModel() --
+  // resolveEffectiveModel() (the plain override path every pre-existing
+  // caller uses) does not consult these at all.
+  candidateModel: text('candidate_model'),
+  rolloutPercentage: integer('rollout_percentage'),
 })
 
 // Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the AI Dev
@@ -4952,6 +4962,16 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   // record), independent of whether it also has a leadId/clientId. Same
   // bare-text/no-FK/nullable convention as accountId on crmLeads above.
   accountId: text('account_id'),
+  // VERIDIAN Review Framework Sales Pipeline closure (2026-08-07,
+  // "Localization Readiness" finding): estimatedValue had no currency
+  // field at all -- every pipeline-value rollup implicitly assumed a
+  // single currency. Same shape as drizzle/0208's identical fix for
+  // erp_quotations/erp_sales_orders (currencyId nullable bare text --
+  // matches this schema's bridge-column convention, no FK to keep this
+  // additive/safe -- + exchangeRate NOT NULL DEFAULT '1' so every existing
+  // row keeps reading as "org base currency, rate 1", unchanged behavior).
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_lost_reasons,
   // set only when stage='lost'. Same bare-text/no-FK/nullable convention
   // as accountId just above -- structured, org-configurable reason
@@ -4980,6 +5000,35 @@ export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
   note: text('note'),
   changedById: text('changed_by_id'),
   changedAt: timestamp('changed_at').notNull().defaultNow(),
+})
+
+// VERIDIAN Review Framework Sales Pipeline closure (2026-08-07, "Data Model
+// Completeness & Referential Integrity" finding): before this table, the
+// pipeline was derived purely from crmLeads.status/crmOpportunities.stage
+// free-text fields -- no org could rename/reorder a stage or mark which
+// stage is the "won"/"lost" terminal one without a code change. This is an
+// org-scoped, per-entityType (lead|opportunity -- same free-text
+// discriminator convention as crmStageHistory.entityType above) config
+// table. A brand-new org (or an org that pre-dates this migration) has zero
+// rows here until first read -- listPipelineStages() in crm-service.ts
+// lazily seeds the 5 pre-existing hardcoded stage strings
+// (prospecting/proposal/negotiation/won/lost) the first time it's queried,
+// so no data migration/backfill is required and every existing
+// lead/opportunity's stage value keeps resolving to a real config row.
+export const crmPipelineStages = complianceSchemaDB.table('crm_pipeline_stages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull().default('opportunity'), // 'lead' | 'opportunity'
+  stageKey: text('stage_key').notNull(), // matches crmOpportunities.stage / crmLeads.status
+  label: text('label').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  // Terminal-stage flags -- drive both the Kanban UI (a won/lost column
+  // renders as a closed lane) and isValidStageTransition()'s "can't move a
+  // deal back out of a closed stage without manager approval" rule.
+  isWon: boolean('is_won').notNull().default(false),
+  isLost: boolean('is_lost').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // Sales Pipeline Interactive Dashboard (2026-07-27): the Monthly Revenue
