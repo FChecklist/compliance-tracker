@@ -7,7 +7,7 @@
 // not a hardcoded taxonomy. Sending in a chain mode reuses the existing
 // POST /api/tasks (task-service.ts:createTask, which already dispatches the
 // real task-execution engine) -- no new task-creation logic was needed.
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Send, Loader2, Paperclip, Plus, Link2 } from "lucide-react";
@@ -23,9 +23,10 @@ import { HIGH_IMPACT_CATEGORY_GUIDANCE, type HighImpactCategory } from "@/lib/hi
 // Priority 6 item 1: ChainRows and its path-display helpers now live in
 // ChainSelector.tsx (shared with the new ChainSelectorDialog used by
 // AiThreadSwitcher below) instead of being defined privately here.
-import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, type ChainSelectorResult } from "./ChainSelector";
+import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expandPathsForSend, ChainSelectorDialog, findCalculatorSuggestions, type ChainSelectorResult } from "./ChainSelector";
 import { IntentCommandPalette } from "./IntentCommandPalette";
 import { saveIntent } from "@/lib/browser-intent-cache";
+import { compileInBrowser } from "@/lib/browser-execution/client-compile";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -59,10 +60,13 @@ function PathBreadcrumb({ path, chainComplete }: { path: PathSegment[]; chainCom
 // dispatch already uses, so a new workflow thread can start with a
 // dynamicChainId already resolved -- exactly the plug-in point
 // createNewAiThread()'s 3rd param (chainSelection) was left unused for
-// (veri-chat-context.tsx:83-91). Picking "Skip" preserves the exact old
-// behavior (title-only thread, no chain). This does not touch
-// ensureAiThread() or the default singleton VERI AI thread at all -- only
-// this "start a NEW workflow thread" action changed.
+// (veri-chat-context.tsx). REVIEW-FRAMEWORK-WAVE4: picking "Skip" still
+// produces the exact same title-only, no-chain thread as before -- the only
+// change is that the dialog now tells the server it was explicitly declined
+// (result.skippedChainSelector) rather than the server inferring "declined"
+// from silence. This does not touch ensureAiThread() or the default
+// singleton VERI AI thread at all -- only this "start a NEW workflow
+// thread" action.
 function AiThreadSwitcher() {
   const { tree, aiThreads, activeAiThreadId, switchAiThread, createNewAiThread } = useVeriChat();
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -72,7 +76,7 @@ function AiThreadSwitcher() {
     const chainSelection = result.modePill && result.pathKeys?.length
       ? { modePill: result.modePill, pathKeys: result.pathKeys }
       : undefined;
-    await createNewAiThread(result.title || undefined, undefined, chainSelection);
+    await createNewAiThread(result.title || undefined, undefined, chainSelection, result.skippedChainSelector);
   }
 
   if (aiThreads.length === 0) return null;
@@ -122,13 +126,11 @@ function resolveLeaf(tree: CapabilityNode[], path: PathSegment[]): CapabilityNod
 }
 
 export default function VeriComposer({ connectedConnectorsCount = 0 }: { connectedConnectorsCount?: number }) {
-  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh } = useVeriChat();
+  const { tree, treeLoading, composerMode, setComposerMode, activeTaskId, activeConversationId, closeThread, aiThreadId, activeAiThreadId, bumpRefresh, selectedPath, setSelectedPath } = useVeriChat();
   const router = useRouter();
 
-  const [selectedPath, setSelectedPath] = useState<PathSegment[]>([]);
   const [value, setValue] = useState("");
   const [sending, setSending] = useState(false);
-  const [queue, setQueue] = useState<{ path: PathSegment[]; text: string; display: string }[]>([]);
   const [engineInputValues, setEngineInputValues] = useState<Record<string, string>>({});
   const textareaRef = useAutoGrowTextarea(value, 160);
   // Wave 146 (VERIDIAN.docx joint implementation plan, Phase 2, High-Impact
@@ -198,6 +200,16 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   const completedLeaf = chainComplete && tree.length ? resolveLeaf(tree, selectedPath) : null;
   const needsEngineInputs = Boolean(completedLeaf?.inputFields?.length);
   const engineInputsFilled = !needsEngineInputs || (completedLeaf!.inputFields!.every((f) => f.optional || engineInputValues[f.key]?.trim()));
+  // AI Suggested Calculations (VERIDIAN Review Framework gap closure,
+  // 2026-07-18): proactively matches the in-progress chain-picker search
+  // text against every deterministic VCEL calculator leaf in the tree, not
+  // just the current row's options -- see ChainSelector.tsx's
+  // findCalculatorSuggestions() header for why this was previously low
+  // value (12.3% engine-wiring coverage) and isn't anymore.
+  const calculatorSuggestions = useMemo(
+    () => (chainComplete ? [] : findCalculatorSuggestions(tree, pickerSearch)),
+    [tree, pickerSearch, chainComplete]
+  );
 
   function toggleSingle(depth: number, key: string) {
     setSelectedPath((prev) => {
@@ -218,6 +230,33 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     });
   }
 
+  // VERIDIAN_Architecture_v2.0 phase_5 (browser_execution_tiers): the real
+  // browser-to-server handoff for BOTH Owner-directed input surfaces --
+  // Option 2 (free-text `discuss` chat, below) and Option 1 (chain/mode-pill
+  // dispatch, dispatchInstruction() below, wired in increment 2). Runs
+  // phase_2's real deterministic analyzer client-side (FIRST execution),
+  // then hands the raw text + browser tier metadata to
+  // /api/prompt-compiler/execute for the deterministic SECOND-pass
+  // SOFTWARE execution -- fire-and-forget, best-effort telemetry/
+  // compiled-prompt logging that never blocks or fails the actual chat
+  // send / task creation that follows it.
+  function runBrowserFirstPass(text: string) {
+    try {
+      const draft = compileInBrowser(text);
+      void fetch("/api/prompt-compiler/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rawText: text,
+          browserCompiled: { tier: draft.tier, fallbackChain: draft.fallbackChain, compileMs: draft.compileMs },
+        }),
+      }).catch(() => {});
+    } catch {
+      // Browser-native FIRST pass is a best-effort enrichment, never a
+      // requirement for the real chat send that follows it.
+    }
+  }
+
   async function dispatchInstruction(path: PathSegment[], text: string, engineInputs?: Record<string, string>) {
     // D8/D5.B4.S2 minimum 2-level chain gate -- mirrors task-service.ts's
     // createTask() server-side check so the user sees a clear message
@@ -236,6 +275,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     // Fire-and-forget: never blocks the real send, and browser-intent-cache.ts
     // swallows its own errors.
     void saveIntent({ composerMode, selectedPath: path, displayLabel: displayCrumb, chatMessage: text });
+    // Increment 2 of phase_5_browser_execution_tiers: Option 1's own
+    // browser-to-server handoff -- same FIRST-pass compiler + fire-and-
+    // forget /api/prompt-compiler/execute call as discuss mode gets, run
+    // once per chain send (not once per expanded concrete path below,
+    // since expandPathsForSend() fans a single user instruction out into
+    // several dispatch targets that all share the same raw text).
+    if (text) runBrowserFirstPass(text);
     const concretePaths = expandPathsForSend(path);
     for (const p of concretePaths) {
       const crumb = pathDisplayString(p);
@@ -408,6 +454,7 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
         // workflow-specific one via the thread switcher.
         const targetThreadId = activeAiThreadId ?? aiThreadId;
         if (!targetThreadId) { toast.error("VERI AI isn't ready yet — try again in a moment"); return; }
+        runBrowserFirstPass(text);
         const res = await fetch(`/api/conversations/${targetThreadId}/messages`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -428,25 +475,23 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
     }
   }
 
-  function queueCurrent() {
+  // VERI_CHAT_MOCKUP_TO_PRODUCTION_SPEC_2026-08-01.md §3.2.5: "must actually
+  // create another task using the SAME chain, not stage-and-reset." Replaces
+  // the old queueCurrent()/sendAllQueued() stage-then-reset mechanism --
+  // dispatches immediately against the already-selected chain and clears
+  // only the typed message, so selectedPath stays intact for the next
+  // instruction against that identical chain right away.
+  async function createSimilarTaskAgain() {
+    if (sending) return;
     const text = value.trim();
     if (!text || !chainComplete) return;
-    // Same D8/D5.B4.S2 gate as dispatchInstruction() -- checked here too so
-    // a <2-level path never even makes it into the queue (dispatchInstruction
-    // would reject it later anyway, but silently from the queuer's point of
-    // view since sendAllQueued() doesn't surface which item failed).
-    if (selectedPath.length < 2) {
-      toast.error("Select at least 2 levels — a category and a sub-option — before queuing.");
-      return;
+    setSending(true);
+    try {
+      await dispatchInstruction(selectedPath, text);
+      setValue("");
+    } finally {
+      setSending(false);
     }
-    setQueue((q) => [...q, { path: selectedPath, text, display: pathDisplayString(selectedPath) }]);
-    setValue("");
-    setSelectedPath(preseedKeyForMode(composerMode) ? [preseedKeyForMode(composerMode)!] : []);
-  }
-
-  async function sendAllQueued() {
-    for (const item of queue) await dispatchInstruction(item.path, item.text);
-    setQueue([]);
   }
 
   // Restores a previously-cached workflow into the composer. Local-cache
@@ -529,6 +574,22 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
                 className="mb-1.5 w-full rounded-full border border-ct-border2 bg-white px-3 py-1 text-xs text-ct-navy placeholder:text-ct-muted focus:outline-none focus:ring-1 focus:ring-ct-navy"
               />
             )}
+            {calculatorSuggestions.length > 0 && (
+              <div className="mb-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] font-semibold text-ct-muted">⚡ Suggested calculators:</span>
+                {calculatorSuggestions.map((s) => (
+                  <button
+                    key={s.path.join("/")}
+                    type="button"
+                    onClick={() => { setSelectedPath(s.path); setPickerSearch(""); }}
+                    title={s.category}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100"
+                  >
+                    {s.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <ChainRows
               tree={tree} selectedPath={selectedPath} onToggleSingle={toggleSingle} onToggleMulti={toggleMulti}
               filterQuery={pickerSearch}
@@ -586,23 +647,6 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
           </div>
         )}
 
-        {queue.length > 0 && isChainMode && !isThreadOpen && (
-          <div className="rounded-xl border border-ct-border bg-ct-cloud/50 px-3 py-2 mb-2">
-            <div className="flex items-center justify-between mb-1.5">
-              <span className="text-[11px] font-semibold text-ct-slate">Queued</span>
-              <button type="button" onClick={sendAllQueued} className="text-[11px] font-semibold text-ct-saffron">Send all ({queue.length})</button>
-            </div>
-            <div className="flex flex-wrap gap-1.5">
-              {queue.map((item, idx) => (
-                <span key={idx} className="inline-flex items-center gap-1.5 rounded-full border border-ct-border bg-white px-2.5 py-1 text-[11px]">
-                  {item.display} — {item.text.slice(0, 24)}{item.text.length > 24 ? "…" : ""}
-                  <button type="button" onClick={() => setQueue((q) => q.filter((_, i) => i !== idx))} className="text-ct-muted hover:text-red-500">×</button>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-
         <div className="relative rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
           {isChainMode && !isThreadOpen && (
             <IntentCommandPalette
@@ -639,9 +683,9 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
             </button>
             <div className="flex items-center gap-2">
               {isChainMode && !isThreadOpen && (
-                <button type="button" onClick={queueCurrent} disabled={!chainComplete || !value.trim()} title="Stage this and start another instruction"
+                <button type="button" onClick={createSimilarTaskAgain} disabled={sending || !chainComplete || !value.trim()} title="Dispatch this against the same chain, keeping it selected for the next one"
                   className="px-3 h-9 rounded-lg text-[12.5px] font-semibold text-ct-slate border border-ct-border hover:bg-ct-cloud disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
-                  + Add another
+                  Create similar task again
                 </button>
               )}
               <button type="button" onClick={send} disabled={disabled || sending || (needsEngineInputs ? !engineInputsFilled : !value.trim())}

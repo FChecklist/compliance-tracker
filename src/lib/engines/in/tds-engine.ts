@@ -4,6 +4,7 @@
 // TDS_SECTION_RATES for one-place updates; verify against the current
 // Finance Act before relying on this for a live filing.
 import Decimal from "decimal.js"
+import type { CalculationBreakdown } from "@/lib/engines/breakdown"
 
 export const TDS_SECTION_RATES: Record<string, { ratePercent: number; thresholdAmount: number; description: string }> = {
   "194A": { ratePercent: 10, thresholdAmount: 40000, description: "Interest other than securities" },
@@ -28,13 +29,31 @@ export function isTdsApplicable(section: string, cumulativePaymentAmount: number
 }
 
 // 3. Section Validation Engine -- computes TDS if applicable, else 0
-export function computeTdsForSection(section: string, paymentAmount: number, cumulativePaymentAmount: number, hasPan = true): { tdsAmount: number; ratePercent: number; applicable: boolean } {
+export function computeTdsForSection(
+  section: string, paymentAmount: number, cumulativePaymentAmount: number, hasPan = true
+): { tdsAmount: number; ratePercent: number; applicable: boolean; breakdown?: CalculationBreakdown } {
   const rule = TDS_SECTION_RATES[section]
   if (!rule) throw new Error(`Unknown TDS section: ${section}`)
   const applicable = cumulativePaymentAmount >= rule.thresholdAmount
   // Sec 206AA: 20% flat rate (or section rate if higher) when payee has no PAN on file.
   const rate = !hasPan ? Math.max(rule.ratePercent, 20) : rule.ratePercent
-  return { tdsAmount: applicable ? round2(new Decimal(paymentAmount).mul(rate).div(100)) : 0, ratePercent: rate, applicable }
+  const tdsAmount = applicable ? round2(new Decimal(paymentAmount).mul(rate).div(100)) : 0
+  return {
+    tdsAmount, ratePercent: rate, applicable,
+    breakdown: {
+      steps: [
+        {
+          label: `Sec ${section} threshold check (${rule.description})`,
+          formula: `${cumulativePaymentAmount} >= ${rule.thresholdAmount}`,
+          value: applicable ? "Threshold met -- TDS applicable" : "Below threshold -- no TDS",
+        },
+        ...(!hasPan
+          ? [{ label: "Sec 206AA no-PAN override", formula: `max(${rule.ratePercent}%, 20%)`, value: `${rate}%` }]
+          : []),
+        { label: "TDS amount", formula: applicable ? `${paymentAmount} x ${rate}%` : "not applicable", value: tdsAmount },
+      ],
+    },
+  }
 }
 
 // 4. Interest Engine (TDS) -- Sec 201(1A): 1%/month for late deduction, 1.5%/month for late deposit
