@@ -1624,6 +1624,31 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-114006-retry-0--ai-engineering-quality--overal) -- VERIDIAN Review Framework: AI Engineering Quality / Overall Code Quality gap-closure"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "branch worker/task-20260718-114006-retry-0--ai-engineering-quality--overal, PR not yet opened at commit time"
+    summary: |
+      Single finding: "Strong documentation discipline offset by monolithic
+      files and low test coverage." All 20 prior invocations of this task
+      failed pre-flight on a credit-accountant balance floor -- this was
+      the first invocation with any real work. Re-read the actual current
+      code before changing anything (per the task's own instruction).
+      Split src/lib/task-execution-engine.ts (was 2437 lines, 3 distinct
+      responsibilities) into src/lib/task-execution/tool-dispatch.ts (290
+      lines, dispatchTool), src/lib/task-execution/engine-dispatch.ts (1200
+      lines, dispatchEngine -- the ~185-engine VCEL allowlist switch), and
+      task-execution-engine.ts itself (now 1000 lines, orchestration only).
+      dispatchTool/executeTask/buildNovelUmrHint all stayed importable from
+      the same original path (re-exported), so zero of the 6 external
+      importer files needed to change. Added 35 new tests in
+      engine-dispatch.test.ts (previously zero coverage on that file).
+      tsc --noEmit clean, eslint clean, all 42 tests (7 existing + 35 new)
+      pass. Deliberately did NOT attempt the recommended schema.ts split
+      (10,196 lines, dozens of concurrent active claims in this file
+      actively appending tables to it right now -- see this file's own
+      `active:` entries referencing schema.ts) -- documented as a genuinely
+      still-open follow-up in the task's own progress file rather than
+      force-fit or silently dropped. No permission-service.ts changes.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
