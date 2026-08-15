@@ -114,6 +114,218 @@ describe("applySourceTypeOverride", () => {
   })
 })
 
+// ─── Emergency model revert (VERIDIAN Review Framework remediation, "AI
+// Model Lifecycle & Benchmarking" -- automated deprecation/rollback, no
+// manual git-revert required) ──────────────────────────────────────────────
+describe("getEmergencyModelRevert", () => {
+  const ENV_VAR = "AI_MODEL_EMERGENCY_REVERT";
+  function withEnv(value: string | undefined, fn: () => void) {
+    const original = process.env[ENV_VAR];
+    if (value === undefined) delete process.env[ENV_VAR];
+    else process.env[ENV_VAR] = value;
+    try {
+      fn();
+    } finally {
+      if (original === undefined) delete process.env[ENV_VAR];
+      else process.env[ENV_VAR] = original;
+    }
+  }
+
+  test("returns null when unset", async () => {
+    const { getEmergencyModelRevert } = await import("./orchestra-model-resolver")
+    withEnv(undefined, () => {
+      expect(getEmergencyModelRevert()).toBeNull()
+    })
+  })
+
+  test("returns null when blank", async () => {
+    const { getEmergencyModelRevert } = await import("./orchestra-model-resolver")
+    withEnv("   ", () => {
+      expect(getEmergencyModelRevert()).toBeNull()
+    })
+  })
+
+  test("parses a valid provider:model pin", async () => {
+    const { getEmergencyModelRevert } = await import("./orchestra-model-resolver")
+    withEnv("groq:openai/gpt-oss-120b", () => {
+      expect(getEmergencyModelRevert()).toEqual({ provider: "groq", model: "openai/gpt-oss-120b" })
+    })
+  })
+
+  test("model names containing a colon (e.g. an OpenRouter-style id) are preserved in full", async () => {
+    const { getEmergencyModelRevert } = await import("./orchestra-model-resolver")
+    withEnv("openrouter:meta-llama/llama-3.3-70b-instruct:free", () => {
+      expect(getEmergencyModelRevert()).toEqual({ provider: "openrouter", model: "meta-llama/llama-3.3-70b-instruct:free" })
+    })
+  })
+
+  test("returns null (does not throw) for an unrecognized provider", async () => {
+    const { getEmergencyModelRevert } = await import("./orchestra-model-resolver")
+    withEnv("not-a-real-provider:some-model", () => {
+      expect(getEmergencyModelRevert()).toBeNull()
+    })
+  })
+
+  test("returns null for a value with no colon separator", async () => {
+    const { getEmergencyModelRevert } = await import("./orchestra-model-resolver")
+    withEnv("groq-openai-gpt-oss-120b", () => {
+      expect(getEmergencyModelRevert()).toBeNull()
+    })
+  })
+
+  test("returns null for a valid provider with an empty model", async () => {
+    const { getEmergencyModelRevert } = await import("./orchestra-model-resolver")
+    withEnv("groq:", () => {
+      expect(getEmergencyModelRevert()).toBeNull()
+    })
+  })
+})
+
+describe("emergency revert wired into platform-default resolution paths", () => {
+  const ENV_VAR = "AI_MODEL_EMERGENCY_REVERT";
+
+  test("escalatedPlatformConfig() is pinned to the revert target instead of ESCALATED_MODEL", async () => {
+    mock.module("@/lib/db", () => ({
+      db: { query: { orchestraLayers: { findFirst: mock(async () => undefined) }, customerModelConfig: { findFirst: mock(async () => undefined) } } },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+    mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
+    mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
+
+    const originalEnv = process.env[ENV_VAR]
+    const originalGroqKey = process.env.GROQ_API_KEY
+    process.env[ENV_VAR] = "groq:llama-4-known-good"
+    process.env.GROQ_API_KEY = "groq-test-key"
+    try {
+      const { escalatedPlatformConfig } = await import("./orchestra-model-resolver")
+      const result = escalatedPlatformConfig()
+      expect(result?.provider).toBe("groq")
+      expect(result?.model).toBe("llama-4-known-good")
+    } finally {
+      if (originalEnv === undefined) delete process.env[ENV_VAR]; else process.env[ENV_VAR] = originalEnv
+      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY; else process.env.GROQ_API_KEY = originalGroqKey
+    }
+  })
+
+  test("resolveModelConfig()'s platform-default branch is pinned to the revert target, overriding the layer's own defaultModelConfig", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
+          customerModelConfig: { findFirst: mock(async () => undefined) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+    mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
+    mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
+
+    const originalEnv = process.env[ENV_VAR]
+    const originalGroqKey = process.env.GROQ_API_KEY
+    process.env[ENV_VAR] = "groq:llama-4-known-good"
+    process.env.GROQ_API_KEY = "groq-test-key"
+    try {
+      const { resolveModelConfig } = await import("./orchestra-model-resolver")
+      const result = await resolveModelConfig("org-1", "customer_account_oa")
+      expect(result?.provider).toBe("groq") // NOT the layer's configured "openai"
+      expect(result?.model).toBe("llama-4-known-good") // NOT "gpt-4o-mini-text"
+      expect(result?.isCustomerConfigured).toBe(false)
+    } finally {
+      if (originalEnv === undefined) delete process.env[ENV_VAR]; else process.env[ENV_VAR] = originalEnv
+      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY; else process.env.GROQ_API_KEY = originalGroqKey
+    }
+  })
+
+  test("resolveModelConfig() does NOT apply the revert to an org's own active BYO config -- it's a platform-default brake, not a customer override", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
+          customerModelConfig: {
+            findFirst: mock(async () => ({
+              id: "cfg-1", orgId: "org-1", orchestraLayerId: "layer-1",
+              provider: "anthropic", modelName: "claude-sonnet-5",
+              encryptedApiKey: "encrypted-blob", isActive: true,
+            })),
+          },
+        },
+        update: mockDbUpdateChain(),
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+    mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => `decrypted:${c}`) }))
+    mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
+
+    const originalEnv = process.env[ENV_VAR]
+    process.env[ENV_VAR] = "groq:llama-4-known-good"
+    try {
+      const { resolveModelConfig } = await import("./orchestra-model-resolver")
+      const result = await resolveModelConfig("org-1", "customer_account_oa")
+      expect(result?.provider).toBe("anthropic") // the org's own BYO choice, unchanged by the platform-level revert
+      expect(result?.model).toBe("claude-sonnet-5")
+      expect(result?.isCustomerConfigured).toBe(true)
+    } finally {
+      if (originalEnv === undefined) delete process.env[ENV_VAR]; else process.env[ENV_VAR] = originalEnv
+    }
+  })
+
+  test("resolvePlatformModelConfig() is pinned to the revert target", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "platform_orchestration", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
+          customerModelConfig: { findFirst: mock(async () => undefined) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+    mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
+    mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
+
+    const originalEnv = process.env[ENV_VAR]
+    const originalGroqKey = process.env.GROQ_API_KEY
+    process.env[ENV_VAR] = "groq:llama-4-known-good"
+    process.env.GROQ_API_KEY = "groq-test-key"
+    try {
+      const { resolvePlatformModelConfig } = await import("./orchestra-model-resolver")
+      const result = await resolvePlatformModelConfig("platform_orchestration")
+      expect(result?.provider).toBe("groq")
+      expect(result?.model).toBe("llama-4-known-good")
+    } finally {
+      if (originalEnv === undefined) delete process.env[ENV_VAR]; else process.env[ENV_VAR] = originalEnv
+      if (originalGroqKey === undefined) delete process.env.GROQ_API_KEY; else process.env.GROQ_API_KEY = originalGroqKey
+    }
+  })
+
+  test("unset (the default), resolution is completely unaffected -- opt-in only", async () => {
+    mock.module("@/lib/db", () => ({
+      db: {
+        query: {
+          orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
+          customerModelConfig: { findFirst: mock(async () => undefined) },
+        },
+      },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+    }))
+    mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
+    mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
+
+    const originalEnv = process.env[ENV_VAR]
+    const originalOpenAiKey = process.env.OPENAI_API_KEY
+    delete process.env[ENV_VAR]
+    process.env.OPENAI_API_KEY = "openai-test-key"
+    try {
+      const { resolveModelConfig } = await import("./orchestra-model-resolver")
+      const result = await resolveModelConfig("org-1", "customer_account_oa")
+      expect(result?.provider).toBe("openai")
+      expect(result?.model).toBe("gpt-4o-mini-text")
+    } finally {
+      if (originalEnv === undefined) delete process.env[ENV_VAR]; else process.env[ENV_VAR] = originalEnv
+      if (originalOpenAiKey === undefined) delete process.env.OPENAI_API_KEY; else process.env.OPENAI_API_KEY = originalOpenAiKey
+    }
+  })
+})
+
 // ─── resolveModelConfig: sourceType wiring end-to-end, @/lib/db mocked ────
 
 describe("resolveModelConfig with sourceType (integration, DB mocked)", () => {

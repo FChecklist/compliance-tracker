@@ -1624,6 +1624,27 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-124002-retry-0--ai-model-lifecycle---benchmark) -- AI Model Lifecycle & Benchmarking: emergency model revert flag"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "not yet PR'd -- branch worker/task-20260718-124002-retry-0--ai-model-lifecycle---benchmark, orchestra-model-resolver.ts + its test file only"
+    summary: |
+      VERIDIAN Review Framework gap-closure, 1 High finding: "Model
+      deprecation/rollback process defined -- gap: deprecation/rollback is a
+      manual git-revert process, not an automated mechanism. Recommended
+      approach: add an emergency-revert config flag." Confirmed live (no
+      dedicated "AI model lifecycle" module exists) that
+      src/lib/orchestra-model-resolver.ts is the real single choke point
+      every platform-default LLM model decision goes through, and that the
+      gap was real -- rolling back a bad PLATFORM_DEFAULT_MODEL/
+      ESCALATED_MODEL/layer defaultModelConfig swap needed a source edit +
+      redeploy. Added getEmergencyModelRevert(), reading a new
+      AI_MODEL_EMERGENCY_REVERT env var ("<provider>:<model>"), wired into
+      resolveModelConfig()'s non-BYO branch, resolvePlatformModelConfig()'s
+      default branch, and escalatedPlatformConfig() -- flipping the env var
+      force-pins all three to a known-good model with no deploy. Explicitly
+      does NOT override an org's own BYO customerModelConfig/
+      clientModelConfig row (platform-operator brake only, tested). 12 new
+      tests added (34/34 total pass in the file), tsc/eslint clean.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
