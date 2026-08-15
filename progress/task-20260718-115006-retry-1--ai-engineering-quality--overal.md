@@ -40,17 +40,54 @@
 - [x] Reverted a stray uncommitted PROGRESS.md diff that predated this
       invocation (shared-file cross-contamination risk per project protocol
       -- this task must not touch the shared PROGRESS.md, only this file).
+- [x] Registered ACTIVE-CLAIMS.yaml entry, committed + pushed separately
+      (fast, per protocol) before doing the real work.
+- [x] Split src/lib/task-execution-engine.ts (2437 -> 995 lines) by
+      responsibility: extracted `dispatchTool()` (~270 lines, still exported
+      under its original `@/lib/task-execution-engine` path via a re-export
+      so its 2 external call sites don't change) into new
+      src/lib/services/task-execution/tool-dispatch.ts (281 lines), and
+      `dispatchEngine()` + its 2 local helpers (~1170 lines, internal-only)
+      into new src/lib/services/task-execution/engine-dispatch.ts (1199
+      lines). Each new file only imports what its own function body uses
+      (not a blind copy of the original import block).
+- [x] schema.ts: NOT physically split (re-confirmed live: 6 open PRs still
+      touch it, same reasoning as 8e2edde4a's deferral). Added a 10-line
+      navigational-aid comment citing the real current count of its 125
+      `// ─── Section Name ───` domain headers and a `grep` tip -- comment
+      only, zero functional change.
+- [x] Added src/lib/services/task-execution/engine-dispatch.test.ts (13
+      tests, 20 assertions) -- dispatchEngine() had zero prior coverage
+      (task-execution-engine.test.ts's own header scopes itself to
+      buildNovelUmrHint() only and explicitly excludes it). Covers several
+      pure-calculator engine branches, 2 error paths, and the one
+      DB-touching branch (gst_return_validation_engine, all 4 of its
+      outcomes) via a fake TenantDb -- no live DB opened.
+- [x] Verified: `tsc --noEmit` clean; `bun test` 1434 pass / 0 fail across
+      104 files (1421 pre-existing + 13 new); `bun run lint` 0 errors, same
+      3 pre-existing unrelated warnings, no new ones.
+- [x] Reviewed the full diff by hand before committing (this session did
+      the investigation/planning/verification itself; delegated only the
+      mechanical extraction+test-writing to a sub-agent, then checked its
+      diff and re-ran tsc/test/lint independently rather than trusting its
+      self-report).
 
 ## Remaining
-- [ ] Reconcile 8e2edde4a's dispatchTool/dispatchEngine extraction against
-      current main's task-execution-engine.ts (grown 1055 -> 2437 lines since
-      Aug 1 from new engine registrations).
-- [ ] Add schema.ts navigational-aid comment (re-verify section-header count
-      and line anchors against current file, not Aug 1's).
-- [ ] Add/extend tests for the extracted modules (raise coverage on the
-      largest files, per the finding).
-- [ ] Register ACTIVE-CLAIMS.yaml entry.
-- [ ] Note PR #688 as superseded in the new PR body; leave a comment on #688
-      itself pointing to the replacement so it can be closed.
-- [ ] Verify tsc / lint / bun test all pass.
-- [ ] Commit + push; open PR.
+- [ ] Commit + push this final diff; note PR #688 (never merged, now
+      CONFLICTING/DIRTY) as superseded in the new PR body, and leave a
+      comment on #688 pointing to the replacement so it/its branch can be
+      closed instead of left to rot.
+- [ ] Move this session's ACTIVE-CLAIMS.yaml entry to `recently_completed`
+      once the PR is up.
+
+## Notes for reviewer
+- This finding ("Overall Code Quality Score") substantially overlapped
+  already-attempted work: PR #688 (2026-08-01, branch
+  worker/task-20260801-173901-retry-ai-engineering-quality-code-struct) did
+  almost the same split but bundled 4 *other* unrelated findings into the
+  same commit and never merged (now conflicting after 2 weeks of drift).
+  This PR is scoped to just the one finding named in this task's prompt --
+  intentionally did not pull in #688's REUSABLE-UTILITIES.md, the FK-
+  constraints migration, or the requireAuth/guardrail-presence CI checks,
+  since those belong to different findings and risk scope creep /
+  permission-service.ts-adjacent churn this task was told to avoid.
