@@ -95,11 +95,12 @@ against current code before acting).
 - [x] Confirmed `ai-os/MASTER-TRACKER.yaml` and `ai-os/system-tree/50-merged-tree.yaml` both still
       `yaml.safe_load`-parseable after edits.
 
+- [x] Registered claim in `ai-os/boss/ACTIVE-CLAIMS.yaml`. Committed (`2f0a49a89`), pushed, opened
+      **PR #1241**: https://github.com/FChecklist/compliance-tracker/pull/1241
+
 ## Remaining
 
-- [ ] Register this task's claim in `ai-os/boss/ACTIVE-CLAIMS.yaml` and commit + push + open PR
-      (in progress, next step).
-- [ ] Once pushed: watch CI, post the required structured `AUDIT: PASS`/`FAIL` comment
+- [ ] Watch PR #1241's CI to green, then post the required structured `AUDIT: PASS`/`FAIL` comment
       (`scripts/validate-audit-verdict.ts` requires one on every PR into `main`, not just
       AI-Dev-Team branches).
 - [ ] Not in this task's scope, left for follow-up implementation tasks: actually fixing
