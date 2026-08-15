@@ -4,7 +4,7 @@ import { complianceItems, notices } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { eq } from "drizzle-orm";
 import { callLLMJsonCached } from "@/lib/llm-response-cache";
-import { resolveModelConfig } from "@/lib/orchestra-model-resolver";
+import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
@@ -186,7 +186,19 @@ export async function POST(request: NextRequest) {
 
     // Resolve which provider/model this org uses for the Task Orchestra
     // Agent layer -- their own BYO customer_model_config if they've set one,
-    // else the platform default (Groq). See lib/orchestra-model-resolver.ts.
+    // else the platform default (Groq), layered with any active
+    // subscription-package routing policy and audited into
+    // ai_routing_audit_log. Phase 9 (VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_
+    // 2026-07-25.yaml, phase_9_gateway_knowledge_sync_infrastructure): this
+    // was the one real VERIDIAN-v2 prompt-execution request identified as
+    // the strongest candidate to cross Gateway G05 for real -- previously
+    // this called orchestra-model-resolver.ts's resolveModelConfig()
+    // directly and never touched mother-router.ts at all (G05's
+    // "end_user_org" scope had zero real callers anywhere in the repo).
+    // Now resolves through resolveModel()/computeEndUserOrgResolution()
+    // instead, which internally calls the same resolveModelConfig() as
+    // before for the baseline (customer BYO config, cost-guard, source-type
+    // overrides all unchanged) and returns it via `resolvedConfig`.
     const systemPrompt = await getSystemPrompt(typedEvent);
     const userMessage = getUserMessage(typedEvent, entityId, enrichedPayload);
 
@@ -210,7 +222,8 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const modelConfig = await resolveModelConfig(orgId, "task_oa");
+    const routerResolution = await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" });
+    const modelConfig = routerResolution.resolvedConfig ?? null;
     if (!modelConfig) {
       // Return sensible defaults without AI
       const defaultActions = getDefaultActions(typedEvent, entityId, enrichedPayload);
