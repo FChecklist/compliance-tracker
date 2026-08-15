@@ -78,12 +78,17 @@ ai-os/boss/ACTIVE-CLAIMS.yaml claim that was still missing, and is committing it
 
 ## Remaining
 
-- [ ] Confirm the background `bunx tsc --noEmit` run finished clean (see note above) --
-      re-run if the process died/was killed by system load rather than completing.
-- [ ] `bun run lint` and `bun test` (full suite) not yet run this invocation -- run before
-      opening the PR.
-- [ ] Push branch + open PR (Rule 6 -- no direct push to `main`). Not self-merged; leave the
-      AUDIT verdict for a supervising session, same convention as every other claim in
-      `ACTIVE-CLAIMS.yaml`.
+- [x] Confirmed the background `bunx tsc --noEmit` run finished clean: exit code 0, empty
+      output, full project (`NODE_OPTIONS=--max-old-space-size=6144`).
+- [x] Committed (326b57dd6) and pushed
+      `worker/task-20260718-130006-retry-2--ai-model-lifecycle---benchmark`.
+- [x] Opened PR #1284 (https://github.com/FChecklist/compliance-tracker/pull/1284) against
+      `main`. Not self-merged; no AUDIT verdict posted -- left for the supervising session's
+      audit per this repo's standing convention.
+- [ ] `bun run lint` and `bun test` (full suite) were NOT run this invocation -- every attempt
+      timed out under the shared box's sustained heavy concurrent load (multiple sibling
+      tasks' `tsc`/`next build` processes observed live via `ps aux`; even plain `git status`
+      intermittently took >2 minutes). Disclosed in the PR body rather than silently skipped.
+      CI's own lint/test jobs are the real gate before merge.
 - [ ] Migration `drizzle/0225_model_lifecycle_benchmarking.sql` intentionally NOT applied to
       the live DB by this session -- left for the supervising session.
