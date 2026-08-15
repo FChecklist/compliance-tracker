@@ -59,8 +59,12 @@ mechanism. Recommended approach: add an emergency-revert config flag.
       `progress/<task-id>.md`). Also removed a stray `.scratch/` directory
       of ad-hoc diff dumps left over from the same prior invocation.
 
+- [x] Committed (`e1c9de23f`), pushed
+      `worker/task-20260718-130002-retry-2--ai-model-lifecycle---benchmark`,
+      and opened PR #1269 against `main`:
+      https://github.com/FChecklist/compliance-tracker/pull/1269
+
 ## Remaining
-- [ ] Commit the real code changes (`src/lib/orchestra-model-resolver.ts`,
-      `src/lib/orchestra-model-resolver.test.ts`) plus this progress file,
-      push the branch, and open a PR against `main` (Rule 6: no direct
-      push/merge to `main`, PR + green CI required).
+- [ ] Await green CI on PR #1269, then merge (Rule 6: no direct
+      push/merge to `main`, PR + green CI required -- this session does
+      not merge without that).
