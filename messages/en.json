@@ -5,7 +5,9 @@
       "dashboard": "Dashboard",
       "chat": "VERI Chat",
       "connectors": "Connectors",
-      "agents": "Make Your Own Agents"
+      "agents": "Make Your Own Agents",
+      "quickNavLabel": "Quick navigation",
+      "modulesNavLabel": "Modules"
     },
     "poweredBy": "Powered by VERIDIAN AI",
     "sections": {

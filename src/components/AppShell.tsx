@@ -131,6 +131,19 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // not a rewrite of the existing flow.
   const body = (
     <>
+      {/* WCAG 2.4.1 (Bypass Blocks): every authenticated page renders this
+          same persistent chrome (topbar, health ribbon, sidebar) before
+          `children`, so a keyboard/screen-reader user otherwise has to tab
+          through the whole nav on every single page load. sr-only until
+          focused (first Tab press) -- jumps focus straight to the
+          `#main-content` landmark below, which is the one thing that
+          actually changes per page. */}
+      <a
+        href="#main-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-ct-navy focus:px-4 focus:py-2 focus:text-sm focus:font-semibold focus:text-white focus:shadow-lg"
+      >
+        Skip to main content
+      </a>
       {/* print:hidden -- every element in this persistent chrome group is
           app navigation/interactive overlay, not page content. Hidden here
           (not in each component file) so the print stylesheet's coverage of
@@ -170,7 +183,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           <ResizablePanelGroup orientation="horizontal" defaultLayout={veriChatPanelLayout} onLayoutChange={onVeriChatPanelLayoutChange} className="flex-1 overflow-hidden print:block print:overflow-visible">
             <ResizablePanel defaultSize={72} minSize={50}>
               <div className="h-full flex flex-col overflow-hidden print:block print:overflow-visible print:h-auto">
-                <main className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
+                <main id="main-content" tabIndex={-1} className="flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white">
                   <div className="print:hidden">
                     {pathname !== "/home" && <OnboardingChecklist />}
                     <TrialBanner />
@@ -188,7 +201,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             </ResizablePanel>
           </ResizablePanelGroup>
         ) : (
-          <main className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white", !dockHidden && "pb-28 md:pb-32")}>
+          <main id="main-content" tabIndex={-1} className={cn("flex-1 overflow-auto p-4 md:p-6 bg-ct-cream print:overflow-visible print:p-0 print:bg-white", !dockHidden && "pb-28 md:pb-32")}>
             {/* /home leads with the assistant (first-minute experience) -- the
                 legacy Get Started checklist would sit above it speaking old
                 compliance language, so it stays on every page except Home. */}

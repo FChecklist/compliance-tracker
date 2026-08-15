@@ -108,6 +108,7 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
           size="icon"
           onClick={onToggleSidebar}
           title={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
+          aria-label={sidebarCollapsed ? "Show sidebar" : "Hide sidebar"}
           className="text-white/80 hover:text-white hover:bg-white/10"
         >
           <PanelLeft className="size-4" />
@@ -149,11 +150,12 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
             <Button
               variant="ghost"
               size="icon"
+              aria-label={unreadCount > 0 ? `Notifications, ${unreadCount} unread` : "Notifications"}
               className="relative text-white/80 hover:text-white hover:bg-white/10"
             >
               <Bell className="size-[18px]" />
               {unreadCount > 0 && (
-                <span className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-red-500 ring-2 ring-ct-navy" />
+                <span aria-hidden="true" className="absolute top-1.5 right-1.5 size-2.5 rounded-full bg-red-500 ring-2 ring-ct-navy" />
               )}
             </Button>
           </DropdownMenuTrigger>
@@ -183,9 +185,10 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
           <DropdownMenuTrigger asChild>
             <Button
               variant="ghost"
+              aria-label={`Account menu for ${userName || "User"}`}
               className="gap-2 px-2 text-white/90 hover:text-white hover:bg-white/10"
             >
-              <Avatar className="h-8 w-8">
+              <Avatar className="h-8 w-8" aria-hidden="true">
                 <AvatarFallback className="bg-ct-saffron text-white text-xs font-bold">
                   {initials}
                 </AvatarFallback>
@@ -193,7 +196,7 @@ export function AppTopbar({ sidebarCollapsed, onToggleSidebar }: { sidebarCollap
               <span className="hidden md:inline text-sm font-medium">
                 {userName || "User"}
               </span>
-              <ChevronDown className="size-3 text-white/50" />
+              <ChevronDown className="size-3 text-white/50" aria-hidden="true" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">

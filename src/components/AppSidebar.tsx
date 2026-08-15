@@ -520,9 +520,10 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
           users -- the assistant lives on Home -- so its unread count now
           badges Home. VERI FDE, renamed "Do It For Me" in plain language,
           is promoted here. Order: Home, Dashboard, VERI Chat, Do It For Me. */}
-      <div className="px-3 mb-2 space-y-0.5">
+      <nav aria-label={t("top.quickNavLabel")} className="px-3 mb-2 space-y-0.5">
         <Link
           href="/home"
+          aria-current={pathname === "/home" ? "page" : undefined}
           className={cn(
             "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname === "/home"
@@ -540,6 +541,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         </Link>
         <Link
           href="/dashboard"
+          aria-current={pathname.startsWith("/dashboard") ? "page" : undefined}
           className={cn(
             "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname.startsWith("/dashboard")
@@ -552,6 +554,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         </Link>
         <Link
           href="/chat"
+          aria-current={pathname.startsWith("/chat") ? "page" : undefined}
           className={cn(
             "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname.startsWith("/chat")
@@ -574,6 +577,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
             collapsible section. */}
         <Link
           href="/connectors"
+          aria-current={pathname.startsWith("/connectors") ? "page" : undefined}
           className={cn(
             "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname.startsWith("/connectors")
@@ -591,6 +595,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
         </Link>
         <Link
           href="/fde"
+          aria-current={pathname.startsWith("/fde") ? "page" : undefined}
           className={cn(
             "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] font-semibold transition-colors relative",
             pathname.startsWith("/fde")
@@ -601,10 +606,10 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
           <Rocket className={cn("size-3.5 shrink-0", pathname.startsWith("/fde") && "text-ct-saffron")} />
           <span className="flex-1">{t("top.agents")}</span>
         </Link>
-      </div>
+      </nav>
 
       {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-3 pb-4">
+      <nav aria-label={t("top.modulesNavLabel")} className="flex-1 overflow-y-auto px-3 pb-4">
         {sections.map((section) => (
           <div key={section.title} className="mb-3">
             <p className="px-3 mb-1 text-[9px] font-bold tracking-widest text-ct-muted uppercase">
@@ -617,6 +622,7 @@ function SidebarContent({ overdueCount, docCount, noticeCount, accountType, unre
                 <Link
                   key={item.href + item.label}
                   href={item.href}
+                  aria-current={isActive ? "page" : undefined}
                   className={cn(
                     "flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-[13px] transition-colors mb-0.5 relative",
                     isActive
@@ -678,6 +684,7 @@ function MobileSheetTrigger({ overdueCount, docCount, noticeCount, accountType, 
         <Button
           variant="ghost"
           size="icon"
+          aria-label="Open navigation menu"
           className="lg:hidden text-white hover:bg-white/10"
         >
           <LayoutDashboard className="size-5" />
