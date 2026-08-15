@@ -26,6 +26,10 @@ import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
+import { evaluateAttributeConditions, type AttributeCondition } from "@/lib/abac"
+import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"
+import { detectHighImpactAction, type HighImpactCategory } from "@/lib/high-impact-action-detector"
+import { runWorkflowCompletionMonitor } from "@/lib/monitors/workflow-completion-monitor"
 
 export type WorkflowContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -37,17 +41,57 @@ type StepDefInput = {
   conditionField?: string
   conditionOperator?: 'gt' | 'gte' | 'lt' | 'lte' | 'eq'
   conditionValue?: number
+  // VERIDIAN Review Framework gap-closure (2026-07-18), ABAC finding: an
+  // additive array of AttributeCondition (src/lib/abac.ts), AND-combined
+  // with each other and with the single legacy condition above when both
+  // are present -- lets a step depend on multiple resource attributes at
+  // once (e.g. amount > 10000 AND department == 'finance'), not just one.
+  conditions?: AttributeCondition[]
+}
+
+// Four-Eyes Principle cross-wire (Checks & Balances gap-closure): a step
+// whose entityType/name textually names one of high-impact-action-
+// detector.ts's 9 "never execute silently" categories (delete/payment/
+// compliance_submission/etc., VERIDIAN.docx CSV 205 §26) is a critical
+// action by this codebase's own existing definition of "critical" -- so it
+// gets a hard requiredApprovals floor of 2 (dual control / four-eyes) even
+// if the org admin configuring the step tried to set it to 1. Previously
+// requiredApprovals was opt-in per step with no relationship to the
+// high-impact taxonomy at all. Reuses the SAME detector every other
+// consumer (AI Team dispatch risk classification, task/chat confirmation
+// gate) already relies on -- one taxonomy, not a second one invented here.
+const MIN_REQUIRED_APPROVALS_FOR_CRITICAL_ACTIONS = 2
+
+export function detectCriticalActionCategory(entityType: string, stepName: string): HighImpactCategory | null {
+  return detectHighImpactAction(`${entityType.replace(/_/g, " ")} ${stepName}`).category
+}
+
+export function enforceFourEyesFloor(entityType: string, stepName: string, requestedApprovals: number): number {
+  const category = detectCriticalActionCategory(entityType, stepName)
+  return category ? Math.max(requestedApprovals, MIN_REQUIRED_APPROVALS_FOR_CRITICAL_ACTIONS) : requestedApprovals
 }
 
 export async function listWorkflowDefinitions(ctx: { orgId: string }, entityType?: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    return db.query.approvalWorkflowDefinitions.findMany({
+    const defs = await db.query.approvalWorkflowDefinitions.findMany({
       where: entityType
         ? and(eq(approvalWorkflowDefinitions.orgId, ctx.orgId), eq(approvalWorkflowDefinitions.entityType, entityType))
         : eq(approvalWorkflowDefinitions.orgId, ctx.orgId),
       with: { steps: { orderBy: (t, { asc }) => asc(t.stepOrder) } },
       orderBy: (t, { desc }) => desc(t.createdAt),
     })
+    // Annotates each step with its inferred critical-action category and
+    // whether four-eyes is actually satisfied -- the Role-Based Approval
+    // Matrix view (ApprovalMatrixSection, reading this same GET
+    // /api/approval-workflows with no entityType filter) reads this
+    // directly rather than re-deriving it client-side.
+    return defs.map((def) => ({
+      ...def,
+      steps: def.steps.map((step) => {
+        const highImpactCategory = detectCriticalActionCategory(def.entityType, step.name)
+        return { ...step, highImpactCategory, fourEyesSatisfied: step.requiredApprovals >= MIN_REQUIRED_APPROVALS_FOR_CRITICAL_ACTIONS }
+      }),
+    }))
   })
 }
 
@@ -70,10 +114,11 @@ export async function createWorkflowDefinition(
         stepOrder: s.stepOrder,
         name: s.name,
         approverRole: s.approverRole,
-        requiredApprovals: s.requiredApprovals ?? 1,
+        requiredApprovals: enforceFourEyesFloor(input.entityType, s.name, s.requiredApprovals ?? 1),
         conditionField: s.conditionField,
         conditionOperator: s.conditionOperator,
         conditionValue: s.conditionValue?.toString(),
+        conditions: s.conditions ?? null,
       }))
     )
 
@@ -82,14 +127,17 @@ export async function createWorkflowDefinition(
   })
 }
 
+// Generalized 2026-07-18 (ABAC gap-closure) to delegate to src/lib/abac.ts's
+// shared evaluator rather than a second hand-rolled numeric comparison --
+// same exact semantics as before (this call site only ever passes real,
+// resolved numbers, never an unknown field), now reused by
+// abac-policy-service.ts too.
 function evaluateCondition(operator: 'gt' | 'gte' | 'lt' | 'lte' | 'eq', fieldValue: number, threshold: number): boolean {
-  switch (operator) {
-    case 'gt': return fieldValue > threshold
-    case 'gte': return fieldValue >= threshold
-    case 'lt': return fieldValue < threshold
-    case 'lte': return fieldValue <= threshold
-    case 'eq': return fieldValue === threshold
-  }
+  return evaluateAttributeConditions(
+    [{ field: "_value", operator, value: threshold }],
+    { _value: fieldValue },
+    { unknownField: "match" }
+  )
 }
 
 /**
@@ -126,10 +174,20 @@ export async function startApprovalWorkflow(
     if (!def || def.steps.length === 0) return null
 
     const applicableSteps = def.steps.filter((step) => {
-      if (!step.conditionField || !step.conditionOperator || step.conditionValue === null) return true
-      const fieldValue = params.entityData[step.conditionField]
-      if (fieldValue === undefined) return true // fail-safe: unknown field -> include the step rather than silently skip approval
-      return evaluateCondition(step.conditionOperator, fieldValue, Number(step.conditionValue))
+      const legacyApplies = !step.conditionField || !step.conditionOperator || step.conditionValue === null
+        ? true
+        : (() => {
+            const fieldValue = params.entityData[step.conditionField!]
+            if (fieldValue === undefined) return true // fail-safe: unknown field -> include the step rather than silently skip approval
+            return evaluateCondition(step.conditionOperator!, fieldValue, Number(step.conditionValue))
+          })()
+      if (!legacyApplies) return false
+      // ABAC generalization (2026-07-18): the new multi-condition array,
+      // AND-combined with the legacy single condition above. Same fail-safe
+      // direction as the legacy check -- an unknown attribute includes the
+      // step rather than silently skipping approval.
+      const conditions = (Array.isArray(step.conditions) ? step.conditions : null) as AttributeCondition[] | null
+      return evaluateAttributeConditions(conditions, params.entityData, { unknownField: "match" })
     })
     if (applicableSteps.length === 0) return null
 
@@ -143,7 +201,12 @@ export async function startApprovalWorkflow(
         stepDefinitionId: step.id,
         stepOrder: step.stepOrder,
         approverRole: step.approverRole,
-        requiredApprovals: step.requiredApprovals,
+        // Re-applies the four-eyes floor here too (not just at definition-
+        // create time above): a step definition stored before this floor
+        // existed, or edited directly, still gets it enforced at the one
+        // place that actually matters -- the real instance a human approves
+        // against.
+        requiredApprovals: enforceFourEyesFloor(params.entityType, step.name, step.requiredApprovals),
       }))
     )
 
@@ -276,12 +339,30 @@ export async function decideApprovalStep(
     const requiredRank = ROLE_RANK[step.approverRole as UserRole] ?? 999
     if (userRank < requiredRank) throw new ServiceError(`This step requires ${step.approverRole} role or higher`, 403)
 
+    // ABAC gap-closure (2026-07-18): a supplementary, org-configurable
+    // deny-only check evaluated AFTER the RBAC rank check above already
+    // passed -- lets an org narrow "who may approve this specific
+    // entityType" further than role rank alone can express (e.g. "deny
+    // approval when approverRole == 'manager' for this entity type",
+    // forcing a higher role for specific workflows) without touching
+    // ROLE_RANK itself. Absent any matching policy this is a no-op --
+    // every existing org behaves exactly as before.
+    if (decision === "approved") {
+      const denyCheck = await checkAbacDenyPoliciesWithDb(
+        db, ctx.orgId,
+        { resourceType: step.instance.entityType, action: "approve", attributes: { approverRole: ctx.dbUser.role } }
+      )
+      if (denyCheck.denied) throw new ServiceError(denyCheck.reason, 403)
+    }
+
     await db.insert(approvalWorkflowStepApprovals).values({ stepInstanceId, approvedById: ctx.userId, decision, comment })
 
     let instanceStatus: "pending" | "approved" | "rejected" = "pending"
+    let completedAt: Date | null = null
     if (decision === "rejected") {
+      completedAt = new Date()
       await db.update(approvalWorkflowStepInstances).set({ status: "rejected" }).where(eq(approvalWorkflowStepInstances.id, stepInstanceId))
-      await db.update(approvalWorkflowInstances).set({ status: "rejected", completedAt: new Date() }).where(eq(approvalWorkflowInstances.id, step.workflowInstanceId))
+      await db.update(approvalWorkflowInstances).set({ status: "rejected", completedAt }).where(eq(approvalWorkflowInstances.id, step.workflowInstanceId))
       instanceStatus = "rejected"
     } else {
       const newCount = step.approvalsReceived + 1
@@ -290,12 +371,31 @@ export async function decideApprovalStep(
         await advanceWorkflow(db, step.workflowInstanceId)
         const refreshed = await db.query.approvalWorkflowInstances.findFirst({ where: eq(approvalWorkflowInstances.id, step.workflowInstanceId) })
         instanceStatus = (refreshed?.status ?? "pending") as typeof instanceStatus
+        completedAt = refreshed?.completedAt ?? null
       } else {
         await db.update(approvalWorkflowStepInstances).set({ approvalsReceived: newCount }).where(eq(approvalWorkflowStepInstances.id, stepInstanceId))
       }
     }
 
     await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: `approval_workflow.step_${decision}`, entityType: step.instance.entityType, entityId: step.instance.entityId })
+
+    // RES-02 Phase 1 (PLATFORM_STRATEGY.md 29.3): the instance only truly
+    // completes here (either branch above), never at start -- see
+    // workflow-completion-monitor.ts's own header for why WORKFLOW_STARTED
+    // has no separate runtime check. Same transaction, never blocks the
+    // decision above -- mirrors approval-decision-monitor.ts's own real
+    // call site (src/app/api/approvals/[id]/route.ts) exactly, including
+    // its plain-await (no extra try/catch) posture.
+    if (instanceStatus !== "pending" && completedAt) {
+      await runWorkflowCompletionMonitor(
+        db, ctx.orgId, { dbUser: ctx.dbUser },
+        {
+          instanceId: step.workflowInstanceId, entityType: step.instance.entityType, entityId: step.instance.entityId,
+          status: instanceStatus, createdAt: step.instance.createdAt, completedAt,
+        }
+      )
+    }
+
     return { ok: true, entityType: step.instance.entityType, entityId: step.instance.entityId, instanceStatus }
   })
 }

@@ -30,6 +30,14 @@ export async function register() {
   if (process.env.NEXT_RUNTIME === "edge") {
     await import("../sentry.edge.config")
   }
+  // V2-10: surface a missing SENTRY_DSN / NEXT_PUBLIC_SENTRY_DSN at startup
+  // so a deploy without the secret is *observable* in the log stream --
+  // Sentry.init already no-ops on an undefined dsn, this just makes that
+  // no-op loud instead of silent. Runs in every runtime Next loads this
+  // file for (nodejs + edge); the check is pure env inspection, no SDK
+  // call. See src/lib/sentry-dsn-check.ts for the rationale.
+  const { warnIfSentryDsnMissing } = await import("./lib/sentry-dsn-check")
+  warnIfSentryDsnMissing()
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (err, request, context) => {

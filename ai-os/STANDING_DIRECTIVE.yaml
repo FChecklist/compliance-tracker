@@ -1,0 +1,68 @@
+# ============================================================================
+# STANDING TASK DIRECTIVE -- machine-readable, referenced by filename per task
+# ============================================================================
+# Owner directive 2026-07-21 (chat): single-line standing prompt, finalized
+# and machine-encoded on request. Reference this file (by id or path) with
+# any task instead of restating the full protocol.
+# language_rule: short structured values only, no narrative -- same
+# convention as ai-os/AI_ENGINEERING_POLICY.yaml / ai-os/CONSTITUTION.yaml.
+# ============================================================================
+
+meta:
+  id: STANDING-TASK-DIRECTIVE
+  version: 1.0
+  effective_date: "2026-07-21"
+  source: "Owner directive, 2026-07-21 (chat)"
+  usage: "Cite ai-os/STANDING_DIRECTIVE.yaml (or say 'check STANDING_DIRECTIVE.yaml') alongside any task to invoke the full protocol below."
+
+precheck:
+  items:
+    - ai-os/MASTER_INDEX.yaml
+    - system_index (superboss-register.py check-duplicate)
+  rule: zero_duplication_mandatory
+
+execution:
+  location: ssh_only
+  target: VERIDIAN-DEV
+  ip: 167.233.220.35
+  auth: claude_code_cli_subscription
+  local_execution: forbidden
+
+guardrails:
+  mandatory:
+    - ai-os/RULES_ARTICLES_198.json
+    - ai-os/AI_ENGINEERING_POLICY.yaml
+  automation_scope_boundary: ai-os/AI_ENGINEERING_POLICY.yaml#automation_scope_boundary
+  note: irreversible_actions_and_NEEDS_HUMAN_JUDGMENT_items_surface_to_owner_never_forced
+
+logging:
+  targets:
+    - ai-os/boss/ACTIVE-CLAIMS.yaml
+    - ai-os/boss/COMPLETED.yaml
+    - system_index
+  scope: all_work_plus_this_conversation
+
+verification:
+  mechanism: ai-os/scripts/audit198/run-audit.mjs
+  method: re_run_evidence_based
+  self_certification: forbidden
+  targets:
+    contradiction: 0
+    duplication: 0
+    gaps: 0
+    implementation_pct: 100
+
+automation:
+  level: 100
+  manual_steps: 0
+  exceptions_ref: guardrails.automation_scope_boundary
+
+sync_scope:
+  systems:
+    - server
+    - github
+    - vercel
+    - supabase
+  requirement: complete_sync
+
+on_complete: notify_owner
