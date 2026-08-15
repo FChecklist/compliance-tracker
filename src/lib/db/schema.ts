@@ -886,6 +886,15 @@ export const webhookDeliveries = complianceSchemaDB.table('webhook_deliveries', 
   attempt: integer('attempt').notNull().default(1),
   success: boolean('success').notNull().default(false),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // Gap-closure (API Governance: Webhook Reliability, 2026-07-18): automatic
+  // delivery still stops after 3 attempts (webhook-deliver.ts), which left no
+  // recovery path for an endpoint that was down during all 3 -- the failed
+  // row just sat there forever. This column is null for every row inserted
+  // by the automatic retry loop; it's set to the original failed delivery's
+  // id only when a row was created by the new manual "Redeliver" action
+  // (redeliverWebhookDelivery in webhook-deliver.ts), so the UI can show
+  // which rows are replays and of what. Nullable/additive -- no backfill.
+  redeliveryOfId: text('redelivery_of_id'),
 })
 
 // ─── BYOK AI Configuration (M-04) ────────────────────────────────────────
