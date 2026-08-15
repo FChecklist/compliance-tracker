@@ -70,14 +70,22 @@
       while composing the commit message -- bare parens in commit-message prose false-triggers
       `find_root_walk_guard`; wrote the message to a task-scratch file first.)
 
+- [x] (Invocation 16) Confirmed live via `gh pr view 1210 --json ... -q '... | @tsv'`
+      (hit + worked around [[veridian-gh-json-single-line-truncation-workaround]] again --
+      plain `--json ... -q '{...}'` object output truncated to 121 bytes even when redirected
+      to a file inside this workspace; `@tsv` form was clean) that `audit-check` is now
+      `SUCCESS` against the real PR head SHA -- the empty-commit `synchronize` workaround from
+      invocation 15 worked. All 16 other checks are `SUCCESS`/`NEUTRAL` (CodeQL); only `Build`
+      still `IN_PROGRESS`. `mergeStateStatus: BLOCKED` (waiting on Build), `mergeable:
+      MERGEABLE`. Started a `Monitor` polling `gh pr view 1210` every 30s for Build's terminal
+      state.
+
 ## Remaining
-- [ ] Confirm the `pull_request`/`synchronize`-triggered audit-check run (from commit
-      `ab1490337`) lands `SUCCESS` against the real PR head SHA (not `main`'s) -- a
-      `Monitor` task is watching `gh pr checks 1210` live for this.
-- [ ] Once all checks are green (audit-check + Build + E2E Tests, others already SUCCESS),
-      attempt `gh pr merge --squash --admin` on PR #1210; branch protection now shows
-      `required_approving_review_count: 0`, so this may finally succeed where 25 prior
-      attempts on #1047/#1048's lineage did not. Document the real outcome either way.
+- [ ] Once Build lands (Monitor will notify), if `SUCCESS`: attempt `gh pr merge --squash
+      --admin` on PR #1210; branch protection shows `required_approving_review_count: 0`, so
+      this may finally succeed where 25 prior attempts on #1047/#1048's lineage did not. If
+      `FAILURE`: investigate the real cause (not a re-run-and-hope) before deciding next step.
+      Document the real outcome either way.
 - [ ] If this PR merges, close #1047/#1048 as superseded (comment + close, don't just leave
       them stale/confusing for the next session).
 - [ ] Optional/deferred (per original PR #1047 scope, not blocking): wire
