@@ -40,6 +40,23 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260718-065005-ai-engineering-quality--logic-separation) -- Review Framework AI Engineering Quality gap-closure: Deterministic Logic Coverage, Configuration Over Hardcoding, Separation of Business/AI Logic"
+    claimed_at: "2026-08-15T05:37Z"
+    claim: |
+      SPEC (this task's own prompt.txt, 4 findings from the VERIDIAN Review Framework
+      evaluation): (1) [Low] Deterministic Logic Coverage -- add a periodic-audit mechanism
+      for new LLM-call sites re: whether a deterministic alternative was considered;
+      (2) [Medium] Configuration Over Hardcoding -- document the deliberate-hardcoding
+      trade-off pattern for consistency, leave code as-is; (3) [Low] Separation of Business
+      Logic -- "no gap of note," verify route-thin/service-thick convention holds;
+      (4) [Low] Separation of AI Logic -- "no gap of note," verify "no LLM call in gates"
+      discipline holds for new gates.
+
+      Scope: `scripts/` (new audit script) + `docs/` (new conventions doc) + this task's own
+      `progress/*.md`. Explicitly NOT touching `src/lib/services/permission-service.ts`'s
+      `ERP_ACTION_ROLES` table (per prompt.txt's own scope guard) or any in-flight worker's
+      declared area. Re-verified fresh against current `main` (post-merge, 2026-08-15) before
+      writing code -- see this task's own progress file for file:line evidence gathered.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
