@@ -241,9 +241,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/app/api/crm/leads/route.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated. Bumped 2026-08-07 (CRM Leads gap-closure, PR #1014): 1 more changelog-comment date added (\"VERIDIAN Review Framework gap-closure (2026-08-07)\") -- same false-positive class, verified on direct read."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 2
   - file: src/app/api/crm/opportunities/[id]/explain/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -734,9 +734,24 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 2
   - file: src/lib/services/crm-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated. Bumped 2026-08-07 (CRM Leads gap-closure, PR #1014): 2 more changelog-comment dates added -- same false-positive class, verified on direct read."
     findings_by_category:
-      hardcoded_iso_date: 4
+      hardcoded_iso_date: 6
+  - file: src/lib/services/crm-service.test.ts
+    reason: "New file, CRM Leads gap-closure (2026-08-07, PR #1014) -- confirmed on direct read. hardcoded_iso_date is the file's own changelog-comment date, same false-positive class as every other *-service.ts exemption above. placeholder_company_name (\"Acme Corp\", 3x) is Zod-schema-validation test fixture data (createLeadSchema.safeParse inputs), matching Phase 2's own directory classification for *.test.ts files (see report-cadence-service.test.ts's entry below) -- exercises a test assertion, not AI prompt/template authoring."
+    findings_by_category:
+      hardcoded_iso_date: 1
+      placeholder_company_name: 3
+  - file: "src/app/(app)/crm/leads/page.tsx"
+    reason: "CRM Leads gap-closure (2026-08-07, PR #1014) -- first PR to touch this file since Phase 3 CI enforcement wired (2026-07-24); the guardrail is diff-only so its pre-existing content was never previously scanned. Confirmed on direct read: hardcoded_iso_date (3x) are changelog-comment dates (this file's own Wave 3 header + this PR's two gap-closure headers), same false-positive class as every other exemption in this file. placeholder_email_domain (\"founder@acme.com\") is the New Lead dialog's Contact Email input placeholder text -- UI example/hint text, not real user data, same class as this same file's own pre-existing \"Acme Retail Pvt Ltd\"/\"acme.com\" Name/Website placeholders (crm/accounts/page.tsx has the identical pattern, just not yet scanned since it hasn't been touched by a post-Phase-3 PR)."
+    findings_by_category:
+      hardcoded_iso_date: 3
+      placeholder_email_domain: 1
+  - file: src/app/api/crm/leads/import/template/route.ts
+    reason: "New file, CRM Leads gap-closure (2026-08-07, PR #1014) -- confirmed on direct read. Both findings are in the single downloadable CSV template sample row this route serves (following the existing /api/compliance/import pattern's own template-row precedent): placeholder_email_domain (\"founder@acme.com\") and hardcoded_iso_date (\"2026-08-15\", a next-action-date example) are both illustrative CSV example data shown to the end user as \"here is what a valid row looks like\", not real business data."
+    findings_by_category:
+      placeholder_email_domain: 1
+      hardcoded_iso_date: 1
   - file: src/lib/services/custom-report-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -879,9 +894,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/product-branch-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Bumped 2026-08-07 (CRM Leads gap-closure, PR #1014): 1 more changelog-comment date added -- same false-positive class, verified on direct read."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
   - file: src/lib/services/report-cadence-service.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 4 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
     findings_by_category:
