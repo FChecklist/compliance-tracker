@@ -67,19 +67,43 @@ re-verified this invocation).
         commit/push.
 
 ## Remaining
-- [ ] Confirm `bun run build` finishes clean.
-- [ ] Commit the real (non-PROGRESS.md) diff: `messages/en.json`,
+- [x] `bun run build` -- local build was extremely slow in this shared
+      environment (repeatedly exceeded a 10min background timeout without
+      finishing) and was abandoned as a local check; confirmed via the PR's
+      own Vercel deployment check instead (`pass`), which is a real build in
+      a clean environment and a stronger signal than a resource-contended
+      local run.
+- [x] Committed the real (non-PROGRESS.md) diff: `messages/en.json`,
       `messages/hi.json`, `src/app/api/internal/loops/run/route.ts`,
       `src/components/AppSidebar.tsx`, `src/lib/protected-routes.generated.ts`,
       `src/app/(app)/finops/`, `src/app/api/ai/finops/`,
       `src/lib/loops/cost-anomaly-audit.ts`,
       `src/lib/services/ai-cost-finops-service.ts`,
-      `src/lib/services/ai-cost-finops-service.test.ts`.
-- [ ] Push branch, open PR (Rule 6 -- no direct push to main). Will NOT
-      self-merge or self-audit (per this claim's own statement) -- left for
-      the supervising session's mandatory AUDIT: PASS/FAIL comment.
-- [ ] Note in the PR body: finding #3 (FinOps dashboard reconciliation) is
-      built as a reconciliation FRAMEWORK against a Finance-admin-entered
-      figure, not a real external Finance-system integration, per that
-      finding's own "defer unless spend scale/audit justifies it"
-      recommendation -- an honest scope note, not a shortfall.
+      `src/lib/services/ai-cost-finops-service.test.ts` (commit `05eaf2025`).
+- [x] Pushed branch, opened PR #1281 (Rule 6 -- no direct push to main).
+      https://github.com/FChecklist/compliance-tracker/pull/1281
+- [x] PR came back `mergeable: CONFLICTING` against main (main had moved
+      ~100+ commits since this branch's base). Merged `origin/main` in,
+      resolved 3 real conflicts: `ai-os/boss/ACTIVE-CLAIMS.yaml` (took
+      main's current registry wholesale -- our own claim entry had already
+      been reconciled off by the dead-zone reconciler as this task nears
+      completion, nothing to re-add), `src/app/api/internal/loops/run/route.ts`
+      (kept both this task's `runCostAnomalyAudit()` and a sibling task's
+      `runModelPricingAudit()` piggyback -- independent, additive), and
+      `src/lib/protected-routes.generated.ts` (auto-generated; re-ran
+      `scripts/generate-protected-routes.mjs` instead of hand-resolving, so
+      it picked up every route prefix from both branches correctly).
+      Re-ran `bun install` (package.json/bun.lock changed in the merge),
+      then re-verified clean: `bun test` (31/31), `tsc --noEmit` (0 errors),
+      `bun run lint` (0 errors), guardrail-presence (88/88), asset-registry-
+      coverage (444/444, post-merge table count), metadata-index-coverage
+      (183/183). Pushed the merge commit (`ad05bbec8`).
+- [ ] Will NOT self-merge or self-audit (per this claim's own statement) --
+      left for the supervising session's mandatory AUDIT: PASS/FAIL comment
+      (`mandatory-audit-check.yml`) before merge.
+
+Scope note already in the PR body: finding #3 (FinOps dashboard
+reconciliation) is built as a reconciliation FRAMEWORK against a
+Finance-admin-entered figure, not a real external Finance-system
+integration, per that finding's own "defer unless spend scale/audit
+justifies it" recommendation -- an honest scope note, not a shortfall.
