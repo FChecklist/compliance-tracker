@@ -1,0 +1,3 @@
+docs: record CI now firing on PR 1237 real head SHA, remaining watch step
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

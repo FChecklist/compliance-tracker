@@ -1,0 +1,3 @@
+docs: record PR #1237 + merge-conflict resolution in task progress file
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
