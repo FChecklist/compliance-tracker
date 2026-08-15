@@ -1,0 +1,17 @@
+task-20260718-065003: PR #1219 merged to main; move ACTIVE-CLAIMS entry to recently_completed
+
+- PR #1219 (structured operational logger + route error-handling CI
+  check) merged to main at commit 5ef3ccfde via gh pr merge --squash,
+  all 18 CI checks green.
+- Moved this task ACTIVE-CLAIMS.yaml entry from active: to
+  recently_completed: per that files own Rule 3.
+- Corrected the CI-workflow-wiring status while writing that entry: an
+  earlier draft wrongly claimed the workflow-scope blocker was resolved
+  by merge time. Verified live via gh api .../pulls/1219/files that the
+  merged diff does NOT touch .github/workflows/ci.yml -- this session
+  gh token still lacks workflow scope. Left as an accurately-documented
+  open follow-up (progress/ci-yml-route-error-handling-check.patch has
+  the ready-to-apply diff) rather than falsely marking it done.
+- Updated this task progress file to match.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
