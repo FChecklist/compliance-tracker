@@ -25,6 +25,57 @@ const nextConfig: NextConfig = {
   // option, matching Next.js's own standard guidance for native-binding
   // packages (e.g. sharp).
   serverExternalPackages: ["@memvid/sdk"],
+  // Owner mandate task-20260815-033857 (Z.ai real black-box test, Part 8
+  // Security report, points P8-CB-02/P8-CB-03, and P1-OBS-004): live
+  // `curl -sI` against every page (verified again 2026-08-15) showed
+  // strict-transport-security present but content-security-policy,
+  // x-frame-options, x-content-type-options, referrer-policy, and
+  // permissions-policy entirely absent -- this app previously shipped no
+  // headers() config anywhere (grep-confirmed: no vercel.json headers
+  // block, no middleware.ts). Applied globally (source: "/(.*)"), not
+  // per-route, since the finding covers the whole app including pre-auth
+  // pages. CSP is intentionally permissive on script-src/style-src/img-src/
+  // connect-src (this app is a large, actively-developing Next.js/Sentry/
+  // Supabase/Vercel product with many third-party calls -- see
+  // instrumentation-client.ts, org-branding-service.ts's per-tenant
+  // asset hosts) rather than a locked-down allowlist that would need a
+  // full third-party-origin audit to avoid breaking production; the real
+  // security value asserted by CB-02's own finding is frame-ancestors
+  // (clickjacking) and object-src/base-uri (classic XSS-adjacent
+  // primitives), which this DOES lock down. Re-tightening script-src/
+  // connect-src to a real allowlist is a separate, larger follow-up (would
+  // need its own dedicated audit of every legitimate external origin this
+  // app calls), not silently done here.
+  async headers() {
+    return [
+      {
+        source: "/(.*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+              "style-src 'self' 'unsafe-inline' https:",
+              "img-src 'self' data: blob: https:",
+              "font-src 'self' data: https:",
+              "connect-src 'self' https: wss:",
+              "frame-ancestors 'none'",
+              "object-src 'none'",
+              "base-uri 'self'",
+            ].join("; "),
+          },
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          {
+            key: "Permissions-Policy",
+            value: "camera=(), microphone=(), geolocation=()",
+          },
+        ],
+      },
+    ];
+  },
 };
 
 // PLATFORM-01 Wave 2 (Workstream 5): wires the already-installed-but-
