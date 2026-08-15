@@ -654,6 +654,40 @@ export const auditLogs = complianceSchemaDB.table('audit_logs', {
   // ever amended.
   supportSessionId: text('support_session_id'),
   actingOnBehalfOfUserId: text('acting_on_behalf_of_user_id'),
+  // VERIDIAN Review Framework: Audit & Governance / Complete Audit Stamp
+  // (Medium finding, task-20260718-075006): the stamp already had
+  // time/date (createdAt), IP (ipAddress), a "machine" proxy (userAgent),
+  // user (userId/actorName/actorRole) and org (orgId) -- this closes the
+  // two still-missing fields the finding named, Session and Office.
+  // Both nullable/additive, same convention as supportSessionId above --
+  // every pre-existing row and every pre-existing logActivity() call site
+  // is completely unaffected (null = no session/office context available,
+  // which is also the CORRECT value for background monitor/cron-triggered
+  // writes that have no real HTTP session at all, e.g. src/lib/monitors/*).
+  //
+  // sessionId is populated automatically by logActivity() from the
+  // inbound request's session cookie (see audit.ts's deriveSessionId) --
+  // no call site needs to pass it. It intentionally does NOT reuse
+  // supportSessionId's concept (that names a support_sessions row for
+  // impersonation; this is "which browser/device session performed this
+  // write", true for every actor including non-impersonated ones) and does
+  // NOT reuse userActiveSessions.id (that table is only populated for
+  // orgs with sessionLimitEnforcementEnabled turned on -- see
+  // session-limit-service.ts -- so it can't cover every org unconditionally
+  // the way this column needs to).
+  sessionId: text('session_id'),
+  // officeId maps to branches.id (this codebase's existing multi-office/
+  // multi-branch concept -- see the `branches` table above; there is no
+  // separate "offices" table, `branches` already IS that concept, e.g.
+  // clients.branchId). Opt-in pass-through param on logActivity(), same
+  // "additive, not auto-derived" posture as clientId above -- most orgs
+  // have never configured branches (no dedicated branch-management UI
+  // exists yet as of this migration), so auto-deriving it from clientId on
+  // every write would mean an extra DB lookup per audit row for a field
+  // that would be null for the overwhelming majority of orgs anyway.
+  // Callers that DO know the office/branch context of the write (e.g. a
+  // route that already loaded the client's branchId) can pass it directly.
+  officeId: text('office_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 

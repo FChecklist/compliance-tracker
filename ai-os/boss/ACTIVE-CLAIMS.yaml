@@ -40,6 +40,24 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260718-075006-audit---governance--complete-audit-stamp) -- Audit & Governance: Complete Audit Stamp gap-closure"
+    claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    claim: |
+      SPEC (this task's own prompt.txt): [Medium] Complete Audit Stamp
+      (Time, Date, IP, Machine, Session, User, Organization, Office). Gap:
+      no dedicated session_id column and no office/location field on
+      audit_logs; "machine" approximated only by userAgent. Confirmed
+      real by reading src/lib/audit.ts / schema.ts's auditLogs directly
+      (not resolved elsewhere). Scope: src/lib/audit.ts (logActivity() +
+      new deriveSessionId helper), src/lib/db/schema.ts's auditLogs table
+      (+ drizzle/0313_audit_logs_session_office_stamp.sql),
+      src/app/api/audit/route.ts, src/app/(app)/audit/page.tsx,
+      src/lib/audit.test.ts. Did NOT touch
+      src/lib/services/permission-service.ts (out of this task's scope
+      per its own instructions) or session-limit-service.ts's
+      userActiveSessions (read-only reference for the design, not
+      modified). See this task's own progress file for full design
+      rationale: progress/task-20260718-075006-audit---governance--complete-audit-stamp.md.
   - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure"
     claimed_at: "2026-08-15T05:35Z (this session)"
     claim: |
