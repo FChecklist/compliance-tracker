@@ -256,7 +256,7 @@ export default function ChecklistsPage() {
                         <Button
                           variant="link"
                           size="sm"
-                          className="text-ct-saffron"
+                          className="text-ct-saffron-text"
                           onClick={clearFilters}
                         >
                           Clear filters
@@ -277,7 +277,7 @@ export default function ChecklistsPage() {
                     <TableCell className="font-medium text-sm max-w-[240px] truncate text-ct-navy">
                       <Link
                         href={`/checklists/${item.id}`}
-                        className="hover:text-ct-saffron transition-colors"
+                        className="hover:text-ct-saffron-text transition-colors"
                       >
                         {item.title}
                       </Link>
@@ -332,6 +332,7 @@ export default function ChecklistsPage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Previous page"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
               >
@@ -356,6 +357,8 @@ export default function ChecklistsPage() {
                       variant={page === pageNum ? "default" : "outline"}
                       size="icon"
                       className="size-8"
+                      aria-label={`Go to page ${pageNum}`}
+                      aria-current={page === pageNum ? "page" : undefined}
                       onClick={() => setPage(pageNum)}
                     >
                       {pageNum}
@@ -367,6 +370,7 @@ export default function ChecklistsPage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Next page"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >

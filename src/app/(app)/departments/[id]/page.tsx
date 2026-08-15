@@ -108,7 +108,7 @@ export default function DepartmentDetailPage() {
 
       <div>
         <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2">
-          <Building2 className="size-6 text-ct-saffron" />
+          <Building2 className="size-6 text-ct-saffron-text" />
           {data.name}
         </h1>
         {data.description && (

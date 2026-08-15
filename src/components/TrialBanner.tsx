@@ -83,6 +83,7 @@ export default function TrialBanner() {
           variant="ghost"
           size="icon"
           className="size-7 text-ct-muted hover:text-ct-navy"
+          aria-label="Dismiss trial banner"
           onClick={() => setDismissed(true)}
         >
           <X className="size-3.5" />

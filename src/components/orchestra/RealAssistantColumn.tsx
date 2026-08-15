@@ -217,7 +217,7 @@ export function RealAssistantColumn({ assistant }: { assistant: RealAssistant })
           disabled={creating}
           className="h-7 text-xs"
         />
-        <Button size="icon" className="size-7 shrink-0" onClick={createTask} disabled={creating || !newTaskTitle.trim()}>
+        <Button size="icon" className="size-7 shrink-0" aria-label="Create task" onClick={createTask} disabled={creating || !newTaskTitle.trim()}>
           {creating ? <Loader2 className="size-3 animate-spin" /> : <Send className="size-3" />}
         </Button>
         </div>

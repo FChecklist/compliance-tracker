@@ -39,7 +39,7 @@ type MonthlySummary = {
 const STATUS_COLORS: Record<string, string> = {
   present: "bg-ct-teal/15 text-ct-teal",
   absent: "bg-ct-error/15 text-ct-error",
-  half_day: "bg-ct-saffron/20 text-ct-saffron",
+  half_day: "bg-ct-saffron/20 text-ct-saffron-text",
   on_leave: "bg-blue-100 text-blue-700",
   holiday: "bg-ct-cloud text-ct-muted",
 };
@@ -393,7 +393,7 @@ export default function HrAttendancePage() {
                       <td className="px-3 py-2 text-right">{s.workingDays}</td>
                       <td className="px-3 py-2 text-right text-ct-teal">{s.present}</td>
                       <td className="px-3 py-2 text-right text-ct-error">{s.absent}</td>
-                      <td className="px-3 py-2 text-right text-ct-saffron">{s.halfDay}</td>
+                      <td className="px-3 py-2 text-right text-ct-saffron-text">{s.halfDay}</td>
                       <td className="px-3 py-2 text-right">{s.onLeave}</td>
                       <td className="px-3 py-2 text-right text-ct-muted">{s.unmarked}</td>
                       <td className="px-3 py-2 text-right">{s.payableDays}</td>
@@ -433,7 +433,7 @@ export default function HrAttendancePage() {
                       <p className="text-sm font-medium text-ct-navy">{h.name}</p>
                       <p className="text-xs text-ct-muted">{new Date(h.date).toLocaleDateString()}</p>
                     </div>
-                    <Button size="icon" variant="ghost" onClick={() => removeHoliday(h.id)}>
+                    <Button size="icon" variant="ghost" aria-label="Remove holiday" onClick={() => removeHoliday(h.id)}>
                       <Trash2 className="size-4 text-ct-error" />
                     </Button>
                   </div>

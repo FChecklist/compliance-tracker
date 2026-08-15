@@ -48,7 +48,7 @@ const ACTION_BADGE: Record<string, string> = {
   login: "bg-gray-100 text-gray-600",
   logout: "bg-gray-100 text-gray-600",
   export: "bg-cyan-100 text-cyan-700",
-  invite: "bg-ct-accent text-ct-saffron",
+  invite: "bg-ct-accent text-ct-saffron-text",
   view: "bg-gray-100 text-gray-500",
   payment_recorded: "bg-emerald-100 text-emerald-700",
   dispatch_recorded: "bg-cyan-100 text-cyan-700",
@@ -257,6 +257,7 @@ export default function AuditPage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Previous page"
                 disabled={page <= 1}
                 onClick={() => setPage(page - 1)}
               >
@@ -266,6 +267,7 @@ export default function AuditPage() {
                 variant="outline"
                 size="icon"
                 className="size-8"
+                aria-label="Next page"
                 disabled={page >= totalPages}
                 onClick={() => setPage(page + 1)}
               >

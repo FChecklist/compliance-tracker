@@ -338,7 +338,7 @@ function SearchDialog() {
                     className="flex items-center justify-between gap-2 cursor-pointer"
                   >
                     <div className="flex items-center gap-2 min-w-0">
-                      <ListTodo className="size-4 text-ct-saffron shrink-0" />
+                      <ListTodo className="size-4 text-ct-saffron-text shrink-0" />
                       <span className="truncate text-sm font-medium">
                         {item.title}
                       </span>
@@ -431,7 +431,7 @@ function SearchDialog() {
                               </p>
                             )}
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[10px] text-ct-saffron font-medium">
+                              <span className="text-[10px] text-ct-saffron-text font-medium">
                                 {Math.round(r.score * 100)}% match
                               </span>
                               {r.department && (
@@ -483,7 +483,7 @@ function SearchDialog() {
                               </p>
                             )}
                             <div className="flex items-center gap-2 mt-1">
-                              <span className="text-[10px] text-ct-saffron font-medium">
+                              <span className="text-[10px] text-ct-saffron-text font-medium">
                                 {Math.round(r.score * 100)}% match
                               </span>
                               {r.authority && (
@@ -510,7 +510,7 @@ function SearchDialog() {
                         value={r.title}
                         className="flex items-start gap-3 cursor-pointer py-2.5"
                       >
-                        <FileText className="size-4 text-ct-saffron mt-0.5 shrink-0" />
+                        <FileText className="size-4 text-ct-saffron-text mt-0.5 shrink-0" />
                         <div className="flex-1 min-w-0">
                           <span className="truncate text-sm font-medium">
                             {r.title}
@@ -521,7 +521,7 @@ function SearchDialog() {
                             </p>
                           )}
                           <div className="flex items-center gap-2 mt-1">
-                            <span className="text-[10px] text-ct-saffron font-medium">
+                            <span className="text-[10px] text-ct-saffron-text font-medium">
                               {Math.round(r.score * 100)}% match
                             </span>
                           </div>

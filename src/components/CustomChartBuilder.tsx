@@ -189,7 +189,7 @@ export default function CustomChartBuilder() {
     <Card id="custom-charts" className="rounded-xl shadow-card bg-white scroll-mt-24">
       <CardHeader className="pb-2 flex flex-row items-center justify-between">
         <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-          <LineChartIcon className="size-4 text-ct-saffron" />
+          <LineChartIcon className="size-4 text-ct-saffron-text" />
           Custom Charts (Ad-Hoc BI)
         </CardTitle>
         <Dialog open={open} onOpenChange={setOpen}>

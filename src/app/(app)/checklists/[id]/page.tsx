@@ -243,7 +243,7 @@ export default function ChecklistDetailPage() {
       <Card className="rounded-xl shadow-card bg-white">
         <CardHeader className="pb-2">
           <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-            <ClipboardCheck className="size-4 text-ct-saffron" />
+            <ClipboardCheck className="size-4 text-ct-saffron-text" />
             Checklist Items ({data.auditPoints.length} items)
           </CardTitle>
         </CardHeader>
@@ -349,7 +349,7 @@ export default function ChecklistDetailPage() {
                     >
                       <td className="py-2.5 pr-4">
                         <div className="flex items-center gap-2">
-                          <FileText className="size-4 text-ct-saffron shrink-0" />
+                          <FileText className="size-4 text-ct-saffron-text shrink-0" />
                           <span className="font-medium text-ct-navy truncate max-w-[200px]">
                             {doc.name}
                           </span>
@@ -382,7 +382,7 @@ export default function ChecklistDetailPage() {
         <Card className="rounded-xl shadow-card bg-white">
           <CardHeader className="pb-2">
             <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-              <MessageSquare className="size-4 text-ct-saffron" />
+              <MessageSquare className="size-4 text-ct-saffron-text" />
               Comments ({data.comments.length})
             </CardTitle>
           </CardHeader>

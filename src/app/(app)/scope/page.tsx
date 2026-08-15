@@ -35,7 +35,7 @@ type LineItemDraft = { description: string; unit: string; quantity: string; rate
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
-  submitted: "bg-ct-saffron/20 text-ct-saffron",
+  submitted: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   superseded: "bg-red-100 text-red-700",
 };
@@ -144,7 +144,7 @@ export default function ScopePage() {
                     <Input placeholder="Unit" value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} />
                     <Input placeholder="Qty" type="number" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} />
                     <Input placeholder="Rate" type="number" value={line.rate} onChange={(e) => updateLine(i, "rate", e.target.value)} />
-                    <Button variant="ghost" size="icon" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={lines.length === 1}>
+                    <Button variant="ghost" size="icon" aria-label="Remove line" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={lines.length === 1}>
                       <Trash2 className="size-4" />
                     </Button>
                   </div>

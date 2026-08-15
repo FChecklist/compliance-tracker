@@ -31,7 +31,7 @@ type LeaveRequest = {
 };
 
 const STATUS_COLORS: Record<string, string> = {
-  pending: "bg-ct-saffron/20 text-ct-saffron",
+  pending: "bg-ct-saffron/20 text-ct-saffron-text",
   approved: "bg-green-100 text-green-700",
   rejected: "bg-red-100 text-red-700",
   cancelled: "bg-ct-cloud text-ct-muted",
@@ -207,8 +207,8 @@ export default function HrPage() {
                   <Badge className={`text-xs border-0 ${STATUS_COLORS[req.status] ?? "bg-ct-cloud text-ct-muted"}`}>{req.status}</Badge>
                   {isManager && req.status === "pending" && (
                     <div className="flex gap-1">
-                      <Button size="icon" variant="ghost" onClick={() => decide(req.id, "approved")}><Check className="size-4 text-ct-teal" /></Button>
-                      <Button size="icon" variant="ghost" onClick={() => decide(req.id, "rejected")}><X className="size-4 text-ct-error" /></Button>
+                      <Button size="icon" variant="ghost" aria-label="Approve request" onClick={() => decide(req.id, "approved")}><Check className="size-4 text-ct-teal" /></Button>
+                      <Button size="icon" variant="ghost" aria-label="Reject request" onClick={() => decide(req.id, "rejected")}><X className="size-4 text-ct-error" /></Button>
                     </div>
                   )}
                 </div>

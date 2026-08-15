@@ -87,7 +87,7 @@ export default function DepartmentsPage() {
                   <div className="flex items-start justify-between">
                     <div className="flex items-center gap-3">
                       <div className="size-10 rounded-xl bg-ct-accent flex items-center justify-center">
-                        <Building2 className="size-5 text-ct-saffron" />
+                        <Building2 className="size-5 text-ct-saffron-text" />
                       </div>
                       <div>
                         <CardTitle className="text-base font-heading text-ct-navy">

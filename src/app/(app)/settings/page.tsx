@@ -197,7 +197,7 @@ export default function SettingsPage() {
                     className={cn(
                       "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors w-full text-left",
                       isActive
-                        ? "bg-ct-accent text-ct-saffron font-bold"
+                        ? "bg-ct-accent text-ct-saffron-text font-bold"
                         : "text-ct-slate hover:bg-ct-cloud"
                     )}
                   >
@@ -230,7 +230,7 @@ export default function SettingsPage() {
                   <div>
                     <p className="font-semibold text-ct-navy">{profileName || '—'}</p>
                     <p className="text-sm text-ct-muted">{profileEmail || '—'}</p>
-                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron text-[10px] mt-1 font-medium capitalize">
+                    <Badge variant="secondary" className="bg-ct-accent text-ct-saffron-text text-[10px] mt-1 font-medium capitalize">
                       {profileRole || 'member'}
                     </Badge>
                   </div>

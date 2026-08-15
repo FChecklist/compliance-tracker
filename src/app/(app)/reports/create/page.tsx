@@ -120,7 +120,7 @@ export default function CreateAiReportPage() {
           Back to Reports
         </Link>
         <h1 className="font-heading text-2xl md:text-3xl text-ct-navy flex items-center gap-2">
-          <Sparkles className="size-6 text-ct-saffron" />
+          <Sparkles className="size-6 text-ct-saffron-text" />
           Need a Report? Upload &amp; let AI build it
         </h1>
         <p className="text-sm text-ct-muted mt-1">
@@ -150,7 +150,7 @@ export default function CreateAiReportPage() {
               />
               {analyzing ? (
                 <div className="flex flex-col items-center gap-2">
-                  <Loader2 className="size-8 text-ct-saffron animate-spin" />
+                  <Loader2 className="size-8 text-ct-saffron-text animate-spin" />
                   <p className="text-sm font-medium text-ct-navy">Analyzing {fileName}...</p>
                   <p className="text-xs text-ct-muted">Extracting content and proposing a report -- this can take a few seconds.</p>
                 </div>

@@ -46,8 +46,8 @@ export function MismatchBubble({ mismatch, onResolved }: { mismatch: MismatchInf
     <div className="flex justify-start my-2">
       <div className="max-w-[80%] rounded-xl border border-ct-saffron/40 bg-ct-saffron/10 px-4 py-3">
         <div className="flex items-center gap-2 mb-1">
-          <Bot className="size-4 text-ct-saffron" />
-          <span className="text-[11px] font-bold uppercase tracking-wide text-ct-saffron">VERI -- possible mismatch</span>
+          <Bot className="size-4 text-ct-saffron-text" />
+          <span className="text-[11px] font-bold uppercase tracking-wide text-ct-saffron-text">VERI -- possible mismatch</span>
         </div>
         <p className="text-sm text-ct-navy">{mismatch.comparisonSummary}</p>
         {!resolved ? (
@@ -60,7 +60,7 @@ export function MismatchBubble({ mismatch, onResolved }: { mismatch: MismatchInf
             </Button>
           </div>
         ) : (
-          <p className={cn("text-xs mt-2 font-medium", mismatch.resolution === "nudged" ? "text-ct-saffron" : "text-ct-teal")}>
+          <p className={cn("text-xs mt-2 font-medium", mismatch.resolution === "nudged" ? "text-ct-saffron-text" : "text-ct-teal")}>
             {mismatch.resolution === "nudged" ? "Nudged" : "Marked fine"}
           </p>
         )}

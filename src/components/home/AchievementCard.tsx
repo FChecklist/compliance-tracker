@@ -40,7 +40,7 @@ export default function AchievementCard() {
     <Card className="rounded-xl shadow-card bg-white">
       <CardHeader className="pb-2">
         <CardTitle className="text-base font-semibold text-ct-navy flex items-center gap-2">
-          <Trophy className="size-4 text-ct-saffron" />
+          <Trophy className="size-4 text-ct-saffron-text" />
           Achievement
         </CardTitle>
       </CardHeader>

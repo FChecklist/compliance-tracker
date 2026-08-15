@@ -38,7 +38,7 @@ const STATUS_COLORS: Record<string, string> = {
   pending: "bg-ct-cloud text-ct-muted",
   approved: "bg-green-100 text-green-700",
   approved_as_noted: "bg-ct-teal/20 text-ct-teal",
-  revise_resubmit: "bg-ct-saffron/20 text-ct-saffron",
+  revise_resubmit: "bg-ct-saffron/20 text-ct-saffron-text",
   rejected: "bg-red-100 text-red-700",
 };
 

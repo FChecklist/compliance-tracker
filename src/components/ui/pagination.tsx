@@ -49,6 +49,9 @@ function PaginationLink({
   ...props
 }: PaginationLinkProps) {
   return (
+    // False positive: every caller passes its page-number/label content
+    // through the spread `...props`, the lint rule just can't see through it.
+    // eslint-disable-next-line jsx-a11y/anchor-has-content
     <a
       aria-current={isActive ? "page" : undefined}
       data-slot="pagination-link"

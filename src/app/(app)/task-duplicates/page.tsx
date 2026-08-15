@@ -53,7 +53,7 @@ export default function TaskDuplicatesPage() {
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <Copy className="size-5 text-ct-saffron" />
+        <Copy className="size-5 text-ct-saffron-text" />
         <div>
           <h1 className="text-2xl font-heading text-ct-navy">Duplicate Task Detection</h1>
           <p className="text-sm text-ct-muted mt-1">Finds active (to-do/in-progress) tasks that look like the same work someone else already started -- e.g. two people independently beginning the same compliance filing. Never cancels or merges anything itself; review each pair and decide.</p>
