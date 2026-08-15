@@ -1,14 +1,15 @@
 {
-  "generatedAt": "2026-08-15T11:04:40.001Z",
-  "fileCount": 1539,
-  "edgeCount": 4366,
+  "generatedAt": "2026-08-15T11:35:18.338Z",
+  "fileCount": 1811,
+  "edgeCount": 5228,
   "edges": {
     "src/instrumentation-client.ts": [],
     "src/proxy.ts": [
       "src/lib/protected-routes.generated.ts"
     ],
     "src/instrumentation.ts": [
-      "src/lib/db.ts"
+      "src/lib/db.ts",
+      "src/lib/sentry-dsn-check.ts"
     ],
     "src/app/litert-spike/page.tsx": [
       "src/app/litert-spike/types.ts",
@@ -37,7 +38,8 @@
     ],
     "src/app/litert-spike-embeddings/types.ts": [],
     "src/app/page.tsx": [
-      "src/components/VisitorIntelligence.tsx"
+      "src/components/VisitorIntelligence.tsx",
+      "src/lib/services/org-branding-service.ts"
     ],
     "src/app/auth/callback/route.ts": [
       "src/lib/db.ts",
@@ -220,6 +222,31 @@
       "src/lib/services/pms-meeting-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/veri-meetings/[id]/pdf/route.ts": [
+      "src/lib/pdf/meeting-minutes-pdf.ts",
+      "src/lib/services/veri-meeting-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/veri-meetings/[id]/generate-intelligence/route.ts": [
+      "src/lib/services/veri-meeting-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/veri-meetings/[id]/route.ts": [
+      "src/lib/services/veri-meeting-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/veri-meetings/route.ts": [
+      "src/lib/services/veri-meeting-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/products/route.ts": [
+      "src/lib/services/construction-dashboard-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/vendor-payment-behavior/route.ts": [
+      "src/lib/services/erp-invoicing-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/sales-pipeline/route.ts": [
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -268,6 +295,14 @@
       "src/lib/services/fraud-case-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/dunning-list/[invoiceId]/record/route.ts": [
+      "src/lib/services/erp-invoicing-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/dunning-list/route.ts": [
+      "src/lib/services/erp-invoicing-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/ffe/[id]/route.ts": [
       "src/lib/services/interior-design-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -293,6 +328,10 @@
     ],
     "src/app/api/v1/projexa/companies/route.ts": [
       "src/lib/services/erp-company-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/customer-payment-behavior/route.ts": [
+      "src/lib/services/erp-invoicing-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/projexa/vendors/route.ts": [
@@ -399,6 +438,10 @@
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/leads/assignment-overview/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/leads/[id]/history/route.ts": [
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -411,6 +454,10 @@
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/leads/auto-distribute/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/risks/[id]/route.ts": [
       "src/lib/services/risk-register-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -418,6 +465,15 @@
     "src/app/api/v1/projexa/risks/route.ts": [
       "src/lib/services/risk-register-service.ts",
       "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/scope/[id]/revisions/route.ts": [
+      "src/app/api/v1/construction/boq/[id]/revisions/route.ts"
+    ],
+    "src/app/api/v1/projexa/scope/[id]/compare/route.ts": [
+      "src/app/api/v1/construction/boq/[id]/compare/route.ts"
+    ],
+    "src/app/api/v1/projexa/scope/[id]/route.ts": [
+      "src/app/api/v1/construction/boq/[id]/route.ts"
     ],
     "src/app/api/v1/projexa/scope/route.ts": [
       "src/app/api/v1/construction/boq/route.ts"
@@ -437,6 +493,10 @@
     ],
     "src/app/api/v1/projexa/submittals/route.ts": [
       "src/lib/services/construction-field-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/drawings/route.ts": [
+      "src/lib/services/document-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/projexa/change-orders/[id]/signature-status/route.ts": [
@@ -469,6 +529,10 @@
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/projexa/schedule/workload/route.ts": [
+      "src/lib/services/schedule-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/schedule/resource-conflicts/route.ts": [
       "src/lib/services/schedule-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
@@ -538,6 +602,10 @@
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/opportunities/assignment-overview/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/opportunities/[id]/history/route.ts": [
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -550,6 +618,10 @@
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/opportunities/auto-distribute/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/kpis/route.ts": [
       "src/app/api/v1/construction/kpi-definitions/route.ts"
     ],
@@ -559,6 +631,10 @@
     ],
     "src/app/api/v1/projexa/currencies/route.ts": [
       "src/lib/services/erp-accounting-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/subcontractor-payment-application-status/route.ts": [
+      "src/lib/services/erp-payment-entries-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/projexa/ar-aging/route.ts": [
@@ -605,6 +681,10 @@
       "src/lib/services/pms-time-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/module-chain/route.ts": [
+      "src/lib/services/capability-tree-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/floor-plans/[id]/rooms/route.ts": [
       "src/lib/services/interior-floorplan-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -631,6 +711,14 @@
     ],
     "src/app/api/v1/projexa/floor-plans/route.ts": [
       "src/lib/services/interior-floorplan-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/subcontractor-retention-summary/[invoiceId]/release/route.ts": [
+      "src/lib/services/erp-invoicing-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/subcontractor-retention-summary/route.ts": [
+      "src/lib/services/erp-invoicing-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/projexa/project-budgets/route.ts": [
@@ -837,6 +925,10 @@
       "src/lib/services/permission-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/projects/route.ts": [
+      "src/lib/services/construction-dashboard-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/meetings/[id]/outcomes/route.ts": [
       "src/lib/services/pms-meeting-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -851,6 +943,10 @@
     ],
     "src/app/api/v1/projexa/accounts/route.ts": [
       "src/lib/services/erp-accounting-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/projexa/asset-to-gl-reconciliation/route.ts": [
+      "src/lib/services/erp-fixed-assets-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/projexa/hr/departments/route.ts": [
@@ -880,8 +976,17 @@
       "src/lib/services/capability-tree-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/projexa/payment-proposal-list/route.ts": [
+      "src/lib/services/erp-invoicing-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/projexa/site-diary/route.ts": [
       "src/app/api/v1/construction/site-diary/route.ts"
+    ],
+    "src/app/api/v1/projexa/sales-order-document-flow/[id]/route.ts": [
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/erp-selling-service.ts",
+      "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/platform/provision-org/route.ts": [
       "src/lib/api-keys.ts",
@@ -909,6 +1014,15 @@
     ],
     "src/app/api/v1/tasks/route.ts": [
       "src/lib/services/task-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/reports/catalog/route.ts": [
+      "src/lib/services/report-engine-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/reports/definitions/[id]/run/route.ts": [
+      "src/lib/report-export-shared.ts",
+      "src/lib/services/report-engine-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/v1/documents/expiring/route.ts": [
@@ -978,6 +1092,18 @@
       "src/lib/services/construction-labour-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/v1/construction/boq/[id]/revisions/route.ts": [
+      "src/lib/services/construction-boq-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/construction/boq/[id]/compare/route.ts": [
+      "src/lib/services/construction-boq-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/v1/construction/boq/[id]/route.ts": [
+      "src/lib/services/construction-boq-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/v1/construction/boq/route.ts": [
       "src/lib/services/construction-boq-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -1026,10 +1152,18 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/client-access-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/join-code/preview/route.ts": [
       "src/lib/org-join-code-service.ts"
+    ],
+    "src/app/api/prompt-compiler/execute/route.ts": [
+      "src/lib/browser-execution/tier-detection.ts",
+      "src/lib/db.ts",
+      "src/lib/prompt-compiler/pipeline.ts",
+      "src/lib/services/capability-learning-service.ts",
+      "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/voice-tickets/[id]/action-items/route.ts": [
       "src/lib/services/voice-ticket-service.ts",
@@ -1054,6 +1188,7 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/logger.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/assistants/[id]/route.ts": [
@@ -1103,11 +1238,13 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/monitors/approval-decision-monitor.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/approvals/route.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/logger.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/document-correspondents/[id]/route.ts": [
@@ -1187,6 +1324,21 @@
       "src/lib/services/pms-wiki-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/pms/time-entries/[id]/approve/route.ts": [
+      "src/lib/services/pms-enablement-service.ts",
+      "src/lib/services/pms-time-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/pms/time-entries/[id]/reject/route.ts": [
+      "src/lib/services/pms-enablement-service.ts",
+      "src/lib/services/pms-time-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/pms/time-entries/[id]/submit/route.ts": [
+      "src/lib/services/pms-enablement-service.ts",
+      "src/lib/services/pms-time-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/pms/time-entries/[id]/route.ts": [
       "src/lib/services/pms-enablement-service.ts",
       "src/lib/services/pms-time-service.ts",
@@ -1203,6 +1355,11 @@
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/pms/schedule/resource-allocations/route.ts": [
+      "src/lib/services/pms-enablement-service.ts",
+      "src/lib/services/schedule-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/pms/schedule/resource-conflicts/route.ts": [
       "src/lib/services/pms-enablement-service.ts",
       "src/lib/services/schedule-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -1250,6 +1407,10 @@
     "src/app/api/pms/billable-rates/route.ts": [
       "src/lib/services/pms-enablement-service.ts",
       "src/lib/services/pms-time-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/pms/invoices/generate/route.ts": [
+      "src/lib/services/pms-invoice-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/pms/labels/route.ts": [
@@ -1382,6 +1543,7 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/logger.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/me/onboarding-stage/route.ts": [
@@ -1393,9 +1555,12 @@
     "src/app/api/me/route.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/crm-enablement-service.ts",
+      "src/lib/services/erp-enablement-service.ts",
       "src/lib/services/firm-enablement-service.ts",
       "src/lib/services/org-branding-service.ts",
       "src/lib/services/pms-enablement-service.ts",
+      "src/lib/services/subscription-plan-service.ts",
       "src/lib/services/veri-chat-v2-enablement-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
@@ -1407,13 +1572,41 @@
       "src/lib/services/fraud-case-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/governance/audit-search/route.ts": [
+      "src/lib/services/audit-search-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/governance/abac-policies/[id]/route.ts": [
+      "src/lib/services/abac-policy-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/governance/abac-policies/route.ts": [
+      "src/lib/services/abac-policy-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/settings/org-limits/route.ts": [
       "src/lib/cost-guard.ts",
       "src/lib/org-license-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/settings/subscription-plan/route.ts": [
+      "src/lib/services/subscription-plan-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/settings/prompts/route.ts": [
       "src/lib/services/prompt-os-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/settings/tenant-ai-config/[id]/route.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/settings/tenant-ai-config/route.ts": [
+      "src/lib/ai-config-crypto.ts",
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/orchestra-model-resolver.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/settings/model-config/pool-usage/route.ts": [
@@ -1529,6 +1722,15 @@
       "src/lib/services/legal-matter-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/public/portal/[orgSlug]/tickets/route.ts": [
+      "src/lib/services/public-portal-service.ts"
+    ],
+    "src/app/api/public/portal/[orgSlug]/kb/[slug]/route.ts": [
+      "src/lib/services/public-portal-service.ts"
+    ],
+    "src/app/api/public/portal/[orgSlug]/kb/route.ts": [
+      "src/lib/services/public-portal-service.ts"
+    ],
     "src/app/api/vendor-risk/[id]/assess/route.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
@@ -1539,6 +1741,10 @@
     ],
     "src/app/api/vendor-risk/route.ts": [
       "src/lib/services/risk-register-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/escalation-rules/route.ts": [
+      "src/lib/services/ticket-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/legal-opinions/[id]/generate/route.ts": [
@@ -1610,6 +1816,9 @@
       "src/lib/services/veri-meeting-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/auth/failure-event/route.ts": [
+      "src/lib/services/auth-failure-service.ts"
+    ],
     "src/app/api/auth/sso/[orgSlug]/acs/route.ts": [
       "src/lib/services/sso-service.ts"
     ],
@@ -1663,6 +1872,20 @@
     ],
     "src/app/api/prompt-eval/cases/route.ts": [
       "src/lib/services/prompt-eval-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/glossary/[id]/route.ts": [
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/glossary-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/glossary/route.ts": [
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/glossary-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/glossary/lookup/route.ts": [
+      "src/lib/services/glossary-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/rpt/route.ts": [
@@ -1725,6 +1948,14 @@
       "src/lib/services/chat-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/ticket-teams/[id]/route.ts": [
+      "src/lib/services/ticket-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/ticket-teams/route.ts": [
+      "src/lib/services/ticket-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/connectors/[toolkit]/sync/route.ts": [
       "src/lib/composio-connectors.ts",
       "src/lib/db.ts",
@@ -1750,10 +1981,13 @@
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/approval-workflows/steps/[id]/decide/route.ts": [
+      "src/lib/audit.ts",
+      "src/lib/db/tenant-scoped.ts",
       "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/erp-accounting-service.ts",
       "src/lib/services/erp-fixed-assets-service.ts",
       "src/lib/services/erp-procurement-workflow-service.ts",
+      "src/lib/services/exception-taxonomy.ts",
       "src/lib/supabase/auth-guard.ts",
       "src/lib/webhook-deliver.ts"
     ],
@@ -1828,8 +2062,28 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/orchestra/routing-accuracy/route.ts": [
+      "src/lib/services/routing-accuracy-report-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/orchestra/executions/[id]/route.ts": [
+      "src/lib/services/orchestra-analytics-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/orchestra/ai-reduction-trend/route.ts": [
+      "src/lib/services/ai-reduction-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/orchestra/analytics/route.ts": [
       "src/lib/services/orchestra-analytics-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/orchestra/traces/[id]/route.ts": [
+      "src/lib/services/orchestra-trace-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/orchestra/traces/route.ts": [
+      "src/lib/services/orchestra-trace-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/ticket-intelligence/[id]/dismiss/route.ts": [
@@ -1842,6 +2096,10 @@
     ],
     "src/app/api/ticket-intelligence/[id]/route.ts": [
       "src/lib/services/ticket-intelligence-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/risks/[id]/linked-controls/route.ts": [
+      "src/lib/services/risk-register-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/risks/route.ts": [
@@ -1866,6 +2124,26 @@
     ],
     "src/app/api/fde/requests/route.ts": [
       "src/lib/services/fde-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/support-sessions/start/route.ts": [
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/support-session-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/support-sessions/whoami-target/route.ts": [
+      "src/lib/audit.ts",
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/support-session-service.ts"
+    ],
+    "src/app/api/support-sessions/[id]/end/route.ts": [
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/support-session-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/support-sessions/on-my-org/route.ts": [
+      "src/lib/services/support-session-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/committees/route.ts": [
@@ -1971,7 +2249,12 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/tasks/duplicates/route.ts": [
+      "src/lib/services/task-dedup-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/tasks/[id]/prediction/route.ts": [
+      "src/lib/explainability/ai-decision-explanation.ts",
       "src/lib/services/task-prediction-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
@@ -2181,14 +2464,34 @@
       "src/lib/services/d1-metrics-tracker-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/ai/team/cache-utilization/route.ts": [
+      "src/lib/prompt-cache/utilization.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/ai/team/roster/overrides/route.ts": [
+      "src/lib/ai-team/roster-overrides.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/ai/team/controls-health/route.ts": [
+      "src/lib/controls-health-audit.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/ai/team/dispatch/route.ts": [
       "src/lib/activity-log-service.ts",
+      "src/lib/ai-router/instruction-contract.ts",
+      "src/lib/ai-router/mother-router.ts",
+      "src/lib/ai-router/software-team-ladder.ts",
+      "src/lib/ai-router/task-register-service.ts",
+      "src/lib/ai-team/roster-overrides.ts",
       "src/lib/ai-team/roster.ts",
       "src/lib/ai-team/team-service.ts",
+      "src/lib/confidence-banding.ts",
+      "src/lib/dispatch-confidence-scoring.ts",
       "src/lib/floor-tier-escalation.ts",
       "src/lib/guardrail-engine.ts",
       "src/lib/guardrail-registrations.ts",
       "src/lib/high-impact-action-detector.ts",
+      "src/lib/knowledge-sufficiency-gate.ts",
       "src/lib/llm-client.ts",
       "src/lib/model-tier-eligibility.ts",
       "src/lib/qa-precompletion-gate.ts",
@@ -2200,6 +2503,14 @@
     "src/app/api/ai/team/log-usage/route.ts": [
       "src/lib/services/token-usage-service.ts"
     ],
+    "src/app/api/ai/team/maintainability-dashboard/route.ts": [
+      "src/lib/services/maintainability-dashboard-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/ai/team/confidence-correlation/route.ts": [
+      "src/lib/services/confidence-correlation-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/ai/team/monitor/dispatch-completion/route.ts": [
       "src/lib/monitors/dispatch-completion-monitor.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -2209,11 +2520,11 @@
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/ai/orchestrate/route.ts": [
+      "src/lib/ai-router/mother-router.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/llm-response-cache.ts",
       "src/lib/orchestra-execution-logger.ts",
-      "src/lib/orchestra-model-resolver.ts",
       "src/lib/policy-enforcement-engine.ts",
       "src/lib/prompt-os-resolver.ts",
       "src/lib/purpose-bound-ai.ts",
@@ -2231,7 +2542,23 @@
       "src/lib/services/performance-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/performance-reviews/reviews/[id]/goals/[goalId]/route.ts": [
+      "src/lib/services/performance-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/performance-reviews/reviews/[id]/goals/route.ts": [
+      "src/lib/services/performance-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/performance-reviews/reviews/[id]/acknowledge/route.ts": [
+      "src/lib/services/performance-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/performance-reviews/reviews/[id]/raters/[raterId]/route.ts": [
+      "src/lib/services/performance-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/performance-reviews/reviews/[id]/raters/route.ts": [
       "src/lib/services/performance-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
@@ -2299,6 +2626,14 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/sla-policies/[id]/route.ts": [
+      "src/lib/services/ticket-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/sla-policies/route.ts": [
+      "src/lib/services/ticket-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/forge/captcha/route.ts": [
       "src/lib/forge-captcha.ts"
     ],
@@ -2336,6 +2671,8 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/embeddings.ts",
+      "src/lib/guardrail-engine.ts",
+      "src/lib/guardrail-registrations.ts",
       "src/lib/llm-client.ts",
       "src/lib/orchestra-model-resolver.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -2391,6 +2728,9 @@
     "src/app/api/internal/audit-cadence/run/route.ts": [
       "src/lib/audit-cadence-scan.ts"
     ],
+    "src/app/api/internal/pipeline-stuck-deal-digest/run/route.ts": [
+      "src/lib/services/pipeline-stuck-deal-digest-service.ts"
+    ],
     "src/app/api/internal/dispatch-completion-monitor/run/route.ts": [
       "src/lib/db.ts",
       "src/lib/monitors/dispatch-completion-monitor.ts"
@@ -2407,6 +2747,9 @@
     "src/app/api/internal/ai-performance-report/run/route.ts": [
       "src/lib/services/ai-performance-report-service.ts"
     ],
+    "src/app/api/internal/routing-accuracy-report/run/route.ts": [
+      "src/lib/services/routing-accuracy-report-service.ts"
+    ],
     "src/app/api/internal/task-nudge-digest/run/route.ts": [
       "src/lib/services/task-nudge-digest-service.ts"
     ],
@@ -2421,15 +2764,23 @@
       "src/lib/loops/input-quality-audit.ts",
       "src/lib/loops/knowledge-flow-audit.ts",
       "src/lib/loops/loop-engineering-audit.ts",
+      "src/lib/loops/model-pricing-audit.ts",
       "src/lib/loops/output-delivery-audit.ts",
       "src/lib/loops/process-turnaround-audit.ts",
       "src/lib/loops/tier-integrity-audit.ts",
       "src/lib/loops/user-behaviour-audit.ts"
     ],
+    "src/app/api/internal/ai-reduction-snapshot/run/route.ts": [
+      "src/lib/services/ai-reduction-service.ts"
+    ],
     "src/app/api/internal/capability-audit/run/route.ts": [
       "src/lib/services/capability-audit-service.ts"
     ],
+    "src/app/api/internal/cost-anomalies/run/route.ts": [
+      "src/lib/services/cost-anomaly-service.ts"
+    ],
     "src/app/api/internal/metric-alerts/run/route.ts": [
+      "src/lib/cost-guard.ts",
       "src/lib/services/metric-alert-service.ts",
       "src/lib/services/task-reprioritization-service.ts",
       "src/lib/services/task-service.ts",
@@ -2438,8 +2789,19 @@
     "src/app/api/internal/secrets-audit/run/route.ts": [
       "src/lib/db.ts"
     ],
+    "src/app/api/internal/ops-task-sync/route.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/schema.ts"
+    ],
+    "src/app/api/internal/idle-ai-capacity/run/route.ts": [
+      "src/lib/services/idle-ai-capacity-service.ts"
+    ],
     "src/app/api/internal/risk-trends-report/run/route.ts": [
       "src/lib/services/report-cadence-service.ts"
+    ],
+    "src/app/api/internal/orchestra-log-purge/run/route.ts": [
+      "src/lib/db.ts",
+      "src/lib/orchestra-execution-logger.ts"
     ],
     "src/app/api/internal/instruction-audit/run/route.ts": [
       "src/lib/loops/instruction-mismatch-audit.ts"
@@ -2471,12 +2833,14 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/org-license-service.ts",
       "src/lib/services/stage0-service.ts",
+      "src/lib/services/subscription-plan-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/board/[id]/route.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/monitors/board-meeting-hold-monitor.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/board/route.ts": [
@@ -2543,6 +2907,9 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/risk-anomaly-detection.ts",
+      "src/lib/services/risk-escalation-service.ts",
+      "src/lib/services/risk-register-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/frameworks/controls/route.ts": [
@@ -2557,8 +2924,54 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/crm/activities/[id]/route.ts": [
+      "src/lib/services/crm-activities-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/activities/route.ts": [
+      "src/lib/services/crm-activities-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/sales-pipeline/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/crm/contacts/[id]/route.ts": [
       "src/lib/services/crm-accounts-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/contacts/route.ts": [
+      "src/lib/services/crm-accounts-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/pipeline/ai-summary/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/pipeline/export/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/pipeline/stages/[id]/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/services/permission-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/pipeline/stages/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/services/permission-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/pipeline/stuck/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/lead-source-effectiveness/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/enablement/route.ts": [
+      "src/lib/services/crm-enablement-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/crm/leads/[id]/follow-up-task/route.ts": [
@@ -2577,11 +2990,23 @@
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/crm/leads/[id]/stage-history/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/crm/leads/[id]/route.ts": [
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/crm/leads/[id]/explain/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/crm/leads/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/opportunities/bulk-reassign/route.ts": [
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
@@ -2593,12 +3018,36 @@
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/crm/opportunities/[id]/stage-history/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/crm/opportunities/[id]/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/opportunities/[id]/explain/route.ts": [
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/crm/opportunities/route.ts": [
       "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/lost-reasons/[id]/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/lost-reasons/route.ts": [
+      "src/lib/services/crm-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/campaigns/[id]/route.ts": [
+      "src/lib/services/crm-campaigns-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/crm/campaigns/route.ts": [
+      "src/lib/services/crm-campaigns-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/crm/accounts/[id]/contacts/route.ts": [
@@ -2696,6 +3145,10 @@
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/erp/contracts/[id]/generate-from-template/route.ts": [
+      "src/lib/services/erp-contract-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/erp/contracts/[id]/billing-schedules/[scheduleId]/generate-invoice/route.ts": [
       "src/lib/services/erp-contract-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
@@ -2882,6 +3335,10 @@
     "src/app/api/erp/buying/purchase-orders/route.ts": [
       "src/lib/services/erp-buying-service.ts",
       "src/lib/services/permission-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/erp/enablement/route.ts": [
+      "src/lib/services/erp-enablement-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/erp/periods/generate/route.ts": [
@@ -3326,6 +3783,13 @@
       "src/lib/services/compliance-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/compliance/export-event/route.ts": [
+      "src/lib/audit.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/risk-anomaly-detection.ts",
+      "src/lib/services/risk-escalation-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/compliance/stats/route.ts": [
       "src/lib/services/compliance-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -3370,8 +3834,48 @@
       "src/lib/services/construction-expense-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/construction/enablement/route.ts": [
+      "src/lib/services/construction-enablement-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/construction/predictions/[activityId]/route.ts": [
       "src/lib/services/construction-prediction-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/progress-claims/[id]/invoice/route.ts": [
+      "src/lib/services/construction-billing-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/progress-claims/[id]/approve/route.ts": [
+      "src/lib/services/construction-billing-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/progress-claims/[id]/reject/route.ts": [
+      "src/lib/services/construction-billing-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/progress-claims/[id]/timeline/route.ts": [
+      "src/lib/services/construction-billing-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/progress-claims/[id]/submit/route.ts": [
+      "src/lib/services/construction-billing-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/progress-claims/[id]/draft/route.ts": [
+      "src/lib/services/construction-billing-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/progress-claims/route.ts": [
+      "src/lib/services/construction-billing-workflow-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/interim-bills/[id]/route.ts": [
+      "src/lib/services/construction-valuation-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/interim-bills/route.ts": [
+      "src/lib/services/construction-valuation-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/construction/ai/progress-summary/route.ts": [
@@ -3404,6 +3908,11 @@
     ],
     "src/app/api/construction/categories/route.ts": [
       "src/lib/services/construction-progress-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/construction/boq/import/route.ts": [
+      "src/lib/services/construction-boq-import-service.ts",
+      "src/lib/services/construction-boq-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/construction/boq/[id]/revisions/route.ts": [
@@ -3458,6 +3967,10 @@
       "src/lib/services/capability-registry-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/capability-registry/coverage/route.ts": [
+      "src/lib/services/capability-backfill-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/code-change-requests/route.ts": [
       "src/lib/services/code-change-request-service.ts",
       "src/lib/supabase/auth-guard.ts"
@@ -3492,6 +4005,10 @@
     ],
     "src/app/api/email-intelligence/[id]/promote/route.ts": [
       "src/lib/services/email-intelligence-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/email-intelligence/[id]/promote-to-ticket/route.ts": [
+      "src/lib/services/ticket-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/email-intelligence/[id]/route.ts": [
@@ -3543,6 +4060,10 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/app/api/business-hours-schedules/route.ts": [
+      "src/lib/services/ticket-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
     "src/app/api/worker-agents/[id]/publish/route.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
@@ -3569,11 +4090,19 @@
       "src/lib/services/firm-client-portal-service.ts"
     ],
     "src/app/api/help/ask/route.ts": [
-      "src/lib/llm-client.ts",
+      "src/lib/ai-reply-gate.ts",
+      "src/lib/ai-response-locale.ts",
+      "src/lib/orchestra-execution-logger.ts",
       "src/lib/orchestra-model-resolver.ts",
+      "src/lib/pii-redaction.ts",
       "src/lib/policy-enforcement-engine.ts",
+      "src/lib/prompt-cache/compiler.ts",
+      "src/lib/prompt-cache/metrics.ts",
+      "src/lib/prompt-normalizer.ts",
       "src/lib/prompt-os-resolver.ts",
+      "src/lib/prompt-security/index.ts",
       "src/lib/purpose-bound-ai.ts",
+      "src/lib/services/knowledge-base-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/incidents/[id]/route.ts": [
@@ -3615,6 +4144,22 @@
     ],
     "src/app/api/hr/leave-requests/route.ts": [
       "src/lib/services/hr-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/hr/shifts/roster/route.ts": [
+      "src/lib/services/hr-shift-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/hr/shifts/route.ts": [
+      "src/lib/services/hr-shift-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/hr/expenses/[id]/route.ts": [
+      "src/lib/services/hr-expense-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/hr/expenses/route.ts": [
+      "src/lib/services/hr-expense-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/hr/employees/[userId]/route.ts": [
@@ -3665,6 +4210,18 @@
     ],
     "src/app/api/hr/org-chart/route.ts": [
       "src/lib/services/hr-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/hr/loans/[id]/installments/route.ts": [
+      "src/lib/services/hr-loan-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/hr/loans/[id]/route.ts": [
+      "src/lib/services/hr-loan-service.ts",
+      "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/app/api/hr/loans/route.ts": [
+      "src/lib/services/hr-loan-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/api/ingest/[batchId]/items/[itemId]/route.ts": [
@@ -3895,7 +4452,8 @@
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/app/login/page.tsx": [
-      "src/app/login/login-form.tsx"
+      "src/app/login/login-form.tsx",
+      "src/lib/services/org-branding-service.ts"
     ],
     "src/app/login/login-form.tsx": [
       "src/components/LanguageSwitcher.tsx",
@@ -3903,9 +4461,13 @@
       "src/components/ui/card.tsx",
       "src/components/ui/input.tsx",
       "src/components/ui/label.tsx",
+      "src/lib/services/org-branding-service.ts",
       "src/lib/supabase/client.ts"
     ],
     "src/app/manifest.ts": [],
+    "src/app/not-found.tsx": [
+      "src/components/ui/button.tsx"
+    ],
     "src/app/layout.tsx": [
       "src/components/providers/QueryProvider.tsx",
       "src/components/ui/sonner.tsx"
@@ -4031,6 +4593,7 @@
       "src/components/ui/card.tsx"
     ],
     "src/app/(app)/approvals/page.tsx": [
+      "src/components/home/ApprovalMatrixSection.tsx",
       "src/components/home/ApprovalTab.tsx",
       "src/components/home/WorkflowApprovalsSection.tsx"
     ],
@@ -4136,6 +4699,17 @@
       "src/components/ui/input.tsx",
       "src/components/ui/select.tsx"
     ],
+    "src/app/(app)/punch-list/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx"
+    ],
     "src/app/(app)/knowledge-base/page.tsx": [
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx",
@@ -4177,6 +4751,12 @@
       "src/components/ui/label.tsx",
       "src/components/ui/select.tsx"
     ],
+    "src/app/(app)/construction-dashboard/page.tsx": [
+      "src/components/ui/card.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx",
+      "src/lib/currency-format.ts"
+    ],
     "src/app/(app)/fraud-cases/page.tsx": [
       "src/components/ui/badge.tsx",
       "src/components/ui/button.tsx",
@@ -4187,10 +4767,23 @@
       "src/components/ui/select.tsx",
       "src/components/ui/textarea.tsx"
     ],
+    "src/app/(app)/ffe/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx",
+      "src/lib/currency-format.ts"
+    ],
     "src/app/(app)/settings/page.tsx": [
       "src/components/AdoptionMetricsSection.tsx",
       "src/components/AiAssistantsSection.tsx",
       "src/components/AiConfigSection.tsx",
+      "src/components/AiTeamRosterSection.tsx",
       "src/components/ApiKeySection.tsx",
       "src/components/BrandingSection.tsx",
       "src/components/MfaSection.tsx",
@@ -4199,6 +4792,8 @@
       "src/components/PasscodeSection.tsx",
       "src/components/PmsEnablementSection.tsx",
       "src/components/SsoSection.tsx",
+      "src/components/SubscriptionPlanSection.tsx",
+      "src/components/TenantAiConfigSection.tsx",
       "src/components/WebhookSection.tsx",
       "src/components/WorkspaceMemorySection.tsx",
       "src/components/ui/avatar.tsx",
@@ -4225,6 +4820,17 @@
     "src/app/(app)/esg/page.tsx": [
       "src/components/ui/card.tsx"
     ],
+    "src/app/(app)/ai-observability/page.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/sheet.tsx",
+      "src/components/ui/skeleton.tsx",
+      "src/components/ui/table.tsx",
+      "src/lib/utils.ts"
+    ],
     "src/app/(app)/rbi/page.tsx": [
       "src/components/SectorGate.tsx",
       "src/components/SimpleModulePage.tsx"
@@ -4237,6 +4843,18 @@
       "src/components/ui/input.tsx",
       "src/components/ui/label.tsx",
       "src/components/ui/select.tsx"
+    ],
+    "src/app/(app)/labour/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx",
+      "src/components/ui/tabs.tsx"
     ],
     "src/app/(app)/vendor-risk/page.tsx": [
       "src/components/ui/badge.tsx",
@@ -4254,6 +4872,11 @@
       "src/components/ui/input.tsx",
       "src/components/ui/label.tsx",
       "src/components/ui/select.tsx"
+    ],
+    "src/app/(app)/task-duplicates/page.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx"
     ],
     "src/app/(app)/contract-compliance/page.tsx": [
       "src/components/SimpleModulePage.tsx"
@@ -4283,6 +4906,18 @@
     "src/app/(app)/secretarial-audit/page.tsx": [
       "src/components/SimpleModulePage.tsx"
     ],
+    "src/app/(app)/expenses/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx",
+      "src/lib/currency-format.ts"
+    ],
     "src/app/(app)/veri-todo/page.tsx": [
       "src/components/ui/badge.tsx",
       "src/components/ui/card.tsx"
@@ -4305,7 +4940,8 @@
       "src/components/ui/card.tsx",
       "src/components/ui/dialog.tsx",
       "src/components/ui/progress.tsx",
-      "src/components/ui/select.tsx"
+      "src/components/ui/select.tsx",
+      "src/lib/utils.ts"
     ],
     "src/app/(app)/leave-holiday/page.tsx": [
       "src/components/SimpleModulePage.tsx",
@@ -4329,6 +4965,26 @@
       "src/components/ui/card.tsx",
       "src/components/ui/input.tsx"
     ],
+    "src/app/(app)/scope/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/table.tsx"
+    ],
+    "src/app/(app)/scope/[id]/page.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/table.tsx",
+      "src/lib/currency-format.ts"
+    ],
     "src/app/(app)/cap-table/page.tsx": [
       "src/components/SimpleModulePage.tsx",
       "src/components/ui/button.tsx",
@@ -4340,6 +4996,39 @@
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx",
       "src/components/ui/textarea.tsx"
+    ],
+    "src/app/(app)/submittals/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx",
+      "src/components/ui/textarea.tsx"
+    ],
+    "src/app/(app)/change-orders/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/table.tsx",
+      "src/components/ui/textarea.tsx",
+      "src/lib/currency-format.ts"
+    ],
+    "src/app/(app)/change-orders/[id]/page.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/lib/currency-format.ts"
     ],
     "src/app/(app)/committees/page.tsx": [
       "src/components/SimpleModulePage.tsx"
@@ -4406,6 +5095,16 @@
       "src/components/ui/skeleton.tsx",
       "src/lib/utils.ts"
     ],
+    "src/app/(app)/mood-boards/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/textarea.tsx"
+    ],
     "src/app/(app)/whistleblower/page.tsx": [
       "src/components/SimpleModulePage.tsx",
       "src/components/ui/button.tsx",
@@ -4420,6 +5119,23 @@
       "src/lib/queries/use-me.ts",
       "src/lib/use-autogrow-textarea.ts",
       "src/lib/utils.ts"
+    ],
+    "src/app/(app)/floor-plans/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx"
+    ],
+    "src/app/(app)/floor-plans/[id]/page.tsx": [
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx"
     ],
     "src/app/(app)/checklists/page.tsx": [
       "src/components/ui/badge.tsx",
@@ -4458,6 +5174,17 @@
     "src/app/(app)/kpi-hub/page.tsx": [
       "src/components/ui/card.tsx",
       "src/lib/currency-format.ts"
+    ],
+    "src/app/(app)/work-progress/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx"
     ],
     "src/app/(app)/performance-reviews/page.tsx": [
       "src/components/ui/badge.tsx",
@@ -4507,6 +5234,18 @@
       "src/components/ui/input.tsx",
       "src/components/ui/label.tsx",
       "src/components/ui/select.tsx"
+    ],
+    "src/app/(app)/rfis/page.tsx": [
+      "src/components/ProjectPicker.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx",
+      "src/components/ui/textarea.tsx"
     ],
     "src/app/(app)/audit-engagements/page.tsx": [
       "src/components/SimpleModulePage.tsx",
@@ -4564,7 +5303,39 @@
       "src/components/SimpleModulePage.tsx",
       "src/components/ui/card.tsx"
     ],
+    "src/app/(app)/crm/sales-pipeline/page.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/select.tsx",
+      "src/lib/services/sales-pipeline-dashboard-service.ts"
+    ],
+    "src/app/(app)/crm/contacts/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/input.tsx"
+    ],
+    "src/app/(app)/crm/pipeline/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
+      "src/components/crm/PipelineKanbanBoard.tsx"
+    ],
     "src/app/(app)/crm/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
+      "src/components/ui/card.tsx"
+    ],
+    "src/app/(app)/crm/leads/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx"
+    ],
+    "src/app/(app)/crm/leads/[id]/page.tsx": [
+      "src/components/ai/AiDecisionExplanationCard.tsx",
       "src/components/ui/badge.tsx",
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx",
@@ -4572,10 +5343,44 @@
       "src/components/ui/input.tsx",
       "src/components/ui/label.tsx",
       "src/components/ui/select.tsx",
-      "src/components/ui/tabs.tsx",
+      "src/components/ui/textarea.tsx",
+      "src/lib/explainability/ai-decision-explanation.ts"
+    ],
+    "src/app/(app)/crm/opportunities/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
       "src/lib/currency-format.ts"
     ],
+    "src/app/(app)/crm/opportunities/[id]/page.tsx": [
+      "src/components/ai/AiDecisionExplanationCard.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/lib/currency-format.ts",
+      "src/lib/explainability/ai-decision-explanation.ts"
+    ],
+    "src/app/(app)/crm/campaigns/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx"
+    ],
     "src/app/(app)/crm/accounts/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
       "src/components/ui/badge.tsx",
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx",
@@ -4767,6 +5572,7 @@
       "src/components/ui/select.tsx"
     ],
     "src/app/(app)/erp/procurement/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
       "src/components/ui/badge.tsx",
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx",
@@ -4783,7 +5589,8 @@
       "src/components/ui/input.tsx",
       "src/components/ui/label.tsx",
       "src/components/ui/select.tsx",
-      "src/components/ui/tabs.tsx"
+      "src/components/ui/tabs.tsx",
+      "src/lib/erp-reports-guards.ts"
     ],
     "src/app/(app)/erp/inventory/page.tsx": [
       "src/components/ui/badge.tsx",
@@ -4834,6 +5641,7 @@
       "src/components/ui/tabs.tsx"
     ],
     "src/app/(app)/erp/journal-entries/page.tsx": [
+      "src/components/ModuleNotEnabledCard.tsx",
       "src/components/ui/badge.tsx",
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx",
@@ -5009,6 +5817,16 @@
     "src/app/(app)/ip-portfolio/page.tsx": [
       "src/components/SimpleModulePage.tsx"
     ],
+    "src/app/(app)/site-diary/page.tsx": [
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/dialog.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/table.tsx",
+      "src/components/ui/textarea.tsx"
+    ],
     "src/app/(app)/charges/page.tsx": [
       "src/components/SimpleModulePage.tsx"
     ],
@@ -5060,7 +5878,10 @@
     ],
     "src/lib/pdf-generator.ts": [],
     "src/lib/task-execution-engine.ts": [
+      "src/lib/ai-router/mother-router.ts",
       "src/lib/audit.ts",
+      "src/lib/business-rule-validator.ts",
+      "src/lib/calculation-cross-verification.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/dispatch-output-validator.ts",
@@ -5069,11 +5890,13 @@
       "src/lib/engines/analytics-engine.ts",
       "src/lib/engines/audit-engine.ts",
       "src/lib/engines/banking-engine.ts",
+      "src/lib/engines/breakdown.ts",
       "src/lib/engines/compliance-engine.ts",
       "src/lib/engines/costing-engine.ts",
       "src/lib/engines/crm-engine.ts",
       "src/lib/engines/data-quality-engine.ts",
       "src/lib/engines/document-processing-engine.ts",
+      "src/lib/engines/engine-invocation.ts",
       "src/lib/engines/fixed-asset-engine.ts",
       "src/lib/engines/hr-engine.ts",
       "src/lib/engines/in/gst-engine.ts",
@@ -5109,17 +5932,101 @@
       "src/lib/services/construction-ai-service.ts",
       "src/lib/services/construction-dashboard-service.ts",
       "src/lib/services/construction-reports-service.ts",
+      "src/lib/services/crm-activities-service.ts",
+      "src/lib/services/crm-campaigns-service.ts",
+      "src/lib/services/crm-service.ts",
       "src/lib/services/gst-reconciliation-service.ts",
       "src/lib/services/package-variable-resolver.ts",
-      "src/lib/services/software-coverage-service.ts"
+      "src/lib/services/software-coverage-service.ts",
+      "src/lib/structured-message.ts"
     ],
     "src/lib/purpose-bound-ai.ts": [],
     "src/lib/forge-captcha.ts": [],
+    "src/lib/prompt-compiler/prompt-hash.ts": [
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/prompt-compiler/prompt-portability.ts": [
+      "src/lib/llm-client.ts"
+    ],
+    "src/lib/prompt-compiler/prompt-testing-benchmark.ts": [
+      "src/lib/prompt-compiler/prompt-ranking-recommendation.ts",
+      "src/lib/services/prompt-eval-service.ts"
+    ],
+    "src/lib/prompt-compiler/intent-classifier.ts": [
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/prompt-compiler/verification-pipeline.ts": [
+      "src/lib/llm-client.ts",
+      "src/lib/prompt-compiler/confidence-engine.ts",
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/prompt-compiler/prompt-ranking-recommendation.ts": [],
+    "src/lib/prompt-compiler/context-assembly.ts": [
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/prompt-compiler/types.ts": [],
+    "src/lib/prompt-compiler/prompt-optimizer-expansion.ts": [
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/prompt-compiler/prompt-ab-testing.ts": [],
+    "src/lib/prompt-compiler/index.ts": [
+      "src/lib/prompt-compiler/confidence-engine.ts",
+      "src/lib/prompt-compiler/context-assembly.ts",
+      "src/lib/prompt-compiler/entity-variable-extraction.ts",
+      "src/lib/prompt-compiler/intent-classifier.ts",
+      "src/lib/prompt-compiler/persist-compiled-prompt.ts",
+      "src/lib/prompt-compiler/pipeline.ts",
+      "src/lib/prompt-compiler/prompt-ab-testing.ts",
+      "src/lib/prompt-compiler/prompt-construction.ts",
+      "src/lib/prompt-compiler/prompt-optimizer-expansion.ts",
+      "src/lib/prompt-compiler/prompt-portability.ts",
+      "src/lib/prompt-compiler/prompt-ranking-recommendation.ts",
+      "src/lib/prompt-compiler/prompt-similarity.ts",
+      "src/lib/prompt-compiler/prompt-testing-benchmark.ts",
+      "src/lib/prompt-compiler/types.ts",
+      "src/lib/prompt-compiler/verification-pipeline.ts"
+    ],
+    "src/lib/prompt-compiler/persist-compiled-prompt.ts": [
+      "src/lib/prompt-compiler/prompt-similarity.ts",
+      "src/lib/prompt-compiler/types.ts",
+      "src/lib/services/prompt-os-service.ts"
+    ],
+    "src/lib/prompt-compiler/pipeline.ts": [
+      "src/lib/prompt-compiler/context-assembly.ts",
+      "src/lib/prompt-compiler/prompt-construction.ts",
+      "src/lib/prompt-compiler/types.ts",
+      "src/lib/prompt-compiler/verification-pipeline.ts"
+    ],
+    "src/lib/prompt-compiler/entity-variable-extraction.ts": [
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/prompt-compiler/confidence-engine.ts": [
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/prompt-compiler/prompt-construction.ts": [
+      "src/lib/prompt-compiler/entity-variable-extraction.ts",
+      "src/lib/prompt-compiler/intent-classifier.ts",
+      "src/lib/prompt-compiler/prompt-hash.ts",
+      "src/lib/prompt-compiler/types.ts",
+      "src/lib/prompt-normalizer.ts"
+    ],
+    "src/lib/prompt-compiler/prompt-similarity.ts": [
+      "src/lib/services/capability-registry-service.ts"
+    ],
+    "src/lib/task-dependency-graph.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/loop-prevention.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
     "src/lib/passcode-login-service.ts": [
-      "src/lib/db.ts"
+      "src/lib/db.ts",
+      "src/lib/services/auth-failure-service.ts"
     ],
     "src/lib/webhook-deliver.ts": [
-      "src/lib/db.ts"
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/monitors/webhook-delivery-outcome-monitor.ts"
     ],
     "src/lib/services/asset-vector-search-service.ts": [
       "src/lib/db.ts",
@@ -5128,11 +6035,18 @@
       "src/lib/services/asset-search-content.ts",
       "src/lib/services/compliance-service.ts"
     ],
+    "src/lib/services/sales-pipeline-dashboard-service.ts": [],
     "src/lib/services/tds-return-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/tds/tds-return-generator.ts"
+    ],
+    "src/lib/services/auth-failure-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/risk-anomaly-detection.ts",
+      "src/lib/services/risk-escalation-service.ts"
     ],
     "src/lib/services/construction-enablement-service.ts": [
       "src/lib/services/product-branch-service.ts"
@@ -5239,6 +6153,10 @@
       "src/lib/services/compliance-service.ts"
     ],
     "src/lib/services/package-variable-resolver.ts": [],
+    "src/lib/services/confidence-correlation-service.ts": [
+      "src/lib/confidence-banding.ts",
+      "src/lib/db.ts"
+    ],
     "src/lib/services/pms-meeting-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
@@ -5252,14 +6170,19 @@
     ],
     "src/lib/services/prompt-eval-service.ts": [
       "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
       "src/lib/llm-client.ts",
       "src/lib/orchestra-model-resolver.ts",
       "src/lib/services/compliance-service.ts",
-      "src/lib/supabase/auth-guard.ts"
+      "src/lib/services/permission-service.ts",
+      "src/lib/services/prompt-governance-service.ts"
     ],
     "src/lib/services/pms-sprint-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
+    "src/lib/services/exception-taxonomy.ts": [
       "src/lib/services/compliance-service.ts"
     ],
     "src/lib/services/report-item-action-service.ts": [
@@ -5323,6 +6246,8 @@
       "src/lib/services/capability-learning-service.ts",
       "src/lib/services/capability-registry-service.ts",
       "src/lib/services/compliance-service.ts",
+      "src/lib/services/dynamic-chain-directory-service.ts",
+      "src/lib/services/instruction-execution-cache-service.ts",
       "src/lib/services/worker-agent-service.ts",
       "src/lib/supabase/auth-guard.ts",
       "src/lib/task-execution-engine.ts"
@@ -5351,8 +6276,19 @@
     "src/lib/services/asset-registry-cache.ts": [
       "src/lib/db.ts"
     ],
+    "src/lib/services/maintainability-dashboard-service.ts": [
+      "src/lib/activity-log-service.ts",
+      "src/lib/db.ts",
+      "src/lib/monitoring-engine.ts"
+    ],
     "src/lib/services/org-branding-service.ts": [
       "src/lib/db.ts"
+    ],
+    "src/lib/services/construction-valuation-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/erp-invoicing-service.ts"
     ],
     "src/lib/services/firm-enablement-service.ts": [
       "src/lib/db.ts",
@@ -5367,6 +6303,7 @@
     "src/lib/services/crm-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/explainability/ai-decision-explanation.ts",
       "src/lib/llm-client.ts",
       "src/lib/orchestra-execution-logger.ts",
       "src/lib/orchestra-model-resolver.ts",
@@ -5374,6 +6311,9 @@
       "src/lib/prompt-os-resolver.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/crm-enablement-service.ts",
+      "src/lib/services/sales-pipeline-dashboard-service.ts",
+      "src/lib/supabase/auth-guard.ts",
+      "src/lib/task-dependency-graph.ts",
       "src/lib/task-execution-engine.ts"
     ],
     "src/lib/services/custom-chart-service.ts": [
@@ -5431,7 +6371,8 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
-      "src/lib/services/compliance-service.ts"
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/risk-escalation-service.ts"
     ],
     "src/lib/services/entity-graph-service.ts": [
       "src/lib/db.ts",
@@ -5448,7 +6389,8 @@
     ],
     "src/lib/services/token-usage-service.ts": [
       "src/lib/db.ts",
-      "src/lib/llm-client.ts"
+      "src/lib/llm-client.ts",
+      "src/lib/spend-forecast.ts"
     ],
     "src/lib/services/interior-floorplan-service.ts": [
       "src/lib/db.ts",
@@ -5458,7 +6400,8 @@
     "src/lib/services/stage0-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
-      "src/lib/services/compliance-service.ts"
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/subscription-plan-service.ts"
     ],
     "src/lib/services/connector-data-store.ts": [
       "src/lib/business-object-classifier.ts",
@@ -5535,20 +6478,29 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/llm-client.ts",
+      "src/lib/monitors/meeting-intelligence-generation-monitor.ts",
       "src/lib/orchestra-execution-logger.ts",
       "src/lib/orchestra-model-resolver.ts",
       "src/lib/policy-enforcement-engine.ts",
       "src/lib/prompt-os-resolver.ts",
       "src/lib/purpose-bound-ai.ts",
       "src/lib/services/compliance-service.ts",
+      "src/lib/services/context.ts",
       "src/lib/task-execution-engine.ts"
     ],
     "src/lib/services/approval-workflow-service.ts": [
+      "src/lib/abac.ts",
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/high-impact-action-detector.ts",
+      "src/lib/monitors/workflow-completion-monitor.ts",
+      "src/lib/services/abac-policy-service.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/lib/services/subscription-plan-service.ts": [
+      "src/lib/db.ts"
     ],
     "src/lib/services/agent-review-service.ts": [
       "src/lib/ai-team/roster.ts",
@@ -5560,6 +6512,7 @@
     ],
     "src/lib/services/report-domain-enablement-service.ts": [
       "src/lib/services/construction-enablement-service.ts",
+      "src/lib/services/crm-enablement-service.ts",
       "src/lib/services/erp-enablement-service.ts",
       "src/lib/services/report-catalog-service.ts"
     ],
@@ -5567,7 +6520,16 @@
       "src/lib/db.ts",
       "src/lib/services/task-service.ts"
     ],
+    "src/lib/services/public-portal-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
     "src/lib/services/code-change-request-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
+    "src/lib/services/hr-loan-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts"
@@ -5600,6 +6562,11 @@
       "src/lib/services/asset-query-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/lib/services/task-dedup-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/embeddings.ts"
+    ],
     "src/lib/services/erp-company-service.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
@@ -5611,14 +6578,21 @@
       "src/lib/audit-event-triggers.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/embeddings.ts",
       "src/lib/services/compliance-service.ts"
     ],
     "src/lib/services/erp-contract-service.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/compliance-service.ts",
-      "src/lib/services/erp-enablement-service.ts"
+      "src/lib/services/erp-enablement-service.ts",
+      "src/lib/services/erp-invoicing-service.ts"
+    ],
+    "src/lib/services/routing-accuracy-report-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/loops/byo-model-audit.ts"
     ],
     "src/lib/services/forge-intake-service.ts": [
       "src/lib/db.ts",
@@ -5628,12 +6602,19 @@
     "src/lib/services/hr-attendance-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
-      "src/lib/services/compliance-service.ts"
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/hr-shift-service.ts"
     ],
     "src/lib/services/document-classification-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts"
+    ],
+    "src/lib/services/crm-activities-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/crm-enablement-service.ts"
     ],
     "src/lib/services/task-nudge-digest-service.ts": [
       "src/lib/db.ts",
@@ -5660,12 +6641,18 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/risk-anomaly-detection.ts",
       "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/erp-enablement-service.ts",
       "src/lib/services/erp-financial-report-service.ts",
       "src/lib/services/erp-invoicing-service.ts",
+      "src/lib/services/fraud-case-service.ts",
+      "src/lib/services/risk-escalation-service.ts",
       "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/lib/services/idle-ai-capacity-service.ts": [
+      "src/lib/db.ts"
     ],
     "src/lib/services/erp-vendor-master-service.ts": [
       "src/lib/ai-config-crypto.ts",
@@ -5677,6 +6664,7 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/engines/einvoice-format.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/erp-enablement-service.ts"
     ],
@@ -5691,6 +6679,8 @@
       "src/lib/officecli-client.ts",
       "src/lib/orchestra-execution-logger.ts",
       "src/lib/orchestra-model-resolver.ts",
+      "src/lib/policy-enforcement-engine.ts",
+      "src/lib/purpose-bound-ai.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/document-extraction-service.ts"
     ],
@@ -5731,6 +6721,7 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/crm-service.ts",
       "src/lib/services/erp-enablement-service.ts"
@@ -5741,6 +6732,14 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/veri-chat-service.ts"
+    ],
+    "src/lib/services/pms-invoice-service.ts": [
+      "src/lib/audit.ts",
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/erp-enablement-service.ts",
+      "src/lib/services/pms-time-service.ts"
     ],
     "src/lib/services/automation-rule-service.ts": [
       "src/lib/db.ts",
@@ -5784,23 +6783,36 @@
       "src/lib/services/crm-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
+    "src/lib/services/prompt-governance-service.ts": [
+      "src/lib/audit.ts",
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/abac-policy-service.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
     "src/lib/services/prompt-os-service.ts": [
       "src/lib/audit-event-triggers.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts",
-      "src/lib/supabase/auth-guard.ts"
+      "src/lib/services/permission-service.ts",
+      "src/lib/services/prompt-governance-service.ts"
     ],
     "src/lib/services/dynamic-chain-directory-service.ts": [
       "src/lib/db.ts",
-      "src/lib/db/tenant-scoped.ts"
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/capability-registry-service.ts"
+    ],
+    "src/lib/services/pipeline-stuck-deal-digest-service.ts": [
+      "src/lib/db.ts"
     ],
     "src/lib/services/risk-register-service.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/module-rules-resolver.ts",
-      "src/lib/services/compliance-service.ts"
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/risk-escalation-service.ts"
     ],
     "src/lib/services/software-coverage-service.ts": [
       "src/lib/services/capability-learning-service.ts"
@@ -5820,6 +6832,7 @@
     "src/lib/services/construction-boq-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/automation-rule-service.ts",
       "src/lib/services/compliance-service.ts"
     ],
@@ -5832,11 +6845,20 @@
     "src/lib/services/report-catalog-service.ts": [
       "src/lib/services/report-taxonomy.ts"
     ],
+    "src/lib/services/construction-billing-workflow-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/construction-valuation-service.ts"
+    ],
     "src/lib/services/fm-asset-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/fm-enablement-service.ts"
+    ],
+    "src/lib/services/cost-anomaly-service.ts": [
+      "src/lib/db.ts"
     ],
     "src/lib/services/product-branch-service.ts": [
       "src/lib/db.ts",
@@ -5867,6 +6889,11 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts"
     ],
+    "src/lib/services/glossary-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
     "src/lib/services/pms-issue-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
@@ -5877,6 +6904,7 @@
     "src/lib/services/construction-field-workflow-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/compliance-service.ts"
     ],
     "src/lib/services/capability-tree-service.ts": [
@@ -5906,6 +6934,10 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/capability-tree-service.ts"
     ],
+    "src/lib/services/orchestra-trace-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts"
+    ],
     "src/lib/services/pms-wiki-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
@@ -5915,6 +6947,7 @@
       "src/lib/audit.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/compliance-service.ts"
     ],
     "src/lib/services/firm-time-tracking-service.ts": [
@@ -5953,6 +6986,11 @@
       "src/lib/services/report-cadence-service.ts",
       "src/lib/services/report-taxonomy.ts"
     ],
+    "src/lib/services/hr-expense-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
     "src/lib/services/erp-bank-reconciliation-service.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
@@ -5967,6 +7005,7 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/email.ts",
+      "src/lib/errors/error-catalog.ts",
       "src/lib/services/context.ts",
       "src/lib/services/veri-reward-service.ts"
     ],
@@ -5975,6 +7014,13 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/firm-enablement-service.ts"
+    ],
+    "src/lib/services/abac-policy-service.ts": [
+      "src/lib/abac.ts",
+      "src/lib/audit.ts",
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
     ],
     "src/lib/services/esignature-service.ts": [
       "src/lib/db.ts",
@@ -6001,6 +7047,12 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts"
+    ],
+    "src/lib/services/crm-campaigns-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/crm-enablement-service.ts"
     ],
     "src/lib/services/capability-bridge-service.ts": [
       "src/lib/db.ts",
@@ -6036,6 +7088,7 @@
     ],
     "src/lib/services/chat-service.ts": [
       "src/lib/ai-reply-gate.ts",
+      "src/lib/ai-response-locale.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/floor-tier-escalation.ts",
@@ -6054,6 +7107,7 @@
       "src/lib/services/compliance-service.ts",
       "src/lib/services/dialogue-script-executor.ts",
       "src/lib/services/fde-service.ts",
+      "src/lib/services/glossary-service.ts",
       "src/lib/services/task-service.ts",
       "src/lib/services/worker-agent-service.ts"
     ],
@@ -6065,6 +7119,9 @@
       "src/lib/services/compliance-service.ts",
       "src/lib/services/connector-data-store.ts",
       "src/lib/services/workspace-memory-service.ts"
+    ],
+    "src/lib/services/ai-reduction-service.ts": [
+      "src/lib/db.ts"
     ],
     "src/lib/services/visitor-intelligence-service.ts": [
       "src/lib/db.ts",
@@ -6079,8 +7136,11 @@
       "src/lib/llm-client.ts",
       "src/lib/orchestra-execution-logger.ts",
       "src/lib/orchestra-model-resolver.ts",
+      "src/lib/policy-enforcement-engine.ts",
+      "src/lib/purpose-bound-ai.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/construction-reports-service.ts",
+      "src/lib/services/erp-invoicing-service.ts",
       "src/lib/services/report-catalog-service.ts",
       "src/lib/services/report-domain-enablement-service.ts",
       "src/lib/services/report-taxonomy.ts"
@@ -6097,6 +7157,11 @@
       "src/lib/services/compliance-service.ts",
       "src/lib/services/erp-enablement-service.ts"
     ],
+    "src/lib/services/hr-shift-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
     "src/lib/services/erp-buying-service.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
@@ -6108,6 +7173,9 @@
       "src/lib/composio-connectors.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/connector-data-store.ts"
+    ],
+    "src/lib/services/audit-search-service.ts": [
+      "src/lib/db/tenant-scoped.ts"
     ],
     "src/lib/services/construction-dashboard-service.ts": [
       "src/lib/db.ts",
@@ -6123,11 +7191,19 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/high-impact-action-detector.ts",
+      "src/lib/high-impact-classification-logger.ts",
+      "src/lib/monitors/task-completion-monitor.ts",
       "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/capability-registry-service.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/context.ts",
+      "src/lib/services/task-dedup-service.ts",
       "src/lib/task-execution-engine.ts"
+    ],
+    "src/lib/services/risk-escalation-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/risk-anomaly-detection.ts"
     ],
     "src/lib/services/legal-opinion-service.ts": [
       "src/lib/audit.ts",
@@ -6142,7 +7218,8 @@
       "src/lib/db/tenant-scoped.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/erp-enablement-service.ts",
-      "src/lib/services/erp-financial-report-service.ts"
+      "src/lib/services/erp-financial-report-service.ts",
+      "src/lib/services/erp-vendor-master-service.ts"
     ],
     "src/lib/services/worker-agent-service.ts": [
       "src/lib/db.ts",
@@ -6160,11 +7237,20 @@
       "src/lib/services/product-branch-service.ts"
     ],
     "src/lib/services/permission-service.ts": [
+      "src/lib/services/compliance-service.ts",
       "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/lib/services/support-session-service.ts": [
+      "src/lib/api-keys.ts",
+      "src/lib/audit.ts",
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
     ],
     "src/lib/services/hr-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/hr-attendance-service.ts"
     ],
@@ -6196,7 +7282,13 @@
     "src/lib/services/workspace-memory-service.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
-      "src/lib/db/tenant-scoped.ts"
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/compliance-service.ts"
+    ],
+    "src/lib/services/instruction-execution-cache-service.ts": [
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/embeddings.ts",
+      "src/lib/services/capability-registry-service.ts"
     ],
     "src/lib/services/construction-site-diary-service.ts": [
       "src/lib/db.ts",
@@ -6221,6 +7313,12 @@
       "src/lib/services/construction-dashboard-service.ts",
       "src/lib/services/construction-reports-service.ts"
     ],
+    "src/lib/services/construction-boq-import-service.ts": [
+      "src/lib/gst/column-mapper.ts",
+      "src/lib/ingest/parser.ts",
+      "src/lib/services/compliance-service.ts",
+      "src/lib/services/construction-boq-service.ts"
+    ],
     "src/lib/services/task-prediction-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
@@ -6230,6 +7328,7 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/llm-client.ts",
+      "src/lib/officecli-client.ts",
       "src/lib/orchestra-execution-logger.ts",
       "src/lib/orchestra-model-resolver.ts",
       "src/lib/prompt-os-resolver.ts",
@@ -6254,7 +7353,8 @@
       "src/lib/services/compliance-service.ts",
       "src/lib/services/construction-dashboard-service.ts",
       "src/lib/services/construction-enablement-service.ts",
-      "src/lib/services/construction-expense-service.ts"
+      "src/lib/services/construction-expense-service.ts",
+      "src/lib/services/pms-time-service.ts"
     ],
     "src/lib/services/firm-client-service-line-service.ts": [
       "src/lib/db.ts",
@@ -6270,9 +7370,25 @@
     "src/lib/services/erp-returns-service.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
+      "src/lib/services/approval-workflow-service.ts",
       "src/lib/services/compliance-service.ts",
       "src/lib/services/erp-enablement-service.ts",
       "src/lib/services/erp-inventory-service.ts"
+    ],
+    "src/lib/monitors/board-meeting-hold-monitor.ts": [
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/monitors/rule-engine-monitor.ts",
+      "src/lib/services/context.ts"
+    ],
+    "src/lib/monitors/task-completion-monitor.ts": [
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/monitors/rule-engine-monitor.ts",
+      "src/lib/services/context.ts"
+    ],
+    "src/lib/monitors/workflow-completion-monitor.ts": [
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/monitors/rule-engine-monitor.ts",
+      "src/lib/services/context.ts"
     ],
     "src/lib/monitors/dispatch-completion-monitor.ts": [
       "src/lib/activity-log-service.ts",
@@ -6285,6 +7401,11 @@
       "src/lib/orchestra-model-resolver.ts",
       "src/lib/prompt-os-resolver.ts"
     ],
+    "src/lib/monitors/meeting-intelligence-generation-monitor.ts": [
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/monitors/rule-engine-monitor.ts",
+      "src/lib/services/context.ts"
+    ],
     "src/lib/monitors/approval-decision-monitor.ts": [
       "src/lib/audit.ts",
       "src/lib/db.ts",
@@ -6292,13 +7413,35 @@
       "src/lib/escalation-ladder.ts",
       "src/lib/monitor-protocol.ts"
     ],
+    "src/lib/monitors/webhook-delivery-outcome-monitor.ts": [
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/monitors/rule-engine-monitor.ts"
+    ],
+    "src/lib/monitors/rule-engine-monitor.ts": [
+      "src/lib/audit.ts",
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts",
+      "src/lib/escalation-ladder.ts",
+      "src/lib/monitor-protocol.ts",
+      "src/lib/services/context.ts"
+    ],
     "src/lib/protected-routes.generated.ts": [],
+    "src/lib/sentry-dsn-check.ts": [],
     "src/lib/currency-format.ts": [],
+    "src/lib/calculation-cross-verification.ts": [
+      "src/lib/engines/banking-engine.ts",
+      "src/lib/engines/payroll-engine.ts"
+    ],
     "src/lib/browser-intent-cache.ts": [
       "src/components/veri-chat/veri-chat-context.tsx"
     ],
+    "src/lib/claim-verification.ts": [],
     "src/lib/use-resilient-poll.ts": [],
     "src/lib/approval-preference-service.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts"
+    ],
+    "src/lib/controls-health-audit.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts"
     ],
@@ -6316,19 +7459,33 @@
       "src/lib/model-tier-eligibility.ts",
       "src/lib/task-tightening.ts"
     ],
+    "src/lib/ai-team/dispatch-outcomes.ts": [
+      "src/lib/db.ts"
+    ],
     "src/lib/ai-team/dispatch-repo.ts": [
+      "src/lib/ai-team/dispatch-outcomes.ts",
+      "src/lib/ai-team/roster-overrides.ts",
       "src/lib/ai-team/roster.ts",
       "src/lib/model-tier-eligibility.ts",
       "src/lib/task-tightening.ts"
     ],
     "src/lib/ai-team/team-service.ts": [
       "src/lib/ai-team/cost-policy.ts",
+      "src/lib/ai-team/dispatch-outcomes.ts",
+      "src/lib/ai-team/roster-overrides.ts",
       "src/lib/ai-team/roster.ts",
       "src/lib/llm-client.ts",
       "src/lib/prompt-os-resolver.ts",
-      "src/lib/services/token-usage-service.ts"
+      "src/lib/services/token-usage-service.ts",
+      "src/lib/task-tightening.ts"
     ],
     "src/lib/ai-team/roster.ts": [],
+    "src/lib/ai-team/roster-overrides.ts": [
+      "src/lib/ai-team/roster.ts",
+      "src/lib/db.ts",
+      "src/lib/model-tier-eligibility.ts",
+      "src/lib/task-tightening.ts"
+    ],
     "src/lib/ai-team/cost-policy.ts": [
       "src/lib/llm-client.ts"
     ],
@@ -6342,7 +7499,12 @@
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/org-license-service.ts",
-      "src/lib/services/stage0-service.ts"
+      "src/lib/services/stage0-service.ts",
+      "src/lib/services/subscription-plan-service.ts"
+    ],
+    "src/lib/high-impact-classification-logger.ts": [
+      "src/lib/high-impact-action-detector.ts",
+      "src/lib/orchestra-execution-logger.ts"
     ],
     "src/lib/high-impact-action-detector.ts": [],
     "src/lib/qa-precompletion-gate.ts": [
@@ -6355,6 +7517,13 @@
       "src/lib/schemas/notices.ts",
       "src/lib/schemas/projexa-aliases.ts",
       "src/lib/schemas/tasks.ts"
+    ],
+    "src/lib/business-rule-validator.ts": [
+      "src/lib/guardrail-engine.ts"
+    ],
+    "src/lib/loop-insight-notifier.ts": [
+      "src/lib/db.ts",
+      "src/lib/loop-improvement-proposer.ts"
     ],
     "src/lib/prompt-normalizer.ts": [],
     "src/lib/officecli-client.ts": [],
@@ -6421,6 +7590,9 @@
     "src/lib/loops/knowledge-flow-audit.ts": [
       "src/lib/db.ts"
     ],
+    "src/lib/loops/model-pricing-audit.ts": [
+      "src/lib/db.ts"
+    ],
     "src/lib/loops/user-behaviour-audit.ts": [
       "src/lib/db.ts"
     ],
@@ -6454,19 +7626,61 @@
     ],
     "src/lib/event-bus.ts": [],
     "src/lib/loop-improvement-proposer.ts": [
-      "src/lib/db.ts"
+      "src/lib/db.ts",
+      "src/lib/loop-insight-notifier.ts"
     ],
+    "src/lib/report-export-shared.ts": [],
     "src/lib/communication-guardrails.ts": [],
+    "src/lib/browser-execution/npu-engine.ts": [
+      "src/lib/browser-execution/model-cache.ts",
+      "src/lib/browser-execution/tier-orchestrator.ts",
+      "src/lib/browser-execution/transformers-engine.ts"
+    ],
+    "src/lib/browser-execution/worker-pool-test-worker.ts": [],
+    "src/lib/browser-execution/client-compile.ts": [
+      "src/lib/browser-execution/tier-detection.ts",
+      "src/lib/browser-execution/tier-orchestrator.ts",
+      "src/lib/prompt-compiler/prompt-construction.ts",
+      "src/lib/prompt-compiler/types.ts"
+    ],
+    "src/lib/browser-execution/tier-detection.ts": [],
+    "src/lib/browser-execution/model-cache.ts": [],
+    "src/lib/browser-execution/transformers-engine.ts": [
+      "src/lib/browser-execution/model-cache.ts",
+      "src/lib/browser-execution/tier-detection.ts"
+    ],
+    "src/lib/browser-execution/tool-calling.ts": [],
+    "src/lib/browser-execution/worker-pool.ts": [],
+    "src/lib/browser-execution/tier-orchestrator.ts": [
+      "src/lib/browser-execution/tier-detection.ts",
+      "src/lib/browser-execution/worker-pool.ts"
+    ],
+    "src/lib/browser-execution/webllm-engine.ts": [
+      "src/lib/browser-execution/tier-orchestrator.ts",
+      "src/lib/browser-execution/tool-calling.ts"
+    ],
+    "src/lib/browser-execution/cross-tier-storage.ts": [
+      "src/lib/browser-execution/model-cache.ts"
+    ],
+    "src/lib/browser-execution/sync-engine.ts": [],
+    "src/lib/browser-execution/builtin-ai-engine.ts": [
+      "src/lib/browser-execution/tier-orchestrator.ts"
+    ],
     "src/lib/composio-connectors.ts": [],
     "src/lib/confidence-banding.ts": [],
     "src/lib/pdf/quotation-pdf.ts": [
       "src/lib/services/erp-selling-service.ts"
     ],
+    "src/lib/pdf/meeting-minutes-pdf.ts": [],
     "src/lib/queries/use-me.ts": [],
     "src/lib/queries/use-compliance-stats.ts": [],
     "src/lib/webhooks/vercel-signature.ts": [],
     "src/lib/status-source-of-truth.ts": [
       "src/lib/db.ts"
+    ],
+    "src/lib/prompt-cache/utilization.ts": [
+      "src/lib/db.ts",
+      "src/lib/llm-client.ts"
     ],
     "src/lib/prompt-cache/fingerprint.ts": [],
     "src/lib/prompt-cache/compiler.ts": [
@@ -6475,12 +7689,14 @@
     "src/lib/prompt-cache/metrics.ts": [
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
-      "src/lib/llm-client.ts"
+      "src/lib/llm-client.ts",
+      "src/lib/services/token-usage-service.ts"
     ],
     "src/lib/visitor-id.ts": [],
     "src/lib/adoption-metrics-service.ts": [
       "src/lib/db.ts"
     ],
+    "src/lib/abac.ts": [],
     "src/lib/exchange-rate-feed-client.ts": [],
     "src/lib/orchestra-model-resolver.ts": [
       "src/lib/ai-config-crypto.ts",
@@ -6520,6 +7736,7 @@
       "src/lib/prompt-os-resolver.ts"
     ],
     "src/lib/gst/column-mapper.ts": [],
+    "src/lib/dispatch-confidence-scoring.ts": [],
     "src/lib/llm-client.ts": [],
     "src/lib/embeddings.ts": [
       "src/lib/db.ts",
@@ -6527,6 +7744,28 @@
     ],
     "src/lib/classification.ts": [
       "src/lib/supabase/auth-guard.ts"
+    ],
+    "src/lib/ai-router/mother-router.ts": [
+      "src/lib/ai-config-crypto.ts",
+      "src/lib/ai-router/software-team-ladder.ts",
+      "src/lib/ai-team/roster.ts",
+      "src/lib/db.ts",
+      "src/lib/llm-client.ts",
+      "src/lib/model-tier-eligibility.ts",
+      "src/lib/orchestra-model-resolver.ts",
+      "src/lib/task-tightening.ts"
+    ],
+    "src/lib/ai-router/task-register-service.ts": [
+      "src/lib/ai-router/instruction-contract.ts",
+      "src/lib/ai-router/software-team-ladder.ts",
+      "src/lib/db.ts"
+    ],
+    "src/lib/ai-router/software-team-ladder.ts": [
+      "src/lib/task-tightening.ts"
+    ],
+    "src/lib/ai-router/instruction-contract.ts": [
+      "src/lib/ai-router/software-team-ladder.ts",
+      "src/lib/task-tightening.ts"
     ],
     "src/lib/db.ts": [
       "src/lib/db/index.ts",
@@ -6547,6 +7786,7 @@
       "src/lib/services/sales-engine-service.ts",
       "src/lib/services/session-limit-service.ts",
       "src/lib/services/stage0-service.ts",
+      "src/lib/services/subscription-plan-service.ts",
       "src/lib/services/veri-reward-service.ts",
       "src/lib/services/visitor-intelligence-service.ts",
       "src/lib/supabase/api-key-auth.ts",
@@ -6564,19 +7804,68 @@
       "src/lib/db/tenant-scoped.ts"
     ],
     "src/lib/email.ts": [],
+    "src/lib/explainability/ai-decision-explanation.ts": [],
+    "src/lib/errors/error-catalog.ts": [],
     "src/lib/floor-tier-escalation.ts": [],
+    "src/lib/prompt-security/red-team-battery.ts": [
+      "src/lib/prompt-security/layer1-input-sanitization.ts",
+      "src/lib/prompt-security/types.ts"
+    ],
+    "src/lib/prompt-security/defense-in-depth.ts": [
+      "src/lib/llm-client.ts",
+      "src/lib/prompt-security/layer1-input-sanitization.ts",
+      "src/lib/prompt-security/layer2-system-prompt-hardening.ts",
+      "src/lib/prompt-security/layer3-runtime-guardrails.ts",
+      "src/lib/prompt-security/layer4-output-filtering.ts",
+      "src/lib/prompt-security/quality-engine.ts",
+      "src/lib/prompt-security/types.ts"
+    ],
+    "src/lib/prompt-security/layer2-system-prompt-hardening.ts": [
+      "src/lib/prompt-security/types.ts"
+    ],
+    "src/lib/prompt-security/layer3-runtime-guardrails.ts": [
+      "src/lib/llm-client.ts",
+      "src/lib/prompt-security/types.ts"
+    ],
+    "src/lib/prompt-security/layer1-input-sanitization.ts": [
+      "src/lib/llm-client.ts",
+      "src/lib/policy-enforcement-engine.ts",
+      "src/lib/prompt-security/types.ts"
+    ],
+    "src/lib/prompt-security/layer4-output-filtering.ts": [
+      "src/lib/pii-redaction.ts",
+      "src/lib/prompt-security/types.ts"
+    ],
+    "src/lib/prompt-security/types.ts": [
+      "src/lib/llm-client.ts"
+    ],
+    "src/lib/prompt-security/index.ts": [
+      "src/lib/prompt-security/defense-in-depth.ts",
+      "src/lib/prompt-security/layer1-input-sanitization.ts",
+      "src/lib/prompt-security/layer2-system-prompt-hardening.ts",
+      "src/lib/prompt-security/layer3-runtime-guardrails.ts",
+      "src/lib/prompt-security/layer4-output-filtering.ts",
+      "src/lib/prompt-security/quality-engine.ts",
+      "src/lib/prompt-security/red-team-battery.ts",
+      "src/lib/prompt-security/types.ts"
+    ],
+    "src/lib/prompt-security/quality-engine.ts": [
+      "src/lib/prompt-security/types.ts"
+    ],
     "src/lib/report-export.ts": [],
     "src/lib/guardrail-registrations.ts": [
       "src/lib/audit-cadence.ts",
       "src/lib/audit-protocol.ts",
       "src/lib/communication-guardrails.ts",
       "src/lib/confidence-banding.ts",
+      "src/lib/engines/data-quality-engine.ts",
       "src/lib/escalation-ladder.ts",
       "src/lib/guardrail-engine.ts",
       "src/lib/handover-protocol.ts",
       "src/lib/loop-prevention.ts",
       "src/lib/qa-precompletion-gate.ts",
       "src/lib/risk-classification.ts",
+      "src/lib/services/compliance-service.ts",
       "src/lib/task-tightening.ts"
     ],
     "src/lib/db/tenant-scoped.ts": [
@@ -6596,6 +7885,7 @@
     "src/lib/business-object-classifier.ts": [
       "src/lib/composio-connectors.ts"
     ],
+    "src/lib/spend-forecast.ts": [],
     "src/lib/use-autogrow-textarea.ts": [],
     "src/lib/task-tightening.ts": [],
     "src/lib/audit-protocol.ts": [
@@ -6604,10 +7894,14 @@
     "src/lib/cs/mca-form-generator.ts": [],
     "src/lib/compliance-templates.ts": [],
     "src/lib/cost-guard.ts": [
-      "src/lib/db.ts"
+      "src/lib/db.ts",
+      "src/lib/spend-forecast.ts"
     ],
     "src/lib/ai-config-crypto.ts": [
       "src/lib/db/connection-string.ts"
+    ],
+    "src/lib/ai-response-locale.ts": [
+      "src/i18n/request.ts"
     ],
     "src/lib/schemas/tasks.ts": [],
     "src/lib/schemas/notices.ts": [],
@@ -6631,29 +7925,57 @@
     "src/lib/engines/fixed-asset-engine.ts": [],
     "src/lib/engines/audit-engine.ts": [],
     "src/lib/engines/sales-engine.ts": [],
-    "src/lib/engines/payroll-engine.ts": [],
+    "src/lib/engines/payroll-engine.ts": [
+      "src/lib/engines/breakdown.ts"
+    ],
+    "src/lib/engines/breakdown.ts": [],
     "src/lib/engines/data-quality-engine.ts": [],
     "src/lib/engines/inventory-engine.ts": [],
     "src/lib/engines/banking-engine.ts": [],
     "src/lib/engines/marketing-engine.ts": [],
     "src/lib/engines/crm-engine.ts": [],
     "src/lib/engines/compliance-engine-registry.ts": [
+      "src/lib/engines/ae/corporate-tax-engine.ts",
+      "src/lib/engines/ae/vat-engine.ts",
       "src/lib/engines/in/gst-engine.ts",
       "src/lib/engines/in/income-tax-engine.ts",
       "src/lib/engines/in/tds-engine.ts"
     ],
-    "src/lib/engines/in/gst-engine.ts": [],
-    "src/lib/engines/in/income-tax-engine.ts": [],
-    "src/lib/engines/in/tds-engine.ts": [],
+    "src/lib/engines/in/gst-engine.ts": [
+      "src/lib/engines/breakdown.ts"
+    ],
+    "src/lib/engines/in/income-tax-engine.ts": [
+      "src/lib/engines/breakdown.ts"
+    ],
+    "src/lib/engines/in/tds-engine.ts": [
+      "src/lib/engines/breakdown.ts"
+    ],
     "src/lib/engines/grc-workflow-engine.ts": [],
-    "src/lib/engines/accounting-engine.ts": [],
+    "src/lib/engines/accounting-engine.ts": [
+      "src/lib/engines/types.ts"
+    ],
+    "src/lib/engines/types.ts": [],
     "src/lib/engines/project-management-engine.ts": [],
     "src/lib/engines/logistics-engine.ts": [],
     "src/lib/engines/hr-engine.ts": [],
     "src/lib/engines/costing-engine.ts": [],
+    "src/lib/engines/ae/vat-engine.ts": [
+      "src/lib/engines/breakdown.ts"
+    ],
+    "src/lib/engines/ae/corporate-tax-engine.ts": [
+      "src/lib/engines/ae/vat-engine.ts",
+      "src/lib/engines/breakdown.ts"
+    ],
+    "src/lib/engines/engine-invocation.ts": [
+      "src/lib/db.ts",
+      "src/lib/db/tenant-scoped.ts"
+    ],
     "src/lib/engines/compliance-engine.ts": [],
+    "src/lib/engines/einvoice-format.ts": [],
     "src/lib/engines/document-processing-engine.ts": [],
-    "src/lib/engines/analytics-engine.ts": [],
+    "src/lib/engines/analytics-engine.ts": [
+      "src/lib/engines/types.ts"
+    ],
     "src/lib/engines/ai-support-engine.ts": [],
     "src/lib/engines/security-engine.ts": [],
     "src/lib/engines/mathematical-engine.ts": [],
@@ -6663,6 +7985,9 @@
       "src/lib/activity-log-service.ts",
       "src/lib/db.ts"
     ],
+    "src/lib/risk-anomaly-detection.ts": [],
+    "src/lib/logger.ts": [],
+    "src/lib/knowledge-sufficiency-gate.ts": [],
     "src/lib/response-vocabulary-gate.ts": [
       "src/lib/task-tightening.ts"
     ],
@@ -6674,6 +7999,7 @@
       "src/lib/purpose-bound-ai.ts"
     ],
     "src/lib/prompt-os-resolver.ts": [
+      "src/lib/ai-response-locale.ts",
       "src/lib/db.ts"
     ],
     "src/lib/ingest/extractor.ts": [
@@ -6689,6 +8015,7 @@
       "src/lib/db.ts",
       "src/lib/ingest/types.ts"
     ],
+    "src/lib/erp-reports-guards.ts": [],
     "src/lib/orchestra-mock-data.ts": [],
     "src/lib/org-join-code-service.ts": [
       "src/lib/api-keys.ts",
@@ -6697,6 +8024,7 @@
       "src/lib/invite-link-service.ts",
       "src/lib/org-license-service.ts",
       "src/lib/services/stage0-service.ts",
+      "src/lib/services/subscription-plan-service.ts",
       "src/lib/supabase/auth-guard.ts"
     ],
     "src/lib/tds/tds-return-generator.ts": [],
@@ -6704,6 +8032,7 @@
       "src/lib/task-tightening.ts"
     ],
     "src/lib/orchestra-execution-logger.ts": [
+      "src/lib/claim-verification.ts",
       "src/lib/db.ts",
       "src/lib/db/tenant-scoped.ts",
       "src/lib/llm-client.ts"
@@ -6728,6 +8057,13 @@
     ],
     "src/components/theme-toggle.tsx": [
       "src/components/ui/button.tsx"
+    ],
+    "src/components/TenantAiConfigSection.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx"
     ],
     "src/components/DocumentUploadSection.tsx": [
       "src/components/ui/badge.tsx",
@@ -6801,6 +8137,10 @@
       "src/components/chat/MessageContent.tsx",
       "src/components/veri-chat/veri-chat-context.tsx"
     ],
+    "src/components/veri-chat/HomeThreadSlot.tsx": [
+      "src/components/veri-chat/veri-chat-context.tsx",
+      "src/lib/use-resilient-poll.ts"
+    ],
     "src/components/veri-chat/ChainSelector.tsx": [
       "src/components/ui/dialog.tsx",
       "src/components/veri-chat/veri-chat-context.tsx"
@@ -6811,6 +8151,7 @@
       "src/components/veri-chat/ChainSelector.tsx",
       "src/components/veri-chat/IntentCommandPalette.tsx",
       "src/components/veri-chat/veri-chat-context.tsx",
+      "src/lib/browser-execution/client-compile.ts",
       "src/lib/browser-intent-cache.ts",
       "src/lib/high-impact-action-detector.ts",
       "src/lib/use-autogrow-textarea.ts"
@@ -7022,6 +8363,7 @@
       "src/components/ui/card.tsx",
       "src/components/ui/input.tsx",
       "src/components/ui/skeleton.tsx",
+      "src/components/veri-chat/veri-chat-context.tsx",
       "src/lib/orchestra-mock-data.ts",
       "src/lib/utils.ts"
     ],
@@ -7083,6 +8425,14 @@
     "src/components/ProductSalesSection.tsx": [
       "src/components/ui/button.tsx"
     ],
+    "src/components/AiTeamRosterSection.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/skeleton.tsx"
+    ],
     "src/components/ContactUsForm.tsx": [
       "src/lib/visitor-id.ts"
     ],
@@ -7104,6 +8454,7 @@
     ],
     "src/components/AppTopbar.tsx": [
       "src/components/InviteUserModal.tsx",
+      "src/components/LanguageSwitcher.tsx",
       "src/components/search-command.tsx",
       "src/components/theme-toggle.tsx",
       "src/components/ui/avatar.tsx",
@@ -7159,6 +8510,11 @@
       "src/components/ui/skeleton.tsx",
       "src/components/ui/table.tsx"
     ],
+    "src/components/home/ApprovalMatrixSection.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/card.tsx",
+      "src/lib/high-impact-action-detector.ts"
+    ],
     "src/components/home/AnalyticsTab.tsx": [
       "src/components/home/DashboardAnalytics.tsx",
       "src/components/ui/card.tsx"
@@ -7179,7 +8535,15 @@
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx"
     ],
+    "src/components/ProjectPicker.tsx": [
+      "src/components/ui/card.tsx",
+      "src/components/ui/select.tsx"
+    ],
     "src/components/providers/QueryProvider.tsx": [],
+    "src/components/ModuleNotEnabledCard.tsx": [
+      "src/components/ui/button.tsx",
+      "src/components/ui/card.tsx"
+    ],
     "src/components/AiConfigSection.tsx": [
       "src/components/ui/button.tsx",
       "src/components/ui/card.tsx",
@@ -7190,6 +8554,13 @@
       "src/components/ui/switch.tsx",
       "src/lib/utils.ts"
     ],
+    "src/components/ai/AiDecisionExplanationCard.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/lib/explainability/ai-decision-explanation.ts"
+    ],
+    "src/components/ai/GlossaryTermTooltip.tsx": [
+      "src/components/ui/hover-card.tsx"
+    ],
     "src/components/AppShell.tsx": [
       "src/components/AppSidebar.tsx",
       "src/components/AppTopbar.tsx",
@@ -7199,7 +8570,7 @@
       "src/components/OnboardingChecklist.tsx",
       "src/components/TaskVisibilityPanel.tsx",
       "src/components/TrialBanner.tsx",
-      "src/components/ui/resizable.tsx",
+      "src/components/veri-chat/HomeThreadSlot.tsx",
       "src/components/veri-chat/VeriChatPanel.tsx",
       "src/components/veri-chat/VeriComposer.tsx",
       "src/components/veri-chat/veri-chat-context.tsx",
@@ -7207,6 +8578,14 @@
       "src/lib/queries/use-me.ts",
       "src/lib/use-resilient-poll.ts",
       "src/lib/utils.ts"
+    ],
+    "src/components/crm/PipelineKanbanBoard.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/checkbox.tsx",
+      "src/components/ui/input.tsx",
+      "src/components/ui/select.tsx",
+      "src/lib/currency-format.ts"
     ],
     "src/components/AiAssistantsSection.tsx": [
       "src/components/ui/badge.tsx",
@@ -7257,6 +8636,13 @@
       "src/components/ui/label.tsx",
       "src/components/ui/popover.tsx",
       "src/components/ui/select.tsx"
+    ],
+    "src/components/SubscriptionPlanSection.tsx": [
+      "src/components/ui/badge.tsx",
+      "src/components/ui/button.tsx",
+      "src/components/ui/label.tsx",
+      "src/components/ui/select.tsx",
+      "src/components/ui/skeleton.tsx"
     ],
     "src/components/GlobalChatDock.tsx": [
       "src/lib/queries/use-me.ts",
