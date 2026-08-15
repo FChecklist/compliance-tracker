@@ -181,24 +181,6 @@ jobs:
       # distinct reference styles it parses and the honest limitation this
       # does and doesn't guarantee.
       - run: node scripts/check-doc-cross-references.mjs
-  route-requireauth-check:
-    name: Route requireAuth() Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - uses: oven-sh/setup-bun@v2
-      - run: bun install --frozen-lockfile
-      # VERIDIAN Review Framework gap-closure (task-20260718-112006-retry-1
-      # --ai-engineering-quality--code-s), [Low] Design Pattern Consistency:
-      # fails the build if a NEW or MODIFIED src/app/api/**/route.ts file
-      # exports an HTTP handler with no visible requireAuth() call. Same
-      # enforcement class/new-files-only scope as check-route-error-
-      # handling.mjs (the sibling check covering the ServiceError half of
-      # this same finding class). See that script's own header for the
-      # honest limitation this does and doesn't guarantee.
-      - run: node scripts/check-route-requireauth.mjs --base origin/main
   e2e:
     name: E2E Tests
     needs: [build]

@@ -114,12 +114,21 @@ Branch was 1356 commits behind origin/main at the start of this invocation
       migrations were applied (no CI workflow runs db:push; it's not an
       automated step here).
 
-### Design Pattern Consistency ([Low]) -- DONE
+### Design Pattern Consistency ([Low]) -- DONE (script), CI wiring deferred
 - [x] Added `scripts/check-route-requireauth.mjs`, same enforcement class/
       shape as the existing `check-route-error-handling.mjs` precedent
       (new/changed `route.ts` files only, not retroactive across the
-      pre-existing ~995 files). Wired into `.github/workflows/ci.yml` as
-      its own job.
+      pre-existing ~995 files).
+- [ ] Wiring it into `.github/workflows/ci.yml` as its own job was written
+      and locally verified, then **reverted before push** (this session's
+      `gh` token has scopes `gist, read:org, repo` but not `workflow` --
+      GitHub rejects any push that touches `.github/workflows/*.yml`
+      without it; confirmed via a real rejected push here, not assumed).
+      Splitting the PR per the known workaround: push the script itself
+      (usable standalone, `node scripts/check-route-requireauth.mjs --base
+      origin/main`) now; the one-line CI job addition is a tiny follow-up
+      the owner or a session with `workflow` scope needs to push. See
+      memory `gh-token-lacks-workflow-scope`.
 
 ### File & Folder Organization ([Medium]) -- DONE (API side; ai-os side already resolved)
 - [x] `ai-os/` subtree navigation: already resolved by `ai-os/OS.yaml`
@@ -130,8 +139,9 @@ Branch was 1356 commits behind origin/main at the start of this invocation
 
 ## Update: all 5 findings now have real, verified changes
 - [x] Design Pattern Consistency: `scripts/check-route-requireauth.mjs`
-      added + wired into `.github/workflows/ci.yml` as its own job
-      (`route-requireauth-check`).
+      added; CI wiring (`route-requireauth-check` job) written, verified,
+      then reverted pre-push -- see "CI wiring deferred" note above
+      (`workflow`-scope limitation on this session's push credentials).
 - [x] File & Folder Organization: `src/app/api/README.md` added, all 138
       real top-level route directories verified present (scripted diff
       check, zero missing/extra).
@@ -157,5 +167,10 @@ Branch was 1356 commits behind origin/main at the start of this invocation
       for a single session given current concurrent-edit density.
 - [ ] Live `db:push` for the new FK-constraint migration -- owner/deploy
       action, not run from this session.
+- [ ] Tiny follow-up PR to add the `route-requireauth-check` job to
+      `.github/workflows/ci.yml` (needs `workflow`-scoped push credentials
+      this session doesn't have -- see Design Pattern Consistency note
+      above; the check script itself is in this PR and runnable manually
+      today).
 - [ ] Open PR, release the `ai-os/boss/ACTIVE-CLAIMS.yaml` entry once
       merged, get CI green, merge (Rule 6).
