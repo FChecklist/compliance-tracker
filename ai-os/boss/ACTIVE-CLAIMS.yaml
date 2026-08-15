@@ -6083,6 +6083,51 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (worker task-20260718-115006-retry-1--ai-engineering-quality--overal) -- Overall Code Quality Score: task-execution-engine.ts split, retry 2"
+    claimed_at: "2026-08-15T (this session, invocation 15)"
+    claim: |
+      Re-attempting the task-execution-engine.ts half of the "Overall Code
+      Quality Score" finding (schema.ts's navigational-aid comment already
+      merged clean via PR #1258; the split itself was built once, verified
+      tsc/test/lint clean, then reverted because origin/main diverged again
+      mid-push -- see this task's own progress/*.md "Honest final state").
+
+      Re-checked live before re-claiming: this repo currently has at least
+      3 OTHER open PRs independently attempting the same
+      task-execution-engine.ts split (#1255 retry-0 -- same 2-file
+      tool-dispatch/engine-dispatch approach, currently CI-red on Unit
+      Tests/Guardrail Presence/Terminology Guardrail/CodeQL; #1244 retry-2 --
+      a much more granular ~15-file per-domain split, currently CONFLICTING;
+      #688 -- the original 2026-08-01 attempt, CONFLICTING/stale). None are
+      currently mergeable. Redoing the 2-file split fresh on this task's own
+      already-origin/main-synced branch (same shape PR #1258 validated
+      clean once already) rather than trying to rescue any of the 3 stale
+      siblings -- this task's completion gate requires the change in its
+      OWN commit regardless. Will flag the redundant siblings as duplicates
+      once this lands.
+
+      File scope: src/lib/task-execution-engine.ts,
+      src/lib/task-execution-engine.test.ts, new
+      src/lib/services/task-execution/{tool-dispatch,engine-dispatch}.ts
+      (+ tests). Not touching schema.ts again (already done), not touching
+      permission-service.ts or any other in-flight worker's declared scope.
+  - session_label: "claude-code (worker task-20260815-153742-rca--umr-20260806-091546-087b-killed) -- RCA for killed row UMR-20260806-091546-087b"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      resource_governor.py --query-umr --umr-id UMR-20260806-091546-087b shows
+      status=killed, task_identity="test-fresh-row", source_trigger="unit_test",
+      utm_source="test_harness", unit_name=null, ts_dispatched=null. Real recorded
+      reason: "TEST CONTAMINATION CLEANUP (unit-test module-import-ordering bug,
+      UMR-20260806-090229-f2a7 investigation) -- this row was never real production
+      work, neutralized immediately, never dispatched". Investigating whether this
+      is a genuine correctly-killed test artifact (matches the precedent group in
+      [[veridian-killed-rca-series-index]], e.g. UMR-1e87 deliberate probe) or a
+      mislabeled-real-work case. No prior PR found for this exact UMR
+      (`gh pr list --search "087b"` empty); no conflicting active claim found.
+    scope_note: >-
+      File scope (expected docs-only, pending real finding): this task's own
+      progress/*.md, ai-os/boss/ACTIVE-CLAIMS.yaml. Will widen if the row turns
+      out to be a mislabeled real deliverable requiring fix + redispatch.
 recently_completed:
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
