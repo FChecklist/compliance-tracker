@@ -6084,6 +6084,39 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260718-114002-retry-0--ai-engineering-quality--error) -- AI Engineering Quality: Error Handling & Logging gap-closure dispatch; found already fully closed same day via PR #1219 (merged) + residual CI-wiring PR #1235 (open, blocked on same gh workflow-scope limitation this session also has) -- no new code change, documented duplicate [DONE, closed same session]"
+    claimed_at: "2026-08-15T12:02Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, VERIDIAN Review Framework 2
+      findings): [Low] Error Handling Quality -- ~9% of API routes lack a
+      visible try/catch; [Medium] Logging Quality -- no confirmed
+      centralized structured logging utility. Word-for-word identical to
+      task-20260718-065003-ai-engineering-quality--error-handling's own
+      prompt (see that task's active-claim entry above).
+
+      Verified live before writing any code (per this task's own
+      instruction not to trust the finding description unchecked): PR
+      #1219 ("AI Engineering Quality: structured logger + route
+      error-handling CI check") merged into `main` 2026-08-15T07:16:19Z,
+      ~5h before this invocation. `src/lib/logger.ts` (correlation-ID-aware
+      structured operational logger, distinct from `audit.ts`/
+      `orchestra-execution-logger.ts`) and `scripts/check-route-error-handling.mjs`
+      (CI guard on new/modified route.ts files) both confirmed present on
+      `origin/main`. Follow-up PR #1235 (CI wiring into `ci.yml`) is open
+      but blocked on the identical `gh` token `workflow`-scope limitation
+      this session also has (`gist, read:org, repo`, no `workflow`) --
+      already tracked on the other task's branch, not duplicated here.
+
+      No unnecessary code change made, per this task's own prompt
+      ("if a finding turns out to already be resolved ... say so in
+      PROGRESS.md"). Full investigation in this task's own
+      `progress/task-20260718-114002-retry-0--ai-engineering-quality--error.md`.
+    scope_note: >-
+      File scope: this task's own
+      `progress/task-20260718-114002-retry-0--ai-engineering-quality--error.md`
+      and this ACTIVE-CLAIMS.yaml entry only. No src/, schema, or
+      CI-workflow changes -- both findings already resolved by another
+      task's PR #1219/#1235.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
