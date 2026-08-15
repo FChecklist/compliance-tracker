@@ -6084,6 +6084,32 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260815-114241-rca--umr-20260806-170158-b2b9-killed) -- RCA on killed UMR-20260806-170158-b2b9 (stale 'merge PR#172' mint attempt dispatched 66min after PR#172 already merged via a different, earlier UMR); confirmed correctly-killed/no-correction-needed, docs-only PR [DONE, closed same session]"
+    claimed_at: "2026-08-15T11:42Z (this session, closed same session)"
+    claim: |
+      SPEC: RCA `resource_governor.py --query-umr --umr-id UMR-20260806-170158-b2b9`
+      (`status=killed`, `task_identity=child-umr-veridian-scripts-pr172-buildlock-merge-...`,
+      reason: minted in error, stale scratchpad script ran instead of this task's own mint
+      script due to a Write-tool file-exists guard, no real work attached, claims real scope
+      forwarded to `UMR-20260806-160512-bcb2`).
+
+      Live-verified finding: UMR-b2b9 was submitted 2026-08-06T17:01:58Z to merge PR#172, but
+      PR#172 (`veridian-scripts` commit `5cbbe1e0`, self-citing `UMR-20260806-123316-cf9f`) had
+      already merged 2026-08-06T15:56:16Z — ~66 minutes *earlier*. `cf9f` (status=completed) is
+      the real originating UMR for the build-lock-contended fix. UMR-b2b9's own forwarding
+      citation to `bcb2` is factually wrong — `bcb2` (`owner-task-20260806-160510-348028`,
+      status=failed) is an unrelated proposal-107 database-FTS-backfill task, narrative
+      carryover/cross-contamination, not this task's real scope. Immaterial to outcome: the
+      real scope (PR#172) was never bcb2's to carry — it was already done via `cf9f` before
+      b2b9 even minted. Independently corroborated same-day by the
+      `task-20260815-044325-pm-approval-of-proposal-62-...` entry above (same `cf9f`→PR#172
+      chain, unrelated dispatch).
+
+      Conclusion: `status=killed` is honest/accurate for this row's own dispatch (genuinely
+      ran zero real work) — no fix/redispatch (would duplicate already-merged work);
+      `mark-umr-terminal` not re-invoked (already correctly terminal). Docs-only PR, per
+      `veridian-umr-326b-...` precedent pattern (own dispatch failed for real, scope delivered
+      elsewhere). Full detail: `progress/task-20260815-114241-rca--umr-20260806-170158-b2b9-killed.md`.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
