@@ -86,14 +86,34 @@ sole remaining blocker was the stale merge state.
       identical to PR #687's). This branch now holds the real, complete,
       tested, rebased implementation of all 4 findings, and is
       `mergeable`-clean against current `main`.
-- [ ] Open a PR from this branch; if `gh pr merge` succeeds outright (review
-      count is 0), this closes for real. Note in the new PR's description
-      that it supersedes #687 (same content, rebased) and #687 should be
-      closed once this one is confirmed merged, to avoid leaving a stale
-      duplicate open.
+- [x] Opened PR #1212 from this branch, noting in its description that it
+      supersedes #687 (same content, rebased) and that #687 should be closed
+      once #1212 is confirmed merged.
+- [x] Posted `AUDIT: PASS` on #1212 (the underlying feature code was already
+      independently audited on #687; this audit's own scope is the rebase/
+      conflict-resolution diff, verified per the evidence above).
+- [x] CI on #1212 as of this invocation's end: `audit-check`, `Guardrail
+      Presence Check`, `Migration Number Collision Check`, `Asset Registry
+      Coverage Check`, `Metadata Index Coverage Check`, `Doc Cross-Reference
+      Check`, `Doc Quarantine Banner Check`, `Documentation Sentinel Check`,
+      `Secret Scanning`, `Security Pattern Check` all **pass**. `Lint`,
+      `Type Check`, `Unit Tests`, `Terminology Guardrail Check`, `Analyze`
+      (CodeQL) still **pending** at end of this invocation (large-monorepo
+      CI runners are slow; ~8+ min elapsed and still finishing). `Vercel`
+      preview deploy **fails** on a pre-existing, unrelated account-level
+      build-rate-limit (`upgradeToPro=build-rate-limit`) -- not a required
+      check, not caused by this PR.
 
 ## Remaining
-- [ ] Confirm the new PR merges; close #687 as superseded once it does.
+- [ ] Next invocation: re-check `gh pr checks 1212`; once Lint/Type
+      Check/Unit Tests/Terminology Guardrail/Analyze are all green, run
+      `gh pr merge --squash 1212` (branch protection requires 0 approving
+      reviews as of this invocation's live check, so this should succeed
+      without further action -- if it does not, capture the real error
+      rather than assuming the previously-cited review-identity deadlock is
+      still the cause, since that was re-verified false this invocation).
+- [ ] Once #1212 merges: comment on #687 linking to #1212 and close #687 as
+      superseded, so it does not sit open as a stale duplicate.
 - [ ] Finding 4 (cross-repo projexa isolation guardrail) still depends on
       `FChecklist/projexa#68` landing separately in that repo -- out of this
       repo's scope to merge; noted for whoever has push rights there.
