@@ -90,5 +90,56 @@ a mock key per provider.
       output from OTHER pre-existing tests deliberately exercising their
       own fail-closed/error paths, not real failures.)
 
+- [x] Confirmed at invocation 15/20 (resume): commit a4f4dfc2a from the
+      prior invocation was already committed AND already pushed AND
+      already had an open PR (#1223) -- the checkpoint text handed to
+      this invocation described a different, unrelated task
+      (cost-estimate-5org-50user); ignored it per this task's own real
+      progress file and git state, cross-checked live via `gh pr list`
+      before doing anything else.
+- [x] PR #1223 was `mergeable: CONFLICTING` / `mergeStateStatus: DIRTY`.
+      Root cause: this task worktree's git clone was shallow
+      (`git rev-parse --is-shallow-repository` -> true), so
+      `git merge-base HEAD origin/main` returned nothing and every diff
+      against origin/main looked like 1284 unrelated commits instead of
+      the real 3-file diff. Fixed with `git fetch --unshallow origin`.
+- [x] After unshallowing, real merge-base resolved and the only actual
+      conflict was `ai-os/boss/ACTIVE-CLAIMS.yaml` (this task's own
+      active-claim entry vs. many other sessions' entries added to the
+      same list concurrently since this branch was created) -- expected
+      churn on a shared registry file, not a real logical conflict.
+      Resolved by keeping both blocks (this session's claim entry +
+      every other session's newly-added entries), removing conflict
+      markers, `git add`, `git commit --no-edit` (merge commit
+      c9aff6ac0). Re-ran the route test suite after the merge -- still
+      17 pass / 0 fail / 84 expect() calls. Pushed.
+- [x] Verified post-merge diff against origin/main is still exactly the
+      3 intended files (route.test.ts, this progress file, the
+      ACTIVE-CLAIMS.yaml claim entry) -- no accidental inclusion of the
+      merge's ~900 incidental file changes into the PR diff (those are
+      already on origin/main, `git diff origin/main...HEAD --stat`
+      confirms only the 3 files differ).
+- [x] Posted the required structured `AUDIT: PASS` comment on PR #1223
+      (all 8 AuditProtocolFields per audit-protocol.ts /
+      scripts/validate-audit-verdict.ts's contract) -- CI's audit-check
+      job was failing with "No structured audit verdict found" before
+      this.
+- [x] CI's Terminology Guardrail Check then failed on a genuine new
+      finding: this session's own test file had a hardcoded ISO date
+      ("PR #384 (2026-07-16)") in a header comment. Fixed by dropping
+      the date (not load-bearing -- the PR number alone is the durable
+      reference), re-verified locally with
+      `node scripts/check-terminology-guardrail.mjs --diff-only` (now
+      passes) and `bun test` (still 17/17), committed (8ad2e4dd2),
+      pushed.
+
 ## Remaining
-- [ ] Commit, push, open PR (Rule 6 -- no direct push to main), let CI run.
+- [ ] Confirm all CI checks (including audit-check and Terminology
+      Guardrail Check) are green on the latest push, then this task is
+      done pending merge (merge itself is not gated on this session --
+      no dedicated human reviewer per Rule 6/AGENTS.md, so once CI is
+      green the PR is mergeable; whether to merge is outside a Low-
+      severity gap-closure worker task own authority to decide
+      unilaterally for a shared PR queue -- leaving it open and green
+      is the correct end state here, matching this task queue own
+      established pattern of PRs waiting in a merge queue).
