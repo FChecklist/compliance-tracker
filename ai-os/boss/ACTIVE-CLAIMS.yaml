@@ -40,7 +40,7 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260815-041536-urgent-platform-blocker--dispatch-queue) -- P0 dispatch-queue-starvation blocker, directive_engine.py fail-open duplicate-battery-check fix [IN PROGRESS]"
+  - session_label: "claude-code (task-20260815-041536-urgent-platform-blocker--dispatch-queue) -- P0 dispatch-queue-starvation blocker, directive_engine.py fail-open duplicate-battery-check fix [DONE, PR FChecklist/veridian-scripts#405 OPEN, not yet merged]"
     claimed_at: "2026-08-15T04:20Z (this session)"
     claim: |
       SPEC (PM sentinel cycle 2026-08-06T10:30Z, governed by UMR-20260806-071025-1d28 /
