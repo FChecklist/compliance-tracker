@@ -1,0 +1,3 @@
+docs: log invocation 15 audit-comment post and issue_comment SHA-bug workaround for PR 1210
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

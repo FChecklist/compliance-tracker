@@ -1,0 +1,5 @@
+chore: trigger CI re-sync for audit-check verdict
+
+Rule 10 audit comment already posted on PR 1210. issue_comment-triggered runs of mandatory-audit-check.yml check out mains HEAD via checkout@v7 default ref, not the PR head, so they post the verdict against the wrong commit SHA. A synchronize event, this empty commit, makes the pull_request-triggered run check out the real PR head and re-evaluate against it.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>
