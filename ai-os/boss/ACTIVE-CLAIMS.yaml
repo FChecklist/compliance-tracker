@@ -1624,6 +1624,32 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-080002-audit---governance--conversation-audit-l) -- Audit & Governance / Conversation Audit Logging gap-closure"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "no application code change -- finding already closed on main, see summary"
+    summary: |
+      Single finding: "VERI Chat Complete Conversation Audit Logs -- full
+      prompt/response retained only for DENIED requests; ALLOWED
+      conversations not archived verbatim." This task's branch was cut from
+      a stale main (2026-07-18) and untouched since. Verified against live
+      code first, per task instructions: the "capture full text for ALLOWED
+      requests too" half was already resolved by Wave 144/146
+      (chat-service.ts's generateAiReply()/generateVeriGroupReply() already
+      log full PII-redacted systemPrompt/userMessage/reply for allowed
+      replies). Built a first-pass fix for the finding's other half
+      ("behind a retention-window policy") and opened PR #1233 -- then, on
+      merging current main into the branch, hit a real conflict in the same
+      file and found main already carries a complete, independently-built
+      fix for this exact gap under a different work item ("VERIDIAN Review
+      Framework gap-closure (2026-07-18), 'Audit Trail' finding,
+      VERIDIAN_AI_CONSTITUTION.md #19 / SEC-03"): orchestra_executions
+      .payload_purged_at column + purgeExpiredOrchestraPayloads() +
+      dedicated cron api/internal/orchestra-log-purge/run (daily, 90-day
+      default retention, env-overridable). Reverted this task's own
+      redundant first-pass code rather than land two competing purge
+      mechanisms on the same table. No application code change ships from
+      this task -- see progress/task-20260718-080002-audit---governance--
+      conversation-audit-l.md for the full trail.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
