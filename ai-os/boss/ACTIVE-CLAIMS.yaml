@@ -40,32 +40,6 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (task-20260815-043932-run-the-deterministic-reconcile-stale-sw) -- run resource_governor.py --reconcile-stale sweep against the 29 dispatched-but-unterminated rows in the trailing-24h owner_dispatch_gateway set, mint+link child UMR under UMR-20260806-071025-1d28"
-    claimed_at: "2026-08-15T04:39Z (this session)"
-    claim: |
-      SPEC (PM dispatch, cites UMR-20260806-071025-1d28 (24h closure mandate) and
-      UMR-20260806-042531-be9c (PM report contract)): the trailing-24h `owner_dispatch_gateway`
-      set (source_trigger=owner_dispatch_gateway, ts_submitted within 24h) currently reads
-      total 141 / closed 38 / 27.0%, with 29 rows stuck in status=dispatched that never
-      transitioned to a terminal status. One row (`UMR-20260806-103954-6f42`,
-      veridian-directive-engine.service persistent-enable) is independently proven complete
-      (systemctl --user is-enabled now returns enabled) while still reading dispatched -- proof
-      status reconciliation is lagging real completed work. This task runs the EXISTING
-      deterministic sweep (`/opt/veridian/scripts/resource_governor.py --reconcile-stale`,
-      zero-duplication rule -- not a new script), captures its real output verbatim, records
-      per-row real umr_id + evidence (transitioned) or real reason (declined), re-queries the
-      real trailing-24h numbers before/after via the same query the PM report uses, and reports
-      any row the sweep genuinely cannot reconcile (e.g. 6f42) as a real defect rather than
-      hand-editing status. No hand-set statuses. No self-certification.
-    scope_note: >-
-      File/DB scope: mints one child UMR row via `superboss-register.py` (host-level
-      `/opt/veridian/ai-os/memory/superboss-register.sqlite`, outside this repo's tree) linked
-      under `UMR-20260806-071025-1d28`; runs (does not modify)
-      `/opt/veridian/scripts/resource_governor.py --reconcile-stale`; writes evidence into the
-      child UMR row itself, this task's own
-      `progress/task-20260815-043932-run-the-deterministic-reconcile-stale-sw.md`, and this
-      ACTIVE-CLAIMS entry. No new script authored (zero-duplication rule, per SPEC and briefing's
-      capability_registry match). No repo src/ changes expected.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
@@ -5970,6 +5944,51 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (task-20260815-043932-run-the-deterministic-reconcile-stale-sw) -- ran resource_governor.py --reconcile-stale sweep, minted+closed child UMR-20260815-044300-b45e under UMR-20260806-071025-1d28 [DONE, completed_unmerged pending PR merge]"
+    claimed_at: "2026-08-15T04:39Z (this session, closed same session)"
+    claim: |
+      SPEC (PM dispatch, cites UMR-20260806-071025-1d28 and UMR-20260806-042531-be9c, evidence
+      gathered 2026-08-06T11:25Z): trailing-24h owner_dispatch_gateway set reads total 141/
+      closed 38/27.0%, 29 rows stuck status=dispatched, with UMR-20260806-103954-6f42 cited as
+      proof one is really complete (systemctl --user is-enabled veridian-directive-engine.service
+      claimed to now return enabled) while still reading dispatched.
+
+      Live re-verification (before running anything, per
+      [[veridian-reconcile-stale-sweep-mint-pattern-and-drift]]) found the SPEC 9 days stale:
+      parent UMR-20260806-071025-1d28 and UMR-20260806-042531-be9c are BOTH already
+      status=failed/terminal since 2026-08-06T08:29:37Z; the real trailing-24h window computed
+      from actual current time (2026-08-15T04:42Z) has zero overlap with the 2026-08-06 backlog
+      (real query: total=8, closed=0, pct=0.0%, all status=queued) -- the entire 29-dispatched
+      backlog has already rolled out of scope. UMR-20260806-103954-6f42 has been silently reused
+      (upsert_umr_task() ON CONFLICT behavior) for a totally unrelated task
+      (`pm-decision-falsify-owner-proposal-48`, status=running) -- no longer represents the
+      directive-engine-service claim at all. Live-reran the SPEC's own cited command:
+      `systemctl --user is-enabled veridian-directive-engine.service` -> `disabled` (exit 1),
+      directly contradicting the SPEC.
+
+      Minted child UMR-20260815-044300-b45e via `resource_governor.py --submit`
+      (`force_new_umr_id=true`, `inputs.parent_umr=UMR-20260806-071025-1d28`). Ran the real
+      existing sweep verbatim: `resource_governor.py --reconcile-stale` -> `{"actions": []}`
+      (dry-run), re-ran with `--execute` -> `{"actions": []}` (identical). Real reason (not a
+      sweep defect): zero rows anywhere in the DB are currently status=running/dispatched with a
+      stale heartbeat -- the only condition `--reconcile-stale` acts on. Separately ran the
+      read-only `--umr-staleness-scan` (different remediation category) and found 16 real stale
+      QUEUED rows (`owner-task-2026-08-06-*`, ages 12-13 days) outside `--reconcile-stale`'s own
+      remit -- flagged as a real, separate, still-open backlog for a future task, not fixed here.
+      Re-queried trailing-24h numbers AFTER: total=9/closed=0/0.0% (the +1 is this task's own
+      child-UMR mint entering the window, not sweep activity). Closed child UMR via
+      `mark-umr-terminal --status completed_unmerged --commit-sha 9a391d45b --repo
+      compliance-tracker` (real commit, not yet merged to origin/main) with the full before/
+      after evidence and the stale-SPEC/defect-check conclusion written into its own `--reason`.
+      No status hand-edited anywhere. Full detail:
+      `progress/task-20260815-043932-run-the-deterministic-reconcile-stale-sw.md`.
+    scope_note: >-
+      File/DB scope: minted+closed one child UMR row via `superboss-register.py` (host-level
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`, outside this repo's tree), ran
+      (did not modify) `/opt/veridian/scripts/resource_governor.py --reconcile-stale`; wrote
+      evidence into that child UMR row, this task's own progress file, `PROGRESS.md` rollup, and
+      this ACTIVE-CLAIMS entry. No new script authored (zero-duplication rule). No repo src/
+      changes.
   - session_label: "claude-code (task-20260814-125852-post-merge-verification-audit-of-the-two) -- post-merge Tier-1 re-audit of PR #801 + PR #908 against their real final head SHAs, since neither prior AUDIT comment covered the state that actually merged [DONE, both AUDIT:PASS posted]"
     claimed_at: "2026-08-14T12:58Z (this session, closed same session)"
     claim: |
