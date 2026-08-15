@@ -70,16 +70,30 @@ raise test coverage on the largest files first.
   - Pre-existing `task-execution-engine.test.ts` (buildNovelUmrHint, 7
     tests) still green, unmodified.
 
+- [x] Added dispatch-routing test coverage for all remaining 18 category
+      files: payroll, inventory, hr, banking, procurement, security,
+      audit, ai-support, compliance, analytics, logistics, marketing,
+      project-management, crm, sales, fixed-asset, data-quality,
+      document-processing. All 24 category files now have a colocated
+      `.test.ts`.
+- [x] Full-repo verification, clean:
+      - `NODE_OPTIONS=--max-old-space-size=6144 bun x tsc --noEmit` -- 0
+        errors (default heap OOMs on this repo's project graph regardless
+        of this change -- pre-existing environment quirk, not caused by
+        this PR).
+      - `bun test` (whole repo, 127 files) -- 1558 pass, 0 fail. The 3
+        console.error lines in the output are tests deliberately
+        exercising fail-closed error paths (connector-data-service,
+        dispatch-completion-monitor, vercel-deployment webhook), not
+        failures.
+      - `bun test src/lib/task-execution/` -- 144 pass, 0 fail, across the
+        24 new dispatch modules' test files.
+- [x] Committed (checkpoint + final) and pushed to
+      `worker/task-20260718-120006-retry-2--ai-engineering-quality--overal`.
+
 ## Remaining
-- [ ] Add the same style of dispatch-routing test coverage for the
-      remaining 18 category files: payroll, inventory, hr, banking,
-      procurement, security, audit, ai-support, compliance, analytics,
-      logistics, marketing, project-management, crm, sales, fixed-asset,
-      data-quality, document-processing.
-- [ ] Final full-repo `bun x tsc --noEmit` + `bun test` pass once all test
-      files are added.
-- [ ] Commit + push; open PR.
-- [ ] schema.ts split: explicitly NOT attempted here (see Investigation
-      above) -- note this in the PR description as a deliberate scope
-      decision, not an oversight, and flag the coordination need back to
-      MASTER-TRACKER.yaml / the owner.
+- [ ] Open PR against `main`.
+- schema.ts split: explicitly NOT attempted here (see Investigation
+      above) -- noting this in the PR description as a deliberate scope
+      decision, not an oversight, and flagging the coordination need back
+      to MASTER-TRACKER.yaml / the owner.
