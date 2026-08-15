@@ -98,9 +98,35 @@ re-verified this invocation).
       `bun run lint` (0 errors), guardrail-presence (88/88), asset-registry-
       coverage (444/444, post-merge table count), metadata-index-coverage
       (183/183). Pushed the merge commit (`ad05bbec8`).
+- [x] Full CI matrix ran on push (`05eaf2025`/`ad05bbec8`): Lint, Type
+      Check, Unit Tests, Asset Registry/Metadata Index/Doc Cross-Reference/
+      Doc Quarantine Banner/Guardrail Presence/Migration Number Collision/
+      Secret Scanning/Security Pattern/Documentation Sentinel/Analyze/CodeQL
+      all SUCCESS -- matches local verification exactly. Found and fixed one
+      real CI-only failure: `Terminology Guardrail Check` (a check added to
+      `ci.yml` since this branch's original base, not present when the
+      earlier invocation wrote the code) flagged 8 findings across 2 files:
+      5 genuine `billingMonthIso` test-fixture literals in
+      `ai-cost-finops-service.test.ts`, and 3 PRE-EXISTING dated comments in
+      `AppSidebar.tsx` (unrelated to this PR's own nav-item addition,
+      grandfathered because this is the first PR to touch that file since
+      the guardrail's Phase 3 CI wiring). Registered both per the check's
+      own documented process -- added entries to
+      `ai-os/registry/terminology-guardrail-exemptions.yaml` with a real
+      reason each, matching this file's existing precedent (commit
+      `05042e69b`). Verified locally (`node scripts/check-terminology-
+      guardrail.mjs --diff-only`) before push: passes, 8 files scanned, no
+      new findings.
+      `Vercel` shows FAILURE but is a Vercel plan build-rate-limit
+      (`upgradeToPro=build-rate-limit`), not a code problem -- outside this
+      session's control and not one of the required CI checks (Lint/Type
+      Check/Build/Unit Tests per AGENTS.md Rule 6).
 - [ ] Will NOT self-merge or self-audit (per this claim's own statement) --
-      left for the supervising session's mandatory AUDIT: PASS/FAIL comment
-      (`mandatory-audit-check.yml`) before merge.
+      `audit-check` correctly shows FAILURE (it requires an independent
+      `AUDIT: PASS/FAIL` verdict comment before it passes) -- left for the
+      supervising session's mandatory audit comment
+      (`mandatory-audit-check.yml`) before merge. All other real CI checks
+      are green as of the last push.
 
 Scope note already in the PR body: finding #3 (FinOps dashboard
 reconciliation) is built as a reconciliation FRAMEWORK against a
