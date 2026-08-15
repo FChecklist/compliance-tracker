@@ -195,7 +195,15 @@ export const departments = complianceSchemaDB.table('departments', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   name: text('name').notNull(),
   description: text('description'),
-  orgId: text('org_id').notNull(),
+  // VERIDIAN Review Framework gap-closure ([Medium] Low Coupling/High
+  // Cohesion, 2026-08-15): org-scoping FK, added incrementally starting
+  // with the highest-traffic tables per the finding's own recommendation
+  // -- see docs/architecture/REUSABLE-UTILITIES.md's sibling note and this
+  // task's PROGRESS.md for why this isn't a blanket pass across all 323
+  // orgId columns. Generated migration uses `NOT VALID` (see that
+  // migration file's own comment) so this doesn't require validating
+  // existing production rows before merge.
+  orgId: text('org_id').notNull().references(() => organisations.id),
   headId: text('head_id').unique(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -211,7 +219,13 @@ export const users = complianceSchemaDB.table('users', {
   avatarUrl: text('avatar_url'),
   isActive: boolean('is_active').notNull().default(true),
   lastLoginAt: timestamp('last_login_at'),
-  orgId: text('org_id'),
+  // VERIDIAN Review Framework gap-closure ([Medium] Low Coupling/High
+  // Cohesion, 2026-08-15): org-scoping FK -- nullable is preserved as-is
+  // (stage-0 self-serve users genuinely have no org yet), Postgres FKs
+  // allow NULL through without violating the constraint. See
+  // departments.orgId's comment above for the incremental-rollout
+  // rationale and the NOT VALID migration note.
+  orgId: text('org_id').references(() => organisations.id),
   departmentId: text('department_id'),
   onboardingCompleted: boolean('onboarding_completed').notNull().default(false), // M-20
   onboardingStage: text('onboarding_stage').notNull().default('profile'), // OnboardingChecklist.tsx step ids: profile|compliance|upload|invite|ai-config
@@ -291,7 +305,11 @@ export const complianceItems = complianceSchemaDB.table('compliance_items', {
   paidDate: timestamp('paid_date'),           // G-21
   departmentId: text('department_id').notNull(),
   assignedToId: text('assigned_to_id'),
-  orgId: text('org_id').notNull(),
+  // VERIDIAN Review Framework gap-closure ([Medium] Low Coupling/High
+  // Cohesion, 2026-08-15): org-scoping FK -- see departments.orgId's
+  // comment above for the incremental-rollout rationale and the NOT VALID
+  // migration note.
+  orgId: text('org_id').notNull().references(() => organisations.id),
   clientId: text('client_id'), // Wave 1 -- nullable during rollout, backfilled for existing rows
   // M-09: Period / Financial Year
   period: text('period'),                     // e.g. "June 2026", "Q1 FY2026-27"
