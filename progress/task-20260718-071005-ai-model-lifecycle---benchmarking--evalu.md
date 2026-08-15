@@ -119,5 +119,58 @@ VERIDIAN Review Framework gap-closure: AI Model Lifecycle & Benchmarking / Evalu
       `check-migration-collision.mjs --base origin/main` (0313 clean) all
       pass.
 
+- [x] PR #1221 opened against main. CI surfaced 3 real, fixable issues
+      (checked live via `gh pr checks 1221` + `gh api .../check-runs`, not
+      assumed from the PR description):
+  1. **CodeQL High: js/tainted-format-string** in
+     `roster-overrides.ts`'s `resolveDispatchModel()` error path --
+     the caller-controlled `roleKey` was folded into `console.error`'s
+     first (format-string) argument alongside a second arg (`err`), so
+     Node's printf-style `%s`/`%d` substitution could be triggered by an
+     attacker-influenced `roleKey`. Fixed: moved `roleKey` into a plain
+     data object instead of the template literal (matches the existing
+     precedent already used by `isKnownModel()`'s own error path in this
+     same file).
+  2. **Terminology Guardrail Check** (count-ratchet on
+     `ai-os/registry/terminology-guardrail-exemptions.yaml`): this PR's
+     real new dated design-rationale comments pushed 6 touched files'
+     `hardcoded_iso_date` counts above their recorded baseline (1 file,
+     `roster-overrides.ts`, had no entry at all yet). Bumped each file's
+     baseline by the exact real new-comment count, same convention as
+     every prior entry in that manifest (not a blanket/rounded bump).
+  3. **Merge conflict** (`mergeStateStatus: DIRTY`) in
+     `ai-os/boss/ACTIVE-CLAIMS.yaml` against a sibling task's PR that
+     landed on `main` first (#1219, AI Engineering Quality) -- both PRs
+     independently appended a new entry to the same `active:` list.
+     Purely additive; rebased onto `origin/main` and kept both entries,
+     no content lost either side.
+  - **Not fixed, deliberately left as-is (documented, not a real
+    blocker):** `Promptfoo Evals` shows `cancelled` after running the
+    full 15-minute `timeout-minutes: 15` window -- a real live-LLM-call
+    job (Groq free tier) hitting its own pre-existing timeout, unrelated
+    to this PR's diff. Confirmed via that workflow's own header comment
+    (`.github/workflows/ai-prompt-evals.yml`) that it is explicitly
+    "not a REQUIRED status check ... deliberately left for the Owner to
+    make" -- same honest-limitation class as `mandatory-audit-check.yml`.
+    `Vercel` deploy-preview failure is a build-rate-limit message from
+    Vercel itself (`upgradeToPro=build-rate-limit`), not a code issue.
+  - Fix commit `5c1e7fb5a`. Re-verified after rebase: `tsc --noEmit`
+    clean, `bun run lint` clean (same 3 pre-existing unrelated
+    warnings), `check-guardrail-presence.mjs` (88/88),
+    `check-asset-registry-coverage.mjs` (443 tables), `check-migration-
+    collision.mjs --base origin/main` (clean), `check-terminology-
+    guardrail.mjs --diff-only --base origin/main` (clean) all pass.
+    Full `bun test`: 2577 pass / 0 fail across 225 files. (The
+    `roster-overrides.test.ts` + `dispatch/route.test.ts` files showed
+    apparent failures when run together in one `bun test <file> <file>`
+    invocation -- confirmed this is Bun's `mock.module` bleeding across
+    test files, not a real bug: both pass cleanly run individually, and
+    the full-suite run above, which uses the same per-file isolation CI
+    itself uses, is 0 fail.)
+
 ## Remaining
-- [ ] None -- ready to commit, push, open PR.
+- [ ] Push fix commit, confirm PR #1221's CI goes green + `mergeStateStatus`
+      turns `CLEAN`, then hand off (this repo's branch protection requires
+      a PR review from a second identity that doesn't exist here -- see
+      the standing `veridian-branch-protection-self-approval-deadlock`
+      constraint -- so this session cannot merge its own PR).
