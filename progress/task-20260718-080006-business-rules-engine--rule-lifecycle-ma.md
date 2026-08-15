@@ -84,10 +84,28 @@ Findings:
       each still serving their own narrow call site correctly.
 - [ ] Commit, push, open PR.
 
+- [x] Opened PR #1237 (all 3 non-deferred findings in one PR, per the task
+      prompt). Posted the mandatory 8-field AUDIT: PASS comment
+      (mandatory-audit-check.yml) -- self-audited (same session authored and
+      audited; flagged as a same-identity limitation in Evidence Recorded,
+      per this repo's own honest-limitation posture for that check).
+- [x] Found the branch was far behind main (based off 2026-07-18, main had
+      moved ~4 weeks/hundreds of merges) and CONFLICTING -- explains why
+      neither `CI` nor a properly-SHA'd `Mandatory Audit Check` run had
+      fired via the `pull_request` event. Merged `origin/main` in, resolved
+      2 real conflicts (both simple "two unrelated sections appended after
+      the same base line" adds, not logic conflicts): `ai-os/boss/
+      ACTIVE-CLAIMS.yaml` (kept both this session's claim entry and main's
+      newer entries) and `src/lib/db/schema.ts` (kept both this PR's Wave
+      173 section and main's newer AI Router "Mother Router" section).
+      `bun install` (lockfile changed with the merge), re-ran
+      `bun test`/`eslint` -- still 19/19 pass, still clean. Pushed the
+      merge commit.
+
 ## Remaining
-- [ ] Commit + push this work, open a PR (all 3 non-deferred findings in one
-      PR, per the task prompt: "close all of them in one coherent PR if they
-      share the same module/area").
+- [ ] Confirm CI (Lint/Type Check/Build/Unit Tests) goes green on the PR
+      now that it's mergeable and the merge commit has pushed a real
+      `synchronize` event.
 - [ ] Business Rule Simulation (Low priority, finding 4): explicitly deferred
       per the finding's own recommended approach ("revisit after the base
       engine and testing framework ship") -- not implemented this PR. The
