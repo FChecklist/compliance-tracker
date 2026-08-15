@@ -6111,6 +6111,45 @@ active:
       src/lib/services/task-execution/{tool-dispatch,engine-dispatch}.ts
       (+ tests). Not touching schema.ts again (already done), not touching
       permission-service.ts or any other in-flight worker's declared scope.
+  - session_label: "claude-code (task-20260718-125007-retry-1--ai-model-lifecycle---benchmark) -- VERIDIAN Review Framework: AI Model Lifecycle & Benchmarking / Ongoing Quality Monitoring [DECLINED, duplicate of PR #1229]"
+    claimed_at: "2026-08-15T13:25Z (this session)"
+    claim: |
+      This task's 3 findings (all High, "Ongoing Quality Monitoring"):
+      (1) per-role quality regression tracked over time, (2) cost-per-
+      quality-point tracked per model, (3) provider-outage historical
+      incident correlation with role failures.
+      Before writing any code, re-verified against current main (branch was
+      1357 commits behind origin/main at resume -- fast-forwarded first,
+      zero divergent commits of its own, so no work was lost) and checked
+      this file for an existing claim, per this task's own instructions and
+      Rule 11. Found a sibling task (task-20260718-072002-ai-model-
+      lifecycle---benchmarking--ongoi, `gh pr list --search
+      "ai-model-lifecycle"`) already opened PR #1229 with the EXACT same 3
+      findings, same "Ongoing Quality Monitoring" grouping, same
+      recommended-approach dependency chain (finding 2 explicitly built on
+      finding 1's new table, matching this task's own "row 99" note).
+      Read the real delivered code (fetched the PR's branch, `git show` on
+      each file, not just the PR description): role-quality-regression-
+      service.ts, cost-quality-service.ts, provider-outage-service.ts +
+      matching route.ts files + drizzle/0313_ai_model_lifecycle_
+      benchmarking.sql + 3 test files (spot-checked role-quality-
+      regression-service.test.ts's 6 boundary-case tests in full -- real,
+      correct, reuses existing prompt-eval-service.ts/token-usage-
+      service.ts/dispatch_outcomes infra rather than re-deriving parallel
+      tracking, matching this codebase's own established discipline).
+      Confirmed genuine, not fabricated -- declining to duplicate it.
+      Honest note, not glossed over: PR #1229 is currently
+      mergeable=CONFLICTING (its drizzle/0313 collides with
+      drizzle/0313_ai_team_role_overrides_rollout.sql, already merged to
+      main via a different sibling's PR #1221 in the same review-framework
+      wave) -- a real, current rebase/renumbering problem for that PR's own
+      owning session to resolve, not evidence the underlying feature work
+      is wrong. Left untouched -- fixing another session's open PR is out
+      of this task's own file scope, and no ai-team-workforce dispatch
+      currently shows that branch as abandoned.
+      No code changes made. File scope: this ACTIVE-CLAIMS.yaml entry +
+      this task's own progress/task-20260718-125007-retry-1--ai-model-
+      lifecycle---benchmark.md only.
 recently_completed:
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
