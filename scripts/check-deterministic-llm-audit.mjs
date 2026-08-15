@@ -55,7 +55,6 @@ const REPO_ROOT = process.cwd()
 // vision was chosen over a deterministic parser for scanned documents).
 const KNOWN_LLM_CALL_SITES = [
   "src/app/api/documents/extract/route.ts",
-  "src/app/api/help/ask/route.ts",
   "src/lib/ai-team/team-service.ts",
   "src/lib/gst/ai-review-report.ts",
   "src/lib/ingest/extractor.ts",
@@ -64,6 +63,20 @@ const KNOWN_LLM_CALL_SITES = [
   "src/lib/loops/loop-engineering-audit.ts",
   "src/lib/monitors/dispatch-completion-monitor.ts",
   "src/lib/orchestra-model-resolver.ts",
+  // Prompt-security defense-in-depth (landed on main after this manifest
+  // was first written, caught by this very check on a rebase 2026-08-15 --
+  // exactly the mechanism this file exists to provide): layer1 runs a
+  // small, fast guard model (Groq) to classify raw input as malicious
+  // before it ever reaches the real task-oriented callLLM() call; layer3
+  // re-checks the model's own output the same way. Both are themselves
+  // deterministic-first in spirit (a lightweight classifier gate in front
+  // of the real call, same shape as llm-routing-gate.ts), just implemented
+  // via a cheap LLM classifier rather than a rule engine, because
+  // detecting prompt-injection/jailbreak intent in free text isn't
+  // reliably rule-expressible.
+  "src/lib/prompt-security/defense-in-depth.ts",
+  "src/lib/prompt-security/layer1-input-sanitization.ts",
+  "src/lib/prompt-security/layer3-runtime-guardrails.ts",
   "src/lib/services/ai-report-builder-service.ts",
   "src/lib/services/asset-routing-engine.ts",
   "src/lib/services/chat-service.ts",

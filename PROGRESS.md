@@ -29,8 +29,22 @@ code.
   `scripts/check-guardrail-presence.mjs`'s manifest (same "protect the
   protector" pattern already used for `check-metadata-index-coverage.mjs`).
   Both `node scripts/check-deterministic-llm-audit.mjs` and
-  `node scripts/check-guardrail-presence.mjs` run clean locally (27 known
+  `node scripts/check-guardrail-presence.mjs` run clean locally (29 known
   call sites, 0 unaudited; 89/89 markers present).
+
+  **Real-world validation, not hypothetical:** while rebasing this branch
+  onto a much-advanced `main`, this script immediately caught 3 genuine new
+  call sites that had landed since the manifest was first written
+  (`src/lib/prompt-security/{defense-in-depth,layer1-input-sanitization,
+  layer3-runtime-guardrails}.ts` -- a prompt-injection defense layer,
+  itself deterministic-first in spirit: a cheap classifier gate in front of
+  the real task call, same shape as `llm-routing-gate.ts`) and flagged one
+  manifest entry as stale (`src/app/api/help/ask/route.ts` no longer calls
+  `callLLM()` directly -- it was refactored to route through the new
+  prompt-security layer instead). Both reconciled in this PR. This is
+  exactly the "periodically audit new LLM-call sites" mechanism the
+  finding asked for, demonstrated working on real drift, not just passing
+  against a frozen snapshot.
 
   **Known limitation, disclosed rather than hidden:** the script is NOT yet
   wired into `.github/workflows/ci.yml` as a new CI job. This session's
