@@ -3495,6 +3495,88 @@ open_items:
       status: open
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
+    - id: GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING
+      name: "Any authenticated user, including the lowest 'viewer' rank, can mint a write-scoped API key or register a webhook (with its secret) via /settings -- no role gate, no activity-log entry"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (2026-08-01/07, real code-grounded
+        research pass on domain `UI-07` as part of AI Documentation / Documentation Lifecycle
+        gap-closure, task-20260718-064004). "Admin pages" is a UI-section label, not an enforced
+        boundary: the sidebar's Admin section has no role conditional, `GET /api/users` and
+        `GET /api/departments` have no `requireRole` call (only their write paths are gated), and
+        most significantly `ApiKeySection`/`WebhookSection` in `/settings` render unconditionally
+        (unlike the `isAdmin`-gated sections around them) with their backing routes calling only
+        `requireAuth()`, never `requireRole()` -- and neither route writes an activity-log entry
+        on mint/register. Flagged in the audit doc, not fixed there (a permission/auth-guard code
+        change, outside a documentation-lifecycle task's declared scope, and outside
+        `permission-service.ts`/`auth-guard.ts`, which other in-flight workers may own -- see
+        `prompt.txt`'s standing instruction not to touch `ERP_ACTION_ROLES`'s shared structure).
+      size: "S -- add `requireRole()` (or equivalent org-admin check) to the API-key mint and
+        webhook-register routes, gate `ApiKeySection`/`WebhookSection`'s rendering the same way
+        the surrounding `isAdmin` sections already are, and add the missing activity-log entry on
+        both mint and register."
+      recommendation: "Dedicated permission/auth-guard fix, additive-only against
+        `ERP_ACTION_ROLES` per this repo's current file-scope convention. Verify with a real
+        viewer-rank test account: confirm it can no longer mint a key/register a webhook via the
+        API directly (not just that the UI section is hidden)."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-DB02-COMPLIANCE-STATUS-NO-SIGNOFF
+      name: "Marking a compliance item 'completed' or resolving an audit point has no sign-off/maker-checker gate, despite DB-02 (compliance core) being real Postgres-RLS-scoped and role-ranked for create/update/delete"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `DB-02`, same audit pass as
+        `GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING` above). The domain's guardrails are real
+        for access control (`withTenantContext()` RLS, role-ranked writes) but there is no
+        four-eyes/maker-checker step before a compliance item is marked completed or an audit
+        point resolved -- a single actor's own action is final. Flagged, not fixed (out of scope
+        for the documentation-lifecycle task that found it).
+      size: "S-M -- likely the same approval-engine pattern already used for DB-15's ERP
+        period-close (four-eyes floor + self-approval block via `permission-service.ts`), applied
+        to the compliance-item/audit-point completion routes."
+      recommendation: "Confirm with the Owner whether this is an intended product gap (fast
+        single-actor closure) or a real compliance-integrity gap before building a sign-off gate
+        -- this is a workflow/product decision, not purely a security bug."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE
+      name: "Staged-import ingest confirm/reject routes call only requireAuth(), not requireRole() -- any authenticated user can confirm/reject a staged import, not just admins"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `DB-05`, same audit pass as
+        the two entries above). The rest of `DB-05`'s guardrails are real (admin-only access-review
+        certification, a `revoked` decision hard-blocks login, post-confirm edits are genuinely
+        blocked) -- this one route pair is the gap. Flagged, not fixed.
+      size: XS -- add the missing `requireRole()` call to both routes, same pattern already used
+        elsewhere in this domain.
+      recommendation: "Add the role gate; add a regression test asserting a non-admin authenticated
+        user gets a 403 on both routes."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
+    - id: GAP-UI02-CAPA-FINDING-OWNERSHIP-LABEL-ONLY
+      name: "/audit-engagements' CAPA finding 'ownership' is a label, not an enforced gate -- any manager+ can close any finding, and closing auto-passes the retest"
+      old_ids: []
+      detail: |
+        Found by `ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md` (domain `UI-02`, same audit pass as
+        the three entries above). The rest of `UI-02`'s guardrails are real (`/ingest`'s review UI
+        is genuinely wired to the API, `/audit`'s trail viewer has no write route at all) -- CAPA
+        finding closure is the gap: ownership is displayed but not checked before allowing close,
+        and closing a finding auto-passes its retest with no separate verification step. Flagged,
+        not fixed. Related, lower-severity cosmetic note from the same audit: `UI-08`'s
+        period-close button isn't client-side disabled when its checklist is incomplete (the
+        server-side gate still holds, so this is a UX polish item, not a security gap).
+      size: S -- enforce assigned-owner (or a defined escalation role) before allowing close;
+        separate the retest verification step from the close action.
+      recommendation: "Product/workflow decision needed on who besides the assigned owner should
+        be allowed to close a finding (e.g. a manager override with a reason) before building the
+        enforcement -- don't just lock it to 'assigned owner only' without confirming that's the
+        intended process."
+      status: open
+      first_raised: "ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md, 2026-08-01/07 (AI Documentation / Documentation Lifecycle gap-closure, task-20260718-064004)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.

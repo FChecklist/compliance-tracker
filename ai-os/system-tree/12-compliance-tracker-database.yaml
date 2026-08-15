@@ -1,6 +1,18 @@
 # compliance-tracker (VERIDIAN AI OS) -- Database Schema
 # Source: direct read of src/lib/db/schema.ts (7,840 lines) this session.
 # 377 tables, 106 enums, all under complianceSchemaDB = pgSchema('compliance').
+#
+# COUNT REFRESH (2026-08-01, scripts/check-doc-drift.mjs baseline reset):
+# schema.ts has grown to 443 tables / 130 enums (11,466 lines) since this
+# tree's own domains/rules text below was written -- the top-line counts in
+# this header and in ai-os/system-tree/00-INDEX.md have been updated to
+# match, but the per-domain content below (which tables/columns/rules exist
+# in each of DB-01..DB-18) was NOT re-synthesized this pass -- that needs
+# another full read-the-schema pass, same class of work as the original
+# 5-agent build documented in 00-INDEX.md's Methodology section, tracked as
+# a Round 3+ item (see SYSTEM-AUDIT-ROUND-3.md). scripts/check-doc-drift.mjs
+# now fails CI if these counts drift more than 10% from
+# ai-os/system-tree/doc-counts-baseline.yaml without a matching refresh.
 
 repo: compliance-tracker
 tree_version: 1
