@@ -124,6 +124,9 @@ wiring lands.
 ## Remaining
 
 - [x] Open PR: https://github.com/FChecklist/compliance-tracker/pull/1219
+- [x] Posted structured AUDIT: PASS comment (8-field protocol,
+  validate-audit-verdict.ts), triggered a synchronize event afterward
+  (empty commit) per the known issue_comment-vs-head-SHA quirk
 - [ ] Let CI run, merge per Rule 6
 - [ ] Wire `route-error-handling-check` into `.github/workflows/ci.yml`
   (see "Known limitation" above -- needs a `workflow`-scoped push)
