@@ -3495,6 +3495,59 @@ open_items:
       status: open
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
+    - id: GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE
+      name: "Ingestion batch confirm/reject has no role gate -- any authenticated org member, including viewer rank, can commit or reject a staged bulk-import batch"
+      detail: |
+        Found during a `ai-os/system-tree/` gap-closure pass (VERIDIAN Review Framework, "AI
+        Documentation / Documentation Lifecycle", Documentation Completeness finding, Round 3,
+        2026-08-15), re-verified directly against current code (not carried over from any prior
+        evaluation).
+
+        `POST /api/ingest/[batchId]/confirm` (`src/app/api/ingest/[batchId]/confirm/route.ts`) --
+        its own code comment calls this "the point of no return", inserting all approved/edited
+        staging items into `compliance_items` -- calls `requireAuth()` only. No
+        `requireRole`/`requireRoleOrScope` call anywhere in the handler.
+
+        `PATCH /api/ingest/[batchId]/items/[itemId]` (`src/app/api/ingest/[batchId]/items/[itemId]/route.ts`)
+        -- approves/edits/rejects an individual staged item, including setting its review status to
+        `rejected` -- also calls `requireAuth()` only, same gap.
+
+        Both are contrasted with `DB-02`'s compliance-item API (`/api/compliance/[id]`), which does
+        gate PATCH at `member` and DELETE at `manager` -- the ingestion surface is a real outlier
+        with a weaker floor than the domain it feeds into.
+      size: "XS -- add a `requireRoleOrScope(ctx, 'member', 'write')` (or stricter) call to both handlers, matching DB-02's existing pattern"
+      recommendation: |
+        Add an explicit role gate to both `POST .../confirm` and `PATCH .../items/[itemId]`. Given
+        `confirm` is described in its own comment as irreversible and writes directly into
+        `compliance_items`, it may warrant the same `manager` floor as compliance-item DELETE, not
+        just the `member` floor compliance-item PATCH uses -- that specific rank choice is a real
+        product decision, not prescribed here. Not fixed in this pass (the originating task was a
+        docs-only gap-closure, per its own spec) -- left for a follow-up implementation task.
+      status: open
+      first_raised: "AI Documentation / Documentation Lifecycle gap-closure, Round 3, 2026-08-15 (ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md)"
+
+    - id: GAP-UI07-UNRESTRICTED-API-KEY-WEBHOOK-MINTING
+      name: "/settings' API-key and webhook creation have no role gate -- any authenticated org member of any rank can mint a write-scoped API key or register an outbound webhook"
+      detail: |
+        Found during the same Round 3 pass as GAP-DB05-INGEST-CONFIRM-REJECT-NO-ROLE-GATE above,
+        re-verified directly against current code.
+
+        `POST /api/settings/api-keys` (`src/app/api/settings/api-keys/route.ts:39-40`) and
+        `POST /api/settings/webhooks` (`src/app/api/settings/webhooks/route.ts:80-81`) both call
+        `requireAuth()` only -- no `requireRole`/`requireRoleOrScope` call in either handler. The
+        `/settings` UI's `ApiKeySection`/`WebhookSection` panels render for and are usable by every
+        authenticated org member regardless of rank; there's no admin/manager-tier restriction and no
+        distinct activity-log entry beyond the general audit log.
+      size: "XS -- add a role gate (`requireRole`/`requireRoleOrScope`, e.g. `manager` or `veridian_admin`) to both POST handlers"
+      recommendation: |
+        Add an explicit role gate to both handlers -- minting a write-scoped credential or an
+        outbound webhook is an admin-tier capability and should not sit at the same auth floor as
+        read-only settings access. The exact minimum rank is a real product decision, not prescribed
+        here. Not fixed in this pass (docs-only gap-closure task, per its own spec) -- left for a
+        follow-up implementation task.
+      status: open
+      first_raised: "AI Documentation / Documentation Lifecycle gap-closure, Round 3, 2026-08-15 (ai-os/system-tree/SYSTEM-AUDIT-ROUND-3.md)"
+
   ratified_do_not_build:
     # Real decisions, not gaps -- listed so nobody re-proposes these without
     # realizing they were already explicitly decided against.
