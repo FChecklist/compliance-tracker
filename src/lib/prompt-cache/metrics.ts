@@ -6,9 +6,11 @@
 import { promptCacheMetrics } from "@/lib/db";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import type { LLMUsage } from "@/lib/llm-client";
+import { logTokenUsage } from "@/lib/services/token-usage-service";
 
 export type RecordPromptCacheMetricInput = {
   orgId: string;
+  userId?: string;
   layerKey: string;
   fingerprint: string;
   provider: string;
@@ -38,4 +40,22 @@ export function recordPromptCacheMetric(params: RecordPromptCacheMetricInput): v
       cacheCreationTokens: params.usage.cacheCreationTokens ?? null,
     });
   }).catch((err) => console.warn(`prompt_cache_metrics logging failed for layer '${params.layerKey}' (non-fatal):`, err));
+
+  // VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+  // 2026-07-18): prompt_cache_metrics above is cache-effectiveness
+  // observability only -- cost-guard.ts's spend-cap check and
+  // getTokenUsageSummary()'s Finance report both read token_usage_ledger,
+  // not this table, so cache-driven savings (and this call site's spend at
+  // all) were invisible to both. Log alongside it here so the one ledger
+  // Finance actually reads gets both the real spend and the real savings
+  // for every call this layer makes, not just the cache-specific subset.
+  void logTokenUsage({
+    scope: "product_orchestra",
+    orgId: params.orgId,
+    userId: params.userId ?? null,
+    layerKey: params.layerKey,
+    provider: params.provider,
+    model: params.model,
+    usage: params.usage,
+  });
 }

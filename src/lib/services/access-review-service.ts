@@ -8,6 +8,7 @@ import { accessReviewCycles, accessReviewCertifications, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
 
@@ -80,6 +81,14 @@ export async function reviewCertification(ctx: AccessReviewActorCtx, certificati
     const cert = await db.query.accessReviewCertifications.findFirst({ where: and(eq(accessReviewCertifications.id, certificationId), eq(accessReviewCertifications.orgId, ctx.orgId)) })
     if (!cert) throw new ServiceError("Certification not found", 404)
     if (cert.decision !== "pending") throw new ServiceError(`This certification has already been decided ('${cert.decision}')`, 409)
+    // Self-certification hole: an admin/manager reviewing the access-review
+    // queue could otherwise confirm (or, worse, "revoke" then no-op since
+    // they'd be deactivating themselves) their OWN certification row --
+    // access recertification exists specifically so continued privilege
+    // isn't self-attested.
+    if (isSelfApproval(cert.userId, ctx.userId)) {
+      throw new ServiceError("You cannot review your own access certification -- an independent reviewer is required", 403)
+    }
 
     const [updated] = await db.update(accessReviewCertifications).set({
       decision, reviewedById: ctx.userId, reviewedAt: new Date(),

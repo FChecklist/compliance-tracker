@@ -98,3 +98,23 @@ export function checkPreCallEscalation(input: {
 
   return { shouldEscalate: signals.length > 0, signals, matchedPhrase }
 }
+
+// REVIEW-FRAMEWORK-WAVE4 (AI Architecture / AI Interaction Efficiency,
+// "Personalized AI Responses" / "AI Confidence Score" findings: no confidence
+// score was ever computed or shown to end users). Deliberately NOT a
+// calibrated ML confidence score -- no provider call site in this codebase
+// returns one (see detectLowConfidenceResponse's own comment above), and
+// fabricating a fake numeric score would be worse than showing none. This
+// composes the exact two signal families the escalation mechanism above
+// already trusts: did the DELIVERED reply itself hedge (the strongest,
+// most direct signal -- checked first), and did anything ahead of the call
+// already mark this as a harder-than-usual turn. Callers must label this
+// honestly as a heuristic proxy wherever it's surfaced, per the finding's
+// own recommendation.
+export type ConfidenceLabel = "high" | "medium" | "low"
+
+export function deriveConfidenceLabel(finalReplyText: string, preCallSignals: EscalationSignal[]): ConfidenceLabel {
+  if (detectLowConfidenceResponse(finalReplyText).detected) return "low"
+  if (preCallSignals.length > 0) return "medium"
+  return "high"
+}
