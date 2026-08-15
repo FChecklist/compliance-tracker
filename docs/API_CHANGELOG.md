@@ -15,7 +15,7 @@ That endpoint is always the authoritative, up-to-date schema; this document
 is the human-readable history of what changed and when. All `/api/v1/**`
 routes authenticate via `requireAuthOrApiKey()` (session cookie **or**
 `Authorization: Bearer <api-key>` / API-key header — see
-`src/lib/supabase/auth-guard.ts` and `src/lib/api-key-auth.ts`).
+`src/lib/supabase/auth-guard.ts` and `src/lib/supabase/api-key-auth.ts`).
 
 **How this document is maintained:** compiled directly from the git history
 of `src/app/api/v1/**/route.ts` (every commit that added, removed, or
@@ -25,6 +25,42 @@ this repository — nothing here is a forward-looking promise or a
 placeholder. When new `/api/v1/**` routes ship, add an entry here in the
 same PR (matching the standing convention documented for `AGENTS.md`'s
 change-history habits elsewhere in this repo) rather than backfilling later.
+
+## Rate Limiting
+
+Rate limiting applies only to `Authorization: Bearer <api-key>` callers (an
+authenticated session cookie is never rate-limited by this mechanism).
+There are no named plans/tiers ("Free", "Pro", etc.) — each API key carries
+its own `rate_limit_per_minute` value, set per key by an org admin:
+
+- **Default: unlimited.** A newly created key (`POST
+  /api/settings/api-keys`) has `rate_limit_per_minute = null`, meaning no
+  request-count ceiling is enforced. This has been every key's behavior
+  since the field was introduced and remains the default for new keys today.
+- **Window:** a fixed, non-configurable **60-second** rolling window.
+- **Setting a limit:** an org admin sets a custom limit on an existing key
+  via `PATCH /api/settings/api-keys/{id}` with `{ "rateLimitPerMinute": <positive integer> }`,
+  or clears it back to unlimited with `{ "rateLimitPerMinute": null }` — also
+  available from **Settings → API Access** in the app UI (a numeric
+  "req/min" field per key, blank/placeholder meaning unlimited).
+- **Enforcement:** once a key has a limit set, each request counts prior
+  requests from that same key in the trailing 60 seconds
+  (`api_key_request_log`). A request that would exceed the limit is
+  rejected before it reaches route logic, with:
+  ```
+  HTTP 429
+  Retry-After: 60
+  { "error": "Rate limit exceeded for this API key" }
+  ```
+- **Scopes are separate from rate limits.** Every key also carries one or
+  more scopes — `read` (default), `write`, and `read:reports` (grants
+  read-only access to `/api/v1/reports/**` specifically) — set independently
+  of `rateLimitPerMinute` and unaffected by it.
+
+Implementation: `src/lib/supabase/api-key-auth.ts` (`validateApiKey()`,
+enforcement + the 60s window constant) and
+`src/lib/supabase/auth-guard.ts` (`requireAuthOrApiKey()`, the 429 response
+shape). Schema: `api_keys.rate_limit_per_minute` in `src/lib/db/schema.ts`.
 
 ---
 
