@@ -1,31 +1,95 @@
-// CRM & Sales Modules: Opportunities (this wave). Real gap found via a fresh
-// audit: crm-accounts-service.ts got a real owner-or-manager RBAC gate in
-// Wave 4 (17 Jul 2026, canEditAccount/canReassignOrDeleteAccount/
-// canCreateCrmRecord) but crm_leads/crm_opportunities -- the sibling tables
-// one wave earlier -- never did. Any authenticated org member, including
-// viewer/client_viewer/external_auditor rank, could create/edit any lead or
-// opportunity and could silently reassign ownership via a plain
-// PATCH { ownerId } with zero rank check at all, through the native CRM UI's
-// own /api/crm/leads* and /api/crm/opportunities* routes. This file tests
-// the pure gate functions added to close that gap -- same
-// no-live-DB-from-a-.test.ts pattern as crm-accounts-service.test.ts (see
-// that file's own note, and approval-workflow-service.test.ts).
+// VERIDIAN Review Framework gap-closure: Sales Pipeline (2026-08-07). Tests
+// the pure predicate isValidStageTransition() -- every other crm-service.ts
+// export touches the DB via withTenantContext, deliberately untested here
+// per this repo's established pattern (see crm-accounts-service.test.ts's
+// own header note).
 //
-// Task #46 (CRM feature-parity gap analysis, merged in alongside the above):
-// also tests the pure predicates crm-service.ts exports for deterministic
-// auto-assignment -- computeRoundRobinAssignment() -- and lead-source
-// analytics -- aggregateLeadSourceEffectiveness() -- rather than exercising
-// the withTenantContext/live-DB-backed functions that call them
-// (autoDistributeLeads/autoDistributeOpportunities/getAssignmentOverview).
-// Same no-live-DB pattern throughout this file.
+// CRM & Sales Modules: Opportunities (merged in from a concurrent wave).
+// Real gap found via a fresh audit: crm-accounts-service.ts got a real
+// owner-or-manager RBAC gate in Wave 4 (17 Jul 2026, canEditAccount/
+// canReassignOrDeleteAccount/canCreateCrmRecord) but crm_leads/
+// crm_opportunities -- the sibling tables one wave earlier -- never did. Any
+// authenticated org member, including viewer/client_viewer/external_auditor
+// rank, could create/edit any lead or opportunity and could silently
+// reassign ownership via a plain PATCH { ownerId } with zero rank check at
+// all, through the native CRM UI's own /api/crm/leads* and
+// /api/crm/opportunities* routes. This file also tests the pure gate
+// functions added to close that gap -- same no-live-DB-from-a-.test.ts
+// pattern as crm-accounts-service.test.ts (see that file's own note, and
+// approval-workflow-service.test.ts).
+//
+// Task #46 (CRM feature-parity gap analysis, merged in alongside both of the
+// above): also tests the pure predicates computeRoundRobinAssignment() and
+// aggregateLeadSourceEffectiveness() -- rather than exercising the
+// withTenantContext/live-DB-backed functions that call them
+// (autoDistributeLeads/autoDistributeOpportunities/getAssignmentOverview/
+// getLeadSourceEffectivenessReport). Same no-live-DB pattern throughout this
+// file.
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
+  isValidStageTransition,
   canEditLead, canReassignOrDeleteLead,
   canEditOpportunity, canReassignOrDeleteOpportunity,
   canCreateCrmRecord,
   computeRoundRobinAssignment, aggregateLeadSourceEffectiveness,
 } from "./crm-service"
+
+const STAGES = [
+  { stageKey: "prospecting", isWon: false, isLost: false },
+  { stageKey: "proposal", isWon: false, isLost: false },
+  { stageKey: "negotiation", isWon: false, isLost: false },
+  { stageKey: "won", isWon: true, isLost: false },
+  { stageKey: "lost", isWon: false, isLost: true },
+]
+const MEMBER_RANK = 2
+const MANAGER_RANK = 3
+
+describe("isValidStageTransition", () => {
+  test("allows moving between two non-terminal stages, forward", () => {
+    expect(isValidStageTransition("prospecting", "negotiation", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows moving between two non-terminal stages, backward -- a deal cooling off is a real event", () => {
+    expect(isValidStageTransition("negotiation", "proposal", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows a no-op (same stage)", () => {
+    expect(isValidStageTransition("proposal", "proposal", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows any member to close a deal into won", () => {
+    expect(isValidStageTransition("negotiation", "won", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("allows any member to close a deal into lost", () => {
+    expect(isValidStageTransition("proposal", "lost", STAGES, MEMBER_RANK)).toEqual({ valid: true })
+  })
+
+  test("rejects a member reopening a won deal back into an active stage", () => {
+    const result = isValidStageTransition("won", "negotiation", STAGES, MEMBER_RANK)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain("manager approval")
+  })
+
+  test("rejects a member reopening a lost deal", () => {
+    expect(isValidStageTransition("lost", "prospecting", STAGES, MEMBER_RANK).valid).toBe(false)
+  })
+
+  test("allows a manager to reopen a closed deal", () => {
+    expect(isValidStageTransition("won", "negotiation", STAGES, MANAGER_RANK)).toEqual({ valid: true })
+  })
+
+  test("rejects an unknown target stage", () => {
+    const result = isValidStageTransition("prospecting", "not-a-real-stage", STAGES, MANAGER_RANK)
+    expect(result.valid).toBe(false)
+    expect(result.reason).toContain("Unknown pipeline stage")
+  })
+
+  test("falls back to hardcoded won/lost strings when stages config is empty (defensive)", () => {
+    expect(isValidStageTransition("won", "prospecting", [{ stageKey: "prospecting", isWon: false, isLost: false }], MEMBER_RANK).valid).toBe(false)
+  })
+})
 
 describe("canEditLead -- owner-or-manager RBAC gate", () => {
   test("denies a viewer regardless of ownership", () => {

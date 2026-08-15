@@ -29,7 +29,15 @@
 // below for all 26 pre-existing entries with real values, not left blank.
 import type { ReportCategory } from "./report-taxonomy"
 
-export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom"
+// "CRM" added 2026-08-07 (Sales Pipeline gap-closure, "Reporting & Export
+// Accuracy" finding): getSalesPipelineOverview() (crm-service.ts) was
+// computed but had no catalog entry at all -- classifications already had
+// a "sales" value (report-taxonomy.ts) with zero real entries using it.
+// Gated to the 'sales' product branch, not 'ERP' -- see
+// report-domain-enablement-service.ts's REPORT_DOMAIN_BRANCH_GATE; CRM/
+// Sales is its own purchasable branch (crm-enablement-service.ts), not part
+// of ERP, so mislabeling this "ERP" would gate it against the wrong module.
+export type ReportDomain = "compliance" | "ERP" | "construction" | "AI-ops" | "custom" | "CRM"
 
 export type ReportCatalogEntry = {
   id: string
@@ -271,6 +279,28 @@ export const REPORT_CATALOG: ReportCatalogEntry[] = [
     periodicity: "daily",
   },
 
+  // ── Sales / CRM reports (crm-service.ts) ──────────────────────────────
+  // Sales Pipeline gap-closure (2026-08-07): getSalesPipelineOverview() was
+  // already fully implemented (leadsByStatus, opportunitiesByStage,
+  // winRate, openPipelineValue) with a real in-app consumer as of this
+  // wave -- the Pipeline tab on /crm. Previously only reachable via the
+  // /api/v1/projexa/sales-pipeline external-API alias, with zero catalog
+  // entry and zero UI page.
+  {
+    id: "sales-pipeline-overview",
+    name: "Sales Pipeline Overview",
+    description: "Lead funnel by status, opportunity funnel by stage (count + base-currency value), win rate, open pipeline value, and overdue follow-up counts.",
+    domain: "CRM",
+    sourceService: "src/lib/services/crm-service.ts#getSalesPipelineOverview",
+    outputFormats: ["on-screen Kanban + summary cards (JSON API: GET /api/v1/projexa/sales-pipeline)", "CSV (GET /api/crm/pipeline/export)"],
+    route: "/crm",
+    routeNote: "Real live page -- 'Pipeline' tab. No required query params.",
+    directlyNavigable: true,
+    category: "software_report",
+    classifications: ["sales", "org_specific"],
+    periodicity: "on_demand",
+  },
+
   // ── Custom / user-authored reports (custom-report-service.ts) ────────
   {
     id: "custom-report",
@@ -376,7 +406,7 @@ export function getReportCatalogEntry(id: string): ReportCatalogEntry | undefine
 }
 
 export function listReportCatalogByDomain(): Record<ReportDomain, ReportCatalogEntry[]> {
-  const byDomain: Record<ReportDomain, ReportCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
+  const byDomain: Record<ReportDomain, ReportCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] }
   for (const entry of REPORT_CATALOG) byDomain[entry.domain].push(entry)
   return byDomain
 }
