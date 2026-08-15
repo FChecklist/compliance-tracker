@@ -76,7 +76,7 @@ different domain). None of the 5 findings were already resolved except
       (`?sinceDays=<n>`, `veridian_admin`-gated), matching the sibling
       `/api/ai/team/scorecard` governance-report pattern exactly. Pure
       merge/scoring core unit-tested in
-      `confidence-correlation-service.test.ts` (12 tests), including the
+      `confidence-correlation-service.test.ts` (10 tests), including the
       miscalibration-detection logic itself.
 
 - [x] **[Medium] Knowledge Synchronization Between Code and
@@ -131,3 +131,21 @@ drive-bys):
   change (pre-existing environment limitation, not something introduced
   here) -- no errors were reported against any of this PR's new files
   before the OOM.
+- Merged `origin/main` into this branch before opening the PR (this
+  workspace's checkout was ~1326 commits behind -- resolved real conflicts
+  in `PROGRESS.md`, taking this task's own content per the repo's own
+  established per-task-overwrite convention for that file, and in
+  `ai-os/boss/ACTIVE-CLAIMS.yaml`, keeping both sides' entries, append-only).
+  Re-ran `bun install` + the full `bun test` suite post-merge: 2559 pass, 0
+  fail, across 225 files -- nothing broken by the merge.
+- Note: `bunfig.toml`'s `[test] root = "src"` (added by main, commit
+  `6318fc773`, before this PR) means CI's bare `bun test` only auto-
+  discovers `*.test.ts` under `src/` -- `scripts/build-dependency-index.test.ts`
+  is therefore not picked up by that bare invocation, the same
+  pre-existing, already-accepted limitation every other `scripts/*.test.ts`
+  file in this repo (`audit-asset-registry.test.ts`,
+  `backfill-platform-assets.test.ts`, `report-cognitive-brain-coverage.test.ts`)
+  already lives with. Verified manually instead (`bun test
+  ./scripts/build-dependency-index.test.ts`, 20/20 pass) -- flagged
+  honestly rather than silently relying on a CI run that won't actually
+  execute it.
