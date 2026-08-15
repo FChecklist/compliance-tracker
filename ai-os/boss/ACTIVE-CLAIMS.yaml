@@ -6083,6 +6083,27 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (task-20260815-113913-rca--umr-20260806-183347-06b0-killed) -- RCA of UMR-20260806-183347-06b0 status=killed"
+    claimed_at: "2026-08-15T22:14Z (this session)"
+    claim: |
+      Re-dispatch of the same UMR (06b0) already RCA'd by a prior sibling
+      session (task-20260814-141803, same title) the day before: root cause
+      already correctly identified -- worker deferred genuine new
+      retention-policy build work under the Owner stop-work order, but the
+      deliverable (prune_memory_backups.py) was already merged 9h earlier via
+      veridian-scripts#151 (commit 14d9511d), re-confirmed twice more same
+      day by independent siblings. That prior session drafted the closing
+      `mark-umr-terminal` action and opened PR #1166 with the write-up, but
+      never actually ran the terminal-status command (no trace in its logs)
+      and PR #1166 itself never merged (still OPEN, mergeStateStatus=DIRTY,
+      audit-check FAILING) -- live `--query-umr` on this invocation still
+      shows status=killed, unchanged. This session's scope: re-verify the
+      evidence live (done -- PR#151 commit is a real ancestor of
+      veridian-scripts' origin/main, deliverable file exists on disk), then
+      actually execute the `mark-umr-terminal` action (a live DB action,
+      independent of git/PR flow) that the prior session only planned, and
+      resolve PR #1166 (close as superseded, since the terminal-status write
+      doesn't depend on it merging).
 recently_completed:
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
