@@ -40,6 +40,35 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
+    claimed_at: "2026-08-07T (this session)"
+    claim: |
+      ai-os/CONSTITUTION.yaml's prompt_cache_framework (CACHE-01..04,
+      Phase 1, 2026-07-14) wired prompt_cache_metrics INSERTs into
+      chat-service.ts's generateAiReply() but built zero readers --
+      confirmed via `git grep promptCacheMetrics`: only schema.ts,
+      metrics.ts, and that one call site matched anywhere in src/. This
+      task's own title ("Cache & Synchronization: Cache Utilization &
+      Prediction") has no matching spec doc anywhere in this repo
+      (checked MASTER-TRACKER.yaml; control/CONTROLLER.yaml, referenced
+      by CACHE-01's own `source` field, does not exist in this repo) --
+      interpreted honestly as: close the write-only-sink gap.
+      Scope: new file src/lib/prompt-cache/utilization.ts
+      (getCacheUtilizationSummary() report + predictNextDayCacheSavings()
+      trailing-moving-average forecast, both grouped by layer/by day),
+      its test file, one new additive export in src/lib/llm-client.ts
+      (estimatePromptCacheSavingsUsd(), next to the existing
+      estimateCostUsd(), does not change that function's behavior), and
+      one new route src/app/api/ai/team/cache-utilization/route.ts
+      (mirrors the sibling /api/ai/team/token-usage route's
+      veridian_admin-gating). Does NOT touch chat-service.ts, the
+      prompt_cache_metrics schema, or any other Orchestra Layer call site
+      -- CACHE-03's phased-rollout gap (only one layer wired) is
+      unchanged by this task.
+      Checked this file live before claiming -- no other active entry
+      touches prompt-cache/*, llm-client.ts's MODEL_PRICING/cost-estimate
+      functions, or an /api/ai/team/cache-utilization route.
+
   - session_label: "claude-code (worker task-20260718-082004) -- CRM & Sales Modules: Sales Pipeline gap-closure -- PR #1018, implementation DONE (14/14 findings), branch re-merged against main (invocation 14, 2026-08-15, commit 942a54a73) after a fresh 136-commit drift + a real Migration Number Collision (0313->0314, main independently used 0313 too) -- CI running on the fix commit as of this checkpoint; standing self-approval reviewer-identity deadlock (not this task's own work) documented 25+ times in prior invocations, expected to recur once CI is green [merge pending Owner action]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
