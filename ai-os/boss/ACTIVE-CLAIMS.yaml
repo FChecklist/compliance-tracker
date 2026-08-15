@@ -41,7 +41,20 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
+  - session_label: "claude-code (task-20260718-114004-retry-0--ai-engineering-quality--logic) -- VERIDIAN Review Framework AI Engineering Quality / Logic Separation & Determinism [DECLINED, docs-only, duplicate]"
+    claimed_at: "2026-08-15T12:02Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt): close 4 findings -- Deterministic Logic
+      Coverage, Configuration Over Hardcoding, Separation of Business Logic,
+      Separation of AI Logic -- same finding set as PR #1214
+      (worker/task-20260718-065005-ai-engineering-quality--logic-separation,
+      opened 05:48Z today) and PR #1242
+      (worker/task-20260718-120004-retry-2--ai-engineering-quality--logic,
+      opened 09:56Z today), both still OPEN and unmerged, both real
+      (verified by reading their actual diffs, not just PR titles/bodies).
+      Declined to open a third PR for the same findings -- see this task's
+      own progress/task-20260718-114004-retry-0--ai-engineering-quality--logic.md
+      for full evidence. No code changes made.
     claimed_at: "2026-07-17T (this session)"
     claim: |
       CONTROLLER.yaml entry REVIEW-FRAMEWORK-WAVE4, Track 1 (this session's
