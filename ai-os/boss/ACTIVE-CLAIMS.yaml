@@ -1624,6 +1624,44 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-070004-ai-engineering-quality--technical-debt) -- AI Engineering Quality / Technical Debt & Complexity gap-closure"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "branch worker/task-20260718-070004-ai-engineering-quality--technical-debt, PR pending at commit time"
+    summary: |
+      Closed all 5 findings from the VERIDIAN Review Framework's AI
+      Engineering Quality / Technical Debt & Complexity evaluation in one
+      PR (re-verified each against current code first -- all 5 were still
+      genuinely open, not stale): (1) Dead Code Detection -- knip.json +
+      scripts/check-dead-code.mjs, diff-scoped like check-migration-
+      collision.mjs, wired as CI job dead-code-detection; (2) Duplicate
+      Code Detection -- .jscpd.json (measured baseline 1.97%, threshold
+      4%) + scripts/check-duplicate-code.mjs, wired as CI job duplicate-
+      code-detection; (3) Technical Debt Score -- scripts/technical-debt-
+      score.mjs, a real composite 0-100 score (measured 62/100) derived
+      from MASTER-TRACKER.yaml open items + check-guardrail-presence.mjs's
+      empty-guardrail % + stale-doc-manifest.yaml count, informational CI
+      job; (4) Code Complexity Score -- ESLint complexity rule added,
+      scoped to the 7 largest measured orchestration files (error@20,
+      real measured max was 18) + task-execution-engine.ts (warn@20 only
+      -- its worst function measured complexity 372, too far past any
+      sane bar to gate without a dedicated refactor PR); (5) Refactoring
+      Readiness -- added src/lib/supabase/auth-guard.test.ts (20 tests),
+      the highest-churn (23 commits) untested file in src/lib and the
+      file every API route's requireAuth()/requireRole() call goes
+      through. File scope: knip.json, .jscpd.json, scripts/check-dead-
+      code.mjs, scripts/check-duplicate-code.mjs, scripts/technical-debt-
+      score.mjs, eslint.config.mjs, .github/workflows/ci.yml,
+      package.json, src/lib/supabase/auth-guard.test.ts. Did not touch
+      src/lib/services/permission-service.ts or any other in-flight
+      worker's declared scope. Verified: bun run lint (0 errors), tsc
+      --noEmit (clean), bun test (1441 pass / 0 fail across 104 files).
+      One item deliberately deferred, not silently dropped: the 3 new
+      .github/workflows/ci.yml job blocks could not be pushed (this
+      session's gh token lacks the `workflow` OAuth scope GitHub requires
+      for any push touching workflow files) -- exact YAML preserved in
+      docs/pending-ci-wiring/technical-debt-ci-jobs.md for a follow-up
+      with that scope; the scripts/configs themselves are merged and
+      directly runnable via `bun run check:dead-code` etc.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"

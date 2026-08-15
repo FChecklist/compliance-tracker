@@ -15,7 +15,7 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "@typescript-eslint/ban-ts-comment": "off",
     "@typescript-eslint/prefer-as-const": "off",
     "@typescript-eslint/no-unused-disable-directive": "off",
-    
+
     // React rules
     "react-hooks/exhaustive-deps": "off",
     "react-hooks/purity": "off",
@@ -31,11 +31,11 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
     "react/display-name": "off",
     "react/prop-types": "off",
     "react-compiler/react-compiler": "off",
-    
+
     // Next.js rules
     "@next/next/no-img-element": "off",
     "@next/next/no-html-link-for-pages": "off",
-    
+
     // General JavaScript rules
     "prefer-const": "off",
     "no-unused-vars": "off",
@@ -53,6 +53,72 @@ const eslintConfig = [...nextCoreWebVitals, ...nextTypescript, {
   },
 }, {
   ignores: ["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "examples/**", "skills", "public/litert-spike/wasm/**", "public/litert-spike-embeddings/wasm/**"]
+}, {
+  // AI Engineering Quality / Technical Debt gap-closure -- "Code
+  // Complexity Score" finding: no measured complexity score existed
+  // anywhere, only file-size as a rough proxy. Cyclomatic complexity via
+  // ESLint's built-in `complexity` rule is a real measured score; this
+  // starts it on the largest true orchestration/business-logic files in
+  // src/lib (picked by `git ls-files | xargs wc -l`, excluding
+  // src/lib/db/schema.ts -- a declarative table-definition file, not
+  // orchestration logic that complexity scoring is meaningful for) rather
+  // than repo-wide, per the finding's own recommended approach.
+  //
+  // Threshold was set from a real measurement, not guessed: running
+  // `bun run lint` with this rule at threshold 1 against these 7 files
+  // (2026-08-15) measured a max cyclomatic complexity of 18 (two
+  // functions: buildGstReconciliationNodes in erp-fixed-assets-service.ts,
+  // generateAiReply in chat-service.ts), with the next-highest at 17
+  // (parseAuditVerdict in capability-audit-service.ts). `error` at 20 is a
+  // ratchet -- locks in "no new function in these files exceeds today's
+  // worst measured complexity" as a real CI gate, without retroactively
+  // forcing an unplanned refactor of those functions today. Functions
+  // already above ~10-11 here (there are several) are the natural next
+  // refactor candidates for the "Refactoring Readiness" finding this same
+  // PR addresses -- tighten this threshold in a future PR as they're
+  // brought down, rather than ratcheting it down all at once.
+  //
+  // Deliberately not repo-wide yet: this codebase's src/app/**/page.tsx
+  // files and other services were never measured for this, and setting a
+  // blanket threshold without measuring first would be exactly the kind of
+  // decorative gate this finding was raised against. Expand this list in a
+  // future PR once these files are refactored under it and the pattern is
+  // proven, not before.
+  files: [
+    "src/lib/services/report-engine-service.ts",
+    "src/lib/services/capability-tree-service.ts",
+    "src/lib/services/chat-service.ts",
+    "src/lib/services/erp-fixed-assets-service.ts",
+    "src/lib/services/capability-audit-service.ts",
+    "src/lib/orchestra-model-resolver.ts",
+    "src/lib/task-tightening.ts",
+  ],
+  rules: {
+    complexity: ["error", 20],
+  },
+}, {
+  // task-execution-engine.ts is the single largest orchestration file
+  // (2437 lines) and was measured alongside the 7 files above -- but its 3
+  // largest functions (dispatchEngine: complexity 372, a giant
+  // engine-type switch statement; dispatchTool: 121; executeTask: 49) are
+  // so far past any reasonable threshold that gating them at the same
+  // `error, 20` as the 7 files above would either instantly fail CI on any
+  // unrelated PR, or force setting the threshold so high (>= 372) that it
+  // becomes decorative -- exactly the kind of toothless gate this finding
+  // was raised against.
+  //
+  // Kept as `warn` (visible in `bun run lint` output, does not fail CI)
+  // rather than silently left unmeasured: this is the clearest, most
+  // concrete "Refactoring Readiness" candidate this PR's own scan
+  // surfaced, but refactoring a 2437-line core task-dispatch engine blind,
+  // in the same PR that adds the measurement tooling, is a materially
+  // bigger and riskier change than this gap-closure's scope -- left for a
+  // dedicated, reviewed follow-up PR instead of an unplanned same-PR
+  // rewrite of the task dispatcher.
+  files: ["src/lib/task-execution-engine.ts"],
+  rules: {
+    complexity: ["warn", 20],
+  },
 }];
 
 export default eslintConfig;

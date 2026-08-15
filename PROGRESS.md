@@ -1,80 +1,106 @@
-# PROGRESS -- Cost estimate: 5 orgs x 10 users (50 total), all modules
+# PROGRESS -- task-20260718-070004-ai-engineering-quality--technical-debt
 
-Task: produce docs/analysis/cost-estimate-5org-50user.md, a guesstimate of
-monthly infra + AI cost to run VERIDIAN AI OS / compliance-tracker / PROJEXA
-at 5 orgs x 10 users = 50 users, using all real modules found in the repo.
-Analysis-only deliverable -- no application code changes.
+VERIDIAN Review Framework gap-closure: AI Engineering Quality / Technical
+Debt & Complexity (5 findings). Re-checked each finding against current
+code before touching anything, per the task's own instruction -- all 5 were
+still genuinely open (no dead-code/duplicate-code tooling, no complexity
+rule, no composite debt score, and auth-guard.ts -- the single highest-
+churn file in src/lib -- had zero test coverage). All 5 findings share one
+module/area (CI quality tooling) and are closed in one PR.
 
 ## Completed
-- [x] Read governance docs (AGENTS.md, CLAUDE.md, ai-os/CONSTITUTION.yaml
-      pointers) and ai-os/boss/ACTIVE-CLAIMS.yaml -- no existing claim
-      overlaps this analysis-only task; registered this task's own claim.
-- [x] Enumerated real module/feature scope: 84 top-level `(app)/*` feature
-      areas (138 page.tsx), 129 top-level `api/*` route groups (878
-      route.ts), 431 DB tables (schema.ts), 198-role AI worker-agent roster
-      (roster.ts), PROJEXA confirmed as an alias layer over the same
-      compliance-tracker engines (api/v1/projexa/* = 164 route.ts files),
-      construction/interior verticals real in schema+API but with no
-      dedicated `(app)/` UI yet (noted as a scope caveat).
-- [x] Found and read the real Token Usage Ledger
-      (src/lib/services/token-usage-service.ts, schema.ts's
-      `tokenUsageLedger`) and cost-guard.ts (opt-in per-org monthly cap,
-      no default cap set).
-- [x] Found and read real recorded usage data:
-      docs/testing/PROJEXA_LOAD_TEST_RESULTS.md -- 499 real production
-      `task_oa` calls, actual prompt/completion token counts and cost,
-      3.4% escalation rate floor-tier -> GLM-5.2. Used as the grounding
-      anchor for per-interaction token-size assumptions instead of
-      guessing from scratch.
-- [x] Read src/lib/llm-client.ts (MODEL_PRICING table, provider dispatch,
-      prompt-cache wiring -- Anthropic-only, Phase 1) and
-      src/lib/orchestra-model-resolver.ts (Groq floor tier default,
-      Cerebras same-model failover, GLM-5.2 OpenRouter escalation, 3 real
-      orchestra layers actually reachable: task_oa, user_assistant_oa,
-      customer_account_oa).
-- [x] Checked ai-os/MASTER-TRACKER.yaml / CONSTITUTION.yaml for prior cost
-      governance decisions (cost-cap enforcement default-true finding,
-      no AI_COST_GOVERNANCE-named entry exists by that literal name;
-      ai-os/CONTROLLER.yaml does not exist in this repo/workspace -- only
-      the separate claude-control meta-repo's CONTROLLER.yaml, checked for
-      the CACHE-01 prompt-caching framework context instead).
-- [x] Web-verified CURRENT real pricing (2026-07-18) for every wired
-      provider/model: Groq gpt-oss-120b, Cerebras gpt-oss-120b, OpenRouter
-      GLM-5.2, Groq llama-4-scout (vision), Anthropic Claude Sonnet 5,
-      Vercel Pro, Supabase Pro + compute tiers. Found and flagged a real
-      discrepancy: the codebase's own MODEL_PRICING entry for Groq's
-      floor-tier model understates real current Groq pricing by
-      roughly 3.3-4x (verified independently against groq.com/pricing).
-- [x] Built the per-user monthly interaction-volume model (Low/Mid/High
-      usage scenarios) grounded in the real load-test token sizes, and the
-      infra sizing (Vercel + Supabase tier recommendation) for 50 users /
-      431 tables.
-- [x] Wrote docs/analysis/cost-estimate-5org-50user.md with full reasoning,
-      sources, math, and a stated confidence range (not a single false-
-      precision number).
+- [x] **Dead Code Detection** (Medium): added `knip` as a devDependency +
+      `knip.json` (entry points: app router files, middleware, seed script,
+      CI scripts). `scripts/check-dead-code.mjs` wraps it, diff-scoped like
+      `check-migration-collision.mjs` -- fails only if a NEW file this PR
+      adds is unreachable from every real entry point, not on the ~18
+      pre-existing dead files knip's first full-repo run found (left for a
+      separate cleanup pass, listed in the script's own header). Script +
+      `bun run check:dead-code` alias merged; CI wiring pending, see note
+      below.
+- [x] **Duplicate Code Detection** (High): added `jscpd` as a
+      devDependency + `.jscpd.json` (excludes components/ui, *.test.ts,
+      db/schema.ts). Measured real baseline: 1.97% duplicated lines across
+      src/. Threshold set to 4% (headroom over baseline).
+      `scripts/check-duplicate-code.mjs` wraps jscpd's own exit code into a
+      clear CI failure message. Script + `bun run check:duplicate-code`
+      alias merged; CI wiring pending, see note below.
+- [x] **Technical Debt Score** (Medium): `scripts/technical-debt-score.mjs`
+      derives a real composite 0-100 score from 3 existing trackers (no new
+      tracking mechanism invented): open MASTER-TRACKER.yaml items
+      (OPEN-*/GAP-* ids, excludes settled RATIFIED-* decisions) + empty-
+      guardrail % from check-guardrail-presence.mjs's manifest + stale-doc
+      count from stale-doc-manifest.yaml. Real measured score as of
+      2026-08-15: **62/100** (18 open items, 0% empty guardrails, 44 stale
+      docs). Informational, always exits 0, documented in the script's own
+      header as a visibility tool, not a gate (a hard threshold would be an
+      Owner-level product decision, not something to bake in silently).
+      Script + `bun run debt:score` alias merged; CI wiring pending, see
+      note below.
 
-- [x] Quality-gate follow-up: a "quality gate checks failed" instruction
-      arrived with an empty gate-output body (no failing check names/errors
-      included). Ran every mechanical gate this repo actually defines
-      against a fresh `bun install`, to check for a real, reproducible
-      problem rather than guessing: `bun run lint` (0 errors, 3 pre-existing
-      unrelated warnings), `bunx tsc --noEmit` (0 errors), `bun run build`
-      (succeeded), `bun test` (1388 pass / 0 fail), Guardrail Presence Check
-      (88/88), Asset Registry Coverage Check (431/431 tables), Metadata
-      Index Coverage Check (30/30), Doc Quarantine Banner Check (44/44),
-      Doc Cross-Reference Check (339/339 references resolved), and manual
-      YAML-parse validation of the one file this task hand-edited
-      (ai-os/boss/ACTIVE-CLAIMS.yaml). All pass cleanly -- nothing to fix
-      was found. Asked the user for the actual failing-check output before
-      changing anything further, rather than silencing or guess-patching a
-      check that isn't actually failing here.
+**Note on CI wiring:** all 3 `.github/workflows/ci.yml` job blocks
+(`dead-code-detection`, `duplicate-code-detection`, `technical-debt-score`)
+were written, and locally verified to actually pass, but could NOT be
+pushed from this session -- this session's `gh` token lacks the `workflow`
+OAuth scope GitHub requires for any push touching `.github/workflows/*.yml`
+(same blocker as documented in a prior session's memory; not this repo's
+own branch protection, a separate GitHub-side guardrail). The exact job
+YAML + insertion point is preserved verbatim in
+`docs/pending-ci-wiring/technical-debt-ci-jobs.md` for whoever has
+`workflow` scope to apply as a tiny, already-reviewed follow-up. The
+scripts/configs/package.json aliases they call are all merged and directly
+runnable via `bun run check:dead-code` / `bun run check:duplicate-code` /
+`bun run debt:score` in the meantime.
+- [x] **Code Complexity Score** (Medium): added ESLint's `complexity` rule,
+      scoped to the largest true orchestration/service files (measured, not
+      guessed): report-engine-service.ts, capability-tree-service.ts,
+      chat-service.ts, erp-fixed-assets-service.ts,
+      capability-audit-service.ts, orchestra-model-resolver.ts,
+      task-tightening.ts get `error` at threshold 20 (real measured max was
+      18) -- a real ratchet, not decorative. task-execution-engine.ts (the
+      single largest orchestration file, 2437 lines) measured functions up
+      to complexity 372 (`dispatchEngine`'s engine-type switch) -- kept at
+      `warn` only, since gating it at the same threshold would either
+      instantly fail CI or force a threshold so high it's meaningless;
+      flagged instead as the concrete next "Refactoring Readiness"
+      candidate rather than blind-refactored in this same PR. `bun run
+      lint` and `bunx tsc --noEmit` both still pass clean (0 errors).
+- [x] **Refactoring Readiness** (Medium): per the finding's own
+      recommendation ("prioritize adding tests to the largest/most-changed
+      untested files before refactoring them"), cross-referenced
+      `git log --name-only` churn against existing `*.test.ts` coverage.
+      `src/lib/supabase/auth-guard.ts` was the highest-churn (23 commits)
+      untested file in src/lib, and it's not peripheral -- every API route
+      calls `requireAuth()`/`requireRole()` from it. Added
+      `src/lib/supabase/auth-guard.test.ts`: 20 real tests (44 assertions)
+      covering `ROLE_RANK`, `hasRole`, `requireRole`, `hasScope`,
+      `requireRoleOrScope`, including a regression test for the real,
+      already-fixed "6 Wave-1 hierarchy roles silently locked out" bug
+      documented in the file's own comments. All 20 pass against the real
+      implementation. `requireAuth()`/`autoProvisionUser()` (need a real
+      Supabase/DB double) deliberately left uncovered -- out of scope for
+      this slice, noted honestly rather than claimed as done.
+
+## Verification run (2026-08-15)
+- `bun run lint` -- 0 errors, 6 warnings (3 pre-existing + unrelated, 3 are
+  the new task-execution-engine.ts complexity warnings, all informational).
+- `NODE_OPTIONS=--max-old-space-size=4096 bunx tsc --noEmit` -- clean (the
+  default heap OOMs on this repo's schema.ts regardless of this PR; not a
+  regression this PR introduced).
+- `bun test` -- 1441 pass, 0 fail, across 104 files (was 103 before this
+  PR's new auth-guard.test.ts).
+- `node scripts/check-dead-code.mjs` -- passes (1 new file this PR adds,
+  not dead).
+- `node scripts/check-duplicate-code.mjs` -- passes (1.97% < 4% threshold).
+- `node scripts/technical-debt-score.mjs` -- runs, prints 62/100.
 
 ## Remaining
-- [ ] Awaiting the actual quality-gate failure output from the user (the
-      message that triggered this follow-up arrived with no gate output
-      attached) -- nothing else outstanding. Once real failing checks are
-      identified, fix the underlying issue they point to (not just the
-      checker). Deliverable itself (docs/analysis/cost-estimate-5org-50user.md)
-      remains complete and unchanged since the last full pass.
-- [ ] Not committed/pushed/PR'd yet (Rule 6 still requires branch + PR +
-      green CI before merge to main; this session has not opened that PR).
+- [ ] Apply `docs/pending-ci-wiring/technical-debt-ci-jobs.md`'s 3 job
+      blocks to `.github/workflows/ci.yml` -- blocked on `workflow` OAuth
+      scope this session does not have, not on any remaining design/code
+      work. Everything else for this gap-closure's 5 findings is complete.
+      Follow-up ideas noted above but explicitly out of scope: (a) refactor
+      task-execution-engine.ts's 3 highest-complexity functions under its
+      own dedicated PR, (b) a deliberate cleanup pass for knip's ~18-file
+      pre-existing dead-code backlog, (c) real Supabase/DB-doubled tests
+      for requireAuth()/autoProvisionUser().
