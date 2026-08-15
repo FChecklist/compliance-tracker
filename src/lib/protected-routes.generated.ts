@@ -33,6 +33,7 @@ export const PROTECTED_APP_ROUTE_PREFIXES: string[] = [
   "/erp",
   "/esg",
   "/fde",
+  "/finops",
   "/fm-register-digitization",
   "/frameworks",
   "/fraud-cases",

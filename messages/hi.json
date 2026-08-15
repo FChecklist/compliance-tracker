@@ -187,7 +187,8 @@
           "departments": "विभाग",
           "accessReview": "पहुंच समीक्षा",
           "settings": "सेटिंग्स",
-          "auditLog": "ऑडिट लॉग"
+          "auditLog": "ऑडिट लॉग",
+          "finops": "एआई फिनऑप्स"
         }
       },
       "tools": {
