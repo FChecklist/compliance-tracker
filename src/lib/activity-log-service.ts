@@ -74,6 +74,16 @@ export type RecordActivityInput = {
    * this file's existing PeerReviewInput.selfAssessment signature.
    */
   selfAssessment?: Record<string, unknown> | null;
+  /**
+   * VERIDIAN Review Framework gap-closure (2026-07-18), GP-09: a real
+   * numeric confidence score computed at DISPATCH time
+   * (dispatch-confidence-scoring.ts), not just an optional reviewer-supplied
+   * value at closure time (recordPeerReview, below). confidenceBand is
+   * confidence-banding.ts's bandConfidence() applied to the same number --
+   * both nullable/additive.
+   */
+  confidencePercentage?: number | null;
+  confidenceBand?: string | null;
 };
 
 /**
@@ -100,6 +110,8 @@ export function recordActivity(params: RecordActivityInput): Promise<{ id: strin
       riskLevel: params.riskLevel ?? null,
       complexityTier: params.complexityTier ?? null,
       selfAssessment: params.selfAssessment ?? null,
+      confidencePercentage: params.confidencePercentage != null ? String(params.confidencePercentage) : null,
+      confidenceBand: params.confidenceBand ?? null,
     }).returning({ id: activityLog.id });
     if (row && TERMINAL_STAGES.has(params.lifecycleStage)) {
       await runTaskReflection(db, {

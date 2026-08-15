@@ -30,7 +30,7 @@
 --
 -- PLATFORM-WIDE by design (no org_id column): an audit-protocol finding is
 -- about a PR/branch in this single repository, not about any one tenant
--- org's data -- same reasoning drizzle/0172_priority11_deployment_events.sql
+-- org's data -- same reasoning drizzle/0255_priority11_deployment_events.sql
 -- used for deployment_events (a Vercel deployment belongs to this app's own
 -- single Vercel project, not to a tenant), which this migration's RLS/GRANT
 -- shape mirrors exactly: app_runtime gets read-only SELECT (for the new
@@ -46,7 +46,7 @@
 -- reason field and this PR's description for the quoted authorization).
 --
 -- NOT applied to the live database by this PR -- per this repo's
--- established convention (see drizzle/0172_priority11_deployment_events.sql
+-- established convention (see drizzle/0255_priority11_deployment_events.sql
 -- and every other migration this session), a separate audit step (Super
 -- Boss / Claude Desktop) reviews and applies this via the Supabase MCP
 -- after review, then merges.

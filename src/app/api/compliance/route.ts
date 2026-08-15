@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
-import { listComplianceItems, createComplianceItem, ServiceError } from "@/lib/services/compliance-service"
+import { listComplianceItems, createComplianceItem, ServiceError, serviceErrorBody } from "@/lib/services/compliance-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
     })
     return NextResponse.json(result)
   } catch (error) {
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof ServiceError) return NextResponse.json(serviceErrorBody(error), { status: error.status })
     console.error("Compliance list API error:", error)
     return NextResponse.json({ error: "Failed to fetch compliance items" }, { status: 500 })
   }
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
     )
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
-    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    if (error instanceof ServiceError) return NextResponse.json(serviceErrorBody(error), { status: error.status })
     console.error("Compliance create API error:", error)
     return NextResponse.json({ error: "Failed to create compliance item" }, { status: 500 })
   }
