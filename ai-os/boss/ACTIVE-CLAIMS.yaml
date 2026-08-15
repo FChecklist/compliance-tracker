@@ -40,6 +40,19 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-071002-ai-maintainability--change-risk-manageme)"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure: "AI Maintainability / Change
+      Risk Management," 5 findings. Work is complete and a PR is being
+      opened this same session -- new files only, no shared file touched:
+      scripts/build-dependency-index.ts(+.test.ts), docs/DEPENDENCY_INDEX.md,
+      docs/ROLLBACK_RUNBOOK.md, docs/KNOWLEDGE_SYNC_AUDIT.md,
+      drizzle/down/ (new dir), src/lib/services/confidence-correlation-
+      service.ts(+.test.ts), src/app/api/ai/team/confidence-audit/route.ts.
+      Did NOT touch src/lib/services/permission-service.ts's
+      ERP_ACTION_ROLES per this task's own constraint. Move to
+      recently_completed once the PR merges.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
