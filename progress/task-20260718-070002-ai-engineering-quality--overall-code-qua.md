@@ -221,3 +221,53 @@ nothing outside each marked section references those tables), before
 attempting the large undifferentiated core. Not filing a new
 MASTER-TRACKER.yaml entry for this from inside the task itself; noting it
 here for whoever picks this back up.
+
+## Invocation 18/20 resume (this session)
+- [x] Re-verified state: the uncommitted diff at resume did not match this
+      file's last-written narrative (which described the split as already
+      committed/pushed) -- it was in fact newer, already-in-progress work
+      on top of that: PR #1220 (the split PR from the prior invocation)
+      was open but failing CI on 5 checks (CodeQL, Guardrail Presence
+      Check, Terminology Guardrail Check, audit-check, Vercel). The
+      uncommitted working-tree diff was a partial fix already underway for
+      3 of those (registry exemptions plus guardrail marker path plus a
+      first-pass Object.hasOwn() CodeQL fix in dispatch-engine.ts).
+      Confirmed real via `gh pr checks 1220` plus the CodeQL annotations
+      API (real alert: "Unvalidated dynamic method call",
+      dispatch-engine.ts line 134) -- not a false premise.
+- [x] Replaced the in-progress Object.hasOwn() CodeQL fix with an explicit
+      switch statement instead -- matches the pattern this same file
+      already uses two cases below (financial_mathematics_engine,
+      percentage_engine), removes the dynamic property-access pattern
+      CodeQL flags entirely rather than trying to sanitize it, and does
+      not depend on whether Object.hasOwn() is on CodeQL's recognized-
+      sanitizer list for this rule.
+- [x] Bumped the dispatch-engine.ts registry-exemption count from 4 to 5
+      for the new dated changelog comment the fix itself adds, with an
+      updated reason string explaining the 5th finding.
+- [x] Verified locally: check-guardrail-presence.mjs pass (88/88 markers),
+      check-terminology-guardrail.mjs --diff-only pass (0 new findings),
+      eslint on both changed files clean, tsc --noEmit shows 0 errors
+      attributable to dispatch-engine.ts (10 pre-existing unrelated
+      missing-module errors -- @playwright/test etc -- confirmed
+      unrelated), scoped dispatch-engine.test.ts 11/11 pass.
+- [x] Committed (9d2965a00) and pushed to the existing worker branch (PR
+      #1220 already open, no new branch needed -- this is a fix commit on
+      top of the already-open PR, not a new PR).
+- [x] Updated progress/.audit-comment.md to cover the follow-up fix and
+      posted it to PR #1220 as a new comment (comment id 5301260057).
+- [x] Re-checked `gh pr checks 1220` after push plus comment: Guardrail
+      Presence Check, Terminology Guardrail Check, and audit-check all now
+      PASS. CodeQL (Analyze), Lint, Type Check, Vercel still
+      running/pending at last check -- monitoring for final green.
+
+## Remaining
+- [ ] Confirm CodeQL (Analyze), Lint, Type Check, and Vercel all go green
+      on PR #1220 (Vercel was previously failing on a build-rate-limit,
+      not a real code issue -- may need a retry or may resolve on its own;
+      not something this fix can control).
+- [ ] Once fully green, this task's PR is ready for merge (still subject
+      to Rule 6's PR/CI gate and this repo's real main-branch-protection
+      self-approval deadlock -- see
+      [[veridian-branch-protection-self-approval-deadlock-active]] if
+      `gh pr merge` fails even with --admin).
