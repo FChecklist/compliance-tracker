@@ -1,0 +1,205 @@
+# ============================================================================
+# VERIDIAN AI OS -- AI ENGINEERING POLICY (machine-readable, mandatory)
+# ============================================================================
+# Owner directive, 2026-07-21: applies to the whole integrated system --
+# FChecklist, VERIDIAN AI OS, compliance-tracker, PROJEXA, server, GitHub,
+# Vercel, Supabase, product, project, brands, AI models, end user. Read this
+# BEFORE starting any engineering, software-development, systems-management,
+# or process-design task -- same "mandatory_before" gate as system_index in
+# ai-os/MASTER_INDEX.yaml.
+#
+# Relationship to other governing docs (not a duplicate of either):
+#   ai-os/RULES_ARTICLES_198.json / ai-os/CONSTITUTION.yaml declare WHAT the
+#   system must be (declarative rules, "software first, AI second" among
+#   them, each with its own enforcement status). THIS file is the
+#   operational HOW -- a concrete priority-check order and prefer/avoid
+#   list to run through before writing code or doing manual work. It is a
+#   playbook to consult per-task, not a per-item enforcement registry to
+#   score the way audit198 scores the 198 Rules/Articles.
+#
+# language_rule: short structured values only, matching CONSTITUTION.yaml's
+#   own convention -- no narrative prose beyond this header.
+# ============================================================================
+
+meta:
+  id: AI-ENGINEERING-POLICY
+  version: 1.0
+  effective_date: "2026-07-21"
+  scope: >-
+    Whole integrated system: FChecklist, VERIDIAN AI OS, compliance-tracker,
+    PROJEXA, server (VERIDIAN-DEV Hetzner), GitHub, Vercel, Supabase,
+    product, project, brands, AI models, end user.
+  source: "Owner directive, 2026-07-21, verbatim policy text"
+  disambiguation_note: >-
+    "AI orchestration over sequential execution" (in always_prefer) means:
+    when multiple steps must run and none individually needs AI, prefer an
+    AI-agnostic workflow/orchestration engine over hardcoded sequential
+    glue code -- NOT "prefer AI over software." The core_principle and
+    engineering_priority_order below (AI appears nowhere in the 30 items,
+    explicitly the last resort) govern in any apparent conflict.
+
+core_principle: >-
+  Do not solve problems the way a human would. Think and act like AI:
+  a world-class software architect, systems engineer, automation engineer,
+  and platform engineer. The objective is not to finish one task -- it is
+  to build a cognitive AI OS that makes future work faster, cheaper, more
+  reliable, and increasingly automated, until 99% of work is done by
+  software automation and 1% or less by AI.
+
+engineering_priority_order:
+  instruction: >-
+    Before performing any kind of work, determine whether the task can be
+    completed using one or more of the following, IN ORDER, before writing
+    significant new code or doing manual work. First preference is
+    automation without AI.
+  options:
+    - existing_software_capability
+    - configuration_instead_of_code
+    - existing_package
+    - existing_framework
+    - existing_library
+    - existing_sdk
+    - existing_api
+    - existing_cli_tool
+    - existing_automation
+    - existing_workflow_engine
+    - existing_database_capability
+    - sql
+    - metadata
+    - configuration_files
+    - wrappers
+    - adapters
+    - middleware
+    - templates
+    - code_generation
+    - batch_processing
+    - parallel_execution
+    - event_driven_execution
+    - existing_reusable_scripts
+    - existing_reusable_services
+    - existing_reusable_components
+    - existing_reusable_modules
+    - existing_reusable_microservices
+    - existing_ai_tools
+    - existing_mcp_servers
+    - existing_open_source_projects
+
+always_prefer:
+  - metadata: over hardcoding
+  - configuration: over programming
+  - declarative_design: over imperative design
+  - wrappers: over duplication
+  - adapters: over rewriting
+  - composition: over recreation
+  - reuse: over rebuilding
+  - automation: over manual work
+  - batch_processing: over repetitive execution
+  - platform_capabilities: over custom implementation
+  - plugins: over forks
+  - extensions: over modifications
+  - event_driven_workflows: over polling
+  - ai_orchestration: "over sequential execution -- see meta.disambiguation_note, this is about AI-agnostic workflow engines vs hardcoded glue code, not AI-over-software"
+  - standard_protocols: over proprietary solutions
+
+never_behave_like_a_human_operator:
+  rule: if software can perform the task, software should perform the task.
+  never:
+    - open hundreds of records individually
+    - visit tables one by one
+    - repeat identical operations
+    - copy and paste data manually
+    - perform repetitive clicks
+    - rebuild software that already exists
+    - ignore built-in platform capabilities
+
+think_at_highest_abstraction_level:
+  instruction: >-
+    Before writing code, determine whether the problem is better solved by
+    one of these, in no particular order -- pick the highest abstraction
+    level that genuinely fits.
+  options:
+    - metadata
+    - configuration
+    - rules_engine
+    - workflow_engine
+    - ai_prompt
+    - ai_agent
+    - existing_package
+    - existing_platform_feature
+    - existing_automation
+    - existing_script
+    - existing_wrapper
+    - existing_service
+    - existing_api
+    - existing_sdk
+
+build_assets_not_tasks:
+  instruction: >-
+    Whenever possible, create reusable assets rather than one-off task
+    output. Every solution should become an asset that reduces future
+    work, and ultimately reduces AI usage for predictive/repetitive/
+    automatable work toward zero.
+  asset_types:
+    - reusable_wrappers
+    - reusable_utilities
+    - reusable_services
+    - reusable_libraries
+    - reusable_prompts
+    - reusable_templates
+    - reusable_metadata
+    - reusable_workflows
+    - reusable_automation
+    - reusable_connectors
+    - reusable_mcp_tools
+    - reusable_ai_agents
+
+continuous_optimization_checklist:
+  instruction: >-
+    While implementing any solution, continuously ask each of these. If
+    yes to any, prefer that approach over what you were about to build.
+  questions:
+    - can this be metadata?
+    - can this be configuration?
+    - can this be automated?
+    - can this be generated?
+    - can this be reused?
+    - can this become a wrapper?
+    - can this become a generic component?
+    - can this become a platform capability?
+    - can this become a shared service?
+    - can this become an sdk?
+    - can this become an api?
+    - can this become a workflow?
+    - can this become a reusable tool?
+
+automation_scope_boundary:
+  rule: >-
+    "100% automation" and "no manual work" directives (Owner, 2026-07-21)
+    apply to executing software-verifiable facts and building real
+    capability -- they do NOT extend to genuinely irreversible actions or
+    to items that are not reducible to a software fact. This is a
+    standing exception, not a case-by-case judgment call, so future
+    automation-heavy directives are never misread as license to silently
+    force through a decision that isn't a software fact.
+  standing_exceptions:
+    genuinely_irreversible_actions: >-
+      Live customer data changes, production DNS changes, and
+      persistent/standing server-config changes (e.g. crontab
+      modifications) get surfaced to the Owner for explicit confirmation
+      before execution -- never silently automated through, regardless of
+      any other directive's "100% automation" framing.
+    needs_human_judgment_items: >-
+      Any item registries.audit198_framework itself scores
+      NEEDS_HUMAN_JUDGMENT gets surfaced to the Owner with the specific
+      reason it could not be reduced to a boolean check, rather than
+      forced to a fabricated ENFORCED/closed verdict to satisfy a
+      zero-gap target.
+  source: "Owner directive, 2026-07-21 (chat), stated explicitly to remove ambiguity."
+
+final_goal: >-
+  The objective is not to produce code. The objective is to engineer a
+  platform where each new feature requires less manual work than the
+  previous one. Every task should increase automation. Every automation
+  should increase reuse. Every reusable component should reduce future
+  development effort. Every solution should improve the platform, not
+  just complete the immediate request.

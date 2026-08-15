@@ -157,7 +157,7 @@ export default function PricingPage() {
       <nav className="sticky top-0 z-40 bg-white/80 backdrop-blur-lg shadow-nav">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between h-16">
           <Link href="/" className="flex items-center gap-2">
-            <div className="size-8 rounded-lg bg-ct-saffron flex items-center justify-center">
+            <div className="size-8 rounded-lg bg-ct-saffron flex items-center justify-center" aria-hidden="true">
               <span className="text-white font-bold text-sm">V</span>
             </div>
             <span className="font-heading text-xl text-ct-navy">VERIDIAN AI</span>

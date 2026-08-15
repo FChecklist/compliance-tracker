@@ -14,12 +14,13 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}))
-    // Priority 5 item E1: optional modePill/pathKeys threaded through
-    // unchanged when a caller sends them (none does yet -- see chat-
-    // service.ts's createWorkflowThread() comment for what's deferred).
+    // Priority 5 item E1 / REVIEW-FRAMEWORK-WAVE4: modePill/pathKeys resolve
+    // a real Chain Selector choice; skippedChainSelector is the caller's
+    // explicit "asked, declined" signal -- createWorkflowThread() now
+    // requires one or the other (see that function's own header comment).
     const conversationId = await createWorkflowThread(
       { orgId, userId: dbUser.id },
-      { workflowId: body.workflowId, title: body.title, modePill: body.modePill, pathKeys: body.pathKeys }
+      { workflowId: body.workflowId, title: body.title, modePill: body.modePill, pathKeys: body.pathKeys, skippedChainSelector: body.skippedChainSelector }
     )
     return NextResponse.json({ id: conversationId }, { status: 201 })
   } catch (error) {

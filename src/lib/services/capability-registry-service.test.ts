@@ -10,13 +10,17 @@
 import { describe, expect, test } from "bun:test"
 import { CAPABILITY_ENTITY_TYPES, buildCapabilityContent } from "./capability-registry-service"
 
-describe("CAPABILITY_ENTITY_TYPES -- GAP-DYNAMIC-CHAIN-DEDUP", () => {
+describe("CAPABILITY_ENTITY_TYPES -- GAP-DYNAMIC-CHAIN-DEDUP + VERIDIAN_Architecture_v2.0 phase_2", () => {
   test("dynamic_chain is a 5th type, alongside the original 4", () => {
-    expect(CAPABILITY_ENTITY_TYPES).toEqual(["worker_agent", "automation_rule", "module", "prompt_pattern", "dynamic_chain"])
+    expect(CAPABILITY_ENTITY_TYPES).toContain("dynamic_chain")
+  })
+
+  test("prompt_version is a 6th type (VERIDIAN_Architecture_v2.0 phase_2, engine-prompt-similarity), distinct from prompt_pattern", () => {
+    expect(CAPABILITY_ENTITY_TYPES).toEqual(["worker_agent", "automation_rule", "module", "prompt_pattern", "dynamic_chain", "prompt_version"])
   })
 })
 
-describe("buildCapabilityContent -- shared by all 5 CapabilityEntityTypes, incl. dynamic_chain", () => {
+describe("buildCapabilityContent -- shared by all CapabilityEntityTypes, incl. dynamic_chain/prompt_version", () => {
   test("joins name/domain/description, omitting a null description", () => {
     expect(buildCapabilityContent({ name: "GST Filing", domain: "compliance_item > gst_filing", description: null }))
       .toBe("GST Filing | compliance_item > gst_filing")

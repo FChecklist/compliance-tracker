@@ -1,0 +1,120 @@
+name: "bun-test"
+version: 1
+description: "Condensed bun test output: drops individual pass lines only, never touches fail detail"
+
+# Custom VERIDIAN filter -- bun has no built-in coverage in snip v0.22.0.
+# This repo's own convention runs 1000+ tests per PR (see COMPLETED.yaml
+# entries citing "bun test: 1144 pass"), so the individual "(pass) test
+# name [Xms]" line list is the dominant token cost on a healthy run.
+#
+# DELIBERATE SAFETY DESIGN, not the same shape as npm-install.yaml/
+# go-test.yaml: this filter uses a DENY-LIST (remove ONLY the exact,
+# narrowly-matched "(pass) ... [Nms]" line shape), never an ALLOW-LIST
+# and never snip's "aggregate" action. Investigated 2026-07-21/22: the
+# built-in go-test.yaml filter (github.com/edouard-claude/snip's own
+# filters/go-test.yaml) uses `aggregate` to collapse an entire run down to
+# a bare "N passed, M failed" count -- verified live against a real
+# synthetic `go test -json` failure stream that this DISCARDS the actual
+# failing test's name and error message entirely from the visible output
+# (recovered only via snip's tee-on-failure safety file, not from the
+# command output itself). That is not an acceptable trade for this
+# project's bun-test coverage, so this filter never uses aggregate and
+# never allow-lists: everything that is not the exact noisy pass-line
+# shape survives untouched, including file headers, (fail) lines, the
+# source-context/stack-trace block bun prints ABOVE each (fail) line,
+# "error:"/"Expected:"/"Received:" lines, and the final summary counts.
+# Deliberately no `head` truncation on line COUNT either (a hard cap risks
+# silently dropping a real failure past line N in a catastrophic run) --
+# only a generous per-line max as a pathological-length safety net, not a
+# whole-output cap. This trades a smaller worst-case token bound for never
+# silently losing a failure, matching this task's explicit debugging-
+# fidelity requirement for this dev environment.
+
+match:
+  command: "bun"
+  subcommand: "test"
+  exclude_flags: ["--version", "-v"]
+
+streams:
+  - stdout
+  - stderr
+
+pipeline:
+  - action: "strip_ansi"
+  # ONLY the individual passing-test line is dropped. Pattern is anchored
+  # and requires the trailing "[Nms]"/"[N.NNms]" timing suffix bun always
+  # prints, so it cannot accidentally match a (fail) line (bun's own fail
+  # lines share the "(fail) name [time]" shape too -- see the fail-branch
+  # note below for why this is still safe).
+  - action: "remove_lines"
+    pattern: "^\\(pass\\) .*\\[[0-9.]+m?s\\]$"
+  - action: "truncate_lines"
+    max: 2000
+  - action: "on_empty"
+    message: "ok (no output)"
+
+on_error: "passthrough"
+
+tests:
+  - name: "all passing -- pass lines dropped, summary kept"
+    input: |
+      bun test v1.3.14 (0d9b296a)
+
+      src/lib/audit-protocol.test.ts:
+      (pass) validateAuditProtocolFields > passes a complete submission [0.05ms]
+      (pass) validateAuditProtocolFields > rejects an invalid Verdict value [0.05ms]
+
+       10 pass
+       0 fail
+       18 expect() calls
+      Ran 10 tests across 1 file. [411.00ms]
+    expected: |
+      bun test v1.3.14 (0d9b296a)
+
+      src/lib/audit-protocol.test.ts:
+
+       10 pass
+       0 fail
+       18 expect() calls
+      Ran 10 tests across 1 file. [411.00ms]
+  - name: "real failure -- error detail, stack trace, and fail line all survive verbatim"
+    input: |
+      bun test v1.3.14 (0d9b296a)
+
+      src/lib/__snip_broken_temp.test.ts:
+      1 | import { test, expect } from "bun:test"
+      2 | test("deliberately broken assertion for snip never-compress verification", () => {
+      3 |   expect(1 + 1).toBe(3)
+                          ^
+      error: expect(received).toBe(expected)
+
+      Expected: 3
+      Received: 2
+
+            at <anonymous> (/opt/veridian/workspace/snip-integration/src/lib/__snip_broken_temp.test.ts:3:17)
+      (fail) deliberately broken assertion for snip never-compress verification [1.90ms]
+
+       0 pass
+       1 fail
+       1 expect() calls
+      Ran 1 test across 1 file. [144.00ms]
+    expected: |
+      bun test v1.3.14 (0d9b296a)
+
+      src/lib/__snip_broken_temp.test.ts:
+      1 | import { test, expect } from "bun:test"
+      2 | test("deliberately broken assertion for snip never-compress verification", () => {
+      3 |   expect(1 + 1).toBe(3)
+                          ^
+      error: expect(received).toBe(expected)
+
+      Expected: 3
+      Received: 2
+
+            at <anonymous> (/opt/veridian/workspace/snip-integration/src/lib/__snip_broken_temp.test.ts:3:17)
+      (fail) deliberately broken assertion for snip never-compress verification [1.90ms]
+
+       0 pass
+       1 fail
+       1 expect() calls
+      Ran 1 test across 1 file. [144.00ms]
