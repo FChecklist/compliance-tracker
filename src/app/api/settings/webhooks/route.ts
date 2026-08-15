@@ -63,6 +63,7 @@ export async function GET() {
               statusCode: d.statusCode,
               success: d.success,
               attempt: d.attempt,
+              redeliveryOfId: d.redeliveryOfId,
               createdAt: d.createdAt.toISOString(),
             })),
           };
