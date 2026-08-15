@@ -4,6 +4,9 @@ import { decideApprovalStep, ServiceError } from "@/lib/services/approval-workfl
 import { markJournalEntrySubmittedFromApproval } from "@/lib/services/erp-accounting-service"
 import { markPurchaseRequisitionApprovedFromApproval } from "@/lib/services/erp-procurement-workflow-service"
 import { finalizeAssetDisposal, markAssetDisposalRejectedFromApproval } from "@/lib/services/erp-fixed-assets-service"
+import { withAutomaticRecovery } from "@/lib/services/exception-taxonomy"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { logActivity } from "@/lib/audit"
 
 // Entity-specific "on approved" dispatch, kept at the route layer rather
 // than inside the generic engine so approval-workflow-service.ts stays
@@ -57,10 +60,46 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
 
     const result = await decideApprovalStep({ orgId, userId: dbUser.id, dbUser }, id, decision, comment)
 
-    if (result.instanceStatus === "approved") {
-      await onWorkflowApproved({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId)
-    } else if (result.instanceStatus === "rejected") {
-      await onWorkflowRejected({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId)
+    // Automatic Rollback & Recovery (VERIDIAN Review Framework gap closure,
+    // 2026-07-18): decideApprovalStep above already committed the instance
+    // as approved/rejected in its own transaction -- there is no further
+    // call site that will ever re-invoke onWorkflowApproved/onWorkflowRejected
+    // for this instance once this request returns. Previously a transient
+    // failure here (a DB blip, not a business-rule rejection) left the
+    // instance permanently stuck "approved"/"rejected" with the underlying
+    // entity never actually finalized, and no automatic path back. Wrapping
+    // in withAutomaticRecovery retries once for a retryable (system) fault
+    // per the exception taxonomy -- a genuine business-rule failure (e.g.
+    // finalizeAssetDisposal's negative-net-book-value guard) is NOT
+    // retryable and fails fast on the first attempt, same as before.
+    try {
+      if (result.instanceStatus === "approved") {
+        await withAutomaticRecovery(() => onWorkflowApproved({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId))
+      } else if (result.instanceStatus === "rejected") {
+        await withAutomaticRecovery(() => onWorkflowRejected({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId))
+      }
+    } catch (finalizeError) {
+      // The decision itself (result) is real and already committed -- only
+      // the finalize step failed. Record a distinct, queryable audit event
+      // (the L3 Rolling Health Audit's controls-health snapshot watches for
+      // this action) rather than silently swallowing it, and tell the
+      // caller plainly that the decision was recorded but the entity is NOT
+      // actually finalized yet, instead of a generic 500 that reads as "the
+      // whole request failed" when the decision itself in fact succeeded.
+      await withTenantContext({ orgId, userId: dbUser.id }, (db) =>
+        logActivity({
+          tx: db, orgId, dbUser,
+          action: "approval_workflow_instance.finalization_failed",
+          entityType: result.entityType,
+          entityId: result.entityId,
+          details: finalizeError instanceof Error ? finalizeError.message : String(finalizeError),
+        })
+      ).catch(() => {})
+      return NextResponse.json({
+        ...result,
+        finalizationFailed: true,
+        error: `The ${decision} decision was recorded, but finalizing ${result.entityType} failed after an automatic retry. The underlying record was not updated -- contact support to retry finalization.`,
+      }, { status: 502 })
     }
 
     return NextResponse.json(result)

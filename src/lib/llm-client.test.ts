@@ -3,7 +3,7 @@
 // math, no network/DB, cheap to get exactly right and easy to silently
 // break (e.g. a units mix-up between per-1k and per-token pricing).
 import { describe, expect, test, afterEach } from "bun:test"
-import { estimateCostUsd, callLLM } from "./llm-client"
+import { estimateCostUsd, estimateCacheSavingsUsd, callLLM } from "./llm-client"
 
 describe("estimateCostUsd", () => {
   test("computes prompt+completion cost for a known model", () => {
@@ -39,6 +39,30 @@ describe("estimateCostUsd", () => {
   // as null.
   test("has pricing registered for the newly-registered Groq vision model (meta-llama/llama-4-scout-17b-16e-instruct)", () => {
     expect(estimateCostUsd("meta-llama/llama-4-scout-17b-16e-instruct", { promptTokens: 1000, completionTokens: 1000 })).not.toBeNull()
+  })
+})
+
+// VERIDIAN Review Framework remediation (AI Cost Governance & FinOps,
+// 2026-07-18): regression tests for the cache-savings computation that
+// feeds token_usage_ledger.cache_savings_usd via recordPromptCacheMetric().
+describe("estimateCacheSavingsUsd", () => {
+  test("returns null when caching wasn't attempted (cacheReadTokens undefined)", () => {
+    expect(estimateCacheSavingsUsd("claude-sonnet-5", { promptTokens: 1000, completionTokens: 200 })).toBeNull()
+  })
+
+  test("returns 0 (not null) for a cache-creation-only call with zero reads", () => {
+    expect(estimateCacheSavingsUsd("claude-sonnet-5", { promptTokens: 1000, completionTokens: 200, cacheReadTokens: 0, cacheCreationTokens: 4000 })).toBe(0)
+  })
+
+  test("computes 90% of the base prompt price for cache-read tokens", () => {
+    // claude-sonnet-5: promptPer1k 0.003 -> 4000 cache-read tokens saves 90% of (4000/1000 * 0.003)
+    const savings = estimateCacheSavingsUsd("claude-sonnet-5", { promptTokens: 100, completionTokens: 200, cacheReadTokens: 4000, cacheCreationTokens: 0 })
+    expect(savings).not.toBeNull()
+    expect(savings!).toBeCloseTo((4000 / 1000) * 0.003 * 0.9, 10)
+  })
+
+  test("returns null for an unrecognized model rather than guessing", () => {
+    expect(estimateCacheSavingsUsd("some-model-nobody-registered", { promptTokens: 100, completionTokens: 100, cacheReadTokens: 500, cacheCreationTokens: 0 })).toBeNull()
   })
 })
 

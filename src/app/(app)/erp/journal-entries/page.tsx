@@ -17,6 +17,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Account = { id: string; accountName: string; accountNumber: string | null; rootType: string; accountType: string | null };
 type JournalEntry = { id: string; entryNumber: number; postingDate: string; status: string; totalDebit: string; totalCredit: string; userRemark: string | null };
@@ -37,6 +38,7 @@ export default function ErpJournalEntriesPage() {
   const [costCenters, setCostCenters] = useState<CostCenter[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erpEnabled, setErpEnabled] = useState<boolean | null>(null);
 
   const [acctOpen, setAcctOpen] = useState(false);
   const [acctName, setAcctName] = useState("");
@@ -78,6 +80,9 @@ export default function ErpJournalEntriesPage() {
   }, []);
 
   useEffect(load, [load]);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setErpEnabled(d.erpEnabled ?? false)).catch(() => setErpEnabled(false));
+  }, []);
 
   const createCostCenter = async () => {
     if (!ccName.trim()) return;
@@ -152,6 +157,10 @@ export default function ErpJournalEntriesPage() {
     toast.success(d.pendingApproval ? "Sent for approval" : "Posted to the general ledger");
     load();
   };
+
+  if (erpEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="ERP" settingsSection="ERP" />;
+  }
 
   return (
     <div className="space-y-4">

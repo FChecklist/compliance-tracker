@@ -1,0 +1,1005 @@
+{
+  "meta": {
+    "id": "VERIDIAN-RULES-ARTICLES-198",
+    "source": "RULES.xlsx, supplied by Owner 2026-07-21",
+    "count_rules": 99,
+    "count_articles": 99,
+    "total": 198,
+    "relationship_to_CONSTITUTION_yaml": "DISTINCT canonical source, not yet reconciled -- CONSTITUTION.yaml (ai-os/CONSTITUTION.yaml, 819 lines) is a separately-structured rule registry extracted from 9 different prose docs; grep confirmed zero literal overlap in numbering/IDs with this file. Both govern the same system; this file is the Owner-supplied audit checklist for the 2026-07-21 full-system gap audit.",
+    "purpose": "Canonical, machine-readable audit checklist. Each item gets one evidence-backed gap-analysis verdict, produced by software scripts (not free-text AI judgment), per Owner directive 2026-07-21."
+  },
+  "rules": [
+    {
+      "id": "RULE-001",
+      "num": 1,
+      "text": "VERIDIAN AI OS is a Business Cognitive AI Operating System designed exclusively for business operations, automation, governance, compliance, productivity, and decision support."
+    },
+    {
+      "id": "RULE-002",
+      "num": 2,
+      "text": "The primary objective of VERIDIAN AI OS is to complete business work through Software First and AI Second."
+    },
+    {
+      "id": "RULE-003",
+      "num": 3,
+      "text": "99% of business processes are predictable and shall be automated through software wherever possible."
+    },
+    {
+      "id": "RULE-004",
+      "num": 4,
+      "text": "99% of business logic is predictable and shall be implemented through software instead of AI whenever feasible."
+    },
+    {
+      "id": "RULE-005",
+      "num": 5,
+      "text": "99% of business inputs are predictable and shall be standardized, validated, and processed through software."
+    },
+    {
+      "id": "RULE-006",
+      "num": 6,
+      "text": "99% of business outputs are predictable and shall be generated through software using predefined rules, templates, workflows, and calculations."
+    },
+    {
+      "id": "RULE-007",
+      "num": 7,
+      "text": "99% of reports, dashboards, and business documents shall be generated automatically through software."
+    },
+    {
+      "id": "RULE-008",
+      "num": 8,
+      "text": "99% of business analysis shall be performed using software rules, predefined algorithms, metadata, and calculation engines before invoking AI."
+    },
+    {
+      "id": "RULE-009",
+      "num": 9,
+      "text": "The architecture of VERIDIAN AI OS assumes that business operations are predominantly deterministic and therefore should be automated by software."
+    },
+    {
+      "id": "RULE-010",
+      "num": 10,
+      "text": "The primary differences between organizations are their workflows, approval hierarchies, policies, operating procedures, and adoption patterns."
+    },
+    {
+      "id": "RULE-011",
+      "num": 11,
+      "text": "The primary differences between individual users are their knowledge, responsibilities, preferences, communication style, and software adoption."
+    },
+    {
+      "id": "RULE-012",
+      "num": 12,
+      "text": "The system shall personalize user interfaces, workflows, dashboards, reports, and communication according to each user's role, permissions, and preferences."
+    },
+    {
+      "id": "RULE-013",
+      "num": 13,
+      "text": "Whenever the required business functionality does not exist, Software shall analyze the request first, AI shall design and build the enhancement, the enhancement shall be tested, approved, converted into permanent software functionality, and reused automatically for similar future requests."
+    },
+    {
+      "id": "RULE-014",
+      "num": 14,
+      "text": "The long-term objective is that within 30 days of implementation, every customer organization should be able to complete at least 99% of its routine business work directly through VERIDIAN AI OS."
+    },
+    {
+      "id": "RULE-015",
+      "num": 15,
+      "text": "All user instructions received through Dynamic Mode Pills, Dynamic Option Selection, and the Chat Box shall first be analyzed by software before any AI invocation."
+    },
+    {
+      "id": "RULE-016",
+      "num": 16,
+      "text": "If software determines with 95% or greater confidence that a request can be completed without AI, the request shall be executed entirely through software."
+    },
+    {
+      "id": "RULE-017",
+      "num": 17,
+      "text": "Only requests with confidence below 95%, insufficient business rules, missing functionality, or exceptional scenarios shall be escalated to AI."
+    },
+    {
+      "id": "RULE-018",
+      "num": 18,
+      "text": "Every AI execution must contribute towards reducing future AI dependency by creating reusable software components, rules, scripts, metadata, templates, wrappers, or workflows."
+    },
+    {
+      "id": "RULE-019",
+      "num": 19,
+      "text": "Software shall continuously monitor all executions, business logic, workflows, inputs, outputs, integrations, APIs, databases, servers, GitHub repositories, Vercel deployments, Supabase resources, logs, and infrastructure."
+    },
+    {
+      "id": "RULE-020",
+      "num": 20,
+      "text": "AI shall utilize software services, APIs, scripts, wrappers, automation tools, metadata, workflows, and system services instead of directly performing work whenever software can execute the task."
+    },
+    {
+      "id": "RULE-021",
+      "num": 21,
+      "text": "The platform shall operate through a centralized AI Orchestrator responsible for routing, supervision, monitoring, governance, escalation, auditing, and execution control."
+    },
+    {
+      "id": "RULE-022",
+      "num": 22,
+      "text": "Every software task and AI task shall have clearly defined inputs, outputs, validation rules, guardrails, execution steps, reporting requirements, completion criteria, and escalation rules."
+    },
+    {
+      "id": "RULE-023",
+      "num": 23,
+      "text": "No AI agent or software component shall rely on assumptions or guesswork. Missing information must always be requested from the user or obtained from trusted system data."
+    },
+    {
+      "id": "RULE-024",
+      "num": 24,
+      "text": "The escalation hierarchy shall always follow Software → Worker AI → Supervisor AI → Senior AI → Master AI according to predefined governance policies."
+    },
+    {
+      "id": "RULE-025",
+      "num": 25,
+      "text": "VERIDIAN AI OS shall remain completely AI Model Agnostic and shall support replacing, upgrading, or switching AI providers without architectural changes."
+    },
+    {
+      "id": "RULE-026",
+      "num": 26,
+      "text": "Every activity executed within the system shall receive a unique Task ID, Process ID, User ID, Session ID, Audit ID, and Execution ID for complete traceability."
+    },
+    {
+      "id": "RULE-027",
+      "num": 27,
+      "text": "The primary web interface shall consist of five components: Left Navigation Rail, Main Workspace, Dynamic Mode Pills with Dynamic Option Selection and Chat Box, VERI Chat, and Top Navigation Rail."
+    },
+    {
+      "id": "RULE-028",
+      "num": 28,
+      "text": "The approved VERIDIAN UI/UX design shall serve as the implementation standard for all web interfaces, modules, dashboards, and future enhancements."
+    },
+    {
+      "id": "RULE-029",
+      "num": 29,
+      "text": "Users shall always have the option to operate VERIDIAN AI OS as a traditional business software platform without using AI whenever software alone can complete the task."
+    },
+    {
+      "id": "RULE-030",
+      "num": 30,
+      "text": "When AI mode is enabled, software shall always perform the first evaluation. AI shall only execute requests that software cannot confidently complete according to defined confidence thresholds."
+    },
+    {
+      "id": "RULE-031",
+      "num": 31,
+      "text": "The platform shall maximize the use of software modules, automation engines, scripts, scheduled jobs, wrappers, APIs, metadata, templates, and workflow engines to minimize AI consumption."
+    },
+    {
+      "id": "RULE-032",
+      "num": 32,
+      "text": "VERI Chat and VERI - Your Assistant are two independent system components. VERI Chat is the communication workspace, while VERI - Your Assistant is the user's intelligent business assistant."
+    },
+    {
+      "id": "RULE-033",
+      "num": 33,
+      "text": "VERI - Your Assistant shall act as the user's primary business assistant, capable of securely controlling authorized modules, workflows, automations, reports, approvals, tasks, and business operations on behalf of the user within defined permissions and guardrails."
+    },
+    {
+      "id": "RULE-034",
+      "num": 34,
+      "text": "VERI Chat shall function as the central business communication hub where users receive tasks, notifications, approvals, chats, emails, reminders, summaries, and system updates from a single interface."
+    },
+    {
+      "id": "RULE-035",
+      "num": 35,
+      "text": "For mobile web usage, VERI Chat shall become the primary user interface, enabling users to perform business operations with minimal navigation."
+    },
+    {
+      "id": "RULE-036",
+      "num": 36,
+      "text": "VERI - Your Assistant shall communicate using clear, simple, concise, professional, and business-appropriate language. Offensive, abusive, discriminatory, political, religious, or inappropriate content shall never be generated."
+    },
+    {
+      "id": "RULE-037",
+      "num": 37,
+      "text": "The assistant shall address users respectfully using professional business etiquette, such as Sir, Madam, or the user's preferred business title."
+    },
+    {
+      "id": "RULE-038",
+      "num": 38,
+      "text": "The system shall generate visually rich, interactive, responsive, and brand-compliant HTML pages, dashboards, graphs, infographics, reports, and business forms instead of static outputs wherever possible."
+    },
+    {
+      "id": "RULE-039",
+      "num": 39,
+      "text": "Every report, dashboard, workflow, and analysis shall provide an interactive user experience so that the interface feels informative, responsive, and conversational."
+    },
+    {
+      "id": "RULE-040",
+      "num": 40,
+      "text": "Users shall be able to initiate complex business tasks using simple natural language instructions. The system shall automatically identify missing information, request only the required inputs, and complete the remaining work autonomously."
+    },
+    {
+      "id": "RULE-041",
+      "num": 41,
+      "text": "Reports and business analysis shall prioritize clarity, visual presentation, executive summaries, actionable insights, and interactive exploration rather than lengthy textual explanations."
+    },
+    {
+      "id": "RULE-042",
+      "num": 42,
+      "text": "The system shall proactively notify users about pending tasks, approvals, meetings, deadlines, compliance requirements, reminders, follow-ups, and exceptions before they become overdue."
+    },
+    {
+      "id": "RULE-043",
+      "num": 43,
+      "text": "Notifications shall be prioritized intelligently to prevent information overload while ensuring that users always know their next most important action."
+    },
+    {
+      "id": "RULE-044",
+      "num": 44,
+      "text": "The interface shall continuously demonstrate measurable business value by displaying productivity metrics such as hours saved, automations completed, money saved, tasks completed, and efficiency improvements."
+    },
+    {
+      "id": "RULE-045",
+      "num": 45,
+      "text": "Whenever user intent is uncertain, the system shall present recommended options, with Option 1 being the system's best recommendation to reduce user effort and decision fatigue."
+    },
+    {
+      "id": "RULE-046",
+      "num": 46,
+      "text": "The system shall learn user preferences only within predefined business guardrails and shall never create uncontrolled, recursive, or hallucinated learning loops."
+    },
+    {
+      "id": "RULE-047",
+      "num": 47,
+      "text": "VERI - Your Assistant shall function as a trusted 24x7 business companion that continuously assists users with planning, execution, monitoring, and business decision support."
+    },
+    {
+      "id": "RULE-048",
+      "num": 48,
+      "text": "Every software module and AI component shall have clearly defined ownership, responsibilities, authority, inputs, outputs, reporting requirements, and escalation paths."
+    },
+    {
+      "id": "RULE-049",
+      "num": 49,
+      "text": "The same principles of defined roles, responsibilities, governance, reporting, and accountability shall apply to organizational workflows managed within VERIDIAN AI OS."
+    },
+    {
+      "id": "RULE-050",
+      "num": 50,
+      "text": "Users shall only perform activities that fall within the authorized scope of the product, subscribed modules, assigned permissions, and defined business guardrails."
+    },
+    {
+      "id": "RULE-051",
+      "num": 51,
+      "text": "VERIDIAN AI OS is a business platform and shall not be used for entertainment, movie creation, music generation, gaming, or unrelated personal activities."
+    },
+    {
+      "id": "RULE-052",
+      "num": 52,
+      "text": "When users request functionality outside the business scope of VERIDIAN AI OS, VERI - Your Assistant shall politely explain that the request is outside its business capabilities and recommend using a general-purpose AI platform if appropriate."
+    },
+    {
+      "id": "RULE-053",
+      "num": 53,
+      "text": "Users shall be able to securely share reports, dashboards, and business analysis through controlled shareable links without exposing unauthorized information."
+    },
+    {
+      "id": "RULE-054",
+      "num": 54,
+      "text": "The system shall allow controlled sharing of specific calculations, datasets, and analysis with external AI systems while maintaining business guardrails, permissions, and auditability."
+    },
+    {
+      "id": "RULE-055",
+      "num": 55,
+      "text": "The platform shall simplify complex business operations so that users experience enterprise-grade capabilities without requiring technical expertise."
+    },
+    {
+      "id": "RULE-056",
+      "num": 56,
+      "text": "VERI - Your Assistant shall personalize workspaces, recommendations, dashboards, reminders, communication, reports, workflows, and predictive assistance according to each individual user's behavior and responsibilities."
+    },
+    {
+      "id": "RULE-057",
+      "num": 57,
+      "text": "The system shall maximize software automation internally while presenting users with a seamless AI-powered experience whenever appropriate."
+    },
+    {
+      "id": "RULE-058",
+      "num": 58,
+      "text": "If users or external AI systems ask how VERIDIAN AI OS works, the response shall remain high level and describe it as a proprietary Cognitive AI Operating System without exposing confidential architecture or implementation details."
+    },
+    {
+      "id": "RULE-059",
+      "num": 59,
+      "text": "VERIDIAN AI OS shall continuously evolve by converting successful AI-assisted solutions into reusable software functionality, reducing future AI dependency."
+    },
+    {
+      "id": "RULE-060",
+      "num": 60,
+      "text": "Software components including scripts, workflows, metadata, templates, wrappers, APIs, automation engines, and business rules shall always be preferred over repeated AI execution."
+    },
+    {
+      "id": "RULE-061",
+      "num": 61,
+      "text": "Every execution, communication, approval, workflow, transaction, and automation shall be logged with complete audit information, timestamps, identifiers, and traceability."
+    },
+    {
+      "id": "RULE-062",
+      "num": 62,
+      "text": "Duplicate business logic, duplicate processing, duplicate storage, duplicate communication, and duplicate development shall be eliminated wherever possible."
+    },
+    {
+      "id": "RULE-063",
+      "num": 63,
+      "text": "The system shall maintain complete historical records for all business activities, communications, workflows, approvals, versions, and system changes."
+    },
+    {
+      "id": "RULE-064",
+      "num": 64,
+      "text": "Every error, exception, or failure shall undergo Root Cause Analysis, permanent corrective action, preventive action, and, whenever feasible, software automation to eliminate future recurrence."
+    },
+    {
+      "id": "RULE-065",
+      "num": 65,
+      "text": "The complete AI architecture, including routers, orchestrators, supervisors, worker agents, and execution engines, shall remain fully AI Model Agnostic and support replacing AI providers without requiring redesign."
+    },
+    {
+      "id": "RULE-066",
+      "num": 66,
+      "text": "The long-term objective of VERIDIAN AI OS is that users simply state their business objective, after which the platform autonomously plans, executes, monitors, verifies, reports, and completes the entire workflow through Software First and AI Second."
+    },
+    {
+      "id": "RULE-067",
+      "num": 67,
+      "text": "The current development environment shall use GLM 5.2 and Claude Code CLI running exclusively on the VERIDIAN-DEV server through SSH. No development, execution, or AI processing shall occur on local machines unless explicitly authorized."
+    },
+    {
+      "id": "RULE-068",
+      "num": 68,
+      "text": "Every AI request sent to OpenRouter.ai or any other AI provider shall be monitored for cost, purpose, value delivered, token usage, success rate, failure reason, and opportunities for future software automation."
+    },
+    {
+      "id": "RULE-069",
+      "num": 69,
+      "text": "Zero AI credit wastage is a core engineering principle. Every unnecessary token, duplicate request, failed execution, or repeated AI task shall be analyzed and eliminated."
+    },
+    {
+      "id": "RULE-070",
+      "num": 70,
+      "text": "The primary objective is that users simply state their business requirement once, and VERIDIAN AI OS autonomously plans, executes, validates, monitors, reports, and completes the work end-to-end."
+    },
+    {
+      "id": "RULE-071",
+      "num": 71,
+      "text": "Users shall experience an enterprise-grade platform comparable to leading business systems while the internal architecture maximizes software automation and minimizes AI dependency."
+    },
+    {
+      "id": "RULE-072",
+      "num": 72,
+      "text": "The platform shall continuously study industry-leading products, open-source projects, and proven business practices to accelerate development without unnecessarily reinventing existing solutions."
+    },
+    {
+      "id": "RULE-073",
+      "num": 73,
+      "text": "Whenever legally permissible, open-source software, reusable libraries, templates, frameworks, APIs, and community-supported components shall be preferred to reduce development effort, cost, and delivery time."
+    },
+    {
+      "id": "RULE-074",
+      "num": 74,
+      "text": "The defining differentiator of VERIDIAN AI OS shall be simplicity, user experience, intelligent automation, software-first execution, and measurable business productivity rather than AI usage alone."
+    },
+    {
+      "id": "RULE-075",
+      "num": 75,
+      "text": "The platform shall integrate securely with email systems, third-party software, business applications, APIs, ERP systems, CRM systems, accounting platforms, communication tools, and cloud services to create a unified business workspace."
+    },
+    {
+      "id": "RULE-076",
+      "num": 76,
+      "text": "Browser cache, application cache, server cache, metadata cache, workflow cache, and AI provider cache shall be maximized wherever appropriate to improve performance, reduce latency, reduce AI costs, and improve user experience."
+    },
+    {
+      "id": "RULE-077",
+      "num": 77,
+      "text": "Every cache layer shall be monitored, audited, measured, invalidated when required, and optimized continuously by software without requiring AI intervention."
+    },
+    {
+      "id": "RULE-078",
+      "num": 78,
+      "text": "Every transaction, communication, API call, workflow, integration, server activity, repository change, deployment event, database update, and infrastructure event shall be tagged, monitored, and fully auditable."
+    },
+    {
+      "id": "RULE-079",
+      "num": 79,
+      "text": "Complete auditability shall be achieved primarily through software logging, monitoring, metadata, and event tracking rather than depending upon AI reasoning."
+    },
+    {
+      "id": "RULE-080",
+      "num": 80,
+      "text": "Every conversation between the user, VERI Chat, VERI - Your Assistant, software services, and AI agents shall be securely stored, indexed, searchable, versioned, and linked with historical business context."
+    },
+    {
+      "id": "RULE-081",
+      "num": 81,
+      "text": "Before executing a similar request, software shall automatically compare the current request with previous history and recommend the most relevant previous solution whenever appropriate."
+    },
+    {
+      "id": "RULE-082",
+      "num": 82,
+      "text": "The platform shall remain flexible and adaptive so that users never feel restricted by unnecessary technical limitations or rigid workflows."
+    },
+    {
+      "id": "RULE-083",
+      "num": 83,
+      "text": "The objective is to minimize the amount of time users spend operating the software while maximizing the amount of business work completed autonomously by the system."
+    },
+    {
+      "id": "RULE-084",
+      "num": 84,
+      "text": "The ideal user experience is that approximately one hour of daily interaction enables VERIDIAN AI OS to manage an entire day's business activities through software-first automation supported by AI when necessary."
+    },
+    {
+      "id": "RULE-085",
+      "num": 85,
+      "text": "In the event of internet failure, server failure, AI provider failure, network interruption, browser failure, or application crash, all work shall be recoverable with minimal or no loss of data."
+    },
+    {
+      "id": "RULE-086",
+      "num": 86,
+      "text": "Automatic checkpointing, recovery mechanisms, retries, synchronization, backups, and resumable workflows shall be implemented wherever technically feasible."
+    },
+    {
+      "id": "RULE-087",
+      "num": 87,
+      "text": "Zero unnecessary duplication shall exist within software logic, databases, documents, workflows, APIs, reports, communications, or AI executions."
+    },
+    {
+      "id": "RULE-088",
+      "num": 88,
+      "text": "The target completion rate for all valid business tasks shall be 100%, subject only to user permissions, business rules, and external system availability."
+    },
+    {
+      "id": "RULE-089",
+      "num": 89,
+      "text": "Software shall continuously monitor system health, execution quality, performance, infrastructure utilization, failures, exceptions, bottlenecks, and business outcomes in real time."
+    },
+    {
+      "id": "RULE-090",
+      "num": 90,
+      "text": "Every exception shall follow a predefined escalation matrix with complete reporting, ownership assignment, accountability, tracking, and closure verification."
+    },
+    {
+      "id": "RULE-091",
+      "num": 91,
+      "text": "Every software module, workflow, API, AI agent, automation, integration, and scheduled process shall have complete documentation of inputs, outputs, validation rules, guardrails, dependencies, reporting, and escalation paths."
+    },
+    {
+      "id": "RULE-092",
+      "num": 92,
+      "text": "Security, privacy, permissions, role-based access control, encryption, and auditability shall be mandatory design principles across every component of VERIDIAN AI OS."
+    },
+    {
+      "id": "RULE-093",
+      "num": 93,
+      "text": "Every business decision made by software or AI shall be explainable, traceable, reproducible, and supported by audit records wherever technically possible."
+    },
+    {
+      "id": "RULE-094",
+      "num": 94,
+      "text": "Performance optimization shall prioritize software engineering improvements before increasing AI usage, infrastructure capacity, or operational cost."
+    },
+    {
+      "id": "RULE-095",
+      "num": 95,
+      "text": "Every reusable solution shall be converted into a configurable software capability so that future users receive the benefit without requiring repeated AI processing."
+    },
+    {
+      "id": "RULE-096",
+      "num": 96,
+      "text": "Every development activity shall prioritize maintainability, scalability, modularity, version control, automated testing, and long-term sustainability."
+    },
+    {
+      "id": "RULE-097",
+      "num": 97,
+      "text": "VERIDIAN AI OS shall continuously improve itself through measured software enhancements, controlled AI assistance, user feedback, analytics, and operational learning while remaining governed by strict business guardrails."
+    },
+    {
+      "id": "RULE-098",
+      "num": 98,
+      "text": "The ultimate engineering objective is to achieve maximum business automation through software while using AI only where software cannot reliably or economically perform the task."
+    },
+    {
+      "id": "RULE-099",
+      "num": 99,
+      "text": "Every task executed by software or AI shall have unambiguous instructions, validated inputs, defined outputs, guardrails, acceptance criteria, monitoring, reporting, audit logging, error handling, recovery mechanisms, ownership, and escalation paths. Zero ambiguity shall be permitted anywhere in the system."
+    }
+  ],
+  "articles": [
+    {
+      "id": "ARTICLE-001",
+      "num": 1,
+      "text": "Every component shall have exactly one clearly defined responsibility (Single Responsibility Principle)."
+    },
+    {
+      "id": "ARTICLE-002",
+      "num": 2,
+      "text": "Every business capability shall have exactly one authoritative implementation (Single Source of Truth)."
+    },
+    {
+      "id": "ARTICLE-003",
+      "num": 3,
+      "text": "Software shall always attempt task execution before AI is invoked (Software First Principle)."
+    },
+    {
+      "id": "ARTICLE-004",
+      "num": 4,
+      "text": "AI shall only execute work that software cannot reliably complete within defined confidence thresholds."
+    },
+    {
+      "id": "ARTICLE-005",
+      "num": 5,
+      "text": "Every task shall have a unique Task ID that remains unchanged throughout its lifecycle."
+    },
+    {
+      "id": "ARTICLE-006",
+      "num": 6,
+      "text": "Every execution shall produce structured input, structured output, execution status, execution log, and completion report."
+    },
+    {
+      "id": "ARTICLE-007",
+      "num": 7,
+      "text": "Every workflow shall have a defined start state, intermediate states, and completion state."
+    },
+    {
+      "id": "ARTICLE-008",
+      "num": 8,
+      "text": "Every process shall define success criteria before execution begins."
+    },
+    {
+      "id": "ARTICLE-009",
+      "num": 9,
+      "text": "Every module shall expose only documented interfaces."
+    },
+    {
+      "id": "ARTICLE-010",
+      "num": 10,
+      "text": "Every API shall have versioning and backward compatibility."
+    },
+    {
+      "id": "ARTICLE-011",
+      "num": 11,
+      "text": "Every database entity shall have a unique identifier and complete metadata."
+    },
+    {
+      "id": "ARTICLE-012",
+      "num": 12,
+      "text": "Every configuration value shall be externalized and never hardcoded."
+    },
+    {
+      "id": "ARTICLE-013",
+      "num": 13,
+      "text": "Every workflow shall be configurable without modifying source code wherever practical."
+    },
+    {
+      "id": "ARTICLE-014",
+      "num": 14,
+      "text": "Every decision made by software shall be reproducible."
+    },
+    {
+      "id": "ARTICLE-015",
+      "num": 15,
+      "text": "Every decision made by AI shall be explainable."
+    },
+    {
+      "id": "ARTICLE-016",
+      "num": 16,
+      "text": "Every AI response shall be validated before execution."
+    },
+    {
+      "id": "ARTICLE-017",
+      "num": 17,
+      "text": "No AI response shall directly modify production data without software validation."
+    },
+    {
+      "id": "ARTICLE-018",
+      "num": 18,
+      "text": "Every automation shall define rollback procedures."
+    },
+    {
+      "id": "ARTICLE-019",
+      "num": 19,
+      "text": "Every transaction shall be atomic wherever technically feasible."
+    },
+    {
+      "id": "ARTICLE-020",
+      "num": 20,
+      "text": "Every business rule shall exist in one location only."
+    },
+    {
+      "id": "ARTICLE-021",
+      "num": 21,
+      "text": "Duplicate business logic is prohibited."
+    },
+    {
+      "id": "ARTICLE-022",
+      "num": 22,
+      "text": "Duplicate software functionality is prohibited."
+    },
+    {
+      "id": "ARTICLE-023",
+      "num": 23,
+      "text": "Duplicate data storage is prohibited unless required for backup, caching, or performance."
+    },
+    {
+      "id": "ARTICLE-024",
+      "num": 24,
+      "text": "Every business object shall maintain complete version history."
+    },
+    {
+      "id": "ARTICLE-025",
+      "num": 25,
+      "text": "Every execution shall be fully auditable."
+    },
+    {
+      "id": "ARTICLE-026",
+      "num": 26,
+      "text": "Every modification shall record who, what, when, where, why, and how."
+    },
+    {
+      "id": "ARTICLE-027",
+      "num": 27,
+      "text": "Every exception shall generate an incident record."
+    },
+    {
+      "id": "ARTICLE-028",
+      "num": 28,
+      "text": "Every incident shall have an owner until closure."
+    },
+    {
+      "id": "ARTICLE-029",
+      "num": 29,
+      "text": "Every failure shall undergo Root Cause Analysis before closure."
+    },
+    {
+      "id": "ARTICLE-030",
+      "num": 30,
+      "text": "Every Root Cause shall generate either a preventive action, software enhancement, monitoring rule, or automation."
+    },
+    {
+      "id": "ARTICLE-031",
+      "num": 31,
+      "text": "No known defect shall be closed without documented verification."
+    },
+    {
+      "id": "ARTICLE-032",
+      "num": 32,
+      "text": "Every reusable solution shall become part of the permanent software platform."
+    },
+    {
+      "id": "ARTICLE-033",
+      "num": 33,
+      "text": "The system shall continuously reduce AI dependency by increasing software capability."
+    },
+    {
+      "id": "ARTICLE-034",
+      "num": 34,
+      "text": "Every AI agent shall have a clearly defined role, authority, responsibility, and scope."
+    },
+    {
+      "id": "ARTICLE-035",
+      "num": 35,
+      "text": "Every AI agent shall operate only within its assigned permissions and guardrails."
+    },
+    {
+      "id": "ARTICLE-036",
+      "num": 36,
+      "text": "Every AI task shall be routed by an orchestration layer rather than directly assigned by users."
+    },
+    {
+      "id": "ARTICLE-037",
+      "num": 37,
+      "text": "The orchestration layer shall always select the lowest-cost component capable of completing the task successfully."
+    },
+    {
+      "id": "ARTICLE-038",
+      "num": 38,
+      "text": "The orchestration layer shall prioritize deterministic software execution over probabilistic AI execution."
+    },
+    {
+      "id": "ARTICLE-039",
+      "num": 39,
+      "text": "Every task shall pass through validation before execution."
+    },
+    {
+      "id": "ARTICLE-040",
+      "num": 40,
+      "text": "Every task shall pass through verification after execution."
+    },
+    {
+      "id": "ARTICLE-041",
+      "num": 41,
+      "text": "Every completed task shall generate structured completion evidence."
+    },
+    {
+      "id": "ARTICLE-042",
+      "num": 42,
+      "text": "Every AI output shall be checked for consistency with business rules before acceptance."
+    },
+    {
+      "id": "ARTICLE-043",
+      "num": 43,
+      "text": "Business rules shall always take precedence over AI recommendations."
+    },
+    {
+      "id": "ARTICLE-044",
+      "num": 44,
+      "text": "Every workflow shall support pause, resume, retry, cancel, and restart operations."
+    },
+    {
+      "id": "ARTICLE-045",
+      "num": 45,
+      "text": "Every workflow shall support checkpoint recovery."
+    },
+    {
+      "id": "ARTICLE-046",
+      "num": 46,
+      "text": "Every long-running process shall periodically save its execution state."
+    },
+    {
+      "id": "ARTICLE-047",
+      "num": 47,
+      "text": "Every system event shall generate structured metadata."
+    },
+    {
+      "id": "ARTICLE-048",
+      "num": 48,
+      "text": "Metadata shall be searchable, indexed, and reusable."
+    },
+    {
+      "id": "ARTICLE-049",
+      "num": 49,
+      "text": "Business knowledge shall be stored separately from AI prompts."
+    },
+    {
+      "id": "ARTICLE-050",
+      "num": 50,
+      "text": "Operational memory shall be separated from long-term knowledge."
+    },
+    {
+      "id": "ARTICLE-051",
+      "num": 51,
+      "text": "The system shall reuse historical knowledge before generating new AI responses."
+    },
+    {
+      "id": "ARTICLE-052",
+      "num": 52,
+      "text": "Every reusable AI solution shall be converted into structured knowledge."
+    },
+    {
+      "id": "ARTICLE-053",
+      "num": 53,
+      "text": "Cache shall always be checked before invoking AI."
+    },
+    {
+      "id": "ARTICLE-054",
+      "num": 54,
+      "text": "Cache invalidation shall follow predefined governance rules."
+    },
+    {
+      "id": "ARTICLE-055",
+      "num": 55,
+      "text": "Every cache hit and cache miss shall be logged."
+    },
+    {
+      "id": "ARTICLE-056",
+      "num": 56,
+      "text": "Performance metrics shall be continuously measured for every module."
+    },
+    {
+      "id": "ARTICLE-057",
+      "num": 57,
+      "text": "Response time, execution time, AI latency, and software latency shall be measured independently."
+    },
+    {
+      "id": "ARTICLE-058",
+      "num": 58,
+      "text": "Every component shall expose health status."
+    },
+    {
+      "id": "ARTICLE-059",
+      "num": 59,
+      "text": "Every integration shall expose operational status."
+    },
+    {
+      "id": "ARTICLE-060",
+      "num": 60,
+      "text": "Security shall be enforced at every architectural layer."
+    },
+    {
+      "id": "ARTICLE-061",
+      "num": 61,
+      "text": "Every user action shall be authenticated."
+    },
+    {
+      "id": "ARTICLE-062",
+      "num": 62,
+      "text": "Every resource request shall be authorized."
+    },
+    {
+      "id": "ARTICLE-063",
+      "num": 63,
+      "text": "Every sensitive operation shall generate an audit event."
+    },
+    {
+      "id": "ARTICLE-064",
+      "num": 64,
+      "text": "Every secret, API key, token, and credential shall be securely managed and never hardcoded."
+    },
+    {
+      "id": "ARTICLE-065",
+      "num": 65,
+      "text": "Every deployment shall be reversible without data loss wherever technically feasible."
+    },
+    {
+      "id": "ARTICLE-066",
+      "num": 66,
+      "text": "The architecture shall support horizontal scaling without requiring business logic redesign."
+    },
+    {
+      "id": "ARTICLE-067",
+      "num": 67,
+      "text": "Every source code change shall be version controlled."
+    },
+    {
+      "id": "ARTICLE-068",
+      "num": 68,
+      "text": "Every software change shall be traceable to a business requirement, defect, enhancement, or approved task."
+    },
+    {
+      "id": "ARTICLE-069",
+      "num": 69,
+      "text": "Every pull request shall be reviewed before merging into the primary branch."
+    },
+    {
+      "id": "ARTICLE-070",
+      "num": 70,
+      "text": "Every deployment shall execute automated validation checks before release."
+    },
+    {
+      "id": "ARTICLE-071",
+      "num": 71,
+      "text": "Every production release shall include a rollback strategy."
+    },
+    {
+      "id": "ARTICLE-072",
+      "num": 72,
+      "text": "Every module shall include automated testing appropriate to its responsibility."
+    },
+    {
+      "id": "ARTICLE-073",
+      "num": 73,
+      "text": "Every critical business workflow shall include end-to-end integration testing."
+    },
+    {
+      "id": "ARTICLE-074",
+      "num": 74,
+      "text": "Every defect shall include reproducible steps before engineering work begins."
+    },
+    {
+      "id": "ARTICLE-075",
+      "num": 75,
+      "text": "Every resolved defect shall include regression protection to prevent recurrence."
+    },
+    {
+      "id": "ARTICLE-076",
+      "num": 76,
+      "text": "Every production issue shall be documented in a knowledge repository."
+    },
+    {
+      "id": "ARTICLE-077",
+      "num": 77,
+      "text": "Every engineering decision shall document its assumptions, constraints, and trade-offs."
+    },
+    {
+      "id": "ARTICLE-078",
+      "num": 78,
+      "text": "Every public interface shall maintain backward compatibility or provide a documented migration path."
+    },
+    {
+      "id": "ARTICLE-079",
+      "num": 79,
+      "text": "Every deprecated feature shall include a planned retirement schedule."
+    },
+    {
+      "id": "ARTICLE-080",
+      "num": 80,
+      "text": "Every system dependency shall be monitored for security, compatibility, licensing, and lifecycle status."
+    },
+    {
+      "id": "ARTICLE-081",
+      "num": 81,
+      "text": "Every external integration shall fail gracefully without causing system-wide failure."
+    },
+    {
+      "id": "ARTICLE-082",
+      "num": 82,
+      "text": "Every background process shall be observable through logs, metrics, and health checks."
+    },
+    {
+      "id": "ARTICLE-083",
+      "num": 83,
+      "text": "Every scheduled job shall detect missed executions and recover automatically whenever feasible."
+    },
+    {
+      "id": "ARTICLE-084",
+      "num": 84,
+      "text": "Every resource shall be monitored for utilization, capacity, and performance trends."
+    },
+    {
+      "id": "ARTICLE-085",
+      "num": 85,
+      "text": "Every alert shall have a defined severity level, owner, escalation path, and resolution procedure."
+    },
+    {
+      "id": "ARTICLE-086",
+      "num": 86,
+      "text": "Every business metric shall have a measurable definition and authoritative data source."
+    },
+    {
+      "id": "ARTICLE-087",
+      "num": 87,
+      "text": "Every user-facing feature shall prioritize simplicity, consistency, accessibility, and ease of adoption."
+    },
+    {
+      "id": "ARTICLE-088",
+      "num": 88,
+      "text": "Every user interaction shall minimize unnecessary input by using automation, prediction, defaults, and contextual assistance."
+    },
+    {
+      "id": "ARTICLE-089",
+      "num": 89,
+      "text": "Every recommendation presented to the user shall include sufficient context for informed decision-making."
+    },
+    {
+      "id": "ARTICLE-090",
+      "num": 90,
+      "text": "Every system capability shall be designed for reuse before new functionality is developed."
+    },
+    {
+      "id": "ARTICLE-091",
+      "num": 91,
+      "text": "Every architectural decision shall prioritize maintainability over short-term implementation speed."
+    },
+    {
+      "id": "ARTICLE-092",
+      "num": 92,
+      "text": "Every optimization shall preserve correctness before improving performance."
+    },
+    {
+      "id": "ARTICLE-093",
+      "num": 93,
+      "text": "Every increase in system complexity shall provide measurable business value."
+    },
+    {
+      "id": "ARTICLE-094",
+      "num": 94,
+      "text": "Every engineering improvement shall reduce technical debt or increase long-term maintainability."
+    },
+    {
+      "id": "ARTICLE-095",
+      "num": 95,
+      "text": "Every operational process shall be measurable through defined Key Performance Indicators (KPIs)."
+    },
+    {
+      "id": "ARTICLE-096",
+      "num": 96,
+      "text": "Every completed task shall contribute to continuous platform improvement through analytics, software enhancement, documentation, or reusable knowledge."
+    },
+    {
+      "id": "ARTICLE-097",
+      "num": 97,
+      "text": "The platform shall continuously evolve through controlled feedback, measurable outcomes, engineering discipline, and software-first innovation."
+    },
+    {
+      "id": "ARTICLE-098",
+      "num": 98,
+      "text": "The engineering objective is to maximize deterministic automation while minimizing unnecessary AI execution, operational cost, maintenance effort, and system complexity."
+    },
+    {
+      "id": "ARTICLE-099",
+      "num": 99,
+      "text": "Every architectural, software, AI, operational, and business decision shall support the long-term vision of VERIDIAN AI OS as a reliable, scalable, auditable, secure, software-first Cognitive Business Operating System."
+    }
+  ]
+}

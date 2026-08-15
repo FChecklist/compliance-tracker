@@ -13,10 +13,15 @@
 // fail CI instead.
 //
 // Scope: only NEW service files (added, not modified, relative to the
-// merge-base with main) -- this does not retroactively demand every
-// existing file get a header rewrite, only that new ones keep the
-// convention going forward. Mirrors check-migration-collision.mjs's
-// git-diff-against-merge-base approach.
+// resolved base ref) -- this does not retroactively demand every existing
+// file get a header rewrite, only that new ones keep the convention going
+// forward. Base ref resolution mirrors check-migration-collision.mjs's
+// fix for the "stale local main ref" incident (PR discussion, 2026-07-30):
+// in shared checkouts/worktrees the local `main` ref is frequently stale
+// relative to `origin/main`, which can make this script miss real new
+// files or (less likely here, since only additions are scoped) misreport
+// old ones. Resolution order: --base <ref> CLI arg, BASE_REF env var,
+// freshly-fetched origin/main, local main, HEAD~1.
 //
 // What counts as a header comment: a `//` line comment block of at least
 // MIN_HEADER_CHARS of real content, appearing at or near the top of the
@@ -35,7 +40,8 @@
 // mechanical check in this directory -- it raises the floor, it does not
 // replace review judgment.
 //
-// Usage: node scripts/check-service-header-comment.mjs
+// Usage: node scripts/check-service-header-comment.mjs [--base <ref>]
+//        BASE_REF=origin/main node scripts/check-service-header-comment.mjs
 // Exit code 0 = every new service file has a header comment, 1 = at least
 // one does not.
 
@@ -47,10 +53,39 @@ const MIN_HEADER_CHARS = 40
 const HEADER_SCAN_WINDOW = 15
 const MAX_LEADING_NON_COMMENT_LINES = 6
 
+function resolveBaseRef() {
+  const argIdx = process.argv.indexOf("--base")
+  if (argIdx !== -1 && process.argv[argIdx + 1]) {
+    return process.argv[argIdx + 1]
+  }
+  if (process.env.BASE_REF && process.env.BASE_REF.trim()) {
+    return process.env.BASE_REF.trim()
+  }
+  try {
+    execSync("git fetch origin main --quiet", { stdio: "ignore" })
+  } catch {
+    // ignore -- use whatever origin/main we already have, if anything
+  }
+  try {
+    execSync("git rev-parse --verify origin/main", { stdio: "ignore" })
+    return "origin/main"
+  } catch {
+    // origin/main not available locally at all, fall through
+  }
+  try {
+    execSync("git rev-parse --verify main", { stdio: "ignore" })
+    return "main"
+  } catch {
+    // no local main either, fall through
+  }
+  return "HEAD~1"
+}
+
 function getNewServiceFiles() {
+  const baseRef = resolveBaseRef()
   let added = []
   try {
-    const mergeBase = execSync("git merge-base HEAD main 2>/dev/null || echo HEAD~1", {
+    const mergeBase = execSync(`git merge-base HEAD ${baseRef} 2>/dev/null || echo HEAD~1`, {
       encoding: "utf8",
     }).trim()
     const diffOut = execSync(
@@ -63,7 +98,7 @@ function getNewServiceFiles() {
     ).trim()
     added = [...diffOut.split("\n"), ...untracked.split("\n")].filter(Boolean)
   } catch {
-    // Shallow clone or no `main` ref available locally -- fail open (0 new
+    // Shallow clone or no base ref available locally -- fail open (0 new
     // files checked) rather than crashing CI on an environment quirk
     // unrelated to this check's actual purpose.
     return []

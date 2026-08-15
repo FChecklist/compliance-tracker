@@ -9,7 +9,94 @@ import { documents } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, isNotNull, lte, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { createClient } from "@supabase/supabase-js"
+import { createId } from "@paralleldrive/cuid2"
 export { ServiceError }
+
+const BUCKET = "compliance-documents"
+const MAX_SIZE_BYTES = 25 * 1024 * 1024 // matches the bucket's file_size_limit, same cap as /api/documents
+
+function getStorageAdminClient() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
+}
+
+function sanitizeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120)
+}
+
+export type CreateDocumentRecordInput = {
+  name: string
+  category: string
+  expiryDate?: string | null
+  linkedEntityType?: string | null
+  linkedEntityId?: string | null
+  metadata?: unknown
+} & (
+  | { file: File; externalUrl?: never }
+  | { file?: never; externalUrl: string } // link-only record (e.g. a 3D walkthrough URL) -- no bucket bytes
+)
+
+// The one real upload/storage code path this task's Permits/Drawings/
+// Documents modules all share, per KNOWN_CONTEXT's "reuse the existing
+// upload pattern" instruction. Mirrors /api/documents's POST handler
+// (bytes -> private 'compliance-documents' Supabase Storage bucket, then a
+// documents row), deliberately NOT calling that route's handler directly --
+// it's cookie-session-only (requireAuth), this is the Bearer/API-key-callable
+// twin new v1 routes need. Intentionally does not replicate that route's
+// versioning/auto-classification/AI-extraction/achievement side effects --
+// those are enhancements over the core "store a categorized file" contract,
+// not something a bearer-key upload from PROJEXA depends on.
+export async function createDocumentRecord(ctx: { orgId: string; userId: string }, input: CreateDocumentRecordInput) {
+  if (!input.name?.trim()) throw new ServiceError("name is required", 400)
+
+  let objectPath: string
+  let fileType: string | null = null
+  let fileSize: number | null = null
+  const meta = (input.metadata && typeof input.metadata === "object" ? { ...input.metadata as Record<string, unknown> } : {}) as Record<string, unknown>
+
+  if (input.file) {
+    if (input.file.size > MAX_SIZE_BYTES) throw new ServiceError("File exceeds 25 MB limit", 400)
+    objectPath = `${ctx.orgId}/${createId()}-${sanitizeFileName(input.file.name)}`
+    const bytes = new Uint8Array(await input.file.arrayBuffer())
+    const admin = getStorageAdminClient()
+    const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, bytes, {
+      contentType: input.file.type || "application/octet-stream",
+      upsert: false,
+    })
+    if (uploadError) throw new ServiceError("Failed to upload file", 500)
+    fileType = input.file.type || null
+    fileSize = input.file.size
+  } else {
+    // Link-only record -- fileUrl holds the raw external URL directly
+    // instead of a bucket object path. isExternalLink in metadata tells
+    // readers (e.g. the permits/drawings routes' signed-URL step) not to
+    // try to sign it as a storage object.
+    objectPath = input.externalUrl
+    meta.isExternalLink = true
+  }
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [doc] = await db.insert(documents).values({
+      name: input.name.trim(),
+      fileUrl: objectPath,
+      fileType,
+      fileSize,
+      uploadedById: ctx.userId,
+      orgId: ctx.orgId,
+      category: input.category,
+      expiryDate: input.expiryDate ? new Date(input.expiryDate) : null,
+      linkedEntityType: input.linkedEntityType ?? null,
+      linkedEntityId: input.linkedEntityId ?? null,
+      versionNumber: 1,
+      isLatestVersion: true,
+      metadata: Object.keys(meta).length ? meta : undefined,
+    }).returning()
+    return doc
+  })
+}
 
 export type DocumentFilters = {
   category?: string
@@ -36,7 +123,7 @@ export async function listDocuments(ctx: { orgId: string }, filters: DocumentFil
 // "Expiring soon" is the whole point of tracking expiryDate at all -- a
 // dashboard widget/settings page surfaces this so a license/contract/
 // certificate renewal is never missed silently.
-export async function listExpiringDocuments(ctx: { orgId: string }, withinDays: number = 30, category?: string) {
+export async function listExpiringDocuments(ctx: { orgId: string }, withinDays: number = 30, category?: string, linkedEntityId?: string) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const cutoff = new Date()
     cutoff.setDate(cutoff.getDate() + withinDays)
@@ -50,6 +137,11 @@ export async function listExpiringDocuments(ctx: { orgId: string }, withinDays: 
     // documents widget for permit-expiry reminders rather than a new
     // endpoint -- permits are just documents with category='permit'.
     if (category) conditions.push(eq(documents.category, category))
+    // Wave 143 (PROJEXA Permits real create+list): permits are per-project
+    // (linkedEntityType='project'), so a caller listing one project's
+    // permits must be able to filter to it -- omitted, this stays an
+    // org-wide expiring-soon feed (the original Wave 117 use case).
+    if (linkedEntityId) conditions.push(eq(documents.linkedEntityId, linkedEntityId))
     return db.query.documents.findMany({
       where: and(...conditions),
       orderBy: (d, { asc }) => asc(d.expiryDate),

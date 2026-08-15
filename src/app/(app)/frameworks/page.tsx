@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Card } from "@/components/ui/card";
 import { StatusPill } from "@/components/SimpleModulePage";
+import { toast } from "sonner";
 
 type Control = { id: string; controlRef: string; title: string; status: string };
 type Framework = { id: string; frameworkKey: string; name: string; relevanceNote: string | null; pct: number; controls: Control[] };
@@ -17,7 +18,12 @@ export default function FrameworksPage() {
   useEffect(load, []);
 
   const advance = async (id: string) => {
-    await fetch(`/api/frameworks/controls/${id}`, { method: "PATCH" });
+    const res = await fetch(`/api/frameworks/controls/${id}`, { method: "PATCH" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      toast.error(data?.error ?? "Could not advance this control's status");
+      return;
+    }
     load();
   };
 

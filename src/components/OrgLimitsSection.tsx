@@ -26,6 +26,7 @@ interface CostStatus {
   enforcementEnabled: boolean;
   isOverLimit: boolean;
   isNearLimit: boolean;
+  forecastedMonthEndSpendUsd: number;
 }
 
 // Areas 16/11 admin-UI gap-close (Wave 172's org-license-service.ts /
@@ -142,10 +143,16 @@ export default function OrgLimitsSection() {
           <h4 className="text-sm font-medium">Monthly AI Spend Cap</h4>
           {cost?.isOverLimit && <Badge variant="destructive">Over cap</Badge>}
           {!cost?.isOverLimit && cost?.isNearLimit && <Badge variant="outline">Near cap</Badge>}
+          {!cost?.isOverLimit && cost?.monthlyCostCapUsd !== null && cost !== null && cost.forecastedMonthEndSpendUsd > cost.monthlyCostCapUsd! && (
+            <Badge variant="outline">On pace to exceed cap</Badge>
+          )}
         </div>
         <p className="text-sm text-muted-foreground">
           ${cost?.currentSpendUsd.toFixed(2)} spent this month
           {cost?.monthlyCostCapUsd !== null && ` of $${cost?.monthlyCostCapUsd?.toFixed(2)} cap`}
+        </p>
+        <p className="text-xs text-muted-foreground">
+          Forecasted (linear run-rate): ~${cost?.forecastedMonthEndSpendUsd.toFixed(2)} by month end
         </p>
         <div className="flex items-end gap-3">
           <div className="flex-1 max-w-[180px]">

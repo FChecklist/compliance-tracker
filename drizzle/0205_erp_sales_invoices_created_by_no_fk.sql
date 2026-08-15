@@ -1,6 +1,6 @@
 -- Priority 19 Part 2, Workstream A (actor-column FK-vs-API-key-id fix
 -- pass): fixes the same bug class PR #349
--- (drizzle/0204_pms_issues_created_by_no_fk.sql) already fixed on
+-- (drizzle/0258_pms_issues_created_by_no_fk.sql) already fixed on
 -- compliance.pms_issues.created_by_id, now confirmed on
 -- compliance.erp_sales_invoices.created_by_id too
 -- (control/priority19_dubai_e2e_testing_plan.md, "NEW GAP -- Invoices:

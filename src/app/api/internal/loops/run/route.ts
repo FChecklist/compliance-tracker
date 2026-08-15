@@ -13,6 +13,7 @@ import { runKnowledgeFlowAudit } from "@/lib/loops/knowledge-flow-audit";
 import { runProcessTurnaroundAudit } from "@/lib/loops/process-turnaround-audit";
 import { runTierIntegrityAudit } from "@/lib/loops/tier-integrity-audit";
 import { runCapabilityIndexFreshnessAudit } from "@/lib/loops/capability-index-freshness-audit";
+import { runModelPricingAudit } from "@/lib/loops/model-pricing-audit";
 import { purgeExpiredLlmResponseCache } from "@/lib/llm-response-cache";
 
 /**
@@ -101,6 +102,12 @@ async function runActiveLoops() {
   // now has expired rows worth cleaning up. Same "piggyback the existing
   // daily cron" reasoning as above.
   results.llmResponseCachePurged = await purgeExpiredLlmResponseCache();
+
+  // AI Architecture / Performance & Cost Efficiency gap-closure (2026-07-18,
+  // "AI Cost Optimization" finding) -- same "piggyback the existing daily
+  // cron" reasoning as above: recurring MODEL_PRICING accuracy check, not
+  // one of the 15 canonical loops.
+  results.modelPricingAudit = await runModelPricingAudit();
 
   return results;
 }
