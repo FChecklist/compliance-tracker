@@ -6112,6 +6112,34 @@ active:
       (+ tests). Not touching schema.ts again (already done), not touching
       permission-service.ts or any other in-flight worker's declared scope.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-124002-retry-0--ai-model-lifecycle---benchmark) -- AI Model Lifecycle & Benchmarking: emergency model revert flag"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "not yet PR'd -- PR #1260, branch worker/task-20260718-124002-retry-0--ai-model-lifecycle---benchmark, orchestra-model-resolver.ts + its test file only"
+    summary: |
+      VERIDIAN Review Framework gap-closure, 1 High finding: "Model
+      deprecation/rollback process defined -- gap: deprecation/rollback is a
+      manual git-revert process, not an automated mechanism. Recommended
+      approach: add an emergency-revert config flag." This workspace was
+      stale (last synced 2026-07-18); merging in ~4 weeks of origin/main
+      surfaced that this gap already has substantial real prior work: a
+      DB-backed platform.ai_model_registry (status enum
+      active/disabled/deprecated, named-role lookup via getRoleModel() in
+      orchestra-model-resolver.ts itself) AND src/lib/ai-router/
+      mother-router.ts's versioned ai_routing_policies + an explicitly
+      named "Emergency rollback" section (rollbackPolicy(scope, toVersion)).
+      Neither is the literal single "config flag" the recommended approach
+      asked for though -- both need a DB write plus specific knowledge (a
+      correct registry row, or an exact prior policy version number), and
+      rollbackPolicy() has no admin API/UI wired to it yet. Added the
+      literal flag as a genuinely complementary (not duplicate) addition:
+      getEmergencyModelRevert() reads AI_MODEL_EMERGENCY_REVERT
+      ("<provider>:<model>"), checked BEFORE the registry lookup even runs
+      (still works if the registry itself is broken), wired into
+      resolveModelConfig()'s non-BYO branch, resolvePlatformModelConfig()'s
+      default branch, and escalatedPlatformConfig(). Explicitly does NOT
+      override an org's own BYO customerModelConfig/clientModelConfig row
+      (platform-operator brake only, tested). 12 new tests added (34/34
+      total pass in the file), tsc/eslint clean.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
