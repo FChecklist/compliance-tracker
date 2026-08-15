@@ -19,6 +19,7 @@ export { ServiceError }
 import { recordStockReceipt, recordStockIssue } from "./erp-inventory-service"
 import { requireErpEnabled } from "./erp-enablement-service"
 import type { ErpContext } from "./actor-context"
+import { isSelfApproval } from "./approval-workflow-service"
 
 type ReturnItemInput = { itemId: string; quantity: number; rate?: number; reason?: string }
 
@@ -63,6 +64,9 @@ export async function approveSalesReturn(ctx: ErpContext, returnId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getSalesReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be approved", 400)
+    if (isSelfApproval(existing.requestedById, ctx.userId)) {
+      throw new ServiceError("You cannot approve a return you requested yourself -- an independent approver is required", 403)
+    }
 
     const [updated] = await db.update(erpSalesReturns).set({ status: "approved", approvedById: ctx.userId, updatedAt: new Date() }).where(eq(erpSalesReturns.id, returnId)).returning()
     return updated
@@ -74,6 +78,9 @@ export async function rejectSalesReturn(ctx: ErpContext, returnId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getSalesReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be rejected", 400)
+    if (isSelfApproval(existing.requestedById, ctx.userId)) {
+      throw new ServiceError("You cannot reject a return you requested yourself -- an independent approver is required", 403)
+    }
 
     const [updated] = await db.update(erpSalesReturns).set({ status: "rejected", approvedById: ctx.userId, updatedAt: new Date() }).where(eq(erpSalesReturns.id, returnId)).returning()
     return updated
@@ -164,6 +171,9 @@ export async function approvePurchaseReturn(ctx: ErpContext, returnId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getPurchaseReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be approved", 400)
+    if (isSelfApproval(existing.requestedById, ctx.userId)) {
+      throw new ServiceError("You cannot approve a return you requested yourself -- an independent approver is required", 403)
+    }
 
     const [updated] = await db.update(erpPurchaseReturns).set({ status: "approved", approvedById: ctx.userId, updatedAt: new Date() }).where(eq(erpPurchaseReturns.id, returnId)).returning()
     return updated
@@ -175,6 +185,9 @@ export async function rejectPurchaseReturn(ctx: ErpContext, returnId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await getPurchaseReturnOrThrow(db, ctx.orgId, returnId)
     if (existing.status !== "requested") throw new ServiceError("Only a requested return can be rejected", 400)
+    if (isSelfApproval(existing.requestedById, ctx.userId)) {
+      throw new ServiceError("You cannot reject a return you requested yourself -- an independent approver is required", 403)
+    }
 
     const [updated] = await db.update(erpPurchaseReturns).set({ status: "rejected", approvedById: ctx.userId, updatedAt: new Date() }).where(eq(erpPurchaseReturns.id, returnId)).returning()
     return updated
