@@ -40,34 +40,31 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
-    claimed_at: "2026-08-07T (this session)"
+  - session_label: "claude-code (worker task-20260718-132005-retry-1--api-governance--rate-limiting) -- VERIDIAN Review Framework gap-closure: API Governance -- API changelog for external consumers + interim API sandbox [invocation 16/20 2026-08-15: found substantial prior work already staged uncommitted in the workspace (docs/API_CHANGELOG.md, docs/API_SANDBOX.md, src/lib/supabase/api-key-auth.ts + test) from an earlier invocation whose own progress file never got written -- re-verified it live (9/9 new tests pass, code matches docs), now committing + opening PR]"
+    claimed_at: "2026-08-15T (this session)"
     claim: |
-      ai-os/CONSTITUTION.yaml's prompt_cache_framework (CACHE-01..04,
-      Phase 1, 2026-07-14) wired prompt_cache_metrics INSERTs into
-      chat-service.ts's generateAiReply() but built zero readers --
-      confirmed via `git grep promptCacheMetrics`: only schema.ts,
-      metrics.ts, and that one call site matched anywhere in src/. This
-      task's own title ("Cache & Synchronization: Cache Utilization &
-      Prediction") has no matching spec doc anywhere in this repo
-      (checked MASTER-TRACKER.yaml; control/CONTROLLER.yaml, referenced
-      by CACHE-01's own `source` field, does not exist in this repo) --
-      interpreted honestly as: close the write-only-sink gap.
-      Scope: new file src/lib/prompt-cache/utilization.ts
-      (getCacheUtilizationSummary() report + predictNextDayCacheSavings()
-      trailing-moving-average forecast, both grouped by layer/by day),
-      its test file, one new additive export in src/lib/llm-client.ts
-      (estimatePromptCacheSavingsUsd(), next to the existing
-      estimateCostUsd(), does not change that function's behavior), and
-      one new route src/app/api/ai/team/cache-utilization/route.ts
-      (mirrors the sibling /api/ai/team/token-usage route's
-      veridian_admin-gating). Does NOT touch chat-service.ts, the
-      prompt_cache_metrics schema, or any other Orchestra Layer call site
-      -- CACHE-03's phased-rollout gap (only one layer wired) is
-      unchanged by this task.
+      2 findings from `prompt.txt`: (1) [Critical] no API changelog for
+      external `/api/v1/**` consumers -- addressed via new
+      `docs/API_CHANGELOG.md` compiled from real git history of
+      `src/app/api/v1/**/route.ts`, cross-linked from the OpenAPI route
+      comment. (2) [High] no sandbox/test environment for API
+      integrators -- the gap's own recommended fix ("reuse the existing
+      Demo Company org") named a UI-only marketing label with no backing
+      org; substituted the real functional equivalent already in the
+      codebase (`projexa_demo_org` / `projexa_demo_key`, gated by
+      `KNOWN_DEMO_KEY_IDS` since the 2026-07-17 security fix) and added a
+      `DEMO_KEY_RATE_LIMIT_PER_MINUTE` (30/min) safety ceiling in
+      `src/lib/supabase/api-key-auth.ts`, independent of and always at
+      least as strict as the key's own DB-configured limit, documented in
+      new `docs/API_SANDBOX.md`.
+      Scope: docs/API_CHANGELOG.md (new), docs/API_SANDBOX.md (new),
+      src/lib/supabase/api-key-auth.ts (additive: effectiveRateLimitFor()
+      + DEMO_KEY_RATE_LIMIT_PER_MINUTE), its test file (9 new tests).
+      Does not touch permission-service.ts's ERP_ACTION_ROLES per the
+      prompt's own instruction.
       Checked this file live before claiming -- no other active entry
-      touches prompt-cache/*, llm-client.ts's MODEL_PRICING/cost-estimate
-      functions, or an /api/ai/team/cache-utilization route.
+      touches docs/API_CHANGELOG.md, docs/API_SANDBOX.md, or
+      src/lib/supabase/api-key-auth.ts.
 
   - session_label: "claude-code (worker task-20260718-082004) -- CRM & Sales Modules: Sales Pipeline gap-closure -- PR #1018, implementation DONE (14/14 findings), branch re-merged against main (invocation 14, 2026-08-15, commit 942a54a73) after a fresh 136-commit drift + a real Migration Number Collision (0313->0314, main independently used 0313 too) -- CI running on the fix commit as of this checkpoint; standing self-approval reviewer-identity deadlock (not this task's own work) documented 25+ times in prior invocations, expected to recur once CI is green [merge pending Owner action]"
     claimed_at: "2026-08-07T (this session)"
@@ -6084,6 +6081,20 @@ active:
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [DONE, merged -- PR #1017, merge commit 45435c9c4]"
+    claimed_at: "2026-08-07T (this session, moved from active: to recently_completed: 2026-08-15 after confirming PR #1017's merge commit is in `git log`)"
+    claim: |
+      ai-os/CONSTITUTION.yaml's prompt_cache_framework (CACHE-01..04,
+      Phase 1, 2026-07-14) wired prompt_cache_metrics INSERTs into
+      chat-service.ts's generateAiReply() but built zero readers. Added
+      src/lib/prompt-cache/utilization.ts (getCacheUtilizationSummary() +
+      predictNextDayCacheSavings()), its test file, an additive
+      estimatePromptCacheSavingsUsd() export in src/lib/llm-client.ts,
+      and a new veridian_admin-gated
+      src/app/api/ai/team/cache-utilization/route.ts. Full detail was in
+      this entry's own history while active; trimmed here since
+      COMPLETED.yaml/MASTER-TRACKER.yaml are the permanent record.
+
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
