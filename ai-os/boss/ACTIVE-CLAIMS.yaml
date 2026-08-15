@@ -40,6 +40,32 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260815-043932-run-the-deterministic-reconcile-stale-sw) -- run resource_governor.py --reconcile-stale sweep against the 29 dispatched-but-unterminated rows in the trailing-24h owner_dispatch_gateway set, mint+link child UMR under UMR-20260806-071025-1d28"
+    claimed_at: "2026-08-15T04:39Z (this session)"
+    claim: |
+      SPEC (PM dispatch, cites UMR-20260806-071025-1d28 (24h closure mandate) and
+      UMR-20260806-042531-be9c (PM report contract)): the trailing-24h `owner_dispatch_gateway`
+      set (source_trigger=owner_dispatch_gateway, ts_submitted within 24h) currently reads
+      total 141 / closed 38 / 27.0%, with 29 rows stuck in status=dispatched that never
+      transitioned to a terminal status. One row (`UMR-20260806-103954-6f42`,
+      veridian-directive-engine.service persistent-enable) is independently proven complete
+      (systemctl --user is-enabled now returns enabled) while still reading dispatched -- proof
+      status reconciliation is lagging real completed work. This task runs the EXISTING
+      deterministic sweep (`/opt/veridian/scripts/resource_governor.py --reconcile-stale`,
+      zero-duplication rule -- not a new script), captures its real output verbatim, records
+      per-row real umr_id + evidence (transitioned) or real reason (declined), re-queries the
+      real trailing-24h numbers before/after via the same query the PM report uses, and reports
+      any row the sweep genuinely cannot reconcile (e.g. 6f42) as a real defect rather than
+      hand-editing status. No hand-set statuses. No self-certification.
+    scope_note: >-
+      File/DB scope: mints one child UMR row via `superboss-register.py` (host-level
+      `/opt/veridian/ai-os/memory/superboss-register.sqlite`, outside this repo's tree) linked
+      under `UMR-20260806-071025-1d28`; runs (does not modify)
+      `/opt/veridian/scripts/resource_governor.py --reconcile-stale`; writes evidence into the
+      child UMR row itself, this task's own
+      `progress/task-20260815-043932-run-the-deterministic-reconcile-stale-sw.md`, and this
+      ACTIVE-CLAIMS entry. No new script authored (zero-duplication rule, per SPEC and briefing's
+      capability_registry match). No repo src/ changes expected.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
