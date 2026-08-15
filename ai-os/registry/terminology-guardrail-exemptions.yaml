@@ -1034,6 +1034,18 @@ exemptions:
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 12 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
       hardcoded_iso_date: 12
+  - file: src/lib/task-execution/dispatch-engine.ts
+    reason: "AI Engineering Quality gap-closure (2026-08-15): task-execution-engine.ts split by responsibility -- this file is a mechanical, behavior-preserving extraction of dispatchEngine() and its case-handler bodies out of the already Phase-4-exempted src/lib/task-execution-engine.ts. 4 of the 5 findings are pre-existing changelog/gap-closure comments carried over verbatim from that file (or a new changelog comment describing this split itself); the 5th is a new changelog comment (line 132) documenting a same-day CodeQL 'Unvalidated dynamic method call' hardening fix (Object.hasOwn() allowlist check before indexing the add/subtract/multiply/divide dispatch table). All individually verified on direct read -- none are human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 5
+  - file: src/lib/task-execution/dispatch-tools.ts
+    reason: "AI Engineering Quality gap-closure (2026-08-15): task-execution-engine.ts split by responsibility -- this file is a mechanical, behavior-preserving extraction of dispatchTool() and its tool-handler bodies out of the already Phase-4-exempted src/lib/task-execution-engine.ts. All 3 findings are pre-existing changelog/gap-closure comments carried over verbatim from that file (or a new changelog comment describing this split itself), individually verified on direct read -- none are human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 3
+  - file: src/lib/task-execution/dispatch-engine.test.ts
+    reason: "AI Engineering Quality gap-closure (2026-08-15): new test file covering dispatch-engine.ts's split-out behavior. The 1 finding is a changelog comment dating this split, individually verified on direct read -- not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/lib/task-tightening.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:

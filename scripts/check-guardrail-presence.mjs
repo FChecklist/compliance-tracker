@@ -159,8 +159,17 @@ const REQUIRED_MARKERS = [
   // this anchors the definition plus one high-traffic call site so the
   // marker check still catches the function itself, or its use in the
   // core task-execution path, being silently gutted.
+  // File target updated (AI Engineering Quality task, 2026-08-15): the
+  // dispatchTool() call site this marker anchors to moved from
+  // task-execution-engine.ts to task-execution/dispatch-tools.ts as part
+  // of a mechanical, behavior-preserving split of task-execution-engine.ts
+  // by responsibility (dispatch-tools.ts / dispatch-engine.ts / remaining
+  // orchestration body) -- same call, same core task-execution path,
+  // new file. Not a guardrail weakening: verified via full eslint/tsc/test
+  // pass on the split and cross-checked here so the check keeps testing
+  // the real call site instead of a stale path.
   { file: "src/lib/audit.ts", mustContain: ["export async function logActivity"] },
-  { file: "src/lib/task-execution-engine.ts", mustContain: ["logActivity("] },
+  { file: "src/lib/task-execution/dispatch-tools.ts", mustContain: ["logActivity("] },
 
   // Mandatory Structured Handover Protocol (Wave 167,
   // ai-os/tree4-unified/10-merged-governance-layer.yaml U-D17.B1.S1,

@@ -129,9 +129,22 @@ export async function dispatchEngine(db: TenantDb, orgId: string, userId: string
     case "basic_arithmetic_engine": {
       const { add, subtract, multiply, divide } = await import("@/lib/engines/mathematical-engine");
       const a = Number(inputs.a), b = Number(inputs.b);
-      const fn = { add, subtract, multiply, divide }[String(inputs.operation)];
-      if (!fn) throw new Error("Invalid operation");
-      return { result: fn(a, b) };
+      // CodeQL "Unvalidated dynamic method call" (2026-08-15): the previous
+      // `{ add, subtract, multiply, divide }[String(inputs.operation)]`
+      // dispatch-table lookup indexed a plain object with a user-controlled
+      // key, which CodeQL flags because the lookup could in principle
+      // resolve onto Object.prototype members instead of undefined. An
+      // explicit switch (matching financial_mathematics_engine's and
+      // percentage_engine's existing pattern in this same file, just below)
+      // removes the dynamic property access entirely rather than trying to
+      // sanitize it.
+      switch (String(inputs.operation)) {
+        case "add": return { result: add(a, b) };
+        case "subtract": return { result: subtract(a, b) };
+        case "multiply": return { result: multiply(a, b) };
+        case "divide": return { result: divide(a, b) };
+        default: throw new Error("Invalid operation");
+      }
     }
     case "scientific_calculator_engine": {
       const { evaluateExpression } = await import("@/lib/engines/mathematical-engine");
