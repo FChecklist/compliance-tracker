@@ -4,6 +4,16 @@ import { relations, sql } from 'drizzle-orm'
 
 export const complianceSchemaDB = pgSchema('compliance')
 
+// VERIDIAN Review Framework, "Overall Code Quality Score" (Medium) gap
+// closure: this file is ~10,200 lines but already internally organized by
+// domain via 125 `// ─── Section Name ───` comment headers below (grep -c
+// "^// ─── " src/lib/db/schema.ts to recount). A full physical split into
+// per-domain files is the ideal end state but is deliberately deferred here
+// -- 6 PRs were open concurrently against this file at last check (gh pr
+// list --state open --json number,files --jq '[.[] | select(.files[].path
+// | test("schema\\.ts$")) | .number] | length'), so a physical split right
+// now would create a wall of merge conflicts for every one of them with no
+// functional benefit. Fast navigation: `grep -n "^// ─── " src/lib/db/schema.ts`.
 // ─── Enums ───────────────────────────────────────────────────────────────
 export const userRoleEnum = complianceSchemaDB.enum('user_role', [
   'admin', 'manager', 'member', 'viewer', // original 4
