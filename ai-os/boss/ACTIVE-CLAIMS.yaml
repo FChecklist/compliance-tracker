@@ -6111,6 +6111,23 @@ active:
       src/lib/services/task-execution/{tool-dispatch,engine-dispatch}.ts
       (+ tests). Not touching schema.ts again (already done), not touching
       permission-service.ts or any other in-flight worker's declared scope.
+  - session_label: "claude-code (worker task-20260815-153742-rca--umr-20260806-091546-087b-killed) -- RCA for killed row UMR-20260806-091546-087b"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      resource_governor.py --query-umr --umr-id UMR-20260806-091546-087b shows
+      status=killed, task_identity="test-fresh-row", source_trigger="unit_test",
+      utm_source="test_harness", unit_name=null, ts_dispatched=null. Real recorded
+      reason: "TEST CONTAMINATION CLEANUP (unit-test module-import-ordering bug,
+      UMR-20260806-090229-f2a7 investigation) -- this row was never real production
+      work, neutralized immediately, never dispatched". Investigating whether this
+      is a genuine correctly-killed test artifact (matches the precedent group in
+      [[veridian-killed-rca-series-index]], e.g. UMR-1e87 deliberate probe) or a
+      mislabeled-real-work case. No prior PR found for this exact UMR
+      (`gh pr list --search "087b"` empty); no conflicting active claim found.
+    scope_note: >-
+      File scope (expected docs-only, pending real finding): this task's own
+      progress/*.md, ai-os/boss/ACTIVE-CLAIMS.yaml. Will widen if the row turns
+      out to be a mislabeled real deliverable requiring fix + redispatch.
 recently_completed:
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
