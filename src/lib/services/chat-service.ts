@@ -5,15 +5,17 @@
 import {
   conversations, conversationParticipants, messages, messageAttachments, documents, conversationGuestAccess,
   instructionCommitments, instructionMismatchDetections, users, taskExecutionPlan, tasks,
+  policies, pmsIssues, projects, veriMeetings,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { eq, and, inArray, desc, asc, gt, isNull, ne } from "drizzle-orm"
+import { eq, and, inArray, desc, asc, gt, isNull, ne, sql } from "drizzle-orm"
 import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
-import { buildPurposeClause, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
+import { buildPurposeClause, buildUserContextBlock, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { compileStaticPrefix } from "@/lib/prompt-cache/compiler"
 import { recordPromptCacheMetric } from "@/lib/prompt-cache/metrics"
@@ -23,13 +25,17 @@ import { normalizeForLlm } from "@/lib/prompt-normalizer"
 import { passesReplyGate } from "@/lib/ai-reply-gate"
 import { tryDeterministicRoute } from "@/lib/llm-routing-gate"
 import { detectHighImpactAction } from "@/lib/high-impact-action-detector"
-import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation"
+import { checkPreCallEscalation, detectLowConfidenceResponse, deriveConfidenceLabel, type EscalationSignal } from "@/lib/floor-tier-escalation"
 import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { resolveDynamicChainId } from "./task-service"
 import { runDialogueScriptTurn } from "./dialogue-script-executor"
+import { listGlossaryTerms } from "./glossary-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+
+export type ConversationContextRef = { contextEntityType: string | null; contextEntityId: string | null }
+const NO_CONVERSATION_CONTEXT: ConversationContextRef = { contextEntityType: null, contextEntityId: null }
 
 export type ChatContext = { orgId: string; userId: string }
 
@@ -59,6 +65,34 @@ const VERI_MENTION_PATTERN = /@veri\b/i
 const ASK_VERI_PATTERN = /\bask\s+veri\b/i
 export function detectVeriMention(content: string): boolean {
   return VERI_MENTION_PATTERN.test(content) || ASK_VERI_PATTERN.test(content)
+}
+
+// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "AI Clarification
+// Minimization" -- no metric proves clarification requests actually
+// decreased). Pure, word-boundary phrase match, same style/shape as floor-
+// tier-escalation.ts's own CORRECTION_PHRASES/LOW_CONFIDENCE_PHRASES.
+// Deliberately narrow (specific clarifying phrases, not "any reply ending in
+// a question mark" -- that would also catch ordinary confirmatory questions
+// like "Should I go ahead with this?"). generateAiReply()/
+// generateVeriGroupReply() increment conversations.clarificationRoundTrips
+// whenever this fires, giving the framework's "reduced over time" claim a
+// real, queryable number instead of an assumption.
+const CLARIFICATION_PHRASES = [
+  "could you clarify", "can you clarify", "what do you mean by",
+  "which one did you mean", "can you specify", "could you specify",
+  "can you be more specific", "could you be more specific",
+  "i need more information", "i need more details", "i need a bit more detail",
+  "could you tell me more", "can you tell me more", "could you elaborate",
+  "can you elaborate", "which of these did you mean", "do you mean",
+]
+function toWordBoundaryRegex(phrase: string): RegExp {
+  const escaped = phrase.trim().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+  return new RegExp(`\\b${escaped}\\b`, "i")
+}
+export function detectClarificationRequest(replyText: string): boolean {
+  const normalized = replyText.trim()
+  if (!normalized) return false
+  return CLARIFICATION_PHRASES.some((phrase) => toWordBoundaryRegex(phrase).test(normalized))
 }
 
 async function ensureAiThread(ctx: ChatContext): Promise<string> {
@@ -120,18 +154,34 @@ async function ensureAiThread(ctx: ChatContext): Promise<string> {
 // unaffected -- purely additive. workflowId reuses the column Wave 144
 // added (previously unwritten, exactly the kind of real consumer that
 // wave's own audit flagged as missing).
+// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "Measures AI Reduction
+// Over Time" / "Uses Option Selectors Before AI Processing" -- the Chain
+// Selector existed, via ChainSelectorDialog, but was purely optional with no
+// signal a decision point was even offered: a caller that simply omitted
+// modePill/pathKeys got a chain-less thread with zero trace a choice existed.
+// VERI_CHAT_GOVERNANCE.md §5 / Priority 5 deliberately deferred a hard,
+// unskippable mandatory gate as "too big a live-surface UX change to rush" --
+// respected here: the "Skip -- just start" button in ChainSelectorDialog
+// still works exactly as before for the end user, but it must now say so
+// explicitly (skippedChainSelector: true) rather than the caller simply not
+// mentioning a chain at all. Every caller must now make ONE of two explicit
+// choices; there is no third "didn't say" option anymore.
 export async function createWorkflowThread(
   ctx: ChatContext,
-  // Priority 5 item E1: optional Dynamic Chain selection, same convention as
-  // task-service.ts's createTask() -- omitted by every caller today
-  // (AiThreadSwitcher's "New thread" prompt only sends title), so this is
-  // pure plumbing ahead of a UI that offers the Chain Selector step (see
-  // that dispatch's PR description for what's deferred and why).
-  input: { workflowId?: string; title?: string; modePill?: string; pathKeys?: string[] }
+  // Priority 5 item E1 / REVIEW-FRAMEWORK-WAVE4: skippedChainSelector is the
+  // caller's explicit "I saw the Chain Selector step and chose not to use
+  // it" signal (see ChainSelectorDialog's skip()/confirmWithChain() in
+  // ChainSelector.tsx) -- required whenever modePill/pathKeys aren't sent.
+  input: { workflowId?: string; title?: string; modePill?: string; pathKeys?: string[]; skippedChainSelector?: boolean }
 ): Promise<string> {
+  const willResolveChain = shouldResolveDynamicChain(input.modePill, input.pathKeys)
+  if (!willResolveChain && !input.skippedChainSelector) {
+    throw new ServiceError("Select a chain, or explicitly skip the Chain Selector, before starting a new thread", 400)
+  }
+
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const newConversationId = createId()
-    const dynamicChainId = shouldResolveDynamicChain(input.modePill, input.pathKeys)
+    const dynamicChainId = willResolveChain
       ? await resolveDynamicChainId(db, ctx.orgId, ctx.userId, input.modePill!, input.pathKeys!, input.pathKeys!)
       : null
     await db.insert(conversations).values({
@@ -139,6 +189,7 @@ export async function createWorkflowThread(
       title: input.title?.trim() || "New workflow",
       workflowId: input.workflowId ?? null,
       dynamicChainId,
+      chainSelectorSkipped: !willResolveChain,
     })
     await db.insert(conversationParticipants).values({ conversationId: newConversationId, userId: ctx.userId })
     return newConversationId
@@ -174,6 +225,12 @@ export async function listConversations(ctx: ChatContext) {
       // group/label them -- both are still isAiThread: true.
       isPrimary: boolean
       workflowId: string | null
+      // REVIEW-FRAMEWORK-WAVE4 ("Measures AI Reduction Over Time" / "AI
+      // Clarification Minimization"): real, queryable per-conversation
+      // metrics -- see conversations.chainSelectorSkipped/
+      // clarificationRoundTrips's own schema comments.
+      chainSelectorSkipped: boolean
+      clarificationRoundTrips: number
     }[] = []
     for (const convo of convos) {
       const [lastMessage] = await db.query.messages.findMany({
@@ -205,6 +262,8 @@ export async function listConversations(ctx: ChatContext) {
         updatedAt: convo.updatedAt.toISOString(),
         isPrimary: convo.id === aiThreadId,
         workflowId: convo.workflowId,
+        chainSelectorSkipped: convo.chainSelectorSkipped,
+        clarificationRoundTrips: convo.clarificationRoundTrips,
       })
     }
 
@@ -329,6 +388,10 @@ export async function getMessages(ctx: ChatContext, conversationId: string) {
           createdAt: m.createdAt.toISOString(),
           isGuestMessage: Boolean(m.guestAccessId),
           guestName: m.guestAccessId ? (guestNameByAccessId.get(m.guestAccessId) ?? "Guest") : null,
+          // REVIEW-FRAMEWORK-WAVE4: honest heuristic proxy, null for every
+          // non-AI message and every AI message from before this change --
+          // see messages.confidenceLabel's own schema comment.
+          confidenceLabel: m.confidenceLabel as "high" | "medium" | "low" | null,
           commitment: commitment
             ? { status: commitment.status, assigneeId: commitment.assigneeId, dueDate: commitment.dueDate?.toISOString() ?? null }
             : null,
@@ -360,6 +423,26 @@ const HISTORY_LIMIT = 20
 // incident elsewhere in this codebase's AI-workforce tooling, applied here
 // before it becomes a real incident rather than after.
 const HISTORY_CHAR_BUDGET = 12000
+
+// REVIEW-FRAMEWORK-WAVE4 (AI Interaction Efficiency, "Detects Repetitive AI
+// Requests" / "Maintains Context Across Conversation" -- flagged as having a
+// truncation but no real compression strategy: turns over HISTORY_CHAR_BUDGET
+// were silently dropped, not summarized). Deterministic, no extra LLM call --
+// matches this codebase's established preference (floor-tier-escalation.ts's
+// own header) for cheap, reliable deterministic gates over LLM calls where a
+// call isn't strictly necessary. Condenses whatever got trimmed into one
+// compact synthetic turn instead of discarding it outright, so the model
+// still has SOME trace of earlier context rather than none.
+function summarizeOlderTurns(dropped: ChatTurn[]): ChatTurn {
+  const bullets = dropped
+    .map((t) => `${t.role === "assistant" ? "VERI" : "User"}: ${t.content.replace(/\s+/g, " ").slice(0, 160)}`)
+    .join("\n")
+    .slice(0, 1500)
+  return {
+    role: "user",
+    content: `[Earlier conversation, condensed to stay within context budget -- ${dropped.length} older message(s):]\n${bullets}`,
+  }
+}
 
 async function buildConversationHistory(
   orgId: string, userId: string, conversationId: string, excludeMessageId: string
@@ -408,7 +491,9 @@ async function buildConversationHistory(
       totalChars -= history[start].content.length
       start++
     }
-    return start > 0 ? history.slice(start) : history
+    if (start === 0) return history
+    // Compression, not silent loss -- see summarizeOlderTurns() above.
+    return [summarizeOlderTurns(history.slice(0, start)), ...history.slice(start)]
   })
 }
 
@@ -432,7 +517,103 @@ async function checkRecentTaskFailure(orgId: string, userId: string): Promise<bo
   })
 }
 
-async function generateAiReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
+// V2-13 (SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md C4, CSV rows
+// #16/#17/#20 "Business Terminology / Context-Aware / Mode Pills"): closes a
+// confirmed gap where conversations.contextEntityType/contextEntityId (set
+// via veri-chat-service.ts's setConversationContext and veriMeetings'
+// own creation flow) was plumbed all the way to the DB column but never
+// read back by the one place that would make it useful -- the AI reply's
+// own prompt. Four known entity types today (see the `conversations`
+// schema comment); anything else (including the Shared-In inbox's own
+// internal 'shared_in_inbox' sentinel, which is not a user-facing entity)
+// is an honest no-op, never fabricated.
+export type ContextEntitySummary =
+  | { type: "policy"; title: string; category: string; status: string }
+  | { type: "pms_issue"; title: string; priority: string; description: string | null }
+  | { type: "project"; name: string; description: string | null }
+  | { type: "veri_meeting"; title: string; meetingType: string; scheduledAt: string; minutes: string | null }
+
+const CONTEXT_ENTITY_TEXT_CAP = 300
+
+/** Pure formatter -- unit-testable without a DB, same split as chain-usage-ranking.ts's scoring/DB-aggregation separation. */
+export function formatContextEntityBlock(summary: ContextEntitySummary | null): string {
+  if (!summary) return ""
+  switch (summary.type) {
+    case "policy":
+      return `[Conversation context: this thread is about the policy "${summary.title}" (category: ${summary.category}, status: ${summary.status}) -- ground your answer in this policy where relevant.]`
+    case "pms_issue":
+      return `[Conversation context: this thread is about project issue "${summary.title}" (priority: ${summary.priority})${summary.description ? ` -- ${summary.description.slice(0, CONTEXT_ENTITY_TEXT_CAP)}` : ""}.]`
+    case "project":
+      return `[Conversation context: this thread is about the project "${summary.name}"${summary.description ? ` -- ${summary.description.slice(0, CONTEXT_ENTITY_TEXT_CAP)}` : ""}.]`
+    case "veri_meeting":
+      return `[Conversation context: this thread is about the ${summary.meetingType} meeting "${summary.title}" (scheduled ${summary.scheduledAt})${summary.minutes ? ` -- minutes so far: ${summary.minutes.slice(0, CONTEXT_ENTITY_TEXT_CAP)}` : ""}.]`
+    default:
+      return ""
+  }
+}
+
+/**
+ * Real DB fetch, best-effort (same posture as generateAiReply's own
+ * requestingUser lookup below -- a lookup failure never blocks the reply).
+ * `contextEntityType` is free text set by the caller of setConversationContext,
+ * so only the known entity types are resolved; anything else falls through
+ * to the `default: null` case rather than throwing.
+ */
+async function fetchContextEntitySummary(orgId: string, userId: string, ref: ConversationContextRef): Promise<ContextEntitySummary | null> {
+  const { contextEntityType, contextEntityId } = ref
+  if (!contextEntityType || !contextEntityId) return null
+  return withTenantContext({ orgId, userId }, async (db) => {
+    switch (contextEntityType) {
+      case "policy": {
+        const row = await db.query.policies.findFirst({ where: eq(policies.id, contextEntityId) })
+        return row ? { type: "policy" as const, title: row.title, category: row.category, status: row.status } : null
+      }
+      case "pms_issue": {
+        const row = await db.query.pmsIssues.findFirst({ where: eq(pmsIssues.id, contextEntityId) })
+        return row ? { type: "pms_issue" as const, title: row.title, priority: row.priority, description: row.description } : null
+      }
+      case "project": {
+        const row = await db.query.projects.findFirst({ where: eq(projects.id, contextEntityId) })
+        return row ? { type: "project" as const, name: row.name, description: row.description } : null
+      }
+      case "veri_meeting": {
+        const row = await db.query.veriMeetings.findFirst({ where: eq(veriMeetings.id, contextEntityId) })
+        return row
+          ? { type: "veri_meeting" as const, title: row.title, meetingType: row.meetingType, scheduledAt: row.scheduledAt.toISOString(), minutes: row.minutes }
+          : null
+      }
+      default:
+        return null
+    }
+  }).catch(() => null)
+}
+
+// V2-13: org-glossary hook -- businessTerminologyGlossary (glossary-service.ts)
+// existed only as a UI hover-tooltip (GlossaryTermTooltip) before this, never
+// referenced by the AI's own system prompt. Bounded the same way
+// buildConversationHistory bounds history (HISTORY_CHAR_BUDGET) -- an org
+// with a very large glossary must not silently balloon every chat call's
+// token cost; terms beyond the budget are dropped, not truncated mid-term.
+const GLOSSARY_BLOCK_CHAR_BUDGET = 2000
+
+/** Pure formatter -- unit-testable without a DB. */
+export function formatGlossaryBlock(terms: { term: string; definition: string }[]): string {
+  const lines: string[] = []
+  let total = 0
+  for (const t of terms) {
+    const line = `- ${t.term}: ${t.definition}`
+    if (total + line.length > GLOSSARY_BLOCK_CHAR_BUDGET) break
+    lines.push(line)
+    total += line.length
+  }
+  if (lines.length === 0) return ""
+  return `[This organisation's business terminology -- use these definitions whenever the user or conversation references these terms:]\n${lines.join("\n")}`
+}
+
+async function generateAiReply(
+  orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string,
+  conversationContext: ConversationContextRef = NO_CONVERSATION_CONTEXT
+) {
   // Wave 12: the first real call site for the User Assistant OA layer --
   // seeded since Wave 4 but dormant until now (no code path invoked it).
   // `userId` here is the human participant, not the AI -- is_conversation_
@@ -495,8 +676,22 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   }
   const startedAt = Date.now()
   try {
-    const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system")
-    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    const locale = await getPreferredAiResponseLocale()
+    const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system", "production", locale)
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // V2-13: glossary + linked-entity context, both best-effort and both
+    // appended to the STATIC system prompt (not messageForLlm below) -- see
+    // formatGlossaryBlock/formatContextEntityBlock's own headers. Fetched in
+    // parallel since neither depends on the other.
+    const [glossaryTerms, contextEntitySummary] = await Promise.all([
+      listGlossaryTerms({ orgId }).catch(() => []),
+      fetchContextEntitySummary(orgId, userId, conversationContext),
+    ])
+    const systemPrompt = [
+      purposeSystemPrompt,
+      formatGlossaryBlock(glossaryTerms),
+      formatContextEntityBlock(contextEntitySummary),
+    ].filter(Boolean).join("\n\n")
     // Prompt & Cache Management Framework, Phase 1 (2026-07-14): systemPrompt
     // above is already the real static-prefix boundary for this call site --
     // resolved once per domain, substituted, identical across every message
@@ -517,6 +712,19 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     // matching Wave 144's stated intent for that field ("prove what was
     // actually asked of the LLM").
     const normalizedMessage = normalizeForLlm(userMessage)
+    // AI Architecture / Explainability & Transparency gap-closure
+    // (2026-07-18): "Explainability of Output" -- personalize tone/address
+    // using the real requesting user's name/role. Prepended to the message
+    // actually sent to the LLM, NOT to systemPrompt (see purpose-bound-ai.ts's
+    // buildUserContextBlock() header for why) and NOT to normalizedMessage
+    // itself, so orchestra_executions logging still shows exactly what Wave
+    // 144 intended ("what was actually asked"), unpolluted by this addition.
+    // Best-effort: a lookup failure never blocks the reply.
+    const requestingUser = await withTenantContext({ orgId, userId }, (db) =>
+      db.query.users.findFirst({ where: eq(users.id, userId), columns: { name: true, role: true } })
+    ).catch(() => null)
+    const userContextBlock = buildUserContextBlock(requestingUser)
+    const messageForLlm = userContextBlock ? `${userContextBlock}\n\n${normalizedMessage}` : normalizedMessage
 
     // Escalation (2026-07-10, founder directive): floor-tier calls
     // (!isCustomerConfigured -- never overrides an org's own BYO model)
@@ -532,6 +740,13 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     let escalation: { escalated: boolean; signals: EscalationSignal[]; matchedPhrase: string | null; originalModel: string } = {
       escalated: false, signals: [], matchedPhrase: null, originalModel: modelConfig.model,
     }
+    // REVIEW-FRAMEWORK-WAVE4: fed into deriveConfidenceLabel() below,
+    // independent of whether escalation actually fired -- a pre-call signal
+    // is itself evidence this was a harder-than-usual turn, worth reflecting
+    // in the confidence label even on an org with no floor-tier escalation
+    // configured to act on it (isCustomerConfigured stays []: honest, not
+    // fabricated).
+    let preCallSignalsForLabel: EscalationSignal[] = []
 
     if (!modelConfig.isCustomerConfigured) {
       const highImpact = detectHighImpactAction(userMessage)
@@ -539,8 +754,9 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       const preCall = checkPreCallEscalation({
         userMessage, historyLength: history.length, isHighImpact: highImpact.isHighImpact, priorTaskFailed,
       })
+      preCallSignalsForLabel = preCall.signals
       if (preCall.shouldEscalate) {
-        const escalated = escalatedPlatformConfig()
+        const escalated = await escalatedPlatformConfig()
         if (escalated) {
           effectiveConfig = escalated
           escalation = { escalated: true, signals: preCall.signals, matchedPhrase: preCall.matchedPhrase, originalModel: modelConfig.model }
@@ -551,7 +767,7 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     let { content: reply, usage } = await callLLM(
       effectiveConfig.provider, effectiveConfig.model, effectiveConfig.apiKey,
       systemPrompt,
-      normalizedMessage,
+      messageForLlm,
       // enablePromptCache is opt-in and additive (see llm-client.ts) -- only
       // callAnthropic reads it today, and only above its own minimum
       // cacheable size; every other provider silently ignores the flag and
@@ -563,11 +779,11 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
     if (!modelConfig.isCustomerConfigured && !escalation.escalated) {
       const lowConfidence = detectLowConfidenceResponse(reply)
       if (lowConfidence.detected) {
-        const escalated = escalatedPlatformConfig()
+        const escalated = await escalatedPlatformConfig()
         if (escalated) {
           const retried = await callLLM(
             escalated.provider, escalated.model, escalated.apiKey,
-            systemPrompt, normalizedMessage,
+            systemPrompt, messageForLlm,
             { temperature: 0.4, maxTokens: 800, history, enablePromptCache: true },
             escalated.fallback
           )
@@ -623,13 +839,19 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
       status: gateResult.passed ? "completed" : "gated",
       durationMs: Date.now() - startedAt,
       provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
+      // AI Architecture / Explainability & Transparency gap-closure
+      // (2026-07-18): "Explains Workflow Decisions" -- plain-language
+      // version of the same `escalation` object already logged above.
+      routingRationale: escalation.escalated
+        ? `Escalated from ${escalation.originalModel} to ${effectiveConfig.model}: ${escalation.signals.join(", ")}${escalation.matchedPhrase ? ` (matched "${escalation.matchedPhrase}")` : ""}.`
+        : `Used ${effectiveConfig.model}, the org's configured model for this domain -- no escalation signal fired.`,
     })
     // Prompt & Cache Management Framework, Phase 1 (2026-07-14): a separate,
     // fire-and-forget record from the log above -- see promptCacheMetrics'
     // own schema comment for why this is a distinct table, not new columns
     // on orchestraExecutions.
     recordPromptCacheMetric({
-      orgId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
+      orgId, userId, layerKey: "user_assistant_oa", fingerprint: promptCacheFingerprint,
       provider: effectiveConfig.provider, model: effectiveConfig.model, usage,
     })
     if (!gateResult.passed) {
@@ -640,9 +862,21 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
         }).returning()
       )
     }
-    return withTenantContext({ orgId, userId }, (db) =>
-      db.insert(messages).values({ conversationId, senderId: null, content: reply }).returning()
-    )
+    // REVIEW-FRAMEWORK-WAVE4: confidenceLabel/clarification tracking only on
+    // a genuine AI-generated reply that passed the software-first gate above
+    // -- see deriveConfidenceLabel()/detectClarificationRequest()'s own
+    // header comments for why.
+    const confidenceLabel = deriveConfidenceLabel(reply, preCallSignalsForLabel)
+    const isClarification = detectClarificationRequest(reply)
+    return withTenantContext({ orgId, userId }, async (db) => {
+      const inserted = await db.insert(messages).values({ conversationId, senderId: null, content: reply, confidenceLabel }).returning()
+      if (isClarification) {
+        await db.update(conversations)
+          .set({ clarificationRoundTrips: sql`${conversations.clarificationRoundTrips} + 1` })
+          .where(eq(conversations.id, conversationId))
+      }
+      return inserted
+    })
   } catch (err) {
     console.error("AI thread reply failed:", err)
     recordOrchestraExecution({
@@ -672,7 +906,10 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
 // orchestra layer for model resolution -- see this wave's migration
 // (0159_priority6_veri_chat_participant.sql) comment for why a whole new
 // layer wasn't stood up for one narrow additive feature.
-async function generateVeriGroupReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
+async function generateVeriGroupReply(
+  orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string,
+  conversationContext: ConversationContextRef = NO_CONVERSATION_CONTEXT
+) {
   const policyDecision = enforcePolicy(
     { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "user_assistant_oa", eventType: "chat.veri_group_reply" },
     userMessage
@@ -695,8 +932,19 @@ async function generateVeriGroupReply(orgId: string, userId: string, conversatio
 
   const startedAt = Date.now()
   try {
-    const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant")
-    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    const locale = await getPreferredAiResponseLocale()
+    const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant", "production", locale)
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // V2-13: same glossary + linked-entity wiring as generateAiReply() above.
+    const [glossaryTerms, contextEntitySummary] = await Promise.all([
+      listGlossaryTerms({ orgId }).catch(() => []),
+      fetchContextEntitySummary(orgId, userId, conversationContext),
+    ])
+    const systemPrompt = [
+      purposeSystemPrompt,
+      formatGlossaryBlock(glossaryTerms),
+      formatContextEntityBlock(contextEntitySummary),
+    ].filter(Boolean).join("\n\n")
     const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
     const normalizedMessage = normalizeForLlm(userMessage)
 
@@ -740,9 +988,22 @@ async function generateVeriGroupReply(orgId: string, userId: string, conversatio
     // including a plain sentence or malformed JSON, returns null and falls
     // back to the exact same Markdown rendering every other message uses),
     // so there is no new failure mode from asking for JSON sometimes.
-    return withTenantContext({ orgId, userId }, (db) =>
-      db.insert(messages).values({ conversationId, senderId: null, content: reply }).returning()
-    )
+    // REVIEW-FRAMEWORK-WAVE4: this path has no pre-call escalation machinery
+    // (see this function's own header comment for why), so the confidence
+    // label is derived from hedging detection alone -- no pre-call signals
+    // to fold in, honestly reflected as an empty signal list rather than
+    // fabricated.
+    const confidenceLabel = deriveConfidenceLabel(reply, [])
+    const isClarification = detectClarificationRequest(reply)
+    return withTenantContext({ orgId, userId }, async (db) => {
+      const inserted = await db.insert(messages).values({ conversationId, senderId: null, content: reply, confidenceLabel }).returning()
+      if (isClarification) {
+        await db.update(conversations)
+          .set({ clarificationRoundTrips: sql`${conversations.clarificationRoundTrips} + 1` })
+          .where(eq(conversations.id, conversationId))
+      }
+      return inserted
+    })
   } catch (err) {
     console.error("VERI group reply failed:", err)
     recordOrchestraExecution({
@@ -803,7 +1064,10 @@ export async function sendMessage(
 
     await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId))
 
-    return { message, isAiThread: convo.isAiThread, veriParticipant: convo.veriParticipant }
+    return {
+      message, isAiThread: convo.isAiThread, veriParticipant: convo.veriParticipant,
+      contextEntityType: convo.contextEntityType, contextEntityId: convo.contextEntityId,
+    }
   })
 
   const response: { message: unknown; aiReply?: unknown } = {
@@ -821,13 +1085,15 @@ export async function sendMessage(
   // trigger this: senderId === ctx.userId is guaranteed non-null here
   // (the caller is always an authenticated participant), so there's no
   // ambiguity with the guestAccessId convention getMessages() handles.
+  const conversationContext: ConversationContextRef = { contextEntityType: result.contextEntityType, contextEntityId: result.contextEntityId }
+
   if (!result.isAiThread && result.veriParticipant && detectVeriMention(content)) {
-    const [aiMessage] = await generateVeriGroupReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
+    const [aiMessage] = await generateVeriGroupReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content, conversationContext)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
   }
 
   if (result.isAiThread) {
-    const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
+    const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content, conversationContext)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
 
     // Inline VERI FDE evaluation (fire-and-forget, non-blocking, PASSIVE).
@@ -877,7 +1143,7 @@ export async function sendMessage(
 // `!convo.isAiThread` guard above), so there is no audit/legal record tied
 // to an AI-authored message's immutability.
 export async function regenerateAiReply(ctx: ChatContext, conversationId: string) {
-  const { triggerMessageId, triggerContent } = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const { triggerMessageId, triggerContent, contextEntityType, contextEntityId } = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     await assertParticipant(db, conversationId, ctx.userId)
     const convo = await db.query.conversations.findFirst({ where: eq(conversations.id, conversationId) })
     if (!convo?.isAiThread) throw new ServiceError("Regenerate is only available in the VERI AI thread", 400)
@@ -893,10 +1159,13 @@ export async function regenerateAiReply(ctx: ChatContext, conversationId: string
     if (!trigger) throw new ServiceError("No prior message to regenerate a reply for", 400)
 
     await db.delete(messages).where(eq(messages.id, lastAiMessage.id))
-    return { triggerMessageId: trigger.id, triggerContent: trigger.content }
+    return {
+      triggerMessageId: trigger.id, triggerContent: trigger.content,
+      contextEntityType: convo.contextEntityType, contextEntityId: convo.contextEntityId,
+    }
   })
 
-  const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, triggerMessageId, triggerContent)
+  const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, triggerMessageId, triggerContent, { contextEntityType, contextEntityId })
   return { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
 }
 

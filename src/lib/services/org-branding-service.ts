@@ -9,9 +9,10 @@
 // wrapper -- these are single-row-by-orgId reads/writes against
 // organisations itself, the same precedent org-license-service.ts and
 // cost-guard.ts already established for this exact table).
-import { db, organisations } from "@/lib/db"
-import { eq, and, ne } from "drizzle-orm"
+import { db, organisations, productBranches } from "@/lib/db"
+import { eq, and, ne, sql } from "drizzle-orm"
 import { createClient } from "@supabase/supabase-js"
+import { cache } from "react"
 
 export const ORG_BRANDING_BUCKET = "org-branding"
 
@@ -30,6 +31,13 @@ export const DEFAULT_BRAND_PRIMARY_COLOR = "#1C2B3A"
 export const DEFAULT_BRAND_ACCENT_COLOR = "#F5820A"
 export const DEFAULT_LOGO_URL: string | null = null // falls back to /logo-mark.svg client-side
 
+// Wave 5 (CRM+PROJEXA-merge plan, 2026-07-21): the platform-level default
+// when an org has no primaryProductBranchId set (every pre-existing GRC-
+// only org, unaffected by this change) -- distinct from the per-org
+// DEFAULT_BRAND_* colors above, which are about an org's own visual theme,
+// not the product name shown in the app chrome.
+export const DEFAULT_BRAND_NAME = "VERIDIAN AI OS"
+
 const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
 // Deliberately permissive (not a full RFC 1035 validator) -- this is a
 // requested-domain string, not something this migration wave actually
@@ -46,6 +54,17 @@ export interface OrgBranding {
   accentColor: string
   customDomain: string | null
   emailSenderName: string | null
+  // The product name to show in the app chrome (sidebar/topbar wordmark) --
+  // resolved from organisations.primaryProductBranchId -> product_branches
+  // .displayName ("PROJEXA" / "THE FIRM AI OS" / etc). Deliberately NOT
+  // Host-header/domain-based -- this repo has no tenant-routing middleware
+  // yet (see the migration this wave ships for why: customDomain has been
+  // stored-but-unrouted since Wave B). Domain-based resolution belongs to
+  // the later DNS/Vercel cutover wave, once projexa-ai.com is actually
+  // aliased to this deployment; until then, org.primaryProductBranchId is
+  // the only signal that exists, and is sufficient for every org that has
+  // one set today.
+  brandName: string
   // true once ANY field has been explicitly configured by an admin -- lets
   // the UI/preview distinguish "this IS the default" from "this org chose
   // colors that happen to match the default."
@@ -86,6 +105,14 @@ export async function resolveBranding(orgId: string): Promise<OrgBranding> {
   const accentColor = org?.brandAccentColor || DEFAULT_BRAND_ACCENT_COLOR
   const customDomain = org?.customDomain || null
   const emailSenderName = org?.emailSenderName || null
+  let brandName: string = DEFAULT_BRAND_NAME
+  if (org?.primaryProductBranchId) {
+    const branch = await db.query.productBranches.findFirst({
+      where: eq(productBranches.id, org.primaryProductBranchId),
+      columns: { displayName: true },
+    })
+    if (branch?.displayName) brandName = branch.displayName
+  }
   return {
     logoUrl,
     faviconUrl,
@@ -93,6 +120,7 @@ export async function resolveBranding(orgId: string): Promise<OrgBranding> {
     accentColor,
     customDomain,
     emailSenderName,
+    brandName,
     isCustomized: Boolean(org?.logo || org?.faviconUrl || org?.brandPrimaryColor || org?.brandAccentColor || org?.customDomain || org?.emailSenderName),
   }
 }
@@ -189,3 +217,71 @@ export async function getBrandingAssetPath(orgId: string, kind: "logo" | "favico
   const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
   return (kind === "logo" ? org?.logo : org?.faviconUrl) ?? null
 }
+
+// ─── Stage 1: pre-authentication, domain-based resolution ─────────────────
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, real Owner decision
+// 2026-08-04 (UMR-20260804-090421-c647): "PROJEXA is not a separate
+// platform, it is the first brand built on the one VERIDIAN platform...
+// PROJEXA differs only through brand configuration, domain, logo, theme,
+// colours, fonts, marketing pages, product name, never separate platform
+// logic." The domain is only a lookup key into product_branches (the real,
+// existing brand-configuration table) -- it is not itself the platform.
+//
+// Real, deterministic priority order the Owner specified, each layer only
+// overriding the layers beneath it:
+//   1. host header        -- resolved HERE, before any session exists
+//   2. brand configuration -- resolved HERE, from the matched product_branches row
+//   3. tenant configuration
+//   4. organisation configuration  } -- Stage 2, resolveBranding() above,
+//   5. user preference             } unchanged, always runs strictly AFTER
+//   6. session override            } login and naturally wins by running later
+//
+// This function is the ENTIRE real scope of Stage 1: a host string in,
+// either a matched brand's real display name or null (meaning "show the
+// platform default, exactly as today"). It never touches org/session state
+// -- Stage 2 (resolveBranding, unchanged above) remains the only path once
+// a real session exists, per the Owner's explicit instruction to keep Stage
+// 2 exactly as it already works.
+export interface PreAuthBrand {
+  productBranchId: string
+  brandName: string
+}
+
+// Deliberately permissive host normalization (strip a trailing :port, lowercase)
+// -- matches how Next.js's own `headers().get("host")` value looks in
+// practice (e.g. "projexa-ai.com" in production, "localhost:3000" in dev),
+// without re-validating domain syntax (DOMAIN_RE above already owns that
+// for the org-level customDomain input path; this is a lookup, not a write).
+function normalizeHost(host: string | null | undefined): string | null {
+  if (!host) return null
+  const withoutPort = host.split(":")[0]
+  const trimmed = withoutPort.trim().toLowerCase()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+// Never throws -- an unmatched or missing host resolves to null (the
+// platform default), matching resolveBranding()'s own "never a broken UI"
+// posture above. Only ever reads product_branches; never writes.
+// Real, independent-review-caught security fix: `host` is the raw,
+// attacker-controlled HTTP Host header -- an EARLIER version of this
+// function used `ilike()`, which is LIKE-pattern matching, not exact
+// matching. A crafted `Host: %` or `Host: _` header would then match ANY/
+// arbitrary row with a non-null `hostDomain`, letting an attacker force
+// incorrect brand resolution pre-authentication. The intent here has always
+// been a case-insensitive EXACT match (not a fuzzy search like the real
+// ilike() precedent in crm-accounts-service.ts/crm-service.ts/
+// erp-selling-service.ts, which deliberately wraps user input in `%...%`
+// for intentional fuzzy search -- a materially different, non-comparable
+// use case). Real fix: compare `lower(host_domain) = normalized` via a raw
+// SQL `lower()` expression -- an exact match, immune to LIKE metacharacters
+// since no LIKE operator is used at all.
+export const resolvePreAuthBrandByHost = cache(async (host: string | null | undefined): Promise<PreAuthBrand | null> => {
+  const normalized = normalizeHost(host)
+  if (!normalized) return null
+  const branch = await db.query.productBranches.findFirst({
+    where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
+    columns: { id: true, displayName: true },
+  })
+  if (!branch) return null
+  return { productBranchId: branch.id, brandName: branch.displayName }
+})
