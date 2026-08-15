@@ -5770,6 +5770,36 @@ active:
       claim touches compliance-engine-registry.ts, src/lib/engines/ae/,
       erp-einvoice-service.ts, or the statutory-rule enum. Will move to
       recently_completed once the PR merges.
+  - session_label: "claude-code (worker task-20260718-123006-retry-2--ai-maintainability--change-ris) -- VERIDIAN Review Framework: AI Maintainability / Change Risk Management (5 findings)"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Closing 5 related findings from the framework evaluation in one PR:
+      AI Confidence Before Code Changes (Low), Impact Analysis Before
+      Modification (High), Rollback Readiness (High), Dependency Graph
+      Accuracy (High), Knowledge Synchronization Between Code and
+      Documentation (Medium, duplicate of the AI Documentation row 67
+      finding).
+      Checked first: no other active entry or recent PR touches a static
+      dependency-index script, a rollback runbook, Drizzle down-migrations,
+      or a confidence/outcome-correlation service.
+      Planned file scope: new scripts/dependency-index.ts (+.test.ts) --
+      builds a queryable service/route import graph, satisfying both the
+      Impact Analysis and Dependency Graph Accuracy findings per the
+      evaluation's own row-74 recommendation; new
+      scripts/check-migration-reversibility.mjs -- flags non-additive
+      drizzle/*.sql migrations that need a documented down path; new
+      drizzle/down/ (down-migration examples for the most recent risky
+      migrations); new docs/ROLLBACK_RUNBOOK.md; new
+      src/lib/services/confidence-correlation-service.ts (+.test.ts) +
+      src/app/api/ai/team/confidence-correlation/route.ts, correlating
+      activity_log.confidence_percentage against real review_decision/
+      lifecycle_stage outcomes. Knowledge Synchronization finding is
+      procedural (the evaluation's own recommendation is "periodic manual
+      audit passes", not new code) -- documented in this task's PROGRESS.md
+      rather than an unnecessary code change, per this task's own
+      instructions. Not touching permission-service.ts's shared
+      ERP_ACTION_ROLES table structure or any other in-flight worker's
+      declared scope.
 
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
