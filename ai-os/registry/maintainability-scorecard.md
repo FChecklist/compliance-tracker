@@ -57,3 +57,15 @@ fabricated:
 If either of those becomes genuinely trackable in the future (e.g. a CI step
 that writes its own summary row to Postgres), add it as a 4th sub-score here
 -- don't invent a number for it now.
+
+## Related, separate report: per-file size & test-coverage gaps
+
+`ai-os/registry/coverage-gap-report.md` (task-20260718-070005-ai-
+maintainability--ai-safe-change-capab, 2026-08-15) is a DIFFERENT, static
+per-file report -- not wired into this org-level scorecard's live score, and
+deliberately not merged into it. It answers "which individual file is
+largest / least tested", generated straight from `git ls-files` + `bun test
+--coverage`'s own lcov output (`scripts/report-maintainability-gaps.ts`),
+not from any Postgres table. If a future wave wants a genuine 4th
+`staticAnalysisScore` sub-score here, that script's output is the real
+number to wire in -- don't invent a separate one.
