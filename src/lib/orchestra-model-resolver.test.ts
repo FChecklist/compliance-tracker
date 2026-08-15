@@ -200,8 +200,8 @@ describe("emergency revert wired into platform-default resolution paths", () => 
 
   test("escalatedPlatformConfig() is pinned to the revert target instead of ESCALATED_MODEL", async () => {
     mock.module("@/lib/db", () => ({
-      db: { query: { orchestraLayers: { findFirst: mock(async () => undefined) }, customerModelConfig: { findFirst: mock(async () => undefined) } } },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      db: { query: { aiModelRegistry: { findFirst: mock(async () => undefined) }, orchestraLayers: { findFirst: mock(async () => undefined) }, customerModelConfig: { findFirst: mock(async () => undefined) } } },
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -212,7 +212,7 @@ describe("emergency revert wired into platform-default resolution paths", () => 
     process.env.GROQ_API_KEY = "groq-test-key"
     try {
       const { escalatedPlatformConfig } = await import("./orchestra-model-resolver")
-      const result = escalatedPlatformConfig()
+      const result = await escalatedPlatformConfig()
       expect(result?.provider).toBe("groq")
       expect(result?.model).toBe("llama-4-known-good")
     } finally {
@@ -225,11 +225,12 @@ describe("emergency revert wired into platform-default resolution paths", () => 
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
           customerModelConfig: { findFirst: mock(async () => undefined) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -254,6 +255,7 @@ describe("emergency revert wired into platform-default resolution paths", () => 
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "groq", model: "openai/gpt-oss-120b" } })) },
           customerModelConfig: {
             findFirst: mock(async () => ({
@@ -265,7 +267,7 @@ describe("emergency revert wired into platform-default resolution paths", () => 
         },
         update: mockDbUpdateChain(),
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => `decrypted:${c}`) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -287,11 +289,12 @@ describe("emergency revert wired into platform-default resolution paths", () => 
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "platform_orchestration", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
           customerModelConfig: { findFirst: mock(async () => undefined) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
@@ -315,11 +318,12 @@ describe("emergency revert wired into platform-default resolution paths", () => 
     mock.module("@/lib/db", () => ({
       db: {
         query: {
+          aiModelRegistry: { findFirst: mock(async () => undefined) },
           orchestraLayers: { findFirst: mock(async () => ({ id: "layer-1", layerKey: "customer_account_oa", defaultModelConfig: { provider: "openai", model: "gpt-4o-mini-text" } })) },
           customerModelConfig: { findFirst: mock(async () => undefined) },
         },
       },
-      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {},
+      orchestraLayers: {}, customerModelConfig: {}, clientModelConfig: {}, sharedPoolAllocations: {}, aiModelRegistry: {},
     }))
     mock.module("@/lib/ai-config-crypto", () => ({ decryptApiKey: mock(async (c: string) => c) }))
     mock.module("@/lib/cost-guard", () => ({ canIncurCost: mock(async () => ({ allowed: true })) }))
