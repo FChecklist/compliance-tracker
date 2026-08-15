@@ -143,3 +143,7 @@ framework evaluation) before any change; findings 2-4 share one root cause
   Both scripts exist and are already committed in this PR
   (`scripts/check-test-coverage-gate.mjs`); only the workflow YAML wiring
   is outstanding.
+
+- CI status (2026-08-15): all checks green except the known ci.yml-wiring
+  gap above (audit-check verdict: PASS, posted on the PR) and Vercel
+  (pre-existing account-level build-rate-limit, unrelated to this diff).
