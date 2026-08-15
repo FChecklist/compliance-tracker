@@ -1,0 +1,27 @@
+fix: register terminology-guardrail exemptions for PR 1200's 2 new dated comments
+
+PR #1200 (task-20260815-033857, governing UMR-20260806-101802-a350) added
+next.config.ts's real headers() fix (P8-CB-02/03) and src/app/sitemap.ts's
+domain fix (P8-CB-09), each with one real dated design-rationale comment
+citing the live-verification date the finding was reconfirmed on. Neither
+file had a prior terminology-guardrail-exemptions.yaml baseline entry, so
+check-terminology-guardrail.mjs's diff-only CI check correctly flagged them
+as new (unexempted) hardcoded_iso_date findings and blocked merge.
+
+Registered both as permanent exemptions (2 findings in next.config.ts: line
+8 pre-existing veridian-ui-kit migration date + line 30 this PR's new
+headers() comment; 1 finding in src/app/sitemap.ts: line 7's verification
+date) with real per-file reasons, same pattern as every other entry in this
+file -- these are genuine dated gap-closure/design-rationale comments, not
+example/placeholder data. Locally re-ran
+"node scripts/check-terminology-guardrail.mjs --diff-only" against this
+branch: now passes clean (5 files scanned, 0 new findings), confirming the
+fix actually resolves the CI failure rather than just adding an entry.
+
+Continuation of task-20260815-041523 (same governing UMR, same Z.ai GTM
+closure initiative) picking up this PR after its own worker unit went
+inactive mid-cycle -- confirmed via superboss-register.py umr_tasks that
+the unit was genuinely dead (ActiveState=inactive), not a live competing
+session, before touching this branch.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

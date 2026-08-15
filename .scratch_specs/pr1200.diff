@@ -1,0 +1,353 @@
+diff --git a/ai-os/boss/ACTIVE-CLAIMS.yaml b/ai-os/boss/ACTIVE-CLAIMS.yaml
+index 08b0088ec..1485e71b0 100644
+--- a/ai-os/boss/ACTIVE-CLAIMS.yaml
++++ b/ai-os/boss/ACTIVE-CLAIMS.yaml
+@@ -5943,6 +5943,49 @@ active:
+       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
+       is long since superseded -- package.json already pins v0.2.2, so that
+       migration is done, not a live conflict.
++  - session_label: "claude-code (task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure) -- Owner standing mandate: closure of the Z.ai black-box audit of PROJEXA AI COM, one point at a time, governing UMR-20260806-101802-a350 [IN PROGRESS]"
++    claimed_at: "2026-08-15T04:00Z (this session)"
++    claim: |
++      SPEC (Owner standing mandate, separate from and additional to OCID-020): merge Z.ai's 8
++      real black-box report parts into one file, enumerate every real distinct point (CB/HP/MP/
++      OBS findings + individually-verdicted sub-checks), mint a real child UMR per point, then
++      work each point verify -> understand -> fix-plan -> implement -> audit -> retest -> certify
++      boolean, never fabricating a pass, holding what can't be verified from this server.
++
++      Found on arrival (per Rule 12, checked the real indexes first): inventory phase already
++      done by a prior cycle -- `/opt/veridian/ai-os/memory/zai-gtm-findings/Part1..8_*.txt` (the
++      8 real files), `ZAI_BLACKBOX_AUDIT_MERGED.md` (merge), `ZAI_BLACKBOX_AUDIT_POINTS_MANIFEST.json`
++      (139 real enumerated points: 11 CB, 20 HP, 20 MP, 10 OBS, 78 sub-checks) all exist, dated
++      2026-08-14. Closure phase had minted exactly 10 child UMRs so far (`zai-gtm-tranche1-p8-cb-
++      01..10`, parented to owner-task UMR-20260806-144454-d00c, 2026-08-06), and every one of
++      those 10 only completed the VERIFY sub-step (evidence_json holds a `reproduce_verdict` only
++      -- no fix/audit/retest/certify recorded on any of them). p8-cb-01 itself was still `queued`,
++      never verified.
++
++      This session's real, independently-verified-live (not trusting the 2026-08-06 tranche1
++      verdicts unchecked) work: found the P8-CB-04 "no rate limiting on /api/auth/passcode-login"
++      verdict was WRONG -- live curl (7 consecutive POSTs) shows real 429 after 5 fails; code
++      (passcode-login-service.ts, committed 2026-07-24, predates the 2026-08-06 tranche1 check)
++      already has real dual email+IP rate limiting; the tranche1 git-grep evidence for this point
++      used an unescaped `|`-alternation pattern without `-E`, a real tooling bug that produced a
++      false "zero matches". Live-reconfirmed P8-CB-02 (no CSP), P8-CB-03 (no X-Frame-Options),
++      P8-CB-09 (sitemap.xml points at veridian-ai-os.vercel.app not the real projexa-ai.com
++      domain), and P8-CB-10/P1-OBS-003 (/forgot-password 404) as genuinely still reproducing, and
++      implemented real code fixes for all four in this repo (next.config.ts headers(), src/app/
++      forgot-password/page.tsx new redirect + login-form.tsx prompt banner, src/app/sitemap.ts +
++      robots.ts domain fix) -- see this task's own progress file for exact file list. Fix retest
++      against the live site is pending this PR's own merge+deploy, so none of these are certified
++      closed yet in this cycle -- verify+fix+audit steps done, retest+certify explicitly held for
++      a follow-up cycle once live. P8-CB-01/P1-BLOCKER-001 (invalid demo Supabase Auth
++      credentials) confirmed genuinely blocked from this server: no SUPABASE_SERVICE_ROLE_KEY or
++      DATABASE_URL in this session's env, only SUPABASE_ACCESS_TOKEN -- held, not fabricated.
++    scope_note: >-
++      File scope: next.config.ts, src/app/forgot-password/page.tsx (new), src/app/login/login-
++      form.tsx, src/app/sitemap.ts, src/app/robots.ts, messages/en.json, messages/hi.json, this
++      ACTIVE-CLAIMS entry, this task's own progress/*.md. No schema/DB/CI changes. Does not touch
++      P8-CB-08 (brand-name inconsistency, a separate Owner brand decision already tracked under
++      OCID-038) or P8-CB-05/06/07 (Supabase dashboard rate limits, cookie HttpOnly, PWA icons --
++      out of scope for this cycle's batch, left for a follow-up).
+ recently_completed:
+   - session_label: "claude-code (task-20260814-125852-post-merge-verification-audit-of-the-two) -- post-merge Tier-1 re-audit of PR #801 + PR #908 against their real final head SHAs, since neither prior AUDIT comment covered the state that actually merged [DONE, both AUDIT:PASS posted]"
+     claimed_at: "2026-08-14T12:58Z (this session, closed same session)"
+diff --git a/messages/en.json b/messages/en.json
+index e6a76c2d0..3e1fbfeb2 100644
+--- a/messages/en.json
++++ b/messages/en.json
+@@ -271,7 +271,8 @@
+     "passcodePlaceholder": "0000",
+     "signInWithPasscode": "Sign in with passcode",
+     "passcodeInvalidFormat": "Enter your 4-digit passcode",
+-    "passcodeLoginFailed": "Could not sign in with passcode. Please try again or use a magic link."
++    "passcodeLoginFailed": "Could not sign in with passcode. Please try again or use a magic link.",
++    "forgotPasswordPrompt": "There's no separate password reset yet — enter your email and select \"Send magic link instead\" below to sign in without a password."
+   },
+   "Signup": {
+     "checkEmailTitle": "Check your email",
+diff --git a/messages/hi.json b/messages/hi.json
+index eeac830f9..b6d925b2d 100644
+--- a/messages/hi.json
++++ b/messages/hi.json
+@@ -271,7 +271,8 @@
+     "passcodePlaceholder": "0000",
+     "signInWithPasscode": "पासकोड से साइन इन करें",
+     "passcodeInvalidFormat": "अपना 4-अंकीय पासकोड दर्ज करें",
+-    "passcodeLoginFailed": "पासकोड से साइन इन नहीं हो सका। कृपया पुनः प्रयास करें या मैजिक लिंक का उपयोग करें।"
++    "passcodeLoginFailed": "पासकोड से साइन इन नहीं हो सका। कृपया पुनः प्रयास करें या मैजिक लिंक का उपयोग करें।",
++    "forgotPasswordPrompt": "अभी तक अलग पासवर्ड रीसेट उपलब्ध नहीं है — अपना ईमेल दर्ज करें और बिना पासवर्ड के साइन इन करने के लिए नीचे \"इसके बजाय मैजिक लिंक भेजें\" चुनें।"
+   },
+   "Signup": {
+     "checkEmailTitle": "अपना ईमेल जांचें",
+diff --git a/next.config.ts b/next.config.ts
+index 42dd42483..792150954 100644
+--- a/next.config.ts
++++ b/next.config.ts
+@@ -25,6 +25,57 @@ const nextConfig: NextConfig = {
+   // option, matching Next.js's own standard guidance for native-binding
+   // packages (e.g. sharp).
+   serverExternalPackages: ["@memvid/sdk"],
++  // Owner mandate task-20260815-033857 (Z.ai real black-box test, Part 8
++  // Security report, points P8-CB-02/P8-CB-03, and P1-OBS-004): live
++  // `curl -sI` against every page (verified again 2026-08-15) showed
++  // strict-transport-security present but content-security-policy,
++  // x-frame-options, x-content-type-options, referrer-policy, and
++  // permissions-policy entirely absent -- this app previously shipped no
++  // headers() config anywhere (grep-confirmed: no vercel.json headers
++  // block, no middleware.ts). Applied globally (source: "/(.*)"), not
++  // per-route, since the finding covers the whole app including pre-auth
++  // pages. CSP is intentionally permissive on script-src/style-src/img-src/
++  // connect-src (this app is a large, actively-developing Next.js/Sentry/
++  // Supabase/Vercel product with many third-party calls -- see
++  // instrumentation-client.ts, org-branding-service.ts's per-tenant
++  // asset hosts) rather than a locked-down allowlist that would need a
++  // full third-party-origin audit to avoid breaking production; the real
++  // security value asserted by CB-02's own finding is frame-ancestors
++  // (clickjacking) and object-src/base-uri (classic XSS-adjacent
++  // primitives), which this DOES lock down. Re-tightening script-src/
++  // connect-src to a real allowlist is a separate, larger follow-up (would
++  // need its own dedicated audit of every legitimate external origin this
++  // app calls), not silently done here.
++  async headers() {
++    return [
++      {
++        source: "/(.*)",
++        headers: [
++          {
++            key: "Content-Security-Policy",
++            value: [
++              "default-src 'self'",
++              "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
++              "style-src 'self' 'unsafe-inline' https:",
++              "img-src 'self' data: blob: https:",
++              "font-src 'self' data: https:",
++              "connect-src 'self' https: wss:",
++              "frame-ancestors 'none'",
++              "object-src 'none'",
++              "base-uri 'self'",
++            ].join("; "),
++          },
++          { key: "X-Frame-Options", value: "DENY" },
++          { key: "X-Content-Type-Options", value: "nosniff" },
++          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
++          {
++            key: "Permissions-Policy",
++            value: "camera=(), microphone=(), geolocation=()",
++          },
++        ],
++      },
++    ];
++  },
+ };
+ 
+ // PLATFORM-01 Wave 2 (Workstream 5): wires the already-installed-but-
+diff --git a/progress/task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure.md b/progress/task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure.md
+new file mode 100644
+index 000000000..6432eeafe
+--- /dev/null
++++ b/progress/task-20260815-033857-owner-mandate--z-ai-gtm-findings-closure.md
+@@ -0,0 +1,105 @@
++# Owner mandate: Z.ai GTM findings closure (governing UMR-20260806-101802-a350)
++
++Separate, additional exercise to OCID-020's 25-category run. 139 real enumerated
++points total (11 CB, 20 HP, 20 MP, 10 OBS, 78 individually-verdicted sub-checks).
++Multi-cycle program by design — this file tracks real, incremental progress, not a
++single-pass close.
++
++## State on arrival (per Rule 12 index-first check, before any fresh search)
++
++- `/opt/veridian/ai-os/memory/zai-gtm-findings/Part1..8_*.txt` — the 8 real files,
++  already landed (dated 2026-08-14).
++- `/opt/veridian/ai-os/memory/ZAI_BLACKBOX_AUDIT_MERGED.md` — merged single file,
++  already done by a prior cycle. **Step 1 of the SPEC: already complete, not redone.**
++- `/opt/veridian/ai-os/memory/ZAI_BLACKBOX_AUDIT_POINTS_MANIFEST.json` (139 points)
++  + `..._MANIFEST_EXCLUDED_NON_POINTS.json` — enumeration, already done by a prior
++  cycle. **Step 2 of the SPEC: already complete, not redone.**
++- 10 child UMRs already minted (`zai-gtm-tranche1-p8-cb-01..10`, parented to owner-task
++  UMR-20260806-144454-d00c, 2026-08-06). All 10 had only completed the VERIFY
++  sub-step (evidence_json holds `reproduce_verdict` only — no fix/audit/retest/
++  certify on any of them). `p8-cb-01` itself was still `queued`, never verified.
++
++## Completed this cycle
++
++- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, no conflicting active claim found; registered
++      this session's own claim there.
++- [x] Confirmed inventory (steps 1+2) already real and complete — did not redo.
++- [x] Independently re-verified, live against `https://projexa-ai.com`, every P8-CB
++      point the prior tranche1 cycle had touched (not trusted unchecked):
++  - **P8-CB-04** (no rate limiting on `/api/auth/passcode-login`) — prior tranche1
++    verdict (`REPRODUCES`) was **WRONG**. Live: 7 consecutive POSTs → `401 401 401 401
++    401 429 429` (real 429 after 5 fails). Code: `src/lib/passcode-login-service.ts`
++    (committed 2026-07-24, PR #552, predates the 2026-08-06 tranche1 check) already
++    has real dual email+IP rate limiting. Root cause of the false prior verdict: the
++    tranche1 evidence's `git grep 'rateLimit|rate-limit|rate_limit|RateLimit'` used
++    unescaped `|` alternation without `-E`, so it searched for the literal string
++    (basic regex) instead of alternating — a real tooling bug, not a real gap. This
++    point does not need a code fix; only the incorrect evidence needed correcting.
++  - **P8-CB-02** (no CSP), **P8-CB-03** (no X-Frame-Options) — confirmed still
++    reproducing live (`curl -sI https://projexa-ai.com/login`, no
++    content-security-policy/x-frame-options headers). Also confirmed missing:
++    x-content-type-options, referrer-policy, permissions-policy (overlaps P1-OBS-004).
++  - **P8-CB-09** (sitemap references a different domain) — confirmed live:
++    `https://projexa-ai.com/sitemap.xml` lists `<loc>` entries under
++    `veridian-ai-os.vercel.app`, not the real domain being served.
++  - **P8-CB-10** / **P1-OBS-003** (`/forgot-password` 404) — confirmed live
++    (`curl -sI https://projexa-ai.com/forgot-password` → 404).
++  - **P8-CB-01** / **P1-BLOCKER-001** (demo credentials `democeo@projexa-ai.com` /
++    `Demo@1234` rejected) — genuinely could not be independently verified/fixed from
++    this server: this session's env has no `SUPABASE_SERVICE_ROLE_KEY` or
++    `DATABASE_URL`, only `SUPABASE_ACCESS_TOKEN` (management-API token, not
++    Auth-admin). **Held, not fabricated** — real Supabase dashboard/service-role
++    access is required to reset or confirm this account.
++- [x] Wrote real deterministic close-ended fix plans and implemented real code fixes
++      for the 4 confirmed-reproducing points:
++  - `next.config.ts` — added `headers()`: Content-Security-Policy (frame-ancestors
++    'none', object-src 'none', base-uri 'self'; script/style/img/connect kept broad —
++    named honestly as a follow-up to tighten, not silently done here),
++    X-Frame-Options: DENY, X-Content-Type-Options: nosniff, Referrer-Policy,
++    Permissions-Policy. Closes P8-CB-02, P8-CB-03; contributes to P1-OBS-004.
++  - `src/app/forgot-password/page.tsx` (new) — real redirect to
++    `/login?reason=forgot-password`, per the finding's own recommended option B (no
++    new password-reset mechanism invented, consistent with this app's existing,
++    deliberate no-recovery-mechanism design). `src/app/login/login-form.tsx` — reads
++    that query param and shows an inline prompt pointing at the existing "Send magic
++    link instead" option. `messages/en.json` + `messages/hi.json` — added
++    `forgotPasswordPrompt` key (both locales, matching this file's existing pattern).
++    Closes P8-CB-10, P1-OBS-003.
++  - `src/app/sitemap.ts` + `src/app/robots.ts` — `BASE` changed from
++    `https://veridian-ai-os.vercel.app` to `https://projexa-ai.com` (the real live
++    custom domain this app is actually served at). Closes P8-CB-09. Does not touch
++    the separate, still-open brand-NAME question (P8-CB-08).
++- [x] `bun install` (repo node_modules were absent in this fresh workspace) +
++      `NODE_OPTIONS=--max-old-space-size=6144 bunx tsc --noEmit` — clean, 0 errors.
++      `bunx eslint` on every changed file — clean, 0 errors/warnings.
++- [x] Independent audit obtained via a separate subagent pass (not self-certified,
++      per Rule 7(c)) — see PR for the AUDIT verdict comment.
++
++## Remaining (explicitly NOT done this cycle — do not read as closed)
++
++- [ ] **Retest against live site + final boolean certify** for P8-CB-02/03/09/10 —
++      genuinely blocked on this PR merging and Vercel deploying to production; cannot
++      be faked from a pre-merge branch. Holding certification, not fabricating a pass.
++      Next cycle: once merged+deployed, re-run the same live curl checks used above
++      and only then flip `certified: true` in the relevant umr_tasks evidence_json.
++- [ ] Correct the P8-CB-04 evidence_json (currently a real, live-confirmed
++      `NOT_REPRODUCING` — the point is already resolved, just needs the record fixed)
++      and write it back to `UMR-20260806-145437-bf10`.
++- [ ] Mint/update the real child UMR rows for the 5 points touched this cycle
++      (CB-02, CB-03, CB-04-correction, CB-09, CB-10) with fix-plan/implementation/
++      audit evidence, via the canonical `resource_governor.py --submit` +
++      `superboss-register.py mark-umr-terminal` mint pattern, parented to the
++      governing UMR. Not yet done as of this commit — next immediate step.
++- [ ] P8-CB-01 / P1-BLOCKER-001 (demo credentials) — held, needs real Supabase
++      dashboard/service-role access this session doesn't have.
++- [ ] P8-CB-05 (Supabase Auth platform rate limits, dashboard-only setting), P8-CB-06
++      (code-verifier cookie not HttpOnly — structural to client-side PKCE, needs a
++      real architecture decision, not a quick fix), P8-CB-07 (PWA icons/service
++      worker) — not started this cycle.
++- [ ] P8-CB-08 (brand inconsistency PROJEXA vs VERIDIAN AI) — not started; overlaps
++      the already-tracked OCID-038 brand/domain work, needs an Owner brand decision,
++      out of scope for a unilateral fix.
++- [ ] The remaining ~128 of 139 points (all of Parts 1–7's HP/MP/OBS/sub-checks, and
++      Part 8's HP-20/MP-20/OBS beyond the CB group) — not started. Real, large,
++      multi-cycle program; next cycles continue tranche-by-tranche the same way this
++      one did.
+diff --git a/src/app/forgot-password/page.tsx b/src/app/forgot-password/page.tsx
+new file mode 100644
+index 000000000..8793e5676
+--- /dev/null
++++ b/src/app/forgot-password/page.tsx
+@@ -0,0 +1,17 @@
++import { redirect } from "next/navigation";
++
++// Owner mandate task-20260815-033857 (Z.ai black-box audit point P8-CB-10 /
++// P1-OBS-003, governing UMR UMR-20260806-101802-a350): the login form
++// offers no password-reset entry point (this app has no password-reset
++// flow at all -- only Google/magic-link/passcode/SSO, see login-form.tsx),
++// but /forgot-password returned a bare 404 instead of routing a visitor
++// anywhere useful. Per the finding's own recommendation ("Implement
++// /forgot-password OR redirect it to /login with a magic-link prompt"),
++// this is the redirect option -- no new password-reset mechanism invented,
++// consistent with this codebase's existing, deliberate choice not to build
++// one (see passcode-login-service.ts's header: "never a recovery
++// mechanism"). login-form.tsx reads ?reason=forgot-password to surface an
++// inline prompt pointing at the existing "Send magic link instead" option.
++export default function ForgotPasswordPage() {
++  redirect("/login?reason=forgot-password");
++}
+diff --git a/src/app/login/login-form.tsx b/src/app/login/login-form.tsx
+index b32e2ed09..c8136c17a 100644
+--- a/src/app/login/login-form.tsx
++++ b/src/app/login/login-form.tsx
+@@ -29,6 +29,10 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
+   const searchParams = useSearchParams();
+   const redirectTo = searchParams.get("redirectTo") || "/home";
+   const errorParam = searchParams.get("error");
++  // Owner mandate task-20260815-033857 (Z.ai black-box audit point
++  // P8-CB-10 / P1-OBS-003): /forgot-password redirects here with this
++  // marker (see src/app/forgot-password/page.tsx) rather than 404ing.
++  const forgotPasswordParam = searchParams.get("reason") === "forgot-password";
+ 
+   const [email, setEmail] = useState("");
+   const [password, setPassword] = useState("");
+@@ -229,6 +233,12 @@ export function LoginForm({ brand }: { brand: PreAuthBrand | null }) {
+                 </div>
+               )}
+ 
++              {forgotPasswordParam && (
++                <div className="bg-blue-50 border border-blue-200 text-blue-700 text-sm rounded-lg p-3 text-center">
++                  {t("forgotPasswordPrompt")}
++                </div>
++              )}
++
+               <Button
+                 type="button"
+                 variant="outline"
+diff --git a/src/app/robots.ts b/src/app/robots.ts
+index 07e067ae9..31d4146cd 100644
+--- a/src/app/robots.ts
++++ b/src/app/robots.ts
+@@ -1,6 +1,9 @@
+ import type { MetadataRoute } from "next";
+ 
+ // Wave 113 SEO: index the public family, keep the app and APIs out.
++//
++// Owner mandate task-20260815-033857 (Z.ai black-box audit point P8-CB-09):
++// kept in sync with sitemap.ts's own BASE fix -- see that file's comment.
+ export default function robots(): MetadataRoute.Robots {
+   return {
+     rules: [
+@@ -10,6 +13,6 @@ export default function robots(): MetadataRoute.Robots {
+         disallow: ["/api/", "/home", "/settings", "/sales-hq", "/orchestra", "/partner/", "/r/"],
+       },
+     ],
+-    sitemap: "https://veridian-ai-os.vercel.app/sitemap.xml",
++    sitemap: "https://projexa-ai.com/sitemap.xml",
+   };
+ }
+diff --git a/src/app/sitemap.ts b/src/app/sitemap.ts
+index 62dda5978..2118b1a03 100644
+--- a/src/app/sitemap.ts
++++ b/src/app/sitemap.ts
+@@ -2,7 +2,19 @@ import type { MetadataRoute } from "next";
+ 
+ // Wave 113 SEO: one sitemap for the whole public family. App pages behind
+ // auth are deliberately absent.
+-const BASE = "https://veridian-ai-os.vercel.app";
++//
++// Owner mandate task-20260815-033857 (Z.ai black-box audit point P8-CB-09,
++// "Sitemap.xml references different domain"): live-verified 2026-08-15,
++// https://projexa-ai.com/sitemap.xml listed <loc> entries under
++// veridian-ai-os.vercel.app, not the real domain being served/tested.
++// projexa-ai.com is the live custom domain this app is actually reached at
++// (see [[veridian-projexa-domain-ownership-conflict]] resolution note) --
++// pointed at that domain rather than the platform's raw vercel.app URL, so
++// crawlers indexing the sitemap land on the same domain real users use.
++// This does not touch the separate, still-open brand-NAME inconsistency
++// (PROJEXA vs VERIDIAN AI page titles, P8-CB-08) -- domain and brand text
++// are independent gaps.
++const BASE = "https://projexa-ai.com";
+ 
+ export default function sitemap(): MetadataRoute.Sitemap {
+   const now = new Date();
