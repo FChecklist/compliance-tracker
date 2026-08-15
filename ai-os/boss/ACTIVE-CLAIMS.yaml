@@ -1624,6 +1624,39 @@ active:
 # Rolling log, last ~15 entries. Drop older ones -- MASTER-TRACKER.yaml's
 # closed_priorities is the permanent record, this is just recency context.
 recently_completed:
+  - session_label: "claude-code (worker task-20260718-121004-retry-0--ai-maintainability--ai-safe-ch) -- AI Maintainability / AI Safe-Change Capability gap-closure"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: "PR pending (branch worker/task-20260718-121004-retry-0--ai-maintainability--ai-safe-ch) -- code pushed, CI wiring held back"
+    summary: |
+      Closed the 5 VERIDIAN Review Framework findings under AI Maintainability
+      / AI Safe-Change Capability. Scope: src/lib/services/*.ts (184 files,
+      only 48 had a sibling test at start -- this is where the repo's own
+      test-writing convention concentrates; other src/lib/** subtrees never
+      adopted that convention, so were left out of scope as noise rather than
+      signal). New: scripts/report-test-coverage-gap.mjs (writes
+      docs/master/TEST_COVERAGE_GAP.md, untested files ranked by line count --
+      closes "AI Can Generate Tests for Module" / no test-generation tooling,
+      and doubles as the size-priority list "AI Can Safely Understand Module"
+      asked for) and scripts/check-new-test-coverage.mjs (CI gate: a PR
+      touching a previously-untested service file must add at least one test
+      -- closes "AI Can Safely Modify Module" / no coverage gate, and directly
+      serves "AI Can Refactor Module"'s incomplete-safety-net finding). Both
+      scripts' decision logic is pure/exported and unit tested
+      (report-test-coverage-gap.test.ts, check-new-test-coverage.test.ts, 15
+      cases). Full local verification before push: bun test 1436/1436 pass,
+      bunx tsc --noEmit clean, bun run lint 0 errors. "AI Can Explain Module
+      Accurately" had no reported gap -- no action needed, header-comment
+      discipline already maintained.
+      Known limitation, disclosed rather than hidden: the .github/workflows/
+      ci.yml wiring for the two new CI jobs is NOT pushed -- this session's gh
+      token lacks the `workflow` OAuth scope, and GitHub rejects any push
+      touching workflow files without it. Per this repo's own established
+      workaround for that exact constraint, everything else was pushed and
+      the exact YAML diff was written to
+      docs/master/PENDING_CI_WIRING_test_coverage.md for a workflow-scoped
+      follow-up to apply. Both scripts work standalone today (manually
+      verified success + a deliberately-introduced violation); only the
+      automatic CI enforcement is pending.
   - session_label: "claude-code (worker task-20260718-050114-cost-estimate--5-orgs-x-10-users--all-mo) -- cost guesstimate: 5 orgs x 10 users, all modules"
     completed_at: "2026-07-18T (this session)"
     merged_as: "not yet committed/PR'd -- analysis-only deliverable, docs/analysis/cost-estimate-5org-50user.md, no application code touched"
