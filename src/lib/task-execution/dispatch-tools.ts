@@ -1,6 +1,6 @@
 // Read-only global-agent tool dispatcher, extracted from
 // task-execution-engine.ts (AI Engineering Quality gap-closure, 2026-08-15:
-// that file was a 2,437-line monolith combining three genuinely distinct
+// that file was a monolith combining three genuinely distinct
 // responsibilities -- this tool dispatcher, the computation-engine
 // dispatcher (dispatch-engine.ts, same directory), and the actual
 // task-execution orchestration that remains in task-execution-engine.ts).
@@ -18,10 +18,12 @@
 import { complianceItems, departments, notices, tasks, users } from "@/lib/db";
 import type { TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, gte, lte, ne, sql } from "drizzle-orm";
+import { assertBusinessRulesBeforeExecution } from "@/lib/business-rule-validator";
 import { VALID_TYPES as VALID_COMPLIANCE_TYPES } from "@/lib/services/compliance-service";
 import { logActivity } from "@/lib/audit";
 
 export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
+  assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
     const weekEnd = new Date(Date.now() + 7 * 86400000);
