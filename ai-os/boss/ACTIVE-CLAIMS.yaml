@@ -40,6 +40,20 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (task-20260718-083002-crm---sales-modules--veri-reward--gamifi) -- VERIDIAN Review Framework gap-closure: VERI Reward (Gamification & Referral), 11 findings [PUSHED, PR #1015 OPEN, rebased onto current main invocation 14]"
+    claimed_at: "2026-08-07T01:xxZ (this session)"
+    claim: |
+      Scope: src/lib/services/veri-reward-service.ts, src/app/api/veri-reward/**,
+      src/app/(app)/rewards/page.tsx -- closing the 11 findings from the review framework
+      evaluation (see prompt.txt in this task's own dir): CRUD/live-verification, achievement
+      business-rule unit tests, admin engagement report, points-history/leaderboard
+      pagination+date-range filtering, unlock toast notification, "how it works" help panel,
+      CSV export of points history, i18n investigation. Not touching
+      src/lib/services/permission-service.ts's shared ERP_ACTION_ROLES table structure except
+      additively (new keys only), per this task's own explicit instruction.
+      Checked for collisions first: `git grep -i "veri.reward\|veri_reward"` against this file
+      (zero other active claims), `gh ls-remote --heads` (no existing task branch), `gh pr list`
+      (no open PR touching this scope) as of this claim.
   - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure"
     claimed_at: "2026-08-15T05:35Z (this session)"
     claim: |
