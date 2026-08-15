@@ -3732,6 +3732,30 @@ active:
       (Banking Engine section only), docs/master/CAPABILITY_COVERAGE.md,
       PROGRESS.md. No permission-service.ts or RBAC touch -- out of scope
       for this area. Full detail in this task's own PROGRESS.md.
+  - session_label: "claude-code -- task-20260718-062003-ai-cost-governance---finops--cost-visibi (invocation 14/20)"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Found this task's own objective (VERIDIAN Review Framework "AI Cost
+      Governance & FinOps", 4 findings) already fully built and audited on
+      PR #687 (branch worker/task-20260801-173614-retry-ai-cost-governance-
+      finops-cost-vis, commit da96d0c7f): per-tenant Finance UI
+      (/ai-cost-governance), ai_cost_reconciliations table +
+      cost-reconciliation-service.ts + /api/finance/ai-cost-reconciliation,
+      and the cross-repo projexa isolation guardrail already merged as
+      FChecklist/projexa#68 (scripts/check-no-provider-api-keys.mjs).
+      PR #687 has AUDIT: PASS and all-green CI but has sat `mergeable:
+      CONFLICTING` since ~2026-08-07 (main moved ~90 migrations ahead).
+      Confirmed via `git merge-tree` the only 2 real conflicts are trivial
+      append-order collisions in AGENTS.md and PROGRESS.md (both rolling
+      logs many tasks append to) -- no code/schema conflict.
+      NOT re-implementing this finding a second time (this session's own
+      uncommitted schema/service/UI diff duplicates PR #687 with a less
+      complete scope -- no tests, no i18n, no sidebar entry, no real
+      projexa-side guardrail -- and is being discarded). Claiming: rebasing
+      PR #687's branch onto current origin/main in an isolated worktree,
+      resolving the 2 trivial conflicts, pushing, and attempting merge.
+      Scope: worker/task-20260801-173614-retry-ai-cost-governance-finops-
+      cost-vis branch only, plus this task's own PROGRESS.md.
   - session_label: "claude-code (background sub-agent) -- REVIEW-FRAMEWORK-WAVE4 Track 1: CRM Accounts & Contacts business-rule + RBAC closure"
     claimed_at: "2026-07-17T (this session)"
     claim: |
