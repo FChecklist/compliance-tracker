@@ -102,10 +102,24 @@ Findings:
       `bun test`/`eslint` -- still 19/19 pass, still clean. Pushed the
       merge commit.
 
+- [x] Confirmed CI now actually fires on the PR's real head SHA after the
+      merge-commit push (previously zero `pull_request`-event workflow runs
+      existed for this branch at all -- the stale/conflicting base was
+      silently suppressing them): `Analyze`, `Documentation Sentinel Check`,
+      `Secret Scanning`, `Security Pattern Check`, `audit-check` all showed
+      `pending`/queued immediately after the push. Not watched to
+      completion in this invocation (budget-limited) -- next invocation
+      should check `gh pr checks 1237` and fix anything real CI surfaces.
+
 ## Remaining
-- [ ] Confirm CI (Lint/Type Check/Build/Unit Tests) goes green on the PR
-      now that it's mergeable and the merge commit has pushed a real
-      `synchronize` event.
+- [ ] Watch PR #1237's CI to green (`gh pr checks 1237`) in a future
+      invocation and address any real failure it surfaces. Vercel preview
+      showing `fail` is a known transient "build rate limited" infra issue
+      (not this PR's code) -- confirm it clears on retry, don't chase it as
+      a code bug.
+- [ ] Once CI is green, this PR is ready to merge per Rule 6 (no direct
+      push to main -- goes through the normal PR/CI path, no special
+      action needed beyond confirming green).
 - [ ] Business Rule Simulation (Low priority, finding 4): explicitly deferred
       per the finding's own recommended approach ("revisit after the base
       engine and testing framework ship") -- not implemented this PR. The
