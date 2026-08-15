@@ -30,19 +30,77 @@ Findings:
       `automation-rule-service.ts` + its API routes for this codebase's
       established service/route pattern (ServiceError, withTenantContext,
       requireAuth, fire-and-forget capability indexing).
-- [ ] Design + add schema: `businessRules`, `businessRuleVersions`,
-      `businessRuleTestRuns` tables (+ status/operator enums), additive only.
-- [ ] Generate Drizzle migration.
-- [ ] Build `src/lib/services/business-rules-service.ts`: condition-tree
-      evaluator (AND/OR/leaf), CRUD, lifecycle transitions (draft -> active ->
-      deprecated -> archived, plus reactivate), version-on-change + rollback,
-      dry-run test mode.
-- [ ] Unit tests for the evaluator + lifecycle transitions
-      (`business-rules-service.test.ts`).
-- [ ] API routes under `src/app/api/business-rules/**`.
-- [ ] Update PROGRESS entries, commit, push, open PR.
+- [x] Added schema (`src/lib/db/schema.ts`, "Wave 173"): `businessRules`
+      (lifecycle status, currentVersion, denormalized live conditionTree/
+      action), `businessRuleVersions` (append-only version snapshots, unique
+      on (ruleId, version)), `businessRuleTestRuns` (dry-run log) +
+      `business_rule_status`/`business_rule_operator` enums. Additive only --
+      no existing table touched.
+- [x] Hand-written migration `drizzle/0225_business_rules_engine.sql`
+      (matches this repo's established convention -- drizzle/meta hasn't
+      tracked a real snapshot since 0000, migrations here are hand-written
+      SQL, not `drizzle-kit generate` output). IF NOT EXISTS everywhere,
+      FORCE RLS + org-scoped policy + service_role bypass on all 3 tables,
+      matching 0222's training_lms_module.sql pattern. Not applied to a live
+      DB in this session (no DATABASE_URL in this sandbox) -- file is ready
+      for the normal `db:push`/CI migration path.
+- [x] Built `src/lib/services/business-rules-service.ts`: pure
+      `evaluateConditionTree`/`validateConditionTree` (AND/OR groups of leaf
+      comparisons, max depth 10, 10 operators), CRUD (`createBusinessRule`,
+      `updateBusinessRule` -- writes a new version on any content change,
+      never mutates history), `rollbackBusinessRule` (writes a NEW version
+      copying an older snapshot), lifecycle transitions
+      (`activate`/`deprecate`/`archiveBusinessRule` via a
+      `canTransitionRuleStatus` state machine: draft->active/archived,
+      active->deprecated/archived, deprecated->active/archived, archived
+      terminal), and `testBusinessRule` (dry-run against a caller-supplied
+      sample record -- no side effects, action is only previewed, logged to
+      `business_rule_test_runs`).
+- [x] Unit tests `business-rules-service.test.ts` -- 19 tests / 37
+      assertions, all pure-function (evaluator, validator, state machine),
+      no DB required. `bun test`: 19 pass, 0 fail.
+- [x] API routes under `src/app/api/business-rules/**`: `route.ts` (GET
+      list w/ moduleKey/status filters, POST create), `[id]/route.ts` (GET,
+      PATCH -- versions on content change, DELETE -- soft-archives, never
+      hard-deletes so version history survives), `[id]/activate/route.ts`,
+      `[id]/deprecate/route.ts`, `[id]/versions/route.ts` (GET history),
+      `[id]/rollback/route.ts` (POST {toVersion}), `[id]/dry-run/route.ts`
+      (POST dry-run, GET test-run history -- named `dry-run` not `test`
+      because this repo's own `.gitignore` has a bare `test` pattern that
+      matches at any depth and silently untracks a `.../test/route.ts`
+      path; found live and worked around rather than fighting the
+      gitignore). All `requireAuth()`-gated,
+      org-scoped via `withTenantContext`, following the automation-rules
+      route/service pattern already established in this codebase.
+- [x] `bun install` (node_modules wasn't populated in this workspace),
+      `bun test` (19/19 pass), `eslint` on every new file (clean),
+      `tsc --noEmit` full project (needed `NODE_OPTIONS=--max-old-space-size=4096`
+      to avoid an OOM in this sandbox -- clean, 0 errors).
+- [x] Did NOT touch `permission-service.ts`'s ERP_ACTION_ROLES table
+      structure, or any existing rule table (automationRules,
+      erpPricingRules, moduleRuleConfigs, documentMatchingRules,
+      approvalWorkflowStepDefinitions) -- per the task prompt's explicit
+      scope boundary and this codebase's existing single-condition engines
+      each still serving their own narrow call site correctly.
+- [ ] Commit, push, open PR.
 
 ## Remaining
-- [ ] (see unchecked items above)
+- [ ] Commit + push this work, open a PR (all 3 non-deferred findings in one
+      PR, per the task prompt: "close all of them in one coherent PR if they
+      share the same module/area").
 - [ ] Business Rule Simulation (Low priority, finding 4): explicitly deferred
-      per the finding's own recommended approach -- not implemented this PR.
+      per the finding's own recommended approach ("revisit after the base
+      engine and testing framework ship") -- not implemented this PR. The
+      building blocks (evaluateConditionTree, businessRuleTestRuns) are
+      reusable for a future batch/what-if mode without any redesign.
+- [ ] No UI page was built for this module (out of scope of the 4 named
+      findings, which are all about the engine/API layer -- same posture as
+      `moduleRuleConfigs`' own "no rule-setting API/UI yet" honest scoping
+      note elsewhere in schema.ts). A future finding can add
+      `(app)/business-rules` if a UI is wanted.
+- [ ] Auto-execution (wiring `testBusinessRule`'s evaluator into a real
+      module's event path the way `automationRules`' `evaluateAndRunRules()`
+      is called from notice-service.ts/pms-issue-service.ts) is out of scope
+      -- the finding asks for author/store/evaluate, not "replace every
+      module's own logic"; noted in schema.ts's header for whichever future
+      task wires a real call site.
