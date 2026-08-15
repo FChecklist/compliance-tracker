@@ -43,6 +43,7 @@
 active:
   - session_label: "claude-code (worker task-20260718-074004-accessibility--wcag-compliance---navigat) -- Accessibility (WCAG): Navigation & Input Accessibility"
     claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    pr: "https://github.com/FChecklist/compliance-tracker/pull/1224 (open, awaiting CI)"
     claim: |
       Task had 20 prior invocations that never touched real code (all either
       OpenRouter-balance pre-flight rejections or blank in_progress/failed
