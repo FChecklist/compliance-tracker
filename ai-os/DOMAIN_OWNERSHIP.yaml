@@ -1,0 +1,103 @@
+# =====================================================================
+# DOMAIN OWNERSHIP REGISTRY -- the single canonical record of which Vercel
+# project each custom production domain currently, authoritatively belongs
+# to. Created 2026-08-16 (task-20260816-142705-find-and-eliminate-whatever-
+# keeps-reassi, UMR-20260816-142651-d552) after projexa-ai.com/www were
+# found reassigned from the `projexa` Vercel project to the
+# `veridian-compliance-ai` Vercel project TWICE with no code cause anywhere
+# on this box -- see "ROOT CAUSE" below.
+#
+# WHY THIS FILE EXISTS (read this before touching ANY custom domain in the
+# Vercel dashboard or via its REST API/CLI):
+#   Every prior reassignment of projexa-ai.com/www was a manual, live,
+#   unattended-by-code Vercel API/CLI action (`vercel domains add ...
+#   --force`, or a raw DELETE-then-POST against v9/v10 /projects/.../domains)
+#   executed by a different agent session, each acting on its own reading of
+#   an Owner directive at that point in time:
+#     - 2026-07-21 (WAVE-199, "Wave 10"): Owner-authorized VERIDIAN/PROJEXA
+#       brand-layer merge moved the domain projexa -> veridian-compliance-ai.
+#       ai-os/boss/COMPLETED.yaml id: WAVE-199.
+#     - ~2026-07-27: an UNDOCUMENTED reversal moved it back
+#       veridian-compliance-ai -> projexa. No session recorded who/why.
+#     - 2026-08-02 (WAVE-10-REDO): citing "REAL OWNER DECISION
+#       (UMR-20260802-134939-145d, given directly): revert to the Wave 10
+#       state", moved it projexa -> veridian-compliance-ai again.
+#       ai-os/boss/COMPLETED.yaml id: WAVE-10-REDO.
+#     - between 2026-08-02 and 2026-08-07: another UNDOCUMENTED flip back to
+#       projexa -- confirmed by commit a274c203e's real live re-verification
+#       (2026-08-07) finding projexa-ai.com correctly serving PROJEXA again.
+#     - 2026-08-16: found back on veridian-compliance-ai a second time
+#       (identical wrong state to the 2026-07-27 occurrence). Corrected via
+#       the real Vercel REST API: project-scoped DELETE on
+#       v9/projects/veridian-compliance-ai/domains/{name} for each name, then
+#       POST to v10/projects/projexa/domains for each name. Verified true on
+#       the projexa project and via real HTTP fetch of the live title.
+#
+#   ROOT CAUSE: this is a GOVERNANCE gap, not a code bug. Exhaustively
+#   searched (task-20260816-142705's own investigation, cited in its PR):
+#   compliance-tracker's vercel.json (current + full git history, no `alias`
+#   or `domains` field ever), every GH Actions workflow in compliance-tracker
+#   and projexa, every systemd/cron unit script on this box
+#   (sync-vercel-env.sh only calls `vercel env pull`, never touches
+#   domains), and .vercel/project.json in every repo (each correctly points
+#   at its own project, not cross-wired). ZERO code, script, or automation
+#   anywhere on this box calls a Vercel domain-management endpoint. Every
+#   occurrence above was a deliberate, manual, live infra action -- the
+#   actual mechanism is the ABSENCE of (a) one persisted canonical
+#   "current truth" record any session checks before acting, and (b) any
+#   automated check that would surface a drift between sessions in less
+#   than however long it takes a human to happen to notice.
+#
+# THE RULE, effective 2026-08-16:
+#   1. Before ANY session reassigns a custom domain between Vercel projects
+#      for ANY reason (brand cutover, rollback, incident fix, etc.), it MUST
+#      first read this file's `domains:` entry for that hostname.
+#   2. If the change matches what's already recorded here (i.e. you are
+#      correcting a drift back to the canonical value), proceed, then update
+#      `last_verified` below in the SAME commit/PR that documents the fix.
+#   3. If the change would CHANGE the canonical value itself (a genuine new
+#      brand/ownership decision, not a drift-correction), that requires a
+#      fresh, explicit, dated Owner instruction quoted VERBATIM in the PR
+#      description (same bar as AGENTS.md Rule 12's citation requirement) --
+#      and this file's `canonical_project` + `history` MUST be updated in
+#      that same PR. Never change the live Vercel assignment first and
+#      document it later, and never change it without updating this file at
+#      all (that omission is exactly what produced the two undocumented
+#      reversals above).
+#   4. Never use `vercel domains rm`/the REST equivalent that removes team
+#      ownership of a domain -- only a project-scoped detach (DELETE
+#      v9/projects/{id}/domains/{name}) followed by attach (POST
+#      v10/projects/{id}/domains) to the target project. `vercel domains rm`
+#      removes the domain from the team entirely, which is materially more
+#      destructive and not what any of these incidents ever needed.
+#
+# AUTOMATED DRIFT DETECTION: .github/workflows/domain-drift-check.yml reads
+# this file's `canonical_project.name` and polls the real Vercel API for the
+# domain's current owning project every 15 minutes. It is READ-ONLY (GET
+# only, never mutates anything) and fails the workflow run (visible in the
+# repo's Actions tab, and via GitHub's own failed-run notification) the
+# moment live state stops matching this file -- turning a recurrence that
+# previously took days-to-weeks to notice into one caught within ~15
+# minutes. It cannot technically prevent a manual dashboard/API change (no
+# artifact in this repo can), but it removes the "silently unnoticed for
+# a long time" failure mode this whole recurring incident has actually been.
+# =====================================================================
+
+vercel_team: "meet-track-s-projects"
+vercel_team_id: "team_Iqx3zyb7sDdsdzcNskCFFsHD"
+
+domains:
+  - hostnames:
+      - "projexa-ai.com"
+      - "www.projexa-ai.com"
+    canonical_project:
+      name: "projexa"
+      id: "prj_JA9mwUdOfW3SKSxjG4jdPo0R2iVM"
+    last_verified: "2026-08-16"
+    last_verified_by: "desktop PM tier (Claude Desktop, Sonnet 5, direct Vercel REST API), confirmed by task-20260816-142705's own follow-up read of GET /v9/projects/{projexa}/domains and a real HTTP fetch of the live page title"
+    history:
+      - { date: "2026-07-21", project: "veridian-compliance-ai", event: "WAVE-199 Wave 10 brand-merge cutover (Owner-authorized)", ref: "ai-os/boss/COMPLETED.yaml id: WAVE-199" }
+      - { date: "2026-07-27", project: "projexa", event: "undocumented reversal, doer unknown", ref: "cited by WAVE-10-REDO's own summary" }
+      - { date: "2026-08-02", project: "veridian-compliance-ai", event: "WAVE-10-REDO, citing Owner decision UMR-20260802-134939-145d", ref: "ai-os/boss/COMPLETED.yaml id: WAVE-10-REDO" }
+      - { date: "~2026-08-02..08-07", project: "projexa", event: "another undocumented flip, found by a live re-verification pass", ref: "commit a274c203e (2026-08-07)" }
+      - { date: "2026-08-16", project: "veridian-compliance-ai", event: "found wrong again (identical symptom to 2026-07-27), corrected back to projexa same day", ref: "task-20260816-142705-find-and-eliminate-whatever-keeps-reassi" }

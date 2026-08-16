@@ -3089,3 +3089,74 @@ entries:
         or the new gate. This does not retroactively unwind the original authorization (already
         APPROVED above, action already complete and stable); it demonstrates the new gate working
         as designed against real evidence.
+  - id: DOMAIN-DRIFT-PROJEXA-AI-COM-RCA
+    title: "RCA + structural fix for the recurring projexa-ai.com/www Vercel domain reassignment (2026-07-27 + 2026-08-16 occurrences)"
+    doer:
+      agent: "claude-code (worker task-20260816-142705-find-and-eliminate-whatever-keeps-reassi, UMR-20260816-142651-d552)"
+      date: "2026-08-16"
+      pr: "see PR opened by this task's own branch"
+      summary: >
+        Owner directive: root-cause why projexa-ai.com/www.projexa-ai.com keep getting
+        found reassigned from the `projexa` Vercel project to `veridian-compliance-ai`,
+        and make it structurally impossible, not merely correct it again (already
+        corrected by the desktop PM tier before this task started).
+
+        INVESTIGATION (negative-result, exhaustive, cited): compliance-tracker's
+        vercel.json (current content read + `git log -p --all -- vercel.json`, every
+        historical version) has no `alias`/`domains` field, ever. Every GH Actions
+        workflow in compliance-tracker and projexa searched for `vercel`/`domains`
+        references -- only sync-vercel-env.yml (workflow_dispatch-only, calls
+        `vercel env pull`, never domains) and mandatory-audit-check.yml/
+        ai-team-workforce.yml (neither touches Vercel domains) matched.
+        `.vercel/project.json` in compliance-tracker and projexa each correctly
+        points at its own project (not cross-wired). The one unattended,
+        always-running Vercel-touching automation on the box
+        (`/opt/veridian/scripts/sync-vercel-env.sh`, systemd unit
+        `veridian-cron-sync-vercel-env`) read directly: only calls
+        `vercel env pull --token ... --scope ... .env.local` in a loop over 3 repo
+        dirs -- no domain call. `grep -rl "vercel domains\|domains add"` across
+        /opt/veridian/scripts, /opt/veridian/repos/claude-control, and
+        /opt/veridian/ai-os-scripts: zero real hits. Pulled real Vercel deployment
+        history (GET /v6/deployments) for both projects: no deploy timestamp
+        correlates with a domain move (Vercel's own git-integration deploys never
+        call the domains API on their own).
+
+        ROOT CAUSE (proven, not speculative): read this exact domain's full history
+        in this file. WAVE-199 (2026-07-21, Owner-authorized Wave 10 brand-merge)
+        moved it projexa -> veridian-compliance-ai. An undocumented reversal
+        (~2026-07-27) moved it back. WAVE-10-REDO (2026-08-02, citing Owner decision
+        UMR-20260802-134939-145d) moved it forward again. A live re-verification pass
+        (commit a274c203e, 2026-08-07) found it back on projexa -- another
+        undocumented flip between 2026-08-02 and 2026-08-07. Today (2026-08-16) it was
+        found on veridian-compliance-ai a third/fourth time and corrected back to
+        projexa. Every single one of these was a manual, live Vercel API/CLI action
+        (`vercel domains add ... --force`, or raw DELETE-then-POST) taken by a
+        different agent session -- there is no code, script, or GitHub Action anywhere
+        on this box that has ever called a Vercel domain-management endpoint. The real
+        mechanism is the ABSENCE of (a) one persisted canonical "current truth" record
+        any session checks before acting, and (b) any automated check that would
+        surface a drift between sessions faster than a human happening to notice.
+
+        FIX (repo-only, no production Vercel settings touched):
+        `ai-os/DOMAIN_OWNERSHIP.yaml` (new) -- the single canonical record of which
+        Vercel project owns each custom domain, the full cited flip history above, and
+        an explicit rule requiring any future reassignment to update this file with a
+        verbatim-quoted Owner citation FIRST, and forbidding `vercel domains rm`/its
+        REST equivalent (removes team ownership, not just a project-scoped detach).
+        `.github/workflows/domain-drift-check.yml` (new) -- a read-only (GET-only,
+        never mutates anything), scheduled (every 15 min) GitHub Action that polls the
+        real Vercel API and fails the run (visible in the Actions tab) the instant live
+        state stops matching that canonical record -- verified against the real API
+        (GET against the correct project returns HTTP 200 with the matching
+        projectId; GET against the wrong project returns HTTP 404) before being wired
+        into the workflow's pass/fail logic. CLAUDE.md and AGENTS.md (new Operating
+        Rule 13) both point at the canonical file so any future session reads it
+        before touching a domain.
+
+        HONEST LIMITATION: nothing in this repo can technically prevent a manual
+        Vercel dashboard/API action -- that constraint is real and was proven, not
+        assumed, by the negative-result search above. What this fix changes is
+        detection latency: a recurrence that previously went unnoticed for
+        days-to-weeks is now caught within ~15 minutes, and any future session has one
+        canonical record to check instead of reconstructing the history from scattered
+        COMPLETED.yaml/ACTIVE-CLAIMS.yaml prose each time.

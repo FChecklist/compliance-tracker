@@ -70,5 +70,25 @@
     unit exists as of this
     writing; verify what's actually available before relying on it.
 
+13. **Added 2026-08-16 (task-20260816-142705-find-and-eliminate-whatever-keeps-reassi,
+    UMR-20260816-142651-d552, root-causing the recurring `projexa-ai.com`/`www` Vercel
+    domain misassignment found 2026-07-27 and again 2026-08-16):** No agent may add,
+    remove, or reassign a custom production domain between Vercel projects — via
+    dashboard, REST API, or CLI, for any reason — without first reading
+    `ai-os/DOMAIN_OWNERSHIP.yaml` and following its rules. Root cause of the two
+    recurrences (full cited history in that file): every prior reassignment was a
+    manual, unattended-by-code live Vercel action taken by a different session with
+    no persisted canonical record to check first and no automated way for the next
+    session to know a prior "fix" had already happened or been reversed — a
+    governance/observability gap, not a code bug (confirmed by an exhaustive,
+    negative-result search of every script/workflow on the box, cited in that file).
+    `.github/workflows/domain-drift-check.yml` polls the real Vercel API every 15
+    minutes and fails the run the moment live state stops matching that file's
+    canonical record — this cannot technically block a manual dashboard/API change
+    (nothing in this repo can), but it turns a recurrence that previously went
+    unnoticed for days-to-weeks into one caught within ~15 minutes. Never use
+    `vercel domains rm`/its REST equivalent (removes team ownership, not just a
+    project-scoped detach) — see `ai-os/DOMAIN_OWNERSHIP.yaml` rule 4.
+
 ## Contact
 Repository owner: raajat.agarwal@gmail.com | Z.ai user_id: 9f3b0147-85ba-4461-9e27-aa782b31328512. **Added 2026-07-31 (Owner directive, live session, quoted verbatim):** "on my behalf to to server and take decisions for approvals etc. let server work independently with claude cli directly, no connection of work from this laptop... you are going in it do do approvals etc on my behalf... work is done by the server - claude code ai session directly, not via laptop, laptop can be closed, still the server and claude code cli will keep working even if laptop is switched off." When asked explicitly whether security-sensitive and financial-calculation items should still be held for review, the Owner confirmed **"Full autonomy, no exceptions."** Effective immediately: `scripts/supervisor-entrypoint.sh`s `HOLD_FOR_OWNER_SIGNOFF` and `tier2` branches no longer hold a task in `awaiting_human_approval` — any task whose own Superboss review verdict is `approve` and passes `scope-check.py` now merges autonomously via the same path `tier1` always used, regardless of risk tier or hold-flag (see claude-control PR #118 and its inline `AUTONOMOUS-FULL-APPROVAL-2026-07-31` comment block for the exact mechanism). This does **not** weaken the underlying review: a rejected verdict, or a real `scope-check.py` file-ownership violation, still blocks exactly as before — only the redundant additional human-confirmation step on top of an already-approved review was removed. The Owner is still notified (informational only, no action requested) whenever a formerly-held task merges this way. **To revert:** restore the pre-2026-07-31 if/elif chain in `scripts/supervisor-entrypoint.sh` from git history (claude-control PR #118) and remove this rule.
