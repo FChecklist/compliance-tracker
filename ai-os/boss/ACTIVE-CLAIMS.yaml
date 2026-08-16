@@ -6129,6 +6129,42 @@ active:
       progress/*.md, ai-os/boss/ACTIVE-CLAIMS.yaml. Will widen if the row turns
       out to be a mislabeled real deliverable requiring fix + redispatch.
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
+    claimed_at: "2026-08-16T (this session, closed same session)"
+    merged_as: "FChecklist/veridian-ui-kit PR #8 (v0.3.2 tag), FChecklist/compliance-tracker PR #1293 (dependency bump, real independent audit posted and passing, all 18 CI checks green), FChecklist/projexa PR #72 (dependency bump, all CI green)."
+    claim: |
+      Owner directive: restructure the app shell into a real 3-screen proportion
+      (left nav ~10%, main content+composer ~50%, right VeriChatPanel ~40%),
+      scoped strictly to LAYOUT ONLY -- no functionality, flow, font, or
+      color-token change. Ground-truthed against real code first (read
+      AppShellFrame.tsx, AppSidebar.tsx, VeriComposer.tsx, VeriChatPanel.tsx in
+      full in both compliance-tracker and projexa) before touching anything:
+      confirmed the shell was already structurally 3-part -- the real gap was
+      fixed-pixel default widths (220px sidebar, 420px right panel) instead of
+      true viewport percentages. Fix landed entirely in the shared package
+      (FChecklist/veridian-ui-kit): src/shell/useResizable.ts gained an
+      optional, backward-compatible post-mount responsive-default parameter
+      (every existing call site that omits it is unaffected); AppShellFrame.tsx
+      and AppSidebar.tsx now target 40vw/10vw as their real defaults, existing
+      320-640px/140-320px drag bounds unchanged. Tagged v0.3.2, bumped in both
+      real consuming apps.
+
+      Real incidents hit and resolved along the way: (1) a genuine merge
+      conflict in compliance-tracker's package.json against a concurrent
+      session's independent CVE-remediation dependency bump on the same line
+      -- resolved by keeping v0.3.2 since it's a strict superset (includes
+      that exact commit plus the layout fix); (2) a stale/corrupt
+      multi-pack-index + commit-graph in compliance-tracker's shared object
+      store (unrelated pre-existing repo-hygiene issue, not caused by this
+      work -- real commits/pushes were unaffected throughout, confirmed via
+      successful pushes despite the fsck complaint; removed the two stale
+      derived caches, safe since they carry no unique data); (3) the
+      mandatory-audit-check gate correctly rejected self-certification --
+      dispatched a genuinely independent subagent to audit the real diff (it
+      fetched and read the actual upstream v0.3.2 diff itself rather than
+      trusting the PR description), which posted a real AUDIT: PASS with all 8
+      required structured fields after one format correction (Title-Case
+      labels, not camelCase).
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
