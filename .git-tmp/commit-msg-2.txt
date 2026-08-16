@@ -1,0 +1,40 @@
+Business Rules Engine: generic condition-tree rule engine + lifecycle mgmt
+
+VERIDIAN Review Framework gap-closure, task-20260718-080006. Closes 3 of 4
+findings in one PR (Simulation, the 4th and Low-priority finding, is
+deferred per its own recommended approach):
+
+- Business Rule Engine Completeness (High): new businessRules table with a
+  nested AND/OR condition tree + action, modeled on
+  approvalWorkflowStepDefinitions' conditionField/Operator/Value precedent,
+  generalized past its single-comparison shape. Every existing rule table
+  in this schema (automationRules, erpPricingRules, moduleRuleConfigs,
+  documentMatchingRules) is single-condition with no lifecycle status --
+  none of them covered this gap, and none are touched by this change.
+
+- Business Rule Versioning (High): businessRuleVersions is an append-only
+  snapshot history (one row per version, never mutated). Any content change
+  writes a new version; rollback writes a NEW version copying an older
+  snapshot rather than rewriting history.
+
+- Business Rule Testing Framework (Medium): testBusinessRule() dry-runs a
+  rule's condition tree against a caller-supplied sample record with zero
+  side effects (the action is only previewed, never executed), logged to
+  businessRuleTestRuns.
+
+Also includes a draft/active/deprecated/archived lifecycle state machine
+(the "Rule Lifecycle Management" half of the task title), full CRUD +
+version/rollback/test API routes under src/app/api/business-rules/**, and
+19 unit tests (37 assertions) covering the evaluator, validator, and state
+machine.
+
+Migration drizzle/0225_business_rules_engine.sql is hand-written SQL
+(matches this repo's established convention -- drizzle/meta hasn't tracked
+a real snapshot since 0000) with FORCE RLS + org-scoped policy on all 3 new
+tables.
+
+Did not touch permission-service.ts's ERP_ACTION_ROLES table structure, or
+any of the existing single-condition rule engines, per the task's scope
+boundary.
+
+Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>

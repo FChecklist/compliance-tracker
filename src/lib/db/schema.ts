@@ -11401,6 +11401,110 @@ export const trainingPathAssignments = complianceSchemaDB.table('training_path_a
   dueDate: date('due_date', { mode: 'string' }),
 })
 
+// ─── Wave 173: Business Rules Engine / Rule Lifecycle Management ─────────
+// VERIDIAN Review Framework gap-closure -- 3 of 4 findings closed here
+// (Simulation, the 4th and Low-priority one, is deferred per its own
+// recommended approach: "revisit after the base engine and testing
+// framework ship").
+//
+// Every existing "rule" table in this schema (automationRules,
+// erpPricingRules, moduleRuleConfigs, documentMatchingRules,
+// approvalWorkflowStepDefinitions) is single-condition ({field, operator,
+// value} or field/operator/value columns) with no lifecycle status, no
+// version history, and no dry-run mode -- none of them is the generic,
+// reusable, author/store/evaluate engine the finding asks for, and this
+// module deliberately does not replace or touch any of them (each already
+// serves its own narrow call site correctly). Modeled on
+// approvalWorkflowStepDefinitions' conditionField/Operator/Value precedent
+// per the finding's own recommended approach, generalized into a nested
+// condition TREE (AND/OR groups of leaf comparisons) so one rule can
+// express more than a single comparison.
+//
+// Lifecycle: draft -> active -> deprecated -> archived, with draft/active
+// also able to reactivate from deprecated (see business-rules-service.ts's
+// ALLOWED_TRANSITIONS for the exact state machine). archived is terminal.
+//
+// Versioning: businessRuleVersions is an append-only snapshot history (one
+// row per version, never mutated) so "roll back" means writing a NEW
+// version whose conditionTree/action copy an older snapshot, not rewriting
+// history -- the same "never destroy the audit trail" posture as
+// erpStatutoryRules' effective-dated rows.
+//
+// Testing: businessRuleTestRuns is a dry-run log -- evaluateBusinessRule()
+// is a pure function (no side effects, no auto-firing into any other
+// module's data) so "test against sample record" never mutates anything;
+// wiring real auto-execution into each target module's own event path
+// (the way automationRules' evaluateAndRunRules() is called from 2 real
+// call sites) is intentionally out of scope for this PR -- author/store/
+// evaluate is the completeness bar named in the finding, not "replace
+// every module's own logic," and doing so per-module belongs to whichever
+// module later adopts a business rule for something automationRules/
+// erpPricingRules don't already cover.
+export const businessRuleStatusEnum = complianceSchemaDB.enum('business_rule_status', ['draft', 'active', 'deprecated', 'archived'])
+export const businessRuleOperatorEnum = complianceSchemaDB.enum('business_rule_operator', ['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'contains', 'not_contains', 'is_empty', 'is_not_empty'])
+
+export const businessRules = complianceSchemaDB.table('business_rules', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  moduleKey: text('module_key').notNull(), // free text -- the entity/domain this rule targets, e.g. 'erp_journal_entry' | 'compliance_item' | 'crm_lead' (matches automationRules.triggerType's free-text convention for a still-growing value set)
+  name: text('name').notNull(),
+  description: text('description'),
+  status: businessRuleStatusEnum('status').notNull().default('draft'),
+  currentVersion: integer('current_version').notNull().default(1),
+  // Denormalized copy of the current/live businessRuleVersions row's
+  // conditionTree/action, so a read of businessRules never needs a join to
+  // know what the rule currently does. businessRuleVersions remains the
+  // source of truth for history.
+  conditionTree: jsonb('condition_tree').notNull(), // ConditionNode (see business-rules-service.ts): { all: ConditionNode[] } | { any: ConditionNode[] } | { field, operator, value }
+  action: jsonb('action').notNull(), // { type: string; config: Record<string, unknown> } -- evaluated only, never auto-executed by this module (see header above)
+  createdById: text('created_by_id'),
+  updatedById: text('updated_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  activatedAt: timestamp('activated_at'),
+  deprecatedAt: timestamp('deprecated_at'),
+  archivedAt: timestamp('archived_at'),
+})
+
+export const businessRuleVersions = complianceSchemaDB.table('business_rule_versions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ruleId: text('rule_id').notNull(),
+  version: integer('version').notNull(),
+  name: text('name').notNull(), // snapshot -- a rule's name can change between versions too
+  conditionTree: jsonb('condition_tree').notNull(),
+  action: jsonb('action').notNull(),
+  changeNote: text('change_note'), // nullable, e.g. 'widened threshold to 50000', 'rollback to v2'
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const businessRuleTestRuns = complianceSchemaDB.table('business_rule_test_runs', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  ruleId: text('rule_id').notNull(),
+  version: integer('version').notNull(), // which version was dry-run tested
+  sampleRecord: jsonb('sample_record').notNull(), // caller-supplied input, never a real live record fetched by this module
+  matched: boolean('matched').notNull(),
+  actionPreview: jsonb('action_preview'), // what the action WOULD do -- evaluate-only, never executed
+  errorMessage: text('error_message'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const businessRulesRelations = relations(businessRules, ({ many }) => ({
+  versions: many(businessRuleVersions),
+  testRuns: many(businessRuleTestRuns),
+}))
+
+export const businessRuleVersionsRelations = relations(businessRuleVersions, ({ one }) => ({
+  rule: one(businessRules, { fields: [businessRuleVersions.ruleId], references: [businessRules.id] }),
+}))
+
+export const businessRuleTestRunsRelations = relations(businessRuleTestRuns, ({ one }) => ({
+  rule: one(businessRules, { fields: [businessRuleTestRuns.ruleId], references: [businessRules.id] }),
+}))
+
 // ─── AI Router "Mother Router" (AIROUTER-01, CONTROLLER.yaml, Owner ────────
 // directive 2026-07-18) ──────────────────────────────────────────────────
 // A real, unifying model/provider registry + versioned routing policy +
