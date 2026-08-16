@@ -11070,7 +11070,7 @@ recently_completed:
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
 
-  - session_label: "claude-code (task-20260816-171212-classify-the-entire-compliance-tracker-p) -- deterministic bulk classification of all 422 open PRs on FChecklist/compliance-tracker by changed-file signature, plus disposal of EMPTY + superseded-DOCS-ONLY classes only"
+  - session_label: "claude-code (task-20260816-171212-classify-the-entire-compliance-tracker-p) -- [COMPLETE] deterministic bulk classification of all 422 open PRs on FChecklist/compliance-tracker by changed-file signature (EMPTY=0/DEPENDENCY=8/DOCS-ONLY=115/CODE=299), plus disposal of 13 confirmed-superseded DOCS-ONLY PRs (closed via gh pr close, cited citations, 8 more reviewed+left-open for real unshipped content found); see ai-os/registry/pr-classification-20260816.json for the full committed classification + disposition + CODE-class list for the sibling dispatch"
     claimed_at: "2026-08-16T17:12:39Z (this session)"
     claim: |
       Owner directive 2026-08-16: 422 open PRs on FChecklist/compliance-tracker
