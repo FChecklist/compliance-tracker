@@ -8,7 +8,7 @@
         "@dnd-kit/core": "^6.3.1",
         "@dnd-kit/sortable": "^10.0.0",
         "@dnd-kit/utilities": "^3.2.2",
-        "@fchecklist/veridian-ui-kit": "github:FChecklist/veridian-ui-kit#v0.2.2",
+        "@fchecklist/veridian-ui-kit": "github:FChecklist/veridian-ui-kit#v0.3.2",
         "@hookform/resolvers": "^5.1.1",
         "@huggingface/transformers": "^4.2.0",
         "@litertjs/core": "^2.5.2",
@@ -365,7 +365,7 @@
 
     "@fast-csv/parse": ["@fast-csv/parse@4.3.6", "", { "dependencies": { "@types/node": "^14.0.1", "lodash.escaperegexp": "^4.1.2", "lodash.groupby": "^4.6.0", "lodash.isfunction": "^3.0.9", "lodash.isnil": "^4.0.0", "lodash.isundefined": "^3.0.1", "lodash.uniq": "^4.5.0" } }, "sha512-uRsLYksqpbDmWaSmzvJcuApSEe38+6NQZBUsuAyMZKqHxH0g1wcJgsKUvN3WC8tewaqFjBMMGrkHmC+T7k8LvA=="],
 
-    "@fchecklist/veridian-ui-kit": ["@fchecklist/veridian-ui-kit@github:FChecklist/veridian-ui-kit#66a6527", { "peerDependencies": { "lucide-react": ">=0.4", "next": ">=15", "react": ">=18", "react-dom": ">=18", "react-resizable-panels": ">=3", "sonner": ">=1", "tailwindcss": ">=4" } }, "FChecklist-veridian-ui-kit-66a6527", "sha512-UoLeSHDj9dyW7LmFOU/y4pYtA4bcAfnwZG2e2ctMI5oywhGFqBORG0wfNVQwZgVbcMfHi5rgyPU5ZRm8RUI3Kg=="],
+    "@fchecklist/veridian-ui-kit": ["@fchecklist/veridian-ui-kit@github:FChecklist/veridian-ui-kit#fbe59dc", { "peerDependencies": { "lucide-react": ">=0.4", "next": ">=15", "react": ">=18", "react-dom": ">=18", "react-resizable-panels": ">=3", "sonner": ">=1", "tailwindcss": ">=4" } }, "FChecklist-veridian-ui-kit-fbe59dc", "sha512-OezhfwME8vz2yGFWhTvV1kbebakeFFAJXUIwH5MgaFUFU3goCupf2lbfaUdd7iCcSI6V4hKHrraQdldbptva1A=="],
 
     "@finom/zod-to-json-schema": ["@finom/zod-to-json-schema@3.24.11", "", { "peerDependencies": { "zod": "^4.0.14" } }, "sha512-fL656yBPiWebtfGItvtXLWrFNGlF1NcDFS0WdMQXMs9LluVg0CfT5E2oXYp0pidl0vVG53XkW55ysijNkU5/hA=="],
 
