@@ -40,7 +40,30 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
+  - session_label: "claude-code (worker task-20260816-171257-land-the-genuinely-code-touching-pull-re) -- Owner directive 2026-08-16: audit+merge the code-touching subset of the 422 open PR backlog [DONE: 3/26 dispositioned (PR #991 closed as superseded, #979/#978 correctly left open on a real never-auto-merge guardrail), 23/26 confirmed real-CONFLICTING vs main and out of this session's structural push-scope -- see progress/task-20260816-171257-land-the-genuinely-code-touching-pull-re.md for the full table]"
+    claimed_at: "2026-08-16T (this session)"
+    claim: |
+      SPEC: 422 open PRs total on compliance-tracker; classified live by real
+      changed-file signature (GraphQL, paginated to avoid the 30-item gh
+      default limit) into: 8 dependabot, 26 code-touching (touches
+      src/**, drizzle/**, scripts/**, ai-os/scripts/**, tests, or real
+      config -- not just .md/PROGRESS.md/ai-os/boss governance YAML), and
+      the remainder documentation-only (owned by a sibling dispatch, not
+      touched here). My working set (newest-first): PR #1286, #1230, #1229,
+      #1200, #1199, #1028, #997, #994, #991, #979, #978, #968, #966, #965,
+      #959, #954, #929, #808, #807, #668, #667, #666, #665, #663, #657,
+      #618. For each: verify real current head SHA, look for a genuine
+      audit verdict citing that exact SHA, else adopt via
+      `veridian-task.py adopt` + supervisor-sweep (not the broken
+      at-claude GH Action), merge only on genuine PASS matching current
+      head. No sibling ACTIVE-CLAIMS entry found scoped to this same PR
+      set at claim time (checked live before starting).
+      Checked ACTIVE-CLAIMS.yaml live before starting; no other active
+      entry claims this same "422 PR backlog / code-touching classification"
+      scope, though several individual-PR entries elsewhere in this file
+      may overlap incidentally on specific numbers -- will defer to any
+      such entry's own in-flight work rather than duplicate it if found
+      per-PR.
     claimed_at: "2026-08-07T (this session)"
     claim: |
       ai-os/CONSTITUTION.yaml's prompt_cache_framework (CACHE-01..04,
