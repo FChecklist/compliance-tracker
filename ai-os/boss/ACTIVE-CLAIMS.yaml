@@ -40,6 +40,40 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-131005-retry-0--api-governance--rate-limiting) -- API Governance gap-closure: API changelog for external consumers + interim API sandbox guidance"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      VERIDIAN Review Framework gap-closure, 2 findings (task-20260718-131005-
+      retry-0--api-governance--rate-limiting): [Critical] "API changelog
+      maintained for external consumers" and [High] "Sandbox/test environment
+      available for API integrators". Re-verified both live before starting
+      (per this task's own instruction not to trust the gap description
+      as-is):
+      (1) docs/API_CHANGELOG.md already exists (added PR #383, merged) and is
+      NOT a gap in the "does it exist" sense -- but it had genuinely drifted:
+      9 real commits/PRs on 2026-07-30 (#658, #637, #651, #645, #644, #648,
+      #642, #646, #636) added 13 new /api/v1/projexa/** route.ts files with
+      zero changelog entry. Adding the missing "## 2026-07-30" entry.
+      (2) Sandbox: confirmed via Explore agent there is genuinely no
+      committed "Demo Company" org, no sandbox/test-mode flag anywhere in
+      api-key-auth.ts/organisations schema/apiKeys schema, and no test-vs-
+      live key distinction -- a real, confirmed gap, not stale. Interim fix:
+      docs/API_SANDBOX.md designating the existing `bun run db:seed`
+      Acme Corp org (src/db/seed.ts) as the practical interim sandbox
+      (the only reproducible "Demo Company"-style org actually in this
+      codebase), honestly disclosing that the production "Demo Company
+      Pvt. Ltd." UI-labeled demo org's real org id is NOT tracked in this
+      repo and so is not yet safely designated -- plus a pointer link from
+      src/lib/openapi/generate.ts's info block, no dedicated isSandbox flag
+      built (per the finding's own "before building a dedicated flag"
+      framing).
+      Explicitly NOT touching permission-service.ts's ERP_ACTION_ROLES
+      table (out of scope per this task's own instruction) -- no permission
+      changes needed, this is docs + one small openapi.json description
+      addition. Checked this file live before claiming -- no other active
+      entry touches docs/API_CHANGELOG.md, docs/API_SANDBOX.md,
+      src/lib/openapi/generate.ts, or src/db/seed.ts.
+
   - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
