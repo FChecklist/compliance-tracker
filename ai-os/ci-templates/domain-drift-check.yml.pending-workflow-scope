@@ -1,3 +1,21 @@
+# =====================================================================
+# STAGED WORKFLOW -- NOT YET INSTALLED. Copy this file's content verbatim
+# to `.github/workflows/domain-drift-check.yml` and delete this staged
+# copy. It lives here instead of `.github/workflows/` because this
+# session's `gh` token has scopes `gist, read:org, repo` but not
+# `workflow` -- GitHub refuses any push that creates/modifies a file
+# under `.github/workflows/` without that scope (confirmed live: this
+# exact push was rejected with "refusing to allow an OAuth App to
+# create or update workflow ... without `workflow` scope"). This is a
+# known, previously-hit constraint of this environment, not new to this
+# task -- see repo memory `gh-token-lacks-workflow-scope`.
+# Needs either: (a) the Owner grants the `workflow` scope to this token
+# and a follow-up push installs it directly, or (b) the Owner (or anyone
+# with a workflow-scoped token) does the one-file copy+push themselves.
+# Until installed, `ai-os/DOMAIN_OWNERSHIP.yaml`'s canonical record and
+# the AGENTS.md/CLAUDE.md rules pointing at it are still real and in
+# effect -- only the automated 15-minute drift check is pending.
+# =====================================================================
 name: Domain Ownership Drift Check
 
 # Read-only guardrail against the recurring projexa-ai.com/www Vercel

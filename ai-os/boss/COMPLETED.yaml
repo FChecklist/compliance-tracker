@@ -3143,20 +3143,29 @@ entries:
         an explicit rule requiring any future reassignment to update this file with a
         verbatim-quoted Owner citation FIRST, and forbidding `vercel domains rm`/its
         REST equivalent (removes team ownership, not just a project-scoped detach).
-        `.github/workflows/domain-drift-check.yml` (new) -- a read-only (GET-only,
-        never mutates anything), scheduled (every 15 min) GitHub Action that polls the
-        real Vercel API and fails the run (visible in the Actions tab) the instant live
-        state stops matching that canonical record -- verified against the real API
-        (GET against the correct project returns HTTP 200 with the matching
-        projectId; GET against the wrong project returns HTTP 404) before being wired
-        into the workflow's pass/fail logic. CLAUDE.md and AGENTS.md (new Operating
-        Rule 13) both point at the canonical file so any future session reads it
-        before touching a domain.
+        A read-only (GET-only, never mutates anything), scheduled (every 15 min)
+        GitHub Action that polls the real Vercel API and fails the run (visible in
+        the Actions tab) the instant live state stops matching that canonical
+        record -- verified against the real API (GET against the correct project
+        returns HTTP 200 with the matching projectId; GET against the wrong project
+        returns HTTP 404) before being wired into the workflow's pass/fail logic.
+        STAGED, NOT YET INSTALLED as `.github/workflows/domain-drift-check.yml`:
+        this session's `gh` token has scopes `gist, read:org, repo` but not
+        `workflow` -- GitHub rejected the push with "refusing to allow an OAuth App
+        to create or update workflow ... without `workflow` scope" (a known,
+        previously-hit constraint of this environment, repo memory
+        `gh-token-lacks-workflow-scope`, not new to this task). The finished file is
+        committed at `ai-os/ci-templates/domain-drift-check.yml.pending-workflow-scope`
+        with install instructions in its own header; needs the Owner (or anyone with
+        a workflow-scoped token) to copy it to `.github/workflows/` in a one-file
+        follow-up push. CLAUDE.md and AGENTS.md (new Operating Rule 13) both point at
+        the canonical file so any future session reads it before touching a domain.
 
         HONEST LIMITATION: nothing in this repo can technically prevent a manual
         Vercel dashboard/API action -- that constraint is real and was proven, not
         assumed, by the negative-result search above. What this fix changes is
-        detection latency: a recurrence that previously went unnoticed for
+        detection latency, once the staged workflow is installed: a recurrence that
+        previously went unnoticed for
         days-to-weeks is now caught within ~15 minutes, and any future session has one
         canonical record to check instead of reconstructing the history from scattered
         COMPLETED.yaml/ACTIVE-CLAIMS.yaml prose each time.

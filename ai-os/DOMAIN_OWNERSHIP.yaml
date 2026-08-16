@@ -71,16 +71,21 @@
 #      removes the domain from the team entirely, which is materially more
 #      destructive and not what any of these incidents ever needed.
 #
-# AUTOMATED DRIFT DETECTION: .github/workflows/domain-drift-check.yml reads
-# this file's `canonical_project.name` and polls the real Vercel API for the
+# AUTOMATED DRIFT DETECTION: .github/workflows/domain-drift-check.yml (as of
+# 2026-08-16 STAGED, not yet installed, at
+# ai-os/ci-templates/domain-drift-check.yml.pending-workflow-scope -- see
+# that file's own header for why: this session's gh token lacks the
+# `workflow` OAuth scope needed to push into .github/workflows/) reads this
+# file's `canonical_project.name` and polls the real Vercel API for the
 # domain's current owning project every 15 minutes. It is READ-ONLY (GET
 # only, never mutates anything) and fails the workflow run (visible in the
 # repo's Actions tab, and via GitHub's own failed-run notification) the
 # moment live state stops matching this file -- turning a recurrence that
 # previously took days-to-weeks to notice into one caught within ~15
-# minutes. It cannot technically prevent a manual dashboard/API change (no
-# artifact in this repo can), but it removes the "silently unnoticed for
-# a long time" failure mode this whole recurring incident has actually been.
+# minutes, once installed. It cannot technically prevent a manual dashboard/
+# API change (no artifact in this repo can), but it removes the "silently
+# unnoticed for a long time" failure mode this whole recurring incident has
+# actually been.
 # =====================================================================
 
 vercel_team: "meet-track-s-projects"
