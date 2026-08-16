@@ -6128,6 +6128,46 @@ active:
       File scope (expected docs-only, pending real finding): this task's own
       progress/*.md, ai-os/boss/ACTIVE-CLAIMS.yaml. Will widen if the row turns
       out to be a mislabeled real deliverable requiring fix + redispatch.
+  - session_label: "claude-code (worker task-20260816-171220-root-cause-why-the-compliance-repository) -- RCA: root-cause the 422-open-PR structural backlog on FChecklist/compliance-tracker, propose a fix [DONE, read-only diagnosis + recommendation, no PR triaged/merged]"
+    claimed_at: "2026-08-16T (this session, closed same session)"
+    claim: |
+      Owner directive: diagnose why compliance-tracker has 422 open PRs (414
+      FChecklist-bot-authored) with a ~20/day arrival rate and near-zero net
+      landing. Explicitly out of scope: triaging, closing, or merging any PR
+      (three live sibling tasks own that -- observed running concurrently via
+      `systemctl --user list-units`: task-20260816-171212-classify-the-entire-
+      compliance-tracker-p, task-20260816-171257-land-the-genuinely-code-
+      touching-pull-re, task-20260816-171304-continue-landing-and-disposing-
+      the-remai, task-20260816-171310-finish-disposing-the-last-open-pull-requ).
+      Real findings (full evidence in this task's own progress/*.md): (1)
+      supervisor-entrypoint.sh's `gh pr create` fires unconditionally for any
+      branch with >=1 commit ahead of base -- by design (its own code comment:
+      "record exists regardless of outcome"), no guard distinguishes
+      docs/RCA-only content from real product code; confirmed 72/72 sampled
+      rca--umr-*-killed branch PRs touch zero src/ or drizzle/ files. (2) The
+      merge/audit pipeline is NOT absent or broken (539/600 most-recently-
+      updated closed PRs are genuinely merged; required_approving_review_count
+      is 0, no self-approval deadlock) -- the real bottleneck is throughput vs.
+      arrival rate: 24/25 most-recently-opened PRs sampled are
+      behind/dirty mergeable_state, and a failed merge attempt is never
+      retried/rebased, only marked blocked and abandoned. (3) 22 UMR ids are
+      each referenced by 2-4 separate still-open PRs, plus an 11-gap-slug
+      retry-0/1/2 branch-naming pattern where each retry opens its OWN new PR
+      instead of superseding the last -- real duplicate-report evidence. (4)
+      Cross-repo contrast: claude-control has 8 open PRs, veridian-scripts 16,
+      projexa 4 -- same merge script, compliance-tracker just receives an
+      order of magnitude more dispatch volume as the flagship product repo.
+      Recommendation (NOT implemented, flagged for Owner decision per SPEC):
+      teach supervisor-entrypoint.sh to skip `gh pr create` when a branch's
+      entire diff is progress/**-or-governance-only and append to a single
+      rolling log file instead -- narrow, reuses the existing no-op-guard
+      pattern, does not touch merge/audit logic. Not shipped unilaterally
+      since it changes how every worker reports.
+    scope_note: >-
+      File scope: this task's own progress/*.md (full RCA write-up),
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry). Read-only investigation only
+      -- zero PRs closed/merged/triaged, zero product code touched, per SPEC's
+      explicit instruction.
 recently_completed:
   - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
     claimed_at: "2026-08-16T (this session, closed same session)"
