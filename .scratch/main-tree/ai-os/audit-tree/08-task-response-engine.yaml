@@ -1,0 +1,94 @@
+# Source: Task.docx (5 paragraphs extracted, each a dense run-on covering
+# multiple distinct requirements -- decomposed below by topic, since the
+# source has no sub-headings to use as natural page/part boundaries).
+# "Page" = each distinct topic paragraph break in the source (5 total).
+
+document: "Task.docx"
+parts:
+  - part: "Preamble / operating instructions (not a requirement itself, the framing for all items below)"
+    items:
+      - "Evaluate against existing design; most of this is already built -- find and implement only what's missing"
+      - "Objective: software should be able to do everything if AI is not there"
+      - "Dynamic Mode Pills and Dynamic Chain Options Selector gives the main intent/direction to everything"
+      - "Should not make the system rigid"
+      - "Should not make the system 'open' (i.e., unconstrained)"
+      - "Should help minimize token consumption"
+      - "Should help automation"
+      - "Should help loop engineering"
+      - "Should make the system 'perfect for human use'"
+      - "Don't duplicate existing work"
+
+  - part: "Topic 1 -- Requirement Anchor (per-task Mode Pill/Chain selection)"
+    items:
+      - "The Dynamic Mode Pills and Dynamic Chain Options Selector is the anchor for every task"
+      - "This anchor is unique per selection"
+      - "Should lower token usage and maximize use of deterministic software over AI"
+      - "Software should be able to complete work without AI if the selection maps to a predefined process"
+      - "If no predefined process exists for a selection, AI should create one via loop engineering"
+
+  - part: "Topic 2 -- Per-task Guardrails (Input / Process / Output / Assumption / Logic validation)"
+    items:
+      - "Guardrail for every task, keyed to the specific Mode Pill/Chain selection -- unique per selection"
+      - "Guardrails are predefined and stored, injected server-side (backend), not left to the AI to improvise"
+      - "Guardrails define the constraints the prompt/task must operate within"
+      - "On guardrail violation: show the user a message stating what was violated and what action to take"
+      - "That violation message must be preloaded/predefined text, not generated"
+      - "That violation message must be polite"
+      - "Input validation: predefined, per-selection, backend-injected -- same violation-message rules as guardrails (why it failed, what to do, preloaded, polite)"
+      - "Process validation: predefined, per-selection, backend-injected -- same violation-message rules"
+      - "Output validation: predefined, per-selection, backend-injected -- same violation-message rules"
+      - "Assumption validation: before AI makes any assumption, it must validate that assumption with the user via chat"
+      - "Assumption validation covers input, output, and process assumptions"
+      - "Assumption validation logic is based on the Mode Pill/Chain selection"
+      - "Logic validation: predefined, per-selection, backend-injected, defines what LOGIC the task must follow (distinct from input/process/output validation) -- same violation-message rules"
+      - "On ANY validation failure (input/process/output/logic/assumption), the failure must be analyzed by AI and rectified as a learning-loop entry, scoped to that selection's defined functionality/guardrails"
+      - "This whole validation system should help lower token usage and maximize software (vs. AI) usage"
+
+  - part: "Topic 2 continued -- Task Automation, Task Lists, Hallucination Prevention, Software-first, Calculators"
+    items:
+      - "Task automation: software (without AI) tracks how many user-given tasks are completed vs. not completed"
+      - "Software should keep pushing incomplete software-handled tasks toward completion"
+      - "Tasks that need AI assistance should be evaluated for automation potential -- if a task is regular/recurring, it should become software-automated, not remain AI-dependent"
+      - "Task List: software (without AI) tracks completed vs. pending tasks from what the user gave"
+      - "Software should be able to send AI a single batched ping about ALL tasks together -- a system must be devised to do this without excess token usage"
+      - "Hallucination prevention: a system must be devised to prevent the AI from looping/hallucinating, without relying on token-costly methods"
+      - "Software must be able to work without AI, including multi-tasking for a user, driven by the Mode Pill/Chain selection"
+      - "Calculators: predefined calculators exist in software for all calculations, no AI needed"
+      - "Whenever a new functionality/feature is added, AI must ensure a corresponding calculator is created and linked into the Mode Pill/Chain Options"
+
+  - part: "Topic 3 -- Predefined Processes"
+    items:
+      - "Predefined processes exist in software to run all processes without AI"
+      - "Whenever a new functionality/feature is added, AI must ensure a corresponding process is created and linked into the Mode Pill/Chain Options"
+
+  - part: "Topic 4 -- Predefined Reports"
+    items:
+      - "All types of predefined reports must be viewable/downloadable by the user without AI"
+      - "Whenever a new report is added, AI must ensure it's created and linked into the Mode Pill/Chain Options"
+      - "Most reports already exist in the system"
+      - "Selecting the relevant Mode Pill/Chain option should surface the report's URL directly, rendered on the main screen"
+      - "User should be able to email the report"
+      - "User should be able to download the report as PDF, Excel, Word, etc."
+      - "Tasks already given by the user: user can click on them and communicate with AI about them"
+      - "User can modify a given task"
+      - "AI can communicate about that specific task"
+      - "Given tasks must be tracked, with their status known to the software itself, without needing AI"
+
+  - part: "Topic 4 continued -- Response Engine (the one genuinely new, concrete idea in this document)"
+    items:
+      - "IMPORTANT: chat responses (by AI or software) must be short and precise, not long answers"
+      - "A Response Engine with predefined, polite, short, exact responses is required"
+      - "Example predefined responses: Yes, No, OK, Pending, Completed, Need Clarity, Require Input, Wrong Data, Incomplete Instructions"
+      - "Rule: chat responses should be max 4 words, plus any specific requirement/observation appended -- must be very specific"
+      - "No long sentences in standard responses"
+      - "Most responses should already be predefined in the Response Engine, not generated fresh"
+      - "Software (without AI) should be able to SUGGEST the response"
+      - "AI's role is to evaluate and confirm/select that suggested response"
+      - "Explicit design goal: 'so that even a lower model AI can do the job with higher confidence'"
+      - "Exception: long answers are acceptable only for research or analysis purposes"
+
+  - part: "Closing instruction (repeats the preamble, reinforcement not a new requirement)"
+    items:
+      - "Same as preamble: evaluate/implement what's good for VERIDIAN, don't make it rigid or open, minimize tokens, help automation and loop engineering, don't duplicate"
+
+count_of_atomic_items: 47

@@ -1,0 +1,74 @@
+# AGENTS.md — Authorized AI Agents
+
+> All agents listed here have been explicitly authorized by the repository owner.
+> Owner: raajat.agarwal@gmail.com | ID: 9f3b0147-85ba-4461-9e27-aa782b313285
+
+## Authorized Agents
+
+### Super Boss (Claude Desktop, Sonnet 5.0, local machine) — added 2026-07-10
+- **Authority**: takes orders from the repository owner only; may direct any other agent listed in this file (Z.ai GLM, Claude Code Secondary Agent) or in `src/lib/ai-team/roster.ts` (the AI Dev Team). No agent in this file outranks it.
+- **Owner**: raajat.agarwal@gmail.com (user_id: 9f3b0147-85ba-4461-9e27-aa782b313285) — the only source of instructions this role acts on.
+- **Trigger**: interactive Claude Code / Claude Desktop session, run directly from the owner's own machine — not a `repository_dispatch` event, and distinct from the headless "Claude Code (Secondary Agent)" `claude-task` path below (which has never had a working job behind it — see `Study_by_Claude.md`'s ANTHROPIC_API_KEY discussion, 2026-07-10).
+- **Can**: everything the other agents can, plus orchestrate them directly — dispatch z.ai via `ai-team-workforce.yml`/local worktree runs, review/merge their PRs, drive CI, run live DB migrations via the Supabase MCP, make architecture calls that don't need to wait for a separate agent's turn.
+- **Cannot**: push or merge directly to `main` (Rule 6 applies equally here — no agent is exempt from the PR/CI gate).
+
+### Z.ai GLM (Primary Full-Stack Agent)
+- **Authority**: FULL_ACCESS — all repositories, all files, all operations
+- **Owner**: raajat.agarwal@gmail.com (user_id: 9f3b0147-85ba-4461-9e27-aa782b313285)
+- **Trigger**: `repository_dispatch` event type `zai-task`
+- **Can**: read/write all code, create branches, open PRs, deploy, run migrations, seed DB
+- **Cannot**: push or merge directly to `main` (see Operating Rule 6, added 2026-07-10)
+- **API key**: stored as `ZAI_API_KEY` in GitHub Secrets
+
+### Claude Code (Secondary Agent)
+- **Authority**: FULL_ACCESS — all repositories, all files, all operations
+- **Owner**: raajat.agarwal@gmail.com
+- **Trigger**: `repository_dispatch` event type `claude-task`
+- **Can**: read/write all code, create branches, open PRs, architecture decisions, code review
+- **Cannot**: push or merge directly to `main` (see Operating Rule 6, added 2026-07-10)
+- **API key**: stored as `ANTHROPIC_API_KEY` in GitHub Secrets
+
+## Operating Rules
+1. Zero human coding — all changes made by AI agents only
+2. All changes logged through SENTINEL (ai-os/sentinel/)
+3. Open tasks/gaps are tracked in `ai-os/MASTER-TRACKER.yaml`; closed work is logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
+4. Both agents have identical repo-level permissions via PAT_FCHECKLIST
+5. GitHub is the single source of truth — all work committed here
+6. **Added 2026-07-10 (Boss directive, after two concurrent full-access agents collided on `main` — one agent's uncommitted work got silently swept into the other's unrelated commit): `main` now has GitHub branch protection requiring every change to go through a pull request that passes CI (Lint/Type Check/Build/Unit Tests) before it can merge. Direct pushes to `main`, including from a full-access agent's own PAT, will be rejected (`enforce_admins` is on — there is no bypass). No human approval is required on the PR itself (there's no dedicated reviewer to bottleneck on), so this doesn't slow down single-agent work — it only prevents two agents from silently overwriting each other's in-flight changes. Work on a branch, open a PR, let CI run, merge once green.
+7. **Added 2026-07-09 (Boss directive, VERIDIAN.docx constitution study):** For any implementation work arising from `Study_by_Claude.md` / `Study_by_zaizlm5.2.md` (the VERIDIAN AI OS constitution study): (a) both AIs' independent studies and independent gap-analysis reports must exist and be cross-reviewed before either starts implementing; (b) implementation tasks are divided with one explicit owner (Claude or z.ai) per task; (c) whichever agent did **not** implement a task is the mandatory auditor for it — no self-certification, on top of Rule 6's PR/CI gate; (d) both the doer and the auditor write a documentation entry for every completed task, in `ai-os/boss/COMPLETED.yaml` (schema extended 2026-07-09 for this); (e) deploying to Vercel/Supabase only happens once the full joint plan is complete, and requires explicit confirmation from the repository owner even after both agents agree it's ready — it is the one step in this sequence that is not cleanly reversible, unlike everything upstream of it which lives behind PRs and Rule 6's branch protection. Full detail: `Study_by_Claude.md`, addendum "End-to-End Study → Audit → Implementation → Deploy Workflow."
+8. **Added 2026-07-10 (Boss directive, 90-day quality mandate, in effect through ~2026-10-08):** For the first 90 days of active VERIDIAN AI OS development, prioritize training quality, correct logic, the ability to detect and rectify mistakes, and genuine evolution of the system over minimizing AI spend. Do not default to the cheapest available model or cut a task short to save cost during this window — this applies to every agent in this file and every model-routing decision in `src/lib/orchestra-model-resolver.ts` / `src/lib/ai-team/roster.ts`. (This does not mean "spend without judgment" — the platform-default floor tier, e.g. GPT-OSS-120B via Groq, exists precisely so cheap/fast capacity is used for genuinely low-stakes work; the mandate is about not letting cost be the reason something under-trained or under-verified ships.)
+9. **Added 2026-07-11 (Boss directive, `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md`):** No agent may remove, weaken, disable, or route around any guardrail named in `scripts/check-guardrail-presence.mjs`'s manifest (task-tightening validation, the Policy Enforcement Engine, high-impact-action confirmation, floor-tier escalation, multi-tenant RLS context, and any guardrail added to that manifest after this date) without Rajat Agarwal's explicit written instruction, quoted in the PR description, and a corresponding update to the manifest itself explaining why. CI's "Guardrail Presence Check" job enforces the mechanical half of this (fails the build the moment a named marker disappears — see that script's own header for the honest limitation: this is a reviewable-diff guarantee via PR/CI, the same class every other rule in this file relies on, not a runtime-unbypassable lock). Every task, regardless of which agent or system creates it, is subject to the guardrails currently wired per `VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md` — extending guardrail coverage to a currently-unwired call site is always permitted and encouraged; narrowing it requires the sign-off above.
+10. **Added 2026-07-11 (Boss directive, gap-analysis callout: "we wanted... peer review and also audit" — Rule 7(c) had been a written norm with zero CI enforcement until this rule):** Every AI Dev Team dispatch is classified into a complexity tier (`mechanical`/`integrative`/`judgment`, `src/lib/model-tier-eligibility.ts`) at dispatch time; a model that hasn't earned judgment-tier trust (currently: every model except `z-ai/glm-5.2` — `openai/gpt-5.5` was removed from the judgment tier 2026-07-14 per Owner directive, see `ai-os/CONSTITUTION.yaml`'s `ai_orchestra_tiers.levels[TIER-3]`) may **only** receive `mechanical`- or `integrative`-tier work, enforced at all three real dispatch surfaces (`/api/ai/team/dispatch`, `dispatch-repo.ts`, `ai-workforce-agent.mjs`), not just documented as a preference. Any PR from such a role's dispatch branch (`ai-team/<role>/*`) is **blocked from merging by CI** (`.github/workflows/mandatory-audit-check.yml`) until a comment starting with `AUDIT: PASS` or `AUDIT: FAIL` is posted — this is Rule 7(c) made a real merge gate instead of a habit. Honest limitation, not oversold: the check verifies an audit verdict was *asserted*, not that it was rigorous — the same class of guarantee as Rule 9's guardrail-presence check.
+11. **Added 2026-07-14 (Boss directive, after the Owner confirmed 4 parallel Claude sessions were active across this codebase at once, with no way for one to see another's in-flight work):** Before selecting any gap/task to work on, every session must read `ai-os/boss/ACTIVE-CLAIMS.yaml` and register its own claim there per that file's own protocol, before starting real work. This does not replace Rule 6's PR/CI gate (which still prevents actual data loss) — it exists to prevent the different problem of two sessions independently spending a full work cycle building the same gap at once. Honest limitation, same class as Rule 10's: this is a cooperative registry enforced by each session's own discipline, not a technical lock — nothing stops a session from skipping it, the same way nothing cryptographically stops a skipped audit comment.
+
+12. **Added 2026-08-14 (Owner-approved, addendum to P1 UMR-20260806-171945-5767; citation:
+    `/opt/veridian/ai-os/OWNER_DECISIONS_NEEDED_2026-07-23.yaml` entry
+    `id=crontab-drift-approved-2026-08-14`, `status=approved`):** Real indexes already exist
+    (on the host filesystem, outside this repo's own tree — not paths inside
+    `compliance-tracker`) and are already used by the deterministic dedup reviewer for
+    dispatch-level decisions — `system_index`, `capability_registry`, `wiring_registry` (all
+    three: `/opt/veridian/ai-os/memory/superboss-register.sqlite`),
+    `/opt/veridian/ai-os/memory/CLAUDE_MEMORY_INDEX.md`,
+    `/opt/veridian/ai-os/memory/dead_ends.json`,
+    `/opt/veridian/ai-os/memory/open_questions.json`. A cross-repo audit on 2026-08-14 found
+    zero instances of any "check the index first" instruction in any real `AGENTS.md`, so
+    different worker tasks were repeatedly re-discovering the same real facts via fresh
+    exploratory search, wasting real tokens. Every worker must: (a) before broad exploratory
+    search, check whether the fact needed is already answered by one of the six indexes
+    above, and cite what was checked in the PR description or progress log, even if the check
+    came up empty; (b) only do fresh search for what those indexes don't already answer —
+    this is not a reason to skip real verification of current state, only a reason not to
+    duplicate a search someone already did; (c) if a fresh search turns up a genuinely new
+    fact worth reuse, write it back to the appropriate index (`capability_registry`/
+    `wiring_registry` via `superboss-register.py`,
+    `/opt/veridian/ai-os/memory/CLAUDE_MEMORY_INDEX.md`,
+    `/opt/veridian/ai-os/memory/dead_ends.json`,
+    `/opt/veridian/ai-os/memory/open_questions.json`) so the next worker doesn't have to
+    rediscover it; (d) this does not relax any rule above — a cited index lookup is never a
+    substitute for the audit, test, or completion requirements this file otherwise imposes.
+    Does not assume zoekt or any other code-search service is running — no zoekt systemd
+    unit exists as of this
+    writing; verify what's actually available before relying on it.
+
+## Contact
+Repository owner: raajat.agarwal@gmail.com | Z.ai user_id: 9f3b0147-85ba-4461-9e27-aa782b31328512. **Added 2026-07-31 (Owner directive, live session, quoted verbatim):** "on my behalf to to server and take decisions for approvals etc. let server work independently with claude cli directly, no connection of work from this laptop... you are going in it do do approvals etc on my behalf... work is done by the server - claude code ai session directly, not via laptop, laptop can be closed, still the server and claude code cli will keep working even if laptop is switched off." When asked explicitly whether security-sensitive and financial-calculation items should still be held for review, the Owner confirmed **"Full autonomy, no exceptions."** Effective immediately: `scripts/supervisor-entrypoint.sh`s `HOLD_FOR_OWNER_SIGNOFF` and `tier2` branches no longer hold a task in `awaiting_human_approval` — any task whose own Superboss review verdict is `approve` and passes `scope-check.py` now merges autonomously via the same path `tier1` always used, regardless of risk tier or hold-flag (see claude-control PR #118 and its inline `AUTONOMOUS-FULL-APPROVAL-2026-07-31` comment block for the exact mechanism). This does **not** weaken the underlying review: a rejected verdict, or a real `scope-check.py` file-ownership violation, still blocks exactly as before — only the redundant additional human-confirmation step on top of an already-approved review was removed. The Owner is still notified (informational only, no action requested) whenever a formerly-held task merges this way. **To revert:** restore the pre-2026-07-31 if/elif chain in `scripts/supervisor-entrypoint.sh` from git history (claude-control PR #118) and remove this rule.

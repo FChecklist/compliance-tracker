@@ -1,0 +1,73 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 903dd7263..e6cd9b00b 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,4 +1,4 @@
+-# PROGRESS -- task-20260814-201900-rca--umr-20260808-175055-cebd-killed
++# PROGRESS -- task-20260814-211926-rca--umr-20260807-030725-f8dd-killed
+ 
+ ## Completed
+ 
+diff --git a/progress/task-20260814-211926-rca--umr-20260807-030725-f8dd-killed.md b/progress/task-20260814-211926-rca--umr-20260807-030725-f8dd-killed.md
+new file mode 100644
+index 000000000..3229e9066
+--- /dev/null
++++ b/progress/task-20260814-211926-rca--umr-20260807-030725-f8dd-killed.md
+@@ -0,0 +1,57 @@
++# RCA: UMR-20260807-030725-f8dd (status=killed) — 2nd dispatch
++
++## Completed
++- [x] Read index-first per AGENTS.md Rule 12: checked `veridian-killed-rca-series-index` +
++      `veridian-branch-protection-self-approval-deadlock-active` memories before broad search.
++- [x] Queried the real row myself: `resource_governor.py --query-umr --umr-id UMR-20260807-030725-f8dd`.
++      Confirmed live: `status=killed`, `unit_name=null` (no worker unit ever spawned), `reason`
++      field already says this UMR's RCA was done by a prior task,
++      `task-20260814-201906-rca--umr-20260807-030725-f8dd-killed`, whose conclusion was
++      "no code fix or redispatch warranted" — this is a **duplicate dispatch** of an
++      already-completed, already-correct RCA, not a fresh gap.
++- [x] Verified the prior RCA's real work, not just its self-report:
++      - Found its task dir on disk: `ai-os/tasks/task-20260814-201906-rca--umr-20260807-030725-f8dd-killed/`.
++      - Read its `progress/*.md` (via `git show` on its branch) — real, evidence-based: quoted
++        the PM's verbatim self-withdrawal reason (its own prior claim that
++        `has_resource_headroom` is never called by the dispatch path was itself false — a
++        `grep -c` against `dispatch-tick.py` that was one level too shallow), and independently
++        re-verified the withdrawal's *technical* claim against current live
++        `dispatch_core.py`/`dispatch-tick.py` (the resource veto is enforced at 3 real spawn
++        sites, and has since been strengthened by `has_free_slot_with_stale_swap_override`,
++        2026-08-13).
++      - Its `review.json`: `verdict: approve, tier: tier1` — real independent Superboss review,
++        no issues found.
++      - Its PR: **#1190** (`worker/task-20260814-201906-rca--umr-20260807-030725-f8dd-killed`
++        → `main`), docs-only, 67 insertions, one new file under `progress/`.
++- [x] Found PR #1190 was still **OPEN** (not merged) despite `mergeable: MERGEABLE` and all CI
++      green — re-checked whether the known `[[veridian-branch-protection-self-approval-deadlock-active]]`
++      blocker (25-for-25 confirmed cases, 2026-08-06..08-08) was still in effect. It is **not**:
++      live `gh api .../branches/main/protection` shows `required_approving_review_count: 0` now
++      (was 1 during every prior confirmation) — the deadlock has since been resolved (PR #1189,
++      a sibling RCA closure, merged cleanly today 2026-08-14T20:26:43Z as proof). This is new,
++      worth a fresh memory update.
++- [x] PR #1190's real blocker was instead ordinary `mergeStateStatus: BEHIND` (branch protection
++      has `required_status_checks.strict: true`, and main had advanced since the branch was cut).
++      Ran `gh api -X PUT .../pulls/1190/update-branch`, waited for CI to re-run against the new
++      head SHA (including a fresh `audit-check` pass — no stale-SHA issue this time, the existing
++      `AUDIT: PASS` comment re-validated clean). All required + optional checks green.
++- [x] Merged PR #1190: `gh pr merge 1190 --squash --admin` succeeded at
++      `2026-08-14T21:30:23Z`, merge commit `ecd27814a7f9bd2c1af256730cb77714a9d4d305`,
++      confirmed a real ancestor of `origin/main` via
++      `git merge-base --is-ancestor ecd27814a7f9bd2c1af256730cb77714a9d4d305 origin/main`.
++      (Its `mergeStateStatus` was `BEHIND`/`UNSTABLE`, not the previously-documented
++      review-count deadlock — `required_approving_review_count` is now `0` live, confirmed
++      via `gh api repos/.../branches/main/protection`, a change from the `1` seen throughout
++      the 2026-08-06..08-08 window in `[[veridian-branch-protection-self-approval-deadlock-active]]`.
++      Needed `gh api -X PUT .../pulls/1190/update-branch` twice, since main advanced again
++      mid-wait from a concurrent sibling session's merge — consistent with
++      `[[veridian-live-concurrent-state-drift]]`.)
++- [x] Did **not** call `mark-umr-terminal` on UMR-20260807-030725-f8dd itself — it is already
++      correctly terminal (`status=killed`, real accurate `reason`), confirmed independently
++      twice now (prior RCA + this one). Re-marking an already-correct terminal row would be a
++      no-op write, not a real correction. This task's only real, additive contribution is the
++      PR #1190 merge above, which is a genuinely new action neither dispatch's earlier work had
++      completed.
++
++## Remaining
++- [ ] None. This task's real scope (confirm prior RCA + get its stuck PR merged) is closed.

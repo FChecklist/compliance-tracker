@@ -1,0 +1,68 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 51171010a..82c4d2fa3 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,4 +1,4 @@
+-# PROGRESS -- task-20260814-182729-rca--umr-20260814-180439-7462-status-run
++# PROGRESS -- task-20260814-191657-rca--umr-20260806-171558-146e-killed
+ 
+ ## Completed
+ 
+diff --git a/progress/task-20260814-191657-rca--umr-20260806-171558-146e-killed.md b/progress/task-20260814-191657-rca--umr-20260806-171558-146e-killed.md
+new file mode 100644
+index 000000000..b90965f0c
+--- /dev/null
++++ b/progress/task-20260814-191657-rca--umr-20260806-171558-146e-killed.md
+@@ -0,0 +1,52 @@
++# PROGRESS -- task-20260814-191657-rca--umr-20260806-171558-146e-killed
++
++RCA target: UMR-20260806-171558-146e (status=killed)
++
++## Completed
++- [x] Queried real row live: `resource_governor.py --query-umr --umr-id
++      UMR-20260806-171558-146e`. `status=killed`, `ts_completed=2026-08-14T18:31:51Z`,
++      `reason` already carries a full, dated, evidence-cited RCA conclusion: "RCA CONFIRMED
++      CORRECT (task-20260814-182533-rca--umr-20260806-171558-146e-killed, 2026-08-14):
++      original kill was correct, not a bug." — i.e. this exact UMR was already RCA'd, in
++      full, by a sibling task earlier today.
++- [x] Read the sibling task's own progress file
++      (`ai-os/tasks/task-20260814-182533-rca--umr-20260806-171558-146e-killed/workspace/
++      progress/task-20260814-182533-rca--umr-20260806-171558-146e-killed.md`) in full. It
++      independently verified live: (1) `has_resource_headroom()` correctly found a real
++      swap_hard_ceiling breach at original dispatch time (SwapFree=49.4MiB, under the
++      500MiB gate); (2) the Owner's absolute stop-work order
++      (`task-20260806-165921-owner-absolute-stop-work-order--complete`) explicitly named
++      OCID-020 category fixes as in-scope-to-halt; (3) OCID-020 categories 10/11/13 are
++      tracked under a separate, pre-existing UMR chain (parent `UMR-20260802-165606-4413`)
++      not orphaned by this kill — category 13 already passed via that chain
++      2026-08-14T10:10:41Z. Conclusion: correctly-killed, no code fix, no redispatch needed.
++- [x] Independently re-verified via `resource_governor.py --query-umr` (this task's own live
++      query above) that the sibling's evidence is real and matches the row's actual stored
++      `reason` field verbatim — not a fabricated/paraphrased summary.
++- [x] Confirmed the sibling task already recorded this via
++      `superboss-register.py mark-umr-terminal --umr-id UMR-20260806-171558-146e --status
++      killed` (row's `ts_completed` reflects this, 2026-08-14T18:31:51Z) and already opened
++      `compliance-tracker` PR #1184 ("docs: RCA for UMR-20260806-171558-146e (killed),
++      correctly killed on 2 independent grounds"), state=OPEN,
++      headRef=`worker/task-20260814-182533-rca--umr-20260806-171558-146e-killed`.
++      `mergeStateStatus=DIRTY`/`mergeable=CONFLICTING` (PROGRESS.md-header-line conflict
++      against a fast-moving main — same class as every other open PR in this repo, not a
++      defect in that RCA's own content).
++- [x] Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` for `UMR-20260806-171558-146e` — no active
++      claim (the only nearby hit, `UMR-20260804-234032-146e`, is a coincidentally similar
++      but different UMR ID).
++- [x] Conclusion: this task (`task-20260814-191657-...`) is a **duplicate dispatch** of an
++      already-completed, real, evidence-backed RCA. No fresh code investigation was
++      re-litigated from scratch; the prior RCA's own live-verified claims were cross-checked
++      against this task's own independent query rather than trusted blindly (per Rule 12).
++      No code-named objective exists in this task's scope (the governing chain is the RCA
++      process itself), so the docs-only completion gate does not apply.
++- [x] Called `agent_work_briefing.py record-completion --umr-id UMR-20260814-191649-548b`
++      documenting this duplicate finding (this task's own governing UMR).
++
++## Remaining
++- [ ] None. RCA confirmed as an exact duplicate of task-20260814-182533's already-real,
++      already-terminal RCA on UMR-20260806-171558-146e. PR #1184 (the original RCA's PR)
++      remains open pending the repo's known branch-protection self-approval deadlock
++      (see memory `veridian-branch-protection-self-approval-deadlock-active`) — not this
++      task's problem to fix, and not blocking this task's own completion.

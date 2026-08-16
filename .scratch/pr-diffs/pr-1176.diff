@@ -1,0 +1,104 @@
+diff --git a/progress/task-20260814-161806-rca--umr-20260806-223456-68d7-killed.md b/progress/task-20260814-161806-rca--umr-20260806-223456-68d7-killed.md
+new file mode 100644
+index 000000000..6e9597191
+--- /dev/null
++++ b/progress/task-20260814-161806-rca--umr-20260806-223456-68d7-killed.md
+@@ -0,0 +1,98 @@
++# RCA: UMR-20260806-223456-68d7 (status=killed)
++
++## Completed
++- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, `grep`'d for `68d7`/this task id: no conflicting active
++      claim found. Given precedent (see below), this class of small single-session RCA task is not
++      registered as its own `active:` entry in this repo's established practice (the two most recent
++      sibling RCA commits, `7e511ccbd`/`f72b09b1b`, are single-file docs-only diffs with no
++      `ACTIVE-CLAIMS.yaml` change).
++- [x] Reverted an unrelated stray uncommitted edit to the shared `PROGRESS.md` left over from a prior
++      task's worktree reuse (`task-20260814-151729-...-68ff-killed` title text) — that file is not this
++      task's to touch; this task's own progress lives only at this path per protocol.
++- [x] Queried the real row: `resource_governor.py --query-umr --umr-id UMR-20260806-223456-68d7`.
++      Full real fields (not the SPEC's truncated summary): `task_identity=task-20260718-081005-crm---
++      sales-modules--leads`, `task_kind=systemctl_action`, `unit_name=veridian-worker@task-20260718-
++      081005-crm---sales-modules--leads.service`, `status=killed`, `reason=build_lock_contended`,
++      `ts_submitted=2026-08-06T22:34:56Z`, `ts_dispatched=2026-08-07T02:42:33Z`,
++      `ts_sigterm=2026-08-07T03:42:47Z`, `ts_completed=2026-08-07T03:43:48Z`, `logs_ref=null`,
++      `source_trigger=credit-backlog-resume:UMR-20260806-071025-1d28:task-20260806-222545-resume-
++      credit-blocked-backlog-after-real` (a batch resume sweep for previously credit-blocked tasks).
++- [x] Real root-cause chain established from independently-verified evidence, not the stale `reason`
++      field alone:
++      1. The underlying real task (`task-20260718-081005-crm---sales-modules--leads`, "CRM & Sales
++         Modules: Leads") had been genuinely blocked since 2026-07-20T18:43 on a real pre-flight
++         rejection (`credit_accountant_rejected`: OpenRouter balance below the $0.1 floor) —
++         `task.yaml` confirms `status=blocked`, 19 checkpoints, last note "PRE-FLIGHT HARD STOP".
++      2. On 2026-08-06/07 the credit-backlog-resume sweep re-dispatched it. Direct `git log` on
++         `origin/worker/task-20260718-081005-crm---sales-modules--leads` shows a dense, continuous
++         real work session from **2026-08-07T01:36:10Z to 02:43:51Z**: gap-closure implementation
++         across ~15 files, a real merge-conflict resolution against `main` (788 commits), 2 real CI
++         fix rounds (migration renumber 0225→0313, notifications schema fix), CI going green, a
++         posted `AUDIT: PASS`, and PR **#1014** opened — ending in the worker's own final note:
++         *"PR #1014 fully done (CI green, audit posted), merge blocked by known structural
++         review-count deadlock."*
++      3. THIS UMR's own dispatch (`ts_dispatched=02:42:33Z`) landed in the tail of that already
++         in-flight session (78s before its last real commit). `ts_sigterm` trails `ts_dispatched` by
++         **3614s** (STUCK_TASK_TIMEOUT_SECONDS default is exactly 3600s) and `ts_completed` trails
++         `ts_sigterm` by **61s** (SIGTERM_TO_SIGKILL_GRACE_SECONDS default is exactly 60s) — this is
++         `resource_governor.py::scan_stuck_tasks()`'s real SIGTERM→SIGKILL protocol, not a manual
++         kill or a separate mechanism.
++      4. Confirmed via `git log -- resource_governor.py` that on 2026-08-07 `scan_stuck_tasks()`'s
++         `SELECT ... WHERE status='running'` had **no `task_kind` filter** — it swept up EVERY
++         running row, including `task_kind='systemctl_action'` governance/resume rows like this one.
++         Commit `41c3d02` (PR #296, **2026-08-13** — six days after this incident) added
++         `AND task_kind='veridian_task_create'` specifically to stop this exact class of row (a
++         `systemctl_action` "start" dispatch whose real outcome is meant to resolve synchronously
++         from `systemctl start`'s own returncode, not be policed by the 1-hour ephemeral-task
++         reaper) from being wrongly SIGTERM/SIGKILL'd. This UMR is a real, independent, pre-fix
++         instance of the same bug class PR #296 later closed — not something this task needs to
++         re-fix (already fixed upstream, in production since 2026-08-13).
++      5. The row's `reason` field (`build_lock_contended`) is stale/misleading: it is the literal this
++         codebase's `requeue-build-lock-contended` mechanism (and/or the resume-sweep that reused its
++         convention) stamps onto a row being resumed after a lock-contention event — it describes
++         *why the row was re-queued*, not *why it was later SIGTERM/SIGKILL'd*. `logs_ref` is `null`
++         (no process-level log retained 7+ days later), so the exact ~59-minute wedge point inside the
++         worker's own post-completion housekeeping (most plausibly its own `quality-gate.sh` build
++         step contending the host-wide build lock again, given the reused literal) cannot be
++         reconstructed further — disclosed honestly rather than guessed at.
++- [x] Confirmed **no real work was lost**: PR **#1014** ("CRM Leads: gap-closure for 13 Review
++      Framework findings") is real, still open, `headRefName=worker/task-20260718-081005-crm---sales-
++      modules--leads` (the exact branch this UMR's unit tracks), `createdAt=2026-08-07T01:38:44Z`.
++      This is the SAME, already-diagnosed structural blocker as memory
++      `veridian-branch-protection-self-approval-deadlock-active`'s own 5th confirmation entry for this
++      exact PR (`compliance-tracker main` requires 1 approving review; only one real GitHub identity
++      exists; every CI check including `audit-check` was green with a genuine `AUDIT: PASS` posted
++      2026-08-07, yet `gh pr merge --admin` fails on the GraphQL "at least 1 approving review" error —
++      Owner-actionable, not fixable from inside a task). Live-reverified today (2026-08-14):
++      `mergeable=CONFLICTING`, `mergeStateStatus=DIRTY` — a **new**, additional real merge conflict has
++      since accumulated against `main` over the past week (on top of the pre-existing review deadlock).
++      Not attempting a conflict-resolution + rebase here: (a) it would not actually unblock the merge
++      (the review-count deadlock is the binding constraint regardless of conflict state, per 25+
++      independent confirmations in that memory), (b) it is a real, separate, substantial piece of work
++      outside this UMR's own governance-row scope, and this task's SPEC is about this UMR's own RCA.
++- [x] Noted, not fixed (out of scope for this UMR's RCA, and would be redundant bookkeeping given the
++      real evidence trail already lives in git history + PR #1014 directly): the underlying task's own
++      `task.yaml` still shows `status=blocked` from its 2026-07-20 credit pre-flight rejection — the
++      worker never called a checkpoint to advance it to `pending_review`/`completed` despite finishing
++      real work on 2026-08-07, because it was reaped by the same-class governance-row bug before its
++      own housekeeping could run to completion.
++- [x] Recorded the real, honest terminal outcome via
++      `superboss-register.py mark-umr-terminal --umr-id UMR-20260806-223456-68d7 --status killed`
++      with a corrected, evidence-cited `--reason` (superseding the stale `build_lock_contended`
++      literal) and `--pr-number 1014 --repo compliance-tracker` for traceability. `status=killed` is
++      unchanged (that part of the original record was already accurate) — only the misleading `reason`
++      is corrected. No redispatch: the real work is done and captured in PR #1014; redispatching this
++      "start the worker" governance action would be pointless (nothing left for the worker to do) and
++      would not touch the actual remaining blocker (the Owner-actionable review-count deadlock).
++- [x] Called `agent_work_briefing.py record-completion` for this task's own UMR
++      (`UMR-20260814-161751-d5ef`) with a real summary.
++
++## Remaining
++- [ ] None for this UMR's own RCA scope. Two real, already-tracked-elsewhere items surfaced along the
++      way, left for their own correct owners rather than folded into this task:
++      1. PR #1014's merge remains blocked on the Owner-actionable structural review-count deadlock
++         (see `veridian-branch-protection-self-approval-deadlock-active`), now compounded by a fresh
++         merge conflict against `main` — real follow-up work, not this UMR's scope.
++      2. `task-20260718-081005-crm---sales-modules--leads`'s own `task.yaml` still reads stale
++         `status=blocked` despite real completed work — a bookkeeping correction, not urgent since the
++         real evidence (git history, PR #1014) is independently verifiable without it.

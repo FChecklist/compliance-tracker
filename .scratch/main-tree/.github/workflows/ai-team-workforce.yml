@@ -1,0 +1,173 @@
+name: AI Workforce (repo-write)
+
+# Gives a VERIDIAN AI Workforce role (any OpenRouter model in
+# src/lib/ai-team/roster.ts) real read/write access to this repo. Always
+# lands on a new branch + PR — never pushes to main directly. This is
+# separate from ai-dispatch.yml's zai-task/claude-task events (those are
+# AGENTS.md's two full-access authorized agents); ai-team-task is a more
+# constrained, file-tools-only agent for the broader AI Workforce roster.
+on:
+  repository_dispatch:
+    types: [ai-team-task]
+  workflow_dispatch:
+    inputs:
+      role_key:
+        description: "AI Workforce role_key from src/lib/ai-team/roster.ts"
+        required: true
+        default: "fullstack_developer"
+      # VERIDIAN_TASK_GOVERNANCE_CONSTITUTION.md, Objective/Scope/
+      # Instruction Validation Guardrails: a single free-text `task` field
+      # is exactly what produced this pipeline's real failures (see
+      # ai-workforce-agent.mjs's MAX_ITERATIONS comment) -- briefs with no
+      # explicit scope cap or completion definition burned the whole
+      # iteration budget with zero output. These 4 fields are now required
+      # (constraints optional) so a loose dispatch is rejected before the
+      # agent loop starts, not discovered 40 iterations in.
+      objective:
+        description: "Objective -- what should exist when this is done"
+        required: true
+      scope:
+        description: "Scope -- exact file(s)/area to touch, nothing else"
+        required: true
+      success_criteria:
+        description: "Success criteria -- how to know it's done (call finish once met)"
+        required: true
+      # Wave 163 (Boss directive: "based on complexity given to the AI
+      # model"): required so the agent script can enforce model-tier
+      # eligibility (model-tier-eligibility.ts) before spending anything --
+      # a judgment-tier task can no longer reach a mechanical-only model.
+      complexity_tier:
+        description: "mechanical (one file) | integrative (multi-file, GPT-OSS-120B excluded) | judgment (GLM-5.2/GPT-5.5 only)"
+        required: true
+      expected_output:
+        description: "What the output must actually contain/prove, not just 'it ran'"
+        required: true
+      constraints:
+        description: "Optional: iteration/file caps, explicit exclusions"
+        required: false
+        default: ""
+      # tree4-unified/50-completion-plan area 3 "Guardrails", PLAN-16
+      # re-scoped item (c): required for integrative/judgment tier tasks
+      # only (validateKnowledgeSufficiency() in task-tightening.ts) --
+      # optional here, same posture as constraints, since mechanical-tier
+      # dispatches don't need it and the check itself enforces the real gate.
+      known_context:
+        description: "Required for integrative/judgment tiers: what existing code/docs/state the executor already knows, so it isn't guessing"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Create work branch
+        id: branch
+        env:
+          ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+        run: |
+          BRANCH="ai-team/${ROLE_KEY}/$(date +%Y%m%d-%H%M%S)"
+          git checkout -b "$BRANCH"
+          echo "branch=$BRANCH" >> "$GITHUB_OUTPUT"
+
+      - name: Run AI Workforce agent
+        id: agent
+        env:
+          AI_TEAM_ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+          AI_TEAM_TASK_OBJECTIVE: ${{ github.event.client_payload.objective || github.event.inputs.objective }}
+          AI_TEAM_TASK_SCOPE: ${{ github.event.client_payload.scope || github.event.inputs.scope }}
+          AI_TEAM_TASK_SUCCESS_CRITERIA: ${{ github.event.client_payload.success_criteria || github.event.inputs.success_criteria }}
+          AI_TEAM_TASK_COMPLEXITY_TIER: ${{ github.event.client_payload.complexity_tier || github.event.inputs.complexity_tier }}
+          AI_TEAM_TASK_EXPECTED_OUTPUT: ${{ github.event.client_payload.expected_output || github.event.inputs.expected_output }}
+          AI_TEAM_TASK_CONSTRAINTS: ${{ github.event.client_payload.constraints || github.event.inputs.constraints }}
+          AI_TEAM_TASK_KNOWN_CONTEXT: ${{ github.event.client_payload.known_context || github.event.inputs.known_context }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          AI_TEAM_SUPABASE_URL: ${{ secrets.AI_TEAM_SUPABASE_URL }}
+          AI_TEAM_SUPABASE_ANON_KEY: ${{ secrets.AI_TEAM_SUPABASE_ANON_KEY }}
+          AI_TEAM_LOG_URL: "https://veridian-ai-os.vercel.app/api/ai/team/log-usage"
+          AI_TEAM_LOG_SECRET: ${{ secrets.AI_TEAM_LOG_SECRET }}
+        run: bun run scripts/ai-workforce-agent.mjs
+
+      # 6th real bug found smoke-testing this pipeline: the agent's own
+      # freeform summary text (markdown, backticks, $(...), quotes) was
+      # previously interpolated directly into a `run:` shell block via
+      # ${{ steps.agent.outputs.summary }} -- GitHub Actions substitutes
+      # that as raw text BEFORE bash parses the script, so shell
+      # metacharacters inside the LLM's own prose got executed/misparsed
+      # (a real command-injection-shaped bug, not just a formatting one).
+      # Every step below now passes untrusted text through env vars and
+      # references it as "$VAR" inside the script, which bash treats as a
+      # literal string, never re-parsed for shell syntax.
+      - name: Commit changes
+        id: commit
+        env:
+          ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+          SUMMARY: ${{ steps.agent.outputs.summary }}
+        run: |
+          git config user.name "veridian-ai-workforce[bot]"
+          git config user.email "ai-workforce@veridian.internal"
+          git add -A
+          if git diff --cached --quiet; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            git commit -m "AI Workforce (${ROLE_KEY}): ${SUMMARY}"
+          fi
+
+      - name: Push and open PR
+        if: steps.commit.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          BRANCH: ${{ steps.branch.outputs.branch }}
+          ROLE_KEY: ${{ github.event.client_payload.role_key || github.event.inputs.role_key }}
+          OBJECTIVE: ${{ github.event.client_payload.objective || github.event.inputs.objective }}
+          SCOPE: ${{ github.event.client_payload.scope || github.event.inputs.scope }}
+          SUCCESS_CRITERIA: ${{ github.event.client_payload.success_criteria || github.event.inputs.success_criteria }}
+          EXPECTED_OUTPUT: ${{ github.event.client_payload.expected_output || github.event.inputs.expected_output }}
+          SUMMARY: ${{ steps.agent.outputs.summary }}
+          FILES_CHANGED: ${{ steps.agent.outputs.files_changed }}
+          REQUIRES_AUDIT: ${{ steps.agent.outputs.requires_audit }}
+          SCOPE_VIOLATIONS: ${{ steps.agent.outputs.scope_violations }}
+        run: |
+          git push origin "$BRANCH"
+          AUDIT_NOTICE=""
+          if [ "$REQUIRES_AUDIT" = "true" ]; then
+            AUDIT_NOTICE="🔒 **MANDATORY AUDIT REQUIRED** -- this role has not earned judgment-tier trust (AGENTS.md Operating Rule 7c / mandatory-audit-check.yml). Merge is blocked until a comment starting with \`AUDIT: PASS\` or \`AUDIT: FAIL\` is posted by a different agent/reviewer than the one that ran this dispatch.
+
+          "
+          fi
+          SCOPE_NOTICE=""
+          if [ -n "$SCOPE_VIOLATIONS" ]; then
+            SCOPE_NOTICE="⚠️ **Scope check:** file(s) changed that were not among the exact file(s) declared scope named: ${SCOPE_VIOLATIONS}. This is a syntactic check only (task-tightening.ts's checkFilesWithinDeclaredScope) -- verify manually before merge, not a semantic guarantee the change stayed in scope.
+
+          "
+          fi
+          gh pr create \
+            --title "AI Workforce (${ROLE_KEY})$([ "$REQUIRES_AUDIT" = "true" ] && echo " [NEEDS AUDIT]"): ${SUMMARY:0:100}" \
+            --body "${AUDIT_NOTICE}${SCOPE_NOTICE}**Role:** ${ROLE_KEY}
+          **Objective:** ${OBJECTIVE}
+          **Scope:** ${SCOPE}
+          **Success criteria:** ${SUCCESS_CRITERIA}
+          **Expected output:** ${EXPECTED_OUTPUT}
+          **Files changed:** ${FILES_CHANGED}
+          **Summary:** ${SUMMARY}
+
+          Opened automatically by the AI Workforce (repo-write) workflow. Requires Security & Code Reviewer / human review before merge — never auto-merged." \
+            --base main \
+            --head "$BRANCH"
+
+      - name: No changes made
+        if: steps.commit.outputs.changed == 'false'
+        run: echo "Agent made no file changes -- nothing to PR. See job summary above for the agent's stated reason."

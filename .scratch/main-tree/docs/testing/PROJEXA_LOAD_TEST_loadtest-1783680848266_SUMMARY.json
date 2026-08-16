@@ -1,0 +1,14 @@
+{
+  "runId": "loadtest-1783680848266",
+  "orgId": "obux019rsc5nzxjx93rrpc1j",
+  "orgSlug": "projexa-loadtest-1783680848267",
+  "personasCreated": 100,
+  "tasksGenerated": 500,
+  "executed": 500,
+  "succeeded": 499,
+  "failed": 1,
+  "overflowed": 0,
+  "totalLlmCalls": 200,
+  "durationMs": 920880,
+  "haltedReason": null
+}

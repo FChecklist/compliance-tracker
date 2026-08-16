@@ -1,0 +1,50 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 1750ce12b..21b594227 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,3 +1,45 @@
++# PROGRESS -- task-20260813-162203-rca--umr-20260808-081216-db86-killed
++## Completed
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260808-081216-db86` directly (full row, not the SPEC's summary) -- confirmed the recorded `reason`: db86 was correctly declined because its own governing premise (citing UMR-20260808-074726-d105 as evidence the stop-work-order exemption dispute "has since moved on") was directly, verifiably false -- d105 was declined by the same worker minutes earlier for exactly that unresolved reason.
++- [x] Verified db86's decline was a CORRECT judgment call at the time (2026-08-08T08:12:39Z), not a bug/mislabeling -- unlike the prior UMR-b85c/f9a4/0faf/c377 RCA pattern (those had real completed PR work that got missed by the labeler), db86 produced zero code/branch/PR and correctly said so. **No correction needed to db86's own row.**
++- [x] Checked whether the underlying engineering request (queue-management CLI: `list_queue`/`stop_task`/`resume_task`/`delete_task`/`set_priority`/`move_up`/`move_down` in `resource_governor.py`) was ever actually built anywhere: `grep` of `resource_governor.py` for these function names = 0 matches; `git log --oneline --all -- resource_governor.py | grep -i queue` = 0 matches. 14 prior dispatches in this saga (b4e9→db86) never produced this code.
++- [x] Checked whether the stop-work-order block that killed all 14 prior attempts is still genuinely open: found a real, git-committed, **origin/main-pushed** entry `stop-work-order-lifted-2026-08-08-v2` in `OWNER_DECISIONS_NEEDED_2026-07-23.yaml` (veridian-ai-os repo, commit `2a46f437ad095cc11af8cab3a495192bf91e6a49`, `decided_at: 2026-08-08T11:01:00Z`, `status: approved`, decided by rajat's real personal GitHub account) that lifts the standing stop-work order **specifically for `resource_governor.py`, `superboss-register.py`, `task-gateway.py`, and `resource_governor_tick_loop.sh`** -- exactly this scope. Verified via `git cat-file -p` on the real blob (not a truncation-prone `git show | wc -l`, per known local truncation bug) that this entry independently satisfies `_stop_work_order_lifted_for()`'s real check (id contains `stop-work-order-lifted`, `status: approved`, order_id string present in scope text).
++- [x] Timing check: this lift entry was committed **2h49m after** db86 declined (11:01:00Z vs 08:12:39Z decline) -- so db86's decline was correct given what was verifiable at the time, and the lift is a genuinely separate, later, real event, not the same (false) evidence db86 cited.
++- [x] Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` and open `veridian-scripts` PRs for any live claim/PR on this scope -- none found at the time. Queried `resource_governor.py --query-umr --search` for `list_queue`/`queue-management CLI` -- no queued/running duplicate at the time.
++- [x] Found `/opt/veridian/scripts` (the shared live checkout) mid another session's uncommitted work (branch `worker/task-20260813-091931-...`, several modified files) -- did not touch it directly to avoid colliding with that concurrent session (see `[[veridian-shared-worktree-stash-risk]]`).
++- [x] **Root cause**: db86 was a correct decline of a genuinely false premise; separately, the real blocker it was trying (and failing) to route around has since been legitimately, verifiably lifted by the Owner for exactly this file scope. The real remaining engineering scope was unblocked and still unbuilt at RCA time.
++- [x] Redispatched the real remaining scope cleanly, citing the real (not fabricated) unblocking evidence, instead of re-litigating db86's own row: `python3 resource_governor.py --submit` → **UMR-20260813-162708-e1c7**, accepted, status=queued, tier=2 at submission time.
++- [x] db86 itself needs no `mark-umr-terminal` correction -- its `killed` status + reason are already an accurate, honest record.
++- [x] `agent_work_briefing.py record-completion` called for this UMR (UMR-20260813-151814-12d7).
++
++### Follow-up correction (task-20260813-221757-rca--umr-20260808-081216-db86-killed, 2nd RCA dispatch on the same db86 row, ~6h later)
++This is a **duplicate dispatch** of the identical db86 RCA scope (branch names differ only by
++timestamp: `...162203-...` vs `...221757-...`). Re-verifying live rather than repeating the RCA
++found two corrections to the record above:
++- [x] `UMR-20260813-162708-e1c7` (the redispatch this PR made) did **not** land: its row now shows
++      `status=failed`, `returncode=1`, `new_task_id=null` (reason field literally `"queued"`, i.e. it
++      never got past its own dispatch attempt). It did not build the queue-management CLI.
++- [x] Independently of e1c7, the real underlying scope (list_queue/stop_task/resume_task/
++      delete_task/set_priority/move_up/move_down in `resource_governor.py`) **has since been fully
++      built and merged to `origin/main`** via a *different* governing lineage: veridian-scripts PR
++      #328 (`951ad5b`, merged `2026-08-13T21:33:56Z`), titled "real queue-management ops
++      (UMR-20260807-150524-a683 RCA+redispatch)". Verified live via `git cat-file -p
++      origin/main:resource_governor.py` (not the truncation-prone plain `git show`): all seven
++      functions (`list_queue`, `stop_task`, `resume_task`, `delete_task`, `set_priority`, `move_up`,
++      `move_down`) exist at lines 1487-1690, each a real atomic `sbr._write_lock()` read-check-write,
++      plus matching `--list-queue`/`--stop-task`/etc. CLI flags. Read the implementations directly:
++      real, not stubbed.
++- [x] Net effect: the underlying engineering request this whole 14-dispatch saga (b4e9→db86) plus
++      its e1c7 follow-on was chasing is now genuinely closed -- just not through e1c7. No further
++      redispatch needed.
++- [x] `agent_work_briefing.py record-completion` called for the follow-up UMR (UMR-20260813-221546-6fb2).
++
++## Remaining
++- [ ] None. Both db86's own row and the underlying engineering scope are resolved -- db86 correctly
++      `killed` (no correction), CLI built and merged via PR #328.
++
++---
++
+ # PROGRESS -- task-20260813-212308-rca--umr-20260807-150503-35bc-killed
+ 
+ ## Completed

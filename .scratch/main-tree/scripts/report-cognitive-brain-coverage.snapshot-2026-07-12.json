@@ -1,0 +1,18 @@
+{
+  "generatedAt": "2026-07-12T00:00:00Z",
+  "method": "Gathered live via the Supabase MCP execute_sql tool (project pcrjmlpuqsbocqfwoxod / verdian-ai / ap-south-1) during Priority 6's coverage-audit dispatch, for the same reason as scripts/audit-asset-registry.snapshot-2026-07-12.json: the sandbox's bash tool cannot reach the live Postgres pooler directly. umrAssets came from 'SELECT asset_type, status, count(*) FROM compliance.platform_assets GROUP BY asset_type, status'. computationEngines came from 'SELECT status, count(*) FROM compliance.computation_engines GROUP BY status' (211 implemented / 23 partial / 13 not_started of 247 total -- independently re-verified this session, not copied from a stale prior number). softwareOrchestrator came from a live sum over compliance.task_capabilities, which currently has 0 rows -- reported honestly as zero, not fabricated.",
+  "umrAssets": [
+    { "assetType": "ai_agent", "status": "draft", "count": 5 },
+    { "assetType": "ai_agent", "status": "active", "count": 22 },
+    { "assetType": "prompt", "status": "active", "count": 215 },
+    { "assetType": "project", "status": "active", "count": 5 },
+    { "assetType": "task", "status": "active", "count": 1899 },
+    { "assetType": "document", "status": "active", "count": 193 },
+    { "assetType": "decision", "status": "active", "count": 5 },
+    { "assetType": "computation_engine", "status": "draft", "count": 36 },
+    { "assetType": "computation_engine", "status": "active", "count": 211 },
+    { "assetType": "other", "status": "active", "count": 203 }
+  ],
+  "computationEngines": { "implemented": 211, "partial": 23, "notStarted": 13 },
+  "softwareOrchestrator": { "rowCount": 0, "fullSoftwareCount": 0, "packageAvailableCount": 0, "novelCount": 0 }
+}

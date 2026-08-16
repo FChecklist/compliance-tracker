@@ -1,0 +1,107 @@
+name: Mandatory Audit Check
+
+# Wave 163 (Boss directive: gap analysis found AGENTS.md Operating Rule 7c
+# -- "whichever agent did not implement a task is the mandatory auditor" --
+# was a written norm with zero CI enforcement. Every audit this session
+# happened because Claude chose to do it by hand, not because anything
+# would have stopped a merge otherwise. This closes that gap.
+#
+# Widened 2026-07-13 (Boss directive, following a same-day incident where a
+# fix was silently lost to a concurrent-session git collision, and a
+# related finding that this job -- though it ran on every PR -- was never
+# actually wired into branch protection's required checks, so it was
+# advisory only): every PR into main now requires an audit verdict
+# comment, not just cheap-tier AI Workforce dispatch branches. For
+# 2026-07-13 through 2026-07-20, Claude Sonnet 5 Desktop is the sole
+# auditor per Boss instruction -- this job can't verify *who* posted the
+# comment (no per-agent signed identity exists yet, see AGENTS.md), only
+# that one exists; the Claude-only window is enforced by instruction and
+# procedure, not by this check.
+#
+# Structured 2026-07-13 (Boss directive, "agent-to-agent communication
+# standard"): a bare "AUDIT: PASS" line is exactly the loose free text the
+# Boss asked to eliminate from agent-to-agent reporting. audit-protocol.ts
+# already defines the precise 8-field AuditProtocolFields contract and
+# validateAuditProtocolFields() (registered as guardrail leaf
+# AUDIT_PROTOCOL_COMPLIANCE_LEAF) -- built and tested, but its own header
+# stated "no live caller yet." This job is now that caller:
+# scripts/validate-audit-verdict.ts parses the same 8 labeled fields from
+# the PR comment and calls the real shared validator (not a
+# reimplementation), so an incomplete or vague audit is rejected with the
+# exact same precise, actionable reason a human-facing caller would get --
+# not just "no audit found."
+#
+# Honest limitation, same class as every other CI gate in this repo
+# (guardrail-presence-check.mjs's own header states this precedent): this
+# checks that the 8 fields are present, non-placeholder, and internally
+# consistent -- it cannot verify the auditor actually ran tsc/lint/build,
+# only that they asserted they did in Evidence Recorded. That's a real,
+# stated limit, not a claim of more than this can deliver. Merge is only
+# actually blocked on a missing/invalid verdict once this job's name is
+# added to branch protection's required status checks -- a repo
+# access-control change, deliberately left for the Owner to make.
+
+on:
+  pull_request:
+    branches: [main]
+    types: [opened, synchronize, reopened]
+  # Added: without this, posting the required audit verdict comment does not
+  # re-trigger the check -- it keeps showing its last (pre-comment) result,
+  # typically a stale FAIL, until someone manually reruns the job (`gh run
+  # rerun <run-id> --failed`). Found during FI-AA-006's real audit (PR #648).
+  # `created` only, not `edited`/`deleted`: a new verdict comment is the
+  # event that should re-evaluate; editing/deleting an old one shouldn't spend
+  # another CI run.
+  issue_comment:
+    types: [created]
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  audit-check:
+    # issue_comment fires for comments on both issues and PRs -- github.event.issue.pull_request
+    # is only present when the comment is on a PR, which is what this check requires.
+    if: github.event_name == 'pull_request' || github.event.issue.pull_request != null
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+
+      - name: Validate the structured audit verdict
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # pull_request events carry the PR number at github.event.pull_request.number;
+          # issue_comment events (guarded to PR comments only, above) carry it at
+          # github.event.issue.number instead -- same underlying PR either way.
+          PR_NUMBER: ${{ github.event.pull_request.number || github.event.issue.number }}
+          REPO: ${{ github.repository }}
+          # GAP-UNIFIED-SOT-REMAINDER slice (d): optional, additive. If the
+          # DATABASE_URL secret isn't set at the repo/org level yet, this
+          # resolves to an empty string and persistAuditFinding() in
+          # validate-audit-verdict.ts treats that as "not configured" and
+          # skips the DB write without failing the job -- the actual
+          # verdict-validation gate below is entirely unaffected either way.
+          # Same "wired but needs an Owner-provisioned secret" posture as
+          # VERCEL_DEPLOYMENT_WEBHOOK_SECRET (ai-os/MASTER-TRACKER.yaml).
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        # The comment fetch, the "pick the most recent AUDIT: line" match,
+        # and the field-extraction regex all live in
+        # scripts/validate-audit-verdict.ts itself now -- not split across
+        # a bash step piping through `gh api --jq`. That split was tried
+        # first and broke silently on first deploy: gojq's jq string-literal
+        # escaping for \s doesn't match what a shell single-quoted argument
+        # naturally produces, emptying the extracted comment body without
+        # any error (caught by dogfooding this exact PR's own audit
+        # comment). One language, one regex engine, one place it can be
+        # wrong -- verified against this PR's real comments, not just a
+        # mock, after the fix.
+        #
+        # GitHub Actions `run:` steps execute with `bash -eo pipefail` by
+        # default, so a network/token/rate-limit failure inside the script
+        # (which itself calls process.exit(1) on any such error) fails this
+        # step -- the job fails, the check fails, merge stays blocked. Fail-
+        # closed, matching every other CI gate in this repo.
+        run: bun run scripts/validate-audit-verdict.ts

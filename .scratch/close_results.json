@@ -1,0 +1,67 @@
+{
+  "1087": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1087 (RCA: UMR-20260808-175055-cebd killed)"
+  },
+  "1096": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1096 (docs: RCA UMR-20260808-081216-db86 (killed) -- correct decline, real blocker separately lifted, redispatched UMR-20260813-162708-e1c7)"
+  },
+  "1103": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1103 (RCA: UMR-20260808-175055-cebd killed)"
+  },
+  "1115": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1115 (docs: RCA UMR-20260808-081216-db86 (killed) -- confirmed correct decline, duplicate-dispatch cleanup)"
+  },
+  "1128": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1128 (RCA UMR-20260808-081216-db86: correct decline, duplicate dispatch, scope closed elsewhere)"
+  },
+  "1130": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1130 (docs: UMR-20260808-175055-cebd RCA re-dispatch (4th time) closed as duplicate)"
+  },
+  "1152": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1152 (docs: RCA UMR-20260808-081216-db86 (killed), 4th dispatch, confirmed correct decline, duplicate)"
+  },
+  "1159": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1159 (docs: UMR-20260808-175055-cebd RCA re-dispatch (5th time) closed as duplicate)"
+  },
+  "1176": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1176 (docs: RCA of UMR-20260806-223456-68d7 -- pre-fix stuck-task reaper bug, real work already in PR #1014)"
+  },
+  "1182": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1182 (docs: RCA for UMR-20260806-173900-b504 (killed), correct PM HOLD, no code fix needed)"
+  },
+  "1184": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1184 (docs: RCA for UMR-20260806-171558-146e (killed), correctly killed on 2 independent grounds)"
+  },
+  "1186": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1186 (docs: RCA UMR-20260806-171558-146e (killed) confirmed duplicate of PR #1184)"
+  },
+  "1290": {
+    "ok": true,
+    "stdout": "",
+    "stderr": "\u2713 Closed pull request #1290 (docs: RCA for UMR-20260806-171558-146e (killed), triplicate dispatch -- no correction needed)"
+  }
+}

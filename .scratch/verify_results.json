@@ -1,0 +1,748 @@
+[
+  {
+    "number": 1077,
+    "title": "docs(rca): UMR-20260813-060311-6eea killed row RCA, real deliverable was produced, DB corrected",
+    "umrs": [
+      "UMR-20260813-060311-6EEA"
+    ],
+    "main_files": [
+      "progress/task-20260814-014159-rca--umr-20260813-060311-6eea-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1087,
+    "title": "RCA: UMR-20260808-175055-cebd killed",
+    "umrs": [
+      "UMR-20260808-175055-CEBD"
+    ],
+    "main_files": [
+      "ai-os/boss/ACTIVE-CLAIMS.yaml",
+      "progress/task-20260814-201900-rca--umr-20260808-175055-cebd-killed.md"
+    ],
+    "title_verdicts": [
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no correction needed",
+      "self-correct",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1094,
+    "title": "docs: RCA UMR-20260808-074726-d105 (killed) -- correct decline, corrected to completed",
+    "umrs": [
+      "UMR-20260808-074726-D105"
+    ],
+    "main_files": [
+      "progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1096,
+    "title": "docs: RCA UMR-20260808-081216-db86 (killed) -- correct decline, real blocker separately lifted, redispatched UMR-20260813-162708-e1c7",
+    "umrs": [
+      "UMR-20260808-081216-DB86",
+      "UMR-20260813-162708-E1C7"
+    ],
+    "main_files": [
+      "progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1103,
+    "title": "RCA: UMR-20260808-175055-cebd killed",
+    "umrs": [
+      "UMR-20260808-175055-CEBD"
+    ],
+    "main_files": [
+      "ai-os/boss/ACTIVE-CLAIMS.yaml",
+      "progress/task-20260814-201900-rca--umr-20260808-175055-cebd-killed.md"
+    ],
+    "title_verdicts": [
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no correction needed",
+      "self-correct",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1115,
+    "title": "docs: RCA UMR-20260808-081216-db86 (killed) -- confirmed correct decline, duplicate-dispatch cleanup",
+    "umrs": [
+      "UMR-20260808-081216-DB86"
+    ],
+    "main_files": [
+      "progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md"
+    ],
+    "title_verdicts": [
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1128,
+    "title": "RCA UMR-20260808-081216-db86: correct decline, duplicate dispatch, scope closed elsewhere",
+    "umrs": [
+      "UMR-20260808-081216-DB86"
+    ],
+    "main_files": [
+      "progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md"
+    ],
+    "title_verdicts": [
+      "closed",
+      "correct",
+      "duplicate"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "closed",
+      "correct",
+      "duplicate"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1130,
+    "title": "docs: UMR-20260808-175055-cebd RCA re-dispatch (4th time) closed as duplicate",
+    "umrs": [
+      "UMR-20260808-175055-CEBD"
+    ],
+    "main_files": [
+      "ai-os/boss/ACTIVE-CLAIMS.yaml",
+      "progress/task-20260814-201900-rca--umr-20260808-175055-cebd-killed.md"
+    ],
+    "title_verdicts": [
+      "closed",
+      "duplicate"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no correction needed",
+      "self-correct",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "closed",
+      "duplicate"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1141,
+    "title": "RCA: UMR-20260807-101751-68ff killed",
+    "umrs": [
+      "UMR-20260807-101751-68FF"
+    ],
+    "main_files": [
+      "progress/task-20260814-151729-rca--umr-20260807-101751-68ff-killed.md"
+    ],
+    "title_verdicts": [
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1148,
+    "title": "docs: RCA for UMR-20260814-095518-ec65 (status-run) -- write-back gap already self-corrected, no fix needed",
+    "umrs": [
+      "UMR-20260814-095518-EC65"
+    ],
+    "main_files": [
+      "progress/task-20260814-124956-rca--umr-20260814-101712-eb50-status-run.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "no fix needed",
+      "self-correct"
+    ],
+    "main_verdicts": [
+      "confirmed",
+      "correct",
+      "no fix needed",
+      "self-correct",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "no fix needed",
+      "self-correct"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1152,
+    "title": "docs: RCA UMR-20260808-081216-db86 (killed), 4th dispatch, confirmed correct decline, duplicate",
+    "umrs": [
+      "UMR-20260808-081216-DB86"
+    ],
+    "main_files": [
+      "progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md"
+    ],
+    "title_verdicts": [
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1159,
+    "title": "docs: UMR-20260808-175055-cebd RCA re-dispatch (5th time) closed as duplicate",
+    "umrs": [
+      "UMR-20260808-175055-CEBD"
+    ],
+    "main_files": [
+      "ai-os/boss/ACTIVE-CLAIMS.yaml",
+      "progress/task-20260814-201900-rca--umr-20260808-175055-cebd-killed.md"
+    ],
+    "title_verdicts": [
+      "closed",
+      "duplicate"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no correction needed",
+      "self-correct",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "closed",
+      "duplicate"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1169,
+    "title": "docs: RCA UMR-20260807-063918-f15d (killed) -- 3rd dispatch, correctly-killed confirmed, repeat-dispatch pattern flagged",
+    "umrs": [
+      "UMR-20260807-063918-F15D"
+    ],
+    "main_files": [
+      "progress/task-20260814-021600-rca--umr-20260807-063918-f15d-killed.md",
+      "progress/task-20260814-071841-rca--umr-20260807-030725-f8dd-killed.md"
+    ],
+    "title_verdicts": [
+      "confirmed",
+      "correct",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no correction needed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "confirmed",
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1171,
+    "title": "docs: RCA UMR-20260813-092654-326b (killed) -- confirmed accurate, duplicate of stuck PR #1120, scope merged via pm-sentinel-tick.sh PR #299",
+    "umrs": [
+      "UMR-20260813-092654-326B"
+    ],
+    "main_files": [
+      "progress/task-20260814-082445-rca--umr-20260813-092654-326b-killed.md",
+      "progress/task-20260814-091653-rca--umr-20260807-063911-48c3-killed.md"
+    ],
+    "title_verdicts": [
+      "confirmed",
+      "duplicate",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no fix needed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "confirmed",
+      "duplicate",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1176,
+    "title": "docs: RCA of UMR-20260806-223456-68d7 -- pre-fix stuck-task reaper bug, real work already in PR #1014",
+    "umrs": [
+      "UMR-20260806-223456-68D7"
+    ],
+    "main_files": [
+      "progress/task-20260814-171913-rca--umr-20260806-223456-68d7-killed.md"
+    ],
+    "title_verdicts": [],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [],
+    "consistent": false
+  },
+  {
+    "number": 1177,
+    "title": "docs: RCA of UMR-20260806-175541-f164 (killed) -- correct kill + new proposal for a real target-discovery bug",
+    "umrs": [
+      "UMR-20260806-175541-F164"
+    ],
+    "main_files": [
+      "progress/task-20260815-141708-rca--umr-20260806-175541-f164-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed"
+    ],
+    "main_verdicts": [
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1182,
+    "title": "docs: RCA for UMR-20260806-173900-b504 (killed), correct PM HOLD, no code fix needed",
+    "umrs": [
+      "UMR-20260806-173900-B504"
+    ],
+    "main_files": [
+      "progress/task-20260814-191650-rca--umr-20260806-173900-b504-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1184,
+    "title": "docs: RCA for UMR-20260806-171558-146e (killed), correctly killed on 2 independent grounds",
+    "umrs": [
+      "UMR-20260806-171558-146E"
+    ],
+    "main_files": [
+      "progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1186,
+    "title": "docs: RCA UMR-20260806-171558-146e (killed) confirmed duplicate of PR #1184",
+    "umrs": [
+      "UMR-20260806-171558-146E"
+    ],
+    "main_files": [
+      "progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md"
+    ],
+    "title_verdicts": [
+      "confirmed",
+      "duplicate",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "confirmed",
+      "duplicate",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1191,
+    "title": "RCA UMR-20260807-063918-f15d (3rd dispatch): correctly killed, no correction needed",
+    "umrs": [
+      "UMR-20260807-063918-F15D"
+    ],
+    "main_files": [
+      "progress/task-20260814-021600-rca--umr-20260807-063918-f15d-killed.md",
+      "progress/task-20260814-071841-rca--umr-20260807-030725-f8dd-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed",
+      "no correction needed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no correction needed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed",
+      "no correction needed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1192,
+    "title": "docs: RCA UMR-20260813-092654-326b (killed), real Amendment 2 scope already implemented in veridian-scripts",
+    "umrs": [
+      "UMR-20260813-092654-326B"
+    ],
+    "main_files": [
+      "progress/task-20260814-082445-rca--umr-20260813-092654-326b-killed.md",
+      "progress/task-20260814-091653-rca--umr-20260807-063911-48c3-killed.md"
+    ],
+    "title_verdicts": [
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no fix needed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1193,
+    "title": "docs: RCA of UMR-20260807-063911-48c3 killed -- 4th dispatch, closed as duplicate of merged PR #1168",
+    "umrs": [
+      "UMR-20260807-063911-48C3"
+    ],
+    "main_files": [
+      "progress/task-20260814-021607-rca--umr-20260807-063911-48c3-killed.md",
+      "progress/task-20260814-071841-rca--umr-20260807-030725-f8dd-killed.md",
+      "progress/task-20260814-091653-rca--umr-20260807-063911-48c3-killed.md",
+      "progress/task-20260814-151742-rca--umr-20260807-063911-48c3-killed.md"
+    ],
+    "title_verdicts": [
+      "closed",
+      "duplicate",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "no correction needed",
+      "no fix needed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "closed",
+      "duplicate",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1194,
+    "title": "RCA: UMR-20260807-101751-68ff killed (4th dispatch, duplicate + root-cause found)",
+    "umrs": [
+      "UMR-20260807-101751-68FF"
+    ],
+    "main_files": [
+      "progress/task-20260814-151729-rca--umr-20260807-101751-68ff-killed.md"
+    ],
+    "title_verdicts": [
+      "duplicate",
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "duplicate",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1195,
+    "title": "RCA: UMR-20260807-030725-f8dd killed",
+    "umrs": [
+      "UMR-20260807-030725-F8DD"
+    ],
+    "main_files": [
+      "progress/task-20260814-071841-rca--umr-20260807-030725-f8dd-killed.md",
+      "progress/task-20260814-201906-rca--umr-20260807-030725-f8dd-killed.md"
+    ],
+    "title_verdicts": [
+      "killed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "killed",
+      "no correction needed",
+      "self-correct",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1289,
+    "title": "RCA: UMR-20260806-175541-f164 killed row -- duplicate dispatch, already resolved via PR #1272",
+    "umrs": [
+      "UMR-20260806-175541-F164"
+    ],
+    "main_files": [
+      "progress/task-20260815-141708-rca--umr-20260806-175541-f164-killed.md"
+    ],
+    "title_verdicts": [
+      "duplicate",
+      "killed"
+    ],
+    "main_verdicts": [
+      "correct",
+      "duplicate",
+      "killed",
+      "terminal"
+    ],
+    "overlap": [
+      "duplicate",
+      "killed"
+    ],
+    "consistent": true
+  },
+  {
+    "number": 1290,
+    "title": "docs: RCA for UMR-20260806-171558-146e (killed), triplicate dispatch -- no correction needed",
+    "umrs": [
+      "UMR-20260806-171558-146E"
+    ],
+    "main_files": [
+      "progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md"
+    ],
+    "title_verdicts": [
+      "correct",
+      "killed",
+      "no correction needed"
+    ],
+    "main_verdicts": [
+      "closed",
+      "confirmed",
+      "correct",
+      "duplicate",
+      "killed",
+      "stale",
+      "terminal"
+    ],
+    "overlap": [
+      "correct",
+      "killed"
+    ],
+    "consistent": true
+  }
+]

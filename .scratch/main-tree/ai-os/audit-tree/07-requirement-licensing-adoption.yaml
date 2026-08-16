@@ -1,0 +1,60 @@
+# Source: Requirement.docx (30 lines extracted). No fixed page-break
+# markers exist in the extracted XML text, so "page" is operationalized as
+# each distinct numbered Requirement / named sub-topic in the source --
+# the practical equivalent for a docx without pagination metadata. This
+# file is a faithful structural transcription of the source document
+# only -- no gap analysis, no system-check, no status field. That is a
+# deliberately separate pass, done after this tree is reviewed.
+
+document: "Requirement.docx"
+parts:
+  - part: "Requirement 1 -- User Registration Management"
+    items:
+      - "User registration must be manageable at the organization level"
+
+  - part: "Requirement 2 -- Organization Account Opening Management"
+    items:
+      - "A defined process for opening a new organization account"
+
+  - part: "Requirement 3 -- License Management"
+    items:
+      - "Licenses must be managed (implies: assign/revoke/track license units per org)"
+
+  - part: "Requirement 4 -- Number of Users Management"
+    items:
+      - "The count of active users per org/license must be managed and enforced"
+
+  - part: "Requirement 5 -- Misuse Management"
+    items:
+      - "With one license, only two concurrent sessions allowed: one on laptop, one on mobile, for that user's email"
+      - "Exception: this limit does NOT apply to VERIDIAN's own internal use or testing of the system"
+
+  - part: "Requirement 6 -- Adoption Dashboard"
+    items:
+      - "Dashboard for the individual user (their own adoption view)"
+      - "Dashboard for the Organization Master Admin / CEO (org-wide adoption view)"
+      - "Must use good visuals and graphs -- should make users 'feel they are on a great journey'"
+      - "Must show figures of adoption"
+      - "Fields shown per user: User Name, User Email, User Activated/De-activated status, Date of Activation, Date of De-activation"
+      - "Metric: Adoption % (example shown: 92%)"
+      - "Metric: AI Adoption % (example shown: 84%)"
+      - "Metric: Meetings Managed (count, example: 542)"
+      - "Metric: Tasks Completed (count, example: 2,340)"
+      - "Metric: Hours Saved (count, example: 468)"
+      - "Metric: Reports Generated (count, example: 1,248)"
+      - "Metric: AI Conversations (count, example: 12,451)"
+      - "Metric: Departments Active (ratio, example: 9/10)"
+      - "Metric: Top Performing Team (example: Finance)"
+      - "Metric: Lowest Adoption (example: HR)"
+
+  - part: "User Onboarding Flows (unlabeled sub-section, describes 4 distinct paths into the system)"
+    items:
+      - "Path A: Organization Master Admin sends a Secure Invite Link via WhatsApp and email to the user"
+      - "Path A: user clicks the invite link and attaches/confirms their email ID"
+      - "Path B: Organization Master Admin adds the user's email directly (admin-entered)"
+      - "Path B: user account gets activated automatically once admin adds the email"
+      - "Path B: an activation email is sent to the user"
+      - "Path C: User Self-Registration via code -- user goes into Settings, enters a code given by the Master Admin, account gets activated"
+      - "Path D: User Self-Registration via code -- user enters a code given by another user (peer-provided code), during self-registration"
+
+count_of_atomic_items: 22

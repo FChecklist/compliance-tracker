@@ -1,0 +1,31 @@
+import { NextRequest, NextResponse } from "next/server"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { createWorkflowThread, ServiceError } from "@/lib/services/chat-service"
+
+// Wave 148 (Phase4_Implementation_Plan.md, "multi-thread conversations"):
+// distinct from POST /api/conversations (createConversation, which requires
+// at least one other human participant -- a different feature). This always
+// creates a brand-new AI thread, never finds-or-reuses one, unlike the
+// singleton ensureAiThread() behind GET /api/conversations.
+export async function POST(request: NextRequest) {
+  const { response, dbUser, orgId } = await requireAuth()
+  if (response) return response
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  try {
+    const body = await request.json().catch(() => ({}))
+    // Priority 5 item E1 / REVIEW-FRAMEWORK-WAVE4: modePill/pathKeys resolve
+    // a real Chain Selector choice; skippedChainSelector is the caller's
+    // explicit "asked, declined" signal -- createWorkflowThread() now
+    // requires one or the other (see that function's own header comment).
+    const conversationId = await createWorkflowThread(
+      { orgId, userId: dbUser.id },
+      { workflowId: body.workflowId, title: body.title, modePill: body.modePill, pathKeys: body.pathKeys, skippedChainSelector: body.skippedChainSelector }
+    )
+    return NextResponse.json({ id: conversationId }, { status: 201 })
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Workflow thread create error:", error)
+    return NextResponse.json({ error: "Failed to create workflow thread" }, { status: 500 })
+  }
+}

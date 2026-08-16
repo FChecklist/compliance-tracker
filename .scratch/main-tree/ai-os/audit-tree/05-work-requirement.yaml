@@ -1,0 +1,187 @@
+# Source: Work requirement.docx (280 lines extracted, re-extracted fresh
+# from the actual docx XML). "Page" = each numbered section heading (1-18)
+# plus the two closing addenda ("One enhancement I'd add" and the
+# "Constitutional Principle -- Human Authority & AI Delegation" note).
+
+document: "Work requirement.docx"
+parts:
+  - part: "Preamble / operating instructions"
+    items:
+      - "Analyze properly, divide into small tasks, non-negotiable"
+      - "Ensure flexibility and end-user ease of use while implementing"
+      - "Don't duplicate; ensure the objective is met"
+
+  - part: "Title / framing"
+    items:
+      - "Document name: Work Governance & Intelligent Execution Framework (WGIEF)"
+      - "Classification: Constitutional Framework, Priority: Non-Negotiable Core Architecture"
+
+  - part: "1. Vision"
+    items:
+      - "WGIEF governs the complete lifecycle of every business activity performed within VERIDIAN AI OS"
+      - "Purpose: transform work from manual execution into decision-driven execution"
+      - "The human end user shall primarily make decisions; VERI -- Your Assistant shall perform the operational work"
+      - "Objective: make business work predictable, governed, auditable, intelligent, and largely autonomous, while authority/accountability/final decision-making remain with authorized humans unless organizational policy explicitly permits automation"
+
+  - part: "2. Constitutional Principle"
+    items:
+      - "VERI -- Your Assistant is an execution assistant; the human end user is the decision maker"
+      - "VERI shall continuously: Read, Understand, Analyze, Classify, Recommend, Draft, Execute approved actions, Monitor, Follow up, Report, Learn"
+      - "The human user shall primarily: Approve, Reject, Modify, Delegate, Escalate, Prioritize, Decide"
+      - "Objective statement: humans make decisions, VERI performs the work"
+
+  - part: "3. Universal Work Object"
+    items:
+      - "Every business activity shall become a Work Object"
+      - "A Work Object may originate from: VERI -- Your Assistant, Human user, AI Agent, API, Software Module, VERI Chat, Email, Uploaded File, Minutes of Meeting, Meeting Transcript, Voice Notes, OCR, Scanned Documents, Reports, Dashboards, Customer Requests, Vendor Requests, Scheduled Jobs, Third-party Systems, External Integrations"
+      - "Every Work Object shall receive: Unique Work ID, Dynamic Chain ID, Business Context, Owner, Approver, Priority, Timeline, Audit Trail, Version History"
+
+  - part: "4. Universal Work States (~30 states across 8 categories)"
+    items:
+      - "Every Work Object shall always exist in one governed state"
+      - "Planning category: Planning, Draft, Proposed, Under Analysis, Awaiting Classification"
+      - "Action category: To Do, Scheduled, Work In Progress, Waiting for Information, Waiting for Dependency, Waiting for Customer, Waiting for Vendor, Waiting for Team"
+      - "Review category: Individual Review, Team Review, Functional Review, Technical Review, Management Review, Executive Review, Compliance Review, Audit Review"
+      - "Approval category: Awaiting Approval, Under Approval, Approved, Partially Approved, Rejected, Returned for Modification"
+      - "Completion category: Completed, Achieved, Closed"
+      - "Exception category: Escalated, Delegated, Blocked, On Hold, Cancelled, Not Required"
+      - "Other states: Deleted, Archived"
+      - "Every state transition shall be governed, permission-controlled, and auditable"
+
+  - part: "5. Intelligent Work Creation"
+    items:
+      - "VERI shall automatically detect actionable work from structured and unstructured sources: Minutes of Meetings, Meeting transcripts, Emails, Uploaded documents, PDFs, Word files, Excel files, Presentations, Images (OCR), VERI Chat conversations, Voice transcripts, API payloads, Customer tickets, External integrations"
+      - "VERI shall analyze each source and identify: Action items, Decisions, Responsibilities, Deadlines, Risks, Follow-ups, Dependencies, Approvals, Deliverables"
+      - "VERI shall then prepare proposed Work Objects"
+      - "No Work Object shall be created without approval of the authorized end user, unless automatic creation has been explicitly authorized through organizational policy"
+
+  - part: "6. Human Decision Protocol"
+    items:
+      - "VERI shall never assume intent"
+      - "For every proposed action, VERI shall present the user with clear options: Approve, Approve All, Approve Similar, Edit, Delegate, Change Priority, Change Timeline, Assign, Share, Reject, Ignore, Merge, Split, Archive, Delete, Mark Not Required"
+      - "The approval experience shall be fast and minimally intrusive"
+
+  - part: "7. Minutes of Meeting Intelligence"
+    items:
+      - "When MoM are uploaded or generated, VERI shall: read the complete document"
+      - "...identify attendees"
+      - "...identify decisions made"
+      - "...identify action items"
+      - "...identify responsible owners"
+      - "...identify due dates"
+      - "...detect unresolved issues"
+      - "...detect risks"
+      - "...detect follow-up meetings"
+      - "...detect dependencies"
+      - "VERI shall prepare a proposed Action Register"
+      - "The user shall review, edit if required, and approve the Action Register"
+      - "Only approved items shall become Work Objects"
+
+  - part: "8. Document Intelligence"
+    items:
+      - "Whenever a user, AI agent, API, or external system uploads a file, VERI shall: read the document"
+      - "...classify it using the Dynamic Chain"
+      - "...extract business information"
+      - "...identify actionable items"
+      - "...generate summaries"
+      - "...identify approvals required"
+      - "...recommend workflows"
+      - "...suggest reports"
+      - "...create proposed tasks"
+      - "...link related Work Objects"
+      - "The user shall approve, edit, reject, or share the recommendations before execution"
+
+  - part: "9. Email Intelligence"
+    items:
+      - "Whenever an email is received or composed, VERI shall: understand context"
+      - "...identify commitments"
+      - "...detect follow-up actions"
+      - "...detect approvals"
+      - "...detect deadlines"
+      - "...prepare responses"
+      - "...draft replies"
+      - "...recommend recipients"
+      - "...recommend attachments"
+      - "...recommend follow-up reminders"
+      - "...recommend Work Objects"
+      - "No outgoing communication shall be sent without user approval unless explicitly authorized by policy"
+
+  - part: "10. Review Governance"
+    items:
+      - "Every significant Work Object shall pass through governed review stages as applicable"
+      - "Review types: Individual, Team, Functional, Technical, Cross-functional, Management, Executive, AI, Audit Review"
+      - "Each review shall record: Reviewer, Decision, Observations, Required changes, Approval status, Timestamp"
+
+  - part: "11. Approval Governance"
+    items:
+      - "Every approval shall define: Approval authority, Delegation rules, Escalation rules, Time limits, Reminder frequency, Auto-escalation policy, Approval history"
+      - "VERI shall continuously monitor pending approvals and send reminders per organizational policies"
+
+  - part: "12. Intelligent Follow-up"
+    items:
+      - "VERI shall continuously monitor: Pending tasks, Pending approvals, Missed timelines, SLA breaches, Blocked tasks, Delegated tasks, Waiting dependencies, Inactive Work Objects"
+      - "VERI shall recommend: Reminders, Escalations, Reassignment, Extensions, Closure, Cancellation"
+      - "User approval shall be obtained where required"
+
+  - part: "13. Communication Governance"
+    items:
+      - "VERI may communicate on behalf of the user through: VERI Chat, Email, Notifications, Reports, Internal messaging, Workflow notifications"
+      - "Typical communications: Status updates, Progress reports, Reminder messages, Follow-up requests, Information requests, Approval requests, Escalation notifications, Meeting invitations, Action summaries, Daily/weekly/monthly reports"
+      - "VERI shall prepare these communications but shall not send them without user approval unless prior authorization exists"
+      - "Simple approval options such as Yes, Yes to All, Approve for This Workflow, and Always Approve This Communication Type shall be supported"
+
+  - part: "14. Universal Dashboard"
+    items:
+      - "VERI shall maintain a live Work Dashboard presenting: To Do, Pending, Work In Progress, Reviews, Approvals, Blocked, Delegated, Completed, Achieved, Overdue, Upcoming Deadlines, Recently Completed, High Priority, Critical Risks, Escalations"
+      - "The dashboard shall update in real time"
+
+  - part: "15. Continuous Planning"
+    items:
+      - "VERI shall continuously reprioritize work based on: Deadlines, Business priorities, Dependencies, Resource availability, Organizational objectives, User preferences, Risk, SLA"
+      - "VERI shall recommend revised execution plans whenever conditions change"
+
+  - part: "16. Continuous Learning"
+    items:
+      - "Every completed Work Object shall improve VERIDIAN AI OS"
+      - "VERI shall update: Knowledge Base, Dynamic Chains, Templates, SOPs, Prompt Libraries, Automation Rules, Workflow Definitions, Lessons Learned"
+      - "Nothing learned should be lost"
+
+  - part: "17. Human-Centric Design Principle"
+    items:
+      - "VERIDIAN AI OS is designed to reduce administrative effort"
+      - "The end user should spend the majority of their time making informed business decisions rather than performing repetitive operational activities"
+      - "VERI shall proactively perform preparation, coordination, monitoring, drafting, scheduling, organizing, communicating, documenting, and follow-up activities, leaving the human user to exercise judgment, provide approvals, and make strategic decisions"
+
+  - part: "18. Constitutional Mandate"
+    items:
+      - "WGIEF is a foundational constitutional component of VERIDIAN AI OS"
+      - "Every task, document, meeting, email, chat conversation, uploaded file, workflow, approval, review, report, AI interaction, API transaction, and business process shall be governed by this framework"
+      - "VERI shall function as the intelligent execution layer of the organization, continuously transforming business information into structured, governed, auditable work while ensuring humans retain authority over decisions requiring business judgment"
+      - "Strategic objective restated: humans decide, VERI prepares/executes/coordinates/monitors/communicates/follows up/learns/continuously improves"
+      - "This framework is mandatory for all modules, all organizations, all AI agents, all integrations, and all future capabilities of VERIDIAN AI OS"
+
+  - part: "Closing addendum 1 -- 'One enhancement I'd add' (Work Object as single source of truth)"
+    items:
+      - "To be truly AI-native, avoid treating To Do, Minutes of Meeting, Email, Reviews, Approvals, and Reports as separate modules"
+      - "Instead they should all become different views of the same underlying Work Object"
+      - "Example: a meeting creates Work Objects, an email updates Work Objects, an approval changes a Work Object's state, a report summarizes Work Objects, VERI Chat discusses Work Objects"
+      - "Stated benefit: single source of truth, eliminates duplicate tracking across the platform"
+
+  - part: "Closing addendum 2 -- Constitutional Principle: Human Authority & AI Delegation"
+    items:
+      - "The human end user is the primary decision-making authority within VERIDIAN AI OS"
+      - "By default, VERI shall not make business decisions on behalf of the human end user"
+      - "VERI's default responsibility: analyze, recommend, prepare, coordinate, execute approved work, monitor progress, communicate, continuously improve business operations"
+      - "The human end user retains authority to: Approve, Reject, Modify, Prioritize, Delegate, Escalate, Assign, Complete, Cancel, Make business decisions"
+      - "At any time, the human end user may explicitly delegate decision-making authority to VERI for a specific: Task, Workflow, Project, Module, Business Function, Communication Type, Approval Type, Time Period, Category of Work"
+      - "Once delegated, VERI may make decisions and complete work within the defined scope, while remaining fully compliant with organizational policies, permissions, guardrails, approval hierarchies, and governance rules"
+      - "VERI shall never assume delegated authority -- delegation must always be: explicitly granted by an authorized human user or organizational policy"
+      - "...clearly scoped and documented"
+      - "...time-bound or event-bound where appropriate"
+      - "...fully auditable"
+      - "...revocable at any time by the authorized human user"
+      - "Unless valid delegated authority exists, VERI shall always seek the human end user's approval before performing any action requiring business judgment or decision-making"
+      - "Constitutional objective restated: humans retain authority, VERI reduces effort; by default humans decide and VERI executes; when explicitly authorized, VERI may decide and execute within delegated scope while keeping the human informed and maintaining auditability/governance/accountability"
+      - "This model allows VERIDIAN AI OS to evolve from an AI-assisted platform to an AI-delegated platform in a controlled, transparent, reversible manner, always under human/governance authority"
+
+count_of_atomic_items: 79

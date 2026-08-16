@@ -1,0 +1,136 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 0ebb1eefe..efc61107f 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,11 +1,6 @@
+-# PROGRESS -- task-20260814-132607-rca--umr-20260814-125645-db15-status-run
+-
+-See `progress/task-20260814-132607-rca--umr-20260814-125645-db15-status-run.md` for the full RCA.
++# PROGRESS -- task-20260814-151720-rca--umr-20260813-092654-326b-killed
+ 
+ ## Completed
+-- [x] RCA complete: UMR-20260806-211546-cf3c was a PM disk-pressure bulk-hold mislabel; real work
+-      (FChecklist/veridian-scripts#238, merged 726f7c4) already completed hours before the kill.
+-      Marked terminal `status=completed` with real commit-sha/PR evidence.
+ 
+ ## Remaining
+-- [x] None
++- [ ] Not started
+diff --git a/progress/task-20260814-151720-rca--umr-20260813-092654-326b-killed.md b/progress/task-20260814-151720-rca--umr-20260813-092654-326b-killed.md
+new file mode 100644
+index 000000000..aeeb012e0
+--- /dev/null
++++ b/progress/task-20260814-151720-rca--umr-20260813-092654-326b-killed.md
+@@ -0,0 +1,112 @@
++# RCA: UMR-20260813-092654-326b (status=killed) -- 2nd dispatch
++
++## Completed
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260813-092654-326b`
++      directly (did not trust the SPEC summary alone). Confirmed real row:
++      `status=killed`,
++      `unit_name=veridian-worker@task-20260813-095623-amendment-2--pm-hierarchy--single-gatewa.service`,
++      reason: "real systemd state 'inactive', no PR was ever opened, real
++      task.yaml status='blocked' -- no live process and no real deliverable;
++      mechanically correctable to killed (orphaned dispatch, never produced a
++      real artifact)."
++- [x] Read the real task dir
++      `/opt/veridian/ai-os/tasks/task-20260813-095623-amendment-2--pm-hierarchy--single-gatewa`
++      (task.yaml, worker.log, supervisor.log, supervisor-result.json,
++      pr_url.txt, prompt.txt). Confirmed genuinely zero real work: worker.log
++      shows a background-task timeout + a rejected plan-check; task.yaml's
++      checkpoints never leave `files_modified: []` / `completed_steps: []`;
++      supervisor.log shows `gh pr create` failing with "No commits between
++      master and worker/task-...", so the supervisor correctly refused to
++      fabricate a PR and routed to `blocked` rather than falsely claiming
++      success. `supervisor-result.json`'s independent review agent explicitly
++      returned `verdict: reject`, citing 0-diff + `PROGRESS.md` literally
++      reading "Not started" -- matches the documented stub/claim-only failure
++      pattern. `ts_sigterm` is null (not a forced SIGKILL); this reached
++      `blocked` -> `killed` via the normal worker -> review -> supervisor
++      pipeline. **`killed` is an accurate, honest label, not a mislabel.**
++- [x] Checked own memory FIRST per Owner directive
++      (`ai-os/OWNER_DECISIONS_NEEDED_2026-07-23.yaml` /
++      `id=crontab-drift-approved-2026-08-14`) before re-deriving anything, and
++      found this **exact UMR already has a completed prior RCA**:
++      `task-20260814-013849-rca--umr-20260813-092654-326b-killed`
++      (memory: `veridian-umr-326b-killed-rca-correctly-killed-scope-merged-elsewhere`,
++      compliance-tracker PR #1120). That RCA independently reached the
++      identical conclusion this dispatch reached before consulting memory:
++      `killed` is correct for this UMR's own dispatch, and its real chartered
++      scope (Amendment 2: PM hierarchy / single-gateway / zero-dup /
++      dynamic-scope discovery / standardized boolean-table report format) was
++      separately delivered the same day via addendum UMR-20260813-102459-10c3.
++- [x] Independently re-verified that prior conclusion rather than trusting the
++      memory note alone:
++      - `UMR-20260813-084321-2962` (parent) = `status=failed` (own PR #131,
++        real audit-reject, never fixed on that branch).
++      - `UMR-20260813-091633-8b6a` (parent) = `status=completed`, real merged
++        `claude-control` PR #135 (head `4d78e7524d9a4036dde7f85c449816277dbaa82a`)
++        -- but that PR's own title says "financial-only Owner-decision
++        escalation scope", i.e. only point 4 of the 5-point Amendment 2
++        policy; points 1/2/3/5 (this UMR's actual scope) were still open at
++        that point.
++      - `veridian-scripts/scripts/pm-sentinel-tick.sh` (the live PM-sentinel
++        script that dispatched *this very RCA task*) carries a header that
++        **self-cites UMR-20260813-092654-326b by name** as item 3 of a
++        2026-08-13 three-way integration, in its own words: "the dispatched
++        task for this UMR never started real work (task.yaml status=blocked,
++        zero files modified, zero PR) before being reconciled to
++        status=killed -- none of this scope existed anywhere before this
++        integration." This independently corroborates both this RCA's and
++        the prior RCA's zero-work finding, from the commit that actually
++        fixed it.
++      - `git log -- pm-sentinel-tick.sh` (veridian-scripts, `main`):
++        `ae48cf0` "integrate UMR-102459-10c3 + query-once/decide-and-fix"
++        (PR #299, merged 2026-08-13T18:49:15Z), refined by `7dac937` (PR #323)
++        and `f9b4101` (PR #341). `git merge-base --is-ancestor ae48cf0
++        origin/main` in the live `/opt/veridian/scripts` checkout -> exit 0
++        (true, real ancestor).
++      - Grepped the live script for the 5 Amendment-2 points and confirmed
++        real functional code (not just comments) for all of them: dynamic
++        scope discovery (line ~749, live `resource_governor.py --query-umr`
++        addenda-chain search), single-gateway/no-bypass (every dispatch
++        routed through `dispatch-owner-task.sh`, a `gh pr merge` bypass
++        explicitly guarded against), zero-dup check (own history +
++        `resource_governor.py`'s duplicate-PR guard before any dispatch),
++        and the standardized boolean-table report (`certified = all([found,
++        gap_analysis, tested, audited, integrated, working])`, one row per
++        real UMR).
++- [x] Checked the prior RCA's own deliverable PR (`#1120`) rather than just
++      trusting that it closed the loop: **still `state=OPEN`,
++      `mergeable=CONFLICTING`, `mergeStateStatus=DIRTY`, and its `audit-check`
++      CI job is failing.** Root cause of the conflict: PR #1120 edited the
++      old *shared* `PROGRESS.md` in place (pre-dating the
++      PROGRESS.md-to-per-task-progress protocol change recorded in commit
++      `5edac57c5`), so it now conflicts with `main`'s current shared
++      `PROGRESS.md` stub content. The prior RCA's *finding* is correct and
++      independently re-verified above, but its *artifact* never actually
++      landed on `main`.
++- [x] Per this repo's own Owner-approved index-first rule, no fresh search was
++      needed to re-derive the scope-delivery fact (already answered by memory
++      + a live re-check); the one genuinely new fact this dispatch surfaced --
++      that PR #1120 itself is stuck (conflicting + audit-fail), not merged --
++      was not in the index and is recorded here for the next worker.
++- [x] `mark-umr-terminal` correctly **not** re-invoked a third time for
++      `UMR-20260813-092654-326b` -- it is already accurately `killed`, and
++      re-labeling it `completed`/`completed_unmerged` would misrepresent that
++      *this specific branch* produced an artifact, when the real artifact was
++      delivered by a sibling addendum UMR instead. This is the same
++      "correctly-killed, no-correction-needed" outcome as the prior RCA.
++
++## Remaining
++- [x] None for the UMR itself -- confirmed correct, scope confirmed delivered
++      and merged elsewhere, no fix/redispatch would do anything but duplicate
++      already-live code.
++- [x] Closed stale/superseded PR #1120 (compliance-tracker) with a comment
++      pointing to this PR as the landed version of the same finding, so the
++      conflicting/audit-failing PR doesn't linger as noise.
++
++## Outcome
++Duplicate-RCA closure, docs-only (this progress file + boilerplate
++`PROGRESS.md` stub only -- no source file is named by this task's objective,
++so the docs-only path applies). No code change: the real chartered scope of
++UMR-20260813-092654-326b was already implemented and merged into
++`veridian-scripts` (`pm-sentinel-tick.sh`, PR #299/#323/#341, all real
++ancestors of `origin/main`) before this dispatch ever started. `killed`
++remains the accurate terminal status for this UMR's own dispatch.

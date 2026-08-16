@@ -1,0 +1,1230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VERIDIAN — merged home / persistent composer mockup</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=DM+Serif+Display&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+  tailwind.config = {
+    theme: {
+      extend: {
+        colors: {
+          "ct-cream": "#FFFDF9",
+          "ct-navy": "#1C2B3A",
+          "ct-navy2": "#2D3F52",
+          "ct-navy3": "#3D5269",
+          "ct-saffron": "#F5820A",
+          "ct-saffron-hover": "#E0730A",
+          "ct-cloud": "#F0F4F8",
+          "ct-cloud2": "#E8EEF5",
+          "ct-slate": "#4A5568",
+          "ct-muted": "#718096",
+          "ct-border": "#E2E8F0",
+          "ct-border2": "#CBD5E1",
+          "scope-tint": "#F4EFE2",
+          "scope-tint-border": "#E6DEC9",
+        },
+        fontFamily: {
+          sans: ["Inter", "system-ui", "sans-serif"],
+          heading: ["DM Serif Display", "Georgia", "serif"],
+        },
+      },
+    },
+  };
+</script>
+<style>
+  html, body { background: #FFFDF9; }
+  .rchip { display: inline-flex; align-items: center; border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 11px; cursor: pointer; background: #fff; user-select: none; font-size: 12px; color: #1C2B3A; }
+  .rchip.checked { background: #1C2B3A; border-color: #1C2B3A; color: #fff; }
+  .rchip.leaf.checked { background: #0E7C6E; border-color: #0E7C6E; }
+  .chip { display: flex; align-items: center; gap: 5px; border: 1px solid #CBD5E1; border-radius: 999px; padding: 2px 9px 2px 6px; cursor: pointer; background: #fff; user-select: none; }
+  .chip input { margin: 0; width: 12px; height: 12px; cursor: pointer; accent-color: #0E7C6E; }
+  .chip span { font-size: 12px; color: #1C2B3A; }
+  .chip.checked { background: #0E7C6E; border-color: #0E7C6E; }
+  .chip.checked span { color: #fff; }
+  .qchip { display: inline-flex; align-items: center; gap: 6px; border: 1px solid #CBD5E1; border-radius: 999px; padding: 3px 6px 3px 11px; background: #fff; font-size: 11.5px; color: #1C2B3A; }
+  .qchip button { color: #A0AEC0; }
+  .qchip button:hover { color: #E24B4A; }
+  .task-item { display: block; width: 100%; text-align: left; padding: 10px 14px; border-bottom: 1px solid rgba(226,232,240,0.6); cursor: pointer; }
+  .task-item:hover { background: #FFFDF9; }
+  .status-dot { width: 7px; height: 7px; border-radius: 999px; display: inline-block; }
+  .status-inprogress { background: #F5820A; }
+  .status-waiting { background: #D97706; }
+  .status-done { background: #059669; }
+  .composer-disabled { background: #F0F4F8 !important; }
+  .composer-disabled textarea { color: #A0AEC0 !important; cursor: not-allowed; }
+  #modePills { background: #F0F4F8; border-radius: 999px; padding: 3px; display: inline-flex; gap: 2px; flex-wrap: wrap; }
+  .mode-pill { font-size: 12px; font-weight: 500; padding: 5px 11px; border-radius: 999px; color: #718096; white-space: nowrap; cursor: pointer; border: none; background: transparent; }
+  .mode-pill.active { background: #fff; color: #1C2B3A; box-shadow: 0 1px 2px rgba(0,0,0,0.08); }
+  .view-tab { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 7px; color: #718096; cursor: pointer; border: 1px solid transparent; background: transparent; }
+  .view-tab:hover { background: #F0F4F8; }
+  .view-tab.active { background: #FDECD8; color: #8A4A06; border-color: #F5D9B4; }
+  .view-badge { display: inline-flex; align-items: center; justify-content: center; min-width: 15px; height: 15px; padding: 0 3px; border-radius: 999px; background: #E24B4A; color: #fff; font-size: 9.5px; font-weight: 700; }
+  .overview-item { display: flex; align-items: flex-start; gap: 10px; width: 100%; text-align: left; padding: 10px 14px; border-bottom: 1px solid rgba(226,232,240,0.6); cursor: pointer; }
+  .overview-item:hover { background: #FFFDF9; }
+  .overview-icon { display: grid; place-items: center; width: 26px; height: 26px; border-radius: 8px; flex-shrink: 0; color: #fff; }
+  .icon-btn { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; color: #718096; }
+  .icon-btn:hover { background: #F0F4F8; color: #4A5568; }
+  .resize-handle { width: 5px; cursor: col-resize; background: transparent; flex-shrink: 0; }
+  .resize-handle:hover, .resize-handle.dragging { background: rgba(245,130,10,0.25); }
+  .nav-item { display: flex; align-items: center; gap: 8px; border-radius: 8px; padding: 8px 12px; color: #4A5568; font-size: 14px; cursor: pointer; }
+  .nav-item:hover { background: #F0F4F8; }
+  .nav-item.active { background: #1C2B3A; color: #fff; }
+  .page { display: none; }
+  .page.active { display: block; }
+</style>
+</head>
+<body class="text-ct-navy antialiased">
+
+<div class="flex h-screen flex-col overflow-hidden">
+
+  <header class="flex items-center justify-between border-b border-ct-border px-4 py-2.5 shrink-0">
+    <div class="flex items-center gap-3">
+      <button id="toggleLeftSidebar" class="icon-btn" title="Toggle sidebar">
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+      </button>
+      <div class="flex items-center gap-2">
+        <div class="grid size-7 place-items-center rounded-lg bg-ct-navy text-white text-xs font-bold">V</div>
+        <span class="font-heading text-lg text-ct-navy tracking-tight">VERIDIAN AI</span>
+      </div>
+      <button class="icon-btn" title="Search">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      </button>
+    </div>
+    <div class="flex items-center gap-1">
+      <button class="icon-btn" title="Notifications">
+        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      </button>
+      <button id="toggleRightPanel" class="icon-btn" title="Toggle VERI Chat panel">
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="3"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+      </button>
+      <span class="text-sm text-ct-slate mx-1">Acme Manufacturing Pvt Ltd</span>
+      <div class="grid size-8 place-items-center rounded-full bg-ct-navy text-white text-xs font-bold">RA</div>
+    </div>
+  </header>
+
+  <div class="flex flex-1 overflow-hidden">
+
+    <aside id="leftSidebar" style="width:180px" class="shrink-0 border-r border-ct-border bg-white flex flex-col overflow-y-auto">
+      <nav class="flex-1 px-2.5 pt-3 pb-4">
+        <div class="nav-item active" data-page="home">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+          <span class="flex-1">Home</span>
+        </div>
+        <div class="nav-item" data-page="dashboard">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="9"/><rect x="14" y="3" width="7" height="5"/><rect x="14" y="12" width="7" height="9"/><rect x="3" y="16" width="7" height="5"/></svg>
+          <span class="flex-1">Dashboard</span>
+        </div>
+        <div class="nav-item" data-page="email">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/></svg>
+          <span class="flex-1">Email</span>
+          <span id="emailUnreadBadge" class="rounded-full bg-ct-saffron text-white text-[10px] font-bold px-1.5 py-0.5">3</span>
+        </div>
+        <p class="px-3 mb-1 mt-4 text-[9px] font-bold tracking-widest text-ct-muted uppercase">Finance</p>
+        <div class="nav-item" data-page="accounts"><span class="w-4"></span><span class="flex-1">Accounts</span></div>
+        <div class="nav-item px-3 text-ct-slate opacity-60 cursor-default"><span class="w-4"></span><span class="flex-1">Banking</span></div>
+        <div class="nav-item px-3 text-ct-slate opacity-60 cursor-default"><span class="w-4"></span><span class="flex-1">Budgeting</span></div>
+        <p class="px-3 mb-1 mt-4 text-[9px] font-bold tracking-widest text-ct-muted uppercase">Compliance</p>
+        <div class="nav-item px-3 text-ct-slate opacity-60 cursor-default"><span class="w-4"></span><span class="flex-1">Filings</span></div>
+        <div class="nav-item px-3 text-ct-slate opacity-60 cursor-default"><span class="w-4"></span><span class="flex-1">Audits</span></div>
+        <p class="px-3 mb-1 mt-4 text-[9px] font-bold tracking-widest text-ct-muted uppercase">HR</p>
+        <div class="nav-item px-3 text-ct-slate opacity-60 cursor-default"><span class="w-4"></span><span class="flex-1">Payroll</span></div>
+        <div class="nav-item px-3 text-ct-slate opacity-60 cursor-default"><span class="w-4"></span><span class="flex-1">Leave</span></div>
+      </nav>
+    </aside>
+    <div id="leftResizeHandle" class="resize-handle"></div>
+
+    <main class="flex-1 flex flex-col overflow-hidden">
+
+      <div class="flex-1 overflow-y-auto bg-ct-cream">
+        <div class="max-w-3xl mx-auto p-6">
+
+          <div id="page-home" class="page active">
+            <div class="flex items-start gap-4">
+              <div class="grid size-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-ct-saffron/90 to-[#F5A623] text-white shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg>
+              </div>
+              <div class="pt-0.5">
+                <h1 class="font-heading text-2xl text-ct-navy tracking-tight">Good morning, Rajat.</h1>
+                <p class="text-sm text-ct-muted mt-0.5">Everything's merged into one screen here — VERI Chat moves to the side the moment you open a real page.</p>
+              </div>
+            </div>
+            <div class="mt-4 rounded-2xl border border-ct-border bg-white/70 backdrop-blur px-5 py-4 shadow-sm">
+              <div class="space-y-3">
+                <p class="text-[15px] leading-relaxed text-ct-navy">I've gone through everything. 3 things need your attention — I've flagged them for you. The rest is on track, and I'm keeping an eye on it.</p>
+                <div class="flex flex-wrap gap-2">
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-red-50 px-3 py-1 text-xs font-semibold text-red-600">3 needs you</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-700">7 coming up</span>
+                  <span class="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">42 on track</span>
+                </div>
+              </div>
+            </div>
+            <div id="homeThreadSlot" class="mt-4"></div>
+          </div>
+
+          <div id="page-dashboard" class="page">
+            <h1 class="font-heading text-2xl text-ct-navy tracking-tight mb-4">Dashboard</h1>
+            <div class="grid grid-cols-3 gap-3 mb-4">
+              <div class="rounded-2xl border border-ct-border bg-white p-4"><p class="text-xs text-ct-muted">Revenue MTD</p><p class="text-2xl font-heading text-ct-navy mt-1">₹42.6L</p></div>
+              <div class="rounded-2xl border border-ct-border bg-white p-4"><p class="text-xs text-ct-muted">Open invoices</p><p class="text-2xl font-heading text-ct-navy mt-1">18</p></div>
+              <div class="rounded-2xl border border-ct-border bg-white p-4"><p class="text-xs text-ct-muted">Compliance score</p><p class="text-2xl font-heading text-ct-navy mt-1">94%</p></div>
+            </div>
+            <div class="rounded-2xl border border-ct-border bg-white p-6 h-48 flex items-center justify-center text-ct-muted text-sm">Chart placeholder — a real page, unaffected by whatever's open in VERI Chat on the right.</div>
+          </div>
+
+          <div id="page-accounts" class="page">
+            <h1 class="font-heading text-2xl text-ct-navy tracking-tight mb-4">Finance › Accounts</h1>
+            <div class="rounded-2xl border border-ct-border bg-white overflow-hidden">
+              <table class="w-full text-sm">
+                <thead><tr class="border-b border-ct-border bg-ct-cloud/40 text-left text-ct-muted text-xs">
+                  <th class="px-4 py-2 font-medium">Date</th><th class="px-4 py-2 font-medium">Description</th><th class="px-4 py-2 font-medium">Customer</th><th class="px-4 py-2 font-medium text-right">Amount</th>
+                </tr></thead>
+                <tbody>
+                  <tr class="border-b border-ct-border"><td class="px-4 py-2.5">Jul 5</td><td class="px-4 py-2.5">Invoice #INV-2201</td><td class="px-4 py-2.5">Acme Corp</td><td class="px-4 py-2.5 text-right">₹1,18,000</td></tr>
+                  <tr class="border-b border-ct-border"><td class="px-4 py-2.5">Jul 3</td><td class="px-4 py-2.5">Payment received</td><td class="px-4 py-2.5">Beta Ltd</td><td class="px-4 py-2.5 text-right text-emerald-600">+₹85,000</td></tr>
+                  <tr><td class="px-4 py-2.5">Jul 1</td><td class="px-4 py-2.5">Vendor bill #VB-118</td><td class="px-4 py-2.5">Global Supplies Co</td><td class="px-4 py-2.5 text-right">₹32,400</td></tr>
+                </tbody>
+              </table>
+            </div>
+            <p class="text-xs text-ct-muted mt-3">A real ledger page — fully workable on its own, exactly like normal software.</p>
+          </div>
+
+          <div id="page-email" class="page">
+            <div class="flex items-center justify-between mb-4">
+              <h1 class="font-heading text-2xl text-ct-navy tracking-tight">Inbox</h1>
+              <span class="text-xs text-ct-muted">3 unread</span>
+            </div>
+            <div class="rounded-2xl border border-ct-border bg-white overflow-hidden divide-y divide-ct-border">
+              <div class="flex items-start gap-3 px-4 py-3 bg-ct-cream/40">
+                <div class="grid size-9 shrink-0 place-items-center rounded-full bg-ct-navy text-white text-xs font-bold">PS</div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[13.5px] font-semibold text-ct-navy truncate">Priya Sharma</p>
+                    <span class="text-[11px] text-ct-muted shrink-0">10:14 AM</span>
+                  </div>
+                  <p class="text-[13px] font-semibold text-ct-navy truncate">GST filing draft attached</p>
+                  <p class="text-[12.5px] text-ct-muted truncate mt-0.5">Please review before we submit — flagged two line items that need your sign-off first.</p>
+                </div>
+                <span class="size-2 rounded-full bg-ct-saffron shrink-0 mt-1.5"></span>
+              </div>
+              <div class="flex items-start gap-3 px-4 py-3">
+                <div class="grid size-9 shrink-0 place-items-center rounded-full bg-ct-slate text-white text-xs font-bold">AC</div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[13.5px] text-ct-slate truncate">Acme Corp — Ramesh Iyer</p>
+                    <span class="text-[11px] text-ct-muted shrink-0">Yesterday</span>
+                  </div>
+                  <p class="text-[13px] text-ct-slate truncate">Re: Invoice #INV-2201</p>
+                  <p class="text-[12.5px] text-ct-muted truncate mt-0.5">Confirming payment will be released by end of week, thanks for the extension.</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3 px-4 py-3 bg-ct-cream/40">
+                <div class="grid size-9 shrink-0 place-items-center rounded-full bg-ct-navy text-white text-xs font-bold">AM</div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[13.5px] font-semibold text-ct-navy truncate">Amit Mehta</p>
+                    <span class="text-[11px] text-ct-muted shrink-0">Yesterday</span>
+                  </div>
+                  <p class="text-[13px] font-semibold text-ct-navy truncate">Vendor bill approval needed</p>
+                  <p class="text-[12.5px] text-ct-muted truncate mt-0.5">Global Supplies Co bill VB-118 is ready for your approval in Accounts.</p>
+                </div>
+                <span class="size-2 rounded-full bg-ct-saffron shrink-0 mt-1.5"></span>
+              </div>
+              <div class="flex items-start gap-3 px-4 py-3">
+                <div class="grid size-9 shrink-0 place-items-center rounded-full bg-ct-slate text-white text-xs font-bold">BL</div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[13.5px] text-ct-slate truncate">Beta Ltd — Finance team</p>
+                    <span class="text-[11px] text-ct-muted shrink-0">Jul 3</span>
+                  </div>
+                  <p class="text-[13px] text-ct-slate truncate">Payment confirmation — ₹85,000</p>
+                  <p class="text-[12.5px] text-ct-muted truncate mt-0.5">This is to confirm receipt of payment against our latest invoice.</p>
+                </div>
+              </div>
+              <div class="flex items-start gap-3 px-4 py-3 bg-ct-cream/40">
+                <div class="grid size-9 shrink-0 place-items-center rounded-full bg-ct-slate text-white text-xs font-bold">GP</div>
+                <div class="min-w-0 flex-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <p class="text-[13.5px] font-semibold text-ct-navy truncate">GST Portal</p>
+                    <span class="text-[11px] text-ct-muted shrink-0">Jul 1</span>
+                  </div>
+                  <p class="text-[13px] font-semibold text-ct-navy truncate">GSTR-3B filing reminder</p>
+                  <p class="text-[12.5px] text-ct-muted truncate mt-0.5">Your GSTR-3B for June 2026 is due in 4 days.</p>
+                </div>
+                <span class="size-2 rounded-full bg-ct-saffron shrink-0 mt-1.5"></span>
+              </div>
+            </div>
+            <p class="text-xs text-ct-muted mt-3">A real inbox page — reached by clicking Email in the sidebar, or by picking the Email pill in VERI Chat.</p>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="shrink-0 border-t border-ct-border bg-white/95 backdrop-blur px-6 py-3">
+        <div class="w-full max-w-5xl mx-auto">
+
+          <div id="modePills" class="mb-2"></div>
+
+          <div id="scopeBanner" class="rounded-2xl border border-scope-tint-border bg-scope-tint px-4 py-2.5">
+            <div class="flex items-center justify-between mb-1">
+              <span class="text-[13px] font-semibold text-ct-navy">Select the task you want me to do.</span>
+              <span id="breadcrumbLine" class="text-[11px] font-medium text-ct-muted shrink-0 ml-2"></span>
+            </div>
+            <div id="chainRows" class="space-y-1.5 max-h-[180px] overflow-y-auto pr-1"></div>
+          </div>
+
+          <div id="queueStrip" class="hidden mt-2 rounded-xl border border-ct-border bg-ct-cloud/50 px-3 py-2">
+            <div class="flex items-center justify-between mb-1.5">
+              <span class="text-[11px] font-semibold text-ct-slate">Queued</span>
+              <button id="sendAllBtn" class="text-[11px] font-semibold text-ct-saffron">Send all</button>
+            </div>
+            <div id="queueItems" class="flex flex-wrap gap-1.5"></div>
+          </div>
+
+          <div id="composerBox" class="mt-2 rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
+            <textarea id="msgInput" rows="1" placeholder="Select a task above to begin…" disabled
+              class="w-full bg-transparent text-[15px] text-ct-navy placeholder:text-ct-muted focus:outline-none resize-none max-h-[160px] overflow-y-auto"></textarea>
+            <div class="flex items-center justify-between mt-2">
+              <button type="button" class="grid size-9 place-items-center rounded-lg text-ct-muted hover:bg-ct-cloud hover:text-ct-slate transition-colors" title="Attach a document">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <div class="flex items-center gap-2">
+                <button id="queueBtn" type="button" disabled title="Stage this and start another instruction" class="px-3 h-9 rounded-lg text-[12.5px] font-semibold text-ct-slate border border-ct-border hover:bg-ct-cloud disabled:opacity-40 disabled:cursor-not-allowed transition-colors">+ Add another</button>
+                <button id="sendBtn" type="button" disabled class="grid size-9 place-items-center rounded-lg bg-ct-saffron text-white hover:bg-ct-saffron-hover disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+          <p id="hintText" class="text-[11px] text-ct-muted mt-1.5 px-1">Complete the chain above to start typing</p>
+
+          <div id="humanComposerBox" class="hidden rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
+            <textarea id="humanMsgInput" rows="1" placeholder="Message…"
+              class="w-full bg-transparent text-[15px] text-ct-navy placeholder:text-ct-muted focus:outline-none resize-none max-h-[160px] overflow-y-auto"></textarea>
+            <div class="flex items-center justify-end mt-2">
+              <button id="humanSendBtn" type="button" class="grid size-9 place-items-center rounded-lg bg-ct-saffron text-white hover:bg-ct-saffron-hover transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="discussComposerBox" class="hidden rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
+            <textarea id="discussMsgInput" rows="1" placeholder="Ask me anything — no task selection needed…"
+              class="w-full bg-transparent text-[15px] text-ct-navy placeholder:text-ct-muted focus:outline-none resize-none max-h-[160px] overflow-y-auto"></textarea>
+            <div class="flex items-center justify-end mt-2">
+              <button id="discussSendBtn" type="button" class="grid size-9 place-items-center rounded-lg bg-ct-saffron text-white hover:bg-ct-saffron-hover transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+              </button>
+            </div>
+          </div>
+
+          <div id="todoQuickAdd" class="hidden rounded-2xl border border-ct-border bg-white shadow-sm px-4 pt-3 pb-2.5">
+            <input id="todoQuickAddInput" type="text" placeholder="Add a to-do for yourself…"
+              class="w-full bg-transparent text-[15px] text-ct-navy placeholder:text-ct-muted focus:outline-none">
+            <div class="flex items-center justify-end mt-2">
+              <button id="todoQuickAddBtn" type="button" title="Add to-do" class="grid size-9 place-items-center rounded-lg bg-ct-navy text-white hover:bg-ct-navy2 transition-colors">
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 5v14M5 12h14"/></svg>
+              </button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+
+    <div id="rightResizeHandle" class="resize-handle"></div>
+    <aside id="rightPanel" style="width:420px" class="shrink-0 border-l border-ct-border bg-white flex flex-col">
+      <div class="border-b border-ct-border px-4 py-3">
+        <div class="flex items-center gap-2 mb-2.5">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#F5820A" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          <span class="font-heading text-[15px] text-ct-navy">VERI Chat</span>
+        </div>
+        <div id="rightViewTabs" class="flex items-center gap-1"></div>
+        <div id="taskStats" class="mt-2.5 hidden">
+          <div class="flex items-center justify-between mb-1">
+            <span id="taskStatsText" class="text-[11px] text-ct-slate"></span>
+          </div>
+          <div class="h-[3px] rounded-full bg-ct-cloud overflow-hidden">
+            <div id="taskStatsBar" class="h-full bg-emerald-500" style="width:0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="rightScrollArea" class="flex-1 overflow-y-auto">
+        <div id="overviewPanel" class="hidden"></div>
+        <div id="taskListPanel" class="hidden"></div>
+        <div id="chatListPanel" class="hidden"></div>
+        <div id="todoListPanel" class="hidden"></div>
+      </div>
+    </aside>
+
+  </div>
+</div>
+
+<div id="threadArea" class="hidden px-4 py-3">
+  <div id="filterBar" class="mb-3 hidden items-center justify-between rounded-lg bg-ct-cloud px-3 py-2">
+    <div class="flex items-center gap-2 text-[12px] text-ct-slate flex-wrap">
+      <span id="filterBarId" class="text-[9px] font-mono text-ct-muted"></span>
+      <span id="filterBarLabel" class="font-semibold text-ct-navy"></span>
+      <span id="filterBarStatus" class="inline-flex items-center gap-1 text-[11px]"></span>
+    </div>
+    <div class="flex items-center gap-3 shrink-0">
+      <button id="filterBarMarkDone" class="text-[11.5px] font-semibold text-emerald-600">Mark done</button>
+      <button id="filterBarClose" class="text-[11.5px] font-semibold text-ct-saffron">Back</button>
+    </div>
+  </div>
+  <div id="humanChatBar" class="mb-3 hidden items-center justify-between rounded-lg bg-ct-cloud px-3 py-2">
+    <div class="flex items-center gap-2 text-[12px] text-ct-slate">
+      <span>Chatting with</span>
+      <span id="humanChatBarName" class="font-semibold text-ct-navy"></span>
+    </div>
+    <button id="humanChatBack" class="text-[11.5px] font-semibold text-ct-saffron">Back</button>
+  </div>
+  <div id="chainHint" class="hidden flex gap-2.5 mb-3">
+    <div class="grid size-7 shrink-0 place-items-center rounded-xl text-white text-xs font-bold bg-gradient-to-br from-ct-saffron/90 to-[#F5A623]">
+      <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg>
+    </div>
+    <div class="rounded-2xl px-3.5 py-2 text-[13px] leading-relaxed bg-white border border-ct-border text-ct-navy">
+      Start from a function like Finance, or from who it's about like a Customer — I'll guide you row by row.
+    </div>
+  </div>
+  <div id="chatHistory" class="space-y-3"></div>
+</div>
+
+<script>
+(function () {
+  var CUSTOMER_ACTIONS = { "Invoice preparation": null, "Send reminder": null, "GST filing": null };
+  var VENDOR_ACTIONS = { "Payment run": null, "Send reminder": null, "Reconciliation": null };
+
+  var TREE = {
+    Finance: {
+      Accounts: {
+        "GST": {
+          "Acme Corp": { "Mumbai HQ": { "FY2025-26": { "Q1": null, "Q2": null, "Q3": null, "Q4": null } }, "Pune Plant": null },
+          "Beta Ltd": { "Delhi Office": null }
+        },
+        "Invoice preparation": { "Acme Corp": null, "Beta Ltd": null },
+        "Journal entry": null,
+        "Reconciliation": null
+      },
+      Banking: { "Reconciliation": null, "Payment run": { "Global Supplies Co": null, "Sharma Traders": null } },
+      Budgeting: { "Variance report": null },
+      "Fixed Assets": { "Depreciation schedule": null, "Asset disposal": null }
+    },
+    Procurement: { "Purchase order": { "Global Supplies Co": null, "Sharma Traders": null }, "Vendor bill": { "Global Supplies Co": null, "Sharma Traders": null } },
+    Sales: {
+      CRM: { "Lead scoring": null, "Pipeline review": null },
+      Quotes: { "Create quote": { "Acme Corp": null, "Beta Ltd": null } },
+      Invoicing: { "Invoice preparation": { "Acme Corp": null, "Beta Ltd": null }, "Credit note": null },
+      "Sales order": { "Acme Corp": null, "Beta Ltd": null }
+    },
+    Inventory: { "Check stock": null, "Purchase entry": null, "Warehouse transfer": null },
+    HR: {
+      Payroll: { "Run payroll": null, "Payslip generation": null },
+      Recruitment: { "Post job": null, "Screen candidate": null },
+      Leave: { "Approve leave": null, "Leave balance": null }
+    },
+    Compliance: {
+      Filings: { "GST return": { "GSTR-1": null, "GSTR-3B": null }, "TDS return": null },
+      Audits: { "Schedule audit": null, "Review findings": null },
+      Licenses: { "Renew license": null }
+    },
+    Email: { "Check inbox": null, "Write new email": { "Acme Corp": null, "Beta Ltd": null, "A colleague": null }, "Draft reply": null },
+    Calendar: { "Check schedule": null, "Schedule meeting": { "With a customer": { "Acme Corp": null, "Beta Ltd": null }, "With my team": null } },
+    Reports: { "Compliance report": null, "Financial report": { "Profit & loss": null, "Balance sheet": null, "Cash flow": null }, "HR report": null },
+    Analysis: { "Trend analysis": null, "Variance analysis": null, "Benchmark comparison": null, "Anomaly detection": { "Finance": null, "Inventory": null } },
+    Documents: { "Upload document": null, "Request e-signature": { "Acme Corp": null, "Beta Ltd": null } },
+    Customer: { __multi: true, "Acme Corp": CUSTOMER_ACTIONS, "Beta Ltd": CUSTOMER_ACTIONS, "Gamma Industries": CUSTOMER_ACTIONS },
+    Vendor: { __multi: true, "Global Supplies Co": VENDOR_ACTIONS, "Sharma Traders": VENDOR_ACTIONS },
+    Internal: { Finance: { "Accounts team": null, "Treasury team": null }, Operations: { "Plant ops team": null } },
+    "Create new": { "Customer": null, "Vendor": null, "Item": null, "Employee": null, "Compliance item": null },
+    Settings: {
+      "Profile": null, "Notifications": null, "Billing": null,
+      "Security": { "Manage MFA": null, "Change password": null },
+      "Team & users": { "Invite user": null, "Manage roles": null },
+      "Connectors": { "Connect Gmail": null, "Connect Slack": null },
+      "AI configuration": null
+    }
+  };
+
+  var COMPOSER_MODES = [
+    { key: "tasks", label: "Tasks" }, { key: "reports", label: "Reports" }, { key: "analysis", label: "Analysis" },
+    { key: "email", label: "Email" }, { key: "chats", label: "Chats" }, { key: "discuss", label: "Discuss" }, { key: "todo", label: "To Do" }
+  ];
+  var CHAIN_PRESEED = { tasks: null, reports: "Reports", analysis: "Analysis", email: "Email" };
+  function isChainMode(m) { return CHAIN_PRESEED.hasOwnProperty(m); }
+  var composerMode = "tasks";
+  var currentPage = "home";
+
+  var selectedPath = [];
+  var chainComplete = false;
+  var narratedDepth = 0;
+  var completeNarrated = false;
+  var queue = [];
+
+  var chainRows = document.getElementById("chainRows");
+  var breadcrumbLine = document.getElementById("breadcrumbLine");
+  var msgInput = document.getElementById("msgInput");
+  var sendBtn = document.getElementById("sendBtn");
+  var queueBtn = document.getElementById("queueBtn");
+  var sendAllBtn = document.getElementById("sendAllBtn");
+  var queueStrip = document.getElementById("queueStrip");
+  var queueItems = document.getElementById("queueItems");
+  var composerBox = document.getElementById("composerBox");
+  var hintText = document.getElementById("hintText");
+  var chatHistory = document.getElementById("chatHistory");
+  var taskListPanel = document.getElementById("taskListPanel");
+  var chatListPanel = document.getElementById("chatListPanel");
+  var todoListPanel = document.getElementById("todoListPanel");
+  var threadArea = document.getElementById("threadArea");
+  var homeThreadSlot = document.getElementById("homeThreadSlot");
+  var rightScrollArea = document.getElementById("rightScrollArea");
+  var chainHint = document.getElementById("chainHint");
+  var filterBar = document.getElementById("filterBar"), filterBarId = document.getElementById("filterBarId"), filterBarLabel = document.getElementById("filterBarLabel"), filterBarStatus = document.getElementById("filterBarStatus"), filterBarClose = document.getElementById("filterBarClose"), filterBarMarkDone = document.getElementById("filterBarMarkDone");
+  var humanChatBar = document.getElementById("humanChatBar"), humanChatBarName = document.getElementById("humanChatBarName"), humanChatBack = document.getElementById("humanChatBack");
+  var humanComposerBox = document.getElementById("humanComposerBox"), humanMsgInput = document.getElementById("humanMsgInput"), humanSendBtn = document.getElementById("humanSendBtn");
+  var discussComposerBox = document.getElementById("discussComposerBox"), discussMsgInput = document.getElementById("discussMsgInput"), discussSendBtn = document.getElementById("discussSendBtn");
+  var todoQuickAdd = document.getElementById("todoQuickAdd"), todoQuickAddInput = document.getElementById("todoQuickAddInput"), todoQuickAddBtn = document.getElementById("todoQuickAddBtn");
+  var rightPanel = document.getElementById("rightPanel"), rightResizeHandle = document.getElementById("rightResizeHandle");
+  var overviewPanel = document.getElementById("overviewPanel");
+  var rightViewTabs = document.getElementById("rightViewTabs");
+
+  // The right panel's own browsing state, independent of composerMode --
+  // switching what you're LOOKING AT here must never disturb what the
+  // composer is set up to DO. Defaults to "overview" so navigating away
+  // from Home always lands on something genuinely useful to glance at,
+  // rather than whatever list happened to be active last.
+  var rightPanelView = "overview";
+  var RIGHT_VIEWS = [
+    { key: "overview", label: "Overview" },
+    { key: "tasks", label: "Tasks" },
+    { key: "chats", label: "Chats" },
+    { key: "todo", label: "To Do" }
+  ];
+
+  var STATUS_META = {
+    inprogress: { dot: "status-inprogress", label: "In progress", text: "text-ct-saffron" },
+    waiting: { dot: "status-waiting", label: "Waiting on you", text: "text-amber-600" },
+    done: { dot: "status-done", label: "Done", text: "text-emerald-600" }
+  };
+
+  var nextTaskSeq = 1;
+  function nextTaskId() { var id = "T-" + String(nextTaskSeq).padStart(3, "0"); nextTaskSeq += 1; return id; }
+
+  var tasks = [
+    { id: nextTaskId(), path: ["Compliance", "Filings", "GST return", "GSTR-3B"], status: "waiting", lastMessage: "Draft ready for your review before filing.", messages: [] },
+    { id: nextTaskId(), path: ["HR", "Payroll", "Run payroll"], status: "done", lastMessage: "July payroll run completed for 42 employees.", messages: [] }
+  ];
+  var activeTaskKey = null;
+  var generalMessages = [];
+  var activeHumanChatId = null;
+
+  var humanChats = [
+    { id: "c1", name: "Priya Sharma", initials: "PS", messages: [{ fromMe: false, text: "Can you review the GST filing draft?", ts: Date.now() - 3600000 }] },
+    { id: "c2", name: "Amit Mehta", initials: "AM", messages: [{ fromMe: false, text: "Invoice for Acme Corp sent for approval", ts: Date.now() - 7200000 }] }
+  ];
+
+  var todos = [
+    { id: "d1", text: "Sign the auditor engagement letter", done: false },
+    { id: "d2", text: "Review Q1 board deck before Friday", done: false },
+    { id: "d3", text: "Approve Priya's leave request", done: true }
+  ];
+
+  function realKeysOf(node) { return Object.keys(node).filter(function (k) { return k.indexOf("__") !== 0; }); }
+  function pathSegmentDisplay(seg) { if (seg == null) return ""; if (typeof seg === "string") return seg; return "[" + seg.values.join(" + ") + "]"; }
+  function pathDisplayString(path) { return path.map(pathSegmentDisplay).join("-"); }
+  function childrenUnion(node, values) {
+    var union = {};
+    values.forEach(function (v) { var child = node[v]; if (child && typeof child === "object") Object.keys(child).forEach(function (k) { union[k] = child[k]; }); });
+    return union;
+  }
+
+  function rchip(labelText, selected, isLeafOption, onSelect) {
+    var el = document.createElement("button");
+    el.type = "button";
+    el.className = "rchip" + (isLeafOption ? " leaf" : "") + (selected ? " checked" : "");
+    el.textContent = labelText;
+    el.addEventListener("click", onSelect);
+    return el;
+  }
+  function mchip(labelText, checked, onToggle) {
+    var wrap = document.createElement("label");
+    wrap.className = "chip" + (checked ? " checked" : "");
+    var cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = checked;
+    var span = document.createElement("span"); span.textContent = labelText;
+    wrap.appendChild(cb); wrap.appendChild(span);
+    cb.addEventListener("change", function () { wrap.className = "chip" + (cb.checked ? " checked" : ""); onToggle(cb.checked); });
+    return wrap;
+  }
+
+  function renderChain() {
+    chainRows.innerHTML = "";
+    chainComplete = false;
+    var node = TREE;
+    // Reports/Analysis/Email pre-seed row 0 (it's implied by the pill you
+    // just clicked) -- showing the full Finance/Procurement/Sales/... list
+    // again right after would just be noise, so that row is suppressed and
+    // the banner opens straight on the pre-seeded branch's own options.
+    var chainStartDepth = CHAIN_PRESEED[composerMode] ? 1 : 0;
+    for (var depth = 0; ; depth++) {
+      if (node === null) { chainComplete = true; break; }
+      var keys = realKeysOf(node);
+      if (keys.length === 0) { chainComplete = true; break; }
+      var isMulti = node.__multi === true;
+      var rowEl = document.createElement("div");
+      rowEl.className = "flex items-center gap-1.5 flex-wrap";
+      if (depth > 0) {
+        var label = document.createElement("span");
+        label.className = "text-[10.5px] text-ct-muted shrink-0";
+        label.textContent = pathSegmentDisplay(selectedPath[depth - 1]) + (isMulti ? " (pick one or more):" : ":");
+        rowEl.appendChild(label);
+      }
+      if (isMulti) {
+        var currentMulti = (selectedPath[depth] && selectedPath[depth].multi) ? selectedPath[depth].values : [];
+        (function (depthClosure, keysClosure) {
+          keysClosure.forEach(function (k) {
+            rowEl.appendChild(mchip(k, currentMulti.indexOf(k) !== -1, function (nowChecked) {
+              var vals = currentMulti.slice();
+              if (nowChecked) { if (vals.indexOf(k) === -1) vals.push(k); } else { vals = vals.filter(function (x) { return x !== k; }); }
+              selectedPath = selectedPath.slice(0, depthClosure);
+              if (vals.length) selectedPath[depthClosure] = { multi: true, values: vals };
+              renderChain();
+            }));
+          });
+        })(depth, keys);
+      } else {
+        (function (depthClosure, nodeClosure, keysClosure) {
+          keysClosure.forEach(function (k) {
+            var isLeafOption = nodeClosure[k] === null;
+            var selectedHere = selectedPath[depthClosure] === k;
+            rowEl.appendChild(rchip(k, selectedHere, isLeafOption, function () {
+              if (selectedHere) selectedPath = selectedPath.slice(0, depthClosure); else selectedPath = selectedPath.slice(0, depthClosure).concat([k]);
+              renderChain();
+            }));
+          });
+        })(depth, node, keys);
+      }
+      if (depth >= chainStartDepth) chainRows.appendChild(rowEl);
+      var sel = selectedPath[depth];
+      if (sel === undefined) break;
+      node = isMulti ? childrenUnion(node, sel.values) : node[sel];
+    }
+    updateBreadcrumb();
+    updateComposerState();
+    narrateProgress();
+  }
+
+  function updateBreadcrumb() {
+    if (selectedPath.length === 0) { breadcrumbLine.textContent = ""; return; }
+    breadcrumbLine.textContent = (chainComplete ? "" : "Building: ") + pathDisplayString(selectedPath);
+    breadcrumbLine.className = "text-[11px] font-medium shrink-0 ml-2 " + (chainComplete ? "text-emerald-700" : "text-ct-muted");
+  }
+
+  function updateComposerState() {
+    msgInput.disabled = !chainComplete;
+    sendBtn.disabled = !chainComplete;
+    queueBtn.disabled = !chainComplete;
+    composerBox.classList.toggle("composer-disabled", !chainComplete);
+    msgInput.placeholder = chainComplete ? "Tell your AI Assistant what to do…" : "Select a task above to begin…";
+    hintText.textContent = chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing";
+    if (chainComplete) msgInput.focus();
+  }
+
+  function narrateProgress() {
+    if (selectedPath.length > narratedDepth) {
+      for (var i = narratedDepth; i < selectedPath.length; i++) pushAssistantNarration(pathSegmentDisplay(selectedPath[i]) + " — got it.");
+      narratedDepth = selectedPath.length;
+    } else if (selectedPath.length < narratedDepth) { narratedDepth = selectedPath.length; }
+    if (chainComplete && !completeNarrated && selectedPath.length > 0) {
+      pushAssistantNarration("Ready — tell me what you need for " + pathDisplayString(selectedPath) + ".");
+      completeNarrated = true;
+    }
+    if (!chainComplete) completeNarrated = false;
+  }
+  function pushAssistantNarration(text) {
+    generalMessages.push({ isUser: false, html: escapeHtml(text), ts: Date.now() });
+    if (!activeTaskKey && isChainMode(composerMode)) renderThread();
+  }
+
+  function resetChain() {
+    // Re-apply the current mode's pre-seed rather than clearing to an empty
+    // path -- otherwise every send in Email mode would drop back to the
+    // full top-level list instead of staying scoped to Email. narratedDepth
+    // is set to match so the pre-seed doesn't get re-announced every time.
+    var preseed = CHAIN_PRESEED[composerMode];
+    selectedPath = preseed ? [preseed] : [];
+    narratedDepth = selectedPath.length;
+    completeNarrated = false;
+    renderChain();
+  }
+
+  function expandPathsForSend(path) {
+    var multiIdx = -1;
+    for (var i = 0; i < path.length; i++) { if (typeof path[i] !== "string") { multiIdx = i; break; } }
+    if (multiIdx === -1) return [path.slice()];
+    var seg = path[multiIdx];
+    return seg.values.map(function (v) { var copy = path.slice(); copy[multiIdx] = v; return copy; });
+  }
+
+  // ---------------- Task list ----------------
+  function renderTaskList() {
+    taskListPanel.innerHTML = "";
+    if (tasks.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "px-5 py-10 text-center text-sm text-ct-muted";
+      empty.textContent = "No tasks given to your assistant yet.";
+      taskListPanel.appendChild(empty);
+    } else {
+      tasks.forEach(function (t) {
+        var meta = STATUS_META[t.status];
+        var key = t.path.join("-");
+        var isDone = t.status === "done";
+        var item = document.createElement("button");
+        item.type = "button";
+        item.className = "task-item";
+        item.innerHTML =
+          '<div class="flex items-center justify-between gap-2">' +
+            '<span class="text-[9px] font-mono text-ct-muted shrink-0">' + t.id + '</span>' +
+            '<span class="text-[13px] font-semibold text-ct-navy truncate flex-1">' + t.path.join(" › ") + '</span>' +
+            '<span class="shrink-0 inline-flex items-center gap-1 text-[11px] ' + meta.text + '"><span class="status-dot ' + meta.dot + '"></span>' + meta.label + '</span>' +
+            '<span class="shrink-0 mark-done-slot"></span>' +
+          '</div>' +
+          '<p class="truncate text-xs text-ct-muted mt-0.5">' + t.lastMessage + '</p>';
+        item.addEventListener("click", function () { selectTask(key); });
+        var slot = item.querySelector(".mark-done-slot");
+        if (!isDone) {
+          var markBtn = document.createElement("button");
+          markBtn.type = "button"; markBtn.title = "Mark done";
+          markBtn.className = "grid place-items-center size-5 rounded-full border border-ct-border2 text-ct-muted hover:border-emerald-500 hover:text-emerald-600 transition-colors";
+          markBtn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><path d="M20 6 9 17l-5-5"/></svg>';
+          markBtn.addEventListener("click", function (e) { e.stopPropagation(); markTaskDone(key); });
+          slot.appendChild(markBtn);
+        }
+        taskListPanel.appendChild(item);
+      });
+    }
+    renderTaskStats();
+  }
+
+  function markTaskDone(key) {
+    var t = findTaskByKey(key);
+    if (!t || t.status === "done") return;
+    t.status = "done";
+    renderTaskList();
+    if (activeTaskKey === key) showFilterBar(t);
+  }
+
+  function renderTaskStats() {
+    var wrap = document.getElementById("taskStats");
+    var text = document.getElementById("taskStatsText");
+    var bar = document.getElementById("taskStatsBar");
+    var completed = tasks.filter(function (t) { return t.status === "done"; }).length;
+    var pct = tasks.length ? Math.round((completed / tasks.length) * 100) : 0;
+    text.textContent = tasks.length + " task" + (tasks.length === 1 ? "" : "s") + " given · " + completed + " completed";
+    bar.style.width = pct + "%";
+    wrap.classList.toggle("hidden", currentPage === "home" || rightPanelView !== "tasks" || !!activeTaskKey || tasks.length === 0);
+  }
+
+  function findTaskByKey(key) { return tasks.find(function (t) { return t.path.join("-") === key; }); }
+
+  function showFilterBar(t) {
+    filterBar.classList.remove("hidden"); filterBar.classList.add("flex");
+    filterBarId.textContent = t.id;
+    filterBarLabel.textContent = t.path.join(" › ");
+    var meta = STATUS_META[t.status];
+    filterBarStatus.innerHTML = '<span class="status-dot ' + meta.dot + '"></span><span class="' + meta.text + '">' + meta.label + '</span>';
+    filterBarMarkDone.classList.toggle("hidden", t.status === "done");
+  }
+  filterBarMarkDone.addEventListener("click", function () { if (activeTaskKey) markTaskDone(activeTaskKey); });
+
+  // ---------------- The merge: threadArea physically relocates between the
+  // Home page slot and the right panel depending on which page is active.
+  // Same DOM node, same render functions -- only its parent changes.
+  // ---------------------------------------------------------------------
+  function layoutForCurrentState() {
+    var isHome = currentPage === "home";
+
+    overviewPanel.classList.add("hidden");
+    taskListPanel.classList.add("hidden");
+    chatListPanel.classList.add("hidden");
+    todoListPanel.classList.add("hidden");
+    threadArea.classList.remove("hidden");
+    filterBar.classList.add("hidden"); filterBar.classList.remove("flex");
+    humanChatBar.classList.add("hidden"); humanChatBar.classList.remove("flex");
+    chainHint.classList.add("hidden");
+
+    if (isHome) {
+      homeThreadSlot.appendChild(threadArea);
+      rightPanel.classList.add("hidden");
+      rightResizeHandle.classList.add("hidden");
+
+      if (isChainMode(composerMode) && activeTaskKey) { var t1 = findTaskByKey(activeTaskKey); if (t1) showFilterBar(t1); }
+      else if (composerMode === "chats" && activeHumanChatId) { var c1 = humanChats.find(function (x) { return x.id === activeHumanChatId; }); if (c1) { humanChatBar.classList.remove("hidden"); humanChatBar.classList.add("flex"); humanChatBarName.textContent = c1.name; } }
+      else if (isChainMode(composerMode) && !activeTaskKey) { chainHint.classList.remove("hidden"); }
+    } else {
+      rightPanel.classList.remove("hidden");
+      rightResizeHandle.classList.remove("hidden");
+      renderRightViewTabs();
+
+      // An explicitly opened thread always wins, regardless of which view
+      // tab is nominally selected -- if you clicked into something, you
+      // meant to see it. "Discuss" is the one composer mode with no list
+      // of its own to browse, so its live thread takes the same precedence.
+      // Everything else falls back to whatever the user is independently
+      // browsing via the view tabs.
+      if (activeTaskKey) {
+        rightScrollArea.appendChild(threadArea);
+        var t2 = findTaskByKey(activeTaskKey); if (t2) showFilterBar(t2);
+      } else if (activeHumanChatId) {
+        rightScrollArea.appendChild(threadArea);
+        var c2 = humanChats.find(function (x) { return x.id === activeHumanChatId; });
+        if (c2) { humanChatBar.classList.remove("hidden"); humanChatBar.classList.add("flex"); humanChatBarName.textContent = c2.name; }
+      } else if (composerMode === "discuss") {
+        rightScrollArea.appendChild(threadArea);
+      } else if (rightPanelView === "tasks") {
+        taskListPanel.classList.remove("hidden"); threadArea.classList.add("hidden");
+      } else if (rightPanelView === "chats") {
+        chatListPanel.classList.remove("hidden"); renderChatListPanel(); threadArea.classList.add("hidden");
+      } else if (rightPanelView === "todo") {
+        todoListPanel.classList.remove("hidden"); renderTodoList(); threadArea.classList.add("hidden");
+      } else {
+        overviewPanel.classList.remove("hidden"); renderOverview(); threadArea.classList.add("hidden");
+      }
+    }
+
+    var showComposerBox = isChainMode(composerMode);
+    var showHumanComposer = composerMode === "chats" && !!activeHumanChatId;
+    var showDiscussComposer = composerMode === "discuss";
+    var showTodoAdd = composerMode === "todo";
+    document.getElementById("scopeBanner").classList.toggle("hidden", !showComposerBox);
+    composerBox.classList.toggle("hidden", !showComposerBox);
+    queueStrip.classList.toggle("hidden", !showComposerBox || queue.length === 0);
+    humanComposerBox.classList.toggle("hidden", !showHumanComposer);
+    discussComposerBox.classList.toggle("hidden", !showDiscussComposer);
+    todoQuickAdd.classList.toggle("hidden", !showTodoAdd);
+
+    // hintText stays visible in every mode (never toggled hidden) so the
+    // composer's total height doesn't jump depending on which pill is
+    // active -- only its wording changes.
+    if (composerMode === "chats") hintText.textContent = activeHumanChatId ? "Enter sends" : "Pick a conversation on the right to start typing";
+    else if (composerMode === "discuss") hintText.textContent = "Enter sends — ask anything, no task selection needed";
+    else if (composerMode === "todo") hintText.textContent = "Enter adds — a simple checklist, not routed through the assistant";
+    else hintText.textContent = chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing";
+
+    renderTaskStats();
+    renderThread();
+  }
+
+  // ---------------- Right panel view tabs (independent of composerMode) ----------------
+  function switchRightView(view) {
+    rightPanelView = view;
+    activeTaskKey = null;
+    activeHumanChatId = null;
+    layoutForCurrentState();
+  }
+
+  function rightViewBadgeCount(key) {
+    if (key === "tasks") return tasks.filter(function (t) { return t.status === "waiting"; }).length;
+    if (key === "chats") return humanChats.filter(function (c) { var last = c.messages[c.messages.length - 1]; return last && !last.fromMe; }).length;
+    if (key === "todo") return todos.filter(function (d) { return !d.done; }).length;
+    return 0;
+  }
+
+  function renderRightViewTabs() {
+    rightViewTabs.innerHTML = "";
+    var noThreadOpen = !activeTaskKey && !activeHumanChatId;
+    RIGHT_VIEWS.forEach(function (v) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "view-tab" + (rightPanelView === v.key && noThreadOpen ? " active" : "");
+      var badge = rightViewBadgeCount(v.key);
+      btn.innerHTML = '<span>' + v.label + '</span>' + (badge > 0 ? '<span class="view-badge">' + badge + '</span>' : '');
+      btn.addEventListener("click", function () { switchRightView(v.key); });
+      rightViewTabs.appendChild(btn);
+    });
+  }
+
+  // Overview mixes recent/attention-worthy items across all three
+  // categories -- the honest answer to "what should the user see when the
+  // page changes" is a glanceable summary, not an arbitrary single list
+  // left over from whatever mode was last active.
+  function renderOverview() {
+    overviewPanel.innerHTML = "";
+    var items = [];
+    tasks.filter(function (t) { return t.status !== "done"; }).forEach(function (t) {
+      var lastTs = t.messages.length ? t.messages[t.messages.length - 1].ts : 0;
+      items.push({ type: "task", ts: lastTs, title: t.path.join(" › "), sub: t.lastMessage, unread: t.status === "waiting", ref: t });
+    });
+    humanChats.forEach(function (c) {
+      var last = c.messages[c.messages.length - 1];
+      if (!last) return;
+      items.push({ type: "chat", ts: last.ts, title: c.name, sub: last.text, unread: !last.fromMe, ref: c });
+    });
+    todos.filter(function (d) { return !d.done; }).forEach(function (d) {
+      items.push({ type: "todo", ts: 0, title: d.text, sub: "To do", unread: false, ref: d });
+    });
+    items.sort(function (a, b) { return b.ts - a.ts; });
+
+    if (items.length === 0) {
+      var empty = document.createElement("div");
+      empty.className = "px-5 py-10 text-center text-sm text-ct-muted";
+      empty.textContent = "Nothing needs your attention right now.";
+      overviewPanel.appendChild(empty);
+      return;
+    }
+
+    var ICONS = {
+      task: { bg: "#F5820A", svg: '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg>' },
+      chat: { bg: "#1C2B3A", svg: '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>' },
+      todo: { bg: "#0E7C6E", svg: '<svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg>' }
+    };
+    items.forEach(function (item) {
+      var icon = ICONS[item.type];
+      var row = document.createElement("button");
+      row.type = "button";
+      row.className = "overview-item";
+      row.innerHTML =
+        '<div class="overview-icon" style="background:' + icon.bg + '">' + icon.svg + '</div>' +
+        '<div class="min-w-0 flex-1">' +
+          '<div class="flex items-center justify-between gap-2">' +
+            '<p class="text-[13px] font-semibold text-ct-navy truncate">' + escapeHtml(item.title) + '</p>' +
+            (item.unread ? '<span class="size-2 rounded-full bg-ct-saffron shrink-0"></span>' : '') +
+          '</div>' +
+          '<p class="text-[12px] text-ct-muted truncate mt-0.5">' + escapeHtml(item.sub || "") + '</p>' +
+        '</div>';
+      row.addEventListener("click", function () {
+        if (item.type === "task") selectTask(item.ref.path.join("-"));
+        else if (item.type === "chat") openHumanChat(item.ref.id);
+        else switchRightView("todo");
+      });
+      overviewPanel.appendChild(row);
+    });
+  }
+
+  function renderModePills() {
+    var wrap = document.getElementById("modePills");
+    wrap.innerHTML = "";
+    COMPOSER_MODES.forEach(function (m) {
+      var btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "mode-pill" + (composerMode === m.key ? " active" : "");
+      btn.textContent = m.label;
+      btn.addEventListener("click", function () { applyComposerMode(m.key); });
+      wrap.appendChild(btn);
+    });
+  }
+
+  // Some composer modes correspond to a real page a normal-software user
+  // would also reach via the sidebar (Email has an inbox; Tasks/Reports/
+  // Analysis don't have a page of their own yet). Picking one of those
+  // modes from the pills has to behave exactly like clicking its sidebar
+  // item -- same un-merge from Home, same page swap -- otherwise the two
+  // entry points would silently diverge.
+  var MODE_TO_PAGE = { email: "email" };
+
+  function goToPage(pageKey) {
+    document.querySelectorAll(".nav-item[data-page]").forEach(function (i) { i.classList.toggle("active", i.dataset.page === pageKey); });
+    document.querySelectorAll(".page").forEach(function (p) { p.classList.toggle("active", p.id === "page-" + pageKey); });
+    currentPage = pageKey;
+    layoutForCurrentState();
+  }
+
+  function applyComposerMode(mode) {
+    composerMode = mode;
+    renderModePills();
+    if (isChainMode(mode)) {
+      activeHumanChatId = null;
+      activeTaskKey = null;
+      var preseed = CHAIN_PRESEED[mode];
+      selectedPath = preseed ? [preseed] : [];
+      narratedDepth = 0; completeNarrated = false;
+      renderChain();
+    }
+    if (MODE_TO_PAGE[mode]) goToPage(MODE_TO_PAGE[mode]);
+    else layoutForCurrentState();
+  }
+
+  function humanBubbleHtml(fromMe, contact, text) {
+    var avatar = fromMe
+      ? '<div class="grid size-8 shrink-0 place-items-center rounded-xl text-white text-xs font-bold bg-ct-navy">R</div>'
+      : '<div class="grid size-8 shrink-0 place-items-center rounded-xl text-white text-xs font-bold bg-ct-slate">' + contact.initials + '</div>';
+    return '<div class="flex gap-3' + (fromMe ? " flex-row-reverse" : "") + '">' + avatar +
+      '<div class="rounded-2xl px-4 py-2.5 max-w-[80%] text-[14px] leading-relaxed ' + (fromMe ? "bg-ct-navy text-white" : "bg-white border border-ct-border text-ct-navy") + '">' + escapeHtml(text) + '</div></div>';
+  }
+
+  function openHumanChat(chatId) {
+    activeHumanChatId = chatId;
+    composerMode = "chats";
+    renderModePills();
+    layoutForCurrentState();
+    humanMsgInput.focus();
+  }
+  humanChatBack.addEventListener("click", function () { activeHumanChatId = null; layoutForCurrentState(); });
+
+  function sendHumanMessage() {
+    var text = humanMsgInput.value.trim();
+    if (!text || !activeHumanChatId) return;
+    var c = humanChats.find(function (x) { return x.id === activeHumanChatId; });
+    if (!c) return;
+    c.messages.push({ fromMe: true, text: text, ts: Date.now() });
+    humanMsgInput.value = "";
+    renderThread();
+  }
+  humanSendBtn.addEventListener("click", sendHumanMessage);
+  humanMsgInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendHumanMessage(); } });
+
+  function renderChatListPanel() {
+    chatListPanel.innerHTML = "";
+    humanChats.forEach(function (c) {
+      var last = c.messages[c.messages.length - 1];
+      var item = document.createElement("button");
+      item.type = "button";
+      item.className = "flex items-start gap-3 px-4 py-3 border-b border-ct-border/60 w-full text-left hover:bg-ct-cream/60 transition-colors";
+      item.innerHTML =
+        '<div class="grid size-9 shrink-0 place-items-center rounded-xl bg-ct-navy text-white text-xs font-bold">' + c.initials + '</div>' +
+        '<div class="min-w-0 flex-1"><p class="truncate text-[13px] font-semibold text-ct-navy">' + c.name + '</p>' +
+        '<p class="truncate text-xs text-ct-muted mt-0.5">' + (last ? escapeHtml(last.text) : "No messages yet") + '</p></div>';
+      item.addEventListener("click", function () { openHumanChat(c.id); });
+      chatListPanel.appendChild(item);
+    });
+  }
+
+  function renderTodoList() {
+    todoListPanel.innerHTML = "";
+    todos.forEach(function (d) {
+      var row = document.createElement("label");
+      row.className = "flex items-center gap-3 px-4 py-3 border-b border-ct-border/60 cursor-pointer";
+      var cb = document.createElement("input");
+      cb.type = "checkbox"; cb.checked = d.done;
+      cb.style.cssText = "width:15px;height:15px;accent-color:#0E7C6E;flex-shrink:0";
+      var span = document.createElement("span");
+      span.className = "text-[13px] " + (d.done ? "text-ct-muted line-through" : "text-ct-navy");
+      span.textContent = d.text;
+      cb.addEventListener("change", function () { d.done = cb.checked; renderTodoList(); });
+      row.appendChild(cb); row.appendChild(span);
+      todoListPanel.appendChild(row);
+    });
+  }
+  function addTodoFromComposer() {
+    var text = todoQuickAddInput.value.trim();
+    if (!text) return;
+    todos.unshift({ id: "d" + Date.now(), text: text, done: false });
+    todoQuickAddInput.value = "";
+    renderTodoList();
+  }
+  todoQuickAddBtn.addEventListener("click", addTodoFromComposer);
+  todoQuickAddInput.addEventListener("keydown", function (e) { if (e.key === "Enter") { e.preventDefault(); addTodoFromComposer(); } });
+
+  function sendDiscussMessage() {
+    var text = discussMsgInput.value.trim();
+    if (!text) return;
+    generalMessages.push({ isUser: true, html: escapeHtml(text), ts: Date.now() });
+    discussMsgInput.value = "";
+    renderThread();
+    setTimeout(function () { generalMessages.push({ isUser: false, html: "Got it — let me look into that.", ts: Date.now() }); renderThread(); }, 300);
+  }
+  discussSendBtn.addEventListener("click", sendDiscussMessage);
+  discussMsgInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); sendDiscussMessage(); } });
+
+  function messageBubbleHtml(isUser, text) {
+    return '<div class="flex gap-3' + (isUser ? " flex-row-reverse" : "") + '">' +
+      '<div class="grid size-8 shrink-0 place-items-center rounded-xl text-white text-xs font-bold ' + (isUser ? "bg-ct-navy" : "bg-gradient-to-br from-ct-saffron/90 to-[#F5A623]") + '">' +
+        (isUser ? "R" : '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.5 5.5L19 9l-5.5 1.5L12 16l-1.5-5.5L5 9l5.5-1.5z"/></svg>') +
+      '</div><div class="rounded-2xl px-4 py-2.5 max-w-[80%] text-[14px] leading-relaxed ' + (isUser ? "bg-ct-navy text-white" : "bg-white border border-ct-border text-ct-navy") + '">' + text + '</div></div>';
+  }
+
+  function renderThread() {
+    chatHistory.innerHTML = "";
+    if (composerMode === "chats" && activeHumanChatId) {
+      var c = humanChats.find(function (x) { return x.id === activeHumanChatId; });
+      if (c) c.messages.forEach(function (m) { var row = document.createElement("div"); row.innerHTML = humanBubbleHtml(m.fromMe, c, m.text); chatHistory.appendChild(row.firstChild); });
+      scrollThreadToBottom();
+      return;
+    }
+    if (isChainMode(composerMode) && activeTaskKey) {
+      var t = findTaskByKey(activeTaskKey);
+      if (t) {
+        if (t.messages.length === 0) {
+          var note = document.createElement("div");
+          note.className = "text-center text-[11px] text-ct-muted";
+          note.textContent = "Earlier updates on this task appear here.";
+          chatHistory.appendChild(note);
+        }
+        t.messages.forEach(function (m) { var row = document.createElement("div"); row.innerHTML = messageBubbleHtml(m.isUser, m.html); chatHistory.appendChild(row.firstChild); });
+      }
+      scrollThreadToBottom();
+      return;
+    }
+    var all = generalMessages.slice().sort(function (a, b) { return a.ts - b.ts; });
+    all.forEach(function (m) { var row = document.createElement("div"); row.innerHTML = messageBubbleHtml(m.isUser, m.html); chatHistory.appendChild(row.firstChild); });
+    scrollThreadToBottom();
+  }
+
+  function scrollThreadToBottom() {
+    requestAnimationFrame(function () {
+      var scroller = threadArea.closest(".overflow-y-auto");
+      if (scroller) scroller.scrollTop = scroller.scrollHeight;
+    });
+  }
+
+  function escapeHtml(s) { var div = document.createElement("div"); div.textContent = s; return div.innerHTML; }
+  function tagHtml(crumb, colorClass) { return '<span class="inline-block text-[11px] font-semibold bg-white/15 ' + colorClass + ' px-2 py-0.5 rounded-full mb-1">' + crumb + '</span><br>'; }
+
+  function dispatchInstruction(path, text) {
+    var displayCrumb = pathDisplayString(path);
+    var concretePaths = expandPathsForSend(path);
+    generalMessages.push({ isUser: true, html: tagHtml(displayCrumb, "text-ct-saffron") + escapeHtml(text), ts: Date.now() });
+    var affected = [];
+    concretePaths.forEach(function (p) {
+      var key = p.join("-");
+      var existing = findTaskByKey(key);
+      var isNewTask = !existing || existing.status === "done";
+      if (isNewTask) { existing = { id: nextTaskId(), path: p.slice(), status: "inprogress", lastMessage: text, messages: [] }; tasks.unshift(existing); }
+      existing.messages.push({ isUser: true, html: tagHtml(p.join("-"), "text-ct-saffron") + escapeHtml(text), ts: Date.now() });
+      existing.lastMessage = text; existing.status = "inprogress";
+      affected.push({ task: existing, isNewTask: isNewTask, key: key });
+    });
+    var summaryAck = concretePaths.length > 1
+      ? "Working on " + concretePaths.length + " tasks — see them in your task list."
+      : (affected[0].isNewTask ? "New task started — " + affected[0].task.path.join(" › ") + ". I'm on it." : "Added to your existing task — " + affected[0].task.path.join(" › ") + ".");
+    setTimeout(function () {
+      generalMessages.push({ isUser: false, html: summaryAck, ts: Date.now() });
+      affected.forEach(function (a) { a.task.messages.push({ isUser: false, html: a.isNewTask ? "New task started. I'm on it." : "Added to your existing task.", ts: Date.now() }); });
+      if (!activeTaskKey) renderThread();
+      renderTaskList();
+    }, 300);
+    return affected;
+  }
+
+  function selectTask(key) {
+    var t = findTaskByKey(key);
+    if (!t) return;
+    activeTaskKey = key;
+    activeHumanChatId = null;
+    composerMode = "tasks";
+    renderModePills();
+    selectedPath = t.path.slice();
+    narratedDepth = t.path.length;
+    completeNarrated = true;
+    renderChain();
+    layoutForCurrentState();
+  }
+
+  filterBarClose.addEventListener("click", function () { activeTaskKey = null; resetChain(); renderTaskList(); layoutForCurrentState(); });
+
+  function send() {
+    if (!chainComplete) return;
+    var text = msgInput.value.trim();
+    if (!text) return;
+    var affected = dispatchInstruction(selectedPath, text);
+    if (affected.length === 1) { activeTaskKey = affected[0].key; } else { activeTaskKey = null; }
+    renderTaskList();
+    msgInput.value = "";
+    resetChain();
+    layoutForCurrentState();
+  }
+
+  function queueCurrent() {
+    if (!chainComplete) return;
+    var text = msgInput.value.trim();
+    if (!text) return;
+    queue.push({ path: selectedPath.slice(), text: text, display: pathDisplayString(selectedPath) });
+    renderQueueStrip();
+    msgInput.value = "";
+    resetChain();
+    layoutForCurrentState();
+  }
+
+  function renderQueueStrip() {
+    queueStrip.classList.toggle("hidden", queue.length === 0 || !isChainMode(composerMode));
+    sendAllBtn.textContent = "Send all (" + queue.length + ")";
+    queueItems.innerHTML = "";
+    queue.forEach(function (item, idx) {
+      var el = document.createElement("span");
+      el.className = "qchip";
+      el.innerHTML = '<span>' + item.display + ' — ' + escapeHtml(item.text.length > 24 ? item.text.slice(0, 24) + "…" : item.text) + '</span>';
+      var rm = document.createElement("button"); rm.type = "button"; rm.textContent = "×";
+      rm.addEventListener("click", function () { queue.splice(idx, 1); renderQueueStrip(); });
+      el.appendChild(rm);
+      queueItems.appendChild(el);
+    });
+  }
+
+  function sendAllQueued() {
+    if (!queue.length) return;
+    queue.forEach(function (item) { dispatchInstruction(item.path, item.text); });
+    queue = [];
+    renderQueueStrip();
+    activeTaskKey = null;
+    renderTaskList(); layoutForCurrentState();
+  }
+
+  sendBtn.addEventListener("click", send);
+  queueBtn.addEventListener("click", queueCurrent);
+  sendAllBtn.addEventListener("click", sendAllQueued);
+  msgInput.addEventListener("keydown", function (e) { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); } });
+
+  // ---------------- Left nav page switching -- composer never rebuilds ----
+  document.querySelectorAll(".nav-item[data-page]").forEach(function (item) {
+    item.addEventListener("click", function () {
+      var page = item.dataset.page;
+      // A page that has a matching composer mode goes through
+      // applyComposerMode so the two entry points (sidebar vs. pill) always
+      // converge on the same state, instead of drifting apart.
+      var modeForPage = Object.keys(MODE_TO_PAGE).find(function (m) { return MODE_TO_PAGE[m] === page; });
+      if (modeForPage) applyComposerMode(modeForPage);
+      else goToPage(page);
+    });
+  });
+
+  // ---------------- Collapsible + resizable sidebars ----------------
+  var leftSidebar = document.getElementById("leftSidebar");
+  var leftResizeHandle = document.getElementById("leftResizeHandle");
+
+  document.getElementById("toggleLeftSidebar").addEventListener("click", function () {
+    leftSidebar.classList.toggle("hidden");
+    leftResizeHandle.classList.toggle("hidden");
+  });
+  document.getElementById("toggleRightPanel").addEventListener("click", function () {
+    if (currentPage === "home") return;
+    rightPanel.classList.toggle("hidden");
+    rightResizeHandle.classList.toggle("hidden");
+  });
+
+  function makeResizable(handle, target, min, max, direction) {
+    var dragging = false, startX, startWidth;
+    handle.addEventListener("mousedown", function (e) {
+      dragging = true; startX = e.clientX; startWidth = target.getBoundingClientRect().width;
+      handle.classList.add("dragging");
+      document.body.style.cursor = "col-resize"; document.body.style.userSelect = "none";
+      e.preventDefault();
+    });
+    window.addEventListener("mousemove", function (e) {
+      if (!dragging) return;
+      var delta = e.clientX - startX;
+      var w = direction === "left" ? startWidth + delta : startWidth - delta;
+      w = Math.max(min, Math.min(max, w));
+      target.style.width = w + "px";
+    });
+    window.addEventListener("mouseup", function () {
+      if (!dragging) return;
+      dragging = false;
+      handle.classList.remove("dragging");
+      document.body.style.cursor = ""; document.body.style.userSelect = "";
+    });
+  }
+  makeResizable(leftResizeHandle, leftSidebar, 140, 320, "left");
+  makeResizable(rightResizeHandle, rightPanel, 320, 640, "right");
+
+  renderModePills();
+  renderChain();
+  renderTaskList();
+  layoutForCurrentState();
+})();
+</script>
+</body>
+</html>

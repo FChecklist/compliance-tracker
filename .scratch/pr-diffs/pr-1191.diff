@@ -1,0 +1,32 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 903dd7263..40c3387b7 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,4 +1,4 @@
+-# PROGRESS -- task-20260814-201900-rca--umr-20260808-175055-cebd-killed
++# PROGRESS -- task-20260814-211842-rca--umr-20260807-063918-f15d-killed
+ 
+ ## Completed
+ 
+diff --git a/progress/task-20260814-211842-rca--umr-20260807-063918-f15d-killed.md b/progress/task-20260814-211842-rca--umr-20260807-063918-f15d-killed.md
+new file mode 100644
+index 000000000..1f5f026bf
+--- /dev/null
++++ b/progress/task-20260814-211842-rca--umr-20260807-063918-f15d-killed.md
+@@ -0,0 +1,16 @@
++# RCA — UMR-20260807-063918-f15d (status=killed)
++
++## Completed
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260807-063918-f15d` directly (not trusting SPEC summary). Confirmed real `reason`: registration-only backfill row created 2026-08-07 solely to give a pre-existing, already-terminal task (`task-20260803-032332-owner-amendment-to-continuous-recovery-f`) a real UMR id in the historical record, per the 800-task-records audit (UMR-20260801-153900-9100). `unit_name=null`, `files_touched=[]` — no work was ever dispatched under this UMR by design.
++- [x] Checked memory indexes first (per AGENTS.md Rule 12 / `CLAUDE_MEMORY_INDEX.md`) before fresh exploration: `veridian-killed-rca-series-index.md` already lists this exact UMR in its "Correctly-killed / no-correction-needed" group, with two prior citations: [[veridian-umr-f15d-killed-rca-correctly-killed-registration-backfill]] (1st RCA, task-20260814-021600) and [[veridian-umr-f15d-2nd-dispatch-duplicate-already-resolved]] (2nd RCA, task-20260814-082938). **This is the 3rd identical dispatch of the same RCA SPEC in one day.**
++- [x] Independently re-verified (not just trusted the memory) the facts both prior RCAs relied on, live:
++  - `task-20260803-032332-owner-amendment-to-continuous-recovery-f/task.yaml`: `status: rejected_duplicate`, `files_modified: [PROGRESS.md]` only, checkpoint note confirms `status: rejected_duplicate` at 2026-08-03T03:24:28Z — zero real work performed, matches the UMR's own reason text verbatim.
++  - `gh pr view 123` (claude-control): `state: MERGED`, `mergedAt: 2026-08-03T03:53:42Z` ("Add Category B deterministic-recovery gate to ddl_author...").
++  - `gh pr view 763` (compliance-tracker): `state: MERGED`, `mergedAt: 2026-08-03T03:52:05Z` ("docs: register Category A/B production-DB governance spl...").
++  - Both cited PRs are real and merged; the underlying `rejected_duplicate` decision this UMR's backfill note points to is correct.
++- [x] **Conclusion: UMR-20260807-063918-f15d is correctly killed. No mislabel. No `mark-umr-terminal` call needed — the row is already correctly terminal.** No source file is named by this RCA's objective (it names only the UMR id), so the code-diff completion gate (`progress_completion_gate.py check-completion`) does not apply — this is legitimately a docs-only outcome, same as both prior RCA dispatches of this same UMR.
++- [x] Per the 2nd-dispatch memory's own "How to apply" note ("Consider flagging the repeat-dispatch pattern itself... as worth a structural fix in the dispatch/dedup layer if it recurs a 3rd time" — it has now recurred a 3rd time), filed `OQ-20260814-0003` in `ai-os/memory/open_questions.json`: why does the identical RCA SPEC for this UMR keep getting re-minted (3 dispatches same day: task-20260814-021600, task-20260814-082938, task-20260814-211842)? Non-blocking; root cause (whatever re-mints these from a gap-sweep/tracker source) is outside this task's own workspace/scope, so filed as an open question rather than built unilaterally.
++- [x] Will write back to `ai_agent_registry` via `agent_work_briefing.py record-completion` per this task's deterministic briefing instructions.
++
++## Remaining
++- [ ] None. Task complete — 3rd confirmation of an already-correct terminal state, plus one new structural open question filed for the repeat-dispatch pattern itself.

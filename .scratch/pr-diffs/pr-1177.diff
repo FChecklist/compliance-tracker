@@ -1,0 +1,83 @@
+diff --git a/progress/task-20260814-161849-rca--umr-20260806-175541-f164-killed.md b/progress/task-20260814-161849-rca--umr-20260806-175541-f164-killed.md
+new file mode 100644
+index 000000000..94ab37489
+--- /dev/null
++++ b/progress/task-20260814-161849-rca--umr-20260806-175541-f164-killed.md
+@@ -0,0 +1,77 @@
++# RCA: UMR-20260806-175541-f164 (status=killed)
++
++## Completed
++
++- [x] Read the real row directly: `resource_governor.py --query-umr --umr-id UMR-20260806-175541-f164`.
++      Real reason on file: all 3 script runs (OCID-020 GTM categories 10/11/13) genuinely
++      completed before correction UMR-20260806-175649-66e4 arrived, each genuinely refused by
++      its real resource gate (swap_free 314.9 MiB < 500 MiB for 10/11; `has_resource_headroom()`
++      false/swap_backoff for 13) and recorded blocked/passed=NULL -- no fabricated verdict.
++      Per UMR-20260806-175649-66e4, the OCID-020 stop-work order was cited as "substantively
++      still in force" at that instant, so the task stopped and marked itself killed rather than
++      resume. **Verdict: the original kill was correct and honest — no correction to that row is
++      needed.**
++- [x] Checked the cited correction UMR (`UMR-20260806-175649-66e4`, status=completed): confirms
++      the deploy-lag root cause it was chasing (a separate, since-fixed problem) and explicitly
++      states "no OCID-020/Z.AI/external-agent work touched" at that time -- consistent with the
++      f164 row's own account.
++- [x] Verified whether the *remaining scope* (categories 10/11/13) is still open today, since a
++      correct kill 8 days ago does not mean the underlying work is done. Queried
++      `gtm_certification_categories` (category_index 10/11/13) directly:
++      - **Category 13 (AI testing): now `passed=1`**, `validated_at=2026-08-14T10:10:41Z` --
++        genuinely completed by a concurrent/prior session today, before this task started.
++      - **Category 10 (load testing) / 11 (stress testing): still `passed=NULL`.** Real evidence
++        row shows a *fresh* genuine re-attempt today at `2026-08-14T10:10:29Z`
++        (`gtm_check_load_stress_testing.py`'s own start-gate), refused again for the same real
++        reason: swap free 419.3 MiB < 500 MiB minimum at that instant.
++- [x] Re-checked live host resource state at task time (~2026-08-14T16:26 UTC, ~6h after the
++      10:10Z refusal): `free -m` shows swap free ~8.6 GiB, `uptime`/`/proc/loadavg` shows load1
++      ~3.9 -- both comfortably clear of the script's own 500 MiB / 10.0 start-gate thresholds.
++      **The resource-pressure blocker has genuinely cleared** as of this task.
++- [x] Before attempting to redispatch categories 10/11, read `gtm_check_load_stress_testing.py`
++      end to end (`/opt/veridian/scripts/gtm_check_load_stress_testing.py`) to understand what a
++      real re-run would actually do. Found a real, previously-undocumented bug in
++      `discover_nonprod_target()` (function starts at line 248): it probes only
++      `http://127.0.0.1:3000` and accepts *any* HTTP-reachable response as this app's own local
++      dev server, with **no identity check**.
++      - Live-verified on this host: `ss -ltnp` shows port 3000 is permanently bound by Grafana,
++        not a spare port. Grafana even 302-redirects to `/login`, the same behavior this app's
++        own auth middleware produces, so a status-code-only check cannot tell them apart.
++      - Live-verified the real distinguishing signal exists: a HEAD against the real production
++        app (`https://projexa-ai.com`) returns `x-powered-by: Next.js`; the real Grafana response
++        on this host's port 3000 does not send that header.
++      - **Conclusion: even with the resource gate now clear, a genuine re-run on this host would
++        currently discover Grafana as the "target" and silently record real HTTP load-test
++        traffic against the wrong service as if it were testing compliance-tracker** -- a real
++        fabricated-evidence risk if run as-is, not a cosmetic issue. Did **not** attempt to run
++        the script for real given this, to avoid producing exactly that fabricated-looking
++        result.
++- [x] `gtm_check_load_stress_testing.py` and its tests live in the **veridian-scripts** repo, not
++      this task's assigned compliance-tracker workspace. This session's own
++      `pretooluse_worker_enforcement.py` hook mechanically blocks `Edit`/`Write` calls that
++      resolve outside the assigned workspace -- confirmed by trying (denied, as expected/correct)
++      before writing this file.
++- [x] Filed the finding + a concrete proposed fix as a real owner-proposal (the canonical
++      "novel finding outside already-approved scope" mechanism, per
++      `superboss-register.py insert-owner-proposal --help`): **id=554, child_umr
++      `UMR-20260814-162910-7607`**. Full issue/proposal text is in that row (not duplicated here
++      verbatim) -- summary: patch `discover_nonprod_target()` to require an
++      `x-powered-by: Next.js` header match before accepting a local candidate, add a negative-case
++      unit test alongside the existing `test_discover_nonprod_target_finds_a_real_reachable_local_server`
++      test, then categories 10/11 can be genuinely re-attempted (resource gate is already clear;
++      the only other real blocker is the already-documented absence of a reachable non-prod
++      target, unrelated to this bug).
++- [x] No `MASTER-TRACKER.yaml` change made -- categories 10/11's real status
++      (blocked/passed=NULL, real reason recorded via the canonical writer) is unchanged by this
++      task and was not altered here; nothing to reconcile there for this RCA.
++- [x] Did **not** alter the original `UMR-20260806-175541-f164` row -- its `killed` status and
++      recorded reason are honest and accurate for what happened at that time; no correction is
++      warranted (contrast with the mislabel-series pattern in
++      `veridian-killed-rca-series-index` -- this one belongs in the "correctly-killed" group).
++
++## Remaining
++
++- [ ] (Out of this task's scope/workspace) A veridian-scripts-scoped session should apply the
++      `discover_nonprod_target()` fix proposed under owner-proposal id=554 /
++      `UMR-20260814-162910-7607`, then genuinely re-attempt `gtm_check_load_stress_testing.py`
++      for categories 10/11 now that the resource gate is clear.

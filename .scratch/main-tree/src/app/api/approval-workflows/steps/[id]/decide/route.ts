@@ -1,0 +1,111 @@
+import { NextResponse } from "next/server"
+import { requireAuth } from "@/lib/supabase/auth-guard"
+import { decideApprovalStep, ServiceError } from "@/lib/services/approval-workflow-service"
+import { markJournalEntrySubmittedFromApproval } from "@/lib/services/erp-accounting-service"
+import { markPurchaseRequisitionApprovedFromApproval } from "@/lib/services/erp-procurement-workflow-service"
+import { finalizeAssetDisposal, markAssetDisposalRejectedFromApproval } from "@/lib/services/erp-fixed-assets-service"
+import { withAutomaticRecovery } from "@/lib/services/exception-taxonomy"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { logActivity } from "@/lib/audit"
+
+// Entity-specific "on approved" dispatch, kept at the route layer rather
+// than inside the generic engine so approval-workflow-service.ts stays
+// entity-agnostic -- any future module that adopts this engine adds one
+// case here, not a new branch inside the shared service. Wave 55 added the
+// second real consumer (erp_purchase_requisition) to prove this generalizes.
+// Wave B (Fixed Assets wiring) added the third: erp_asset_disposal.
+async function onWorkflowApproved(ctx: { orgId: string; userId: string; dbUser: Parameters<typeof markJournalEntrySubmittedFromApproval>[0]['dbUser'] }, entityType: string, entityId: string) {
+  if (entityType === "erp_journal_entry") {
+    await markJournalEntrySubmittedFromApproval(ctx, entityId)
+  } else if (entityType === "erp_purchase_requisition") {
+    await markPurchaseRequisitionApprovedFromApproval(ctx, entityId)
+  } else if (entityType === "erp_asset_disposal") {
+    await finalizeAssetDisposal(ctx, entityId)
+  }
+
+  // Wave 58: fire an ERP webhook once the workflow-gated entity actually
+  // finalizes, mirroring the same-event no-workflow-configured path.
+  try {
+    const { deliverWebhook } = await import("@/lib/webhook-deliver")
+    if (entityType === "erp_journal_entry") await deliverWebhook(ctx.orgId, "erp_journal_entry.submitted", { journalEntryId: entityId })
+    else if (entityType === "erp_purchase_requisition") await deliverWebhook(ctx.orgId, "erp_purchase_requisition.approved", { requisitionId: entityId })
+    else if (entityType === "erp_asset_disposal") await deliverWebhook(ctx.orgId, "erp_asset_disposal.completed", { disposalId: entityId })
+  } catch (webhookError) {
+    console.error("Webhook delivery error (non-fatal):", webhookError)
+  }
+}
+
+// Wave B (Fixed Assets wiring): the first real "on rejected" dispatch --
+// erp_journal_entry/erp_purchase_requisition have no rejected state to move
+// into (a pre-existing gap in both, out of scope here), but
+// erp_asset_disposal's own status column (added this wave) needs one so a
+// rejected disposal doesn't linger as 'pending' forever.
+async function onWorkflowRejected(ctx: { orgId: string; userId: string; dbUser: Parameters<typeof markAssetDisposalRejectedFromApproval>[0]['dbUser'] }, entityType: string, entityId: string) {
+  if (entityType === "erp_asset_disposal") {
+    await markAssetDisposalRejectedFromApproval(ctx, entityId)
+  }
+}
+
+export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { response, dbUser, orgId } = await requireAuth()
+  if (response) return response
+  if (!orgId || !dbUser) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
+
+  try {
+    const { id } = await params
+    const { decision, comment } = await request.json()
+    if (decision !== "approved" && decision !== "rejected") {
+      return NextResponse.json({ error: "decision must be 'approved' or 'rejected'" }, { status: 400 })
+    }
+
+    const result = await decideApprovalStep({ orgId, userId: dbUser.id, dbUser }, id, decision, comment)
+
+    // Automatic Rollback & Recovery (VERIDIAN Review Framework gap closure,
+    // 2026-07-18): decideApprovalStep above already committed the instance
+    // as approved/rejected in its own transaction -- there is no further
+    // call site that will ever re-invoke onWorkflowApproved/onWorkflowRejected
+    // for this instance once this request returns. Previously a transient
+    // failure here (a DB blip, not a business-rule rejection) left the
+    // instance permanently stuck "approved"/"rejected" with the underlying
+    // entity never actually finalized, and no automatic path back. Wrapping
+    // in withAutomaticRecovery retries once for a retryable (system) fault
+    // per the exception taxonomy -- a genuine business-rule failure (e.g.
+    // finalizeAssetDisposal's negative-net-book-value guard) is NOT
+    // retryable and fails fast on the first attempt, same as before.
+    try {
+      if (result.instanceStatus === "approved") {
+        await withAutomaticRecovery(() => onWorkflowApproved({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId))
+      } else if (result.instanceStatus === "rejected") {
+        await withAutomaticRecovery(() => onWorkflowRejected({ orgId, userId: dbUser.id, dbUser }, result.entityType, result.entityId))
+      }
+    } catch (finalizeError) {
+      // The decision itself (result) is real and already committed -- only
+      // the finalize step failed. Record a distinct, queryable audit event
+      // (the L3 Rolling Health Audit's controls-health snapshot watches for
+      // this action) rather than silently swallowing it, and tell the
+      // caller plainly that the decision was recorded but the entity is NOT
+      // actually finalized yet, instead of a generic 500 that reads as "the
+      // whole request failed" when the decision itself in fact succeeded.
+      await withTenantContext({ orgId, userId: dbUser.id }, (db) =>
+        logActivity({
+          tx: db, orgId, dbUser,
+          action: "approval_workflow_instance.finalization_failed",
+          entityType: result.entityType,
+          entityId: result.entityId,
+          details: finalizeError instanceof Error ? finalizeError.message : String(finalizeError),
+        })
+      ).catch(() => {})
+      return NextResponse.json({
+        ...result,
+        finalizationFailed: true,
+        error: `The ${decision} decision was recorded, but finalizing ${result.entityType} failed after an automatic retry. The underlying record was not updated -- contact support to retry finalization.`,
+      }, { status: 502 })
+    }
+
+    return NextResponse.json(result)
+  } catch (error) {
+    if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
+    console.error("Approval decision error:", error)
+    return NextResponse.json({ error: "Failed to record approval decision" }, { status: 500 })
+  }
+}

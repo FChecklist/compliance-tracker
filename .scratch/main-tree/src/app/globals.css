@@ -1,0 +1,316 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+/* @fchecklist/veridian-ui-kit is the shared VERIDIAN AI OS design-token
+   source (colors/fonts/chain-selector-chip/nav-item primitives) -- this repo
+   is the reference implementation those tokens were extracted FROM (see
+   veridian-scope-selector-in-home.html), so this import must stay
+   byte-identical to what every other consuming product (PROJEXA, future
+   FChecklist products) gets. Do NOT re-add a locally-shadowed copy of any
+   --color-ct--prefixed color token, or of --font-heading / --font-sans,
+   below -- that is exactly the per-product drift this package exists to end.
+   Genuinely new tokens this repo needs that aren't shell-generic (semantic
+   status colors, pendency colors, shadcn mappings) stay local, appended in
+   the second @theme block below. */
+@import "@fchecklist/veridian-ui-kit/tokens/globals.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* ─── Semantic Colors ─── */
+  --color-ct-success: #16A34A;
+  --color-ct-success-light: #F0FDF4;
+  --color-ct-success-border: #86EFAC;
+  --color-ct-warning: #E67E22;
+  --color-ct-warning-light: #FEF9EC;
+  --color-ct-warning-border: #F5CBA7;
+  --color-ct-error: #C0392B;
+  --color-ct-error-light: #FDECEB;
+  --color-ct-error-medium: #E8A39D;
+  --color-ct-info: #2563EB;
+  --color-ct-info-light: #EFF6FF;
+  --color-ct-info-border: #BFDBFE;
+  --color-ct-draft: #7C3AED;
+  --color-ct-draft-light: #F5F3FF;
+
+  /* ─── Neutral Colors ─── (cloud/cloud2/slate/muted/border/border2 come from
+     the veridian-ui-kit import above; only the 2 tokens it doesn't define
+     stay here) */
+  --color-ct-white: #FFFFFF;
+  --color-ct-row-hover: #FAFBFF;
+
+  /* ─── Pendency Colors ─── */
+  --color-ct-pend-overdue-bg: #FDECEB;
+  --color-ct-pend-overdue-text: #C0392B;
+  --color-ct-pend-overdue-border: #E8A39D;
+  --color-ct-pend-under30-bg: #FEF3E2;
+  --color-ct-pend-under30-text: #F5820A;
+  --color-ct-pend-under30-border: #FAC88A;
+  --color-ct-pend-under60-bg: #FEF9EC;
+  --color-ct-pend-under60-text: #E67E22;
+  --color-ct-pend-under60-border: #F5CBA7;
+  --color-ct-pend-safe-bg: #E6F4F2;
+  --color-ct-pend-safe-text: #0E7C6E;
+  --color-ct-pend-safe-border: #7ECDC5;
+  --color-ct-pend-done-bg: #F0FDF4;
+  --color-ct-pend-done-text: #16A34A;
+  --color-ct-pend-done-border: #86EFAC;
+
+  /* ─── shadcn/ui Mappings ─── */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  /* --font-heading/--font-sans come from the veridian-ui-kit import above
+     (var(--veridian-font-heading, "DM Serif Display") / var(--veridian-font-sans, "Inter"))
+     -- layout.tsx supplies the actual next/font instances via
+     veridianHeadingFont.variable/veridianSansFont.variable. */
+  --font-mono: var(--font-geist-mono);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* ─── Radius ─── */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 28px;
+  --radius-full: 9999px;
+}
+
+:root {
+  --radius: 0.625rem;
+
+  /* ─── shadcn/ui Token Mappings ─── */
+  --background: #FFFDF9;
+  --foreground: #1C2B3A;
+  --card: #FFFDF9;
+  --card-foreground: #1C2B3A;
+  --popover: #FFFFFF;
+  --popover-foreground: #1C2B3A;
+  --primary: #F5820A;
+  --primary-foreground: #FFFFFF;
+  --secondary: #F0F4F8;
+  --secondary-foreground: #1C2B3A;
+  --muted: #F0F4F8;
+  --muted-foreground: #718096;
+  --accent: #FEF3E2;
+  --accent-foreground: #1C2B3A;
+  --destructive: #C0392B;
+  --border: #E2E8F0;
+  --input: #CBD5E1;
+  --ring: #F5820A;
+
+  --chart-1: #F5820A;
+  --chart-2: #0E7C6E;
+  --chart-3: #2563EB;
+  --chart-4: #7C3AED;
+  --chart-5: #E67E22;
+
+  --sidebar: #FFFDF9;
+  --sidebar-foreground: #4A5568;
+  --sidebar-primary: #F5820A;
+  --sidebar-primary-foreground: #FFFFFF;
+  --sidebar-accent: #FEF3E2;
+  --sidebar-accent-foreground: #1C2B3A;
+  --sidebar-border: #E2E8F0;
+  --sidebar-ring: #F5820A;
+
+  /* Wave B (VERIDIAN Review Framework remediation, "BYOB white-label
+     branding", 2026-07-17): default per-tenant brand values, shadowed at
+     runtime by AppShell.tsx's inline style with the org's own configured
+     colors (org-branding-service.ts's resolveBranding(), via /api/me). A
+     deliberately NEW, separate pair of custom properties -- not an attempt
+     to make --color-ct-navy/--color-ct-saffron above runtime-overridable,
+     which Tailwind v4's `@theme inline` inlines as literal values into
+     every utility class at build time (bg-ct-saffron etc. would NOT pick up
+     a runtime override of --color-ct-saffron). Consumers that want
+     per-tenant theming reference these two vars directly (see
+     AppSidebar.tsx's logo wordmark/accent underline for the current usage)
+     rather than the ct-* Tailwind tokens, which stay the fixed VERIDIAN AI
+     defaults everywhere else in the app -- see this wave's PR description
+     for why a full re-theme of every ct-saffron usage was deliberately out
+     of scope ("at minimum the sidebar logo and a CSS custom property"). */
+  --org-brand-primary: #1C2B3A;
+  --org-brand-accent: #F5820A;
+}
+
+@layer base {
+  * {
+    @apply border-ct-border outline-ring/50;
+  }
+  body {
+    @apply bg-ct-cream text-ct-navy font-sans antialiased;
+  }
+  h1, h2, h3, h4, .font-heading {
+    font-family: var(--font-heading);
+  }
+}
+
+/* ─── Custom Scrollbar ─── */
+@layer base {
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #CBD5E1;
+    border-radius: 9999px;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94A3B8;
+  }
+}
+
+/* ─── Utility Classes ─── */
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .text-gradient-navy {
+    background: linear-gradient(135deg, #1C2B3A, #2D3F52);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .bg-gradient-navy {
+    background: linear-gradient(135deg, #1C2B3A, #2D3F52);
+  }
+  .shadow-saffron {
+    box-shadow: 0 4px 16px rgba(245, 130, 10, 0.3);
+  }
+  .shadow-saffron-fab {
+    box-shadow: 0 6px 24px rgba(245, 130, 10, 0.45);
+  }
+  .shadow-nav {
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  }
+  .shadow-card {
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.07);
+  }
+  .shadow-modal {
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12);
+  }
+}
+/* Landing-page module orbit (hero "50+ modules, one AI" visualisation).
+   Container spins; each chip counter-spins at the same rate so its text
+   stays upright while its position orbits the VERIDIAN core. */
+@keyframes vd-orbit {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.animate-vd-orbit {
+  animation: vd-orbit 90s linear infinite;
+}
+.animate-vd-orbit-rev {
+  animation: vd-orbit 90s linear infinite reverse;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Print Stylesheet
+   ─────────────────────────────────────────────────────────────────────────
+   Covers the authenticated app shell (src/components/AppShell.tsx already
+   marks the persistent chrome -- sidebar, topbar, health ribbon, onboarding
+   checklist, trial banner, VERI Chat composer/panel, global chat dock, help
+   widget, task visibility panel -- with `print:hidden`/`print:*` utility
+   classes; the rules below handle the rest: page setup, and generic
+   content-area rules so anything rendered inside AppShell's `{children}`
+   slot -- e.g. Reports (`/reports`), ERP Invoicing (`/erp/invoicing`), and
+   any other data table/card/detail view -- prints cleanly without every
+   individual page needing its own print CSS.
+
+   Two escape-hatch utilities for page-specific fine-tuning beyond the
+   chrome-vs-content split AppShell already does:
+     .no-print    -- hide an in-page element only when printing (e.g. a
+                     page's own "Filter"/"Bulk actions" toolbar, action-menu
+                     buttons inside a table row).
+     .print-only  -- show an element only when printing (e.g. a "Printed
+                     from VERIDIAN AI on <date>" footer added to a specific
+                     report/invoice template).
+   ───────────────────────────────────────────────────────────────────────── */
+@media print {
+  @page {
+    margin: 1.5cm;
+  }
+
+  html, body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+
+  /* Respect background colors/shadows only where they're genuinely
+     content-carrying (status badges, chart colors); everything else -- most
+     saffron/teal chrome accents -- is cosmetic and just burns ink/toner on a
+     printed page, so we don't force color-adjust globally. Authors who need
+     a specific colored element to survive printing (e.g. a status badge)
+     should add `print:[print-color-adjust:exact]` on that element directly
+     rather than relying on a blanket override here. */
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
+  /* Avoid splitting a table row, card, or heading across a page boundary --
+     the single highest-impact rule for "prints cleanly" on data-heavy
+     screens like Reports and Invoicing. */
+  table, tr, thead, tbody {
+    page-break-inside: avoid;
+  }
+  h1, h2, h3, h4, .font-heading {
+    page-break-after: avoid;
+  }
+  [data-slot="card"] {
+    box-shadow: none !important;
+    border: 1px solid #ccc !important;
+    page-break-inside: avoid;
+  }
+
+  /* Scrollable containers throughout the app (data tables, panels) clip
+     content to a fixed viewport height on screen via overflow-auto/hidden --
+     on paper there's no viewport to scroll, so let content flow across
+     pages instead of getting cut off after one screen's worth. */
+  .overflow-auto, .overflow-hidden, .overflow-y-auto, .overflow-x-auto {
+    overflow: visible !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+}
+
+.print-only {
+  display: none;
+}

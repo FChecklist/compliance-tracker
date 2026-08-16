@@ -1,0 +1,7 @@
+Owner directive 2026-08-16. STEP ONE: script-driven classification (scripts/pr-classification/) of every open PR by real changed-file signature: EMPTY=0, DEPENDENCY=8, DOCS-ONLY=115, CODE=299 (sums to 422, matches live SPEC counts exactly). Full output committed to ai-os/registry/pr-classification-20260816.json.
+
+STEP TWO: closed 13 confirmed-superseded DOCS-ONLY PRs (cited citation per PR; see ai-os/registry/pr-classification-20260816-disposal-decisions.json). Left 8 open after finding real unshipped content (owner-proposals, live corrections, previously-undocumented bugs). Never touched CODE/DEPENDENCY classes.
+
+STEP THREE: CODE-class PR list (299 numbers) is in the committed JSON for the sibling dispatch that owns landing code-touching work.
+
+See progress/task-20260816-171212-classify-the-entire-compliance-tracker-p.md for full detail.

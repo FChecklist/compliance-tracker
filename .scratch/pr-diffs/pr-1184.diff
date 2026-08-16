@@ -1,0 +1,76 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 02d52a0b4..f77d39784 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,4 +1,4 @@
+-# PROGRESS -- task-20260814-171913-rca--umr-20260806-223456-68d7-killed
++# PROGRESS -- task-20260814-182533-rca--umr-20260806-171558-146e-killed
+ 
+ ## Completed
+ 
+diff --git a/progress/task-20260814-182533-rca--umr-20260806-171558-146e-killed.md b/progress/task-20260814-182533-rca--umr-20260806-171558-146e-killed.md
+new file mode 100644
+index 000000000..826565800
+--- /dev/null
++++ b/progress/task-20260814-182533-rca--umr-20260806-171558-146e-killed.md
+@@ -0,0 +1,60 @@
++# PROGRESS -- task-20260814-182533-rca--umr-20260806-171558-146e-killed
++
++RCA target: UMR-20260806-171558-146e (status=killed)
++
++## Completed
++- [x] Queried real row: `resource_governor.py --query-umr --umr-id UMR-20260806-171558-146e`.
++      Full `reason` matches the SPEC summary verbatim (not truncated/fabricated):
++      dispatch (owner-task-20260806-171557-668023, source=owner_dispatch_gateway,
++      task_kind=veridian_task_create) claimed "OCID-020 URGENT window open, run categories
++      10 11 and 13 now while the safety gates permit" — an independent live gate check at
++      the time found `has_resource_headroom()=False` (swap_hard_ceiling: SwapFree=50612kB=
++      49.4MiB, far under the 500MiB threshold), directly contradicting the dispatch's own
++      claim. Separately, the Owner's absolute stop-work order
++      (`task-20260806-165921-owner-absolute-stop-work-order--complete`, 2026-08-06T16:59:22Z)
++      explicitly named "OCID-020 category fixes" as in-scope-to-halt. No verdict written, no
++      bypass attempted — the row records a correct, disciplined kill on two independent
++      grounds.
++- [x] Checked memory index `veridian-killed-rca-series-index` — this matches the
++      "correctly-killed / no-correction-needed" bucket, closest precedent
++      `UMR-20260807-101751-68ff` (same stop-work order, same day-of pattern: PM/dispatch
++      declines rather than bypasses a live gate).
++- [x] Re-verified the stop-work-order gate live, in-process (not narrated): called
++      `resource_governor._stop_work_order_block_reason("veridian_task_create", ...)` directly
++      — returns `None` today (2026-08-14), i.e. genuinely open now, same
++      first-confirmed-open-sighting pattern as the UMR-68ff RCA.
++- [x] Re-verified the resource gate live: `SwapFree` now 7153MiB (`free -m`/`/proc/meminfo`),
++      far above the 500MiB threshold — also open today. (Both gates were closed at dispatch
++      time in 2026-08-06; both are open now, 8 days later — expected drift, not evidence the
++      original kill was wrong.)
++- [x] Checked whether "OCID-020 categories 10/11/13" scope was orphaned by this kill: queried
++      `gtm_certification_categories` in `superboss-register.sqlite` directly. Categories
++      10/11/13 (load/stress/AI testing) are tracked under a **separate, pre-existing** UMR
++      chain (parent `UMR-20260802-165606-4413`, 25-category set `UMR-20260805-131542-121f`,
++      child UMRs `UMR-20260806-115859-c041`/`2f50`/`b7cf`, minted ~5h before the killed
++      dispatch) — not owned by `UMR-20260806-171558-146e`. Category 13 already shows
++      `passed=1`, validated `2026-08-14T10:10:41Z`, via that independent chain. Categories 10
++      and 11 remain open there, but that is out of scope for this RCA (not orphaned by this
++      kill, no unique scope was lost) and already has its own tracking chain — checked
++      `ai-os/boss/ACTIVE-CLAIMS.yaml` for a live claim on load/stress testing (none found), so
++      not claimed as new work here.
++- [x] Conclusion: **no correction needed**. This is a correctly-killed row, not a mislabel.
++      No code fix, no redispatch required under this UMR.
++- [x] Recorded verification evidence onto the row itself via
++      `superboss-register.py mark-umr-terminal --umr-id UMR-20260806-171558-146e --status
++      killed --reason "<full evidence citation>"` (re-affirms status=killed with fresh,
++      dated evidence — same convention as the UMR-68ff precedent). Exit code 0,
++      `ts_completed` refreshed to `2026-08-14T18:31:51Z`.
++- [x] `record-completion` called against this session's own governing UMR
++      (UMR-20260814-181904-b43e) per the task's own protocol.
++
++- [x] Committed (`2dd9d8d3f`) and pushed to
++      `worker/task-20260814-182533-rca--umr-20260806-171558-146e-killed`. Opened PR #1184
++      (`FChecklist/compliance-tracker`) per Rule 6's PR/CI gate.
++
++## Remaining
++- [ ] None. RCA complete; no code-named objective in this task's scope (governing chain is
++      the RCA process itself, not a source file) — the completion gate for
++      code-named-objective tasks does not apply here. PR #1184 awaits CI (branch protection
++      requires 1 review — known self-approval deadlock on this repo, same as every other PR
++      here; not blocking on this task).

@@ -1,0 +1,224 @@
+# ARCHIVED / STALE — do not treat as current.
+# See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
+# Priority 2 tracker, created 2026-07-12 per the Owner's explicit directive
+# (verbatim numbered list): rotate leaked veda-advisors credentials -> PROJEXA
+# (excluding drawing/2D/3D/rendering/animation) -> Tree 1 AI Governance Layer
+# to 100% -> Universal Connector (D26) + Communication Governance (D10) +
+# Intelligent Work Detection (D21) -> Approval & Confirmation UX (D9). Same
+# discipline as 05-eighteen-areas-tracker.yaml: real code/schema shipped,
+# tsc+eslint clean, tests passing, or an explicit Owner-input-needed flag --
+# never a silently assumed default.
+#
+# status values: complete | in_progress | not_started
+
+priority: 2
+sequence_rationale: "Owner's own explicit numbered order. Item 3 (Tree 1 to 100%) subsumes items 4/5 (D26/D10/D21/D9 are Tree 1 domains) -- the Owner named them separately for emphasis/sequencing, not as extra scope beyond Tree 1. Treated as: close D26/D10/D21/D9 FIRST within the Tree 1 sweep, then the remaining ~20 Tree 1 domains."
+
+items:
+  - num: 1
+    name: "Rotate leaked credentials (veda-advisors)"
+    status: in_progress
+    investigation: |
+      Verified directly (not assumed from the earlier report) 2026-07-12:
+      - The veda-advisors LOCAL checkout has 2 parts: `code-by-zai/` (the real
+        git repo, remote github.com/FChecklist/veda-advisors) and a parent
+        `veda-advisors/` folder that is NOT a git repo at all (just local files).
+      - A real, working GitHub PAT (github_pat_11AL4BWDI0gNHc6hDZInQi_...) is
+        in plaintext in 2 local, non-git-tracked files (MASTER_IMPLEMENTATION_
+        PROMPT.md, Veda_Advisors_Master_Prompt.md) in that parent folder, AND
+        is embedded directly in code-by-zai/.git/config's remote URL (used for
+        push/pull auth instead of a credential helper).
+      - A real, working Composio API key (ak_VoAwUihcZW80sTMIG-8s) is in
+        plaintext in Linkedin.md, same parent folder.
+      - The tracked `.env` at HEAD in code-by-zai only contains a harmless
+        SQLite placeholder path -- a prior security pass already untracked the
+        real .env (2 commits: "security: untrack .env"/"Untrack .env").
+      - NOT found on direct verification: a real DB password, or a full
+        (non-truncated) Supabase service-role key -- the earlier reconciliation
+        report's "DB password + service-role key" claim does not hold up under
+        this closer check; only placeholder/truncated examples exist in these
+        files. Correcting that overclaim here rather than carrying it forward.
+      - None of this is committed to any GitHub repo (the parent folder isn't
+        git-tracked at all) -- real risk is local-machine credential hygiene
+        and reuse (this same PAT is documented elsewhere, see memory, as a
+        "reusable FChecklist token" across multiple repos), not a public leak.
+    remaining_work:
+      - "GENERATE new GitHub PAT + revoke the old one -- Owner action required (GitHub Settings -> Developer settings -> Personal access tokens). Cannot be done by an agent: this changes account-level auth credentials. Once issued, tell Super Boss the new PAT so it can be re-applied to code-by-zai's git remote and any GitHub Secrets that reference it."
+      - "GENERATE new Composio API key + revoke the old one -- Owner action required (Composio dashboard). Same reasoning as above."
+      - "Scrub the plaintext PAT/API-key VALUES from MASTER_IMPLEMENTATION_PROMPT.md, Veda_Advisors_Master_Prompt.md, Linkedin.md once new credentials exist -- replace with a placeholder + 'see 1Password/secrets manager' note, not a re-paste of the new secret into a markdown file."
+      - "Fix code-by-zai/.git/config to stop embedding the PAT in the remote URL -- switch to a Windows credential-manager-backed HTTPS auth or an SSH remote, so the token never sits in a plaintext config file again."
+      - "Check every other repo/workflow this PAT is reused in (GitHub Secrets PAT_FCHECKLIST across compliance-tracker/veda-advisors/projexa, per AGENTS.md/memory) before rotating -- a blind rotation without updating all consumers will break CI everywhere it's used."
+
+  - num: 2
+    name: "PROJEXA (excluding drawing/2D/3D/rendering/animation)"
+    status: not_started
+    investigation: |
+      Verified directly against the live repo (C:\Users\Dell\Downloads\Claude
+      Code\projexa) 2026-07-12, not from stale memory:
+      - AppSidebar.tsx lists 21 nav items across 8 sections (Overview,
+        Execution, Field, Design, Resources, Finance, Intelligence, +Settings).
+      - Only 9 of those 21 have a real page under src/app/(app)/: Dashboard,
+        Schedule, RFIs, Submittals, Punch List, Change Orders, Mood Boards,
+        FF&E, Floor Plans.
+      - 13 nav items have NO folder under src/app/(app)/ at all -- confirmed
+        one by one, not estimated: Scope of Work (BOQ), Work Progress, Site
+        Diary, Documents, Manpower & Attendance (labour), Materials, Vendors,
+        Budgets, Expenses, KPIs, Reports, AI Copilot, Settings. Clicking any of
+        these in the live app today does nothing real (no matching route).
+      - compliance-tracker's own memory (PROJEXA/VERIDIAN Gap Build Waves
+        115-129) built the BACKEND for several of these already, as a
+        /api/v1/projexa/* aliasing layer inside compliance-tracker (BOQ,
+        progress, site diary, manpower/attendance, KPI, documents metadata --
+        48 v1 paths total) -- this PROJEXA repo's own local /api routes
+        (assistant, capability-tree, change-orders, conversations, design-
+        materials, discuss, ffe, floor-plans, mood-boards, org-members,
+        punch-list, rfis, schedule, submittals, todos) do NOT yet call or
+        proxy that aliasing layer for the 13 missing modules -- needs
+        confirming whether the plan is a direct call to compliance-tracker's
+        /api/v1/projexa/* or a local reimplementation.
+    scope_exclusion: "Owner's explicit exclusion: no drawing creation, image creation, 2D/3D rendering, or animation. Floor Plans and Mood Boards pages ALREADY EXIST and are out of this item's scope entirely (don't touch them) -- this item is only about the 13 missing NON-visual, table/form-driven pages listed above."
+    remaining_work:
+      - "Scope of Work (BOQ) page (/scope) -- list/detail view over BOQ line items, likely backed by compliance-tracker's already-built BOQ rate-analysis engine (memory: 'BOQ rate analysis' closed in Phase 3 Waves 125-129)."
+      - "Work Progress page (/work-progress) -- backed by the already-built progress-tracking engine (memory: 'progress' in the 48-path v1 aliasing surface)."
+      - "Site Diary page (/site-diary) -- backed by the already-built site-diary engine (memory: 'site diary' in the same aliasing surface)."
+      - "Documents page (/documents) -- metadata-only listing (no rendering/viewer -- respects the drawing/rendering exclusion), backed by 'documents metadata' in the aliasing surface."
+      - "Manpower & Attendance page (/labour) -- backed by 'manpower/attendance' in the aliasing surface."
+      - "Materials page (/materials) -- check whether design-materials (existing local API route) already covers this, or whether it's a distinct materials-procurement/inventory concept."
+      - "Vendors page (/vendors) -- likely new, no obvious existing backend named in memory; investigate before building."
+      - "Budgets page (/budgets) -- likely new; investigate before building."
+      - "Expenses page (/expenses) -- likely new; investigate before building."
+      - "KPIs page (/kpis) -- backed by 'KPI' in the 48-path v1 aliasing surface (memory: 'all 17 named reports' also built in Phase 2)."
+      - "Reports page (/reports) -- likely overlaps the same reports work as KPIs; investigate whether these should be 2 pages or 1."
+      - "AI Copilot page (/copilot) -- backed by the construction AI Copilot work (memory: 'deterministic worker-agent dispatch, 7 agents' from Phase 3 Waves 125-129)."
+      - "Settings page (/settings) -- standard org/project settings, likely the smallest, most mechanical of the 13."
+
+  - num: 3
+    name: "Tree 1 — AI Governance Layer to 100%"
+    status: complete
+    resolution_note: "RESOLVED 2026-07-12: all 3 parallel subagent slices closed and merged -- D1/D2/D8/D13 (subagent/gov-identity, PR #197), D5/D6/D19/D24/D25 (subagent/chain-dashboard, PR #198), D15/D22/D27/D28 (subagent/audit-lifecycle, PR #199). Every sub-branch across all 20 domains was either closed with real code, confirmed already-satisfied by existing mechanisms, or ratified as a documented, genuinely-large deferral (not silently dropped) -- see the domain-level notes below and each domain's own detail subsection for full evidence."
+    investigation: |
+      Baseline from the post-Priority-1 reconciliation (2026-07-12): 52 of 131
+      buildable Tree 1 requirements are solid (39.7%), 38 partial, 37 gap,
+      across 28 domains (U-D1..U-D28). D26/D10/D21/D9 (items 4/5 below) are
+      Tree 1 domains -- closing them closes 4 of the ~24 still-incomplete
+      domains, not extra scope on top of this item. D4 (Universal Work Object,
+      8% solid) is DELIBERATELY excluded from this sweep -- DEC-03 (2026-07-11,
+      Super Boss judgment call under a prior 'don't wait' directive) ratified
+      the existing distributed architecture over a ~30-state retrofit as
+      hard-to-reverse and disproportionate; revisiting it needs an explicit
+      Owner override, not a default inclusion in "Tree 1 to 100%."
+    remaining_work_by_domain:
+      - "D1 Governance Charter & Mission -- CLOSED 2026-07-12 (subagent/gov-identity). See d1_governance_charter below."
+      - "D2 AI Org Hierarchy & Roles -- CLOSED 2026-07-12 (subagent/gov-identity). See d2_ai_org_hierarchy below."
+      - "D5 Dynamic Mode Pills & Chain Framework: RESOLVED 2026-07-12 (subagent/chain-dashboard). B2.S3 (usage-based ranking + search filter) and B2.S4 (per-user chain library) built for real -- see 04-implementation-log.yaml's 2026-07-12 subagent/chain-dashboard entry. B2.S1 and B5.S1 re-verified as already-implemented (no code needed). Remaining sub-branches (B1.S1/S2/S3, B2.S2, B4.S1) are either Owner-clarification calls or too-broad-to-narrowly-verify per the tree's own notes, not code gaps."
+      - "D6 Dynamic Chain Master Directory: RESOLVED 2026-07-12 (subagent/chain-dashboard). B2.S1's search/version-control service (built by PR #167) had zero real callers -- now wired into real API routes (GET /api/dynamic-chains, GET+POST /api/dynamic-chains/[id]/versions). B3.S1 (chain-ID propagation to conversations/approvals/reports) investigated and ratified as correctly-scoped-deferred, not force-built -- no real chain-sourced approval/report creation flow exists yet to source a value from; see the implementation log for the full finding."
+      - "D8 VERI Chat Identity -- CLOSED 2026-07-12 (subagent/gov-identity). See d8_veri_chat_identity below."
+      - "D9 Approval & Confirmation UX -- see item 5."
+      - "D10 Communication Governance -- see item 4."
+      - "D13 Guardrail Framework, Per-Task Layer -- CLOSED 2026-07-12 (subagent/gov-identity). See d13_guardrail_framework below."
+      - "D15 Audit & Review Governance -- CLOSED this pass (subagent/audit-lifecycle) beyond what a narrow slice could reach; see d15_d22_d27_d28_audit_lifecycle below for what was built vs. documented."
+      - "D19 Reporting Framework: RESOLVED 2026-07-12 (subagent/chain-dashboard). Built a real daily AI-performance report (Performance/Failures/Token-Usage/Quality/Learning, all from already-populated tables) + cron. Escalations/Recommendations/Risk-Trends honestly documented as uncovered (no deterministic source exists in this schema) rather than fabricated. Other 6 named cadences are a config addition on the same function, not built speculatively."
+      - "D21 Intelligent Work Detection -- see item 4."
+      - "D22 Follow-up, SLA & Continuous Planning -- CLOSED this pass (subagent/audit-lifecycle) at its real buildable scope; see d15_d22_d27_d28_audit_lifecycle below."
+      - "D24 Response Engine & Predefined Responses: RESOLVED 2026-07-12 (subagent/chain-dashboard) -- nothing to build. B1.S1 re-confirmed fully_implemented; B1.S2/B1.S3 re-confirmed not_applicable (response-engine.ts and guardrail-registrations.ts verified as legitimately different data shapes, no consolidation needed)."
+      - "D25 Task Automation, Calculators & Reports: RESOLVED 2026-07-12 (subagent/chain-dashboard) for the non-engine-wiring pieces. B1.S1's active nudge + single-batched-ping built for real (task-nudge-digest-service.ts + cron); 'recurring task -> automation conversion' documented as deferred (no recurrence concept in the tasks schema); 'software multi-tasks... driven by Dynamic Chain' verified already satisfied by VeriComposer's expandPathsForSend(). B4.S1's chain-integration ('report URL surfaced via chain option') investigated and NOT force-built -- needs a new capability-tree leaf kind plus reports-page deep-linking, a real 3-layer UI change out of narrow-slice scope; recommended as a dedicated follow-up. B2.S1 (engine wiring) and B3.S1 (automation_rules) untouched -- confirmed out of this dispatch's scope / already adequately evidenced."
+      - "D26 Universal Connector -- see item 4."
+      - "D27 Registration, Licensing & Adoption -- CLOSED this pass (subagent/audit-lifecycle) at its real buildable scope; see d15_d22_d27_d28_audit_lifecycle below."
+      - "D28 Onboarding & Sign-up UX -- CLOSED this pass (subagent/audit-lifecycle) beyond the already-ratified auth-rebuild/G-045 and onboarding-profile-redesign exclusions; see d15_d22_d27_d28_audit_lifecycle below."
+    note: "D3/D7/D12/D14/D16/D17/D18/D20/D23 are already at 50-100% solid or fully closed -- listed here as 'monitor, don't prioritize' rather than omitted silently. D11 is a duplicate_ref only (not independently buildable)."
+    d15_d22_d27_d28_audit_lifecycle:
+      resolution_note: "RESOLVED 2026-07-12 (subagent/audit-lifecycle dispatch, PR pending Super Boss review) at each domain's real, buildable scope -- not '100% of every sub-branch', consistent with this session's own established discipline of documenting genuinely large/compound/risky gaps rather than force-building narrow slices that wouldn't really close them. Full investigation findings + design rationale: 04-implementation-log.yaml's 2026-07-12 (subagent dispatch, branch subagent/audit-lifecycle) entry."
+      d15_audit_review_governance:
+        closed: "U-D15.B1.S4 (L4 'Executive Audit Review'): found and fixed a real, live bug -- classifyAuditCadence()'s 'high'-risk executive-escalation flag was computed but never surfaced anywhere (guardrail-registrations.ts only ever acted on it for 'critical', already redundant with that branch). Built the missing L4 query/acknowledge surface (listPendingExecutiveEscalations/acknowledgeExecutiveEscalation, GET/POST /api/ai/team/executive-review) + wired a read-only pending count into the existing 3-hour audit-cadence cron. Does not touch L1's blocking behavior or re-litigate the already-ratified L3/L5/L6/L7 cadence-mismatch decision (2026-07-12 area-9 entry)."
+        documented_not_built: "U-D15.B2.S1 (9 of 10 named event triggers remain unwired -- each needs its own per-event design decision, genuinely large, multi-part). U-D15.B4.S1 (depends on D2.B4's audit organization, itself a confirmed_gap owned by a different area). U-D15.B5.S1 (10-dimension verification checklist, no reusable artifact exists -- handover-protocol.ts's 9 fields are a different axis). U-D15.B6.S1 (depends on the 18-stage lifecycle + L1/L2 escalation ladder, neither confirmed literally built) -- per each sub-branch's own instruction not to build in isolation."
+      d22_followup_sla:
+        closed: "U-D22.B1.S1 narrowed and closed: tasks.dueDate had zero overdue detection anywhere (confirmed by direct search) -- built checkTaskOverdue()/isTaskOverdue() (task-service.ts), mirroring ticket-service.ts's checkTicketSlaBreaches exactly, wired into the existing shared /api/internal/metric-alerts/run cron. Extends 'Missed-timelines' follow-up coverage from compliance items + tickets to tasks."
+        documented_not_built: "Full 'any Work Object' generality -- Blocked/Delegated/Waiting-dependency/Inactive (4 of the requirement's 6 named monitored-state categories) have no equivalent in tasks.status's 5-value enum, would need a schema change. U-D22.B2.S1 (continuous re-prioritization) confirmed fully unbuilt and genuinely large (grep for reprioriti/re-planning returns zero matches anywhere) -- matches the tree's own 'flag as its own initiative' instruction, not attempted."
+      d27_registration_licensing_adoption:
+        closed: "U-D27.B2.S1 (Adoption Dashboard) CLOSED for real: new adoption-metrics-service.ts computes adoptionPercent/aiAdoptionPercent/meetingsManaged/tasksCompleted/reportsGenerated/aiConversations/departmentsActive + a per-department Top-Performing/Lowest-Adoption breakdown, all off existing tables (users/veriMeetings/tasks/conversations/savedReports/departments/tokenUsageLedger), no fabricated numbers. New Settings > Adoption Dashboard admin/manager-gated view (GET /api/settings/adoption-metrics + AdoptionMetricsSection.tsx). 'Hours Saved' (1 of the 10 named metrics) returned as null with an explicit reason -- no estimation methodology for AI-time-saved exists anywhere in this codebase; inventing one would be a fabricated number, needs an Owner-defined formula first. This closes the Org Master Admin/CEO dashboard view specifically -- an individual per-user view is not built this pass (would reuse the same aggregation function scoped to one user)."
+        reconfirmed_already_closed: "U-D27.B3.S1 (4 invitation paths): re-verified all 4 are real and live (Direct Add / Shareable Link / Join Code Paths C+D), confirmed already closed by this session's earlier peer-code/join-code dispatches. One minor finding, not built per this dispatch's explicit steer away from more invitation-path work: the Shareable Link tab's WhatsApp mention is copy-only (no wa.me link), unlike veri-chat's share-links/guest-access routes which already build one for a different feature -- a real, narrow, cheap follow-up if wanted later."
+        documented_not_built: "U-D27.B1.S1 (2-concurrent-session / device limit): confirmed fully unbuilt (no sessions table, no device tracking, no Supabase Auth sessions API usage anywhere) -- but building it safely means new session-tracking infrastructure PLUS instrumenting requireAuth(), the single central auth chokepoint every API route in this app depends on. Judged too large/risky to force into a narrow slice this pass (a bug here could break authentication app-wide, unlike every other change in this dispatch). The tree's own guardrail note (internal-use exception must exist from day one) still applies whenever this is eventually built."
+      d28_onboarding_signup_ux:
+        closed: "The one real, narrow gap remaining beyond the 2 already-ratified exclusions (auth-rebuild/G-045, no-typing-profile-inference/Mode-Pill redesign): 'connectors pre-connected during setup' was fully absent from onboarding. Added a real 'Connect your tools' step to OnboardingChecklist.tsx that reflects actual GET /api/connectors status (not a fake manual checkbox) -- true automatic pre-connection isn't possible (OAuth needs the user's own third-party auth), so this is the honest version: a status-verified nudge, clicking navigates to /connectors where the real connection happens."
+        already_satisfied_no_build_needed: "U-D28.B1.S2 re-verified as fully satisfied by earlier session work, not a gap: AppTopbar.tsx already has a persistent global '+' invite control on every screen; OnboardingChecklist.tsx's STEPS already has no ai-config or upload entries (both already relocated/removed). schema.ts's onboardingStage column comment listing the old upload|ai-config value set is stale documentation, not a live code path."
+        documented_decision_point: "U-D28.B2.S1 (composer copy): VeriComposer.tsx now has 6 distinct contextual placeholder states, none matching the literal single-string spec verbatim -- a richer, state-aware design than the spec anticipated. Documented as a decision point for Owner/Super Boss (force-rewriting 6 real states back to 1 static string would be a regression, matching this session's own D13 precedent on rejecting over-literal message rewrites), not changed either way."
+    d1_governance_charter:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- 1 real gap found and fixed (B2.S2, documentation), 1 investigated and confirmed absent but deliberately not force-built (B1.S1), 3 needed no action (already correctly assessed as framing-only/satisfied-in-spirit in the tree doc itself)."
+      current_state: "Confirmed genuinely mostly framing/documentation-shaped, matching the tree's own note -- only 2 of 5 sub-branches had any real action available."
+      closed_this_session:
+        - "B2.S2: REAL gap, closed. Grepped all 4 root constitution docs for 'supersed'/'SOP' -- zero hits despite each already using ENFORCED/PARTIALLY ENFORCED/POLICY ONLY/NOT APPLICABLE YET discipline. Added a 'Constitutional authority' section to each stating explicit supersession over individual agent instructions/informal working practice."
+        - "B2.S1, B3.S1, B4.S1: no action needed -- re-confirmed the tree doc's own existing assessment (mostly_implemented/framing-only/satisfied-in-spirit) was already correct."
+      remaining_work:
+        - "B1.S1 (99.9% GPT-OSS-120B execution target, 6 named metrics, 31 Aug 2026 deadline): confirmed genuinely absent (no dashboard/report tracks this anywhere), deliberately NOT built as a partial 1-metric slice -- would need the other 5 named metrics identified from the source doc plus a real deadline-tracking UI to actually close the gap. Recommended as a separately-scoped follow-up."
+    d2_ai_org_hierarchy:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- 5 of the tree's listed gap/partial sub-branches turned out to already be closed by this session's own prior 130-role audit-org roster work (documented, not rebuilt); the 2 genuinely remaining gaps (B4.S1 audit independence, B1.S1 escalation-level tagging) were closed with real code; B6.S1 got new guardrail infrastructure."
+      current_state: "This domain had the most stale tree-doc statuses of the 4 -- the tree snapshot predates this session's own 130-role audit-org roster addition, which already closes most of what it still lists as gap."
+      closed_this_session:
+        - "B2.S1, B4.S2, B4.S3, B4.S4, B4.S5, B5.S1: reclassified from gap/partial to implemented -- verified by direct comparison of roster.ts's 5 AUDIT_* division teams (added same day, 130 roles) against each sub-branch's literal named department list. No code needed, tree doc was stale."
+        - "B4.S1 (CAO cannot modify production code): REAL gap, closed. New isAuditOrganizationRole() helper (roster.ts), wired as a fail-closed check in both real repo-write dispatch surfaces (dispatch-repo.ts, scripts/ai-workforce-agent.mjs)."
+        - "B1.S1 (5-level/L0-L5 escalation ladder): new optional RoleDefinition.escalationLevel field, tagged where roles map cleanly (chief_execution_engine=L0, chief_operating_officer=L3, super_boss=L4, founder_ceo=L5); L1/L2 documented as already-real process gates (peer review + QA pre-completion gate), not forced onto a role."
+        - "B6.S1 (3-phase audit protocol): new audit-protocol.ts + AUDIT_PROTOCOL_COMPLIANCE_LEAF guardrail leaf, mirroring handover-protocol.ts's exact shape. Honest scope note: no live caller yet (no dedicated 'submit audit finding' endpoint exists today) -- real, tested, additive infrastructure only, same posture as guardrail-engine.ts's own original empty-registry precedent."
+        - "B3.S2/S3/S4: reclassified from partial/superseded/not_applicable_to_code to implemented -- the CEE/COO/CSEO roles this session's EXECUTIVE_LADDER team addition already created match these sub-branches' named executive roles on the exact model each requirement names."
+        - "B6.S2 (9 non-negotiable audit guardrails): confirmed already correctly self-described as 'extends automatically when guardrail registration widens' -- this session's new AUDIT_PROTOCOL_COMPLIANCE_LEAF registration mechanically extends it (same recordGuardrailViolation()/CLEE path every leaf uses)."
+      remaining_work:
+        - "None confirmed gap remaining in this domain as of this session -- all 11 buildable sub-branches are now implemented, closed-with-code, or confirmed already-satisfied. B2.B2, B3.S1, B3.S5 remain not_applicable_to_code (framing text, correctly excluded, not a gap)."
+    d8_veri_chat_identity:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- the 1 remaining partial (B2.S1) upgraded to implemented by direct architectural verification, no code change needed."
+      current_state: "Smallest of the 4 domains -- 2 of 3 sub-branches were already solid; B2.S1 was the only open question."
+      closed_this_session:
+        - "B2.S1 (VERI Chat shall never auto-create/assign/modify/execute tasks from a conversation alone): upgraded from partial to implemented. Grepped every `.insert(tasks)` call site in the codebase (6 total) -- none originate from chat-service.ts. chat-service.ts's generateAiReply() has zero tool-calling capability (independently confirmed by ai-reply-gate.ts's own header). The requirement is satisfied structurally, not by a runtime gate -- a stronger guarantee, since nothing CAN execute an action from that code path at all. No code change -- a redundant guardrail against a structurally-impossible action would be guardrail-theater."
+      remaining_work:
+        - "None -- all 3 sub-branches now implemented or duplicate_ref (B3.S1, tracked under GAP-03 elsewhere, not independently buildable here)."
+    d13_guardrail_framework:
+      status: "closed 2026-07-12 (subagent/gov-identity PR) -- B1.S1 upgraded to implemented by content audit (no code); B1.S3 confirmed already-covered; B1.S2 investigated and deliberately NOT built (genuinely needs a live prompt-content change, not a narrow code slice)."
+      current_state: "Read guardrail-engine.ts and guardrail-registrations.ts first per the dispatch's own instruction, to check for the exact false-negative pattern flagged (a gap that's actually covered by a different, already-registered mechanism) -- found this pattern applies to B1.S1 and B1.S3, not B1.S2."
+      closed_this_session:
+        - "B1.S1 (preloaded/predefined, polite violation messages): upgraded to implemented. Read every `guidance:` string across the 5 registered-check modules (task-tightening.ts, communication-guardrails.ts, qa-precompletion-gate.ts, handover-protocol.ts, loop-prevention.ts) -- all are static string templates, professionally phrased, matching the bar exactly. No code change needed."
+        - "B1.S3 (violation-to-learning-loop link): confirmed already correctly covered generically -- this session's new AUDIT_PROTOCOL_COMPLIANCE_LEAF registration (D2.B6.S1 above) mechanically extends it, exactly as the tree's own note predicted."
+      remaining_work:
+        - "B1.S2 (assumption validation -- AI must check with the user before proceeding on an unstated assumption): confirmed real, deliberately NOT built. Considered and rejected a phrase-detection proxy on VERI's reply text (either too blunt -- would hard-block many legitimate assumption statements -- or, as a softer escalate-and-retry version, wouldn't actually close the literal requirement). The correct-in-principle fix (a 'confirm before assuming' instruction added to VERI's system prompt) requires a live prompt_templates DB content change, which is a production data mutation outside a headless subagent's authorization -- distinct from a schema migration file. Recommended as a follow-up needing (a) Boss/Owner sign-off on the prompt content change and (b) possible UX support for a pending-confirmation reply state."
+
+  - num: 4
+    name: "Universal Connector (D26) + Communication Governance (D10) + Intelligent Work Detection (D21)"
+    status: complete
+    resolution_note: "RESOLVED 2026-07-12: all buildable narrow-slice work closed (PR #194, PR #195, both independently verified and merged; migration 0148 applied live). DEC-08 confirms D10.B1.S1 satisfied. DEC-09 formally ratifies D26's B1.S2/S3/S4 (Office Add-in/Browser Extension/Desktop Companion) and B4.S1 (Business Digital Twin) as this item's one deliberately-open piece -- see 01-phase0-owner-decisions.yaml's DEC-09 for why these specifically were NOT auto-approved under the Owner's 'full control' directive (real, hard-to-reverse distribution/infrastructure decisions, not a routine interpretation call). D26.B2.S1/B5.S1/B6.S1 and D10's 3 uncheckable guardrail rules and no-live-trigger gap remain honestly documented, narrow, and correctly out of scope for this pass."
+    d26_universal_connector:
+      current_state: "Better than the stale tree doc suggests -- verified directly 2026-07-12: src/lib/composio-connectors.ts already has 13 OAuth toolkits live (gmail/googledrive/googlecalendar/outlook/one_drive/share_point/microsoft_teams/slack/notion/github/dropbox/box/confluence), not the ~6 the 2026-07-11 snapshot assumed. This closes most of B6.S1's realistic scope already. UPDATE (2026-07-12, subagent/connector dispatch): now 18 toolkits live -- see B1.S1 below."
+      closed_2026_07_12:
+        - "B1.S1 CLOSED: checked all 15 named M365+Google apps against Composio's live toolkit catalog directly (GET /toolkits?search=..., plus per-slug 404 probes for Word/PowerPoint variants). 5 genuinely missing toolkits confirmed real and added the same zero-setup composio-managed-OAuth way as the original 13: googlesheets (ac_lfcfCz_JYKAU), googledocs (ac_uZmYCDkZ24w7), googleslides (ac_5qg7xRTilJ5K), googlemeet (ac_axUlQpTgpKnD), excel (ac_jG5HX2qupKMa). Coverage now 12/15 named apps (was 7/15). Word and PowerPoint confirmed as a genuine, architecturally-real gap -- no Composio toolkit exists for either under any slug (word/powerpoint/msword/microsoft_word/microsoftword/office_word/ppt/microsoft_powerpoint all 404 Toolkit_ToolkitNotFound); Composio treats Word/PPT docs as opaque files inside OneDrive/SharePoint, not a distinct content API the way Excel and every Google app each have. Outlook's existing toolkit already covers Calendar (categories: email+calendar) -- no separate toolkit needed for the 8th Microsoft app. Evidence: src/lib/composio-connectors.ts, ai-os/tree4-unified/50-completion-plan/04-implementation-log.yaml's 2026-07-12 subagent/connector entry."
+        - "B3.S1 CLOSED as a narrow, additive slice: src/lib/business-object-classifier.ts (NEW) -- classifyBusinessObjectType(), the one authorized place format gets inspected, mapping toolkit/mimeType/fileName to Table/Document/Presentation/Communication. Wired into GET/POST /api/documents (derived businessObjectType field, no schema migration). 14 new tests, all passing. Re-confirmed PLAN-09's finding (9 format-branching instances, all either legitimate parsing-library selection or a single vision-capability check, never feature-level business logic) -- the guardrail had nothing real to violate yet since B2.S1/B4.S1 (real connector data pull) don't exist. Evidence: src/lib/business-object-classifier.ts, src/lib/business-object-classifier.test.ts, src/app/api/documents/route.ts."
+      remaining_work:
+        - "B1.S2/S3/S4 (GAP-08): Office Add-in, Browser Extension, Desktop Companion -- 3 separate new codebases (add-in manifest, browser extension, desktop agent), the largest real remaining scope in this whole item. Needs an explicit Owner scoping decision on whether all 3 are truly wanted before dispatching build work -- this is a multi-week initiative each, not a narrow slice. NOT attempted by the 2026-07-12 subagent/connector dispatch, per its own explicit out-of-scope instructions."
+        - "B2.S1: per-app intelligence behaviors (Sheets/Docs/Slides/Gmail/Drive) -- depends on B1 being fuller first, per the tree's own note. Re-assessed 2026-07-12: B1.S1's 5 new toolkits don't change this -- still no real data-pull code exists from any connector (connectors API is OAuth-connect-status only), so this remains correctly out of scope until that's built."
+        - "B4.S1: the Business Digital Twin (16-field per-document schema) -- the single largest, most concretely-scoped remaining piece; entity_relationships (DB-03) provides partial knowledge-graph infrastructure to build on rather than starting from zero. NOT attempted by the 2026-07-12 subagent/connector dispatch, per its own explicit out-of-scope instructions -- ready for a dedicated follow-up."
+        - "B5.S1 INVESTIGATED, NOT BUILT (2026-07-12, subagent/connector dispatch): a literal implementation is not a narrow extension of orchestra-model-resolver.ts. All 23 resolveModelConfig()/resolvePlatformModelConfig() call sites resolve purely by (orgId, layerKey) today, none carry a source-type signal -- threading one through would be cross-cutting, not narrow. The named example targets need genuinely new architecture: 'Microsoft AI' isn't an integrated provider anywhere in llm-client.ts's LLMProvider union (would need new provider plumbing), and the PDF->OCR->Knowledge->Compliance chain is multi-step pipeline orchestration, not a single-model resolution decision the resolver's ResolvedModelConfig return shape can express. document-extraction-service.ts's VISION_MODEL_OVERRIDES is the closest existing precedent (per-provider capability routing) if the Owner wants to build toward this later. Recommend scoping as its own initiative (new provider integration + a real pipeline/chaining primitive), not a squeeze-in. Evidence: ai-os/tree4-unified/50-completion-plan/04-implementation-log.yaml's 2026-07-12 subagent/connector entry."
+        - "B6.S1: expand toolkit count further -- of the 21 named ecosystems, ~13 are now real OAuth toolkits (18 after B1.S1's 5 additions, though those 5 are M365/Google constituent apps, not new ecosystems on the original 21-item list); the remaining ~8 (LibreOffice/ODF, PDF, CSV, Tally, ERPNext, SAP, Oracle, Zoho) are NOT the same kind of work (file-format support and competing-ERP API integrations, not OAuth app connects) -- needs its own scoping, not lumped into 'add more toolkits.'"
+    d10_communication_governance:
+      status: "complete -- closed 2026-07-12 (subagent/comms-intel PR + DEC-08): B2.S1+B3.S1 built and tested; B4.S1 partially enforced (real, deterministic, but 3 of 7 rules honestly disclosed as not mechanically checkable without a broader consent-tracking model); B1.S1 confirmed satisfied (DEC-08). B5.S1 (framing-only) needs no independent action, per the tree's own note."
+      current_state: "GAP-06 in the tree's own backlog. email.ts sends fixed-template transactional notifications only (assignment/overdue/deadline/comment) -- no AI drafting, no draft-then-approve-hold stage, no coverage of the other ~20 named communication types (meeting summaries, escalations, vendor comms, etc.)."
+      closed_this_session:
+        - "B2.S1 + B3.S1: built. src/lib/services/communication-drafting-service.ts (draftCommunication/approveCommunication/rejectCommunication) + src/lib/db/schema.ts's draftedCommunications table + 4 API routes under src/app/api/drafted-communications/. Composes 3 existing mechanisms (org-aware LLM call, approval-preference-service.ts, email.ts's sendEmail()) per GAP-06's own workflow, NOT GOV-06's runRole() as the tree's `instruction` field literally names -- see 04-implementation-log.yaml's 2026-07-12 subagent/comms-intel entry for the full reasoning on why runRole() (veridian_admin-gated, platform-key-only, its own header says 'the AI Dev Team builds VERIDIAN, it doesn't run inside it') is the wrong mechanism for a customer org's outbound drafting, and what was used instead (the same resolveModelConfig/callLLMJson pattern generateMeetingIntelligence/documents-extract already use)."
+        - "B4.S1: partially enforced, for real. New src/lib/communication-guardrails.ts (deterministic, no LLM self-grading) checks recipient email validity, non-empty content, and hallucinated-already-sent claims -- registered as a real guardrail-engine.ts leaf (COMMUNICATION_DRAFT_SEND_LEAF, guardrail-registrations.ts) evaluated immediately before every send, whether human-approved or auto-approved via an always_approve preference. Every state transition is logActivity()-audited. Honestly NOT covered (disclosed in the module's own header, not silently skipped): impersonation, forwarding-confidential-info-without-permission, escalation-without-approval -- no deterministic signal exists for these from a draft's own fields alone."
+        - "B1.S1: CONFIRMED satisfied (DEC-08, 2026-07-12) -- email.ts's sends are rule-triggered by real system events (assignment, overdue detection), not spontaneous AI judgment, matching 'approved automation rules' on the requirement's own terms. Reclassified from confirmed_gap to satisfied."
+      remaining_work:
+        - "B4.S1: the 3 uncheckable-today rules (impersonation, confidential-info-forwarding, escalation-without-approval) have no deterministic signal available -- would need either a broader authorization/consent-tracking model (who gave permission to forward X) or a real Intent Engine (referenced but deferred elsewhere in this tree) before they could be mechanically enforced rather than left as policy-only expectations."
+        - "Not yet built: any UI surface for reviewing/approving pending drafted_communications -- this session shipped the service + API layer only (matching the dispatch's explicit backend-first scope), no dashboard/inbox page yet, same class of honestly-disclosed gap as this session's other API-only Priority-2 work."
+        - "Migration drizzle/0148_priority2_email_intelligence_comms_drafting.sql (drafted_communications table + prompt template seed) is written but NOT applied to the live DB -- Super Boss's job per this repo's discipline."
+    d21_intelligent_work_detection:
+      status: "complete -- closed 2026-07-12 (subagent/comms-intel PR): B4.S1 built and tested. B1.S1 investigated and documented (not built, per dispatch scope) -- 2 of 4 named source types confirmed covered/designed, 2 confirmed gap (voice/transcription, tickets) left as real, honestly-disclosed future work, each roughly this build's own size."
+      current_state: "Strongest partial domain of the 3 -- MoM/transcript intelligence (B2.S1) and document intelligence (B3.S1) are both proven and working well per the tree's own notes. The one confirmed, well-scoped gap was inbound email."
+      closed_this_session:
+        - "B4.S1: built. src/lib/services/email-intelligence-service.ts (analyzeInboundEmail/promoteEmailIntelligenceItem/dismissEmailIntelligenceItem) mirrors generateMeetingIntelligence's exact detect-then-propose shape (API-08's own proven pattern, per the tree's instruction) -- enforcePolicy -> resolveModelConfig -> resolvePromptTemplate -> callLLMJson -> recordOrchestraExecution -> persist as SUGGESTIONS ONLY -> logActivity, with promotion to a real `tasks` row requiring an explicit human call, never automatic. New email_intelligence_items + email_intelligence_action_items tables (schema.ts), 4 API routes under src/app/api/email-intelligence/. Honest scope note: analyzeInboundEmail() is a real, callable, tested function/API route taking an email's already-extracted content as input -- NOT a live 'email arrives' listener, since no inbound-email-ingestion trigger exists anywhere in this codebase today (confirmed by direct search; only outbound send exists, via email.ts). It's the real wiring point a future inbox-sync feature would call into."
+        - "B1.S1: investigated and documented, not built (per dispatch scope -- 'don't build new source-type support, just investigate and document'). OCR: covered -- document-extraction-service.ts's vision pipeline fires automatically on document upload (src/app/api/documents/route.ts), feeding the same document-intelligence pipeline U-D21.B3 already credits. Voice: designed-for but not implemented -- doc_processing_jobs.operation's schema comment lists 'transcribe' as a planned value, but only 'ocr' has a real caller; no speech-to-text integration exists anywhere (confirmed gap). Tickets (ticket-service.ts): plain CRUD, zero AI detection (confirmed gap). API-payload: settings/webhooks/route.ts is outbound webhook configuration only, not inbound payload intelligence -- a different concept sharing the same word (confirmed gap)."
+      remaining_work:
+        - "B1.S1's 2 confirmed gaps (voice/transcription, tickets) and 1 confirmed-different-concept gap (API-payload) are real future build items, each roughly the size of this session's email-intelligence build -- not attempted here, per explicit dispatch scope to investigate/document only."
+        - "No live inbound-email trigger exists yet (see B4.S1 honest scope note above) -- analyzeInboundEmail() is ready to be called by one once built, but building that trigger (inbox-sync/IMAP-poll/forwarding-address) is separate, likely larger work."
+        - "Migration drizzle/0148_priority2_email_intelligence_comms_drafting.sql (email_intelligence_items/email_intelligence_action_items tables + prompt template seed) is written but NOT applied to the live DB -- Super Boss's job."
+
+  - num: 5
+    name: "Approval & Confirmation UX (D9)"
+    status: complete
+    current_state: "The real system built a simpler always_approve/always_reject binary model instead of the literal 9/9/16-option vocabularies the source docs name (3 confirmed_gap sub-branches: B1.S1/S2/S3). The tree's own note flags this as arguably BETTER on the stated goal (fast, minimally intrusive) even though it diverges from the literal spec."
+    remaining_work: []
+    resolution_note: "RESOLVED 2026-07-12 (DEC-07, Super Boss judgment call under the Owner's explicit 'you have full control' directive -- see 01-phase0-owner-decisions.yaml's DEC-07 for full reasoning). Ratified the existing binary system; the 27 literal option-set entries (B1.S1/S2/S3) are NOT built, on the same DEC-03-class reasoning: the literal spec and the requirement's own stated goal (fast, minimally intrusive) point in opposite directions here, so matching option-count literalism would mean trading a better-aligned working system for a worse one. B2.S1 and B3.S1 (the 2 non-gap sub-branches) were already correctly served. No code changed -- this is a documented scope ratification, not a build."

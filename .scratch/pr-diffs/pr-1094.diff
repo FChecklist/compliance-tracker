@@ -1,0 +1,61 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 178d05917..e9f1c7bb5 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,17 +1,43 @@
+-# PROGRESS -- task-20260813-160251-rca--umr-20260813-101754-61b2-killed
++# PROGRESS -- task-20260813-162341-rca--umr-20260808-074726-d105-killed
+ 
+ ## Completed
+-- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260813-101754-61b2` live (per instructions, did not trust the SPEC summary alone).
+-- [x] Finding: the SPEC's premise ("status=killed") is **stale**. The live row shows `status=completed`, `ts_sigterm=2026-08-13T12:46:32Z`, `ts_completed=2026-08-13T14:43:56Z`. This task (dispatched at `ts_dispatched=2026-08-13T16:02:59Z`, i.e. >1h after the row's own completion) was queued against an already-resolved snapshot.
+-- [x] The row's own `reason` field already documents a full, real RCA-of-itself: UMR-20260813-101754-61b2 was itself a genuine stuck-task SIGKILL (build-lock contention) on an earlier invocation of its own task identity (`owner-task-20260813-101752-1301937`), self-healed via platform re-invocation (the same mechanism this task was asked to RCA), and completed real work afterward: PR #1080 (docs-only RCA of the grandparent UMR-20260808-175055-cebd), merged.
+-- [x] Verified PR #1080 independently via `gh pr view 1080`: `mergedAt=2026-08-13T14:41:39Z`, `mergeCommit=21f925697ba7a2817026fc98f912b3476b9dd3c2`. That commit is confirmed present on `main` (visible in this very workspace's own recent commit log at session start).
+-- [x] Conclusion: no fix or redispatch of the subject UMR's own scope needed. The "killed" condition named in this task's SPEC had already self-resolved with real, verified evidence before this task started. Duplicate/stale-premise dispatch, same class as UMR-0faf, UMR-f13c, UMR-6e48.
+-- [x] Opened PR #1090 on compliance-tracker documenting this RCA finding (PROGRESS.md only).
+-- [x] Posted a structured `AUDIT: PASS` comment on PR #1090 (self-audit per platform convention -- same limitation noted in prior RCAs: GitHub shows the same identity for author/auditor).
+-- [x] All required CI checks except `Build` passed on PR #1090: Lint, Type Check, Unit Tests, audit-check, Guardrail Presence Check, Asset Registry Coverage Check, Metadata Index Coverage Check, Analyze, Terminology Guardrail Check, Secret Scanning, Security Pattern Check, Doc Cross-Reference/Quarantine Banner/Documentation Sentinel/Migration Number Collision checks -- all pass.
+-- [x] **New real finding, not part of the original RCA scope**: the required `Build` check (`bun run build` step) hung twice in a row on PR #1090 with zero step progress -- first attempt cancelled after 30+ min (baseline for equivalent docs-only PRs, e.g. #1080/#1081/#1082/#1088, is 2m26s-2m40s); re-ran the job once (`gh run cancel` + `gh run rerun --failed`), second attempt also exceeded the baseline by ~6x+ with zero progress on the same step. Confirmed not caused by shared-runner congestion (this was the only in-progress run in the repo at the time, GitHub-hosted `ubuntu-latest` runner, not self-hosted).
+-- [x] Per this task's own 2-consecutive-failures-of-the-identical-approach stop rule: did not attempt a third rerun. Documenting this honestly instead of forcing a merge or fabricating a pass.
++- [x] Queried real row: `resource_governor.py --query-umr --umr-id UMR-20260808-074726-d105`
++      (status=killed, unit_name=veridian-worker@task-20260808-074739-..., ts_dispatched
++      07:47:46Z -> ts_completed 07:48:42Z, ~56s runtime -- consistent with an interactive
++      worker's own reasoned decline, not a stuck-task SIGKILL).
++- [x] Read the full real `reason` field: a well-reasoned decline on stop-work-order scope
++      grounds ("No code written, no branch created, no PR opened, no documentation edited").
++- [x] Root cause determined: **not** a crash or fabricated completion. This is the same
++      structural gap already RCA'd for UMR-20260808-110448-b85c (see memory
++      `veridian-umr-b85c-killed-rca-declined-judgment-call-mislabeled`): `mark-umr-terminal`'s
++      `--status` enum has no evidence-free "declined" value, so a genuinely correct,
++      no-artifact decline judgment call gets forced into `killed`, which `pm-sentinel-tick.sh`
++      Check 2a later sweeps up as "needs RCA."
++- [x] Went further than the enum-gap alone: checked whether the real scope this UMR declined
++      (superboss-register.py add-issue/close-issue/update-issue/list-issues CRUD +
++      README-SERVER.md mandatory-recording section + resource_governor.py pipeline self-check)
++      was ever actually completed. It was -- same day, by a different session, after the Owner
++      gave live direct authorization (conversation, 2026-08-08):
++      - `superboss-register.py` commit `86a2a81` (PR #277, veridian-scripts, merged as
++        `d8efb3c2`, confirmed a real ancestor of `origin/main`) -- add-issue/close-issue/
++        update-issue/list-issues subcommands, live and callable today.
++      - `README-SERVER.md` "MANDATORY: Real Issue Recording via master_issue_tracker" section
++        -- present, grep-verified.
++      - `resource_governor.py::_record_master_issue_if_new()` -- wired into the dispatch
++        pipeline; its own docstring explicitly cites
++        "UMR-20260808-074726-d105 (governing chain UMR-20260806-171945-5767)" as the task it
++        closes.
++- [x] Corrected the row: `mark-umr-terminal --status completed --commit-sha 86a2a81...
++      --pr-number 277 --repo veridian-scripts --repo-root /opt/veridian/scripts`, citing the
++      above real evidence. Verified via a fresh `--query-umr` re-read: status=completed,
++      ts_completed=2026-08-13T16:27:07Z.
++- [x] Recorded completion into `agent_work_briefing.py record-completion` for
++      UMR-20260813-151911-4e93.
+ 
+ ## Remaining
+-- [ ] PR #1090 is open but **not merged** -- blocked by the `Build` required status check hanging (real CI infra issue, unrelated to this docs-only diff). Terminal outcome for this task's own governing UMR (UMR-20260813-131650-3fa0) recorded as `completed_unmerged`, citing PR #1090 and this CI-hang finding as evidence, per protocol ("do not fabricate completion").
+-- [ ] Recommend a follow-up (separate task, out of scope here) to look into recurring `bun run build` CI hangs on GitHub-hosted runners for this repo -- this is the second time in one session the exact same step hung with zero step-level progress.
++- [ ] None. No fix/redispatch needed -- the real scope was already fully, correctly delivered
++      via PR #277; this task only needed to correct the terminal-status label with real
++      evidence.
++- [ ] Not fixed here (disclosed, not re-litigated): the underlying structural gap itself (no
++      evidence-free "declined" enum value in `mark-umr-terminal`) remains open, same as prior
++      RCAs of this class.

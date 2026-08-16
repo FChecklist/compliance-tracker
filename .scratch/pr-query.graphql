@@ -1,0 +1,23 @@
+query($owner:String!, $name:String!, $cursor:String) {
+  repository(owner:$owner, name:$name) {
+    pullRequests(states: OPEN, first: 30, after: $cursor) {
+      totalCount
+      pageInfo { hasNextPage endCursor }
+      nodes {
+        number
+        title
+        author { login }
+        createdAt
+        headRefName
+        additions
+        deletions
+        changedFiles
+        files(first: 100) {
+          totalCount
+          pageInfo { hasNextPage endCursor }
+          nodes { path changeType additions deletions }
+        }
+      }
+    }
+  }
+}

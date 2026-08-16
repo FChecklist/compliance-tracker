@@ -1,0 +1,153 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 4391b340b..3e435a95c 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,81 +1,72 @@
+-# PROGRESS -- task-20260813-083439-resume-ocid-020-021-real-remaining-scope
++# PROGRESS — RCA: UMR-20260813-060311-6eea (status=killed)
+ 
+-Governing chain: UMR-20260808-175055-cebd (killed dispatch this resumes),
+-UMR-20260813-082609-873e (this resume's governing UMR), UMR-20260813-083422-15e7
+-(this task's own UMR), UMR-20260808-151153-e172, UMR-20260802-165606-4413
+-(OCID-020), UMR-20260802-173631-ca85 (OCID-021), UMR-20260806-171945-5767,
+-pm_decisions_pending id=519.
+-
+-Resumed from branch `worker/task-20260808-175102-execute-ocid-020-021-real-implementation`
+-(13/15 OCID-020/021 points already closed; OCID-021 100% closed). This task
+-closes the real remaining scope: PR #1070 merge + live re-verify, P04
+-disposition, P03 Owner-decision escalation.
++Governing UMR (this task's own dispatch): UMR-20260813-091810-5045.
+ 
+ ## Completed
+-- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml`, confirmed no conflicting active
+-      claim, registered this task's own claim before starting real work.
+-- [x] Verified live `master_issue_tracker` state matches SPEC exactly before
+-      acting: P01/P02/P05/P06/P07-P15 `is_closed=YES`; P03/P04
+-      `is_closed=NO`, `solution_applied=PARTIAL`.
+-- [x] Diagnosed PR #1070's `audit-check` CI failure: the prior cycle's real
+-      `AUDIT: PASS` comment had a `Severity Classified` field with prose
+-      beyond the bare enum value (`"low-risk, additive-only..."`),
+-      which `validateAuditProtocolFields()` rejects (exact-match enum,
+-      documented gotcha). Posted a corrected `AUDIT: PASS` comment (same
+-      content, `Severity Classified: low` / `Verdict: pass` as bare enum
+-      words, rationale moved into `Evidence Recorded`) after independently
+-      re-verifying the diff myself (single-file, +10/-5, 5 real id/htmlFor
+-      pairs, no duplicate-id risk across the 2 real render sites).
+-- [x] `gh api pulls/1070/update-branch` (was BEHIND), all required CI green
+-      including `audit-check`, `gh pr merge 1070 --admin --squash` --
+-      merged as `fe12d80e` at 2026-08-13T08:44:04Z.
+-- [x] Waited (bounded Monitor, real deploy-status polling, no unbounded
+-      block) for the Vercel prod deploy of `fe12d80e` to reach `success`.
+-- [x] Re-ran `gtm_check_ux_audit.py` against live `https://projexa-ai.com`
+-      twice (1st run: heuristic 4 hit a transient AI-response JSON-parse
+-      error -> honest `blocked` result, not fabricated pass/fail; 2nd run:
+-      clean). **H6 confirmed fixed** -- all 4 `/contact` form fields now
+-      report `hasLabel:true`. Real remaining findings unchanged in
+-      substance: H2 (sev 3, PROJEXA/VERIDIAN title mismatch, out-of-repo-
+-      scope/OCID-038 -- re-confirmed `resolvePreAuthBrandByHost` still
+-      lives in `src/app/login/page.tsx` via `git grep`), H4 (sev 3, brand
+-      wordmark + nav link set differ across marketing pages -- needs an
+-      Owner/design decision), H10 (sev 3, `/help` redirects unauthenticated
+-      visitors to `/login` with no real help content, `/pricing` has zero
+-      help links -- needs real public help-content work).
+-- [x] Updated `master_issue_tracker` `OCID020021-P04.check_again_notes`
+-      with this real result. Left `is_closed=NO`, `solution_applied=PARTIAL`
+-      unchanged -- H6 flipping does not close P04 given 3 real remaining
+-      findings, each already correctly dispositioned (not fabricated
+-      closed to inflate the count).
+-- [x] P03 (webkit): did **not** re-attempt the apt-get-download/dpkg-deb
+-      approach (already tried twice, root-caused, insufficient). Re-
+-      confirmed live: `sudo -n true` still fails ("a password is
+-      required"). Opened a genuine `pm_decisions_pending` row (id=522) for
+-      a real Owner decision -- three real options (grant root/sudo,
+-      commit a `patch-package` fix to playwright-core, or accept webkit as
+-      a permanently-excluded 3rd engine). No self-approval, no fabricated
+-      Owner sign-off -- `master_issue_tracker` P03 state left unchanged
+-      (`is_closed=NO`, `solution_applied=PARTIAL`), which is already the
+-      honest current state.
++
++- [x] Queried the real row: `resource_governor.py --query-umr --umr-id UMR-20260813-060311-6eea`.
++      status=killed, reason="queued", ts_completed=null, unit_name=
++      `veridian-worker@task-20260813-060321-real-tier-1-audit-of-pr--249---worker-ex.service`.
++- [x] Checked real systemd history (`journalctl --user -u <unit>`): unit started
++      06:03:28Z, ran, "Consumed 1min 37.836s CPU time" logged at 06:15:52Z —
++      genuinely ran, not orphaned/never-started.
++- [x] Read the real task workspace
++      (`ai-os/tasks/task-20260813-060321-real-tier-1-audit-of-pr--249---worker-ex/`):
++      `task.yaml` status=`blocked` (not killed), `completed_steps` shows all 4
++      SPEC steps done, `PROGRESS.md` shows a full real Tier-1 audit of PR #249
++      (stop-work-order gate check, diff read, live umr_tasks/task.yaml checks,
++      full test suite run: 375 passed/1 pre-existing-unrelated-failure).
++      `supervisor.log` shows the real failure: `git commit`/push never
++      happened in-worker, so `gh pr create` failed ("No commits between
++      master and worker/task-20260813-060321-...") → task.yaml ended at
++      `blocked`, no claude-control PR was ever opened.
++- [x] Independently verified, on GitHub (not trusting local files alone):
++      `gh api repos/FChecklist/veridian-scripts/issues/249/comments` shows a
++      REAL comment (id 5276657173, 2026-08-13T06:15:24Z) explicitly citing
++      "Dispatched under UMR-20260813-060311-6eea" — verdict **AUDIT:FAIL**,
++      with real evidence (live umr_tasks/task.yaml table, systemctl checks,
++      full test-suite run). **This row's actual primary deliverable (the
++      audit comment) was genuinely produced and posted — only the secondary
++      claude-control documentation-PR step failed.**
++- [x] Root-caused the DB mislabel: `metadata_json.reconcile_owner_dispatch_status`
++      shows this row was mechanically corrected by
++      `reconcile_owner_dispatch_status.py` at 07:02:01Z — status=killed,
++      `evidence.reason` = "no live process and no real deliverable" — but
++      that classifier's heuristic only checks for a PR in the task's *own*
++      configured repo (`claude-control`); it has no way to see a real
++      deliverable that took the form of a GitHub *comment* on a PR in a
++      *different* repo (`veridian-scripts`). Separately, `apply_correction()`
++      at that time only passed `status`+`metadata` to `update_umr_task()`,
++      omitting `ts_completed`/`reason` — confirmed via `git log`:
++      commit `b13833a` ("fix: wire reconcile_owner_dispatch_status.py into
++      the periodic tick + backfill ts_completed/reason") landed at
++      07:11:52Z, **9 minutes after** this row was reconciled at 07:02:01Z.
++      That fix does not retroactively backfill already-`killed` rows (its
++      `load_rows()` only rescans `status='running'` rows) — so this specific
++      row is permanently stuck with the stale `reason="queued"`/
++      `ts_completed=null` pre-fix shape unless corrected directly.
++- [x] Checked whether the real remaining scope (fixing PR #249 per the
++      AUDIT:FAIL findings) still needs redispatch: it does not — already
++      carried forward independently. A second real comment (id 5278604501,
++      2026-08-13T09:37:01Z) on the same PR, under UMR-20260813-090037-9a34,
++      pushed a real fix (new head `24a6f1f`) addressing every AUDIT:FAIL
++      finding, with 27 new tests (402 passed/1 pre-existing-unrelated
++      failure). PR #249 is currently OPEN/MERGEABLE/CLEAN at that new head,
++      explicitly requesting a *fresh* Tier-1 audit against the new head SHA —
++      that is a new, distinct scope item under a different UMR chain, not
++      this UMR's own remaining work (out of scope here; not redispatched by
++      this task to avoid duplicating whatever is already tracking it).
++- [x] Recorded the honest, evidence-backed terminal outcome via
++      `superboss-register.py mark-umr-terminal` (status stays `killed` —
++      that terminal classification is legitimate, since no claude-control
++      artifact was ever produced by this task's own dispatch scope — but
++      `reason`/`ts_completed` are corrected to reflect the truth instead of
++      the stale pre-fix `"queued"`/`null` values). See command + output below.
++- [x] `agent_work_briefing.py record-completion` called for governing UMR
++      UMR-20260813-091810-5045.
+ 
+ ## Remaining
+-- [ ] `pm_decisions_pending` id=522 (P03 webkit disposition) awaits a real
+-      Owner decision -- not actionable by this task further without one.
+-- [ ] Full `gtm_check_browser_compatibility.py` / `gtm_check_production_
+-      readiness_audit.py` (P5) final rollup is deliberately **not** re-run
+-      this cycle: SPEC gates that step on P03/P04 having "a real further
+-      fix or an Owner sign-off" -- neither has landed yet (P04 improved
+-      but not closed; P03 unchanged, pending id=522). Re-running now would
+-      only reproduce the same known state (webkit still failing, UX audit
+-      still failing on H2/H4/H10) at real AI-credit cost for no new
+-      information; last real P5 rollup on file (2026-08-08/09, re-
+-      confirmed via the same criteria this cycle) already tolerates
+-      P2/P3-severity fails and shows 0 P0/P1 failures.
+-- [ ] This workspace's own `quality-gate.sh` (`/opt/veridian/scripts/quality-
+-      gate.sh`, the version with the real 1800s timeout wrapper) runs
+-      automatically via `worker-entrypoint.sh` when this task completes --
+-      not manually re-invoked mid-task per this task's own governing RCA
+-      (avoid a second direct long-running Bash call outside that wrapper).
+-- [ ] `record-completion` on UMR-20260813-083422-15e7 (this cycle's real
+-      summary) -- next step.
++
++- [ ] None for this UMR. (FYI only, not actioned here: PR #249 at its new
++      head `24a6f1f` is awaiting a fresh Tier-1 audit — a distinct scope
++      item under UMR-20260813-090037-9a34's chain.)

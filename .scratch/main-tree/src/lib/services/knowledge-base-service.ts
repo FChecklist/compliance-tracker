@@ -1,0 +1,195 @@
+// Wave 29 (AppFlowy-inspired knowledge base, PLATFORM_STRATEGY.md §15).
+// Org-wide, core module -- no enablement toggle, unlike PMS wiki. Plain
+// text/markdown content, no CRDT/blocks/database-grid-views (same v1 scope
+// line already drawn for pms_wiki_pages).
+import { knowledgeBasePages } from "@/lib/db"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { and, eq, ilike, or, inArray } from "drizzle-orm"
+import { ServiceError } from "./compliance-service"
+export { ServiceError }
+import type { users } from "@/lib/db"
+import { recordAuditTrigger } from "@/lib/audit-event-triggers"
+import { storeEmbedding, findSimilar } from "@/lib/embeddings"
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain Software Functionality" -- the help chatbot (help/ask/route.ts)
+// was ungrounded freeform LLM text with no KB. Reuses embeddings.ts's
+// existing entity-agnostic storeEmbedding()/findSimilar() (the same real
+// pgvector `embeddings` table capability-registry-service.ts/asset-vector-
+// search-service.ts already use) rather than building a second index --
+// see embeddings.ts's own header for why that file is entity-agnostic by
+// design.
+export const KB_PAGE_ENTITY_TYPE = "knowledge_base_page"
+
+function kbPageSearchContent(page: { title: string; content: string | null }): string {
+  return `${page.title}\n\n${page.content ?? ""}`.slice(0, 8000)
+}
+
+export type KbContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+
+function slugify(title: string): string {
+  return title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 80) || "page"
+}
+
+export async function listKbPages(ctx: { orgId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.knowledgeBasePages.findMany({
+      where: and(eq(knowledgeBasePages.orgId, ctx.orgId), eq(knowledgeBasePages.isArchived, false)),
+      orderBy: (t, { asc }) => asc(t.title),
+    })
+  })
+}
+
+// Wave 81 (Customer Service enhancements, COMPARISON_CSV_GAP_ANALYSIS.md
+// backlog #2): "Knowledge Base articles + search" -- articles already
+// existed (Wave 29), search did not. Plain ILIKE over title/content,
+// matching this v1 scope's own "no CRDT/blocks, plain markdown" ceiling --
+// full-text/vector search is future work if the KB grows large enough to
+// need it.
+export async function searchKbPages(ctx: { orgId: string }, query: string) {
+  const q = query?.trim()
+  if (!q) return []
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    return db.query.knowledgeBasePages.findMany({
+      where: and(
+        eq(knowledgeBasePages.orgId, ctx.orgId),
+        eq(knowledgeBasePages.isArchived, false),
+        or(ilike(knowledgeBasePages.title, `%${q}%`), ilike(knowledgeBasePages.content, `%${q}%`))
+      ),
+      orderBy: (t, { asc }) => asc(t.title),
+      limit: 25,
+    })
+  })
+}
+
+export async function getKbPageBySlug(ctx: { orgId: string }, slug: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const page = await db.query.knowledgeBasePages.findFirst({
+      where: and(eq(knowledgeBasePages.orgId, ctx.orgId), eq(knowledgeBasePages.slug, slug)),
+    })
+    if (!page) throw new ServiceError("Knowledge base page not found", 404)
+    return page
+  })
+}
+
+// ctx.userId is the caller's real user id when authenticated via session,
+// but PROJEXA's own server calls VERIDIAN via a per-org API key -- in that
+// path ctx.userId is the *key's* id (api_keys.id), not a row in `users`.
+// knowledgeBasePages.updatedById has a real FK to users.id, so this takes
+// isRealUser (rather than the full KbContext/dbUser) to know whether it's
+// safe to attribute authorship, same pattern as construction-dashboard-
+// service.ts's createProject(). Caught live: the PROJEXA-facing route used
+// to hard-block API-key callers entirely rather than risk this FK 500,
+// which meant PROJEXA could never create a Knowledge Base page at all.
+export async function createKbPage(
+  ctx: { orgId: string; userId: string; isRealUser?: boolean },
+  input: { title: string; content?: string; parentPageId?: string }
+) {
+  const title = input.title?.trim()
+  if (!title) throw new ServiceError("title is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const baseSlug = slugify(title)
+    let slug = baseSlug
+    let attempt = 0
+    while (await db.query.knowledgeBasePages.findFirst({ where: and(eq(knowledgeBasePages.orgId, ctx.orgId), eq(knowledgeBasePages.slug, slug)) })) {
+      attempt += 1
+      slug = `${baseSlug}-${attempt}`
+      if (attempt > 20) break
+    }
+
+    const [page] = await db.insert(knowledgeBasePages).values({
+      orgId: ctx.orgId, parentPageId: input.parentPageId || null,
+      slug, title, content: input.content || null, updatedById: ctx.isRealUser ? ctx.userId : null,
+    }).returning()
+    // Best-effort, fire-and-forget -- same posture as every other
+    // storeEmbedding() call site in this codebase (indexAssetForSearch()
+    // etc.): indexing failure must never block the page save that already
+    // committed above.
+    storeEmbedding(KB_PAGE_ENTITY_TYPE, page.id, kbPageSearchContent(page), ctx.orgId).catch((err) =>
+      console.error(`[knowledge-base] failed to index page ${page.id} for search:`, err)
+    )
+    return page
+  })
+}
+
+export async function updateKbPage(
+  ctx: KbContext,
+  pageId: string,
+  patch: Partial<{ title: string; content: string | null; isArchived: boolean; isPublished: boolean }>
+) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.knowledgeBasePages.findFirst({ where: and(eq(knowledgeBasePages.id, pageId), eq(knowledgeBasePages.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Knowledge base page not found", 404)
+
+    const [page] = await db.update(knowledgeBasePages)
+      .set({ ...patch, version: existing.version + 1, updatedById: ctx.userId, updatedAt: new Date() })
+      .where(eq(knowledgeBasePages.id, pageId)).returning()
+
+    // Re-index on every real content/title change -- storeEmbedding() itself
+    // dedupes on content hash, so a title-only edit or an archive toggle
+    // with unchanged content is a cheap no-op, not a wasted embedding call.
+    storeEmbedding(KB_PAGE_ENTITY_TYPE, page.id, kbPageSearchContent(page), ctx.orgId).catch((err) =>
+      console.error(`[knowledge-base] failed to re-index page ${page.id} for search:`, err)
+    )
+
+    // D15.B2.S1 named event #4, "Knowledge Updated -> Knowledge Audit" --
+    // every real edit bumps `version` (see the comment above), so this fires
+    // once per genuine update, not per no-op save. Best-effort: never lets a
+    // logging failure break the page edit that already committed above.
+    await recordAuditTrigger({
+      tx: db, event: "knowledge_updated", entityType: "knowledge_base_page", entityId: page.id, orgId: ctx.orgId,
+      dbUser: ctx.dbUser, details: `Knowledge base page "${page.title}" updated to version ${page.version}.`,
+    }).catch((err) => console.error(`[audit-trigger] failed to record knowledge_updated for page ${page.id}:`, err))
+
+    return page
+  })
+}
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Explain Software Functionality" -- retrieves the KB pages most relevant
+// to a free-text question, for a caller (help/ask/route.ts) to ground an
+// LLM answer in real content instead of pure freeform generation. Reuses
+// embeddings.ts's findSimilar() -- see this file's own header for why a
+// second index was not built. RELEVANCE_THRESHOLD matches asset-vector-
+// search-service.ts's own floor (findSimilar()'s <=> operator always
+// returns the closest rows in the WHOLE embeddings table, never necessarily
+// close ones, so a floor is required or every search "succeeds" even with
+// nothing relevant indexed).
+const RELEVANCE_THRESHOLD = 0.5
+
+export async function retrieveRelevantKbPages(ctx: { orgId: string }, query: string, limit = 3) {
+  const results = await findSimilar(query, ctx.orgId, limit * 3)
+  const matches = results.filter((r) => r.entityType === KB_PAGE_ENTITY_TYPE && r.score > RELEVANCE_THRESHOLD).slice(0, limit)
+  if (matches.length === 0) return []
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const pageIds = matches.map((m) => m.entityId)
+    const pages = await db.query.knowledgeBasePages.findMany({
+      where: and(inArray(knowledgeBasePages.id, pageIds), eq(knowledgeBasePages.orgId, ctx.orgId), eq(knowledgeBasePages.isArchived, false)),
+    })
+    const byId = new Map(pages.map((p) => [p.id, p]))
+    return matches
+      .map((m) => byId.get(m.entityId))
+      .filter((p): p is NonNullable<typeof p> => p !== undefined)
+  })
+}
+
+// AI Architecture / Explainability & Transparency gap-closure (2026-07-18):
+// "Knowledge Explainability" -- duplicate of the same gap "Explain Software
+// Functionality" closes (dynamic_chains.linkedKnowledgeBasePageIds is
+// genuinely schema-only, no automatic population -- see PROGRESS.md's
+// ground-truth notes for why this doesn't build automatic derivation).
+// This resolves whatever page ids a chain already has set into real,
+// readable title+content, the realistic scope of "extend the same fix" --
+// a chain-detail view can call this instead of the caller re-deriving a KB
+// lookup by hand.
+export async function resolveLinkedKnowledgeBasePages(ctx: { orgId: string }, pageIds: string[]) {
+  if (pageIds.length === 0) return []
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.knowledgeBasePages.findMany({
+      where: and(inArray(knowledgeBasePages.id, pageIds), eq(knowledgeBasePages.orgId, ctx.orgId)),
+      columns: { id: true, title: true, slug: true, content: true },
+    })
+  )
+}

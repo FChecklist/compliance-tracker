@@ -1,0 +1,183 @@
+# PROJEXA -- Construction Intelligence AI OS
+# Source: direct inventory of C:\Users\Dell\Downloads\Claude Code\projexa this
+# session (~130 TS/TSX files). Confirmed against actual code, not just its
+# own AGENTS.md/PROJEXA_TASK_GOVERNANCE.md claims.
+#
+# CORRECTED 2026-07-17 (PROJEXA-COMPLETION-01, Super Boss supervising
+# session): tree_version 1's two biggest flagged findings -- PRX-04's "no
+# project switcher exists" and PRX-05's "12+ nav-linked pages with zero
+# implementation" -- were BOTH stale and false as of this correction.
+# Ground truth re-verified directly against the live repo (git tree API,
+# not assumed): (a) src/components/ProjectSwitcher.tsx +
+# resolveSelectedProject() + a ?projectId= query param exist and are wired
+# into every project-scoped page (confirmed via PROJEXA_GAP_ANALYSIS.md's
+# own real 2026-07-12/13 live-browser user test, commit 8bd7186/95154eb);
+# (b) all 43 current src/app/(app)/**/page.tsx files were cross-checked
+# against every AppSidebar.tsx nav href -- zero dangling links, PRX-05 is
+# fully resolved. See PRX-04/PRX-05 below for the corrected content (kept,
+# not deleted, per this repo's own append/correct-don't-erase discipline --
+# the ORIGINAL wrong claim is struck through and left visible so a future
+# session can see what changed and why).
+
+repo: projexa
+tree_version: 2
+domains:
+
+  - id: PRX-01
+    name: "Architecture -- thin client, owns no construction database"
+    objects: ["src/lib/veridian-client.ts"]
+    input: "A construction-domain request from any PROJEXA page/API route."
+    output: "A Bearer-authenticated fetch to VERIDIAN's API (default https://veridian-compliance-ai.vercel.app/api/v1/projexa)."
+    rules:
+      - "callVeridian(path, {method, body, apiKey, organizationId}) is the single chokepoint for all construction-domain data/AI in this repo."
+      - "STALE CLAIM, CORRECTED 2026-07-17 (PROJEXA-COMPLETION-01 phase2a/phase3): ~~EVERY route currently calls callVeridian with no apiKey/organizationId... This matches the codebase's own 'MVP note' comments, not a hidden bug~~ -- this WAS a real, severe cross-tenant data-isolation bug (any real signed-up tenant's procurement/inventory/currencies/companies/etc. calls silently read/wrote a DIFFERENT org's data via the shared fallback key; invisible against the demo org, which has no veridian_credentials row). Fixed in projexa#32 (merged, independently audited): 40 call sites across 26 files now pass organizationId explicitly. getVeridianApiKey(organizationId) is used correctly at these call sites now, not bypassed."
+      - "PROJEXA's own Postgres schema (Drizzle+postgres.js) holds ONLY tenant/auth/collaboration plumbing: organizations, memberships, veridianCredentials, assistantQueries, conversations, conversationParticipants, messages, profiles, todos. No BOQ/schedule/RFI/budget tables exist locally -- confirmed by the schema file's own header comment."
+      - "Zero direct LLM-provider calls anywhere in PROJEXA -- no OpenAI/Anthropic/etc. SDK or key found in src/ or .env.local. /api/assistant and /api/discuss are pure proxies to VERIDIAN's /assistant and /discuss endpoints."
+    guardrails: ["Auth is Supabase Auth (cookie-based), enforced in src/middleware.ts (route-prefix redirect) and requireAuth() in src/lib/supabase/auth-guard.ts (RLS-scoped session read, not a service-role key)."]
+    workflow: ["Client component -> PROJEXA API route -> requireAuth() -> callVeridian() -> VERIDIAN's /api/v1/projexa/* -> JSON passed back, occasionally reshaped."]
+
+  - id: PRX-02
+    name: "Local database (tenant/auth/chat plumbing only, 8 tables)"
+    objects: ["organizations", "memberships", "veridian_credentials", "assistant_queries", "conversations", "conversation_participants", "messages", "profiles (auto-populated via Supabase auth trigger)", "todos"]
+    input: "Signup, chat messages, todo items -- nothing construction-domain."
+    output: "The tables above."
+    rules: ["assistant_queries is a SYNCHRONOUS stand-in for VERIDIAN's real async task system, per its own code comment in schema.ts and api/assistant/route.ts."]
+    guardrails: []
+    workflow: []
+
+  - id: PRX-03
+    name: "Public pages (login/signup)"
+    objects:
+      - "/login -- Supabase email/password; on first login, finishes org provisioning if signup deferred it (email-confirmation flow) using a localStorage-stashed pending org name"
+      - "/signup -- creates a Supabase auth user, then an organizations row + memberships (role owner) row; handles the confirm-your-email deferred path"
+    input: "Email/password."
+    output: "An authenticated session + provisioned org."
+    rules: []
+    guardrails: []
+    workflow: ["Signup -> Supabase user created -> org+membership created (or deferred to first login if email confirmation is pending) -> authenticated."]
+
+  - id: PRX-04
+    name: "Authenticated app pages (43 pages as of 2026-07-17, up from 11 at tree_version 1)"
+    objects:
+      - "/dashboard -- org-wide KPI cards (projects, budget, revenue, expenses) + per-project table, from VERIDIAN /dashboard"
+      - "/schedule -- ScheduleGanttClient (Gantt/critical path)"
+      - "/rfis, /submittals, /punch-list, /change-orders, /mood-boards, /ffe, /floor-plans, /floor-plans/[id], /floor-plans/[id]/walkthrough"
+      - "Plus (new since tree_version 1, not yet given their own PRX entries): /accounting, /budgets, /copilot, /customers(+[id]), /documents, /employees, /expenses, /grc, /hr, /inventory, /invoices, /knowledge-base, /kpis, /labour, /materials, /meetings, /payroll, /permits, /procurement, /purchase-orders, /quotations, /recruitment, /reports, /sales(+/leads,+/opportunities), /sales-orders, /scope, /settings, /site-diary, /vendors, /wiki, /work-progress -- confirmed present via direct git-tree listing (30 additional page.tsx files), NOT individually feature-audited yet (see PROJEXA-COMPLETION-01 Phase 2 in control/CONTROLLER.yaml for that in-progress work)."
+    input: "STALE CLAIM, CORRECTED 2026-07-17: ~~every list page loads the FIRST project in the org (no project-switcher UI exists yet)~~. A real ProjectSwitcher.tsx + resolveSelectedProject() + ?projectId= param now exists and is wired into every project-scoped page (verified live, PROJEXA_GAP_ANALYSIS.md gap #1, RESOLVED)."
+    output: "Rendered construction-domain UI, backed entirely by VERIDIAN's API."
+    rules: ["STALE CLAIM, CORRECTED 2026-07-17: ~~a real, confirmed gap: no project switcher exists~~ -- see input field above, this was fixed 2026-07-13 and independently re-verified 2026-07-17."]
+    guardrails: []
+    workflow: []
+
+  - id: PRX-05
+    name: "RESOLVED 2026-07-17 (was: GAP - 12+ sidebar-linked modules with NO page implementation)"
+    objects: ["/scope", "/work-progress", "/site-diary", "/documents", "/manpower (does not exist as a separate route -- /labour covers this; nav does not link to /manpower)", "/labour", "/materials", "/vendors", "/budgets", "/expenses", "/kpis", "/reports", "/ai-copilot (route is actually /copilot)", "/settings"]
+    input: "N/A."
+    output: "N/A -- STALE CLAIM, CORRECTED 2026-07-17: ~~a 404 today~~. Every one of these routes now has a real page.tsx, confirmed via direct git-tree API listing, cross-checked against every current AppSidebar.tsx href with zero dangling links found."
+    rules:
+      - "STALE CLAIM as of tree_version 1 (2026-07-14ish) -- has since been fully closed, most likely during the Priority 15/16/17 PROJEXA waves referenced in control/CONTROLLER.yaml. This tree was not kept in sync with that work, which is exactly why PROJEXA-COMPLETION-01 re-verified ground truth directly against the repo instead of trusting this file."
+    guardrails: []
+    workflow: ["No longer a gap. Real remaining question (open, PROJEXA-COMPLETION-01 Phase 2): these 43 pages exist, but only ~20 of them have ever been exercised by a real live-user browser test (PROJEXA_GAP_ANALYSIS.md, 2026-07-12/13) -- feature DEPTH on the other ~23 is unverified, not confirmed broken."]
+
+  - id: PRX-06
+    name: "VERIDIAN-proxy API routes (thin passthrough)"
+    objects:
+      - "/api/assistant (GET history, POST -> VERIDIAN /assistant), /api/discuss (POST -> VERIDIAN /discuss)"
+      - "/api/capability-tree (GET, keeps Bearer key server-side)"
+      - "/api/change-orders(+[id]) -- PATCH action:'submit' drives an e-signature workflow via signers. STALE, CORRECTED 2026-07-17: this route used to also accept action:'approve'/'reject', a one-click override with zero signature check -- removed (compliance-tracker#398/projexa#35, PROJEXA_GAP_ANALYSIS.md gap #5, closed). Real approval now only happens via e-signature completion; GET /api/change-orders/[id]/signature-status (new route) surfaces real signer progress instead."
+      - "/api/design-materials, /api/ffe(+[id],margin-summary), /api/floor-plans(+[id],rooms,rooms/[roomId],placements,placements/[placementId],scene)"
+      - "/api/mood-boards(+[id]) -- status transitions draft->shared->approved"
+      - "/api/punch-list(+[id]) -- status transitions open->ready_for_review->verified_closed"
+      - "/api/rfis(+[id]), /api/schedule/baselines(+[id]), /api/schedule/gantt, /api/schedule/workload, /api/submittals(+[id]) -- review outcomes approve/approve-as-noted/revise-resubmit/reject"
+    input: "See PRX-01."
+    output: "VERIDIAN API responses, wrapped as 502 on error."
+    rules: ["All 20 of these routes call requireAuth() first, then are pure passthroughs to callVeridian -- matches API-06/API-02(v1/projexa) on the VERIDIAN side exactly."]
+    guardrails: []
+    workflow: []
+
+  - id: PRX-07
+    name: "Local-DB API routes (Supabase/Drizzle, no VERIDIAN call)"
+    objects: ["/api/conversations", "/api/conversations/[id]/messages", "/api/org-members", "/api/todos(+[id])"]
+    input: "Chat/todo data."
+    output: "PRX-02's local tables."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: PRX-08
+    name: "App shell & navigation components"
+    objects: ["AppSidebar.tsx (7 sections: Overview/Execution/Field/Design/Resources/Finance/Intelligence + Settings, incl. the PRX-05 placeholder links)", "AppTopbar.tsx", "sidebar-context.tsx", "theme-toggle.tsx"]
+    input: "Every authenticated page renders inside this shell."
+    output: "The consistent app frame."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: PRX-09
+    name: "Domain feature client components (one per construction module)"
+    objects:
+      - "ChangeOrdersClient.tsx, FfeClient.tsx (margin cards + item table + 3D-relevant dimensions), PunchListClient.tsx"
+      - "RfisClient.tsx, SubmittalsClient.tsx (4 review outcome buttons), MoodBoardsClient.tsx (card grid, no real image upload yet)"
+      - "FloorPlansClient.tsx, FloorPlanEditorClient.tsx (hand-rolled SVG 2D editor: click-to-draw rooms, drag-to-place/rotate FF&E)"
+      - "FloorPlanScene3D.tsx (@react-three/fiber -- triangulates room polygons into floor/ceiling meshes, extrudes walls, places FF&E as colored boxes)"
+      - "FloorPlanWalkthroughClient.tsx (dynamically imports Scene3D with ssr:false, since WebGL needs a real browser)"
+      - "ScheduleGanttClient.tsx (wraps @svar-ui/react-gantt, 'Critical Path' column, 'Capture Baseline' action via window.prompt)"
+    input: "VERIDIAN API data (PRX-06)."
+    output: "Rendered feature UI, all following a load/create/transition/toast pattern."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: PRX-10
+    name: "veri-chat/ components -- explicit UI port of VERIDIAN's own composer design"
+    objects: ["veri-chat-context.tsx (VeriChatProvider, composerMode vs rightPanelView, renames VERIDIAN's 'tasks' to 'queries' since PROJEXA has no async task system)", "VeriComposer.tsx (fixed mode pills + dynamic 'chain' modes from the capability tree, a queue of staged queries, free-text Discuss chat with client-only history)", "VeriChatPanel.tsx (Overview/Queries/Chats/To Do)"]
+    input: "PRX-06's /api/capability-tree, /api/discuss, /api/assistant."
+    output: "The chat/query UI."
+    rules: ["Confirmed by its own code comments to be a deliberate UI port of VERIDIAN's design, not an independent reimplementation."]
+    guardrails: []
+    workflow: []
+
+  - id: PRX-11
+    name: "RESOLVED 2026-07-17 -- ui/ components -- shadcn primitives plus 2 confirmed-dead files deleted, 1 kept (was wrongly flagged dead)"
+    objects: ["~40 shadcn primitives (unremarkable)", "dashboard-card.tsx (used only on /dashboard)", "status-badge.tsx (StatusBadge/PriorityBadge) -- DELETED (projexa#34), confirmed zero remaining references before deletion", "compliance-chart.tsx -- DELETED (projexa#34), same", "data-table.tsx (DataTable, TanStack wrapper) -- STALE CLAIM, CORRECTED: ~~confirmed UNREFERENCED anywhere~~ -- actually actively used in EmployeesClient.tsx/PayrollClient.tsx/RecruitmentClient.tsx, KEPT not deleted (projexa#34 caught and fixed this file's own wrong flag before acting on it)."]
+    input: "N/A."
+    output: "N/A."
+    rules:
+      - "status-badge.tsx / compliance-chart.tsx / data-table.tsx all appear to be carried over from compliance-tracker (they use ct-* Tailwind color tokens, not PROJEXA's own px-* tokens)."
+      - "src/app/globals.css explicitly documents this: it defines --color-ct-navy/--color-ct-teal/etc. as aliases onto the px-* palette 'so copied VERIDIAN components don't need hand-editing' -- a DELIBERATE, self-documented workaround, not an accidental oversight."
+    guardrails: []
+    workflow: []
+
+  - id: PRX-12
+    name: "Local lib/hooks"
+    objects: ["src/lib/veridian-client.ts (PRX-01)", "src/lib/db/schema.ts, index.ts (lazy Postgres connection, falls back to building a Supabase pooler URL if DATABASE_URL isn't set)", "src/lib/supabase/{client,server,auth-guard}.ts", "src/lib/utils.ts, use-autogrow-textarea.ts", "src/hooks/{use-mobile,use-toast}.ts", "src/middleware.ts"]
+    input: "N/A -- infrastructure."
+    output: "N/A."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: PRX-13
+    name: "Construction-domain concepts encoded in the UI/API layer (even though owned by VERIDIAN's DB)"
+    objects:
+      - "Schedule/Gantt: tasks, dependencies, milestones, CRITICAL PATH (isCritical/floatDays), schedule baselines, resource workload allocation"
+      - "RFIs: subject/question/answer/status(open/answered/closed)/ballInCourt"
+      - "Submittals: specSection/type/review outcomes/reviewComments"
+      - "Punch List: priority/status(open->ready_for_review->verified_closed)/trade/location"
+      - "Change Orders: costImpact/scheduleImpactDays/status lifecycle/e-signature with named signers"
+      - "FF&E: category/unitCost vs unitPrice (margin tracking)/physical dimensions (feeds 3D scene)/status lifecycle (specified->ordered->received->installed)"
+      - "Mood Boards: per-room/area boards, status(draft->shared->approved) for client sign-off"
+      - "Floor Plans: room polygons, ceilingHeightCm, per-room material assignment, furniture placements (x/y/rotation), 2D SVG editor + 3D three.js walkthrough"
+      - "Design Materials: flooring/wall/ceiling swatches with PBR-style color/roughness/metalness"
+      - "Org dashboard KPIs: total projects, budget, revenue, expenses, per-project revenue/expenses/task count/delayed task count"
+    input: "N/A -- this is the domain vocabulary the UI/API encode."
+    output: "N/A."
+    rules: []
+    guardrails: []
+    workflow: []
+
+count_of_domains: 13
+notable_findings:
+  - "STALE, CORRECTED 2026-07-17: ~~PRX-05 is the single largest concrete gap found in this entire system-tree effort: 12+ nav-linked, middleware-protected modules with zero page implementation.~~ PRX-05 is fully RESOLVED -- see that entry."
+  - "RESOLVED 2026-07-17: ~~PRX-11's dead-code components (status-badge, compliance-chart) and unwired data-table are minor cleanup candidates -- STILL OPEN~~. status-badge.tsx/compliance-chart.tsx deleted, data-table.tsx correctly kept (see PRX-11)."
+  - "UPDATED 2026-07-17 (PROJEXA-COMPLETION-01, phases closed since the entry below was first written): (1) DONE -- real Lint/TypeCheck/Build CI added (projexa#31); branch protection still cannot be set via API on this free-tier private repo, enforcement remains this session's own discipline. (2) DONE -- change-order approve/reject bypass closed on both sides (compliance-tracker#398, projexa#35): real approval now only via e-signature completion, no fake button; PROJEXA UI shows real signer progress instead. Also found and closed a related, more severe instance of the same bypass in VERIDIAN's own VeriChatPanel Approvals tab (same PR pair). (3) STILL OPEN, narrowed not closed: the 2026-07-17 phase2a/phase2b work was a code-level audit (page->route->real backend handler trace), not a live-browser click-through, for 19 of the ~23 untested pages -- found and fixed 2 real bugs this way (cross-tenant organizationId leak, KB/Wiki save always-fails for any real user), but genuine UI/UX-level issues a live test would catch (rendering, form validation, empty states) remain unverified on those pages. Full detail: control/CONTROLLER.yaml, id PROJEXA-COMPLETION-01."

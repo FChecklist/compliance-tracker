@@ -1,0 +1,434 @@
+// Wave 34 (VERI Minutes of Meetings, PLATFORM_STRATEGY.md §16). Genuinely
+// new, general-purpose -- board_meetings (Wave 8, governance-only) and
+// pms_meetings (Wave 28, PMS-project-scoped) are both real but scope-locked.
+// minutesHistory mirrors board_meetings' own amend-don't-overwrite
+// precedent verbatim. Action items become real `tasks` rows (which VERI
+// To Do already surfaces) via veri_meeting_action_items, not a parallel
+// tracking mechanism.
+//
+// Wave 44 (PLATFORM_STRATEGY.md §25): publish/lock workflow + share links +
+// audit trail, merged in from evaluating FChecklist/MeetTrack + meettrack-v2.
+// Once published, meeting-level fields (title/type/scheduledAt/attendees/
+// agenda/minutes) are immutable -- enforced here, not just a disabled UI
+// input. Linked `tasks` rows stay independently editable via VERI To Do;
+// freezing a task's status because the *meeting* was finalized would break
+// the task lifecycle, which meettrack-v2 never had to reason about since its
+// "action items" were never real cross-module rows.
+import { createId } from "@paralleldrive/cuid2"
+import { after } from "next/server"
+import { veriMeetings, veriMeetingActionItems, veriMeetingShareLinks, tasks, auditLogs, db } from "@/lib/db"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
+import { logActivity } from "@/lib/audit"
+import { eq, and, desc } from "drizzle-orm"
+import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
+import { callLLMJson } from "@/lib/llm-client"
+import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
+import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine"
+import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
+import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
+import { executeTask } from "@/lib/task-execution-engine"
+import { runMeetingIntelligenceGenerationMonitor } from "@/lib/monitors/meeting-intelligence-generation-monitor"
+import { ServiceError } from "./compliance-service"
+export { ServiceError }
+import type { users } from "@/lib/db"
+import type { ServiceActor } from "./context"
+
+// Wave 143 (PROJEXA Minutes of Meetings wiring): widened from a hardcoded
+// `dbUser: typeof users.$inferSelect` to the same dbUser|apiKey
+// discriminated union `ServiceActor` already used elsewhere in this
+// codebase for exactly this reason (see context.ts's own header) -- every
+// pre-existing caller (VeriChatPanel, voice/ticket/email intelligence,
+// mother-router) still just passes `{ orgId, userId, dbUser }`, which
+// satisfies the `dbUser` branch unchanged. New callers reachable only via a
+// Bearer API key (PROJEXA's callVeridian(), no cookie session) now have a
+// real `{ orgId, userId, apiKey }` option instead of needing a fabricated
+// dbUser.
+export type VeriMeetingContext = { orgId: string; userId: string } & ServiceActor
+
+// logActivity()/runMeetingIntelligenceGenerationMonitor() both require the
+// same discriminated dbUser XOR apiKey actor shape -- this is the one place
+// that ternary gets written, instead of at each of this file's ~9 call sites.
+function actorOf(ctx: VeriMeetingContext): ServiceActor {
+  return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+}
+
+function generateSystemId(): string {
+  const year = new Date().getFullYear()
+  const suffix = Math.floor(1000 + Math.random() * 9000)
+  return `MOM-${year}-${suffix}`
+}
+
+function assertEditable(meeting: { status: string }) {
+  if (meeting.status === "published") {
+    throw new ServiceError("This meeting is published and locked -- its details cannot be edited", 409)
+  }
+}
+
+// Wave 143: contextEntityId scoping added -- PROJEXA's MoM screen is
+// per-project, so it needs "meetings for this project" rather than the
+// full org-wide feed every existing internal caller (VeriChatPanel's
+// Meetings tab) wants.
+export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.veriMeetings.findMany({
+      where: contextEntityId
+        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId))
+        : eq(veriMeetings.orgId, ctx.orgId),
+      orderBy: desc(veriMeetings.scheduledAt),
+    })
+  )
+}
+
+export async function getVeriMeeting(ctx: { orgId: string }, meetingId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!meeting) throw new ServiceError("Meeting not found", 404)
+    const actionItems = await db.query.veriMeetingActionItems.findMany({
+      where: eq(veriMeetingActionItems.meetingId, meetingId),
+      with: { task: true },
+    })
+    return { ...meeting, actionItems }
+  })
+}
+
+export async function createVeriMeeting(
+  ctx: VeriMeetingContext,
+  input: { title: string; meetingType?: string; scheduledAt: string; attendees?: string[]; agenda?: string[]; contextEntityType?: string; contextEntityId?: string }
+) {
+  const title = input.title?.trim()
+  if (!title) throw new ServiceError("title is required", 400)
+  if (!input.scheduledAt) throw new ServiceError("scheduledAt is required", 400)
+
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const [meeting] = await db.insert(veriMeetings).values({
+      orgId: ctx.orgId, title, meetingType: input.meetingType || "team", scheduledAt: new Date(input.scheduledAt),
+      attendees: input.attendees || [], agenda: input.agenda || [],
+      contextEntityType: input.contextEntityType || null, contextEntityId: input.contextEntityId || null,
+      systemId: generateSystemId(),
+      createdById: ctx.userId,
+    }).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.created", entityType: "veri_meeting", entityId: meeting!.id,
+      details: `Created meeting "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return meeting
+  })
+}
+
+// New in Wave 44 -- editing title/type/scheduledAt/attendees/agenda after
+// creation had no route at all before this wave; needed for the publish/lock
+// workflow to mean anything.
+export async function updateVeriMeetingDetails(
+  ctx: VeriMeetingContext,
+  meetingId: string,
+  input: { title?: string; meetingType?: string; scheduledAt?: string; attendees?: string[]; agenda?: string[] }
+) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Meeting not found", 404)
+    assertEditable(existing)
+
+    const patch: Record<string, unknown> = { updatedAt: new Date() }
+    if (input.title !== undefined) patch.title = input.title.trim()
+    if (input.meetingType !== undefined) patch.meetingType = input.meetingType
+    if (input.scheduledAt !== undefined) patch.scheduledAt = new Date(input.scheduledAt)
+    if (input.attendees !== undefined) patch.attendees = input.attendees
+    if (input.agenda !== undefined) patch.agenda = input.agenda
+
+    const [updated] = await db.update(veriMeetings).set(patch).where(eq(veriMeetings.id, meetingId)).returning()
+
+    const changedFields = Object.keys(patch).filter((k) => k !== "updatedAt")
+    await logActivity({
+      tx: db, action: "veri_meeting.details_updated", entityType: "veri_meeting", entityId: meetingId,
+      details: `Updated: ${changedFields.join(", ")}`, orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return updated
+  })
+}
+
+export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: string, minutes: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Meeting not found", 404)
+    assertEditable(existing)
+
+    const history = Array.isArray(existing.minutesHistory) ? existing.minutesHistory : []
+    const amendment = { date: new Date().toISOString(), amendedBy: ctx.userId, text: minutes }
+
+    const [updated] = await db.update(veriMeetings)
+      .set({ minutes, minutesHistory: [...history, amendment], updatedAt: new Date() })
+      .where(eq(veriMeetings.id, meetingId)).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.minutes_updated", entityType: "veri_meeting", entityId: meetingId,
+      details: "Minutes updated", orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return updated
+  })
+}
+
+// Publish/lock -- the core auditability feature adopted from meettrack-v2,
+// enforced server-side (assertEditable), not just a disabled UI input.
+export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: string) {
+  const updated = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Meeting not found", 404)
+    if (existing.status === "published") throw new ServiceError("Meeting is already published", 409)
+
+    const [row] = await db.update(veriMeetings)
+      .set({ status: "published", publishedAt: new Date(), publishedById: ctx.userId, updatedAt: new Date() })
+      .where(eq(veriMeetings.id, meetingId)).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.published", entityType: "veri_meeting", entityId: meetingId,
+      details: "Meeting published and locked", orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return row
+  })
+
+  // Wave 74 (Meeting Intelligence): best-effort, non-blocking -- publishing
+  // must succeed and return regardless of whether AI extraction works. Only
+  // attempted when there's real minutes text to analyze.
+  //
+  // Bug fix (2026-07-06, found during the Demo Company E2E pass): this was a
+  // bare un-awaited .catch() with no after()/waitUntil() wrapper. On Vercel's
+  // serverless runtime the function environment can be frozen the instant the
+  // HTTP response is sent, killing this promise before generateMeetingIntelligence
+  // ever ran -- confirmed via orchestra_executions showing zero
+  // meeting_intelligence.extract rows after a real publish. after() keeps the
+  // invocation alive until this callback settles.
+  if (updated?.minutes?.trim()) {
+    after(() => generateMeetingIntelligence(ctx, meetingId).catch((err) => {
+      console.error("Meeting intelligence generation failed (non-fatal, meeting still published):", err)
+    }))
+  }
+
+  return updated
+}
+
+// Wave 74 (Meeting Intelligence, AI_OS_CERTIFICATION.md §3.2 NOT_BUILT).
+// Read-only over `minutes` -- never mutates meeting-level fields, so it's
+// safe to call on a published (locked) meeting and safe to re-run any
+// number of times (overwrites its own prior AI columns only). Suggested
+// action items are exactly that -- suggestions a human reviews and
+// explicitly promotes via the existing addMeetingActionItem(), never
+// auto-created as real `tasks` rows.
+export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meetingId: string) {
+  // Split from the generation attempt itself (RES-02 Phase 1,
+  // PLATFORM_STRATEGY.md 29.3): "meeting not found"/"no minutes to analyze"
+  // are input-validation failures, never a real generation attempt, so they
+  // must never trigger meeting-intelligence-generation-monitor.ts's
+  // COO escalation -- only a genuine attempt (model config resolved, LLM
+  // call made) that then fails counts as a MOM_GENERATED rule violation.
+  const meeting = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+  )
+  if (!meeting) throw new ServiceError("Meeting not found", 404)
+  if (!meeting.minutes?.trim()) throw new ServiceError("Meeting has no minutes to analyze", 400)
+
+  try {
+    return await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+      const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+      if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+
+      const systemPrompt = await resolvePromptTemplate("meeting_intelligence.extract")
+      const userMessage = `Meeting: "${meeting.title}"\n\nMinutes:\n${meeting.minutes}`
+
+      // Gap closure, 2026-07-09 (AUDIT_2026-07-09.md, Agent Framework section):
+      // minutes are human-typed free text, the same risk shape as any chat
+      // surface -- this call had no Constitution gate despite that.
+      const policyDecision = enforcePolicy(
+        { orgId: ctx.orgId, userId: ctx.userId, domain: DEFAULT_DOMAIN, layerKey: "task_oa", eventType: "meeting_intelligence.extract" },
+        userMessage
+      )
+      if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 400)
+
+      const startedAt = Date.now()
+      const { data: result, usage } = await callLLMJson<{
+        summary: string
+        keyDecisions: string[]
+        suggestedActionItems: { title: string; assignee: string | null; dueDateHint: string | null }[]
+      }>(modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 700 }, modelConfig.fallback)
+
+      recordOrchestraExecution({
+        orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "meeting_intelligence.extract",
+        input: { meetingId }, output: { keyDecisionCount: result.keyDecisions?.length ?? 0, actionItemCount: result.suggestedActionItems?.length ?? 0 },
+        status: "completed", durationMs: Date.now() - startedAt,
+        provider: modelConfig.provider, model: modelConfig.model, usage,
+      })
+
+      const [updated] = await db.update(veriMeetings).set({
+        aiSummary: result.summary,
+        aiKeyDecisions: result.keyDecisions ?? [],
+        aiSuggestedActionItems: result.suggestedActionItems ?? [],
+        aiGeneratedAt: new Date(),
+      }).where(eq(veriMeetings.id, meetingId)).returning()
+
+      await logActivity({
+        tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
+        details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, ...actorOf(ctx),
+      })
+
+      await runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
+        meetingId, title: meeting.title, succeeded: true,
+      })
+
+      return updated
+    })
+  } catch (err) {
+    // The transaction above rolled back on throw, so a monitor row logged
+    // inside it would have rolled back too -- a fresh transaction is the
+    // only way the escalate report actually persists, same "separate
+    // read/write transactions" posture dispatch-completion-monitor.ts's own
+    // runDispatchCompletionSweep already uses.
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
+        meetingId, title: meeting.title, succeeded: false, failureReason: err instanceof Error ? err.message : String(err),
+      })
+    )
+    throw err
+  }
+}
+
+// Action item becomes a real `tasks` row -- VERI To Do's listVeriTodos()
+// already surfaces it, no separate tracking table. Deliberately NOT gated by
+// meeting.status -- ongoing task work must continue after the meeting record
+// itself is published/locked.
+//
+// Wave 78 (Multi-Agent Chaining, AI_OS_CERTIFICATION.md §2.2 NOT_BUILT): the
+// task this creates now runs through executeTask() -- the same real AI
+// planning/dispatch pass (plus Wave 77's memory read-back) every other task
+// gets, instead of sitting as a bare `pending` row nothing ever processes.
+// Meeting Intelligence's structured output (the suggested action item text
+// a human is choosing to promote here) becomes literal input to a second,
+// independent AI call. Still human-gated by this function's own explicit
+// invocation -- no unattended write action, matching task-execution-engine's
+// own doctrine.
+export async function addMeetingActionItem(
+  ctx: VeriMeetingContext,
+  meetingId: string,
+  input: { title: string; assigneeUserId?: string; dueDate?: string }
+) {
+  const title = input.title?.trim()
+  if (!title) throw new ServiceError("title is required", 400)
+
+  const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!meeting) throw new ServiceError("Meeting not found", 404)
+
+    const description = `Action item from meeting: ${meeting.title}`
+    const [task] = await db.insert(tasks).values({
+      orgId: ctx.orgId, userId: input.assigneeUserId || ctx.userId, assignedById: ctx.userId,
+      title, description, status: "in_progress",
+      dueDate: input.dueDate ? new Date(input.dueDate) : null,
+    }).returning()
+
+    const [actionItem] = await db.insert(veriMeetingActionItems).values({ meetingId, taskId: task!.id }).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.action_item_added", entityType: "veri_meeting", entityId: meetingId,
+      details: `Action item added: "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return { actionItem, task: task! }
+  })
+
+  await executeTask(ctx.orgId, ctx.userId, created.task.id, created.task.title, created.task.description, null, null)
+  const finalTask = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+    db.query.tasks.findFirst({ where: eq(tasks.id, created.task.id) })
+  )
+  return { ...created.actionItem, task: finalTask ?? created.task }
+}
+
+// Priority 18a (VERI Chat second-screen unification): the panel's Meetings
+// tab needs "action items assigned to me" across every meeting, not just one
+// meeting's own detail (getVeriMeeting already does that). Reuses the same
+// veriMeetingActionItems->task relation, filtered to tasks assigned to this
+// user and not yet completed, with the parent meeting's title carried along
+// so the panel can render "Follow up with vendor -- from Q3 Planning" without
+// a second round-trip per item.
+export async function listMyMeetingActionItems(ctx: { orgId: string; userId: string }) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db.query.veriMeetingActionItems.findMany({
+      with: { meeting: true, task: true },
+    })
+    return rows
+      .filter((r) => r.meeting?.orgId === ctx.orgId && r.task?.userId === ctx.userId && r.task?.status !== "completed" && r.task?.status !== "cancelled")
+      .map((r) => ({ id: r.id, meetingId: r.meetingId, meetingTitle: r.meeting!.title, task: r.task! }))
+  })
+}
+
+// Field-level change history -- reuses the platform's real audit_logs table
+// (13+ other modules already write to it) rather than a parallel
+// meeting_history table like meettrack-v2 built.
+export async function listMeetingAuditLog(ctx: { orgId: string }, meetingId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.auditLogs.findMany({
+      where: and(eq(auditLogs.entityType, "veri_meeting"), eq(auditLogs.entityId, meetingId), eq(auditLogs.orgId, ctx.orgId)),
+      orderBy: desc(auditLogs.createdAt),
+      limit: 50,
+    })
+  )
+}
+
+// ─── Share links (Wave 44) -- mirrors conversationShareLinks (Wave 36) ────
+// exactly: tokenized, time-limited, individually revocable. Deliberately NOT
+// meettrack-v2's own is_published=true=world-readable-forever RLS policy.
+export async function createMeetingShareLink(ctx: VeriMeetingContext, meetingId: string, expiresInHours = 168) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!meeting) throw new ServiceError("Meeting not found", 404)
+    if (meeting.status !== "published") throw new ServiceError("Only published meetings can be shared", 409)
+
+    const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
+    const [link] = await db.insert(veriMeetingShareLinks).values({
+      meetingId, token: createId(), createdById: ctx.userId, expiresAt,
+    }).returning()
+
+    await logActivity({
+      tx: db, action: "veri_meeting.share_link_created", entityType: "veri_meeting", entityId: meetingId,
+      details: "Share link created", orgId: ctx.orgId, ...actorOf(ctx),
+    })
+    return link
+  })
+}
+
+export async function listMeetingShareLinks(ctx: { orgId: string }, meetingId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.veriMeetingShareLinks.findMany({
+      where: eq(veriMeetingShareLinks.meetingId, meetingId),
+      orderBy: (t, { desc }) => desc(t.createdAt),
+    })
+  )
+}
+
+export async function revokeMeetingShareLink(ctx: VeriMeetingContext, linkId: string) {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const link = await db.query.veriMeetingShareLinks.findFirst({ where: eq(veriMeetingShareLinks.id, linkId) })
+    if (!link) throw new ServiceError("Share link not found", 404)
+    const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, link.meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
+    if (!meeting) throw new ServiceError("Share link not found", 404)
+
+    const [updated] = await db.update(veriMeetingShareLinks).set({ revokedAt: new Date() }).where(eq(veriMeetingShareLinks.id, linkId)).returning()
+    return updated
+  })
+}
+
+// Public route (no auth) -- resolves a token to a read-only meeting view.
+// Expired/revoked tokens 404 rather than distinguish "expired" from "never
+// existed" (same reasoning as getSharedConversation in veri-chat-service.ts).
+// Uses the raw `db` export since there's no session/org context for a public
+// link to run withTenantContext against.
+export async function getMeetingByShareToken(token: string) {
+  const link = await db.query.veriMeetingShareLinks.findFirst({ where: eq(veriMeetingShareLinks.token, token) })
+  if (!link || link.revokedAt || link.expiresAt < new Date()) throw new ServiceError("This share link is invalid or has expired", 404)
+
+  const meeting = await db.query.veriMeetings.findFirst({ where: eq(veriMeetings.id, link.meetingId) })
+  if (!meeting) throw new ServiceError("This share link is invalid or has expired", 404)
+
+  const actionItems = await db.query.veriMeetingActionItems.findMany({
+    where: eq(veriMeetingActionItems.meetingId, meeting.id),
+    with: { task: true },
+  })
+  return { ...meeting, actionItems }
+}

@@ -1,0 +1,174 @@
+/// <reference types="bun-types" />
+// Priority 5: unit tests for capability-learning-service.ts's pure
+// functions (deriveCapabilityKey, tokenizePrompt, wordOverlapScore,
+// computeCoverageStats). The DB-touching functions are not tested here,
+// matching this codebase's established convention (see task-service.test.ts/
+// approval-workflow-service.test.ts's own stated precedent).
+import { describe, test, expect } from "bun:test"
+import {
+  deriveCapabilityKey,
+  tokenizePrompt,
+  wordOverlapScore,
+  computeCoverageStats,
+  deriveCapabilityStatus,
+  shouldExploreAsUnknownPrompt,
+  UNKNOWN_PROMPT_MODE_PILL,
+  ServiceError,
+} from "./capability-learning-service"
+
+describe("deriveCapabilityKey", () => {
+  test("produces a stable dotted slug from modePill + pathKeys", () => {
+    expect(deriveCapabilityKey("Accounts", ["Tax Filing", "GST", "Prepare"])).toBe("accounts.tax_filing.gst.prepare")
+  })
+
+  test("is stable across repeated calls with the same input (no randomness)", () => {
+    const a = deriveCapabilityKey("Accounts", ["GST", "Prepare"])
+    const b = deriveCapabilityKey("Accounts", ["GST", "Prepare"])
+    expect(a).toBe(b)
+  })
+
+  test("strips non-alphanumeric characters and collapses whitespace", () => {
+    expect(deriveCapabilityKey("Accounts!", ["Q3 2024-25"])).toBe("accounts.q3_2024_25")
+  })
+
+  test("throws when modePill and pathKeys together produce nothing usable", () => {
+    expect(() => deriveCapabilityKey("", [])).toThrow(ServiceError)
+    expect(() => deriveCapabilityKey("   ", ["   "])).toThrow(ServiceError)
+  })
+})
+
+describe("tokenizePrompt", () => {
+  test("lowercases, strips punctuation, dedupes", () => {
+    const tokens = tokenizePrompt("Did we file? DID we FILE the GST return?")
+    expect(tokens).toContain("file")
+    expect(tokens).toContain("gst")
+    expect(tokens).toContain("return")
+    expect(tokens.filter((t) => t === "file").length).toBe(1) // deduped
+  })
+
+  test("drops stopwords", () => {
+    const tokens = tokenizePrompt("Did we file the GST return")
+    expect(tokens).not.toContain("did")
+    expect(tokens).not.toContain("we")
+    expect(tokens).not.toContain("the")
+  })
+
+  test("matches the exact 'Did/We/File' example from the Owner's spec", () => {
+    const tokens = tokenizePrompt("Did we file?")
+    expect(tokens.sort()).toEqual(["file"]) // "did"/"we" are stopwords, only "file" survives
+  })
+
+  test("empty/whitespace-only input returns an empty array", () => {
+    expect(tokenizePrompt("")).toEqual([])
+    expect(tokenizePrompt("   ")).toEqual([])
+  })
+})
+
+describe("wordOverlapScore", () => {
+  test("identical word sets score 1.0", () => {
+    expect(wordOverlapScore(["gst", "filed"], ["gst", "filed"])).toBe(1)
+  })
+
+  test("disjoint word sets score 0", () => {
+    expect(wordOverlapScore(["gst", "filed"], ["invoice", "paid"])).toBe(0)
+  })
+
+  test("partial overlap scores between 0 and 1 (Jaccard)", () => {
+    // "have we filed gst" vs "gst filing done" -- shared: gst. union: filed/have/gst/filing/done (5), intersection 1
+    const a = tokenizePrompt("have we filed gst")
+    const b = tokenizePrompt("gst filing done")
+    const score = wordOverlapScore(a, b)
+    expect(score).toBeGreaterThan(0)
+    expect(score).toBeLessThan(1)
+  })
+
+  test("an empty set on either side scores 0, not NaN", () => {
+    expect(wordOverlapScore([], ["gst"])).toBe(0)
+    expect(wordOverlapScore(["gst"], [])).toBe(0)
+    expect(wordOverlapScore([], [])).toBe(0)
+  })
+})
+
+describe("computeCoverageStats", () => {
+  test("computes rounded percentages from real rolling counts", () => {
+    const stats = computeCoverageStats(83, 12, 5)
+    expect(stats.total).toBe(100)
+    expect(stats.fullSoftwarePercent).toBe(83)
+    expect(stats.packageAvailablePercent).toBe(12)
+    expect(stats.novelPercent).toBe(5)
+  })
+
+  test("zero total returns zero percentages, not NaN/Infinity", () => {
+    const stats = computeCoverageStats(0, 0, 0)
+    expect(stats).toEqual({ total: 0, fullSoftwarePercent: 0, packageAvailablePercent: 0, novelPercent: 0 })
+  })
+
+  test("rounds to nearest integer percent", () => {
+    const stats = computeCoverageStats(1, 1, 1) // 33.33/33.33/33.33
+    expect(stats.total).toBe(3)
+    expect(stats.fullSoftwarePercent + stats.packageAvailablePercent + stats.novelPercent).toBeGreaterThanOrEqual(99)
+  })
+})
+
+describe("deriveCapabilityStatus", () => {
+  test("a never-executed capability (zero observations) stays at the 'ai_only' default", () => {
+    expect(deriveCapabilityStatus(0, 0, 0)).toBe("ai_only")
+  })
+
+  test("below the 5-observation floor stays 'ai_only' even if every observation so far was FULL_SOFTWARE", () => {
+    // 3 total, 100% full-software -- too few data points to trust yet.
+    expect(deriveCapabilityStatus(3, 0, 0)).toBe("ai_only")
+  })
+
+  test("at the observation floor, an overwhelming (>=80%) full-software majority transitions to 'full_software'", () => {
+    // 5 total, 4 full-software (80%) -- exactly the threshold.
+    expect(deriveCapabilityStatus(4, 0, 1)).toBe("full_software")
+  })
+
+  test("just under the 80% full-software bar reads 'partial', not 'full_software'", () => {
+    // 5 total, 3 full-software (60%), 1 package, 1 novel -- neither
+    // dominant bucket clears its own threshold.
+    expect(deriveCapabilityStatus(3, 1, 1)).toBe("partial")
+  })
+
+  test("a capability still mostly NOVEL (>=60%) at the observation floor stays 'ai_only'", () => {
+    // 5 total, 3 novel (60%) -- meets the "still mostly novel" bar.
+    expect(deriveCapabilityStatus(1, 1, 3)).toBe("ai_only")
+  })
+
+  test("a genuine three-way mix with no dominant bucket reads 'partial'", () => {
+    // 10 total: 4 full-software (40%), 3 package (30%), 3 novel (30%) --
+    // no bucket clears either the 80% or 60% bar.
+    expect(deriveCapabilityStatus(4, 3, 3)).toBe("partial")
+  })
+
+  test("a large sample overwhelmingly full-software reads 'full_software' regardless of scale", () => {
+    expect(deriveCapabilityStatus(950, 30, 20)).toBe("full_software")
+  })
+
+  test("a large sample overwhelmingly novel reads 'ai_only' regardless of scale", () => {
+    expect(deriveCapabilityStatus(20, 30, 950)).toBe("ai_only")
+  })
+})
+
+describe("shouldExploreAsUnknownPrompt", () => {
+  test("a matched template is never explored, regardless of confidence", () => {
+    expect(shouldExploreAsUnknownPrompt("some-template-source", 0)).toBe(false)
+    expect(shouldExploreAsUnknownPrompt("some-template-source", 0.1)).toBe(false)
+  })
+
+  test("no matched template AND low confidence triggers exploration", () => {
+    expect(shouldExploreAsUnknownPrompt(null, 0.49)).toBe(true)
+  })
+
+  test("no matched template but high confidence does not trigger exploration", () => {
+    expect(shouldExploreAsUnknownPrompt(null, 0.5)).toBe(false)
+    expect(shouldExploreAsUnknownPrompt(null, 0.9)).toBe(false)
+  })
+
+  test("UNKNOWN_PROMPT_MODE_PILL is a stable, distinct modePill namespace", () => {
+    expect(UNKNOWN_PROMPT_MODE_PILL).toBe("prompt_compiler_unknown")
+    // never derives to an empty/collision-prone key on its own
+    expect(deriveCapabilityKey(UNKNOWN_PROMPT_MODE_PILL, ["CODE", "fix"])).toBe("prompt_compiler_unknown.code.fix")
+  })
+})

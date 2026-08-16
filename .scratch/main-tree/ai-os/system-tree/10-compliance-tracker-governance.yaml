@@ -1,0 +1,361 @@
+# compliance-tracker (VERIDIAN AI OS) -- Governance & Platform Core
+# Source: direct code inventory this session (src/lib/**, ai-os/**, scripts/**).
+# 240 lib files (excl. db/), 25 engine files, 126 service files, 5 ai-team files,
+# 20 ai-os yaml files, 8 CI scripts -- all verified against real source, not docs.
+
+repo: compliance-tracker
+tree_version: 1
+domains:
+
+  - id: GOV-01
+    name: "Guardrail Engine -- the pluggable pre/process/output/logic check framework"
+    objects: ["src/lib/guardrail-engine.ts", "src/lib/guardrail-registrations.ts"]
+    input: "A capability-tree leaf key (e.g. 'ai_team.dispatch') + a phase ('input'|'process'|'output'|'logic') + a context object at the call site."
+    output: "{passed:true} or {passed:false, reason, guidance} -- the first failing rule for that leaf+phase short-circuits the rest."
+    rules:
+      - "REGISTRY is a Map<leafKey, GuardrailRule[]>, starts EMPTY by design -- silence means no constraint registered for that leaf, not an implicit pass/fail."
+      - "registerGuardrail(leafKey, rule) is purely additive -- no leaf's guardrail list is ever cleared except via the test-only _clearAllGuardrailsForTests()."
+      - "A failed check is recorded via recordGuardrailViolation() into the CLEE loop-improvement pipeline as improvementType:'guardrail_violation', always isDeployed:false (human-gated, never auto-applied)."
+    guardrails:
+      - "This IS the guardrail mechanism -- it has no guardrail above it except CI's Guardrail Presence Check (see CI-01) which verifies named markers in this file's own source haven't disappeared."
+    workflow:
+      - "1. Caller determines the current leaf key (from the Dynamic Chain / capability tree)."
+      - "2. Caller invokes evaluateGuardrails(leafKey, phase, context) at the appropriate lifecycle point."
+      - "3. On failure, execution stops and the caller surfaces {reason, guidance} to the user/model; a violation record feeds the improvement pipeline."
+      - "4. On pass (including 'no rules registered'), execution proceeds."
+
+  - id: GOV-02
+    name: "Registered guardrail leaves (exhaustive, as of this session)"
+    objects:
+      - "ai_team.dispatch (phase: input) -> tightTaskCheck"
+      - "ai_workforce.dispatch (phase: input) -> tightTaskCheck (same check, second independent dispatch surface)"
+      - "task_execution.free_text_planning (phase: input) -> taskBriefCheck"
+      - "ai_workforce.loop_budget (phase: logic) -> loopBudgetCheck"
+    input: "A dispatch or free-text-planning attempt at one of these 4 leaf keys."
+    output: "Pass, or a structured rejection naming the missing/invalid field."
+    rules:
+      - "tightTaskCheck wraps validateTightTask -- checks objective/scope/successCriteria/complexityTier/expectedOutput are present, non-placeholder, and long enough (see GOV-03)."
+      - "taskBriefCheck wraps validateTaskBrief -- a deliberately LIGHTER gate for customer-created tasks (title/description only, MIN_PLANNABLE_LENGTH=4 chars, not the full TightTask shape)."
+      - "loopBudgetCheck wraps checkLoopBudget -- Guardrail #20 (Infinite Loop Prevention) applied generically, not just to the .mjs CI runner's original MAX_ITERATIONS pattern."
+    guardrails:
+      - "high-impact-action-detector.ts's categories are DELIBERATELY NOT registered here yet -- tracked as FOLLOWUP-1, to avoid regressing an already-audited working gate by wiring it in carelessly. This is a known, intentional gap, not an oversight."
+    workflow:
+      - "Same as GOV-01's generic workflow, specialized per leaf."
+
+  - id: GOV-03
+    name: "TightTask -- the structured task envelope"
+    objects: ["src/lib/task-tightening.ts"]
+    input: "A proposed AI dispatch, as free-form fields."
+    output: "Either a validated TightTask object ready for assembleTightTaskPrompt(), or a rejection."
+    rules:
+      - "Shape: {objective, scope, successCriteria, complexityTier: 'mechanical'|'integrative'|'judgment', expectedOutput, constraints?}."
+      - "validateTightTask rejects if objective/scope/successCriteria/expectedOutput is missing, matches a placeholder regex (tbd|todo|n/a|none|null|xxx+|...|fill.?in|same as above), or is under MIN_FIELD_LENGTH=10 chars."
+      - "validateTightTask rejects if complexityTier is missing or not one of the 3 valid values."
+      - "TaskBrief = {title, description?} is the lighter customer-facing shape, validated separately by validateTaskBrief (MIN_PLANNABLE_LENGTH=4)."
+    guardrails:
+      - "assembleTightTaskPrompt() renders the validated task into a labeled prompt with an explicit 'stop and say so' instruction rather than letting a model silently expand scope beyond what was declared."
+    workflow:
+      - "1. Caller assembles a TightTask candidate."
+      - "2. GOV-02's tightTaskCheck / GOV-04's tier check run against it."
+      - "3. On pass, assembleTightTaskPrompt() renders it for the model call."
+
+  - id: GOV-04
+    name: "Model-tier eligibility -- complexity-tier-based model routing"
+    objects: ["src/lib/model-tier-eligibility.ts"]
+    input: "A model identifier + a ComplexityTier ('mechanical'|'integrative'|'judgment')."
+    output: "{eligible:true} or {eligible:false, reason, guidance}; requiresMandatoryAudit(model) -> boolean."
+    rules:
+      - "JUDGMENT_ELIGIBLE = {z-ai/glm-5.2, openai/gpt-5.5} -- only these two may take judgment-tier (architecture/security/audit-verdict) work."
+      - "INTEGRATIVE_ELIGIBLE = JUDGMENT_ELIGIBLE plus {z-ai/glm-5v-turbo, z-ai/glm-5-turbo, google/gemini-2.5-pro, deepseek/deepseek-v4-pro} -- multi-file work."
+      - "Mechanical tier: every model eligible, including openai/gpt-oss-120b."
+      - "openai/gpt-oss-120b is explicitly excluded from integrative/judgment tiers -- confirmed twice in this session's history to burn its full iteration budget on that shape of task."
+      - "Default posture is most-restrictive-unless-proven-otherwise: an unrecognized model is not eligible for anything above mechanical."
+    guardrails:
+      - "requiresMandatoryAudit(model) returns true for every model except the 2 judgment-eligible ones -- feeds .github/workflows/mandatory-audit-check.yml (a real CI merge gate, not just documentation)."
+    workflow:
+      - "1. Dispatch surface (API route / dispatch-repo.ts / ai-workforce-agent.mjs) resolves the target role's model from roster.ts."
+      - "2. checkTierEligibility(model, task.complexityTier) is called before the model is ever invoked."
+      - "3. If ineligible, dispatch is blocked with the reason+guidance; if eligible but requiresMandatoryAudit, the resulting PR is CI-blocked from merge until an AUDIT: PASS/FAIL comment is posted."
+
+  - id: GOV-05
+    name: "AI Dev Team roster -- 57 defined roles across 16 teams"
+    objects: ["src/lib/ai-team/roster.ts"]
+    input: "A roleKey lookup, or team-level enumeration."
+    output: "A RoleDefinition {roleKey, team, title, model, promptKey, isCodeOnly?, isHuman?}."
+    rules:
+      - "Teams: HUMAN, VERIDIAN_AI_OS, ENGINEERING, QUALITY_SAFETY, LEGAL_COMPLIANCE, DATA_TEAM, CUSTOMER_SETUP, CUSTOMER_SUPPORT, SALES_MARKETING, FINANCE, HR, ADMIN, AUDIT_EXECUTIVE, GUARDRAIL_PLATFORM, GUARDRAIL_PRODUCT, GUARDRAIL_ACCOUNT, GUARDRAIL_USER."
+      - "Model assignment by workload class: GLM_52 (primary lifting, most roles), GLM_5V_TURBO (vision), GLM_5_TURBO (high-volume/low-stakes), GEMINI_25_PRO (research), GPT_55 (independent second opinion), DEEPSEEK_V4_PRO (governance_backend_engineer only), GPT_OSS_120B (tool_integration_engineer only)."
+      - "HUMAN team (founder_ceo, executive_advisor) is never API-dispatched -- present in the roster for completeness of the org chart, not as a callable role."
+      - "isCodeOnly roles (e.g. cost_policy_engine, user_permission_manager) are deterministic code, not LLM calls, despite being modeled as 'roles' in the same roster."
+      - "4 GUARDRAIL_* teams (PLATFORM/PRODUCT/ACCOUNT/USER) exist specifically as the independent-assurance layer distinct from the operational teams they audit."
+      - "chief_audit_officer is deliberately GLM-5.2, not GPT-OSS-120B, since audit work is judgment-tier."
+    guardrails:
+      - "Every role's model assignment must satisfy GOV-04's tier eligibility for whatever complexity of work it's actually dispatched."
+    workflow:
+      - "1. A task is classified (see GOV-06's classifyTask)."
+      - "2. getRole(roleKey) resolves the target role's model/prompt."
+      - "3. runRole() (GOV-06) executes; getRole/rolesForTeam/allGuardrailRoles/operationalRoles are the query helpers used by dispatch and reporting surfaces."
+
+  - id: GOV-06
+    name: "AI Team execution layer (beyond the roster itself)"
+    objects: ["src/lib/ai-team/team-service.ts", "src/lib/ai-team/dispatch-repo.ts", "src/lib/ai-team/cost-policy.ts"]
+    input: "A roleKey + input payload (team-service.ts), or a TightTask for a repo-write role (dispatch-repo.ts)."
+    output: "The role's LLM response (team-service.ts), or a fired GitHub repository_dispatch event (dispatch-repo.ts)."
+    rules:
+      - "runRole(roleKey, input): resolves the prompt-OS template, pre/post-flight cost-checks via cost-policy.ts, calls OpenRouter, logs to the Token Usage Ledger fire-and-forget."
+      - "classifyTask(taskDescription): the AI Router, restricted to operationalRoles() only (never routes to HUMAN/GUARDRAIL_* roles directly)."
+      - "runGuardrailLevel(level, proposedAction): runs every LLM-backed role in one Guardrail team level, collects each verdict."
+      - "RoleNotCallableError is thrown for human/code-only/unknown roles -- a caller cannot accidentally dispatch to founder_ceo."
+      - "checkCostPolicy(model, usage) blocks if estimated cost exceeds MAX_COST_PER_CALL_USD = 0.50."
+    guardrails:
+      - "dispatchRepoTask(roleKey, task) validates the TightTask shape (GOV-03) AND tier eligibility (GOV-04) BEFORE the GitHub event ever fires -- a bad dispatch never reaches the repo-write agent."
+    workflow:
+      - "1. classifyTask() or a direct caller picks a roleKey."
+      - "2. runRole() executes the LLM call with cost/prompt-template resolution."
+      - "3. For repo-write roles specifically, dispatchRepoTask() is the alternate path -- fires ai-team-task repository_dispatch to trigger ai-workforce-agent.mjs (CI-01) instead of an inline call."
+      - "Known limitation: dispatch-repo.ts currently has NO live caller in production -- GITHUB_DISPATCH_PAT is not set on Vercel."
+
+  - id: GOV-07
+    name: "VCEL Computation Engine registry -- 25 files, ~247 functions, all deterministic"
+    objects:
+      - "mathematical-engine.ts (22 fns)"
+      - "gst-engine.ts (14 fns, all 14/14 wired to dispatch)"
+      - "accounting-engine.ts (11 fns)"
+      - "income-tax-engine.ts (9 fns)"
+      - "tds-engine.ts (5 fns + TDS_SECTION_RATES table)"
+      - "payroll-engine.ts (14 fns)"
+      - "inventory-engine.ts (15 fns)"
+      - "fixed-asset-engine.ts (8 fns)"
+      - "banking-engine.ts (6 fns)"
+      - "costing-engine.ts (8 fns)"
+      - "audit-engine.ts (7 fns)"
+      - "hr-engine.ts (9 fns)"
+      - "crm-engine.ts (5 fns)"
+      - "sales-engine.ts (8 fns)"
+      - "marketing-engine.ts (6 fns)"
+      - "procurement-engine.ts (7 fns)"
+      - "logistics-engine.ts (6 fns)"
+      - "project-management-engine.ts (6 fns)"
+      - "grc-workflow-engine.ts (4 fns)"
+      - "data-quality-engine.ts (9 fns)"
+      - "analytics-engine.ts (7 fns)"
+      - "compliance-engine.ts (4 fns)"
+      - "security-engine.ts (5 fns)"
+      - "document-processing-engine.ts (1 fn, more planned)"
+      - "ai-support-engine.ts (2 fns)"
+    input: "Deterministic function arguments (numbers/dates/enums) -- no DB access, no LLM calls, no side effects inside any engine file itself."
+    output: "A computed value or structured result -- pure functions."
+    rules:
+      - "Every engine function is pure and deterministic by design -- this is the concrete instantiation of the 'software executes first, AI only where software cannot' principle (see audit-tree D3.B2/D25)."
+      - "task-execution-engine.ts's dispatchEngine() is the ONLY live consumer, via an explicit reviewed allowlist switch -- deliberately NOT a dynamic-import-by-DB-value pattern, to avoid a code-execution surface."
+    guardrails:
+      - "Currently only 2 of the 25 engine files are actually wired into dispatchEngine(): GST Engine (16/16 functions incl. split/interest/late-fee/hsn/sac/eway-bill/return-validation) and Mathematical Computation Engine (10/13 functions -- 3 deferred: the matrix/model-input-shaped ones)."
+      - "The remaining ~185 registered engines referenced by the DB's computation_engines registry table (distinct from these 25 code files) remain unwired -- tracked in the repo's own CAPABILITY_COVERAGE.md, not fabricated here."
+    workflow:
+      - "1. A Dynamic Chain leaf declares an engineKey."
+      - "2. task-execution-engine.ts's executeTask() sees engineKey set, branches to executeEngineDispatch()."
+      - "3. dispatchEngine() looks up the allowlisted function and calls it with validated inputs."
+      - "4. Result returned directly, zero LLM involvement."
+
+  - id: GOV-08
+    name: "Task execution engine -- the 3-way dispatch branch"
+    objects: ["src/lib/task-execution-engine.ts"]
+    input: "A Task row with either engineKey, resolvedWorkerAgentId, or neither set."
+    output: "A completion result via one of 3 distinct execution paths."
+    rules:
+      - "executeTask() branches: engineKey set -> executeEngineDispatch (GOV-07, zero-LLM); resolvedWorkerAgentId set -> executeStructuredDispatch (zero-LLM, a pre-approved Worker Agent's fixed logic); neither -> free-text LLM planning path."
+      - "The free-text path is gated by the TASK_FREE_TEXT_PLANNING_LEAF guardrail (GOV-02) + enforcePolicy() (GOV-10) + escalation logic (GOV-11) -- the most-constrained of the 3 paths, by design, since it's the one with the least structure to validate against."
+    guardrails:
+      - "dispatchTool() is an explicit allowlist of ~20 real dispatchable actions (compliance stats/items, GST reconciliation actions, PROJEXA construction dashboard/budget/KPI queries) -- not an open tool-calling surface."
+    workflow:
+      - "1. Task created (via task-service.ts's createTask(), see GOV-09)."
+      - "2. executeTask() inspects the task shape and picks one of the 3 branches."
+      - "3. Engine/Worker-Agent paths return deterministic results; free-text path goes through policy+guardrail+escalation before any model call."
+
+  - id: GOV-09
+    name: "Dynamic Chain resolution + task creation (the 'Dynamic Mode Pills / Chain Selector' system object)"
+    objects: ["src/lib/services/task-service.ts", "src/lib/services/capability-tree-service.ts", "dynamicChains table"]
+    input: "A user's Mode Pill + cascading Chain selection (modePill, pathKeys, pathLabels) plus task content."
+    output: "A created Task row with a resolved dynamicChainId, or a rejected creation (guardrail/policy failure)."
+    rules:
+      - "resolveDynamicChainId(): find-or-create, deduplicated on (orgId, modePill, pathKeys) via jsonb equality -- repeated identical chain selections do not grow the table unboundedly."
+      - "createTask() also runs the High-Impact Action Confirmation Gate (detectHighImpactAction, checked against checkApprovalPreference/saveApprovalPreference for always-approve/reject shortcuts -- see GOV-14) and re-verifies any client-supplied workerAgentId server-side (never trusted from the client)."
+      - "buildCapabilityTree() assembles the Chain Selector's actual option tree from REAL registered capabilities (org's enabled product branches -> active modules -> real Worker Agents -> generic Product/Project/Customer/Vendor leaves) -- not a hardcoded taxonomy, confirmed by direct code comment."
+      - "A leaf carries codeReference/engineKey/inputFields/fixedInputs and a computed 'deterministic' flag, which is what lets task-execution-engine.ts (GOV-08) decide its dispatch branch."
+    guardrails:
+      - "See GOV-01/02/03/04 -- all apply at task creation time before executeTask() ever runs."
+    workflow:
+      - "1. User interacts with the Mode Pills + cascading Chain Selector (VeriComposer, see UI tree)."
+      - "2. capability-tree-service.ts serves the real option tree."
+      - "3. On submission, task-service.ts's createTask() resolves/creates the Dynamic Chain, runs the high-impact gate, and inserts the Task."
+      - "4. task-execution-engine.ts's executeTask() picks up the created task (GOV-08)."
+
+  - id: GOV-10
+    name: "Policy & purpose-bound AI enforcement"
+    objects: ["src/lib/policy-enforcement-engine.ts", "src/lib/purpose-bound-ai.ts", "src/lib/intent-engine.ts"]
+    input: "A user message + the current domain context."
+    output: "A PolicyDecision ('personal_use'|'prompt_injection'|'out_of_domain'|'ok') and, on non-ok, a refusal message."
+    rules:
+      - "classifyBusinessPurpose / checkPromptInjection / checkDomainValidity feed enforcePolicy(ctx, userMessage), which returns the final decision."
+      - "DOMAIN_ALLOWED_TOOLS is an allowlist map per domain (default domain: 'compliance') -- isToolAllowedForDomain() checks a tool's codeReference against it before it can be offered to a model."
+      - "refusalMessageFor(decision) / policyDecisionDisplayLabel produce the user-facing text -- predefined, not generated (consistent with the Response Engine principle, GOV-13)."
+    guardrails:
+      - "This is the guardrail that sits between raw user input and any model call -- runs before the free-text planning path in GOV-08."
+    workflow:
+      - "1. User message arrives (chat, task creation, or free-text planning path)."
+      - "2. enforcePolicy() classifies it."
+      - "3. On 'ok', proceeds to intent-engine.ts's classifyIntent() and onward. On any other decision, a predefined refusal is returned immediately, no model call made."
+
+  - id: GOV-11
+    name: "Floor-tier escalation & loop prevention"
+    objects: ["src/lib/floor-tier-escalation.ts", "src/lib/loop-prevention.ts", "src/lib/llm-routing-gate.ts"]
+    input: "A response from the platform-default floor-tier model (GPT-OSS-120B via Groq), or an in-progress loop's execution count."
+    output: "An EscalationSignal recommending escalation off the floor tier, or a loop-budget pass/fail."
+    rules:
+      - "detectReaskOrCorrection / detectLowConfidenceResponse are deterministic pre/post-call signals -- e.g. the user immediately re-asking the same thing is treated as a signal the floor-tier model's answer was inadequate."
+      - "checkLoopBudget (Guardrail #20) generalizes the original ai-workforce-agent.mjs MAX_ITERATIONS pattern into a reusable primitive usable by any loop, not just the CI runner."
+      - "tryDeterministicRoute(ctx, text) is the central 'does this even need an LLM call' chokepoint -- checked before floor-tier escalation logic runs at all."
+    guardrails:
+      - "This is the mechanism that keeps the platform's stated 90-day quality mandate (AGENTS.md Rule 8: don't default to cheapest model or cut a task short to save cost) enforceable in code, not just policy text."
+    workflow:
+      - "1. llm-routing-gate.ts checks if a deterministic route exists first (would bypass the LLM entirely)."
+      - "2. If an LLM call is needed, it starts at the floor tier."
+      - "3. floor-tier-escalation.ts's signals monitor for inadequate responses and trigger escalation to a higher tier when detected."
+      - "4. loop-prevention.ts's budget check runs throughout to prevent runaway iteration regardless of tier."
+
+  - id: GOV-12
+    name: "Response integrity: reply gate, structured messages, hallucination controls"
+    objects: ["src/lib/ai-reply-gate.ts", "src/lib/structured-message.ts", "src/lib/dispatch-output-validator.ts", "src/lib/pii-redaction.ts"]
+    input: "Raw LLM output text or a deterministic dispatch's raw output object."
+    output: "A validated AiReplyEnvelope / parsed structured message, or a DispatchOutputError."
+    rules:
+      - "passesReplyGate(replyText) + detectFalseActionClaim(replyText) sit between raw LLM text and the UI -- a model claiming to have done something it didn't actually do is a specifically detected failure mode."
+      - "structuredMessageSchema (zod discriminated union) + parseStructuredMessage(content) let chat messages carry machine-readable summary/confirmation payloads, not just prose."
+      - "assertValidDispatchOutput() sanity-checks a deterministic (engine/worker-agent) dispatch's own output for NaN/undefined/empty-object -- catching bugs in GOV-07/08's supposedly-safe paths too."
+      - "redactPii(text) runs before any LLM call content is logged."
+    guardrails:
+      - "This is the software gate implementing Guardrail #8 (Hallucination Prevention) and #16/17 (Security/Privacy logging discipline) at the actual response-handling layer."
+    workflow:
+      - "1. Model or engine produces raw output."
+      - "2. ai-reply-gate.ts / dispatch-output-validator.ts validate it before it reaches the caller."
+      - "3. pii-redaction.ts scrubs anything logged."
+      - "4. Only a passed, validated result is shown to the user or persisted."
+
+  - id: GOV-13
+    name: "Response Engine -- predefined short replies"
+    objects: ["src/lib/response-engine.ts"]
+    input: "A task/conversation state needing a short acknowledgement."
+    output: "A ResponseLabel-based short reply (Yes/No/OK/Pending/etc.)."
+    rules:
+      - "formatShortReply / renderShortReply / suggestResponseForTaskStatus implement the audit-tree's D24 requirement: max-4-word predefined responses, software suggests, AI only confirms/selects."
+    guardrails:
+      - "Reduces token usage and lets lower-tier models handle more of the UI's routine acknowledgement traffic with higher confidence, per the original design intent (audit-tree D24.B1.S1)."
+    workflow:
+      - "1. A task/status change occurs."
+      - "2. suggestResponseForTaskStatus() proposes a predefined label."
+      - "3. Software (not AI) selects/renders it in the common case; AI is only consulted when no predefined label fits."
+
+  - id: GOV-14
+    name: "Activity log & approval preferences (Universal Task Lifecycle Phase 1)"
+    objects: ["src/lib/activity-log-service.ts", "src/lib/approval-preference-service.ts", "activityLog table", "approvalPreferences table"]
+    input: "A dispatch event (activity log), or a user's approve/reject decision on a proposed action (approval preferences)."
+    output: "A fire-and-forget activityLog row, or a persisted always-approve/always-reject preference."
+    rules:
+      - "ActivityType = 'ai_team_dispatch' -- the ONLY activity type wired so far. loop_run was deliberately NOT added here since loopExecutions is cross-org and has no org_id, incompatible with this table's tenant RLS."
+      - "recordActivity() catches/warns on failure, never throws into the caller -- logging failure must never break the calling flow."
+      - "ApprovalScopeType = 'communication_type'|'conversation'|'task'|'workflow'. checkApprovalPreference() does most-specific-scope-wins lookup (scopeId match beats scopeType-only beats null)."
+      - "saveApprovalPreference() uses find-then-insert-or-update, NOT a DB ON CONFLICT clause -- a nullable scopeId unique index wouldn't NULL-match correctly, so this was deliberately hand-rolled."
+    guardrails:
+      - "This is the code-level implementation of audit-tree D9 (Approval & Confirmation UX) and D16 (Continuous Improvement -- activity log feeds organizational learning)."
+    workflow:
+      - "1. An action needing approval is proposed (e.g. by GOV-09's high-impact gate)."
+      - "2. checkApprovalPreference() checks for an existing always-approve/reject shortcut."
+      - "3. If none, the user is prompted; their response may be saved via saveApprovalPreference() for future shortcuts."
+      - "4. Dispatches are logged via recordActivity() regardless of outcome."
+
+  - id: GOV-15
+    name: "LLM provider plumbing & model routing (4-layer resolution)"
+    objects: ["src/lib/llm-client.ts", "src/lib/llm-response-cache.ts", "src/lib/prompt-os-resolver.ts", "src/lib/prompt-normalizer.ts", "src/lib/orchestra-model-resolver.ts", "src/lib/personal-model-resolver.ts", "src/lib/orchestra-execution-logger.ts", "src/lib/ai-config-crypto.ts", "src/lib/module-rules-resolver.ts"]
+    input: "A role/layer key + org/user context."
+    output: "A resolved model config (provider, model id, API key) and, after the call, a logged execution record."
+    rules:
+      - "resolveModelConfig() implements 4-layer most-specific-scope-wins routing: personal -> client -> org -> platform. resolvePageAgentModelConfig() is the per-user counterpart."
+      - "llm-client.ts is provider-agnostic across groq/openai/anthropic/google/openrouter/cerebras -- callLLM/callLLMVision/callLLMJson are the 3 call shapes."
+      - "llm-response-cache.ts (Wave 110) caches identical calls (callLLMCached/callLLMJsonCached) with a purge job for expired entries."
+      - "encryptApiKey/decryptApiKey use raw pgcrypto SQL, not application-layer crypto -- a deliberate choice to keep keys encrypted at the DB layer."
+    guardrails:
+      - "recordOrchestraExecution() is the shared fire-and-forget cost/usage logging call site every real LLM call site is expected to use -- the single source of truth for GOV-16's token usage ledger."
+    workflow:
+      - "1. A caller needs a model for a given role/layer/context."
+      - "2. resolveModelConfig() (or its personal/client/platform variants) resolves which provider+model+key to use."
+      - "3. llm-client.ts makes the actual call."
+      - "4. orchestra-execution-logger.ts records cost/usage regardless of success/failure."
+
+  - id: GOV-16
+    name: "Audit loops -- 11+ daily automated audits"
+    objects:
+      - "src/lib/loops/api-token-audit.ts (Loop 9)"
+      - "src/lib/loops/automation-progress-audit.ts (Loop 11)"
+      - "src/lib/loops/byo-model-audit.ts (Loop 14)"
+      - "src/lib/loops/capability-index-freshness-audit.ts"
+      - "src/lib/loops/data-separation-audit.ts (Loop 13-related)"
+      - "src/lib/loops/input-quality-audit.ts (Loop 7)"
+      - "src/lib/loops/instruction-mismatch-audit.ts"
+      - "src/lib/loops/knowledge-flow-audit.ts (Loop 4)"
+      - "src/lib/loops/loop-engineering-audit.ts"
+      - "src/lib/loops/output-delivery-audit.ts (Loop 8)"
+      - "src/lib/loops/process-turnaround-audit.ts (Loop 5)"
+      - "src/lib/loops/tier-integrity-audit.ts (Loop 13)"
+      - "src/lib/loops/user-behaviour-audit.ts (Loop 10)"
+    input: "A scheduled cron trigger (via internal/loops/run, CRON_SECRET-gated) or a manual loopId."
+    output: "Findings, written to the loopExecutions table."
+    rules:
+      - "Each file exports exactly one run<Name>Audit() function, consistent naming/shape across all 13."
+      - "This is the code-level implementation of audit-tree D15's continuous-audit-plus-periodic-review model (Owner's own recommendation from Audit Organization.docx)."
+    guardrails:
+      - "loopExecutions is explicitly cross-org (no org_id column) -- deliberately excluded from GOV-14's tenant-scoped activityLog, a documented architectural decision, not an inconsistency."
+    workflow:
+      - "1. CRON_SECRET-authenticated internal/loops/run endpoint fires on schedule."
+      - "2. The relevant run<Name>Audit() executes its deterministic checks."
+      - "3. Findings are written to loopExecutions for the governance review cycle (D15) to consume."
+
+  - id: GOV-17
+    name: "CI scripts -- the dispatch/audit/load-test tooling outside the app itself"
+    objects:
+      - "scripts/ai-workforce-agent.mjs"
+      - "scripts/check-guardrail-presence.mjs"
+      - "scripts/generate-protected-routes.mjs"
+      - "scripts/veridian-browser-ux-test.mjs"
+      - "scripts/gen-wave111-seed-sql.ts"
+      - "scripts/projexa-load-test.ts"
+      - "scripts/veridian-full-load-test.ts"
+      - "scripts/wave111-create-hero-logins.ts"
+    input: "A GitHub Actions repository_dispatch event (ai-workforce-agent.mjs), a CI job trigger (the other scripts)."
+    output: "A committed/pushed branch+PR (ai-workforce-agent.mjs), a CI pass/fail, or seed data."
+    rules:
+      - "ai-workforce-agent.mjs gives a roster.ts role real read/write repo access via OpenRouter tool-calling inside a fresh GitHub Actions checkout, then hands off to the workflow to commit/push/PR -- this IS the mechanism behind GOV-06's dispatch-repo.ts (currently unused in prod, but this script is what would run if it were)."
+      - "check-guardrail-presence.mjs is a deterministic text-presence check -- explicitly documented in its own header as a reviewable-diff guarantee, NOT a runtime-unbypassable lock."
+      - "generate-protected-routes.mjs regenerates protected-routes.generated.ts from the real (app)/ directory listing -- fixes a route-protection drift bug that recurred 4 times before this script existed."
+      - "veridian-browser-ux-test.mjs is confirmed CI-only -- cannot run locally due to a sandbox restriction on spawning Chromium."
+    guardrails:
+      - "CI-01 = check-guardrail-presence.mjs -- referenced by GOV-01 and GOV-04's audit gate as the mechanical backstop."
+    workflow:
+      - "ai-workforce-agent.mjs: 1. GitHub Actions receives repository_dispatch. 2. Agent loop runs tool-calls (read_file/write_file/list_dir/finish) up to MAX_ITERATIONS=40. 3. Workflow commits/pushes/opens PR. 4. mandatory-audit-check.yml CI gate applies per GOV-04."
+
+  - id: GOV-18
+    name: "ai-os/ governance manifest files (not re-transcribed, indexed)"
+    objects:
+      - "ai-os/OS.yaml, ai-os/LIFECYCLE.yaml"
+      - "ai-os/boss/BOSS.yaml, BOARD.yaml, COMPLETED.yaml (1210 lines), ROSTER.yaml"
+      - "ai-os/sentinel/SENTINEL.yaml, HEALTH.yaml, VIOLATIONS.yaml"
+      - "ai-os/audit-tree/** (the requirement-document tree -- separate effort, see ai-os/audit-tree/00-INDEX.md)"
+      - "ai-os/engines/ENGINES.yaml (93 lines, DB-facing registry-level catalog, distinct from GOV-07's 25 code files)"
+      - "ai-os/registry/ARTIFACTS.yaml (52 lines)"
+    input: "N/A -- these are the persistent governance state files themselves."
+    output: "N/A."
+    rules:
+      - "ai-os/boss/ROSTER.yaml is the RUNTIME AI-OS agent roster (VEDABOSS/ZAI/SENTINEL) -- explicitly distinct from src/lib/ai-team/roster.ts's 57-role build-time org chart (GOV-05). Two different things sharing the word 'roster' -- do not conflate."
+    guardrails: []
+    workflow: []
+
+count_of_domains: 18

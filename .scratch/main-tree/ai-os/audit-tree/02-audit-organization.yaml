@@ -1,0 +1,369 @@
+# Source: Audit Organization.docx (533 lines extracted, re-extracted
+# fresh this pass from the actual docx XML). "Page" = each named
+# organizational unit / section heading in the source (hierarchy diagram,
+# CAO role, 5 audit divisions each with their departments+agents,
+# Mandatory Rules, Guardrails, the Revenue-split recommendation, the
+# 7-level audit cadence with full detail, Continuous Audit Triggers,
+# Continuous Improvement Loop, Event-Based Re-Audit, closing
+# recommendation).
+
+document: "Audit Organization.docx"
+parts:
+  - part: "Framing / naming correction"
+    items:
+      - "Don't call them 'Audit Officers' -- an audit officer sounds like a person who performs audits; these are AI executives running entire organizations of audit agents"
+      - "Model this like a Fortune 500 internal audit and governance organization"
+
+  - part: "Reporting hierarchy (org chart)"
+    items:
+      - "Owner: Rajat Agarwal"
+      - "-> Executive Director (Super Boss): Claude Desktop Sonnet 5.0"
+      - "-> Chief Operating Officer: DeepSeek Pro V4"
+      - "-> Chief Audit Officer: GPT-OSS-120B"
+      - "-> Audit Divisions: GPT-OSS-120B"
+      - "-> Departments: GPT-OSS-120B"
+      - "-> Audit Teams: GPT-OSS-120B"
+      - "-> Specialized Audit Agents: GPT-OSS-120B"
+      - "This creates a completely independent assurance organization"
+
+  - part: "Chief Audit Officer (CAO) -- position and mandate"
+    items:
+      - "Position: Level 3 Executive AI"
+      - "Reports to: Claude Desktop Sonnet 5.0"
+      - "Independent from: COO, Engineering, Product, Sales, Operations"
+      - "Mission: provide independent assurance that every activity performed inside VERIDIAN AI OS is accurate, complete, compliant, auditable, secure, and continuously improving"
+      - "The CAO represents the interests of the Owner and the Super Boss"
+      - "The CAO does not perform operational work -- it verifies operational work"
+
+  - part: "CAO Responsibilities -- Enterprise Audit Governance"
+    items:
+      - "Own the complete audit framework"
+      - "Develop Audit Standards"
+      - "Develop Audit Procedures"
+      - "Develop Audit Policies"
+      - "Develop Audit Templates"
+      - "Develop Audit Checklists"
+      - "Develop Audit Metrics"
+
+  - part: "CAO Responsibilities -- Independent Assurance"
+    items:
+      - "Ensure every task is independently verified"
+      - "Never trust another AI's completion statement"
+      - "Everything must be evidence based"
+
+  - part: "CAO Responsibilities -- Audit Resource Allocation"
+    items:
+      - "Assign Audit Teams"
+      - "Assign Audit Agents"
+      - "Assign Audit Priorities"
+      - "Assign Audit Frequency"
+
+  - part: "CAO Responsibilities -- Enterprise Risk Monitoring"
+    items:
+      - "Continuously monitor Operational Risk"
+      - "Continuously monitor Engineering Risk"
+      - "Continuously monitor Financial Risk"
+      - "Continuously monitor Compliance Risk"
+      - "Continuously monitor AI Risk"
+      - "Continuously monitor Security Risk"
+
+  - part: "CAO Responsibilities -- Executive Reporting"
+    items:
+      - "Submit reports directly to Claude Desktop Sonnet 5.0"
+      - "Report contents: Audit Findings, Critical Risks, Escalations, Repeat Failures, Process Improvements, Fraud Indicators, Hallucination Trends"
+
+  - part: "CAO Authority"
+    items:
+      - "Can: reject deliverables"
+      - "Can: stop releases"
+      - "Can: reopen completed tasks"
+      - "Can: trigger investigations"
+      - "Can: initiate root cause analysis"
+      - "Cannot: modify production code"
+      - "Cannot: change business rules"
+      - "Cannot: override governance"
+
+  - part: "Engineering Assurance Division -- mission"
+    items:
+      - "Ensure every engineering activity satisfies enterprise engineering standards before acceptance"
+
+  - part: "Engineering Assurance Division -- Software Quality Department"
+    items:
+      - "Responsible for: Code Quality, Coding Standards, Maintainability, Complexity, Refactoring"
+      - "Agents: Software Quality Auditor, Static Analysis Auditor, Maintainability Auditor, Code Duplication Auditor, Dependency Auditor"
+
+  - part: "Engineering Assurance Division -- Software Verification Department"
+    items:
+      - "Responsible for: Build, Tests, Integration, Deployment"
+      - "Agents: Build Auditor, Testing Auditor, Regression Auditor, Deployment Auditor"
+
+  - part: "Engineering Assurance Division -- Security Assurance Department"
+    items:
+      - "Responsible for: Security, Secrets, Authentication, Authorization, Vulnerability Review"
+      - "Agents: Security Auditor, OWASP Auditor, Identity Auditor, Encryption Auditor, Secrets Auditor"
+
+  - part: "Engineering Assurance Division -- Architecture Assurance Department"
+    items:
+      - "Responsible for: Architecture Compliance"
+      - "Agents: Architecture Auditor, Design Pattern Auditor, API Auditor, Database Auditor, Microservice Auditor"
+
+  - part: "Engineering Assurance Division -- Engineering Evidence Department"
+    items:
+      - "Responsible for: Evidence Validation"
+      - "Agents: Evidence Auditor, Git Auditor, Commit Auditor, Artifact Auditor, Release Auditor"
+
+  - part: "Business Assurance Division -- mission"
+    items:
+      - "Ensure every business feature delivers exactly what the customer and organization expect"
+
+  - part: "Business Assurance Division -- Functional Assurance Department"
+    items:
+      - "Agents: Functional Auditor, Business Rule Auditor, Input Auditor, Output Auditor, Validation Auditor, Workflow Auditor, Acceptance Criteria Auditor"
+
+  - part: "Business Assurance Division -- Customer Experience Department"
+    items:
+      - "Agents: UX Auditor, Journey Auditor, Navigation Auditor, Accessibility Auditor, Response Quality Auditor"
+
+  - part: "Business Assurance Division -- Business Process Department"
+    items:
+      - "Agents: Workflow Auditor, Approval Auditor, Process Auditor, Automation Auditor, Exception Auditor"
+
+  - part: "Business Assurance Division -- Report & Analytics Department"
+    items:
+      - "Agents: Report Auditor, Dashboard Auditor, Formula Auditor, BI Auditor, Export Auditor, Analytics Auditor, KPI Auditor"
+
+  - part: "Business Assurance Division -- Revenue Operations Department (see also the closing restructure recommendation)"
+    items:
+      - "Agents: Sales Workflow Auditor, CRM Auditor, Pricing Auditor, Quote Auditor, Invoice Auditor, Commission Auditor, Subscription Auditor"
+
+  - part: "Knowledge & Intelligence Division -- mission"
+    items:
+      - "Ensure VERIDIAN becomes smarter after every completed task"
+      - "No knowledge may be lost"
+
+  - part: "Knowledge & Intelligence Division -- Knowledge Management Department"
+    items:
+      - "Agents: Knowledge Auditor, Knowledge Librarian, Knowledge Classification Auditor, Knowledge Integrity Auditor"
+
+  - part: "Knowledge & Intelligence Division -- Documentation Department"
+    items:
+      - "Agents: Technical Documentation Auditor, Functional Documentation Auditor, User Documentation Auditor, API Documentation Auditor, SOP Auditor"
+
+  - part: "Knowledge & Intelligence Division -- AI Learning Department"
+    items:
+      - "Agents: Prompt Auditor, Prompt Evolution Auditor, Memory Auditor, Learning Auditor, Knowledge Improvement Auditor"
+
+  - part: "Knowledge & Intelligence Division -- AI Decision Intelligence"
+    items:
+      - "Agents: Decision Auditor, Reasoning Auditor, Confidence Auditor, Hallucination Auditor, Bias Auditor, Evidence Auditor"
+
+  - part: "Knowledge & Intelligence Division -- Continuous Improvement Department"
+    items:
+      - "Agents: Improvement Auditor, Optimization Auditor, Automation Auditor, Loop Engineering Auditor, Lessons Learned Auditor"
+
+  - part: "Governance & Compliance Division -- mission"
+    items:
+      - "Ensure every activity complies with the Constitution, SOPs, Guardrails, and Organizational Governance"
+
+  - part: "Governance & Compliance Division -- Governance Department"
+    items:
+      - "Agents: Governance Auditor, Policy Auditor, Authority Auditor, Delegation Auditor, Decision Auditor"
+
+  - part: "Governance & Compliance Division -- Compliance Department"
+    items:
+      - "Agents: Compliance Auditor, Guardrail Auditor, SOP Auditor, Regulatory Auditor, Retention Auditor"
+
+  - part: "Governance & Compliance Division -- Risk Department"
+    items:
+      - "Agents: Risk Auditor, Operational Risk Auditor, AI Risk Auditor, Security Risk Auditor, Business Continuity Auditor"
+
+  - part: "Governance & Compliance Division -- Internal Controls Department"
+    items:
+      - "Agents: Control Auditor, Segregation of Duties Auditor, Approval Auditor, Access Auditor, Change Control Auditor"
+
+  - part: "Governance & Compliance Division -- Organizational Performance Department"
+    items:
+      - "Agents: Performance Auditor, KPI Auditor, SLA Auditor, Efficiency Auditor, Productivity Auditor, Capacity Auditor"
+
+  - part: "Global Revenue Division -- mission"
+    items:
+      - "Provide independent assurance that all revenue generation, billing, collections, subscriptions, commissions, renewals, forecasting, and financial performance are complete, accurate, compliant, and optimized"
+      - "Unlike Operations, this division audits the entire revenue lifecycle"
+
+  - part: "Global Revenue Division -- Sales Assurance Department"
+    items:
+      - "Agents: Sales Process Auditor, Lead Auditor, Opportunity Auditor, Quote Auditor, Proposal Auditor, Contract Auditor"
+
+  - part: "Global Revenue Division -- Billing Assurance Department"
+    items:
+      - "Agents: Invoice Auditor, GST Auditor, Tax Auditor, Payment Auditor, Refund Auditor, Credit Note Auditor"
+
+  - part: "Global Revenue Division -- Subscription Assurance Department"
+    items:
+      - "Agents: Subscription Auditor, Renewal Auditor, Upgrade Auditor, Downgrade Auditor, Cancellation Auditor"
+
+  - part: "Global Revenue Division -- Financial Intelligence Department"
+    items:
+      - "Agents: Revenue Recognition Auditor, Forecast Auditor, Margin Auditor, Profitability Auditor, Cash Flow Auditor, Variance Auditor"
+
+  - part: "Global Revenue Division -- Customer Revenue Success Department"
+    items:
+      - "Agents: Customer Health Auditor, Renewal Risk Auditor, Churn Auditor, Upsell Auditor, Cross-sell Auditor, Customer Lifetime Value Auditor"
+
+  - part: "Mandatory Rules for Every Audit Agent -- Before Audit"
+    items:
+      - "Understand the objective"
+      - "Review the applicable standards"
+      - "Load the relevant checklist"
+      - "Confirm scope"
+      - "Identify evidence sources"
+
+  - part: "Mandatory Rules for Every Audit Agent -- During Audit"
+    items:
+      - "Verify, never assume"
+      - "Inspect artifacts directly"
+      - "Record objective findings"
+      - "Classify severity (Critical, High, Medium, Low)"
+      - "Link every finding to evidence"
+
+  - part: "Mandatory Rules for Every Audit Agent -- After Audit"
+    items:
+      - "Produce an audit report"
+      - "Record pass/fail for each criterion"
+      - "Recommend corrective actions"
+      - "Assign ownership for remediation"
+      - "Schedule re-audit if required"
+      - "Update organizational knowledge where systemic improvements are identified"
+
+  - part: "Non-Negotiable Guardrails"
+    items:
+      - "Independence from the team being audited"
+      - "Evidence-based conclusions only"
+      - "No approval without verification"
+      - "No silent overrides"
+      - "No undocumented exceptions"
+      - "Every rejection must include the exact reason and required corrective action"
+      - "Every approval must be traceable to supporting evidence"
+      - "Repeated failures trigger trend analysis and escalation"
+      - "All audit actions are logged and retained for governance review"
+
+  - part: "Recommended architectural change -- split Global Revenue"
+    items:
+      - "Instead of Global Revenue Division living inside the Audit Organization, create two parallel Global Revenue organizations"
+      - "Global Revenue Operations Division (under the COO) -- responsible for generating and managing revenue"
+      - "Global Revenue Assurance Division (under the Chief Audit Officer) -- responsible for independently auditing revenue, pricing, billing, subscriptions, commissions, forecasts, and financial integrity"
+      - "Rationale: maintains the doer != certifier separation principle applied everywhere else in the system, at the revenue layer specifically"
+
+  - part: "Universal Task Lifecycle -- audit cadence framing"
+    items:
+      - "Every auditor AI agent follows the Universal Task Lifecycle"
+      - "Daily-only audit is suitable for traditional ERP systems, NOT for an AI-native OS where agents decide continuously"
+      - "Recommended model instead: Continuous Audit + Periodic Governance Reviews"
+      - "Analogy: modern cloud platforms, cybersecurity systems, financial exchanges -- continuous monitoring with scheduled executive reviews"
+
+  - part: "Audit Cadence Table -- 7 levels (summary row-by-row)"
+    items:
+      - "L1 Real-Time Audit -- frequency: every task/event/activity with <95% confidence AND/OR whenever there is a change in process or code -- purpose: verify correctness before completion"
+      - "L2 Continuous Monitoring -- frequency: every 3 hours (L2/L3/L4 share this cadence per the table) -- purpose: detect failures, hallucinations, loops, performance issues"
+      - "L3 Batch Audit -- frequency: same as L2/L4 -- purpose: identify trends and repeated issues"
+      - "L4 Executive Audit Review -- frequency: same as L2/L3 -- purpose: Claude reviews organizational health"
+      - "L5 Daily Governance Review -- frequency: once per day at 11:59 IST (L5/L6/L7 share this cadence per the table) -- purpose: deep operational analysis and improvement planning"
+      - "L6 Daily Strategic Review -- frequency: same as L5/L7 -- purpose: architecture, KPIs, recurring issues"
+      - "L7 Daily Organizational Audit -- frequency: same as L5/L6 -- purpose: long-term improvements, restructuring, metrics"
+      - "Note: the table's stated frequencies for L5/L6/L7 (each 'once per day at 1159 IST') conflict with their prose descriptions below, which describe L6 as weekly and L7 as monthly -- both are transcribed faithfully as a known internal inconsistency in the source, not resolved here"
+
+  - part: "Level 1 -- Continuous Task Audit (Mandatory), detail"
+    items:
+      - "Every task with less than 95% confidence goes through audit before it can be marked complete"
+      - "Also applies to every code update or process change"
+      - "Flow: Task Created -> Requirements Verified -> Engineering Audit -> Functional Audit -> Knowledge Audit -> Governance Audit -> Completion Certificate -> Closed"
+      - "No completed task bypasses this gate"
+
+  - part: "Level 2 -- Continuous AI Monitoring, detail"
+    items:
+      - "Run lightweight monitoring agents as and when needed"
+      - "Monitors: Hallucinations, False completion, Infinite loops, Stuck workflows, Long-running tasks, Missing documentation, Missing tests, Security violations, Failed handovers, SLA breaches"
+      - "Framed as the 'control room' for the AI organization"
+
+  - part: "Level 3 -- Rolling Health Audit (Every 30-60 Minutes), detail"
+    items:
+      - "Examines the whole organization, not one task"
+      - "Question: which agent is failing repeatedly?"
+      - "Question: which prompt is causing problems?"
+      - "Question: which department has the most rework?"
+      - "Question: which workflows are slowing down?"
+      - "Question: which reports are frequently rejected?"
+      - "Question: which coding tasks require the most corrections?"
+      - "Identifies patterns rather than isolated incidents"
+
+  - part: "Level 4 -- Executive Audit Review (Every 3 Hours), detail"
+    items:
+      - "Claude Desktop Sonnet 5.0 reviews: Open Critical issues, Escalations, Productivity, Model utilization, Audit findings, Hallucination trends, Cost, Queue health, Agent performance, Improvement proposals"
+      - "Claude can then: reassign work, escalate issues, pause workflows, approve improvements, request investigations"
+
+  - part: "Level 5 -- Daily Governance Review, detail"
+    items:
+      - "More strategic in nature"
+      - "Question: did we improve today?"
+      - "Question: which SOPs need revision?"
+      - "Question: which prompts should be updated?"
+      - "Question: what caused today's failures?"
+      - "Question: which agents require retraining?"
+      - "Question: what new reusable knowledge was created?"
+      - "Question: are KPIs improving?"
+      - "Outputs: updated procedures and prioritized improvements"
+
+  - part: "Level 6 -- Weekly Executive Review, detail"
+    items:
+      - "An organizational review (prose describes this as weekly, despite the table row saying daily -- see cadence-table note above)"
+      - "Topics: Architecture, Security posture, Technical debt, Cost optimization, Capacity planning, New agent creation, Retirement of ineffective agents, Roadmap alignment"
+
+  - part: "Level 7 -- Monthly Organizational Audit, detail"
+    items:
+      - "Described as 'your Board Meeting' (prose describes this as monthly, despite the table row saying daily -- see cadence-table note above)"
+      - "Question: are we closer to the 99% success goal?"
+      - "Question: are governance rules effective?"
+      - "Question: is GPT-OSS handling the target workload?"
+      - "Question: are escalations decreasing?"
+      - "Question: are costs under control?"
+      - "Question: is the knowledge base improving?"
+      - "Question: which departments need restructuring?"
+
+  - part: "Continuous Audit Triggers"
+    items:
+      - "Principle: don't wait for a schedule -- trigger audits automatically on events"
+      - "Trigger: Code Changed -> Engineering Audit"
+      - "Trigger: Feature Completed -> Functional Audit"
+      - "Trigger: Report Generated -> Report Audit"
+      - "Trigger: Knowledge Updated -> Knowledge Audit"
+      - "Trigger: SOP Changed -> Governance Audit"
+      - "Trigger: Revenue Posted -> Revenue Audit"
+      - "Trigger: AI Escalation -> Decision Audit"
+      - "Trigger: Customer Complaint -> Root Cause Audit"
+      - "Trigger: Deployment -> Release Audit"
+      - "Trigger: New Prompt -> Prompt Audit"
+
+  - part: "Continuous Improvement Loop"
+    items:
+      - "Every completed task should automatically feed into a continuous improvement cycle"
+      - "Flow: Task Completed -> Audited -> Approved -> Lessons Learned -> Knowledge Updated -> Prompt Updated -> Workflow Updated -> Guardrails Updated -> SOP Updated -> Future Tasks Improve"
+
+  - part: "Event-Based Re-Audit"
+    items:
+      - "A task should be re-audited whenever: code changes after approval"
+      - "...requirements change"
+      - "...a production bug is reported"
+      - "...a security issue is found"
+      - "...a customer reports incorrect behavior"
+      - "...a report produces incorrect numbers"
+      - "...a prompt is modified"
+      - "...a new model version is deployed"
+      - "This prevents stale approvals"
+
+  - part: "Closing recommendation -- 'no task ever permanently complete'"
+    items:
+      - "Constitutional rule proposed: no task is ever considered permanently complete"
+      - "Every completed task remains eligible for re-audit whenever new evidence, changed requirements, production incidents, architectural changes, or governance updates indicate the original approval may no longer be valid"
+      - "Framed as making VERIDIAN AI OS fundamentally different from traditional software -- QA becomes a continuous assurance system, not a one-time gate, supporting a self-improving AI organization"
+
+count_of_atomic_items: 168

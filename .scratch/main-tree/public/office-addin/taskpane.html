@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=Edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VERIDIAN AI — Office Add-in</title>
+  <!--
+    GAP-CONNECTOR-LAYERS (Priority 14 Wave 2): Microsoft Office Add-in task
+    pane. Served as a static file from this Next.js app's public/ directory
+    (https://<this-app-domain>/office-addin/taskpane.html) so its fetch()
+    calls to /api/v1/... are same-origin -- no CORS layer needed, and no
+    second hosting/deploy target to stand up. Office.js is loaded from
+    Microsoft's own official CDN, the standard/required way to build any
+    Office Add-in (not a third-party or untrusted source).
+  -->
+  <script src="https://appsforoffice.microsoft.com/lib/1/hosted/office.js"></script>
+  <link rel="stylesheet" href="./taskpane.css" />
+</head>
+<body>
+  <header class="veri-header">
+    <img src="./assets/icon-32.png" alt="" width="24" height="24" />
+    <span class="veri-title">VERIDIAN AI</span>
+  </header>
+
+  <main id="app">
+    <!-- Connection panel -->
+    <section id="connect-panel" class="panel">
+      <h2>Connect your account</h2>
+      <p class="hint">
+        Paste a VERIDIAN API key. Generate one at
+        <strong>Settings &gt; API Keys</strong> in the VERIDIAN AI web app
+        (needs at least <code>read</code> scope; <code>write</code> scope
+        to create items from here).
+      </p>
+      <input id="api-key-input" type="password" placeholder="vk_..." autocomplete="off" />
+      <button id="connect-btn" class="btn btn-primary">Connect</button>
+      <div id="connect-status" class="status" role="status"></div>
+    </section>
+
+    <!-- Connected panel -->
+    <section id="connected-panel" class="panel hidden">
+      <div class="connected-bar">
+        <span id="connected-as"></span>
+        <button id="disconnect-btn" class="btn btn-link">Disconnect</button>
+      </div>
+
+      <div class="tabs">
+        <button class="tab-btn active" data-tab="browse">Browse</button>
+        <button class="tab-btn" data-tab="create">Create</button>
+      </div>
+
+      <!-- Browse tab -->
+      <div id="tab-browse" class="tab-panel">
+        <div class="search-row">
+          <input id="search-input" type="text" placeholder="Search compliance items..." />
+          <button id="search-btn" class="btn btn-secondary">Search</button>
+        </div>
+        <div id="items-list" class="items-list"></div>
+        <div id="items-empty" class="hint hidden">No compliance items found.</div>
+        <div id="items-error" class="error hidden"></div>
+      </div>
+
+      <!-- Create tab -->
+      <div id="tab-create" class="tab-panel hidden">
+        <button id="use-selection-btn" class="btn btn-secondary full-width">
+          Use current document selection as title
+        </button>
+
+        <label for="f-title">Title *</label>
+        <input id="f-title" type="text" placeholder="e.g. GSTR-3B filing, July 2026" />
+
+        <label for="f-type">Compliance Type *</label>
+        <select id="f-type"></select>
+
+        <label for="f-department">Department *</label>
+        <select id="f-department"></select>
+
+        <label for="f-priority">Priority</label>
+        <select id="f-priority">
+          <option value="low">Low</option>
+          <option value="medium" selected>Medium</option>
+          <option value="high">High</option>
+          <option value="critical">Critical</option>
+        </select>
+
+        <label for="f-due-date">Due Date *</label>
+        <input id="f-due-date" type="date" />
+
+        <label for="f-description">Description</label>
+        <textarea id="f-description" rows="3" placeholder="Optional details"></textarea>
+
+        <button id="create-btn" class="btn btn-primary full-width">Create Compliance Item</button>
+        <div id="create-status" class="status" role="status"></div>
+      </div>
+    </section>
+  </main>
+
+  <script src="./taskpane.js"></script>
+</body>
+</html>

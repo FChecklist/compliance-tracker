@@ -1,0 +1,287 @@
+// Wave B (VERIDIAN Review Framework remediation, "BYOB white-label
+// branding", 2026-07-17): organisations.logo has existed since drizzle/0000
+// and was never read or written anywhere in src/ before this wave --
+// confirmed via a fresh grep of the codebase immediately before writing the
+// migration that added the 4 sibling columns below it
+// (drizzle/0221_wave_b_white_label_branding.sql). This service is the single
+// place that reads/writes/validates per-org branding, mirroring
+// org-license-service.ts's own plain-`db`-import shape (no withTenantContext
+// wrapper -- these are single-row-by-orgId reads/writes against
+// organisations itself, the same precedent org-license-service.ts and
+// cost-guard.ts already established for this exact table).
+import { db, organisations, productBranches } from "@/lib/db"
+import { eq, and, ne, sql } from "drizzle-orm"
+import { createClient } from "@supabase/supabase-js"
+import { cache } from "react"
+
+export const ORG_BRANDING_BUCKET = "org-branding"
+
+// getPublicUrl() is a pure string-formatting call (no network round-trip),
+// so an anon-key client is fine here -- this is a read-only URL builder,
+// never used to write. Actual writes go through the service-role client in
+// the upload route (matching documents/route.ts's own admin-client split
+// between "who can construct a URL" vs "who can actually touch storage").
+
+// Matches VERIDIAN AI's own default design tokens (src/app/globals.css --
+// --color-ct-navy / --color-ct-saffron) so an org that never configures
+// branding renders pixel-identical to before this wave, and so the
+// Branding settings UI has a real, correct starting point to show instead
+// of a blank/guessed color.
+export const DEFAULT_BRAND_PRIMARY_COLOR = "#1C2B3A"
+export const DEFAULT_BRAND_ACCENT_COLOR = "#F5820A"
+export const DEFAULT_LOGO_URL: string | null = null // falls back to /logo-mark.svg client-side
+
+// Wave 5 (CRM+PROJEXA-merge plan, 2026-07-21): the platform-level default
+// when an org has no primaryProductBranchId set (every pre-existing GRC-
+// only org, unaffected by this change) -- distinct from the per-org
+// DEFAULT_BRAND_* colors above, which are about an org's own visual theme,
+// not the product name shown in the app chrome.
+export const DEFAULT_BRAND_NAME = "VERIDIAN AI OS"
+
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{6}$/
+// Deliberately permissive (not a full RFC 1035 validator) -- this is a
+// requested-domain string, not something this migration wave actually
+// verifies or routes traffic to (see the migration file's own header for
+// why DNS/TLS/routing are explicitly descoped). The point of this regex is
+// only to reject obviously-wrong input (URLs with a scheme, paths, spaces),
+// not to be the source of truth for domain validity.
+const DOMAIN_RE = /^(?!https?:\/\/)[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/
+
+export interface OrgBranding {
+  logoUrl: string | null
+  faviconUrl: string | null
+  primaryColor: string
+  accentColor: string
+  customDomain: string | null
+  emailSenderName: string | null
+  // The product name to show in the app chrome (sidebar/topbar wordmark) --
+  // resolved from organisations.primaryProductBranchId -> product_branches
+  // .displayName ("PROJEXA" / "THE FIRM AI OS" / etc). Deliberately NOT
+  // Host-header/domain-based -- this repo has no tenant-routing middleware
+  // yet (see the migration this wave ships for why: customDomain has been
+  // stored-but-unrouted since Wave B). Domain-based resolution belongs to
+  // the later DNS/Vercel cutover wave, once projexa-ai.com is actually
+  // aliased to this deployment; until then, org.primaryProductBranchId is
+  // the only signal that exists, and is sufficient for every org that has
+  // one set today.
+  brandName: string
+  // true once ANY field has been explicitly configured by an admin -- lets
+  // the UI/preview distinguish "this IS the default" from "this org chose
+  // colors that happen to match the default."
+  isCustomized: boolean
+}
+
+export class OrgBrandingValidationError extends Error {}
+
+// Never throws, never returns partial/undefined branding -- an org row that
+// doesn't exist (shouldn't happen for an authenticated request, but this is
+// still defense-in-depth) or one where every column is NULL both resolve to
+// the exact same safe default object. This is the ONLY function any render
+// path (API routes, /api/me) should call -- callers must never read
+// org.brandPrimaryColor etc. directly, or they'd have to re-implement this
+// fallback themselves and risk a blank/broken UI for the common case (an
+// org that hasn't configured branding at all).
+// organisations.logo/faviconUrl store the object's PATH within
+// ORG_BRANDING_BUCKET (e.g. "org_123/logo-abc.png"), not a full URL --
+// matching documents.fileUrl's own precedent (documents/route.ts stores the
+// bucket-relative path, [id]/route.ts resolves it to a real URL on read).
+// The org-branding bucket is public (see the migration's header for why),
+// so this resolves to a stable public URL rather than a short-lived signed
+// one -- no repeated signing needed for something rendered on every page.
+function publicUrlFor(objectPath: string | null): string | null {
+  if (!objectPath) return null
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
+  if (!supabaseUrl) return null
+  const client = createClient(supabaseUrl, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "")
+  const { data } = client.storage.from(ORG_BRANDING_BUCKET).getPublicUrl(objectPath)
+  return data.publicUrl
+}
+
+export async function resolveBranding(orgId: string): Promise<OrgBranding> {
+  const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
+  const logoUrl = publicUrlFor(org?.logo ?? null) || DEFAULT_LOGO_URL
+  const faviconUrl = publicUrlFor(org?.faviconUrl ?? null)
+  const primaryColor = org?.brandPrimaryColor || DEFAULT_BRAND_PRIMARY_COLOR
+  const accentColor = org?.brandAccentColor || DEFAULT_BRAND_ACCENT_COLOR
+  const customDomain = org?.customDomain || null
+  const emailSenderName = org?.emailSenderName || null
+  let brandName: string = DEFAULT_BRAND_NAME
+  if (org?.primaryProductBranchId) {
+    const branch = await db.query.productBranches.findFirst({
+      where: eq(productBranches.id, org.primaryProductBranchId),
+      columns: { displayName: true },
+    })
+    if (branch?.displayName) brandName = branch.displayName
+  }
+  return {
+    logoUrl,
+    faviconUrl,
+    primaryColor,
+    accentColor,
+    customDomain,
+    emailSenderName,
+    brandName,
+    isCustomized: Boolean(org?.logo || org?.faviconUrl || org?.brandPrimaryColor || org?.brandAccentColor || org?.customDomain || org?.emailSenderName),
+  }
+}
+
+export interface BrandingUpdateInput {
+  primaryColor?: string | null
+  accentColor?: string | null
+  customDomain?: string | null
+  emailSenderName?: string | null
+}
+
+// Validates and persists the text-field portion of branding (colors/domain/
+// sender name). Logo/favicon go through updateBrandingAsset() below instead
+// -- they're set as a side effect of a successful storage upload, never as
+// a bare string the client hands us (a client-supplied arbitrary URL here
+// would let an org "logo" point anywhere, including to bypass the org's own
+// storage-bucket scoping).
+export async function updateBranding(orgId: string, input: BrandingUpdateInput): Promise<OrgBranding> {
+  const patch: Partial<typeof organisations.$inferInsert> = {}
+
+  if (input.primaryColor !== undefined) {
+    if (input.primaryColor === null || input.primaryColor === "") {
+      patch.brandPrimaryColor = null
+    } else {
+      if (!HEX_COLOR_RE.test(input.primaryColor)) {
+        throw new OrgBrandingValidationError("primaryColor must be a 6-digit hex color, e.g. #1C2B3A")
+      }
+      patch.brandPrimaryColor = input.primaryColor
+    }
+  }
+
+  if (input.accentColor !== undefined) {
+    if (input.accentColor === null || input.accentColor === "") {
+      patch.brandAccentColor = null
+    } else {
+      if (!HEX_COLOR_RE.test(input.accentColor)) {
+        throw new OrgBrandingValidationError("accentColor must be a 6-digit hex color, e.g. #F5820A")
+      }
+      patch.brandAccentColor = input.accentColor
+    }
+  }
+
+  if (input.customDomain !== undefined) {
+    if (input.customDomain === null || input.customDomain.trim() === "") {
+      patch.customDomain = null
+    } else {
+      const normalized = input.customDomain.trim().toLowerCase()
+      if (!DOMAIN_RE.test(normalized)) {
+        throw new OrgBrandingValidationError("customDomain must be a bare domain, e.g. reports.acme.com (no https://, path, or spaces)")
+      }
+      const existing = await db.query.organisations.findFirst({
+        where: and(eq(organisations.customDomain, normalized), ne(organisations.id, orgId)),
+      })
+      if (existing) {
+        throw new OrgBrandingValidationError("That custom domain is already registered to another organisation")
+      }
+      patch.customDomain = normalized
+    }
+  }
+
+  if (input.emailSenderName !== undefined) {
+    const trimmed = input.emailSenderName?.trim() || null
+    if (trimmed && trimmed.length > 100) {
+      throw new OrgBrandingValidationError("emailSenderName must be 100 characters or fewer")
+    }
+    patch.emailSenderName = trimmed
+  }
+
+  if (Object.keys(patch).length > 0) {
+    await db.update(organisations).set(patch).where(eq(organisations.id, orgId))
+  }
+
+  return resolveBranding(orgId)
+}
+
+// Called only from the logo/favicon upload route after a successful
+// Supabase Storage upload -- `objectPath` is always this server's own
+// upload path, never client-supplied, and null means "remove/reset to
+// default" (the route's DELETE handler).
+export async function updateBrandingAsset(orgId: string, kind: "logo" | "favicon", objectPath: string | null): Promise<OrgBranding> {
+  if (kind === "logo") {
+    await db.update(organisations).set({ logo: objectPath }).where(eq(organisations.id, orgId))
+  } else {
+    await db.update(organisations).set({ faviconUrl: objectPath }).where(eq(organisations.id, orgId))
+  }
+  return resolveBranding(orgId)
+}
+
+// Returns the current object path (not the public URL) for a given asset
+// kind -- used by the upload route to delete the previous object from
+// storage when an admin replaces their logo/favicon, so orphaned objects
+// don't pile up in the bucket indefinitely.
+export async function getBrandingAssetPath(orgId: string, kind: "logo" | "favicon"): Promise<string | null> {
+  const org = await db.query.organisations.findFirst({ where: eq(organisations.id, orgId) })
+  return (kind === "logo" ? org?.logo : org?.faviconUrl) ?? null
+}
+
+// ─── Stage 1: pre-authentication, domain-based resolution ─────────────────
+// OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, real Owner decision
+// 2026-08-04 (UMR-20260804-090421-c647): "PROJEXA is not a separate
+// platform, it is the first brand built on the one VERIDIAN platform...
+// PROJEXA differs only through brand configuration, domain, logo, theme,
+// colours, fonts, marketing pages, product name, never separate platform
+// logic." The domain is only a lookup key into product_branches (the real,
+// existing brand-configuration table) -- it is not itself the platform.
+//
+// Real, deterministic priority order the Owner specified, each layer only
+// overriding the layers beneath it:
+//   1. host header        -- resolved HERE, before any session exists
+//   2. brand configuration -- resolved HERE, from the matched product_branches row
+//   3. tenant configuration
+//   4. organisation configuration  } -- Stage 2, resolveBranding() above,
+//   5. user preference             } unchanged, always runs strictly AFTER
+//   6. session override            } login and naturally wins by running later
+//
+// This function is the ENTIRE real scope of Stage 1: a host string in,
+// either a matched brand's real display name or null (meaning "show the
+// platform default, exactly as today"). It never touches org/session state
+// -- Stage 2 (resolveBranding, unchanged above) remains the only path once
+// a real session exists, per the Owner's explicit instruction to keep Stage
+// 2 exactly as it already works.
+export interface PreAuthBrand {
+  productBranchId: string
+  brandName: string
+}
+
+// Deliberately permissive host normalization (strip a trailing :port, lowercase)
+// -- matches how Next.js's own `headers().get("host")` value looks in
+// practice (e.g. "projexa-ai.com" in production, "localhost:3000" in dev),
+// without re-validating domain syntax (DOMAIN_RE above already owns that
+// for the org-level customDomain input path; this is a lookup, not a write).
+function normalizeHost(host: string | null | undefined): string | null {
+  if (!host) return null
+  const withoutPort = host.split(":")[0]
+  const trimmed = withoutPort.trim().toLowerCase()
+  return trimmed.length > 0 ? trimmed : null
+}
+
+// Never throws -- an unmatched or missing host resolves to null (the
+// platform default), matching resolveBranding()'s own "never a broken UI"
+// posture above. Only ever reads product_branches; never writes.
+// Real, independent-review-caught security fix: `host` is the raw,
+// attacker-controlled HTTP Host header -- an EARLIER version of this
+// function used `ilike()`, which is LIKE-pattern matching, not exact
+// matching. A crafted `Host: %` or `Host: _` header would then match ANY/
+// arbitrary row with a non-null `hostDomain`, letting an attacker force
+// incorrect brand resolution pre-authentication. The intent here has always
+// been a case-insensitive EXACT match (not a fuzzy search like the real
+// ilike() precedent in crm-accounts-service.ts/crm-service.ts/
+// erp-selling-service.ts, which deliberately wraps user input in `%...%`
+// for intentional fuzzy search -- a materially different, non-comparable
+// use case). Real fix: compare `lower(host_domain) = normalized` via a raw
+// SQL `lower()` expression -- an exact match, immune to LIKE metacharacters
+// since no LIKE operator is used at all.
+export const resolvePreAuthBrandByHost = cache(async (host: string | null | undefined): Promise<PreAuthBrand | null> => {
+  const normalized = normalizeHost(host)
+  if (!normalized) return null
+  const branch = await db.query.productBranches.findFirst({
+    where: eq(sql`lower(${productBranches.hostDomain})`, normalized),
+    columns: { id: true, displayName: true },
+  })
+  if (!branch) return null
+  return { productBranchId: branch.id, brandName: branch.displayName }
+})

@@ -1,0 +1,145 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<OfficeApp
+    xmlns="http://schemas.microsoft.com/office/appforoffice/1.1"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:bt="http://schemas.microsoft.com/office/officeappbasictypes/1.0"
+    xmlns:ov="http://schemas.microsoft.com/office/taskpaneappversionoverrides"
+    xsi:type="TaskPaneApp">
+
+  <!--
+    GAP-CONNECTOR-LAYERS (Priority 14 Wave 2): Microsoft Office Add-in
+    connector manifest, Word + Excel task pane. This is the classic XML
+    add-in manifest (not the newer unified JSON manifest) because it is the
+    format "Insert Add-in > Upload My Add-in" sideloading in desktop/web
+    Word and Excel accepts directly, with the widest compatibility across
+    Office versions.
+
+    REAL EXTERNAL DEPENDENCY, not built here (see PR description / repo
+    README for the full honest breakdown): AppSource/"Deploy to Users"
+    organizational distribution requires a Microsoft Partner Center account
+    (owner-only credential, cannot be obtained by an agent), app signing,
+    and a manifest submission that goes through Microsoft's own review.
+    This manifest and the task pane it points at are fully real and
+    fully testable via local sideloading (see office-addin/README.md);
+    that testing path does NOT require Partner Center at all.
+
+    Replace https://compliance-tracker-ai.vercel.app below with whatever
+    the current live deployment domain is if it has changed, or with your
+    own https://localhost:3000 (via the Next.js experimental HTTPS dev
+    flag documented in office-addin/README.md) for local-only iteration.
+  -->
+
+  <Id>a4f1e6b2-9c3d-4e7a-8f21-3b6d9c1a5e02</Id>
+  <Version>1.0.0.0</Version>
+  <ProviderName>VERIDIAN AI</ProviderName>
+  <DefaultLocale>en-US</DefaultLocale>
+  <DisplayName DefaultValue="VERIDIAN AI" />
+  <Description DefaultValue="Pull compliance items from VERIDIAN AI into your Word document or Excel workbook, or create a new compliance item from selected text -- without leaving Office." />
+  <IconUrl DefaultValue="https://compliance-tracker-ai.vercel.app/office-addin/assets/icon-64.png" />
+  <HighResIconUrl DefaultValue="https://compliance-tracker-ai.vercel.app/office-addin/assets/icon-128.png" />
+  <SupportUrl DefaultValue="https://compliance-tracker-ai.vercel.app" />
+
+  <AppDomains>
+    <AppDomain>https://compliance-tracker-ai.vercel.app</AppDomain>
+  </AppDomains>
+
+  <Hosts>
+    <Host Name="Document" />
+    <Host Name="Workbook" />
+  </Hosts>
+
+  <DefaultSettings>
+    <SourceLocation DefaultValue="https://compliance-tracker-ai.vercel.app/office-addin/taskpane.html" />
+  </DefaultSettings>
+
+  <Permissions>ReadWriteDocument</Permissions>
+
+  <VersionOverrides xmlns="http://schemas.microsoft.com/office/taskpaneappversionoverrides" xsi:type="VersionOverridesV1_0">
+    <Hosts>
+      <Host xsi:type="Document">
+        <DesktopFormFactor>
+          <FunctionFile resid="Taskpane.Url" />
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="VeridianGroup.Word">
+                <Label resid="GroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+                <Control xsi:type="Button" id="TaskpaneButton.Word">
+                  <Label resid="TaskpaneButton.Label" />
+                  <Supertip>
+                    <Title resid="TaskpaneButton.Label" />
+                    <Description resid="TaskpaneButton.Tooltip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+      <Host xsi:type="Workbook">
+        <DesktopFormFactor>
+          <FunctionFile resid="Taskpane.Url" />
+          <ExtensionPoint xsi:type="PrimaryCommandSurface">
+            <OfficeTab id="TabHome">
+              <Group id="VeridianGroup.Excel">
+                <Label resid="GroupLabel" />
+                <Icon>
+                  <bt:Image size="16" resid="Icon.16x16" />
+                  <bt:Image size="32" resid="Icon.32x32" />
+                  <bt:Image size="80" resid="Icon.80x80" />
+                </Icon>
+                <Control xsi:type="Button" id="TaskpaneButton.Excel">
+                  <Label resid="TaskpaneButton.Label" />
+                  <Supertip>
+                    <Title resid="TaskpaneButton.Label" />
+                    <Description resid="TaskpaneButton.Tooltip" />
+                  </Supertip>
+                  <Icon>
+                    <bt:Image size="16" resid="Icon.16x16" />
+                    <bt:Image size="32" resid="Icon.32x32" />
+                    <bt:Image size="80" resid="Icon.80x80" />
+                  </Icon>
+                  <Action xsi:type="ShowTaskpane">
+                    <TaskpaneId>ButtonId1</TaskpaneId>
+                    <SourceLocation resid="Taskpane.Url" />
+                  </Action>
+                </Control>
+              </Group>
+            </OfficeTab>
+          </ExtensionPoint>
+        </DesktopFormFactor>
+      </Host>
+    </Hosts>
+
+    <Resources>
+      <bt:Images>
+        <bt:Image id="Icon.16x16" DefaultValue="https://compliance-tracker-ai.vercel.app/office-addin/assets/icon-16.png" />
+        <bt:Image id="Icon.32x32" DefaultValue="https://compliance-tracker-ai.vercel.app/office-addin/assets/icon-32.png" />
+        <bt:Image id="Icon.80x80" DefaultValue="https://compliance-tracker-ai.vercel.app/office-addin/assets/icon-80.png" />
+      </bt:Images>
+      <bt:Urls>
+        <bt:Url id="Taskpane.Url" DefaultValue="https://compliance-tracker-ai.vercel.app/office-addin/taskpane.html" />
+      </bt:Urls>
+      <bt:ShortStrings>
+        <bt:String id="GroupLabel" DefaultValue="VERIDIAN AI" />
+        <bt:String id="TaskpaneButton.Label" DefaultValue="Compliance Items" />
+      </bt:ShortStrings>
+      <bt:LongStrings>
+        <bt:String id="TaskpaneButton.Tooltip" DefaultValue="Open VERIDIAN AI to browse or create compliance items from this document" />
+      </bt:LongStrings>
+    </Resources>
+  </VersionOverrides>
+</OfficeApp>

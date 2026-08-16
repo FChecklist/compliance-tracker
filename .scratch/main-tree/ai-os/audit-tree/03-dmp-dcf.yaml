@@ -1,0 +1,201 @@
+# Source A: "Dynamic Mode Pills and Dynamic Option Selection.docx" (290
+# lines extracted, re-extracted fresh this pass from the actual docx XML).
+# Source B: chat-pasted addendum text (no attachment; pasted directly by
+# the user earlier in this conversation, titled around "Context-Aware
+# Dynamic User Interface" and "Dynamic Chain Master Directory"). Both are
+# transcribed below as separate top-level sections since they are two
+# distinct source artifacts governing the same framework (DMP-DCF).
+# "Page" = each numbered section heading in Source A (19 sections + 1
+# closing "addition" note); Source B has no numbering in the original
+# paste, so "page" = each named sub-heading as pasted.
+
+document: "Dynamic Mode Pills and Dynamic Option Selection.docx + chat-pasted addendum"
+parts:
+  - part: "Preamble / operating instructions (Source A)"
+    items:
+      - "Analyze properly, divide into small tasks, non-negotiable"
+      - "Ensure flexibility and end-user ease of use while implementing"
+      - "Don't duplicate; ensure the objective is met"
+      - "The original document (predecessor version) was centered on classification only -- redesigned here as something much bigger: the operating language of VERIDIAN AI OS"
+      - "Every software module, AI agent, workflow, API, report, chat, task, approval, and audit should speak the same language"
+
+  - part: "1. Vision"
+    items:
+      - "DMP-DCF is the universal business classification, execution, orchestration, and intelligence framework of VERIDIAN AI OS"
+      - "Every activity inside VERIDIAN AI OS shall begin with a Dynamic Mode Pill and Dynamic Chain"
+      - "Applies to: Human Users, VERI -- Your Assistant, AI Agents, Software Modules, APIs, Automation, Workflows, Reports, Dashboards, VERI Chat, Integrations, Scheduled Jobs, Third-party Applications"
+      - "The Dynamic Chain becomes the Business DNA of every activity performed inside VERIDIAN AI OS"
+
+  - part: "2. Purpose -- five strategic objectives"
+    items:
+      - "Objective 1 -- Software First: every task shall first attempt execution through deterministic software; AI used only where software cannot reasonably perform the work"
+      - "Target: 99% of business activities should eventually be executable through software workflows"
+      - "Objective 2 -- Predictable AI: AI agents shall never receive vague instructions; every AI task begins with a predefined business context"
+      - "Objective 3 -- Standardized Business Operations: the Dynamic Chain standardizes operations while still allowing organization-specific customization"
+      - "Objective 4 -- Continuous Learning: every completed task improves the framework; the system continuously becomes smarter"
+      - "Objective 5 -- Enterprise Governance: every action becomes traceable, measurable, auditable, and searchable"
+
+  - part: "3. Core Principle"
+    items:
+      - "No business activity may exist without a Dynamic Chain -- explicitly enumerated: no task, no workflow, no report, no approval, no communication, no automation, no AI execution, no API execution, no scheduled job"
+      - "Everything belongs to a Dynamic Chain; this is mandatory"
+
+  - part: "4. Dynamic Mode Pills"
+    items:
+      - "Dynamic Mode Pills represent the highest level of business classification"
+      - "Example Mode Pills: Sales, CRM, Finance, HR, Compliance, Projects, Procurement, Support, Legal, Administration, Knowledge, Communication, Reports, Analytics"
+      - "Each Mode Pill represents a business domain"
+
+  - part: "5. Dynamic Chain"
+    items:
+      - "Each Mode Pill expands into progressively more specific business context"
+      - "Worked example chain: Sales -> Lead Management -> Lead Qualification -> Create Opportunity -> Assign Sales Executive -> Generate Proposal -> Manager Approval -> Customer Follow-up -> Quotation Revision -> Close Opportunity -> Invoice -> Collection"
+      - "Every level adds additional business intelligence"
+
+  - part: "6. Dynamic Chain is the Business DNA"
+    items:
+      - "Once selected, the Dynamic Chain controls: Software Module, Business Rules, Permissions, Workflow, AI Behaviour, Automation, Approvals, Notifications, Reports, Audit Rules, Monitoring Rules, Knowledge Capture, Escalation Matrix, KPIs, SLAs"
+      - "Everything derives from the Dynamic Chain"
+
+  - part: "7. User Experience"
+    items:
+      - "The user should never feel they are navigating a complicated classification system"
+      - "The framework shall continuously: predict likely selections"
+      - "...learn user behaviour"
+      - "...prioritize frequently used chains"
+      - "...minimize clicks"
+      - "...support keyboard shortcuts"
+      - "...support Tab navigation"
+      - "...support search"
+      - "...recommend previous selections"
+      - "...automatically select obvious options"
+      - "Objective: maximum intelligence with minimum effort"
+
+  - part: "8. Personalized Dynamic Library"
+    items:
+      - "Every user shall have two Dynamic Libraries: Global Library and User Library"
+      - "Global Library: contains every approved Dynamic Chain, maintained centrally"
+      - "User Library: automatically generated, based on Role, Department, Projects, Permissions, History, Behaviour, Frequently used chains, Teams, Location, Organization"
+      - "The User Library continuously evolves"
+
+  - part: "9. Task Creation"
+    items:
+      - "Every task begins with Dynamic Chain selection"
+      - "The system may recommend the chain; the user may modify it"
+      - "Once submitted, the Dynamic Chain becomes part of the permanent task record"
+      - "Every future action references this chain"
+
+  - part: "10. VERI -- Your Assistant"
+    items:
+      - "VERI uses the Dynamic Chain to understand: Business Context, Expected Outcome, Business Rules, Required Software, Applicable AI Agents, Escalation, Monitoring, Reports, Approvals, Knowledge Updates"
+      - "VERI never guesses business context -- the Dynamic Chain provides that context"
+
+  - part: "11. VERI Chat"
+    items:
+      - "VERI Chat is the business communication platform"
+      - "Before starting a new business conversation, users shall select a minimum two-level Dynamic Chain"
+      - "This provides business context"
+      - "VERI participates within VERI Chat as an intelligent business assistant: may understand conversations, identify action items, draft updates, prepare reports, suggest reminders, recommend follow-up tasks, summarize discussions"
+      - "VERI shall never create tasks, send communications, assign work, or initiate business actions without explicit end-user approval or previously authorized approval policies"
+
+  - part: "12. Software Execution Principle"
+    items:
+      - "Whenever possible, software performs the work"
+      - "If software cannot perform the work, VERI coordinates GPT-OSS-120B agents"
+      - "If GPT-OSS-120B requires assistance, the escalation matrix applies"
+      - "The Dynamic Chain determines every step"
+
+  - part: "13. Monitoring"
+    items:
+      - "Every Dynamic Chain contains predefined monitoring rules"
+      - "GPT-OSS-120B Monitoring Agents continuously verify: Task Progress, Missing Inputs, Missing Outputs, Loop Detection, Hallucination Detection, Policy Violations, SLA Violations, Workflow Deviations, Failure Prediction, Resource Utilization"
+      - "Monitoring continues until formal closure"
+
+  - part: "14. Audit"
+    items:
+      - "Every completed task is independently verified"
+      - "Audit verifies: Correct Chain, Correct Workflow, Correct Software, Correct AI Behaviour, Correct Outputs, Correct Documentation, Correct Evidence, Correct Reports, Correct Learning, Correct Governance"
+      - "Audit results become organizational knowledge"
+
+  - part: "15. Missing Dynamic Chain"
+    items:
+      - "If no suitable chain exists, user selects 'My Option Is Not Available'"
+      - "VERI then: captures the requirement"
+      - "...analyzes the business need"
+      - "...proposes a new Dynamic Chain"
+      - "...routes it for governance"
+      - "...routes it for audit"
+      - "...upon approval, adds it to the Global Library"
+      - "...automatically updates relevant User Libraries"
+      - "The framework therefore continuously evolves"
+
+  - part: "16. Continuous Improvement"
+    items:
+      - "Every completed task updates: Knowledge, Prompts, SOPs, Automation Rules, Software Logic, AI Instructions, Business Rules, Dynamic Chains, Guardrails, Templates, Lessons Learned"
+      - "Nothing should be learned twice"
+
+  - part: "17. Visibility"
+    items:
+      - "The interface shall always display: Task Number, Selected Dynamic Mode Pill, Complete Dynamic Chain, Workflow Status, Priority, Owner"
+      - "These shall remain visible throughout task execution"
+
+  - part: "18. Integration"
+    items:
+      - "The Dynamic Chain becomes the common language across: VERI -- Your Assistant, VERI Chat, All Software Modules, AI Agents, Audit Agents, Monitoring Agents, Workflows, Reports, Dashboards, Approvals, Notifications, Knowledge Management, APIs, Third-party Integrations, Automation Engines"
+      - "No component shall operate outside the framework"
+
+  - part: "19. Constitutional Principles"
+    items:
+      - "DMP-DCF is the operating language of VERIDIAN AI OS"
+      - "Every task/communication/workflow/decision/approval/report/automation/audit/API call/AI interaction/software operation shall be governed by a Dynamic Chain"
+      - "The framework shall continuously learn, evolve, and optimize itself while preserving governance, auditability, predictability, business consistency"
+      - "Strategic objective: maximize deterministic software execution, minimize unnecessary AI intervention, continuously improve organizational knowledge, provide every user a personalized context-aware experience"
+      - "Compliance with DMP-DCF is mandatory for every component of VERIDIAN AI OS -- a foundational constitutional requirement"
+
+  - part: "Closing note -- 'One addition I would make' (Source A)"
+    items:
+      - "Elevate the Dynamic Chain to the primary system object in VERIDIAN AI OS"
+      - "Instead of tasks/chats/reports/approvals/workflows/AI agents each maintaining their own context, they should all reference the same Dynamic Chain ID"
+      - "A task, its VERI Chat discussion, AI interactions, approvals, reports, audit records, and knowledge updates should all be linked through a single immutable business context"
+      - "Stated benefits: end-to-end traceability, eliminates duplicated context, makes the platform more predictable and auditable as it scales"
+
+  - part: "Addendum (Source B, chat-pasted) -- framing"
+    items:
+      - "The original Dynamic Chain description was 'not strongly enough' elevated to a constitutional behavior in the base document"
+      - "Context-aware UI must be elevated to a constitutional behavior, not left as a passive mention"
+
+  - part: "Addendum -- Context-Aware Dynamic User Interface (Adaptive Dynamic Mode Pills)"
+    items:
+      - "Automatic Context Switching: Mode Pill / Chain options must automatically change based on the module or webpage the user is currently viewing"
+      - "Module-Driven Chains: each module (Sales, Finance, HR, etc.) has its own contextually relevant subset of the Dynamic Chain tree surfaced automatically"
+      - "Function-Level Adaptation: within a module, the options further narrow based on the specific function/screen/feature the user is using"
+      - "Manual Software Operation: the framework must still allow the user to operate the software manually/directly without being forced through AI or chain selection at every step"
+      - "Intelligent Preselection: the system should intelligently preselect the most likely chain/option based on context, reducing user clicks"
+      - "Dynamic Synchronization: the Mode Pill/Chain state must stay synchronized with whatever the user is actively doing on screen in real time"
+
+  - part: "Addendum -- Dynamic Chain Master Directory (DCMD)"
+    items:
+      - "Purpose: DCMD is the authoritative, centrally maintained directory of every valid Dynamic Chain in the system"
+      - "Complete Permutation Library: originally conceived as needing to enumerate the complete permutation/combination library of all possible chains"
+      - "Every Dynamic Chain Must Contain -- sub-object 1: Chain ID"
+      - "Every Dynamic Chain Must Contain -- sub-object 2: Mode Pill / domain classification"
+      - "Every Dynamic Chain Must Contain -- sub-object 3: full hierarchical path (all levels)"
+      - "Every Dynamic Chain Must Contain -- sub-object 4: linked software module(s)"
+      - "Every Dynamic Chain Must Contain -- sub-object 5: linked business rules"
+      - "Every Dynamic Chain Must Contain -- sub-object 6: linked permissions"
+      - "Every Dynamic Chain Must Contain -- sub-object 7: linked workflow definition"
+      - "Every Dynamic Chain Must Contain -- sub-object 8: linked AI behaviour/instructions"
+      - "Every Dynamic Chain Must Contain -- sub-object 9: linked reports/KPIs/SLAs"
+      - "Every Dynamic Chain Must Contain -- sub-object 10: version history / audit trail for the chain definition itself"
+      - "Dynamic Chain Intelligence: the directory should support intelligent search/recommendation over chains, not just static lookup"
+      - "Missing Chain Detection: the directory must support detecting when no matching chain exists (feeds the 'My Option Is Not Available' flow)"
+      - "Version Control: chain definitions in the directory must be versioned as they evolve"
+      - "Search Intelligence: users/AI must be able to search the directory intelligently (fuzzy/semantic, not just exact match)"
+
+  - part: "Addendum -- graph-based improvement note (chat-pasted, framed as 'a better idea than the enumerated-permutation approach')"
+    items:
+      - "Recommendation: model the Dynamic Chain Master Directory as a graph structure, not as an enumerated permutation table"
+      - "Rationale: a graph avoids combinatorial explosion (every mode pill x every level x every downstream option as a separate stored row) and instead represents chains as traversable paths through a node/edge graph"
+      - "This graph-based approach is presented as an improvement over the literal 'Complete Permutation Library' language in the base addendum text, not a contradiction of the underlying goal"
+
+count_of_atomic_items: 101

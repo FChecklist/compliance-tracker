@@ -1,0 +1,49 @@
+-- Priority 16 Part 2, Fix 1 (PROJEXA-MODULE-ENTITLEMENT-01, this file is a
+-- reviewable RECORD of a data-only change already applied live via Supabase
+-- MCP execute_sql against project pcrjmlpuqsbocqfwoxod -- not itself run by
+-- the migration runner, since compliance.org_product_branch_enablements has
+-- no existing drizzle-migration-driven seed convention: grep confirms
+-- enableErpForOrg/enableSalesForOrg/enableConstructionForOrg/
+-- enableVeriChatV2ForOrg have zero application-code call sites anywhere in
+-- src/app, and no prior drizzle/*.sql file seeds this table for a specific
+-- org (0095_veri_chat_v2_branch.sql seeds the product_branches CATALOG row,
+-- a different table) -- every existing org-branch enablement, including the
+-- 2 already active for projexa_demo_org (veri_chat_v2, construction), was
+-- applied as a one-off DB write. This file matches that same convention and
+-- exists purely so a future reader can see exactly what was granted, when,
+-- and why, without re-deriving it from a Supabase audit log.
+--
+-- Root cause (control/priority16_e2e_testing_plan.md,
+-- PROJEXA-MODULE-ENTITLEMENT-01): every PROJEXA org shares one backend
+-- identity, org_id='projexa_demo_org' (see PROJEXA-NO-TENANT-ISOLATION-01),
+-- which only had `veri_chat_v2` and `construction` product branches
+-- enabled. `erp` and `sales` are gated by requireErpEnabled()/
+-- requireSalesEnabled() (erp-enablement-service.ts / crm-enablement-
+-- service.ts) and were returning a real 403 (masked as 502 by Fix 2, the
+-- companion projexa-repo fix) on Vendors, Materials, Accounting, Invoices,
+-- Payroll runs, Budgets, Sales Dashboard, Leads, Customers, Opportunities,
+-- Quotations, Sales Orders -- i.e. most of PROJEXA's already-shipped
+-- Sales/CRM + ERP surface. Owner directive 2026-07-14: enable now, since
+-- PROJEXA's whole product assumes these branches work. `hr` is included
+-- per the same directive even though no code in this repo currently gates
+-- anything on the `hr` branch key (confirmed by grep: no
+-- hr-enablement-service.ts, no requireBranchEnabled(orgId, "hr") call
+-- site anywhere) -- this row is inert today, not a functional fix, but
+-- future-proofs it once/if HR gains the same gate ERP/Sales already have.
+--
+-- Applied 2026-07-14 via Supabase MCP execute_sql (NOT this migration
+-- runner -- see note above):
+--
+-- INSERT INTO compliance.org_product_branch_enablements
+--   (org_id, product_branch_id, is_enabled, enabled_at)
+-- SELECT 'projexa_demo_org', pb.id, true, now()
+-- FROM compliance.product_branches pb
+-- WHERE pb.branch_key IN ('erp', 'sales', 'hr')
+-- ON CONFLICT (org_id, product_branch_id)
+-- DO UPDATE SET is_enabled = true, enabled_at = now(), disabled_at = null;
+--
+-- Verified after: SELECT pb.branch_key, e.is_enabled FROM
+-- compliance.org_product_branch_enablements e JOIN
+-- compliance.product_branches pb ON pb.id = e.product_branch_id WHERE
+-- e.org_id = 'projexa_demo_org'; returned 5 enabled rows:
+-- veri_chat_v2, construction (pre-existing) + erp, sales, hr (this change).

@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>VERIDIAN AI — Landing Mock v14 (Chat · To Do · Analytics · Approval · Email · New — above the chatbox)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --navy: #0F1A24; --navy2: #16232F; --saffron: #F5820A; --saffron-glow: rgba(245,130,10,0.45);
+    --teal: #0E7C6E; --teal-glow: rgba(14,124,110,0.4); --cream: #FFFDF9; --cloud: #F4F1EA;
+    --border: #E7E2D6; --muted: #8A8578; --slate: #4A5568; --danger: #FF5C5C; --success: #22C48D;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Inter', sans-serif; background: radial-gradient(ellipse at top, #2A3B4C, #12181F 70%);
+    min-height: 100vh; display: flex; flex-direction: column; align-items: center; padding: 24px 12px 60px;
+  }
+  .mock-label { font-size: 12px; color: #9AA7B5; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 14px; text-align: center; max-width: 390px; }
+
+  .phone {
+    width: 390px; max-width: 100%; background: var(--cream); border-radius: 40px;
+    box-shadow: 0 40px 80px rgba(0,0,0,0.5), 0 0 0 10px #0A0F14, 0 0 60px rgba(245,130,10,0.08);
+    overflow: hidden; display: flex; flex-direction: column; min-height: 860px; position: relative;
+  }
+
+  .top-bar { background: linear-gradient(180deg, var(--navy), var(--navy2)); color: white; padding: 14px 16px 12px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; position: relative; z-index: 2; border-bottom: 1px solid rgba(255,255,255,0.06); }
+  .brand { display: flex; align-items: center; gap: 9px; }
+  .brand-mark { width: 28px; height: 28px; border-radius: 9px; display:flex; align-items:center; justify-content:center; font-family:'DM Serif Display',serif; font-weight:700; font-size:14px; color: white; background: linear-gradient(135deg, var(--saffron), #C25E00); box-shadow: 0 0 16px var(--saffron-glow); flex-shrink:0; }
+  .brand-text { line-height: 1.1; }
+  .brand-name { font-family: 'DM Serif Display', serif; font-size: 15px; }
+  .brand-tag { font-size: 8px; color: #7E8CA0; letter-spacing: 0.14em; text-transform: uppercase; }
+  .avatar { width: 28px; height: 28px; border-radius: 50%; background: linear-gradient(135deg, var(--teal), #0A5A4F); display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; color: white; box-shadow: 0 0 10px var(--teal-glow); cursor: pointer; border: 2px solid rgba(255,255,255,0.15); }
+
+  .body-row { flex: 1; display: flex; overflow: hidden; min-height: 0; position: relative; }
+  .rail { width: 34px; flex-shrink: 0; background: #F0ECE2; display: flex; flex-direction: column; align-items: center; padding: 14px 0; gap: 4px; border-right: 1px solid var(--border); }
+  #rightRail { border-right: none; border-left: 1px solid var(--border); }
+  .rail-icon { width: 30px; height: 34px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #A39C8A; cursor: pointer; position: relative; transition: all .15s; border-radius: 8px; }
+  .rail-icon.active { color: var(--saffron); }
+  .rail-icon.active::before { content: ''; position: absolute; left: -1px; top: 6px; bottom: 6px; width: 2px; background: var(--saffron); border-radius: 2px; box-shadow: 0 0 8px var(--saffron-glow); }
+  #rightRail .rail-icon.active::before { left: auto; right: -1px; }
+  .rail-spacer { flex: 1; }
+  .rail-divider { width: 18px; height: 1px; background: var(--border); margin: 3px 0; }
+
+  .content { flex: 1; overflow-y: auto; padding: 16px 13px 14px; min-width: 0; }
+  .page-title { font-size: 9.5px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 6px; }
+  .greeting { font-family: 'DM Serif Display', serif; font-size: 19px; color: var(--navy); }
+  .meta-line { font-size: 10.5px; color: var(--muted); margin-top: 3px; display: flex; align-items: center; gap: 5px; margin-bottom: 14px; }
+  .meta-line .sep { opacity: 0.5; }
+  .subline { font-size: 12.5px; color: var(--slate); margin-top: 8px; margin-bottom: 14px; }
+  .subline b { color: var(--navy); }
+
+  .tab-pane { display: none; } .tab-pane.active { display: block; }
+
+  .card { background: white; border: 1px solid var(--border); border-radius: 16px; padding: 13px 14px; margin-bottom: 10px; box-shadow: 0 2px 10px rgba(28,43,58,0.04); }
+  .section-label { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 8px; display:flex; justify-content:space-between; align-items:center; }
+  .count-badge { background: var(--cloud); color: var(--navy); font-weight: 700; font-size: 10px; text-transform: none; letter-spacing: 0; padding: 3px 9px; border-radius: 20px; }
+
+  .task-row { display: flex; align-items: center; gap: 10px; padding: 10px 8px 10px 0; border-bottom: 1px solid var(--cloud); transition: all .2s; position: relative; cursor: pointer; border-radius: 10px; }
+  .task-row:last-child { border-bottom: none; }
+  .task-row.done { opacity: 0.45; }
+  .priority-stripe { width: 3px; align-self: stretch; border-radius: 3px; background: var(--border); flex-shrink: 0; }
+  .task-row.urgent .priority-stripe { background: var(--danger); }
+  .task-row.normal .priority-stripe { background: var(--saffron); }
+  .task-body { flex: 1; min-width: 0; }
+  .task-title-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .task-title { font-size: 12.5px; font-weight: 600; color: var(--navy); }
+  .task-row.done .task-title { text-decoration: line-through; }
+  .client-tag { font-size: 9px; font-weight: 700; background: var(--cloud); color: var(--slate); padding: 2px 7px; border-radius: 8px; flex-shrink: 0; }
+  .task-meta { font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+  .badge-inline { font-size: 8.5px; font-weight: 700; padding: 2px 6px; border-radius: 20px; flex-shrink:0; }
+  .badge-inline.overdue { background: var(--danger); color: white; }
+  .check-circle { width: 30px; height: 30px; border-radius: 50%; border: 2.5px solid #D9D2C2; background: white; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 14px; color: transparent; transition: all .2s; padding: 0; box-shadow: 0 2px 6px rgba(28,43,58,0.06); }
+  .task-row.done .check-circle { background: var(--success); border-color: var(--success); color: white; }
+
+  .streak { display: flex; align-items: center; gap: 8px; background: linear-gradient(135deg,#FFF6EC,#FFEFDC); border:1px solid #F5D8B0; border-radius:14px; padding:10px 12px; margin-bottom:12px; }
+  .streak-num { font-family:'DM Serif Display',serif; font-size:17px; color:var(--saffron); }
+  .streak-text { font-size: 11px; color: var(--slate); }
+
+  .rollup-row { display: flex; align-items: center; gap: 14px; }
+  .donut { width: 78px; height: 78px; border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; background: conic-gradient(var(--success) 0% 52%, var(--saffron) 52% 80%, #D9D2C2 80% 92%, var(--danger) 92% 100%); }
+  .donut-inner { width: 52px; height: 52px; border-radius: 50%; background: white; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .donut-num { font-family: 'DM Serif Display', serif; font-size: 15px; color: var(--navy); line-height: 1; }
+  .donut-label { font-size: 7px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 1px; }
+  .legend-col { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+  .legend-item { display: flex; align-items: center; justify-content: space-between; font-size: 11px; color: var(--slate); }
+  .legend-item .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .legend-item b { color: var(--navy); }
+
+  .chip-row { display:flex; gap:6px; overflow-x:auto; margin-bottom:12px; padding-bottom:2px; align-items: center; }
+  .chip { flex-shrink:0; padding:6px 12px; border-radius:18px; font-size:11px; font-weight:600; background:var(--cloud); color:var(--slate); white-space:nowrap; cursor:pointer; }
+  .chip.active { background: var(--navy); color: white; }
+
+  .attention-item { display:flex; align-items:center; gap:9px; padding:8px 0; border-bottom:1px solid var(--cloud); }
+  .attention-item:last-child { border-bottom: none; }
+  .attention-dot { width:7px; height:7px; border-radius:50%; background:var(--danger); flex-shrink:0; }
+  .attention-text { font-size: 12px; color: var(--navy); flex: 1; }
+  .attention-sub { font-size: 10px; color: var(--muted); }
+  .one-tap-btn { font-size: 9.5px; font-weight: 700; background: var(--navy); color: white; border: none; padding: 6px 11px; border-radius: 10px; cursor: pointer; flex-shrink: 0; }
+  .empty-state { text-align: center; padding: 20px 8px; color: var(--muted); font-size: 12px; }
+
+  /* ===== Bottom zone: nav strip + chatbox, all in one place ===== */
+  .bottom-zone { flex-shrink: 0; background: var(--cream); border-radius: 22px 22px 0 0; box-shadow: 0 -10px 24px rgba(15,26,36,0.06); border-top: 1px solid var(--border); padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); position: relative; z-index: 12; }
+  .quick-strip { display: flex; justify-content: space-around; padding: 2px 2px 10px; }
+  .quick-item { display: flex; flex-direction: column; align-items: center; gap: 4px; cursor: pointer; flex: 1; position: relative; }
+  .quick-icon { width: 38px; height: 38px; border-radius: 13px; background: var(--cloud); display: flex; align-items: center; justify-content: center; font-size: 16px; color: var(--navy); transition: all .15s; box-shadow: 0 1px 3px rgba(28,43,58,0.04); position: relative; }
+  .quick-item:active .quick-icon { transform: scale(0.88); }
+  .quick-item.active .quick-icon { background: var(--saffron); color: white; box-shadow: 0 3px 10px var(--saffron-glow); }
+  .quick-item.active .quick-label { color: var(--navy); }
+  .quick-label { font-size: 8px; font-weight: 700; color: var(--slate); }
+  .quick-badge { position: absolute; top: -3px; right: 3px; background: var(--danger); color: white; font-size: 8px; font-weight: 800; width: 15px; height: 15px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px solid var(--cream); }
+  .quick-item.add-new .quick-icon { background: linear-gradient(135deg, var(--teal), #0A5A4F); color: white; }
+  .strip-divider { height: 1px; background: var(--border); margin: 0 2px 10px; opacity: 0.7; }
+
+  .context-chip { display: none; align-items: center; gap: 6px; background: var(--navy); color: white; font-size: 10.5px; padding: 6px 10px; border-radius: 20px; margin-bottom: 8px; width: fit-content; max-width: 100%; }
+  .context-chip button { background: rgba(255,255,255,0.15); border: none; color: white; width: 16px; height: 16px; border-radius: 50%; font-size: 10px; cursor: pointer; flex-shrink: 0; }
+
+  .compose-bar { display: flex; align-items: center; gap: 6px; background: var(--navy); border-radius: 30px; padding: 6px 6px 6px 14px; box-shadow: 0 8px 24px rgba(15,26,36,0.35), inset 0 0 0 1px rgba(255,255,255,0.06); }
+  .compose-clip { background: none; border: none; color: #7E8CA0; font-size: 17px; cursor: pointer; padding: 4px; flex-shrink: 0; }
+  .compose-input { flex: 1; background: transparent; border: none; outline: none; color: white; font-family: 'Inter', sans-serif; font-size: 12px; padding: 6px 2px; min-width: 0; }
+  .compose-input::placeholder { color: #7E8CA0; }
+  .compose-icon-btn { width: 34px; height: 34px; border-radius: 50%; border: none; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 15px; color: white; background: rgba(255,255,255,0.08); }
+  .compose-mic { background: linear-gradient(135deg, var(--saffron), #C25E00); position: relative; }
+  .compose-mic::after { content: ''; position: absolute; inset: -4px; border-radius: 50%; border: 1.5px solid var(--saffron); animation: pulse-ring 2.2s infinite; }
+  @keyframes pulse-ring { 0% { transform: scale(0.85); opacity: 0.9; } 70% { transform: scale(1.35); opacity: 0; } 100% { opacity: 0; } }
+
+  .overlay {
+    position: absolute; inset: 0; background: var(--cream); z-index: 10;
+    display: flex; flex-direction: column; transform: translateY(100%); transition: transform .28s ease;
+  }
+  .overlay.open { transform: translateY(0); }
+  .overlay-header { display: flex; align-items: center; gap: 10px; padding: 14px 16px; background: var(--navy); color: white; flex-shrink: 0; }
+  .overlay-back { background: rgba(255,255,255,0.1); border: none; color: white; width: 30px; height: 30px; border-radius: 50%; font-size: 14px; cursor: pointer; flex-shrink:0; }
+  .overlay-title { font-family: 'DM Serif Display', serif; font-size: 15px; flex:1; }
+  .overlay-body { flex: 1; overflow-y: auto; }
+
+  .pinned-ai-item { display: flex; align-items: center; gap: 11px; padding: 12px 16px; cursor: pointer; background: linear-gradient(135deg,#FFF8EF,#FFF1DE); border-bottom: 2px solid #F5D8B0; }
+  .pinned-ai-avatar { width: 42px; height: 42px; border-radius: 13px; background: linear-gradient(135deg, var(--saffron), #C25E00); box-shadow: 0 0 14px var(--saffron-glow); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 16px; flex-shrink: 0; font-family: 'DM Serif Display', serif; }
+  .pinned-ai-info { flex: 1; min-width: 0; }
+  .pinned-ai-name { font-size: 13px; font-weight: 700; color: var(--navy); display: flex; align-items: center; gap: 5px; }
+  .pinned-ai-tag { font-size: 8px; font-weight: 800; background: var(--saffron); color: white; padding: 1px 6px; border-radius: 6px; letter-spacing: 0.04em; }
+  .pinned-ai-preview { font-size: 11px; color: #9A7B4F; margin-top: 2px; }
+
+  .chat-filter-row { display: flex; align-items: center; gap: 6px; padding: 10px 16px; border-bottom: 1px solid var(--border); background: var(--cream); position: sticky; top: 0; z-index: 3; }
+  .new-chat-btn { width: 30px; height: 30px; border-radius: 50%; border: none; background: linear-gradient(135deg, var(--saffron), #C25E00); color: white; font-size: 15px; cursor: pointer; margin-left: auto; flex-shrink: 0; box-shadow: 0 3px 10px var(--saffron-glow); }
+
+  .chat-group { display: none; } .chat-group.active { display: block; }
+  .chat-list-item { display: flex; align-items: center; gap: 11px; padding: 12px 16px; border-bottom: 1px solid var(--cloud); cursor: pointer; }
+  .chat-avatar { width: 42px; height: 42px; border-radius: 50%; background: linear-gradient(135deg, var(--teal), #0A5A4F); color: white; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 15px; flex-shrink: 0; }
+  .chat-info { flex: 1; min-width: 0; }
+  .chat-name { font-size: 13px; font-weight: 700; color: var(--navy); }
+  .chat-preview { font-size: 11.5px; color: var(--muted); margin-top: 2px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chat-meta { text-align: right; flex-shrink: 0; }
+  .chat-time { font-size: 10px; color: var(--muted); }
+  .chat-unread { background: var(--saffron); color: white; font-size: 9px; font-weight: 800; width: 17px; height: 17px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: auto; margin-top: 4px; }
+  .chat-progress { font-size: 9.5px; font-weight: 800; color: var(--teal); background: rgba(14,124,110,0.1); padding: 2px 7px; border-radius: 8px; margin-top: 4px; display: inline-block; }
+
+  .instr-banner { display: flex; align-items: center; gap: 7px; background: #FFF6EC; border-bottom: 1px solid #F5D8B0; padding: 8px 16px; font-size: 10.5px; color: #8A5A1B; font-weight: 600; flex-shrink: 0; }
+
+  .pinned-task-card { position: sticky; top: 0; z-index: 2; background: white; border-bottom: 2px solid var(--border); padding: 10px 16px; box-shadow: 0 4px 10px rgba(28,43,58,0.05); }
+  .pinned-task-label { font-size: 9px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin-bottom: 6px; }
+  .mini-task-row { display: flex; align-items: center; gap: 9px; }
+  .mini-task-row.done .mini-task-text { text-decoration: line-through; color: var(--muted); }
+  .mini-task-text { font-size: 12px; font-weight: 600; color: var(--navy); flex: 1; }
+  .mini-check { width: 26px; height: 26px; border-radius: 50%; border: 2.5px solid #D9D2C2; background: white; flex-shrink: 0; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 12px; color: transparent; }
+  .mini-task-row.done .mini-check { background: var(--success); border-color: var(--success); color: white; }
+
+  .msg-area { padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { max-width: 78%; padding: 8px 12px; border-radius: 14px; font-size: 12.5px; line-height: 1.4; }
+  .msg.in { background: white; border: 1px solid var(--border); align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.out { background: var(--teal); color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+  .msg-time { font-size: 9px; color: var(--muted); margin-top: 3px; }
+  .msg.out .msg-time { color: rgba(255,255,255,0.7); text-align: right; }
+
+  .instr-chip { display: inline-flex; align-items: center; gap: 5px; margin-top: 6px; font-size: 9.5px; font-weight: 700; padding: 3px 8px; border-radius: 10px; background: rgba(255,255,255,0.18); }
+  .instr-chip.pending { background: rgba(245,130,10,0.2); }
+  .instr-chip.resolved-ok { background: rgba(34,196,141,0.2); }
+
+  .log-msg { align-self: center; font-size: 10.5px; color: var(--muted); background: var(--cloud); padding: 5px 12px; border-radius: 20px; display: flex; align-items: center; gap: 5px; }
+
+  .ai-msg { align-self: stretch; max-width: 100%; display: flex; gap: 9px; background: linear-gradient(135deg,#F7FBFA,#EFF8F6); border: 1px solid #CDEAE3; border-radius: 14px; padding: 10px 12px; }
+  .ai-avatar { width: 26px; height: 26px; border-radius: 8px; background: linear-gradient(135deg, var(--teal), #0A5A4F); flex-shrink: 0; display: flex; align-items: center; justify-content: center; font-size: 12px; color: white; }
+  .ai-msg-body { flex: 1; min-width: 0; }
+  .ai-msg-text { font-size: 12px; color: var(--navy); line-height: 1.5; }
+  .ai-msg-actions { display: flex; gap: 7px; margin-top: 8px; }
+  .ai-btn { font-size: 10px; font-weight: 700; border: none; padding: 6px 11px; border-radius: 10px; cursor: pointer; }
+  .ai-btn.primary { background: var(--navy); color: white; }
+  .ai-btn.ghost { background: white; color: var(--slate); border: 1px solid var(--border); }
+  .ai-msg-resolved { font-size: 10.5px; color: var(--success); font-weight: 700; margin-top: 8px; display: none; }
+
+  .sheet-backdrop { position: absolute; inset: 0; background: rgba(15,26,36,0.45); z-index: 20; display: none; align-items: flex-end; }
+  .sheet-backdrop.open { display: flex; }
+  .sheet { background: var(--cream); width: 100%; border-radius: 20px 20px 0 0; padding: 14px 16px calc(16px + env(safe-area-inset-bottom)); }
+  .sheet-handle { width: 36px; height: 4px; background: var(--border); border-radius: 3px; margin: 0 auto 12px; }
+  .sheet-title { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 4px; padding: 0 6px; }
+  .sheet-option { display: flex; align-items: center; gap: 12px; padding: 12px 6px; border-bottom: 1px solid var(--cloud); cursor: pointer; font-size: 13px; font-weight: 600; color: var(--navy); }
+  .sheet-option:last-child { border-bottom: none; }
+  .sheet-option-icon { width: 34px; height: 34px; border-radius: 10px; background: var(--cloud); display: flex; align-items: center; justify-content: center; font-size: 15px; flex-shrink: 0; }
+  .sheet-cancel { width: 100%; text-align: center; font-size: 12px; font-weight: 700; color: var(--muted); padding: 12px 0 2px; cursor: pointer; }
+
+  .compare-note { max-width: 390px; margin-top: 16px; font-size: 12px; color: #C9D2DC; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 12px 14px; line-height: 1.6; }
+  .compare-note b { color: white; }
+</style>
+</head>
+<body>
+
+<div class="mock-label">MOCK v14 — nav strip moved down, directly above the chatbox: Chat · To Do · Analytics · Approval · Email · New</div>
+
+<div class="phone">
+
+  <div class="top-bar">
+    <div class="brand"><div class="brand-mark">V</div><div class="brand-text"><div class="brand-name">VERIDIAN AI</div><div class="brand-tag">One Truth</div></div></div>
+    <div class="avatar" id="avatarInitial" onclick="openPreviewSheet()" title="Preview as...">P</div>
+  </div>
+
+  <div class="body-row">
+    <div class="rail" id="leftRail">
+      <div class="rail-icon active" title="Home Page" onclick="navTo('todo')">🏠</div>
+      <div class="rail-spacer"></div>
+      <div class="rail-divider"></div>
+      <div class="rail-icon" title="Settings">⚙️</div>
+    </div>
+
+    <div class="content">
+      <div class="page-title">Home Page</div>
+
+      <div class="persona-header" id="ph-worker">
+        <div class="greeting">Good morning, Priya 👋</div>
+        <div class="meta-line">📍 New Delhi <span class="sep">·</span> 09:15 hrs <span class="sep">·</span> Tue, 3 Jul</div>
+      </div>
+      <div class="persona-header" id="ph-manager" style="display:none;">
+        <div class="greeting">Good morning, Arjun 👋</div>
+        <div class="meta-line">📍 Mumbai <span class="sep">·</span> 09:15 hrs <span class="sep">·</span> Tue, 3 Jul</div>
+      </div>
+      <div class="persona-header" id="ph-boss" style="display:none;">
+        <div class="greeting">Good morning, Rajesh 👋</div>
+        <div class="meta-line">📍 Mumbai HQ <span class="sep">·</span> 09:15 hrs <span class="sep">·</span> Tue, 3 Jul</div>
+      </div>
+
+      <!-- ===== TO DO ===== -->
+      <div class="tab-pane active" id="pane-todo-worker">
+        <div class="streak"><div class="streak-num">🔥 5</div><div class="streak-text">days on track — every task closed on time this week</div></div>
+        <div class="card">
+          <div class="section-label">Today <span class="count-badge" id="workerCount">1 of 3 done</span></div>
+          <div class="task-row urgent" id="t1" onclick="selectTask(this, 'Reply to notice — GST filing (OrbitTech)')"><div class="priority-stripe"></div><div class="task-body"><div class="task-title-row"><div class="task-title">Reply to notice — GST filing</div><span class="client-tag">OrbitTech</span></div><div class="task-meta">Was due yesterday</div></div><span class="badge-inline overdue">Late</span><button class="check-circle" onclick="event.stopPropagation(); toggleDone('t1','workerCount')">✓</button></div>
+          <div class="task-row normal" id="t2" onclick="selectTask(this, 'Board meeting attendance sheet (Meridian Textiles)')"><div class="priority-stripe"></div><div class="task-body"><div class="task-title-row"><div class="task-title">Upload board meeting attendance sheet</div><span class="client-tag">Meridian Textiles</span></div><div class="task-meta">Due 6:00 PM today</div></div><button class="check-circle" onclick="event.stopPropagation(); toggleDone('t2','workerCount')">✓</button></div>
+          <div class="task-row done" id="t3" onclick="selectTask(this, 'Vendor site photo — Phase 2 (OrbitTech)')"><div class="priority-stripe"></div><div class="task-body"><div class="task-title-row"><div class="task-title">Vendor site photo — Phase 2</div><span class="client-tag">OrbitTech</span></div><div class="task-meta">Logged at 9:14 AM</div></div><button class="check-circle" onclick="event.stopPropagation(); toggleDone('t3','workerCount')">✓</button></div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="pane-todo-manager">
+        <div class="card">
+          <div class="section-label">Your To Do <span class="count-badge" id="managerTodoCount">0 of 2 done</span></div>
+          <div class="task-row urgent" id="mt1" onclick="selectTask(this, 'Review Phase 2 vendor quote')"><div class="priority-stripe"></div><div class="task-body"><div class="task-title-row"><div class="task-title">Review Phase 2 vendor quote</div><span class="client-tag">OrbitTech</span></div><div class="task-meta">18% over budget — needs your read</div></div><button class="check-circle" onclick="event.stopPropagation(); toggleDone('mt1','managerTodoCount')">✓</button></div>
+          <div class="task-row normal" id="mt2" onclick="selectTask(this, 'Sign off Meridian Textiles audit checklist')"><div class="priority-stripe"></div><div class="task-body"><div class="task-title-row"><div class="task-title">Sign off audit checklist</div><span class="client-tag">Meridian Textiles</span></div><div class="task-meta">Due tomorrow</div></div><button class="check-circle" onclick="event.stopPropagation(); toggleDone('mt2','managerTodoCount')">✓</button></div>
+        </div>
+        <div class="subline">Your team's work lives under <b>Analytics</b>.</div>
+      </div>
+
+      <div class="tab-pane" id="pane-todo-boss">
+        <div class="card">
+          <div class="section-label">Your To Do <span class="count-badge" id="bossTodoCount">0 of 2 done</span></div>
+          <div class="task-row urgent" id="bt1" onclick="selectTask(this, 'Approve Q3 board resolution draft')"><div class="priority-stripe"></div><div class="task-body"><div class="task-title-row"><div class="task-title">Approve Q3 board resolution draft</div></div><div class="task-meta">Legal needs your read today</div></div><button class="check-circle" onclick="event.stopPropagation(); toggleDone('bt1','bossTodoCount')">✓</button></div>
+          <div class="task-row normal" id="bt2" onclick="selectTask(this, 'Call UAE regional partner re: vendor delay')"><div class="priority-stripe"></div><div class="task-body"><div class="task-title-row"><div class="task-title">Call UAE partner — vendor delay</div></div><div class="task-meta">This afternoon</div></div><button class="check-circle" onclick="event.stopPropagation(); toggleDone('bt2','bossTodoCount')">✓</button></div>
+        </div>
+        <div class="subline">Org-wide status is under <b>Analytics</b>; decisions waiting on you are under <b>Approval</b>.</div>
+      </div>
+
+      <!-- ===== ANALYTICS ===== -->
+      <div class="tab-pane" id="pane-analytics-worker">
+        <div class="card">
+          <div class="section-label">Your Analytics — this week</div>
+          <div class="rollup-row">
+            <div class="donut" style="background: conic-gradient(var(--success) 0% 78%, var(--saffron) 78% 92%, var(--danger) 92% 100%);"><div class="donut-inner"><div class="donut-num">78%</div><div class="donut-label">On time</div></div></div>
+            <div class="legend-col">
+              <div class="legend-item"><span>On-time closes</span><b>78%</b></div>
+              <div class="legend-item"><span>Late closes</span><b style="color:var(--danger)">8%</b></div>
+              <div class="legend-item"><span>Pace vs. team</span><b>Faster than 80%</b></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="pane-analytics-manager">
+        <div class="card"><div class="section-label">Team snapshot — this week</div><div class="rollup-row"><div class="donut"><div class="donut-inner"><div class="donut-num">52%</div><div class="donut-label">Done</div></div></div><div class="legend-col"><div class="legend-item"><span><i class="dot" style="background:var(--success)"></i>Delivered</span><b>52%</b></div><div class="legend-item"><span><i class="dot" style="background:var(--saffron)"></i>In progress</span><b>28%</b></div><div class="legend-item"><span><i class="dot" style="background:#D9D2C2"></i>Pending</span><b>12%</b></div><div class="legend-item"><span><i class="dot" style="background:var(--danger)"></i>Blocked</span><b>8%</b></div></div></div></div>
+        <div class="chip-row"><div class="chip active">All Projects</div><div class="chip">Meridian Textiles</div><div class="chip">OrbitTech</div></div>
+      </div>
+
+      <div class="tab-pane" id="pane-analytics-boss">
+        <div class="chip-row"><div class="chip active">All Regions</div><div class="chip">North</div><div class="chip">West</div><div class="chip">UAE</div></div>
+        <div class="card"><div class="section-label">Org-wide delivery</div><div class="rollup-row"><div class="donut"><div class="donut-inner"><div class="donut-num">94%</div><div class="donut-label">On plan</div></div></div><div class="legend-col"><div class="legend-item"><span>Committed → Delivered</span><b>94%</b></div><div class="legend-item"><span>Bottlenecks flagged</span><b style="color:var(--danger)">7</b></div><div class="legend-item"><span>Pipeline this quarter</span><b>₹2.1Cr</b></div></div></div></div>
+      </div>
+
+      <!-- ===== APPROVALS ===== -->
+      <div class="tab-pane" id="pane-approvals-worker">
+        <div class="card"><div class="section-label">Approval</div><div class="empty-state">Nothing needs your sign-off right now.</div></div>
+        <div class="card">
+          <div class="section-label">Your submissions</div>
+          <div class="attention-item"><div class="attention-dot" style="background:var(--saffron)"></div><div style="flex:1;"><div class="attention-text">GST notice reply</div><div class="attention-sub">Awaiting Arjun's approval</div></div></div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="pane-approvals-manager">
+        <div class="card"><div class="section-label">Approval <span class="count-badge" id="managerCount">0 of 2 resolved</span></div><div class="attention-item" id="a1"><div class="attention-dot"></div><div style="flex:1;"><div class="attention-text">Notice reply — awaiting approval</div><div class="attention-sub">Priya S. · OrbitTech</div></div><button class="one-tap-btn" onclick="resolveItem('a1','managerCount')">Approve</button></div><div class="attention-item" id="a2"><div class="attention-dot"></div><div style="flex:1;"><div class="attention-text">Vendor quote 18% over budget</div><div class="attention-sub">Phase 2 · OrbitTech</div></div><button class="one-tap-btn" onclick="resolveItem('a2','managerCount')">Review</button></div></div>
+      </div>
+
+      <div class="tab-pane" id="pane-approvals-boss">
+        <div class="card"><div class="section-label">Approval <span class="count-badge" id="bossCount">0 of 2 decided</span></div><div class="attention-item" id="b1"><div class="attention-dot"></div><div style="flex:1;"><div class="attention-text">West region — Q3 budget increase</div><div class="attention-sub">₹18L · Requested by Arjun M.</div></div><button class="one-tap-btn" onclick="resolveItem('b1','bossCount')">Approve</button></div><div class="attention-item" id="b2"><div class="attention-dot"></div><div style="flex:1;"><div class="attention-text">UAE — vendor contract renewal</div><div class="attention-sub">₹40L · Sharma Traders</div></div><button class="one-tap-btn" onclick="resolveItem('b2','bossCount')">Approve</button></div></div>
+      </div>
+    </div>
+
+    <div class="rail" id="rightRail">
+      <div class="rail-icon" title="Search">🔍</div>
+      <div class="rail-icon" title="Filter">🧰</div>
+      <div class="rail-icon" title="Share / Export">📤</div>
+      <div class="rail-spacer"></div>
+      <div class="rail-divider"></div>
+      <div class="rail-icon" title="Language">🌐</div>
+    </div>
+
+    <!-- ============ CHAT PAGE ============ -->
+    <div class="overlay" id="chatListOverlay">
+      <div class="overlay-header"><button class="overlay-back" onclick="closeAllOverlays()">←</button><div class="overlay-title">Chat Page</div></div>
+      <div class="overlay-body">
+        <div class="pinned-ai-item" onclick="openConvo('ai','VERIDIAN AI')">
+          <div class="pinned-ai-avatar">V</div>
+          <div class="pinned-ai-info"><div class="pinned-ai-name">VERIDIAN AI <span class="pinned-ai-tag">Always on</span></div><div class="pinned-ai-preview">Ask, draft, analyse, create — anytime</div></div>
+        </div>
+
+        <div class="chat-filter-row">
+          <div class="chip active" data-filter="all" onclick="setChatFilter('all', this)">All</div>
+          <div class="chip" data-filter="projects" onclick="setChatFilter('projects', this)">Projects</div>
+          <div class="chip" data-filter="team" onclick="setChatFilter('team', this)">Team</div>
+          <div class="chip" data-filter="boss" onclick="setChatFilter('boss', this)">Boss</div>
+          <button class="new-chat-btn" onclick="openNewSheet()">➕</button>
+        </div>
+
+        <div class="chat-group active" data-group="all">
+          <div class="chat-list-item" onclick="openConvo('arjun','Arjun Mehta')"><div class="chat-avatar">A</div><div class="chat-info"><div class="chat-name">Arjun Mehta</div><div class="chat-preview">Can you send the site photos?</div></div><div class="chat-meta"><div class="chat-time">9:02</div><div class="chat-unread">2</div></div></div>
+          <div class="chat-list-item" onclick="openConvo('phase2','Site Team — Phase 2')"><div class="chat-avatar">P2</div><div class="chat-info"><div class="chat-name">Site Team — Phase 2</div><div class="chat-preview">🤖 AI flagged an instruction mismatch</div></div><div class="chat-meta"><div class="chat-time">9:20</div><div class="chat-unread">1</div></div></div>
+          <div class="chat-list-item" onclick="openConvo('boss','Rajesh Kumar (Boss)')"><div class="chat-avatar">R</div><div class="chat-info"><div class="chat-name">Rajesh Kumar</div><div class="chat-preview">Approved — proceed with Phase 2 budget</div></div><div class="chat-meta"><div class="chat-time">Yesterday</div></div></div>
+          <div class="chat-list-item" onclick="openConvo('vendor','Vendor — Sharma Traders')"><div class="chat-avatar">S</div><div class="chat-info"><div class="chat-name">Vendor — Sharma Traders</div><div class="chat-preview">Revised quote attached</div></div><div class="chat-meta"><div class="chat-time">Mon</div></div></div>
+        </div>
+
+        <div class="chat-group" data-group="projects">
+          <div class="chat-list-item" onclick="openConvo('phase2','Site Team — Phase 2')"><div class="chat-avatar">P2</div><div class="chat-info"><div class="chat-name">Phase 2 — OrbitTech</div><div class="chat-preview">🤖 AI flagged an instruction mismatch</div><span class="chat-progress">62% done</span></div><div class="chat-meta"><div class="chat-time">9:20</div><div class="chat-unread">1</div></div></div>
+          <div class="chat-list-item" onclick="openConvo('meridian','Meridian Textiles — Audit')"><div class="chat-avatar">MT</div><div class="chat-info"><div class="chat-name">Meridian Textiles — Audit</div><div class="chat-preview">Board attendance sheet due today</div><span class="chat-progress">38% done</span></div><div class="chat-meta"><div class="chat-time">Mon</div></div></div>
+        </div>
+
+        <div class="chat-group" data-group="team">
+          <div class="chat-list-item" onclick="openConvo('arjun','Arjun Mehta')"><div class="chat-avatar">A</div><div class="chat-info"><div class="chat-name">Arjun Mehta</div><div class="chat-preview">Can you send the site photos?</div></div><div class="chat-meta"><div class="chat-time">9:02</div><div class="chat-unread">2</div></div></div>
+          <div class="chat-list-item" onclick="openConvo('phase2','Site Team — Phase 2')"><div class="chat-avatar">P2</div><div class="chat-info"><div class="chat-name">Site Team — Phase 2</div><div class="chat-preview">Rohan: Material delivered ✓</div></div><div class="chat-meta"><div class="chat-time">9:20</div></div></div>
+        </div>
+
+        <div class="chat-group" data-group="boss">
+          <div class="chat-list-item" onclick="openConvo('boss','Rajesh Kumar (Boss)')"><div class="chat-avatar">R</div><div class="chat-info"><div class="chat-name">Rajesh Kumar</div><div class="chat-preview">Approved — proceed with Phase 2 budget</div></div><div class="chat-meta"><div class="chat-time">Yesterday</div></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="overlay" id="convoOverlay">
+      <div class="overlay-header"><button class="overlay-back" onclick="backToChatList()">←</button><div class="overlay-title" id="convoName">Site Team — Phase 2</div></div>
+      <div class="instr-banner" id="instrBanner">📌 1 instruction tracked in this chat needs your decision</div>
+      <div class="pinned-task-card" id="pinnedTaskCard">
+        <div class="pinned-task-label">📌 Tracked for this project — tap to complete, right here</div>
+        <div class="mini-task-row" id="mtchat1"><button class="mini-check" onclick="toggleMiniTask('mtchat1')">✓</button><div class="mini-task-text">Electrical wiring inspection — due Fri</div></div>
+      </div>
+      <div class="overlay-body">
+        <div class="msg-area" id="msgArea">
+          <div class="msg out">Rohan, please complete the electrical wiring inspection by Friday EOD.
+            <div class="instr-chip pending" id="instrChip">📌 Instruction · Rohan · Due Fri</div>
+            <div class="msg-time">9:00 AM</div>
+          </div>
+          <div class="log-msg">🔧 Rohan logged: <b>&nbsp;Material check — Phase 2&nbsp;</b> · 9:20 AM</div>
+          <div class="ai-msg" id="aiDriftMsg">
+            <div class="ai-avatar">V</div>
+            <div class="ai-msg-body">
+              <div class="ai-msg-text">You asked Rohan to finish the <b>electrical wiring inspection</b> by Friday. His latest log is <b>"Material check"</b> — a different task. Want to confirm this is fine, or send a nudge?</div>
+              <div class="ai-msg-actions" id="aiActions">
+                <button class="ai-btn primary" onclick="resolveInstruction('nudge')">Nudge Rohan</button>
+                <button class="ai-btn ghost" onclick="resolveInstruction('fine')">It's fine</button>
+              </div>
+              <div class="ai-msg-resolved" id="aiResolvedText"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ============ EMAIL ============ -->
+    <div class="overlay" id="emailOverlay">
+      <div class="overlay-header"><button class="overlay-back" onclick="closeAllOverlays()">←</button><div class="overlay-title">Email</div></div>
+      <div class="overlay-body">
+        <div class="chat-list-item" style="cursor:default;"><div class="chat-avatar" style="background:linear-gradient(135deg,var(--danger),#B23A3A);">G</div><div class="chat-info"><div class="chat-name">GST Department</div><div class="chat-preview">Notice regarding GSTR-3B discrepancy — Q1 FY26</div></div><div class="chat-meta"><div class="chat-time">08:41</div></div></div>
+        <div class="chat-list-item" style="cursor:default;"><div class="chat-avatar">R</div><div class="chat-info"><div class="chat-name">Rajesh Kumar (Boss)</div><div class="chat-preview">Re: Phase 2 budget — approved, proceed</div></div><div class="chat-meta"><div class="chat-time">Yesterday</div></div></div>
+        <div class="chat-list-item" style="cursor:default;"><div class="chat-avatar">S</div><div class="chat-info"><div class="chat-name">Sharma Traders</div><div class="chat-preview">Revised vendor quotation attached</div></div><div class="chat-meta"><div class="chat-time">Mon</div></div></div>
+      </div>
+    </div>
+
+    <div class="sheet-backdrop" id="newSheet" onclick="if(event.target===this) closeNewSheet()">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Create</div>
+        <div class="sheet-option" onclick="closeNewSheet()"><div class="sheet-option-icon">📝</div>New task</div>
+        <div class="sheet-option" onclick="closeNewSheet()"><div class="sheet-option-icon">👤</div>Direct message someone</div>
+        <div class="sheet-option" onclick="closeNewSheet()"><div class="sheet-option-icon">👥</div>New group</div>
+        <div class="sheet-option" onclick="closeNewSheet()"><div class="sheet-option-icon">🏗️</div>New project thread</div>
+        <div class="sheet-cancel" onclick="closeNewSheet()">Cancel</div>
+      </div>
+    </div>
+
+    <div class="sheet-backdrop" id="previewSheet" onclick="if(event.target===this) closePreviewSheet()">
+      <div class="sheet">
+        <div class="sheet-handle"></div>
+        <div class="sheet-title">Preview as</div>
+        <div class="sheet-option" onclick="selectPersona('worker')"><div class="sheet-option-icon">P</div>Priya — individual contributor</div>
+        <div class="sheet-option" onclick="selectPersona('manager')"><div class="sheet-option-icon">A</div>Arjun — manager</div>
+        <div class="sheet-option" onclick="selectPersona('boss')"><div class="sheet-option-icon">R</div>Rajesh — boss</div>
+        <div class="sheet-cancel" onclick="closePreviewSheet()">Cancel</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-zone">
+    <div class="quick-strip">
+      <div class="quick-item" data-nav="chat" onclick="navTo('chat')"><div class="quick-icon">💬</div><div class="quick-label">Chat</div></div>
+      <div class="quick-item active" data-nav="todo" onclick="navTo('todo')"><div class="quick-icon">📋</div><div class="quick-label">To Do</div></div>
+      <div class="quick-item" data-nav="analytics" onclick="navTo('analytics')"><div class="quick-icon">📊</div><div class="quick-label">Analytics</div></div>
+      <div class="quick-item" data-nav="approvals" onclick="navTo('approvals')"><div class="quick-icon">✅</div><div class="quick-label">Approval</div></div>
+      <div class="quick-item" data-nav="email" onclick="navTo('email')"><div class="quick-icon">✉️<span class="quick-badge">2</span></div><div class="quick-label">Email</div></div>
+      <div class="quick-item add-new" onclick="openNewSheet()"><div class="quick-icon">➕</div><div class="quick-label">New</div></div>
+    </div>
+    <div class="strip-divider"></div>
+    <div class="context-chip" id="contextChip">📎 <span id="contextLabel"></span><button onclick="clearContext(event)">×</button></div>
+    <div class="compose-bar">
+      <button class="compose-clip">📎</button>
+      <input class="compose-input" id="composeInput" type="text" placeholder="Ask, explain, or create..." />
+      <button class="compose-icon-btn">📷</button>
+      <button class="compose-icon-btn compose-mic">🎤</button>
+    </div>
+  </div>
+</div>
+
+<div class="compare-note">
+  <b>What changed from v13:</b> The nav strip moved from top to <b>right above the chatbox</b> — one glance, one thumb reach, all six things you need: Chat · To Do · Analytics · Approval · Email · New. Everything sits in one bottom zone now: navigate, then act, in the same physical spot. <br><br>
+  <b>Email</b> is back (it had quietly dropped out in the last round while I was fixing the top nav — restored here). Tapping any of Chat / To Do / Analytics / Approval / Email highlights it in saffron so you always know where you are; <b>New</b> never highlights since it's an action, not a place — opens the create sheet (task / DM / group / project thread) from wherever you're standing.
+</div>
+
+<script>
+  const initials = { worker: 'P', manager: 'A', boss: 'R' };
+  const defaultTab = { worker: 'todo', manager: 'analytics', boss: 'approvals' };
+  let persona = 'worker';
+  let tab = 'todo';
+  let activeOverlay = null; // null | 'chat' | 'email'
+
+  function render() {
+    document.querySelectorAll('.persona-header').forEach(el => el.style.display = 'none');
+    document.getElementById('ph-' + persona).style.display = 'block';
+    document.getElementById('avatarInitial').textContent = initials[persona];
+
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    document.getElementById('pane-' + tab + '-' + persona).classList.add('active');
+
+    document.querySelectorAll('.quick-item[data-nav]').forEach(c => c.classList.remove('active'));
+    const activeKey = activeOverlay || tab;
+    const navEl = document.querySelector('.quick-item[data-nav="' + activeKey + '"]');
+    if (navEl) navEl.classList.add('active');
+  }
+
+  function navTo(dest) {
+    if (dest === 'chat') {
+      activeOverlay = 'chat';
+      document.getElementById('chatListOverlay').classList.add('open');
+      document.getElementById('emailOverlay').classList.remove('open');
+      document.getElementById('composeInput').placeholder = 'Message team...';
+      render();
+      return;
+    }
+    if (dest === 'email') {
+      activeOverlay = 'email';
+      document.getElementById('emailOverlay').classList.add('open');
+      document.getElementById('chatListOverlay').classList.remove('open');
+      document.getElementById('convoOverlay').classList.remove('open');
+      document.getElementById('composeInput').placeholder = 'Ask, explain, or create...';
+      render();
+      return;
+    }
+    closeAllOverlays(false);
+    tab = dest;
+    render();
+  }
+  function closeAllOverlays(shouldRender) {
+    activeOverlay = null;
+    document.getElementById('chatListOverlay').classList.remove('open');
+    document.getElementById('convoOverlay').classList.remove('open');
+    document.getElementById('emailOverlay').classList.remove('open');
+    document.getElementById('composeInput').placeholder = 'Ask, explain, or create...';
+    if (shouldRender !== false) render();
+  }
+
+  function selectPersona(p) {
+    persona = p; tab = defaultTab[p];
+    closeAllOverlays(false);
+    render();
+    closePreviewSheet();
+  }
+
+  function toggleDone(id, countId) {
+    const row = document.getElementById(id);
+    row.classList.toggle('done');
+    const pane = row.closest('.tab-pane');
+    const total = pane.querySelectorAll('.task-row').length;
+    const done = pane.querySelectorAll('.task-row.done').length;
+    document.getElementById(countId).textContent = done + ' of ' + total + ' done';
+  }
+  function resolveItem(id, countId) {
+    document.getElementById(id).style.opacity = '0.4';
+    document.getElementById(id).querySelector('.one-tap-btn').textContent = '✓ Done';
+    document.getElementById(id).querySelector('.one-tap-btn').style.background = 'var(--success)';
+  }
+  function selectTask(el, label) {
+    document.getElementById('contextChip').style.display = 'flex';
+    document.getElementById('contextLabel').textContent = label;
+  }
+  function clearContext(e) { e.stopPropagation(); document.getElementById('contextChip').style.display = 'none'; }
+
+  function setChatFilter(filter, chipEl) {
+    document.querySelectorAll('.chat-filter-row .chip').forEach(c => c.classList.remove('active'));
+    chipEl.classList.add('active');
+    document.querySelectorAll('.chat-group').forEach(g => g.classList.remove('active'));
+    document.querySelector('.chat-group[data-group="' + filter + '"]').classList.add('active');
+  }
+  function openConvo(id, name) {
+    document.getElementById('convoName').textContent = name;
+    document.getElementById('composeInput').placeholder = 'Message ' + name.split(' ')[0] + '...';
+    const isPhase2 = id === 'phase2';
+    document.getElementById('instrBanner').style.display = isPhase2 ? 'flex' : 'none';
+    document.getElementById('pinnedTaskCard').style.display = isPhase2 ? 'block' : 'none';
+    document.getElementById('convoOverlay').classList.add('open');
+  }
+  function backToChatList() {
+    document.getElementById('convoOverlay').classList.remove('open');
+    document.getElementById('composeInput').placeholder = 'Message team...';
+  }
+  function resolveInstruction(kind) {
+    const chip = document.getElementById('instrChip');
+    const actions = document.getElementById('aiActions');
+    const resolved = document.getElementById('aiResolvedText');
+    chip.textContent = kind === 'nudge' ? '📌 Instruction · Rohan · Nudged' : '📌 Instruction · Rohan · Marked fine';
+    resolved.textContent = kind === 'nudge' ? '✓ You nudged Rohan · just now' : '✓ Marked fine — no action needed · just now';
+    chip.classList.remove('pending'); chip.classList.add('resolved-ok');
+    actions.style.display = 'none';
+    resolved.style.display = 'block';
+    document.getElementById('instrBanner').style.display = 'none';
+  }
+  function toggleMiniTask(id) {
+    const row = document.getElementById(id);
+    row.classList.toggle('done');
+    if (row.classList.contains('done')) {
+      document.getElementById('instrChip').textContent = '📌 Instruction · Rohan · Done ✓';
+      document.getElementById('instrChip').classList.remove('pending');
+      document.getElementById('instrChip').classList.add('resolved-ok');
+    }
+  }
+  function openNewSheet() { document.getElementById('newSheet').classList.add('open'); }
+  function closeNewSheet() { document.getElementById('newSheet').classList.remove('open'); }
+  function openPreviewSheet() { document.getElementById('previewSheet').classList.add('open'); }
+  function closePreviewSheet() { document.getElementById('previewSheet').classList.remove('open'); }
+</script>
+
+</body>
+</html>

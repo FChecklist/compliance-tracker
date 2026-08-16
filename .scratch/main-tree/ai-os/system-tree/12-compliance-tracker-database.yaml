@@ -1,0 +1,252 @@
+# compliance-tracker (VERIDIAN AI OS) -- Database Schema
+# Source: direct read of src/lib/db/schema.ts (7,840 lines) this session.
+# 377 tables, 106 enums, all under complianceSchemaDB = pgSchema('compliance').
+
+repo: compliance-tracker
+tree_version: 1
+schema_wide_rules:
+  - "100% of the 377 tables use the complianceSchemaDB.table('snake_case_name', {...}) wrapper -- zero raw pgTable() calls, mechanically confirmed."
+  - "Primary keys are universally CUID2 text: id: text('id').primaryKey().$defaultFn(() => createId()) -- not serial/uuid-typed columns."
+  - "Only 11 explicit .references() foreign-key constraints exist across all 377 tables, all clustered in ERP payroll/inventory. Every other relationship (org scoping, client scoping, the entire PMS/ERP/governance graph) is enforced by naming convention (xxxId columns) plus service-layer discipline, not by Postgres. This is a real, structural, cross-cutting fact about the platform's data-integrity model."
+  - "Near-universal orgId: text('org_id').notNull() for tenant scoping; many tables additionally carry a nullable clientId for the CA-firm/consultant multi-client account model (organisations.accountType: 'ca_firm'|'legal_firm'|'consultant')."
+  - "createdAt/updatedAt timestamps on nearly every table; a smaller append-only/log-style subset omits updatedAt."
+  - "Money columns use numeric(...) with explicit {precision, scale} throughout ERP."
+  - "Status/type fields are first-class Postgres enums in most domains, though some admin-extensible fields (e.g. erp_accounts.accountType) are deliberately left as free text instead."
+  - "The repo's own CLAUDE.md claims '9 tables, 6 enums' -- stale documentation; actual counts are 377 and 106."
+domains:
+
+  - id: DB-01
+    name: "Core tenancy / identity (9 tables)"
+    objects: ["organisations", "branches", "clients", "client_entities", "user_client_access", "subscription_plans", "departments", "users", "sso_configurations"]
+    input: "Org signup, user invite/registration, SSO configuration."
+    output: "The tenant root every other table's orgId points at."
+    rules:
+      - "organisations verified in full: id, name, slug, logo, plan, entityType, accountType, address, cinNumber, gstin, panNumber, regulatoryEntityType, isActive, trialStartsAt/EndsAt, isReadOnly, subscriptionPlanId, pageAgentEnabled, createdAt, updatedAt. No FK constraint on subscriptionPlanId."
+      - "users verified in full: id, name, email(unique), passwordHash, role(userRoleEnum), avatarUrl, isActive, lastLoginAt, orgId, departmentId, onboardingCompleted, onboardingStage, authUserId (links to Supabase auth.users.id, cross-schema, unenforced), reportingToId (self-referential, unenforced)."
+      - "user_role enum: admin, manager, member, viewer, veridian_admin, branch_manager, senior_professional, team_member, client_viewer, external_auditor."
+    guardrails: ["auth-guard.ts's requireAuth/requireRole/ROLE_RANK enforce this role hierarchy at the API layer since the DB itself has no row-level role enforcement beyond RLS policies not detailed here."]
+    workflow: ["Org created -> departments/branches structured -> users invited with a role -> optional SSO configured -> optional multi-client (CA/legal firm) access granted via user_client_access."]
+
+  - id: DB-02
+    name: "Compliance core (9 tables)"
+    objects: ["compliance_items", "challans", "notices", "notice_dispatches", "audit_points", "compliance_costs", "cost_payments", "documents", "contract_compliance_items"]
+    input: "A compliance obligation, a government notice, a payment challan."
+    output: "The compliance_items row that API-01 operates on."
+    rules:
+      - "compliance_items verified in full: id, title, description, complianceType(enum), status(enum), priority(enum), dueDate, completedAt, filedDate, paidDate, departmentId, assignedToId, orgId, clientId, period, financialYear, acknowledgementNumber, registrationNumber, recurrenceType(enum), recurrenceParentId (self-ref), isTemplateSuggested, amount."
+      - "compliance_type enum: GST, TDS, MCA, PF, ESIC, INCOME_TAX, ROC, LABOUR, ENVIRONMENTAL, OTHER."
+      - "compliance_status enum: pending, in_progress, completed, overdue, not_applicable, draft."
+    guardrails: []
+    workflow: ["See API-01's workflow -- this is the table it operates on."]
+
+  - id: DB-03
+    name: "Comments / notifications / audit / API infra (9 tables)"
+    objects: ["comments", "notifications", "audit_logs", "api_keys", "api_key_request_log", "webhooks", "webhook_deliveries", "ai_configurations", "embeddings/embedding_cache/entity_relationships"]
+    input: "Any auditable action platform-wide; an API key creation/usage event."
+    output: "audit_logs rows (feeds API-13's /audit route); embeddings for semantic search."
+    rules:
+      - "audit_action enum drives audit_logs -- the DB-level record behind the /audit page's viewer."
+      - "entity_relationships is the knowledge-graph table introspected read-only by v1/brain/entity-relationships (API-02)."
+    guardrails: ["api_key_request_log tracks every API-key-authenticated request -- the audit trail for the external integrator surface (API-02)."]
+    workflow: ["Action occurs -> logActivity() writes to audit_logs -> visible in the /audit page."]
+
+  - id: DB-04
+    name: "AI platform (~30 tables) -- the DB side of the governance core"
+    objects:
+      - "mcp_access_codes, onboarding_steps"
+      - "ai_assistants, assistant_memories, assistant_sessions, assistant_metrics_daily"
+      - "worker_agents, worker_agent_versions, worker_agent_usage_log, worker_agent_learnings, worker_agent_domain_index"
+      - "tasks, task_execution_plan, task_agent_executions, task_chat_messages"
+      - "orchestra_layers, orchestra_executions"
+      - "activity_log, dynamic_chains, approval_preferences"
+      - "customer_model_config, client_model_config, shared_pool_allocations"
+      - "module_registry, product_branches, product_branch_modules, module_rule_configs"
+      - "prompt_templates, prompt_versions, prompt_eval_cases, prompt_eval_runs"
+      - "personal_model_config, loop_definitions, loop_executions, loop_improvements, loop_health_metrics"
+      - "knowledge_flow_log, data_separation_audit, token_usage_ledger, computation_engines"
+      - "org_product_branch_enablements, llm_response_cache"
+    input: "See 10-compliance-tracker-governance.yaml -- this is the persistence layer behind GOV-05 through GOV-16."
+    output: "See same."
+    rules:
+      - "tasks is the Universal Work Object -- dynamic_chains, activity_log, approval_preferences directly implement audit-tree domains D4, D5, D9, D14, D16."
+      - "loop_executions is explicitly cross-org (no org_id) -- see GOV-16's guardrail note."
+      - "computation_engines is the DB-facing registry of ~185 engines, distinct from the 25 code files in src/lib/engines/ (GOV-07) -- only 2 of those 25 are actually wired."
+    guardrails: ["This whole domain IS the persisted state behind every guardrail described in 10-compliance-tracker-governance.yaml."]
+    workflow: ["Cross-reference GOV-05 through GOV-16's workflows -- this table group is their storage layer, not a separate flow."]
+
+  - id: DB-05
+    name: "Access review, ingestion (4 tables)"
+    objects: ["access_review_cycles", "access_review_certifications", "ingestion_batches", "ingestion_items"]
+    input: "A periodic access-review cycle trigger; a bulk-import file."
+    output: "Certification records; staged ingestion items awaiting confirm/reject."
+    rules: ["ingestion_batch_status / ingestion_item_status enums drive the shared staged-import pattern reused by both compliance/import (API-01) and gst-reconciliation/import (API-11) and documents/ingest (API-12)."]
+    guardrails: []
+    workflow: ["File uploaded -> staged as ingestion_items -> reviewed row-by-row -> confirmed/rejected -> confirmed rows promoted into their real target table."]
+
+  - id: DB-06
+    name: "Board / governance (13 tables)"
+    objects: ["board_meetings", "board_action_items", "committees", "related_party_transactions", "delegation_of_authority", "directors_kmp", "board_evaluations", "policies", "approval_requests", "cap_table_entries", "cap_table_events", "company_charges", "secretarial_audits", "mca_filings"]
+    input: "Board meeting minutes/agendas, RPT disclosures, policy drafts, cap-table events."
+    output: "The rows behind API-13's board/committees/rpt/doa/directors/board-evaluation/policies/cap-table/charges/secretarial-audit/mca-filings routes."
+    rules:
+      - "policy_status enum drives the draft -> publish -> attestation lifecycle (audit-tree-adjacent: 'publish requires approval')."
+      - "rpt_approval_status enum separately gates related-party transaction disclosures."
+    guardrails: []
+    workflow: ["Governance object created -> reviewed -> approved per its own status enum -> visible in the relevant page."]
+
+  - id: DB-07
+    name: "Legal (7 tables)"
+    objects: ["legal_vendors", "litigation_matters", "ip_portfolio", "legal_opinions", "legal_matters", "legal_arbitration_cases", "legal_spend_entries"]
+    input: "A legal matter, litigation case, or IP asset."
+    output: "Rows behind API-13's litigation/legal-matters/legal-opinions/legal-vendors/ip-portfolio routes."
+    rules: ["litigation_stage enum tracks case progression; legal_opinions/[id]/generate (API-13) drafts against this table using AI, human-reviewed before finalization."]
+    guardrails: []
+    workflow: ["Matter opened -> tracked through litigation_stage -> spend logged -> opinion drafted (AI-assisted) and finalized."]
+
+  - id: DB-08
+    name: "HR compliance / risk / frameworks (14 tables)"
+    objects: ["hr_compliance_items", "leave_policy_entries", "holiday_list_filings", "posh_committee", "posh_complaints", "posh_annual_reports", "risks", "sebi_compliance_items", "rbi_compliance_items", "irdai_compliance_items", "compliance_frameworks", "framework_controls", "audit_engagements", "audit_findings"]
+    input: "A labour-law obligation, a POSH complaint, a sector-regulator (SEBI/RBI/IRDAI) obligation, an audit engagement plan."
+    output: "Rows behind API-13's hr-compliance/posh/sebi/rbi/irdai/frameworks/audit-engagements/audit-findings routes."
+    rules: ["posh_complaints is classified Confidential per the UI's own classification system (DB-09's classification concept)."]
+    guardrails: ["Sector-regulator tables (sebi/rbi/irdai) are only relevant to orgs whose entityType/regulatoryEntityType matches -- enforced at the UI layer via SectorGate, not a DB constraint."]
+    workflow: ["Risk-based audit planning: audit_engagements defined -> findings recorded against framework_controls -> CAPA (corrective action) tracked to closure."]
+
+  - id: DB-09
+    name: "Risk / resilience (9 tables)"
+    objects: ["vendor_risk_profiles", "esg_metrics", "whistleblower_cases", "bcm_plans", "bcm_business_impact_analyses", "bcm_recovery_procedures", "bcm_exercises", "fraud_cases", "it_dr_plans", "it_dr_backup_verifications", "it_dr_failover_tests"]
+    input: "A vendor onboarding event (triggers risk assessment), a whistleblower report, a BCM plan/exercise, an IT-DR test."
+    output: "Rows behind API-13's vendor-risk/esg/whistleblower/bcm/fraud-cases/it-dr routes."
+    rules: ["vendor_risk_profiles/[id]/assess (API-13) is AI-assisted; bcm exercises/it-dr failover-tests model real business-continuity testing cadence, not just static plans."]
+    guardrails: ["whistleblower_cases implies anonymity/confidentiality handling -- not verified at the DB-constraint level in this pass, flagged as worth a dedicated security review, not claimed as verified-safe here."]
+    workflow: ["Plan defined -> tested periodically (BIA, exercises, failover tests) -> gaps found -> plan revised."]
+
+  - id: DB-10
+    name: "MDM, incidents, conversations, code-change requests (~13 tables)"
+    objects: ["mdm_duplicate_candidates", "mdm_merge_log", "incidents", "conversations", "conversation_participants", "messages", "instruction_commitments", "instruction_mismatch_detections", "code_change_requests"]
+    input: "A duplicate-data scan result, a security incident, a chat message, a detected instruction/outcome mismatch."
+    output: "Rows behind API-15's mdm routes, API-13's incidents route, API-08's conversations routes, API-16's instruction-mismatches route."
+    rules:
+      - "instruction_commitments + instruction_mismatch_detections is the DB side of the chat-service.ts commitment-tracking feature (feeds instruction-mismatch-audit, GOV-16) -- when a human commits to something in chat and the AI's later action diverges, that's captured here."
+      - "code_change_requests is the VAIOS code-change-request workflow (distinct from actual GitHub PRs) -- an internal request-tracking layer."
+    guardrails: []
+    workflow: ["Chat commitment made -> tracked -> later action compared against it -> mismatch (if any) detected and logged for review."]
+
+  - id: DB-11
+    name: "Products / projects (2 tables)"
+    objects: ["products", "projects"]
+    input: "A product/project definition."
+    output: "The scope object PMS issues, ERP contracts, and construction domains attach to via projectId."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: DB-12
+    name: "PMS suite (~26 tables)"
+    objects: ["pms_issue_types", "pms_issue_statuses", "pms_workflow_transitions", "pms_issues", "pms_issue_assignees", "pms_issue_relations", "pms_labels", "pms_issue_labels", "pms_estimate_schemes", "pms_estimate_points", "pms_milestones", "pms_sprints", "pms_sprint_issues", "pms_saved_views", "pms_wiki_pages", "pms_time_entries", "pms_billable_rates", "pms_budgets", "pms_budget_line_items", "pms_meetings", "pms_meeting_agenda_items", "pms_meeting_outcomes", "pms_meeting_participants", "pms_schedule_baselines", "pms_baseline_issue_snapshots", "pms_resource_allocations"]
+    input: "See API-04."
+    output: "See API-04."
+    rules:
+      - "pms_issues verified in full: id, orgId, clientId, projectId, typeId, statusId, priority(enum), number (per-project sequence), title, description, assigneeId (DENORMALIZED CACHE, kept in sync by the service layer per an explicit code comment, NOT a DB trigger -- a real consistency risk worth knowing, not asserted as a bug here, just noted), parentIssueId (self-FK), milestoneId, estimatePointId, position (lexicographic rank for manual Kanban ordering), isArchived, completionPercentage."
+      - "pms_schedule_baselines + pms_baseline_issue_snapshots implement audit-tree-adjacent baseline-vs-actual schedule tracking, same pattern PROJEXA's construction domain independently reimplements (see 20-projexa.yaml)."
+    guardrails: []
+    workflow: ["See API-04's workflow."]
+
+  - id: DB-13
+    name: "Knowledge / automation / reporting / CRM / HR-ticketing (~20 tables)"
+    objects: ["knowledge_base_pages", "automation_rules", "automation_rule_runs", "saved_reports", "metric_alert_rules", "fde_requests", "crm_leads", "crm_opportunities", "employee_profiles", "leave_requests", "leave_balances", "tickets", "installed_products", "ticket_satisfaction_surveys", "field_service_dispatches", "problem_records", "problem_tickets"]
+    input: "See API-10 (CRM), API-09 (HR), API-14 (tickets/FM), API-15 (automation), API-16 (KB/reports/alerts)."
+    output: "See same."
+    rules: ["fde_requests is the DB side of the /fde 'Do It For Me' feature -- a plain-language need is matched to an existing capability or drafts a new Worker Agent proposal for human approval."]
+    guardrails: []
+    workflow: ["See referenced API domains."]
+
+  - id: DB-14
+    name: "Chat/meetings sharing, e-signature (8 tables)"
+    objects: ["message_attachments", "conversation_share_links", "conversation_guest_access", "veri_meetings", "veri_meeting_share_links", "veri_meeting_action_items", "esignature_requests", "esignature_signers"]
+    input: "A share-link creation, a document sent for e-signature."
+    output: "Token-resolvable share/guest-access rows; signer status tracking."
+    rules: ["This is the DB side of the token-resolved public routes in API-08's guardrails list -- the tokens themselves live in these tables, resolved server-side."]
+    guardrails: []
+    workflow: ["Owner creates a share link/guest access grant -> external party uses the token -> scoped access granted without a full account."]
+
+  - id: DB-15
+    name: "ERP -- by far the largest single block (~150 tables)"
+    objects:
+      - "General ledger: erp_accounts, erp_fiscal_years, erp_currencies, erp_exchange_rates, erp_bank_accounts, erp_tax_templates(+items), erp_journal_entries(+lines), erp_payment_entries"
+      - "Sales: erp_sales_invoices(+items), erp_e_invoice_logs, erp_sales_orders(+items), erp_sales_credit_notes(+items), erp_sales_returns(+items), erp_customers, erp_quotations(+items), erp_delivery_notes(+items)"
+      - "Purchasing: erp_purchase_invoices(+items), erp_purchase_credit_notes(+items), erp_purchase_returns(+items), erp_purchase_orders(+items), erp_purchase_receipts(+items), erp_purchase_requisitions(+items), erp_suppliers (+5 detail tables), erp_rfqs (+8 RFQ/scoring/auction tables), erp_landed_cost_vouchers(+charges,allocations)"
+      - "Fixed assets: erp_asset_categories, erp_fixed_assets, erp_depreciation_schedules, erp_asset_movements, erp_asset_disposals"
+      - "Inventory/stock: erp_warehouses, erp_item_groups, erp_items, erp_stock_ledger_entries, erp_stock_reconciliations(+items), erp_stock_valuation_layers, erp_reorder_levels, erp_abc_classifications, erp_cycle_count_plans(+lines), erp_item_uom_conversions, erp_item_batches, erp_item_serials"
+      - "Periods/approvals: erp_accounting_periods, erp_period_closing_checklist_items, approval_workflow_definitions(+step_definitions,instances,step_instances,step_approvals)"
+      - "Companies/cost-centers/cash: erp_companies, erp_cost_centers, erp_cash_accounts, erp_cash_vouchers"
+      - "Parties: erp_addresses, erp_contacts"
+      - "Contracts: erp_contracts, erp_contract_amendments, erp_contract_billing_schedules, erp_contract_revenue_schedules, erp_contract_obligations, erp_subscription_plans, erp_subscriptions, erp_contract_negotiation_rounds"
+      - "Bank reconciliation: erp_bank_statement_imports, erp_bank_statement_lines"
+      - "Payroll: erp_salary_components, erp_salary_structures(+components with an explicit FK), erp_statutory_rules, erp_payroll_runs, erp_payslips(+lines, FK+cascade), erp_income_tax_slabs(+rates), erp_employee_tax_exemptions, erp_tax_withholding_categories(+rates)"
+      - "Pricing: erp_pricing_rules"
+    input: "See API-03."
+    output: "See API-03."
+    rules:
+      - "erp_journal_entries + erp_journal_entry_lines verified in full: entries carry entryNumber, postingDate, referenceType/referenceId (polymorphic source-document link, same pattern reused by conversations/veriMeetings), status(enum), totalDebit/totalCredit, companyId (nullable, multi-company). Lines carry accountId, partyType(enum)/partyId (polymorphic customer-or-supplier), debit/credit, costCenter (legacy free text) + costCenterId (a real FK added later, additive, alongside the legacy free-text field rather than replacing it)."
+      - "10 of the platform's 11 total explicit FK constraints are in this ERP payroll/inventory block (e.g. erpSalaryStructureComponents.employeeId -> employeeProfiles.id, erpPayslipLines.payslipId -> erpPayslips.id ON DELETE CASCADE, erpItemBatches.itemId -> erpItems.id) -- this is the one area of the schema where referential integrity is DB-enforced rather than purely convention-based."
+      - "~40 ERP-specific enums exist (erp_account_root_type, erp_journal_entry_status, erp_invoice_status, erp_payment_type, erp_party_type, erp_asset_status, erp_depreciation_method, erp_period_status, approval_workflow_instance_status/step_status/condition_operator, and ~28 more listed in full in the enum inventory)."
+    guardrails: []
+    workflow: ["See API-03's workflow -- this is a genuine double-entry general ledger with real debit/credit line items, not a simplified 'amount' model."]
+
+  - id: DB-16
+    name: "CLM, recruitment/performance, e-signature -- see API-13/09 (already covered, listed for schema completeness)"
+    objects: ["clm_clauses", "clm_contract_templates", "clm_template_clauses", "job_openings", "candidates", "job_applications", "interview_feedback", "performance_review_cycles", "performance_reviews"]
+    input: "See API-09/13."
+    output: "See API-09/13."
+    rules: []
+    guardrails: []
+    workflow: []
+
+  - id: DB-17
+    name: "Facilities Management -- 'fm_' prefix, ~14 tables, SCHEMA-ONLY (no matching API routes found)"
+    objects: ["fm_asset_categories", "fm_assets", "fm_checklist_templates", "fm_checklist_template_items", "fm_ppm_schedules", "fm_ppm_occurrences", "fm_ppm_occurrence_item_results", "fm_amc_contracts", "fm_asset_duplicate_candidates", "fm_register_digitization_batches", "fm_register_digitization_rows", "fm_visitors", "fm_visitor_logs"]
+    input: "N/A -- no route surface found to feed this domain."
+    output: "N/A."
+    rules:
+      - "This domain has real service-layer code (fm-amc-service.ts, fm-asset-service.ts, fm-asset-dedup-service.ts, fm-checklist-service.ts, fm-enablement-service.ts, fm-ppm-service.ts, fm-register-digitization-service.ts, fm-visitor-service.ts -- see the services inventory) but NO corresponding src/app/api/** routes were found in the 614-file sweep."
+      - "internal/fm-ppm/generate-occurrences/run (API-17) IS a real cron route touching fm_ppm_occurrences -- so this domain is not entirely unwired, just missing the interactive CRUD surface a user would need to actually create/manage assets/checklists through the UI."
+    guardrails: []
+    workflow: ["PPM occurrences are generated on a cron schedule against existing schedules -- but creating those schedules/assets/checklists in the first place has no found API route, meaning this module cannot currently be operated end-to-end without direct DB access or a route this pass didn't find."]
+
+  - id: DB-18
+    name: "The-Firm, Sales-HQ, marketing/lead-capture, gamification, GST, construction -- see corresponding API domains (schema completeness listing)"
+    objects:
+      - "The-Firm (11): firm_client_service_lines, firm_engagements, firm_engagement_deliverables, firm_client_portal_links, firm_tax_cases, firm_staff_assignments, firm_time_entries, firm_billable_rates, firm_invoices, firm_invoice_line_items"
+      - "Sales-HQ (5): sales_partners, sales_referral_links, sales_referrals, sales_commission_plans, sales_commission_accruals"
+      - "Marketing/lead-capture (6): visitor_sessions, visitor_events, contact_submissions, forge_project_requests, connector_accounts"
+      - "Gamification (5): veri_reward_points_ledger, veri_reward_achievement_definitions, veri_reward_achievement_unlocks, veri_reward_streaks, veri_reward_referrals"
+      - "GST reconciliation (~12): gst_import_batches, gst_source_profiles, gst_import_staging_rows, gst_canonical_invoices(+items), gst_gstin_master, gst_hsn_master, gst_validation_findings, gst_reconciliation_runs(+matches), gst_return_periods, gst_ai_review_reports"
+      - "Construction/Projexa (~22): construction_boqs(+line_items), construction_categories, construction_activities, construction_work_progress_entries, construction_site_diaries, construction_labour_roster, construction_attendance, construction_kpi_definitions(+entries), construction_expense_entries, construction_rfis, construction_submittals, construction_punch_list_items, construction_change_orders, interior_mood_boards(+items), interior_ffe_items, interior_floor_plans, interior_materials, interior_floor_plan_rooms, interior_furniture_placements"
+      - "Application/system: application_errors, doc_processing_jobs"
+    input: "See API-05, API-10, API-16, API-11, API-06 respectively."
+    output: "See same."
+    rules: ["This is the DB source-of-truth PROJEXA's own client (20-projexa.yaml) reads/writes exclusively through the v1/construction and v1/projexa API surface -- PROJEXA itself owns none of these tables."]
+    guardrails: []
+    workflow: []
+
+enum_inventory:
+  description: "All 106 enums, grouped. Values transcribed where captured in full during the source read; see 11-compliance-tracker-api.yaml / GOV cross-references for enums already detailed there (complexityTier, ActivityType, ApprovalDecision/ScopeType are TypeScript unions in lib code, not DB enums, and are NOT double-counted here)."
+  groups:
+    - "Core/legacy (10): user_role, compliance_status, priority, compliance_type, notification_type, audit_action, recurrence_type, notice_status, ai_provider, webhook_event"
+    - "Costs (2): cost_type, payment_status"
+    - "Ingestion (2): ingestion_batch_status, ingestion_item_status"
+    - "Board/governance (5): board_meeting_type, board_meeting_status, rpt_approval_status, policy_status, approval_request_status"
+    - "Legal/risk (4): litigation_stage, risk_category, risk_status, incident_stage"
+    - "PMS (7): pms_issue_priority, pms_status_group, pms_issue_relation_type, pms_milestone_status, pms_sprint_status, pms_view_access, pms_budget_line_kind"
+    - "ERP (~40, largest cluster): erp_account_root_type, erp_journal_entry_status, erp_invoice_status, erp_payment_type, erp_party_type, erp_asset_status, erp_depreciation_method, erp_period_status, approval_workflow_instance_status, approval_workflow_step_status, approval_workflow_condition_operator, erp_cash_voucher_type, erp_cash_voucher_status, erp_credit_note_status, erp_bank_reconciliation_status, erp_requisition_status, erp_rfq_status, erp_supplier_quotation_status, erp_salary_component_type, erp_component_calc_type, erp_statutory_rule_type, erp_payroll_run_status, erp_payslip_line_type, erp_item_serial_status, erp_pricing_applies_to, erp_pricing_discount_type, erp_sales_return_status, erp_purchase_return_status, erp_budget_action, erp_budget_status, erp_contract_status, erp_contract_billing_frequency, erp_contract_amendment_status, erp_contract_obligation_status, erp_subscription_status (plus a handful more captured by count but not individually transcribed)"
+    - "HR/recruitment (5): job_opening_status, application_stage, interview_recommendation, performance_review_cycle_status, performance_review_status"
+    - "Facilities Management (4): fm_ppm_frequency, fm_ppm_occurrence_status, fm_amc_payment_frequency, fm_visitor_log_status"
+    - "The-Firm (4): firm_service_line, firm_fee_type, firm_staff_role, firm_invoice_status"
+    - "Sales-HQ (5): sales_partner_type, sales_partner_status, sales_referral_status, sales_commission_type, sales_commission_accrual_status"
+    - "GST reconciliation (7): gst_source_type, gst_invoice_direction, gst_import_batch_status, gst_finding_severity, gst_match_type, gst_return_type, gst_return_status"
+    - "Construction/Projexa (16): construction_boq_status, construction_attendance_status, construction_kpi_period, construction_kpi_approval_status, construction_expense_head, construction_rfi_status, construction_ball_in_court, construction_submittal_type, construction_submittal_status, construction_punch_status, construction_punch_priority, construction_change_order_status, interior_mood_board_status, interior_ffe_category, interior_ffe_status, interior_material_category"
+
+count_of_domains: 18
+count_of_tables_covered: 377
+count_of_enums_covered: 106

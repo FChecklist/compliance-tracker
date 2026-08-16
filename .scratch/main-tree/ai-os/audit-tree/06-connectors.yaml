@@ -1,0 +1,114 @@
+# Source: Connectors.docx (299 lines extracted). "Page" = each named
+# section heading in the source (Four Integration Layers' 4 sub-layers,
+# Google Workspace Support's per-app subsections, Universal Connector
+# Architecture, Business Digital Twin, AI Routing Engine, Future
+# Connectors, The Vision). Re-extracted and re-read in full this pass
+# (this document was previously only analyzed in a prior session, before
+# this conversation) -- transcribed from the actual source text now, not
+# from memory of the prior session's summary.
+
+document: "Connectors.docx"
+parts:
+  - part: "Preamble / operating instructions"
+    items:
+      - "Ability to connect to third-party systems is stated to already exist in the system -- if not, build it"
+      - "These are described as common integrations -- check GitHub for original sources and reputable repos that already solved this, understand/copy/integrate after analysis"
+      - "Don't duplicate what's already in the system"
+      - "Free to edit/reject/add/delete what's not relevant"
+      - "Divide into small tasks and complete"
+      - "Must be simple enough that a non-technical user can do it in one click"
+
+  - part: "Concept diagram -- VERIDIAN AI OS document sources"
+    items:
+      - "Three source branches feed in: Microsoft 365, Google Workspace, Local/Desktop Files"
+      - "All three flow through a 'Universal Document Connector'"
+      - "Which feeds a 'Business Digital Twin Engine'"
+      - "Which feeds 'AI + Workflow + ERP + Decision Engine'"
+      - "Design principle: the user should never have to think 'should I use Excel or Google Sheets' -- to VERIDIAN, both are simply document sources"
+
+  - part: "Layer 1 -- Cloud APIs (Microsoft Graph + Google Workspace APIs), 'the backbone'"
+    items:
+      - "Microsoft apps to connect: Excel Online, Word Online, PowerPoint, Outlook, Teams, OneDrive, SharePoint, Calendar"
+      - "Google apps to connect: Google Docs, Google Sheets, Google Slides, Gmail, Google Drive, Google Meet, Google Calendar"
+      - "Access via OAuth/access token or whatever mechanism is feasible"
+      - "Once connected, the connection persists for the user across sessions"
+
+  - part: "Layer 2 -- Office Add-ins"
+    items:
+      - "One single add-in, not per-app add-ins"
+      - "Runs inside: Excel, Word, PowerPoint, Outlook"
+      - "Ribbon button labeled 'VERIDIAN'"
+      - "Ribbon actions: Click, Analyze, Review, Compliance, Sync, Ask AI"
+
+  - part: "Layer 3 -- Browser Extensions"
+    items:
+      - "Target browsers: Chrome, Edge, Firefox"
+      - "Must work on: Microsoft 365 Online, Google Workspace, Web ERP, Bank portals, GST portal, Government websites, Vendor portals"
+      - "Example behavior: user opens Google Sheets, a VERIDIAN panel appears -- same experience as the Excel add-in"
+
+  - part: "Layer 4 -- Desktop Companion"
+    items:
+      - "Rationale: some companies still use Office 2019, Office 2021, desktop Excel/Word/PowerPoint (not cloud-connected)"
+      - "A lightweight desktop agent should: watch files, sync changes, send events, index documents"
+      - "Goal: keep everything synchronized with VERIDIAN even for offline/desktop-only Office installs"
+
+  - part: "Google Workspace Support -- Google Sheets"
+    items:
+      - "Instead of generic 'Analyze Spreadsheet', VERIDIAN should understand business categories: Sales, Inventory, Payroll, GST, Forecast, Margins"
+      - "From that understanding, VERIDIAN creates: Workflow, Approvals, Alerts, ERP updates"
+
+  - part: "Google Workspace Support -- Google Docs"
+    items:
+      - "Example: HR creates an Employee Policy document"
+      - "VERIDIAN automatically extracts: Policies, Responsibilities, Approval, Effective Date, Department, Compliance"
+      - "From that extraction, VERIDIAN creates: Knowledge Base entries, Tasks, Reviews, Version History"
+
+  - part: "Google Workspace Support -- Google Slides"
+    items:
+      - "Example flow: board presentation -> VERIDIAN supplies KPIs/Graphs/Forecasts/Risks -> Slides AI formats them -> presentation is updated"
+
+  - part: "Google Workspace Support -- Gmail"
+    items:
+      - "Example flow: incoming mail -> VERIDIAN reads metadata (subject to permissions) -> identifies type (Invoice, Complaint, Purchase Order, Legal Notice, Customer Escalation) -> creates a workflow"
+
+  - part: "Google Workspace Support -- Google Drive"
+    items:
+      - "Every document becomes a 'VERIDIAN Asset', not just a file"
+      - "Stores per document: Owner, Department, Projects, Risks, Approvals, Knowledge Links, AI Summary, Business Entities"
+
+  - part: "Universal Connector Architecture"
+    items:
+      - "Do NOT write per-vendor connectors (Microsoft Connector, Google Connector, Dropbox Connector as separate bespoke integrations)"
+      - "Instead build a single 'Universal Connector Layer': Connector -> Normalize -> Business Objects -> VERIDIAN"
+      - "Normalization example -- these all become 'Table': Excel, Google Sheet, CSV, ERP Table"
+      - "Normalization example -- these all become 'Document': Word, Google Doc, PDF, Markdown, Email"
+      - "Normalization example -- these all become 'Presentation': PowerPoint, Google Slides, Canva"
+      - "Normalization example -- these all become 'Communication': Outlook Mail, Gmail, IMAP, Teams Chat, Slack"
+      - "Principle: VERIDIAN never cares about the original file format, only the normalized Business Object type"
+
+  - part: "Business Digital Twin"
+    items:
+      - "Every document receives a 'Digital Twin' representation"
+      - "Example (Budget FY27.xlsx) fields the Digital Twin holds: Document ID, Department, Financial Year, Business Objects, Linked Projects, Approvals, Risk, Compliance, Workflow, AI History, Discussion, Related Emails, Meeting References, Users, Permissions, Knowledge Graph"
+      - "Principle: the document is no longer just a file, it becomes a living business object"
+
+  - part: "AI Routing Engine"
+    items:
+      - "Example: user uploads Excel -> VERIDIAN routes to Microsoft AI -> Excel Analysis"
+      - "Example: user uploads Google Sheet -> VERIDIAN routes to Gemini -> Google Workspace AI"
+      - "Example: user uploads PDF -> routes through OCR Worker -> Knowledge Worker -> Compliance Worker (a chained pipeline)"
+      - "Principle: routing/orchestration between these should be fully automatic"
+
+  - part: "Future Connectors -- ecosystem support roadmap table (all marked checked in the source)"
+    items:
+      - "Design the connector layer so adding new ecosystems is straightforward"
+      - "Roadmap ecosystems named (each marked with a checkmark in the source, i.e. presented as a target list, not a status report): Microsoft 365, Google Workspace, LibreOffice, OpenDocument (ODF), PDF, CSV, Tally Exports, ERPNext, SAP, Oracle, Zoho Office, Dropbox, Box, OneDrive, SharePoint, Google Drive, Slack, Microsoft Teams, Notion, Confluence, GitHub, Email (IMAP/SMTP)"
+
+  - part: "The Vision -- VERIDIAN Universal Workspace (VUW)"
+    items:
+      - "Package the whole connector concept under one platform name: 'VERIDIAN Universal Workspace (VUW)'"
+      - "Mission statement: connect every business document/spreadsheet/presentation/email/meeting/knowledge source into a unified Business Digital Twin that continuously powers AI-driven decisions, workflows, compliance, and enterprise intelligence -- regardless of Microsoft 365, Google Workspace, desktop Office, or future platforms"
+      - "Strategic rationale: this keeps VERIDIAN vendor-neutral -- as Microsoft/Google/others improve their own AI, VERIDIAN benefits automatically because it stays focused on the higher-value layer (business understanding, orchestration, decision-making, enterprise workflows) rather than rebuilding document-editing intelligence itself"
+      - "Connections must persist for the user once established (repeated from the preamble/Layer 1, restated as a closing principle)"
+
+count_of_atomic_items: 42

@@ -1,0 +1,14 @@
+STEP ONE: deterministic file-signature classification of all 422 open PRs
+
+- scripts/pr-classification/fetch_prs.py + pr-query.graphql: real paginated
+  GraphQL fetch of every open PR + full changed-file list (path,
+  changeType, additions, deletions), handling per-PR file pagination for
+  PRs with over 100 changed files.
+- scripts/pr-classification/classify.py: deterministic EMPTY, DEPENDENCY,
+  DOCS-ONLY, CODE classifier (precedence in that order), documented
+  file-signature rules.
+- ai-os/registry/pr-classification-20260816.json: committed machine-readable
+  output, one row per PR with class, cited reason, and full file list.
+
+Real result: 422 total (matches Owner SPEC exactly), EMPTY=0,
+DEPENDENCY=8, DOCS-ONLY=115, CODE=299.

@@ -1,0 +1,33 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 02d52a0b4..bf6b0c434 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,4 +1,4 @@
+-# PROGRESS -- task-20260814-171913-rca--umr-20260806-223456-68d7-killed
++# PROGRESS -- task-20260814-182050-rca--umr-20260806-173900-b504-killed
+ 
+ ## Completed
+ 
+diff --git a/progress/task-20260814-182050-rca--umr-20260806-173900-b504-killed.md b/progress/task-20260814-182050-rca--umr-20260806-173900-b504-killed.md
+new file mode 100644
+index 000000000..af201450e
+--- /dev/null
++++ b/progress/task-20260814-182050-rca--umr-20260806-173900-b504-killed.md
+@@ -0,0 +1,17 @@
++# RCA: UMR-20260806-173900-b504 (status=killed)
++
++## Completed
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260806-173900-b504` myself (not trusting SPEC summary). Full reason confirmed: PM HOLD (not a verdict on the work) — disk hit 94%/20G free, past the PM's 22G threshold; ~40 rows (including this one) put back to queued in bulk by re-adjudication UMR-20260807-051828-6715; sampling found 40/40 already carried a SUMMARY/REPORT/RESULT artifact + review.json, so re-running risked large-scale duplicate work; held pending disk reclaim / PR 249 write-back fix / artifact adjudication. `unit_name=veridian-worker@task-20260806-205156-phase-0--real-stale-backlog-reconciliati.service`.
++- [x] Checked wiring_registry/capability_registry/ai_agent_registry per the deterministic briefing (AGENTS.md Rule 12) — no prior work on this exact UMR; also grepped `CLAUDE_MEMORY_INDEX.md`/`dead_ends.json`/`open_questions.json` for `173900-b504`/`051828-6715`/`PR 249` — no hits. Found a closely-related prior RCA in my own session memory (`veridian-umr-68ff-killed-rca-correct-pm-withdrawal-scope-since-merged`) covering a sibling UMR held/withdrawn under the same disk/PR-249 window — same pattern class, different UMR.
++- [x] Verified both hold conditions cited in the reason are now resolved:
++  - Disk: `df -h /` → 79% used, 62G avail (was 94%/20G at the time of the hold).
++  - PR 249 (write-back fix): `gh pr view 249 -R FChecklist/veridian-scripts` → `state=MERGED`, `mergedAt=2026-08-13T10:39:54Z`.
++- [x] Confirmed the "artifact adjudication" premise for this specific row (not just the bulk sample): `cross_repo_pr_check` on the UMR row pointed at veridian-scripts PR #222 ("Phase 0: real stale-backlog reconciliation, 767 stuck tasks confirmed live") — this **is** this task's real deliverable, and it already carries a real `AUDIT: PASS` review (2026-08-06T21:00:26Z, FChecklist): a documentation-only PROGRESS.md diff recording a genuine investigation that correctly found the "767 stuck tasks" claim in the dispatching SPEC was a **false premise** — `resource_governor.py --reconcile-stale` operates on `umr_tasks` rows (status running/dispatched, stale heartbeat), while the STUCK_TASKS_HEARTBEAT.json entries come from a structurally disjoint source (`task.yaml status=='blocked'`, per `dispatch-tick.py`'s `find_stuck_tasks`). The worker correctly declined to force a code change to bridge them, consistent with this repo's standing verify-before-write policy. Audit confirmed this against the live source (resource_governor.py:1660-1707, dispatch-tick.py:551-578) and passed it.
++- [x] Found PR #222 was subsequently **closed as obsolete** on 2026-08-14T06:17:37Z (hours before this RCA was dispatched, task-20260814-060159) — for a real, separate, and correct reason: it was a single-file diff to the shared root `PROGRESS.md`, and commit `1c363b6` on `origin/main` ("fix(worker-entrypoint): per-task progress files + real completion gate, kill the shared-PROGRESS.md conflict/empty-fix hole") structurally moved every worker off that shared file onto `progress/${TASK_ID}.md` and added `progress_completion_gate.py`, which explicitly refuses to treat a PROGRESS.md-only diff as real completion evidence. The shared root PROGRESS.md has since been overwritten dozens of times by unrelated later tasks, so merging PR #222 today would have regressed the current placeholder — the closure does **not** invalidate the underlying investigation/conclusion, only the now-obsolete delivery mechanism (shared PROGRESS.md instead of a per-task progress file).
++- [x] Confirmed the actual task workspace directory (`ai-os/tasks/task-20260806-205156-phase-0--...`) no longer exists on disk (checked both `/opt/veridian/ai-os/tasks/` and `/opt/veridian/repos/veridian-ai-os/`) — consistent with routine workspace cleanup a week after completion, not evidence of lost work; the durable artifact (PR #222 + its audit) already exists independently in GitHub.
++- [x] **Root cause / verdict**: the killed status is a **correct PM HOLD, not a bug** — real, audited work already existed for this row at the time of the hold, so the hold correctly prevented wasteful duplicate re-execution. Both conditions gating the hold (disk pressure, PR 249) have since resolved, and the row's own real deliverable (PR #222) has independently been closed for an unrelated, correct reason (obsolete shared-PROGRESS.md mechanism) with its underlying conclusion intact. **No code fix and no redispatch are warranted** — redispatching now would just re-run an already-completed, already-audited investigation whose conclusion still holds, only to land it via a delivery mechanism (root PROGRESS.md) the codebase has since deliberately retired.
++- [x] Recorded real terminal outcome: `superboss-register.py mark-umr-terminal --umr-id UMR-20260806-173900-b504 --status killed --reason "<real evidence>" --pr-number 222 --repo veridian-scripts`.
++- [x] Wrote back completion via `agent_work_briefing.py record-completion --umr-id UMR-20260814-181848-c7f0`.
++
++## Remaining
++- [ ] None — RCA complete, terminal outcome recorded, no code change needed (this task's objective is a diagnosis/decision, not a named source file).

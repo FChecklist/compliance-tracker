@@ -1,0 +1,26 @@
+name: Sync Env Vars to Vercel
+on:
+  workflow_dispatch:
+
+jobs:
+  sync:
+    name: Push secrets to Vercel project
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_PROJECT_ID: prj_mRRWcMvhyuxgRZtcfp4ArSzcOvII
+    steps:
+      - name: Add GROQ_API_KEY
+        run: |
+          curl -sf -X POST "https://api.vercel.com/v10/projects/$VERCEL_PROJECT_ID/env" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"key\":\"GROQ_API_KEY\",\"value\":\"${{ secrets.GROQ_API_KEY }}\",\"type\":\"encrypted\",\"target\":[\"production\",\"preview\",\"development\"]}" \
+            && echo "GROQ_API_KEY added" || echo "already exists — skipping"
+
+      - name: Trigger redeploy
+        run: |
+          curl -sf -X POST "https://api.vercel.com/v13/deployments" \
+            -H "Authorization: Bearer ${{ secrets.VERCEL_ACCESS_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            -d "{\"name\":\"compliance-tracker-ai\",\"gitSource\":{\"type\":\"github\",\"repoId\":\"$(curl -sf https://api.github.com/repos/FChecklist/compliance-tracker -H 'Authorization: Bearer ${{ secrets.PAT_FCHECKLIST }}' | jq -r .id)\",\"ref\":\"main\"},\"projectId\":\"$VERCEL_PROJECT_ID\"}" \
+            && echo "redeploy triggered" || echo "redeploy failed — deploy manually"

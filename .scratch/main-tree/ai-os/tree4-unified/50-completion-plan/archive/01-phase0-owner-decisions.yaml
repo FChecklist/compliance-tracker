@@ -1,0 +1,66 @@
+# ARCHIVED / STALE — do not treat as current.
+# See docs/master/INDEX.md or ai-os/MASTER-TRACKER.yaml for current status.
+
+# 100% Completion Plan -- Phase 0: Owner Decisions Required Before Building
+#
+# These 6 decisions block downstream plan items. Each blocks specific plan
+# items in 02-plan-items.yaml (listed under `blocks`). None of these are
+# defaulted by this plan -- building ahead of a decision risks wasted work
+# in the wrong direction (e.g. building 150 named auditor roles the Owner
+# didn't actually want).
+
+decisions:
+  - id: DEC-01
+    question: "Audit Organization granularity: build the ~150 individually-named specialist auditor roles exactly as Audit Organization.docx specified, or a smaller number of broader roles covering the same 5 divisions?"
+    context: "roster.ts today has only 1 audit role (chief_audit_officer). Tree 1's D2.B4/D2.B5 spec names ~150 individual auditors (Software Quality Auditor, GST Auditor, Segregation of Duties Auditor, etc.) across 5 divisions. Building 150 distinct roster.ts entries + prompt templates is a large, ongoing maintenance commitment; a smaller set of broader, parameterized roles could cover the same functional ground with less overhead."
+    recommendation: "Pilot with 5-6 division-lead roles first (one per division: Engineering/Business/Knowledge/Governance/Revenue Assurance), each parameterized to audit within its division's scope, before committing to all 150 individually-named agents."
+    blocks: ["PLAN-51", "PLAN-36"]
+  - id: DEC-02
+    question: "Approval option vocabulary: keep the simpler binary always_approve/always_reject model that was actually built, or build the richer 9-option (communication) / 9-option (quick) / 16-option (work-object) vocabularies Tree 1 originally specified?"
+    context: "Tree 1 itself flagged this as an unresolved conflict between 2 source documents (open item R1). The real system resolved it empirically by building something simpler than either original proposal. The simpler model is faster/less intrusive (a real UX advantage) but doesn't offer the granular control (Merge/Split/Delegate/Change Priority, etc.) the richer vocabularies specified."
+    recommendation: "Keep the binary model as the default fast path; if granular control is genuinely needed for specific action types (e.g. Delegate, Change Priority), add those as additional named preference actions rather than rebuilding the full 16-option UI."
+    blocks: ["PLAN-58"]
+  - id: DEC-03
+    question: "Work Object unification: retrofit ERP/PMS/The Firm/Construction to be VIEWS over one unified Work Object table (per Tree 1's D4.B7 recommendation), or ratify the current architecture of independent domain-specific tables as the deliberate design?"
+    context: "This is the single largest architectural divergence found in the entire tree comparison. ERP alone has ~150 tables with their own status/lifecycle logic. A retrofit is a major, multi-month, high-risk migration touching the platform's largest subsystems. Ratifying the current design means several other gaps (a truly universal follow-up engine, D22; a truly universal dashboard, D23) can only ever be approximated, not fully realized, without touching many separate tables."
+    recommendation: "Ratify the current architecture for existing modules (ERP/PMS/Firm/Construction) as sunk cost not worth unwinding; apply the unification principle going forward for any genuinely NEW module, so the divergence doesn't keep growing."
+    blocks: ["PLAN-59", "PLAN-44"]
+  - id: DEC-04
+    question: "Is GOT-OSS/DeepSeek/ZLM/Claude's original percentage-based model allocation (D3) and the 4-band confidence-percentage escalation scheme (D12/D18, 98-100%/95-97%/90-94%/<90%) formally superseded by GOV-04's complexity-tier system (mechanical/integrative/judgment), or still wanted as a separate, additional mechanism?"
+    context: "GOV-04's tier system is real, working, and CI-enforced (mandatory-audit-check.yml). It serves a similar governance purpose (don't let underqualified models do overqualified work) via a materially different mechanism (categorical tier vs. numeric percentage). Building the literal percentage-band scheme ALONGSIDE the tier system would mean two parallel routing/escalation logics to keep consistent."
+    recommendation: "Formally deprecate D3.B1.S1's percentage split and D12/D18's percentage-banding language in favor of GOV-04's tier system; update Tree 1's own audit-tree/10-merged-tree.yaml to mark these sub-branches as superseded rather than open requirements."
+    blocks: ["PLAN-20", "PLAN-27"]
+  - id: DEC-05
+    question: "Build a distinct 'CSEO' (Chief Software Engineering Officer) role in roster.ts matching D2.B3.S4's 18 named responsibilities, or accept GLM-5.2's current generic usage across many engineering roles as sufficient?"
+    context: "Lowest-stakes decision in this list. 'ZLM 5.2' resolved to GLM-5.2 per this session's own memory, and GLM-5.2 is already roster.ts's primary model across most roles -- the model exists, but not as one consolidated 'CSEO' identity with its own authority matrix."
+    recommendation: "No action needed unless the Owner specifically wants a single named engineering-executive role for reporting/accountability purposes distinct from the individual engineering roles."
+    blocks: ["PLAN-23"]
+  - id: DEC-06
+    question: "Build the L0-L5 escalation ladder (D2.B1) as a queryable code structure (e.g. an escalationLevel field + lookup logic on roster.ts roles), or keep it as a working practice documented in AGENTS.md only?"
+    context: "The ladder concept (routine execution -> review -> QC -> COO -> Super Boss -> Owner) is followed in practice this session (e.g. via AGENTS.md's authority descriptions) but has no corresponding code artifact. Building it as code would let other gap-closure work (e.g. D15.B6's Peer Validation stage, D3.B2's chain-execution escalation) reference a real structure instead of an aspirational one."
+    recommendation: "Build it as code -- several other plan items (PLAN-23, PLAN-31 through PLAN-36's audit cadence work) are cleaner to implement against a real escalation-level field than against prose."
+    blocks: ["PLAN-23"]
+    resolution: "RESOLVED 2026-07-11 -- built as real code: src/lib/escalation-ladder.ts (nextEscalationRung(), 13 tests), wired into task-execution-engine.ts's dispatchEngine fallback, monitoring-rule violations, and the D3.B2/D8 escalation-to-D2.B1-ladder step. Not a prose-only practice anymore."
+
+  - id: DEC-07
+    question: "D9 Approval & Confirmation UX: build the literal 9-option / 9-option / 16-verb approval vocabularies the source docs name, or keep the simpler always_approve/always_reject binary the real system already ships?"
+    context: "3 sub-branches (U-D9.B1.S1/S2/S3) are confirmed_gap against the literal spec. The tree's own domain-level note (10-merged-governance-layer.yaml, U-D9.B3.S1's workflow field) already flags the binary model as arguably BETTER on the requirement's own stated goal ('the approval experience must be fast and minimally intrusive') even though it diverges from the literal option-set wording -- the 9/9/16-item menus would be slower and more intrusive, not less, the opposite direction from what U-D9.B3.S1 actually asks for."
+    recommendation: "Keep the binary system. Do not build the literal vocabularies."
+    resolution: "RESOLVED 2026-07-12 (Super Boss, per Owner's explicit 'you have full control, complete Priority 2 100%' directive during the Priority 2 dispatch): RATIFY the existing binary always_approve/always_reject model, do NOT build the 27 named option-set entries (9+9+16 across B1.S1/S2/S3) on top of it. Same reasoning class as DEC-03 (Universal Work Object retrofit) -- the literal spec and the requirement's own underlying goal point in OPPOSITE directions here (more options is not faster/less-intrusive), so building the literal wording would trade a real, working, better-aligned system for a worse one just to match option-count literalism. B2.S1 (VERI may recommend creating a reusable approval preference) and B3.S1 (fast/unintrusive UX) both remain correctly served by the existing system -- U-D9 is closed at its current real scope, not left half-open pending a future rebuild."
+    blocks: []
+
+  - id: DEC-08
+    question: "D10.B1.S1 (Communication Governance): does email.ts's rule-triggered notifyAssigned/notifyOverdue/etc. count as 'approved automation rules', satisfying the requirement that VERI never independently initiate communications 'unless explicitly authorized through approved automation rules'?"
+    context: "subagent/comms-intel's 2026-07-12 dispatch assessed this as satisfied on the literal wording (these sends are triggered by real system events -- task assignment, overdue detection -- not spontaneous independent AI judgment calls) and explicitly left the reclassification for Boss/Owner sign-off rather than unilaterally deciding it."
+    recommendation: "Confirm satisfied. The dispatch's own reasoning is sound and consistent with how this session has read every other 'rule-triggered vs. independent-judgment' distinction (e.g. D9's DEC-07, D26's B3.S1 finding that nothing violates the format-branching guardrail because nothing exercises it yet)."
+    resolution: "RESOLVED 2026-07-12 (Super Boss, per Owner's 'you have full control' directive): CONFIRMED satisfied. email.ts's existing transactional notifications are rule-triggered by real system events, not independent AI decisions -- they match 'approved automation rules' on the requirement's own terms. D10.B1.S1 reclassified from confirmed_gap to satisfied."
+    blocks: []
+
+  - id: DEC-09
+    question: "D26 Universal Connector's remaining large items -- B1.S2/S3/S4 (Office Add-in, Browser Extension, Desktop Companion) and B4.S1 (Business Digital Twin, a 16-field per-document schema) -- dispatch now under the Owner's 'full control, complete 100%' directive, or keep deferred pending further scoping?"
+    context: "Every other Priority 1/2 judgment call this session (DEC-03 through DEC-08) resolved a question of INTERPRETATION -- whether existing, already-built infrastructure satisfies a literal requirement, or whether to match a literal spec against a better-aligned real system. These 4 items are categorically different: they are net-new infrastructure with real, hard-to-reverse distribution/packaging decisions this codebase has never had to make before -- which browsers to target and how a browser extension gets signed/published, what installer/auto-update mechanism a desktop file-watcher agent uses, how an Office Add-in gets hosted/signed/listed (AppSource or sideloaded), and whether any of these need their own separate repos outside this monorepo's Next.js/Vercel deployment model entirely. B4.S1's Business Digital Twin is a 16-field schema redesign touching how every connected document is modeled platform-wide, not a narrow additive slice like B3.S1's classifier was."
+    recommendation: "Do not dispatch. These are a genuinely separate initiative requiring real product/infrastructure decisions (target platforms, distribution/signing approach, repo topology) before engineering work can even be scoped narrowly -- the same class of caution this session has applied throughout to hard-to-reverse, broad-blast-radius changes (DEC-03's Work Object retrofit)."
+    resolution: "RESOLVED 2026-07-12 (Super Boss, per Owner's 'you have full control' directive -- deliberately NOT auto-approving everything the directive could be read to permit): B1.S2/S3/S4 and B4.S1 remain explicitly deferred, not because Owner sign-off is required for routine engineering (that's precisely what 'full control' unblocks, per DEC-07/DEC-08 above), but because these 4 items involve real, hard-to-reverse infrastructure/distribution choices this session has no basis to make unilaterally without narrowing scope first arbitrarily. 'Full control' to close genuine interpretation gaps is not the same authority as 'full control' to commit a codebase to a new browser-extension/desktop-agent/Office-Add-in distribution pipeline on a guess. Formally ratified as Priority 2's one deliberately-open item, distinct from every other item in this initiative, which are either closed or narrow-and-queued."
+    blocks: []
+
+count_of_decisions: 9

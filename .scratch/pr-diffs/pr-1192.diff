@@ -1,0 +1,112 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index 903dd7263..a866f7291 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,4 +1,4 @@
+-# PROGRESS -- task-20260814-201900-rca--umr-20260808-175055-cebd-killed
++# PROGRESS -- task-20260814-211756-rca--umr-20260813-092654-326b-killed
+ 
+ ## Completed
+ 
+diff --git a/progress/task-20260814-211756-rca--umr-20260813-092654-326b-killed.md b/progress/task-20260814-211756-rca--umr-20260813-092654-326b-killed.md
+new file mode 100644
+index 000000000..072a0f882
+--- /dev/null
++++ b/progress/task-20260814-211756-rca--umr-20260813-092654-326b-killed.md
+@@ -0,0 +1,96 @@
++# PROGRESS — task-20260814-211756-rca--umr-20260813-092654-326b-killed
++
++## Completed
++
++- [x] Checked `ai-os/boss/ACTIVE-CLAIMS.yaml` per Rule 11 — not present in this worktree (file
++      not found at that path in this checkout); no other in-flight claim collision found via
++      live `superboss-register.sqlite`/`resource_governor.py` queries either.
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260813-092654-326b` live myself
++      (not trusting the SPEC summary alone): `status=killed`, original `reason` = "real systemd
++      state 'inactive', no PR was ever opened, real task.yaml status='blocked' -- no live
++      process and no real deliverable; mechanically correctable to killed (orphaned dispatch,
++      never produced a real artifact)." `unit_name=veridian-worker@task-20260813-095623-
++      amendment-2--pm-hierarchy--single-gatewa.service`.
++- [x] Read the real dispatched task's own artifacts at
++      `/opt/veridian/ai-os/tasks/task-20260813-095623-amendment-2--pm-hierarchy--single-gatewa/`:
++      `task.yaml` (final status `blocked`, zero `files_modified`), `worker.log` (a stray
++      `action_id`, a plan-rejection response, and unrelated systemd unit-file install-config
++      text — no real diff produced), `supervisor.log` + `supervisor-result.json` (supervisor's
++      own tier1 review independently confirmed: `git diff origin/master...HEAD` = 0 files
++      changed, `PROGRESS.md` in that workspace literally read "Not started", verdict = reject,
++      "should be redispatched, not merged"). The redispatch itself then got stuck: zero commits
++      on the branch meant `gh pr create` failed (no head/base SHA) and `gh pr list` found no
++      existing PR either, so the supervisor script refused to proceed rather than risk `gh`'s
++      empty-argument fallback onto an unrelated PR (its own cited real incident: PR #84,
++      2026-07-26) — task.yaml ended `status=blocked`, later reconciled to `killed` by
++      `reconcile_stale_running_workers.py`.
++- [x] Read `prompt.txt` for the real Amendment 2 scope (5 Owner policy points: (1) PM hierarchy
++      + dynamic mission scope, (2) single gateway / no bypass, (3) zero duplication / no bypass,
++      (4) decision authority — never consult Owner except genuine financial decisions, (5)
++      standardized boolean-table report format).
++- [x] Traced the two UMRs Amendment 2 itself amends: `UMR-20260813-084321-2962` (base
++      server-native PM sentinel build) = `failed`; `UMR-20260813-091633-8b6a` (financial-only
++      escalation amendment) = `completed` via merged PR #135.
++- [x] Found the real disposition of Amendment 2's own scope: `/opt/veridian/scripts/
++      pm-sentinel-tick.sh` (separate live-checkout repo, `veridian-scripts` — see memory
++      `veridian-scripts-separate-repo-live-checkout`) explicitly documents in its own file
++      header that it collapses **three** governing chains including this exact UMR
++      (`UMR-20260813-092654-326b`), citing the identical real finding independently derived
++      above (task-20260813-095623 never started real work, zero files modified, zero PR,
++      reconciled to killed) — confirmed this is not new information, it was already discovered
++      and fixed by a separate later integration.
++- [x] Verified point-by-point that all 5 Amendment 2 requirements are real and live in that file
++      (read in full): (1) hierarchy/decision-authority via `is_financial_decision()`/
++      `escalate_financial_decision()`; (2) single gateway via `dispatch_gap()` calling
++      `dispatch-owner-task.sh --no-relay` exclusively (never raw tmux/direct git edits/
++      `task-gateway.py cmd_start`); (3) zero-dup via two independent layers —
++      `is_in_flight()` (narrow per-tick dedup) plus `resource_governor.py`'s own downstream
++      duplicate-PR guard, both real and independently proven live on this same chain
++      (`UMR-20260813-101609-9a69` / `UMR-20260813-101452-bd10`, both `rejected_duplicate`);
++      (4) dynamic/generalized scope via Check 1's live `--query-umr`/`show-owner-priority-state`
++      chain discovery, not a hardcoded UMR list; (5) standardized report format via
++      `emit_report_row()`/`REPORT_FILE` JSONL boolean table (FOUND/TESTED/AUDITED/INTEGRATED/
++      WORKING/CERTIFIED columns), mirrored to Prometheus textfile-collector metrics.
++- [x] Confirmed this is real and live, not just documented intent: `git -C scripts` (the real
++      `veridian-scripts` checkout) shows `HEAD == origin/main` at commit `f9b4101` (PR #341),
++      with `ae48cf0`/PR #299 as the commit that first integrated 326b's scope and `7dac937`/
++      PR #323 as a later refinement — `git merge-base --is-ancestor` confirms all three are real
++      ancestors of `origin/main`.
++- [x] Root cause, stated plainly: two separate real failures compounded. (a) The original
++      worker for task-20260813-095623 never did the real Amendment 2 work (got sidetracked —
++      no diff, "Not started" in its own PROGRESS.md); the supervisor correctly caught this and
++      rejected it, but its own redispatch machinery couldn't resolve a PR to act on (there was
++      none — zero commits) and refused to proceed rather than risk an unsafe `gh` fallback, so
++      the task dead-ended at `status=blocked` instead of triggering a clean follow-up dispatch.
++      `status=killed` is an accurate, honest terminal record for that specific dispatch row —
++      **not** a mislabel. (b) The real Amendment 2 scope was not actually lost: it was
++      independently rediscovered and implemented by a later, separate integration
++      (`pm-sentinel-tick.sh`, `ae48cf0`/PR #299 onward) that treated 326b as one of its three
++      governing inputs — so by the time this RCA task was dispatched today, the real gap no
++      longer existed. (c) The `reason` field on the `umr_tasks` row, however, had never been
++      updated to reflect that later resolution — it did not start with the established
++      `"RCA (UMR-...)"` convention (see `veridian-scripts` commit `f9b4101`'s own docstring on
++      `exclude_rca_complete`), which is almost certainly why this row resurfaced for a fresh RCA
++      dispatch now instead of being filtered out.
++- [x] Recorded the real, evidenced terminal outcome via `superboss-register.py mark-umr-terminal
++      --umr-id UMR-20260813-092654-326b --status killed --reason "RCA (UMR-20260814-211739-f6cb):
++      ..." --commit-sha f9b41011b6018fc6159d7f9c535da51c58dd84b9 --repo veridian-scripts` (RC=0,
++      reason now starts with the `"RCA (UMR-...)"` convention so future `pm-sentinel-tick.sh`
++      ticks' `--exclude-rca-complete` filter will correctly skip this row instead of
++      re-dispatching it again). No redispatch performed — no real gap remains to redispatch;
++      the fix already shipped under a different UMR chain before this task was ever dispatched.
++- [x] No code change required in this repo (`compliance-tracker`) — this RCA's objective did not
++      name a specific source file/script to modify (unlike a fix task); the real fix already
++      lives in the separate `veridian-scripts` checkout, confirmed merged to its `origin/main`
++      before this task started. Nothing in this task's own diff besides this progress file and
++      (out of protocol) any pre-existing shared `PROGRESS.md` drift, which was left untouched
++      per this task's own protocol (do not edit/recreate the shared file).
++- [x] Called `agent_work_briefing.py record-completion` for `UMR-20260814-211739-f6cb`.
++
++## Remaining
++
++- [ ] None. If this UMR resurfaces for RCA again, check this file plus the row's own `reason`
++      field first (should now read `RCA (UMR-20260814-211739-f6cb): ...`) — the answer has not
++      changed: Amendment 2's real scope is fully live in `veridian-scripts`'
++      `scripts/pm-sentinel-tick.sh` (commit `f9b4101`/PR #341 and its ancestors `ae48cf0`/#299,
++      `7dac937`/#323), and `status=killed` on the original dispatch row is historically accurate.

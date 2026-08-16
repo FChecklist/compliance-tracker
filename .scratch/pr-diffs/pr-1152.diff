@@ -1,0 +1,108 @@
+diff --git a/ai-os/rca/UMR-20260808-081216-db86-4th-dispatch.md b/ai-os/rca/UMR-20260808-081216-db86-4th-dispatch.md
+new file mode 100644
+index 000000000..6d115f87a
+--- /dev/null
++++ b/ai-os/rca/UMR-20260808-081216-db86-4th-dispatch.md
+@@ -0,0 +1,40 @@
++# RCA: UMR-20260808-081216-db86 (killed) -- 4th dispatch, confirmed correct decline, duplicate
++
++**Governing UMR (this task):** UMR-20260814-121709-6e7a
++**RCA target:** UMR-20260808-081216-db86, status=killed, unit_name=none
++
++## What the row says
++`resource_governor.py --query-umr --umr-id UMR-20260808-081216-db86` (queried live, not taken
++from the dispatching SPEC's summary) shows this is the 14th dispatch in the resource_governor.py
++queue-management-CLI / stop-work-order-exemption saga. It was declined because it cited
++UMR-20260808-074726-d105 as evidence the stop-work-order dispute had "moved on" -- but d105 was
++itself declined minutes earlier for that exact unresolved reason. Zero code, zero PR, from db86's
++own dispatch. This decline is correct, not a mislabel.
++
++## This is a duplicate RCA, not a new finding
++`resource_governor.py`'s own `cross_repo_pr_check` on this UMR ID surfaces three prior RCA PRs
++already open against this exact row:
++
++- compliance-tracker #1096 -- found the real stop-work-order-lift (`2a46f437`,
++  stop-work-order-lifted-2026-08-08-v2) and redispatched as UMR-20260813-162708-e1c7.
++- compliance-tracker #1115 -- re-verified live that e1c7 itself then failed
++  mechanically, but the underlying CLI scope was independently delivered via a different,
++  unrelated lineage: veridian-scripts PR #328 (`951ad5b`, merged 2026-08-13T21:33:56Z).
++- compliance-tracker #1128 -- a 3rd dispatch (task-20260814-051558, same day as this one),
++  re-confirmed the same finding again: db86's row unchanged, PR #328 still merged.
++
++This (4th) dispatch re-verified all of the above live and found nothing changed:
++`gh pr view 328 --repo FChecklist/veridian-scripts` shows it is still `state=MERGED`. db86's row
++is byte-for-byte identical to the prior three reads.
++
++## Disposition
++No correction to db86 itself -- it needs none. No new engineering scope -- the underlying
++request (atomic queue-management ops in resource_governor.py: list_queue/stop_task/resume_task/
++delete_task/set_priority/move_up/move_down) is already live on origin/main via PR #328.
++
++## Standing gap (not fixed here, flagged again)
++veridian-scripts PR #341 ("stop re-dispatching RCA for already-closed killed rows") merged
++before the 3rd dispatch and still isn't catching this repeat path -- this is now the 4th
++dispatch cycle burned on an already-answered question for this single row. Left for whichever
++session next owns pm-sentinel-tick's re-dispatch dedup logic; out of scope for this RCA task,
++whose target row requires no correction.
+diff --git a/progress/task-20260814-124353-rca--umr-20260808-081216-db86-killed.md b/progress/task-20260814-124353-rca--umr-20260808-081216-db86-killed.md
+new file mode 100644
+index 000000000..ea5c7a3c9
+--- /dev/null
++++ b/progress/task-20260814-124353-rca--umr-20260808-081216-db86-killed.md
+@@ -0,0 +1,56 @@
++# PROGRESS -- task-20260814-124353-rca--umr-20260808-081216-db86-killed
++
++Governing UMR: UMR-20260814-121709-6e7a (task_identity owner-task-20260814-121707-3089691)
++RCA target: UMR-20260808-081216-db86 (status=killed)
++
++## Completed
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260808-081216-db86` directly (not
++      trusting the SPEC summary) -- full `reason` confirms this is the 14th dispatch in the
++      resource_governor.py queue-management-CLI / stop-work-order-exemption saga
++      (b4e9→a7e5→7433→35bc→a683→f9f4→ee23→a4b5→162a→a63f→bce6→88ae→d105→db86), declined because
++      it cited UMR-20260808-074726-d105 as evidence the stop-work-order dispute "moved on" when
++      d105 itself was declined minutes earlier for that exact unresolved reason. Zero code/PR
++      was produced or claimed by db86's own dispatch.
++- [x] Cross-repo PR check on the query output surfaced **3 prior RCA PRs already opened for
++      this exact row**, all same finding: compliance-tracker #1096 ("real blocker separately
++      lifted, redispatched UMR-20260813-162708-e1c7"), #1115 ("confirmed correct decline,
++      duplicate-dispatch cleanup"), #1128 ("correct decline, duplicate dispatch, scope closed
++      elsewhere") -- all still OPEN (self-approval merge deadlock, see
++      veridian-branch-protection-self-approval-deadlock-active), none superseded or reverted.
++- [x] Checked local memory index first per AGENTS.md Rule 12 (crontab-drift-approved-2026-08-14):
++      found `veridian-umr-db86-killed-rca-correct-decline-plus-real-lift-found.md` (the 2026-08-13
++      RCA that found the real stop-work-order-lift + the underlying CLI scope's actual merge
++      lineage) and `veridian-umr-db86-3rd-dispatch-duplicate-already-resolved.md` (a 2026-08-14
++      RCA, task-20260814-051558, that already re-confirmed this exact same finding a 3rd time,
++      ~7.5h before this 4th dispatch fired).
++- [x] Live-reverified rather than trusting the memory/PR citations as still current:
++      `gh pr view 328 --repo FChecklist/veridian-scripts` → still `state=MERGED`,
++      `mergedAt=2026-08-13T21:33:56Z` (the real queue-management CLI:
++      list_queue/stop_task/resume_task/delete_task/set_priority/move_up/move_down, landed via
++      `951ad5b`). db86's own row is unchanged since 2026-08-08 (immutable historical record,
++      `status=killed`, same `reason` text, byte-for-byte identical to the 2026-08-13 and
++      2026-08-14 prior RCA reads).
++- [x] Root cause of the recurring pattern (distinct from db86's own decline, which is correct
++      and needs no fix): **this is the 4th dispatch of an identical RCA question on the same
++      already-resolved row**, one day after the 3rd. `veridian-scripts` PR #341 ("stop
++      re-dispatching RCA for already-closed killed rows") merged *before* even the 3rd dispatch
++      fired and evidently still doesn't catch this repeat path -- flagged again, not re-fixed
++      here (pm-sentinel-tick's re-dispatch dedup logic is out of scope for an RCA task whose
++      target row needs no correction).
++- [x] Disposition: **no correction to db86's own row** -- it is already an honest, accurate
++      terminal record (killed + correct reason), same conclusion as all 3 prior RCAs on this row.
++      No new engineering scope to build: the underlying request was already fully delivered via
++      an unrelated lineage (veridian-scripts PR #328, not db86's own redispatch e1c7, which
++      itself separately failed). Marked this task's own governing UMR
++      (UMR-20260814-121709-6e7a) terminal as `completed_unmerged`, citing this RCA's own commit,
++      per the same pattern the 3rd-dispatch RCA used for its own governing UMR
++      (UMR-20260814-051554-3126).
++- [x] Wrote back to memory index (`veridian-umr-db86-4th-dispatch-duplicate-already-resolved.md`)
++      per AGENTS.md Rule 12(c) so a 5th dispatch, if pm-sentinel-tick's dedup gap is still not
++      fixed, doesn't have to re-derive any of this from scratch.
++
++## Remaining
++- (none -- this RCA is complete; the standing gap is pm-sentinel-tick's re-dispatch dedup logic
++  not catching already-RCA'd killed rows on repeat, left for whichever session next owns that
++  script, per AGENTS.md Rule 12(d): a cited index lookup is never a substitute for real
++  completion, and this disposition is the real, honest completion for db86 itself)

@@ -1,0 +1,33 @@
+{
+  "runId": "fullload-1783683321867",
+  "orgId": "obux019rsc5nzxjx93rrpc1j",
+  "personasReused": 100,
+  "itemsGenerated": 1798,
+  "fmItems": 150,
+  "docItems": 50,
+  "executed": 1965,
+  "succeeded": 1948,
+  "failed": 17,
+  "overflowed": 0,
+  "byMode": {
+    "task": {
+      "s": 1398,
+      "f": 0
+    },
+    "chat": {
+      "s": 400,
+      "f": 0
+    },
+    "fm": {
+      "s": 150,
+      "f": 0
+    },
+    "doc": {
+      "s": 0,
+      "f": 17
+    }
+  },
+  "totalLlmCalls": 100,
+  "durationMs": 3577551,
+  "haltedReason": "error rate exceeded 30% over last 50 items"
+}

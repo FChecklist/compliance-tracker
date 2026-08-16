@@ -1,0 +1,89 @@
+diff --git a/PROGRESS.md b/PROGRESS.md
+index a5186c69f..e58652244 100644
+--- a/PROGRESS.md
++++ b/PROGRESS.md
+@@ -1,6 +1,51 @@
+-# PROGRESS -- task-20260814-124956-rca--umr-20260814-101712-eb50-status-run
++# PROGRESS -- task-20260814-131802-rca--umr-20260808-175055-cebd-killed
+ 
+ ## Completed
++- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` (no conflicting active claim for this UMR; the real-scope
++      resume chain is documented under a 2026-08-13 entry, `UMR-20260813-082609-873e`).
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260808-175055-cebd` directly (not
++      trusting the SPEC summary): `status=killed`, `reason="stuck-task SIGKILL: no exit 60s after
++      SIGTERM"`, `unit_name=veridian-worker@task-20260808-175102-execute-ocid-020-021-real-implementation.service`,
++      `ts_sigterm=2026-08-08T18:51:44Z` -> `ts_completed=2026-08-08T18:52:48Z` (~64s grace period,
++      consistent with the stated 60s-post-SIGTERM SIGKILL trigger). `dispatched_repo_matches: []` and
++      `other_repo_matches: []` -- no PR ever attached to this UMR row directly.
++- [x] Checked the auto-memory index (per AGENTS.md Rule 12) **before** any fresh exploratory search:
++      `MEMORY.md` -> `veridian-killed-rca-series-index.md` already lists this exact UMR under the
++      "correctly-killed / no-correction-needed" group, linking three prior closures:
++      [[veridian-umr-cebd-killed-stuck-task-sigkill-correctly-superseded]] (1st RCA,
++      `task-20260813-105054`, commit `ad143bfe9`, merged),
++      [[veridian-umr-cebd-killed-rca-2nd-dispatch-duplicate]] (2nd RCA, `task-20260813-181942`, PR #1100,
++      merged `6579b5a13`), [[veridian-umr-cebd-killed-rca-3rd-dispatch-duplicate]] (3rd RCA,
++      `task-20260813-231636`, PR #1118, merged). `git log --all --grep="cebd" -i` additionally surfaced a
++      4th RCA/closure pass (`task-20260814-061744`, commit `21f925697`, PR #1080, merged) and a follow-on
++      paper-trail-only PR (`2f3a9de41`, PR #1137, still open) that explicitly cites "the 4th RCA of this
++      same UMR ... already concluded live that no further fix or mark-umr-terminal correction is
++      warranted."
++- [x] Independently re-verified rather than trusting the memory/log blind: `git log origin/main -1`
++      confirms `main`'s tip (`07866353f`) already contains commits `ad143bfe9`, `21f925697`
++      (both merged, in the RCA/closure line). `gh pr list --search "cebd" --state all` confirms PR #1080
++      (RCA #4-line), #1100 (RCA #2), #1118 (RCA #3) are all `MERGED`; the underlying real remaining scope
++      (OCID-020/021) was independently closed via PR #1070 (merged `fe12d80e`) and PR #1076 (merged), both
++      cited consistently across all four prior RCAs.
++- [x] Root cause (unchanged across 4 prior independent investigations, confirmed a 5th time here):
++      one worker-service invocation of `task-20260808-175102-execute-ocid-020-021-real-implementation`
++      hung inside the quality-gate `next build` step past the 60s post-SIGTERM grace period (Turbopack
++      build has its own internal-hang failure mode, same class as the pre-existing
++      `task-20260727-043407` RCA); `resource_governor.py`'s `scan_stuck_tasks()` SIGKILLed it correctly
++      -- this is the guardrail working as designed, not a bug. The task's own real remaining scope was
++      independently completed and merged same-day via a separate UMR chain
++      (`UMR-20260813-082609-873e` / `UMR-20260813-083422-15e7`, PR #1070 + PR #1076).
++- [x] **Conclusion: this task (task-20260814-131802) is a 5th duplicate dispatch of an already-fully-
++      resolved RCA.** No new information, no code change warranted, and `mark-umr-terminal` correctly
++      NOT called -- `status=killed` on the original row is an accurate historical record (per the
++      standing guidance in [[veridian-umr-cebd-killed-stuck-task-sigkill-correctly-superseded]]:
++      "don't call `mark-umr-terminal` when there's nothing to correct"). This is a docs-only closure,
++      consistent with the completion-gate precedent already established and merged 3x for this exact
++      UMR (PR #1080/#1100/#1118, all docs-only, all merged clean).
++- [x] Recorded completion via `agent_work_briefing.py record-completion`.
++- [x] Wrote a new memory entry for this 5th dispatch and updated the killed-RCA series index.
+ 
+ ## Remaining
+-- [ ] Not started
++- [ ] None. PRs #1103/#1087/#1130/#1137 (earlier duplicate-RCA PRs for this same UMR, still shown OPEN
++      via `gh pr list`) are stale/superseded artifacts from prior dispatches, out of this task's own
++      scope to clean up -- noted here for visibility, not actioned.
+diff --git a/progress/task-20260814-131802-rca--umr-20260808-175055-cebd-killed.md b/progress/task-20260814-131802-rca--umr-20260808-175055-cebd-killed.md
+new file mode 100644
+index 000000000..28188e7a5
+--- /dev/null
++++ b/progress/task-20260814-131802-rca--umr-20260808-175055-cebd-killed.md
+@@ -0,0 +1,25 @@
++# task-20260814-131802-rca--umr-20260808-175055-cebd-killed
++
++## Completed
++- [x] Read `ai-os/boss/ACTIVE-CLAIMS.yaml` first (Rule 11) -- no conflicting active claim.
++- [x] Queried `resource_governor.py --query-umr --umr-id UMR-20260808-175055-cebd` directly (not the
++      SPEC summary): confirmed `status=killed`, reason `stuck-task SIGKILL: no exit 60s after SIGTERM`,
++      unit `veridian-worker@task-20260808-175102-execute-ocid-020-021-real-implementation.service`.
++- [x] Checked the auto-memory index per AGENTS.md Rule 12 before fresh search: this exact UMR is already
++      documented in `veridian-killed-rca-series-index.md` (correctly-killed group) with 3 linked prior
++      closures, plus `git log --all --grep=cebd -i` surfaced a 4th.
++- [x] Root cause confirmed a 5th independent time, unchanged: genuine stuck-task SIGKILL during a
++      `next build` hang inside the quality-gate step (guardrail working as designed); the task's real
++      remaining OCID-020/021 scope was independently completed+merged same-day via a separate UMR chain
++      (PR #1070 + PR #1076).
++- [x] Conclusion: this is a 5th duplicate RCA dispatch for the identical UMR. No fix/redispatch, no
++      `mark-umr-terminal` call (status=killed is an accurate record, nothing to correct). Docs-only
++      closure, same shape as the 3 prior merged duplicate-closure PRs (#1080, #1100, #1118).
++- [x] `PROGRESS.md` updated with full evidence trail.
++- [x] Memory updated: new dispatch-count entry + index update.
++- [x] `agent_work_briefing.py record-completion` called.
++
++## Remaining
++- [ ] None for this task's own scope. Noted but not actioned: PRs #1103/#1087/#1130/#1137 (earlier
++      duplicate-RCA dispatch PRs for this same UMR) still show OPEN in `gh pr list` -- stale/superseded
++      artifacts, cleanup out of scope here.

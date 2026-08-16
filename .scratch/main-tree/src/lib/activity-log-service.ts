@@ -1,0 +1,509 @@
+// Wave 160 (UNIVERSAL_TASK_WRAPPER_DESIGN.md, Phase 1): the write path for
+// the universal activity envelope. Mirrors orchestra-execution-logger.ts's
+// posture exactly -- fire-and-forget, caught/logged failure, must never
+// block or fail the actual activity it's recording.
+//
+// Phase 1 scope, corrected from the design doc's original claim: only
+// `ai_team_dispatch` is wired here. The design doc listed `loop_run` as a
+// second currently-unpersisted activity type -- checking the live schema
+// before writing code found that's wrong: `loop_executions` already
+// exists and already records every loop run (per-loop, not activity_log
+// shaped, but genuinely persisted). More importantly, loop runs are
+// cross-org by nature (an audit loop scans ALL orgs in one run) and
+// `loop_executions` correctly has no org_id column at all -- forcing loop
+// runs into this table's tenant-scoped RLS (org_id NOT NULL, policy
+// `org_id = current_org_id()`) would either require a fake org_id or
+// weaken the RLS guarantee for every other row here. Not done. tasks/
+// orchestraExecutions already have their own rich tables and are NOT
+// double-written here yet either -- that's Phase 2, a deliberately
+// separate, lower-risk step (read-only-shaped additions to already-working
+// functions) per the design doc's own phasing.
+import { activityLog } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
+import { and, asc, desc, eq, inArray, isNotNull, isNull, lt, sql } from "drizzle-orm";
+import { runTaskReflection } from "@/lib/loops/task-reflection";
+import { refreshAgentDirectory } from "@/lib/ai-team/agent-directory-service";
+import { bandConfidence } from "@/lib/confidence-banding";
+import { decideAcceptance } from "@/lib/handover-protocol";
+import type { RiskLevel } from "@/lib/risk-classification";
+import type { GovernanceHealthCounts } from "@/lib/monitoring-engine";
+
+export type ActivityType = "ai_team_dispatch";
+
+// Wave 172 (area 12 "Loop Engineering"): a terminal lifecycle_stage is the
+// real "this dispatch closed" touchpoint -- both the universal reflection
+// (task-reflection.ts) and the per-AI-Agent directory refresh
+// (agent-directory-service.ts) fire exactly here, once, regardless of which
+// of the two functions below reached the terminal stage.
+const TERMINAL_STAGES = new Set(["completed", "failed", "closed"]);
+
+export type RecordActivityInput = {
+  orgId: string;
+  clientId?: string;
+  userId?: string;
+  activityType: ActivityType;
+  lifecycleStage: "requested" | "classified" | "validated" | "executing" | "reviewing" | "completed" | "failed" | "closed";
+  objective?: string;
+  /** The AI Dev Team role_key (roster.ts) that executed this dispatch -- null when rejected before classification. */
+  roleKey?: string | null;
+  /** Wall-clock ms the caller measured for this dispatch. Only meaningful on a terminal-stage call. */
+  durationMs?: number | null;
+  /** The real guardrail/tier/validation message when lifecycleStage = 'failed'. */
+  errorReason?: string | null;
+  /** estimateCostUsd() output when usage + model pricing were available -- forwarded to the reflection row, not persisted as an activity_log column. */
+  costUsd?: number | null;
+  /** risk-classification.ts's classifyRisk() output, computed by the caller at dispatch time (Guardrail 10). */
+  riskLevel?: string | null;
+  /**
+   * GAP-MODEL-SCORECARD: model-tier-eligibility.ts's ComplexityTier the
+   * caller already validated via checkTierEligibility() before this call
+   * (Wave 163 / AGENTS.md Operating Rule 10) -- forwarded here so it's
+   * queryable per dispatch instead of discarded after the gate check.
+   * Optional/nullable because earlier failure branches (task-tightening
+   * rejection, unresolvable role) may not have a validated tier yet.
+   */
+  complexityTier?: string | null;
+  /**
+   * tree4-unified/50-completion-plan area 3, PLAN-16 item (f): the
+   * executing role's own structured self-report -- see schema.ts's
+   * self_assessment column comment (Wave 165), which named this shape but
+   * left it unpopulated until qa-precompletion-gate.ts's
+   * buildDispatchSelfAssessment() (called from the dispatch route) filled
+   * it in for real. A HandoverFields object in practice, kept as
+   * Record<string, unknown> here to match the column's own jsonb type and
+   * this file's existing PeerReviewInput.selfAssessment signature.
+   */
+  selfAssessment?: Record<string, unknown> | null;
+  /**
+   * VERIDIAN Review Framework gap-closure (2026-07-18), GP-09: a real
+   * numeric confidence score computed at DISPATCH time
+   * (dispatch-confidence-scoring.ts), not just an optional reviewer-supplied
+   * value at closure time (recordPeerReview, below). confidenceBand is
+   * confidence-banding.ts's bandConfidence() applied to the same number --
+   * both nullable/additive.
+   */
+  confidencePercentage?: number | null;
+  confidenceBand?: string | null;
+};
+
+/**
+ * Fire-and-forget by default -- callers that don't await the returned promise
+ * are unaffected, matching every existing call site. Returns the inserted
+ * row's id (or null on failure) so a caller that DOES need to reference this
+ * activity later -- e.g. the 'reviewing' stage write in the AI Team dispatch
+ * route, which needs the id to attach a peer review to -- can await it.
+ * Never throws into the caller -- a logging failure must never break the
+ * activity it's recording.
+ */
+export function recordActivity(params: RecordActivityInput): Promise<{ id: string } | null> {
+  return withTenantContext({ orgId: params.orgId, userId: params.userId }, async (db) => {
+    const [row] = await db.insert(activityLog).values({
+      orgId: params.orgId,
+      clientId: params.clientId ?? null,
+      userId: params.userId ?? null,
+      activityType: params.activityType,
+      lifecycleStage: params.lifecycleStage,
+      objective: params.objective ?? null,
+      roleKey: params.roleKey ?? null,
+      durationMs: params.durationMs ?? null,
+      errorReason: params.lifecycleStage === "failed" ? (params.errorReason ?? null) : null,
+      riskLevel: params.riskLevel ?? null,
+      complexityTier: params.complexityTier ?? null,
+      selfAssessment: params.selfAssessment ?? null,
+      confidencePercentage: params.confidencePercentage != null ? String(params.confidencePercentage) : null,
+      confidenceBand: params.confidenceBand ?? null,
+    }).returning({ id: activityLog.id });
+    if (row && TERMINAL_STAGES.has(params.lifecycleStage)) {
+      await runTaskReflection(db, {
+        orgId: params.orgId,
+        sourceType: "ai_team_dispatch",
+        sourceId: row.id,
+        roleKey: params.roleKey ?? null,
+        outcome: params.lifecycleStage === "failed" ? "failure" : "success",
+        summary: params.objective ?? null,
+        failureReason: params.errorReason ?? null,
+        elapsedMs: params.durationMs ?? null,
+        costUsd: params.costUsd ?? null,
+      });
+      if (params.roleKey) void refreshAgentDirectory(params.roleKey);
+    }
+    return row ?? null;
+  }).catch((err) => {
+    console.warn(`activity_log write failed for '${params.activityType}' (non-fatal):`, err);
+    return null;
+  });
+}
+
+/**
+ * Reads back the risk level (Guardrail 10) persisted on an activity_log row
+ * at dispatch time. Used by the closure-review route to feed audit-
+ * cadence.ts's classifyAuditCadence() -- the review request body itself
+ * must never be trusted for this, since a client-supplied riskLevel could
+ * be spoofed to dodge the critical-risk escalation gate in
+ * guardrail-registrations.ts's closureReviewCheck. Returns null on any
+ * failure (not found, or a logging-adjacent DB error) -- same fail-quiet
+ * posture as recordActivity's own catch, since a lookup failure here should
+ * degrade to "no extra risk-based gate applies," not crash the review.
+ */
+export function getActivityRiskLevel(orgId: string, activityLogId: string): Promise<RiskLevel | null> {
+  return withTenantContext({ orgId }, async (db) => {
+    const row = await db.query.activityLog.findFirst({
+      where: eq(activityLog.id, activityLogId),
+      columns: { riskLevel: true },
+    });
+    return (row?.riskLevel as RiskLevel | null) ?? null;
+  }).catch(() => null);
+}
+
+/**
+ * Reads back the self_assessment (HandoverFields-shaped, see
+ * buildDispatchSelfAssessment) persisted on an activity_log row --
+ * feeds the QA pre-completion gate (checkQaPreCompletionGate,
+ * qa-precompletion-gate.ts) at closure time, same fail-quiet-on-error
+ * posture as getActivityRiskLevel just above and the same reason: a
+ * client-supplied value could be spoofed to dodge the gate, so the
+ * review route must read this back from the row itself, not trust the
+ * request body.
+ */
+export function getActivitySelfAssessment(orgId: string, activityLogId: string): Promise<Record<string, unknown> | null> {
+  return withTenantContext({ orgId }, async (db) => {
+    const row = await db.query.activityLog.findFirst({
+      where: eq(activityLog.id, activityLogId),
+      columns: { selfAssessment: true },
+    });
+    return (row?.selfAssessment as Record<string, unknown> | null) ?? null;
+  }).catch(() => null);
+}
+
+export type PeerReviewInput = {
+  orgId: string;
+  activityLogId: string;
+  reviewedBy: string;
+  reviewNotes: string;
+  reviewDecision: "approved" | "rejected";
+  selfAssessment?: Record<string, unknown>;
+  /**
+   * 0-100 self-assessed confidence, when the reviewer supplied one --
+   * confidence-banding.ts's bandConfidence() input (Guardrail 9). The
+   * derived band is computed and persisted here so it's queryable, but the
+   * actual "escalation_required band can't just be approved" ENFORCEMENT
+   * happens earlier, in guardrail-registrations.ts's closureReviewCheck --
+   * by the time this function runs, that gate has already passed.
+   */
+  confidencePercentage?: number | null;
+  /**
+   * tree4-unified/50-completion-plan area 3, PLAN-16 item (f): a real,
+   * substantive justification the reviewer supplied because
+   * checkQaPreCompletionGate() (qa-precompletion-gate.ts) required one --
+   * the row's self_assessment.validationPassed was not "yes". Merged onto
+   * the persisted self_assessment permanently, alongside who overrode it
+   * and when, so an override is always a visible, permanent part of the
+   * record and never a silent bypass. Only meaningful when reviewDecision
+   * is "approved"; ignored otherwise (see review/route.ts, which only
+   * ever supplies it when the QA gate actually required it).
+   */
+  qaGateOverrideReason?: string | null;
+};
+
+export type PeerReviewResult =
+  | { recorded: true }
+  | { recorded: false; reason: "not_found" | "not_in_review" | "self_review_not_allowed" | "handover_not_submitted" };
+
+/**
+ * Records an independent reviewer's decision against a 'reviewing'-stage
+ * activity_log row and transitions it to 'completed' (approved) or 'failed'
+ * (rejected) -- the actual gate. Fails closed: an activity that isn't
+ * currently 'reviewing', or a reviewer identical to the original dispatcher,
+ * is rejected rather than silently accepted.
+ */
+export async function recordPeerReview(params: PeerReviewInput): Promise<PeerReviewResult> {
+  return withTenantContext({ orgId: params.orgId }, async (db) => {
+    const existing = await db.query.activityLog.findFirst({ where: eq(activityLog.id, params.activityLogId) });
+    if (!existing) return { recorded: false, reason: "not_found" as const };
+    if (existing.lifecycleStage !== "reviewing") return { recorded: false, reason: "not_in_review" as const };
+    if (existing.userId && existing.userId === params.reviewedBy) return { recorded: false, reason: "self_review_not_allowed" as const };
+
+    // tree4-unified/50-completion-plan area 3, PLAN-16 item (f): reuses
+    // handover-protocol.ts's decideAcceptance() directly -- the same
+    // fail-closed pure logic acceptHandover() itself uses for
+    // task_agent_executions rows -- rather than hand-rolling an
+    // equivalent check here. Only its 'not_submitted' branch is reachable
+    // in this context: 'not_found' can't fire (existing is already
+    // confirmed non-null above), 'already_accepted' can't fire (handoverAcceptedBy
+    // is always passed as null below -- this table has no separate
+    // acceptance column, reviewedBy/reviewDecision above already are the
+    // acceptance act), and 'self_acceptance_not_allowed' can't fire (the
+    // self_review_not_allowed check above already caught self-dealing
+    // using the same userId comparison). Kept as real defense-in-depth,
+    // not dead code -- if the checks above are ever reordered, this still
+    // fires correctly instead of silently no-op'ing.
+    if (params.reviewDecision === "approved") {
+      const handoverTaskStatus = ((existing.selfAssessment as Record<string, unknown> | null)?.taskStatus as string | undefined) ?? null;
+      const acceptance = decideAcceptance(
+        { handoverTaskStatus, handoverAcceptedBy: null, workerAgentId: existing.userId },
+        params.reviewedBy
+      );
+      if (!acceptance.accepted && acceptance.reason === "not_submitted") {
+        return { recorded: false, reason: "handover_not_submitted" as const };
+      }
+    }
+
+    const newStage = params.reviewDecision === "approved" ? "completed" : "failed";
+    const confidenceBand = params.confidencePercentage != null ? bandConfidence(params.confidencePercentage) : null;
+    // tree4-unified/50-completion-plan area 3, PLAN-16 item (f): when the
+    // QA pre-completion gate (checkQaPreCompletionGate, evaluated in
+    // review/route.ts before this function is ever called) required an
+    // explicit override to approve, that justification is merged onto
+    // whatever self_assessment ends up persisted -- on top of a
+    // reviewer-supplied selfAssessment if one was also given, never
+    // silently dropped -- so the override is always a permanent, visible
+    // part of the record, not just a one-time gate check that leaves no
+    // trace.
+    const resolvedSelfAssessment = params.qaGateOverrideReason
+      ? {
+          ...((params.selfAssessment ?? existing.selfAssessment ?? {}) as Record<string, unknown>),
+          qaGateOverrideReason: params.qaGateOverrideReason,
+          qaGateOverriddenBy: params.reviewedBy,
+          qaGateOverriddenAt: new Date().toISOString(),
+        }
+      : (params.selfAssessment ?? existing.selfAssessment);
+    await db.update(activityLog).set({
+      lifecycleStage: newStage,
+      reviewedBy: params.reviewedBy,
+      reviewNotes: params.reviewNotes,
+      reviewDecision: params.reviewDecision,
+      selfAssessment: resolvedSelfAssessment,
+      errorReason: newStage === "failed" ? params.reviewNotes : existing.errorReason,
+      confidencePercentage: params.confidencePercentage != null ? String(params.confidencePercentage) : existing.confidencePercentage,
+      confidenceBand: confidenceBand ?? existing.confidenceBand,
+      updatedAt: new Date(),
+    }).where(eq(activityLog.id, params.activityLogId));
+
+    // Wave 172: recordPeerReview is the SECOND real path to a terminal
+    // activity_log stage (recordActivity's own terminal-stage branch above
+    // covers the direct-completion path) -- reflection/directory-refresh
+    // fire here too, using the role_key already stored on the row from the
+    // original 'reviewing'-stage write.
+    await runTaskReflection(db, {
+      orgId: params.orgId,
+      sourceType: "ai_team_dispatch",
+      sourceId: existing.id,
+      roleKey: existing.roleKey,
+      outcome: newStage === "failed" ? "failure" : "success",
+      summary: existing.objective,
+      failureReason: newStage === "failed" ? params.reviewNotes : null,
+      elapsedMs: existing.durationMs,
+    });
+    if (existing.roleKey) void refreshAgentDirectory(existing.roleKey);
+
+    return { recorded: true as const };
+  });
+}
+
+// tree4-unified/50-completion-plan area 9 "Auditing", U-D15.B3.S1: the
+// Constitution's closing recommendation ("no task is ever considered
+// permanently complete... every completed task remains eligible for
+// re-audit whenever new evidence, changed requirements, production
+// incidents, architectural changes, or governance updates indicate the
+// original approval may no longer be valid" -- ai-os/audit-tree/
+// 02-audit-organization.yaml lines 363-367). Honest scope: this is the
+// FLAG + query surface, not an automatic detector. No code in this
+// codebase today observes "new evidence" or "changed requirements" as a
+// structured, machine-readable event it could react to on its own --
+// building a fake auto-trigger for that would be fabricating a feature
+// that doesn't exist. What's real and reachable right now: an explicit
+// admin flag (this function's caller, POST /api/ai/team/re-audit) and any
+// future caller that discovers a genuine post-closure signal (e.g. a
+// guardrail violation later found against an already-closed dispatch)
+// calling the same function -- wiring an automatic trigger to a specific
+// live signal is the follow-up, tracked in 04-implementation-log.yaml, not
+// invented here.
+const TERMINAL_STAGES_FOR_REAUDIT = new Set(["completed", "failed", "closed"]);
+
+export type ReAuditFlagResult =
+  | { flagged: true }
+  | { flagged: false; reason: "not_found" | "not_terminal" };
+
+/**
+ * Flags a previously-terminal activity_log row for re-audit. Fails closed:
+ * a row that doesn't exist, or one that hasn't actually reached a terminal
+ * lifecycle stage yet (re-auditing something still in flight is a
+ * contradiction in terms -- it isn't "re" anything), is rejected.
+ */
+export async function flagForReAudit(params: {
+  orgId: string;
+  activityLogId: string;
+  reason: string;
+  requestedBy: string;
+}): Promise<ReAuditFlagResult> {
+  return withTenantContext({ orgId: params.orgId }, async (db) => {
+    const existing = await db.query.activityLog.findFirst({ where: eq(activityLog.id, params.activityLogId) });
+    if (!existing) return { flagged: false, reason: "not_found" as const };
+    if (!TERMINAL_STAGES_FOR_REAUDIT.has(existing.lifecycleStage)) return { flagged: false, reason: "not_terminal" as const };
+
+    await db.update(activityLog).set({
+      reAuditRequestedAt: new Date(),
+      reAuditReason: params.reason,
+      reAuditRequestedBy: params.requestedBy,
+      updatedAt: new Date(),
+    }).where(eq(activityLog.id, params.activityLogId));
+
+    return { flagged: true as const };
+  });
+}
+
+/** Clears a re-audit flag once the re-audit has been performed and resolved. Idempotent -- clearing an already-clear row is a no-op, not an error. */
+export async function clearReAuditFlag(orgId: string, activityLogId: string): Promise<{ cleared: boolean }> {
+  return withTenantContext({ orgId }, async (db) => {
+    const result = await db.update(activityLog).set({
+      reAuditRequestedAt: null,
+      reAuditReason: null,
+      reAuditRequestedBy: null,
+      updatedAt: new Date(),
+    }).where(eq(activityLog.id, activityLogId)).returning({ id: activityLog.id });
+    return { cleared: result.length > 0 };
+  });
+}
+
+/** Lists every activity_log row currently flagged for re-audit in an org, most-recently-flagged first -- the query surface U-D15.B3.S1 requires ("eligible for re-audit" has to be discoverable, not just settable). */
+export function listReAuditFlagged(orgId: string) {
+  return withTenantContext({ orgId }, async (db) => {
+    return db.query.activityLog.findMany({
+      where: and(eq(activityLog.orgId, orgId), isNotNull(activityLog.reAuditRequestedAt)),
+      orderBy: desc(activityLog.reAuditRequestedAt),
+    });
+  });
+}
+
+// subagent/audit-lifecycle (tree4-unified/50-completion-plan Priority 2 item
+// 3, D15/U-D15.B1.S4 "L4 Executive Audit Review"): closes the real, live
+// gap found on direct verification of audit-cadence.ts's own L4 routing --
+// see schema.ts's executiveReviewedAt column comment for the full finding.
+// Deliberately mirrors flagForReAudit/clearReAuditFlag/listReAuditFlagged's
+// exact shape (a query + acknowledge surface, not a fabricated "Claude
+// autonomously reviewed and decided" report) -- L4's own named actions
+// (reassign/escalate/pause/approve/investigate) are judgment calls a human
+// or a real dispatched executive role makes, not something this function
+// invents. A row is "pending executive review" when its own already-real
+// riskLevel is 'high' or 'critical' (audit-cadence.ts's classifyAuditCadence
+// already computes requiresExecutiveEscalation for exactly these two, see
+// that module for why) AND it has reached a terminal lifecycle stage AND no
+// one has acknowledged it yet -- no new "needs L4" flag column was needed,
+// riskLevel is already the real signal.
+const EXECUTIVE_REVIEW_RISK_LEVELS = ["high", "critical"] as const;
+
+/** Lists every terminal activity_log row in an org whose riskLevel classifies it L4-escalation-worthy (audit-cadence.ts) and that has not yet been acknowledged at an Executive Audit Review -- most-urgent (critical) and oldest first, matching the source doc's own "review pending critical issues first" framing. */
+export function listPendingExecutiveEscalations(orgId: string) {
+  return withTenantContext({ orgId }, async (db) => {
+    return db.query.activityLog.findMany({
+      where: and(
+        eq(activityLog.orgId, orgId),
+        inArray(activityLog.riskLevel, [...EXECUTIVE_REVIEW_RISK_LEVELS]),
+        inArray(activityLog.lifecycleStage, ["completed", "failed", "closed"]),
+        isNull(activityLog.executiveReviewedAt),
+      ),
+      orderBy: [asc(activityLog.createdAt)],
+    });
+  });
+}
+
+export type AcknowledgeExecutiveEscalationResult =
+  | { acknowledged: true }
+  | { acknowledged: false; reason: "not_found" | "not_pending" };
+
+/**
+ * Records that a row surfaced at an Executive Audit Review has been looked
+ * at -- fails closed on a row that doesn't exist or isn't actually pending
+ * (already acknowledged, or never was high/critical risk in the first
+ * place), same discipline as flagForReAudit(). notes is required and
+ * becomes the permanent record of what the review concluded (reassign /
+ * escalate further / pause / approve / investigate further -- the actual
+ * decision text, not a rubber stamp).
+ */
+export async function acknowledgeExecutiveEscalation(params: {
+  orgId: string;
+  activityLogId: string;
+  reviewedBy: string;
+  notes: string;
+}): Promise<AcknowledgeExecutiveEscalationResult> {
+  return withTenantContext({ orgId: params.orgId }, async (db) => {
+    const existing = await db.query.activityLog.findFirst({ where: eq(activityLog.id, params.activityLogId) });
+    if (!existing) return { acknowledged: false, reason: "not_found" as const };
+    const isPending =
+      existing.riskLevel != null &&
+      (EXECUTIVE_REVIEW_RISK_LEVELS as readonly string[]).includes(existing.riskLevel) &&
+      TERMINAL_STAGES.has(existing.lifecycleStage) &&
+      existing.executiveReviewedAt == null;
+    if (!isPending) return { acknowledged: false, reason: "not_pending" as const };
+
+    await db.update(activityLog).set({
+      executiveReviewedAt: new Date(),
+      executiveReviewedBy: params.reviewedBy,
+      executiveReviewNotes: params.notes,
+      updatedAt: new Date(),
+    }).where(eq(activityLog.id, params.activityLogId));
+
+    return { acknowledged: true as const };
+  });
+}
+
+// Gap closure, 2026-07-13 (Boss directive, metadata/drift investigation):
+// confirmed by direct investigation that handover-protocol.ts's "no agent
+// may just say Done" enforcement only ever fires reactively, at the moment
+// something calls /api/ai/team/review -- there was no query anywhere that
+// could answer "which dispatches are CURRENTLY stuck right now," before a
+// human or another agent happens to try closing them out. lifecycleStage's
+// non-terminal values (requested/classified/validated/executing/reviewing)
+// were already real, persisted data; this just reads it. Deliberately
+// mirrors listReAuditFlagged/listPendingExecutiveEscalations' exact shape
+// (a plain query, oldest-first, no invented status) rather than adding a
+// new "stuck" flag column -- staleness is derived from updatedAt at query
+// time, not written anywhere, so it can never itself go stale.
+//
+// Scope, stated honestly: this only ever sees rows the formal
+// /api/ai/team/dispatch pipeline wrote to activity_log. It has no reach
+// into ad-hoc/conversational work (e.g. a chat session abandoning a task
+// mid-way) -- that work was never instrumented into activity_log at all,
+// which is a real, separate, larger gap (not attempted here).
+const NON_TERMINAL_STAGES = ["requested", "classified", "validated", "executing", "reviewing"] as const;
+
+/** Rows the formal AI Team dispatch pipeline itself has not moved to a terminal lifecycle stage for at least `staleAfterMs` since their last update -- oldest (most overdue) first. A non-empty result means something was dispatched and never finished, failed, or got closed out; nothing else in this codebase currently surfaces that on its own. */
+export function listStuckActivities(orgId: string, staleAfterMs: number) {
+  return withTenantContext({ orgId }, async (db) => {
+    const staleBefore = new Date(Date.now() - staleAfterMs);
+    return db.query.activityLog.findMany({
+      where: and(
+        eq(activityLog.orgId, orgId),
+        inArray(activityLog.lifecycleStage, [...NON_TERMINAL_STAGES]),
+        lt(activityLog.updatedAt, staleBefore),
+      ),
+      orderBy: [asc(activityLog.updatedAt)],
+    });
+  });
+}
+
+/**
+ * Real counts backing monitoring-engine.ts's computeGovernanceHealthScore --
+ * see that function's header for why these particular counts (independent-
+ * reviewer outcomes + re-audit flags, never an LLM self-grade) back
+ * Reasoning Quality/Dependency Health/Compliance. One aggregate query, same
+ * `count(*) filter (where ...)` style already used by agent-directory-
+ * service.ts's per-role stats. orgId required, same tenant-scoping posture
+ * as every other function in this file.
+ */
+export function getGovernanceHealthCounts(orgId: string): Promise<GovernanceHealthCounts> {
+  return withTenantContext({ orgId }, async (db) => {
+    const [row] = await db
+      .select({
+        totalTerminalCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} in ('completed', 'failed', 'closed'))::int`,
+        failedCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} = 'failed')::int`,
+        reviewedCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} in ('completed', 'failed', 'closed') and ${activityLog.reviewDecision} is not null)::int`,
+        approvedCount: sql<number>`count(*) filter (where ${activityLog.reviewDecision} = 'approved')::int`,
+        rejectedCount: sql<number>`count(*) filter (where ${activityLog.reviewDecision} = 'rejected')::int`,
+        reAuditFlaggedCount: sql<number>`count(*) filter (where ${activityLog.lifecycleStage} in ('completed', 'failed', 'closed') and ${activityLog.reAuditRequestedAt} is not null)::int`,
+      })
+      .from(activityLog)
+      .where(eq(activityLog.orgId, orgId));
+    return row;
+  });
+}

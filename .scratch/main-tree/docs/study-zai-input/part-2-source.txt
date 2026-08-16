@@ -1,0 +1,2497 @@
+Study 6
+VERIDIAN AI OS
+
+Engineering Specifications
+
+CSV 201
+Conversation Operating System (COS)
+
+CSV 202
+Conversation Knowledge Base (CKB)
+
+CSV 203
+Conversation Components Library (CCL)
+
+CSV 204
+Conversation Planning Engine (CPE)
+
+CSV 205
+Intent Recognition Engine (IRE)
+
+CSV 206
+Conversation State Machine (CSM)
+
+CSV 207
+Workflow Conversation Engine (WCE)
+
+CSV 208
+Conversation UI Engine (CUE)
+
+CSV 209
+Adaptive Conversation Engine (ACE)
+
+CSV 210
+Suggestion Engine (SE)
+
+CSV 211
+Approval Engine (AE)
+
+CSV 212
+Permission Engine (PE)
+
+CSV 213
+Clarification Engine (CLE)
+
+CSV 214
+Conversation Analytics Engine (CAE)
+
+CSV 215
+Conversation Optimization Engine (COE)
+
+CSV 216
+Token Utilization Engine (TUE)
+
+CSV 217
+Conversation Grammar Engine (CGE)
+
+CSV 218
+Conversation Memory Engine (CME)
+
+CSV 219
+Conversation Learning Engine (CLE)
+
+CSV 220
+Conversation Governance Engine (CGE)Study 7VERIDIAN Conversation OS Engineering SpecificationStudy 8Excellent. I think this is the right approach.
+I also want to slightly change the methodology before we start.
+Instead of writing prompts, we'll write Engineering Specifications.
+Every AI coding model (Claude Code, Codex, Cursor, Gemini CLI, Windsurf, etc.) can understand them.
+So every CSV will contain:
+🎯 Vision
+🧠 Philosophy
+📐 Architecture
+📊 Data Model
+🔄 State Machine
+⚙️ Algorithms
+🤖 Worker Agents
+🧩 Components
+🖥 UI Components
+🔌 APIs
+🗄 Database
+🧪 Testing
+📈 KPIs
+💰 Token Optimization
+🚀 AI Coding Instructions
+That is much more powerful than prompts.
+
+VERIDIAN AI OS Engineering Standard
+CSV 201
+Conversation Operating System (COS)
+Version 1.0
+
+1. Vision
+The Conversation Operating System (COS) is the primary interaction layer between humans and VERIDIAN AI OS.
+Unlike conventional chatbots, COS is not a Large Language Model interface.
+COS is a deterministic software platform responsible for:
+Managing conversations.
+Reducing user effort.
+Reducing typing.
+Reducing ambiguity.
+Reducing cognitive load.
+Reducing token utilization.
+Increasing automation.
+Guiding business workflows.
+Making the user feel in complete control.
+The Large Language Model is only one service inside COS.
+It is never the operating system.
+
+2. Philosophy
+Human First
+VERI behaves like an experienced colleague.
+Never like a chatbot.
+
+Software First
+If software can answer,
+Software answers.
+Never use AI.
+
+AI Last
+Use AI only when
+reasoning
+creativity
+summarization
+language understanding
+is actually required.
+
+Guided Conversation
+The user should never wonder
+"What should I type?"
+VERI should guide them.
+
+Click Before Typing
+Always prefer
+Buttons
+Menus
+Cards
+Tables
+Forms
+Selection
+Autocomplete
+instead of typing.
+
+Human In Control
+VERI never makes critical business decisions silently.
+Always ask.
+
+Transparency
+Every recommendation must explain
+Why
+Impact
+Confidence
+Risk
+
+3. Objectives
+COS exists to
+Reduce Tokens
+Reduce Time
+Reduce Errors
+Reduce Thinking
+Reduce Typing
+Increase Productivity
+Increase Automation
+Increase Trust
+Increase Predictability
+Increase Explainability
+
+4. Design Principles
+Every conversation should satisfy
+✔ Minimal typing
+✔ Minimal thinking
+✔ Minimal ambiguity
+✔ Minimal token usage
+✔ Maximum guidance
+✔ Maximum confidence
+✔ Maximum automation
+
+5. Core Rule
+Never ask the user
+for information
+
+if VERIDIAN already knows it.
+Example
+Wrong
+"What is your company name?"
+Correct
+"I'll create the project for Tryout Technologies."
+
+6. Core Architecture
+Human
+
+↓
+
+Conversation UI
+
+↓
+
+Conversation Planner
+
+↓
+
+Intent Engine
+
+↓
+
+Decision Engine
+
+↓
+
+Workflow Engine
+
+↓
+
+Software Engine
+
+↓
+
+Need AI?
+
+↓
+
+No → Execute
+
+↓
+
+Yes
+
+↓
+
+LLM Gateway
+
+↓
+
+Worker Agent
+
+↓
+
+Response Renderer
+
+↓
+
+User
+
+7. Primary Components
+Conversation Planner
+Determines
+Next Question
+Next Action
+Next Suggestion
+
+Intent Engine
+Converts
+Language
+into
+Business Intent
+
+Workflow Engine
+Matches
+Intent
+to
+Business Workflow
+
+Decision Engine
+Determines
+Software
+or
+LLM
+
+Conversation Renderer
+Creates
+Cards
+Buttons
+Forms
+Dialogs
+Messages
+
+Conversation Memory
+Tracks
+Current State
+Missing Fields
+Completed Fields
+Approvals
+Workflow Progress
+
+Conversation Knowledge Base
+Stores
+Reusable conversations
+Templates
+Components
+Messages
+Approvals
+Suggestions
+
+LLM Gateway
+Calls
+Frontier Models
+Small Models
+Reasoning Models
+only if required.
+
+8. Golden Rule
+LLM is NOT allowed to directly talk to the user.
+Instead
+LLM returns
+Structured Data.
+Example
+Intent
+
+CreateInvoice
+
+MissingFields
+
+Vendor
+
+Items
+
+GST
+
+RecommendedNextAction
+
+SearchVendor
+COS converts it into UI.
+
+9. Conversation Objects
+Every conversation consists of
+Conversation
+↓
+Step
+↓
+Action
+↓
+Response
+↓
+UI Component
+↓
+Workflow
+↓
+Decision
+↓
+Validation
+↓
+Completion
+
+10. Conversation States
+Idle
+Greeting
+Intent Detection
+Information Collection
+Validation
+Decision
+Approval
+Execution
+Monitoring
+Completion
+Suggestions
+End
+Every workflow uses these states.
+
+11. Software vs AI Decision Matrix
+Always Software
+Navigation
+Forms
+Buttons
+CRUD
+Calculations
+Workflow
+Permissions
+Notifications
+Search
+Filtering
+Sorting
+Approval Flow
+Reports
+Dashboards
+Charts
+Data Validation
+Dates
+GST
+Accounting Logic
+Payroll Logic
+Inventory Logic
+Always AI
+Writing
+Reasoning
+Summarization
+Translation
+Negotiation
+Explanation
+Unknown Requests
+Brainstorming
+Document Analysis
+Risk Analysis
+Decision Support
+
+12. Conversation Principles
+Never ask
+"What do you want?"
+Instead
+Show likely actions.
+Never ask
+"Explain more."
+Instead
+Ask one specific question.
+Never ask
+"Type details."
+Instead
+Show
+Dropdown
+Autocomplete
+Buttons
+Cards
+
+13. User Experience Rules
+Maximum
+3–5 options per decision.
+One question at a time.
+Never overwhelm.
+Always predict next step.
+Always remember previous choices.
+Always explain recommendations.
+
+14. Token Utilization Rules
+Never send
+Greetings
+Politeness
+Repeated Context
+Repeated Policies
+Repeated History
+Instead
+Use
+IDs
+Context References
+Knowledge Objects
+Templates
+Workflow IDs
+Conversation IDs
+
+15. Conversation Metrics
+Measure
+Average Tokens
+Average Typing
+Average Clicks
+Workflow Completion Time
+Conversation Completion Rate
+LLM Calls
+Software Responses
+User Satisfaction
+Automation %
+Approval %
+Prediction Accuracy
+
+16. Worker Agents
+Conversation Planner Agent
+Intent Agent
+Clarification Agent
+Suggestion Agent
+Approval Agent
+Permission Agent
+Prediction Agent
+Conversation Analytics Agent
+Conversation Learning Agent
+Conversation Testing Agent
+
+17. Engineering Principle
+Every sentence spoken by VERI should belong to one of these categories:
+Greeting
+Acknowledgement
+Question
+Clarification
+Suggestion
+Recommendation
+Warning
+Error
+Approval
+Permission
+Information
+Summary
+Completion
+Next Action
+Help
+No random conversational text should be generated if an approved template exists.
+
+18. Success Criteria
+A mature Conversation Operating System should achieve:
+90–98% of interactions completed without requiring an LLM.
+80%+ of user actions completed through guided UI (buttons, cards, forms, selections).
+Significant reduction in average tokens per completed workflow compared to free-form chat.
+Consistent conversational style across all modules and industries.
+High user confidence because VERI explains recommendations and always seeks approval for impactful actions.
+
+AI Coding Implementation Directive
+Implement the Conversation Operating System as an independent platform service rather than embedding conversational logic inside individual ERP modules.
+All business modules (Construction, Accounting, HR, CRM, Compliance, etc.) must communicate with COS through well-defined interfaces. COS owns conversation planning, state management, UI composition, template selection, and LLM orchestration. Business modules provide structured intents, business rules, workflow definitions, and data; they do not generate conversational text themselves.
+This separation ensures that every module benefits from the same conversational behavior, token optimization strategy, governance rules, and user experience.
+
+This completes CSV 201 – Conversation Operating System (COS).
+For CSV 202, we'll design the Conversation Knowledge Base (CKB)—the repository of reusable conversation assets, templates, components, variables, localization rules, and versioning that enables VERI to "speak" consistently while minimizing LLM usage. I consider that document the foundation for reducing token consumption across the entire platform.
+Study 9Excellent. This is the most important document after CSV 201.
+I actually think CSV 202 (Conversation Knowledge Base) will become the heart of VERI's personality. Every sentence, suggestion, approval, warning, help message, workflow dialogue, and coaching message originates here. If implemented correctly, 80–95% of VERI's conversations can be generated without an LLM, significantly reducing token consumption while maintaining consistency.
+
+VERIDIAN AI OS Engineering Standard
+CSV 202
+Conversation Knowledge Base (CKB)
+Version 1.0
+
+1. Vision
+The Conversation Knowledge Base (CKB) is the master repository of all reusable conversational assets used by VERIDIAN AI OS.
+It serves as the linguistic and interaction foundation for VERI.
+CKB ensures that:
+VERI speaks consistently.
+Business conversations are deterministic.
+Tokens are minimized.
+User experience is standardized.
+Conversation quality continuously improves.
+New modules automatically inherit a professional conversational interface.
+The CKB is software-driven and should be considered a first-class platform service.
+
+2. Philosophy
+Conversation is an Asset
+Every high-quality conversation created by VERI becomes a reusable knowledge object.
+Never regenerate what already exists.
+
+Reuse Before Generate
+Before invoking an LLM:
+Search CKB.
+Search Workflow Library.
+Search Industry Pack.
+Search Conversation Components.
+Only then invoke AI.
+
+Structured over Free Text
+Every conversation should be assembled from reusable components.
+Not generated from scratch.
+
+3. Primary Objectives
+CKB exists to:
+Minimize LLM usage
+Standardize communication
+Reduce token utilization
+Improve response speed
+Support localization
+Enable continuous improvement
+Support enterprise governance
+
+4. Core Architecture
+Conversation Request
+
+↓
+
+Intent
+
+↓
+
+Workflow
+
+↓
+
+Conversation Planner
+
+↓
+
+Conversation Knowledge Base
+
+↓
+
+Conversation Components
+
+↓
+
+Template Engine
+
+↓
+
+Variable Injection
+
+↓
+
+Rendered Response
+LLM is not involved unless no suitable template exists.
+
+5. Knowledge Hierarchy
+The CKB should be organized into six layers.
+Layer 1
+Micro Components
+Examples
+Yes
+No
+Continue
+Done
+Saved
+Success
+Error
+Loading
+Retry
+
+Layer 2
+Conversation Blocks
+Examples
+Greeting
+Confirmation
+Acknowledgement
+Clarification
+Validation
+Suggestion
+Approval
+Completion
+Reminder
+Information
+Error
+Warning
+Permission
+
+Layer 3
+Workflow Dialogues
+Example
+Project Creation
+↓
+Client Selection
+↓
+Budget
+↓
+Save
+↓
+Recommendations
+
+Layer 4
+Industry Packs
+Construction
+Accounting
+HR
+Payroll
+CRM
+Inventory
+Compliance
+Healthcare
+Legal
+Education
+Manufacturing
+Hospitality
+Retail
+Each industry has its own conversation library.
+
+Layer 5
+Role Packs
+CEO
+Project Manager
+Site Engineer
+Accountant
+Auditor
+HR
+Sales
+Procurement
+Admin
+Different users receive different wording.
+
+Layer 6
+Workspace Packs
+Company-specific language.
+Example
+Company may prefer
+Customer
+instead of
+Client
+
+6. Conversation Categories
+Every sentence belongs to one category.
+Greeting
+Acknowledgement
+Information
+Clarification
+Question
+Suggestion
+Recommendation
+Approval
+Permission
+Validation
+Confirmation
+Success
+Warning
+Error
+Summary
+Progress
+Completion
+Next Action
+Reminder
+Notification
+Coaching
+Help
+Escalation
+Learning
+Celebration
+
+7. Conversation Object
+Every conversation is an object.
+Example
+ConversationID
+
+Category
+
+Industry
+
+Workflow
+
+Role
+
+Priority
+
+Language
+
+Tone
+
+Variables
+
+Buttons
+
+Icons
+
+Required Permissions
+
+Related Workflow
+
+Version
+
+Status
+
+Created By
+
+Updated By
+
+8. Conversation Variables
+Templates never contain hardcoded values.
+Example
+Hello {UserName}
+
+Project {ProjectName}
+
+Invoice {InvoiceNumber}
+
+Vendor {VendorName}
+
+Amount {Currency}{Amount}
+Variables are injected by software.
+
+9. Conversation Components
+Every message is assembled from components.
+Example
+Greeting
+↓
+Acknowledgement
+↓
+Information
+↓
+Question
+↓
+Suggestion
+↓
+Buttons
+↓
+Footer
+Like React Components.
+
+10. Conversation IDs
+Every reusable response receives a permanent ID.
+Example
+MSG-000001
+
+Project created successfully.
+MSG-000002
+
+Invoice approved.
+MSG-000003
+
+Vendor already exists.
+Never duplicate.
+
+11. Versioning
+Every template has versions.
+Version 1
+Version 2
+Version 3
+Measure
+Completion Rate
+Token Usage
+User Rating
+Time Saved
+The best version becomes default.
+
+12. Localization
+Every message supports
+Language
+Region
+Date Format
+Currency
+Number Format
+Business Terminology
+Formal
+Informal
+Professional
+
+13. Adaptive Conversation
+Same workflow.
+Different users.
+Example
+Site Engineer
+Upload Drawings
+CEO
+Construction drawings are pending.
+Would you like me to remind the Site Engineer?
+Different templates.
+Same workflow.
+
+14. Dynamic Assembly
+VERI should assemble conversations.
+Instead of storing
+Project created successfully.
+
+Would you like to upload BOQ?
+
+Would you like to invite team?
+
+Would you like to schedule kickoff?
+Store
+Success
+
+Recommendation
+
+Action Card
+
+Buttons
+Software assembles them.
+
+15. Conversation Search
+CKB should support searching by:
+Intent
+Workflow
+Industry
+Role
+Language
+Keywords
+Variables
+Permissions
+Context
+Confidence
+Usage Frequency
+
+16. Conversation Quality Score
+Every template receives scores.
+Clarity
+Professionalism
+Reading Time
+Completion Rate
+Token Efficiency
+User Satisfaction
+Automation Rate
+Consistency
+Top-scoring templates become preferred.
+
+17. Learning Engine
+Whenever users modify AI-generated conversations:
+Store
+Original
+↓
+Edited
+↓
+Compare
+↓
+Extract Improvement
+↓
+Suggest New Template
+↓
+Human Review
+↓
+Publish
+The library evolves continuously.
+
+18. Retirement Policy
+Unused templates.
+Low-rated templates.
+Duplicate templates.
+Outdated terminology.
+Deprecated workflows.
+Automatically marked for review.
+Never delete immediately.
+Archive first.
+
+19. Analytics
+Track
+Most Used Templates
+Least Used Templates
+Frequently Edited Templates
+Highest Completion Templates
+Lowest Completion Templates
+Industry Usage
+Language Usage
+Average Reading Time
+Average Click Rate
+Average Tokens Saved
+
+20. Conversation Governance
+Every template requires
+Owner
+Reviewer
+Approval Status
+Effective Date
+Expiration Date
+Compliance Tags
+Audit Trail
+No anonymous modifications.
+
+21. AI Integration Rules
+Before any LLM call:
+Search CKB.
+If confidence &gt; 95%
+Use template.
+No AI.
+If confidence between 70–95%
+Use template with minor variable substitution or optional phrasing.
+If confidence &lt; 70%
+Use LLM.
+If LLM generates a response with high reuse potential:
+Queue it for review and possible inclusion in CKB.
+
+22. Worker Agents
+CKB Manager
+Template Builder
+Conversation Search Agent
+Localization Agent
+Quality Scoring Agent
+Analytics Agent
+Duplicate Detection Agent
+Version Manager
+Learning Agent
+Conversation Reviewer
+Template Optimizer
+Industry Pack Manager
+
+23. Database Design
+Primary Tables
+ConversationTemplates
+ConversationBlocks
+ConversationComponents
+ConversationVariables
+IndustryTemplates
+RoleTemplates
+WorkspaceTemplates
+TemplateVersions
+TemplateAnalytics
+Localization
+LearningQueue
+TemplateRatings
+TemplateApprovals
+ConversationAudit
+TemplateRelationships
+
+24. KPIs
+The CKB should be measured by:
+Template Reuse Rate
+Average Response Assembly Time
+Percentage of Responses Served Without LLM
+Token Savings per Conversation
+Average User Clicks to Complete Workflow
+Conversation Completion Rate
+Template Edit Frequency
+Localization Coverage
+User Satisfaction
+Recommendation Acceptance Rate
+
+25. AI Coding Implementation Directive
+Implement the Conversation Knowledge Base as a platform-level service, not as a collection of hardcoded strings inside modules.
+Every conversational element must be addressable by a stable identifier, versioned, searchable, localizable, and composable. Modules request conversation objects by intent, workflow, and context; the CKB returns structured components that the Conversation Operating System assembles into the final experience.
+The CKB should support continuous growth through governance. New templates generated by AI are never published directly—they enter a review pipeline where they are evaluated for quality, duplication, compliance, and reusability before becoming part of the permanent library.
+
+Engineering Insight (New Principle)
+I recommend introducing a new concept unique to VERIDIAN:
+Conversation Asset Engineering (CAE)
+A conversation is not treated as generated text. It is treated as a business asset, similar to code, APIs, workflows, or database schemas.
+Every conversation should have:
+A unique ID
+Metadata
+Version history
+Owner
+Usage analytics
+Quality score
+Localization support
+Industry applicability
+Lifecycle management
+Governance and approvals
+By treating conversations as managed assets rather than ephemeral AI outputs, VERIDIAN can deliver a consistent user experience while dramatically reducing token consumption and creating a self-improving conversational platform. This philosophy will also make it much easier to maintain quality across hundreds of ERP modules and multiple industries as the platform grows.
+Next Document: CSV 203 – Conversation Components Library (CCL), where we will define every reusable conversational building block (micro-messages, action cards, buttons, forms, approval dialogs, suggestion cards, notifications, and interaction patterns) that the Conversation Knowledge Base assembles into complete conversations. This will become the UI and conversational "design system" for VERI.
+
+Study 10Excellent. I believe CSV 203 is where VERIDIAN starts becoming fundamentally different from every chatbot and ERP on the market.
+Most AI systems generate paragraphs.
+VERI should assemble conversations the way React assembles UI.
+That is the philosophy behind CSV 203.
+
+VERIDIAN AI OS Engineering Standard
+CSV 203
+Conversation Components Library (CCL)
+Version 1.0
+
+1. Vision
+The Conversation Components Library (CCL) is the UI Framework for every conversation inside VERIDIAN AI OS.
+Just as React has:
+Button
+Card
+Dialog
+Modal
+Form
+VERI has:
+Greeting
+Question
+Suggestion
+Approval
+Clarification
+Recommendation
+Completion
+Next Action
+A conversation is never generated.
+It is assembled.
+
+2. Philosophy
+Never generate a sentence if a reusable component exists.
+Never create a workflow conversation if reusable blocks can build it.
+Think in Components.
+Never in paragraphs.
+
+3. Architecture
+User
+
+↓
+
+Conversation Planner
+
+↓
+
+Component Selector
+
+↓
+
+Conversation Components
+
+↓
+
+Conversation Builder
+
+↓
+
+UI Renderer
+
+↓
+
+User
+LLM is never involved here.
+
+4. Component Hierarchy
+Component
+
+↓
+
+Block
+
+↓
+
+Card
+
+↓
+
+Screen
+
+↓
+
+Conversation
+
+↓
+
+Workflow
+Everything builds upward.
+
+5. Atomic Components
+These cannot be divided further.
+Examples
+Greeting
+Acknowledgement
+Separator
+Label
+Button
+Icon
+Emoji
+Badge
+Chip
+Counter
+Avatar
+Status
+Timestamp
+Progress
+Tag
+Tooltip
+Variables
+
+6. Conversation Components
+Every conversation uses combinations of these.
+Greeting
+Question
+Clarification
+Confirmation
+Approval
+Suggestion
+Recommendation
+Information
+Validation
+Warning
+Error
+Success
+Progress
+Summary
+Next Step
+Help
+Permission
+Escalation
+Learning
+Celebration
+Goodbye
+
+7. UI Components
+VERI should talk visually.
+Instead of
+"Please type."
+Use
+Search Box
+Dropdown
+Autocomplete
+Checkbox
+Radio Button
+Date Picker
+Calendar
+Upload
+Drawing Canvas
+Voice Input
+Microphone
+QR Scanner
+Signature Pad
+Location Picker
+Map
+Timeline
+Kanban
+Table
+Charts
+Cards
+
+8. Decision Components
+Every business decision uses standardized cards.
+Decision Card
+Contains
+Title
+Reason
+Impact
+Risk
+Confidence
+Recommendation
+Buttons
+
+Approval Card
+Contains
+What
+Why
+Impact
+Approver
+Buttons
+
+Suggestion Card
+Contains
+Recommendation
+Benefits
+Time Saved
+Money Saved
+Automation %
+
+9. Information Components
+Status Card
+Progress Card
+Summary Card
+Notification Card
+Reminder Card
+Task Card
+Meeting Card
+Invoice Card
+Vendor Card
+Project Card
+Employee Card
+Document Card
+
+10. Question Components
+Never ask free text if avoidable.
+Preferred
+Buttons
+↓
+Dropdown
+↓
+Search
+↓
+Autocomplete
+↓
+Voice
+↓
+Text
+Free Text is the last option.
+
+11. Form Components
+Progressive Forms.
+Maximum one logical question at a time.
+Never show huge forms.
+Instead
+Project Name
+
+↓
+
+Client
+
+↓
+
+Budget
+
+↓
+
+Dates
+
+↓
+
+Summary
+
+12. Action Components
+Every workflow should suggest actions.
+Examples
+Create
+Approve
+Reject
+Review
+Assign
+Escalate
+Notify
+Download
+Export
+Duplicate
+Merge
+Delete
+Archive
+Compare
+Explain
+Ask AI
+Run Workflow
+
+13. Navigation Components
+Breadcrumb
+Recent Items
+Favorites
+Quick Actions
+Recent Searches
+Pinned Workflows
+Suggested Workflows
+History
+Bookmarks
+
+14. Learning Components
+VERI continuously learns.
+Learning Card
+Contains
+Observation
+Pattern
+Confidence
+Recommendation
+Approve
+Reject
+Never Ask Again
+
+15. AI Components
+LLM Output should never directly reach users.
+Convert into components.
+Example
+Instead of
+Here's my analysis...
+Return
+Analysis Card
+Confidence Card
+Evidence Card
+Recommendation Card
+Risk Card
+Buttons
+
+16. Conversation Grammar
+Every conversation follows
+Greeting
+
+↓
+
+Acknowledgement
+
+↓
+
+Context
+
+↓
+
+Question
+
+↓
+
+Validation
+
+↓
+
+Decision
+
+↓
+
+Execution
+
+↓
+
+Summary
+
+↓
+
+Recommendation
+
+↓
+
+Next Action
+No random ordering.
+
+17. Visual Priority
+Always
+Buttons
+Cards
+Icons
+Progress
+Tables
+Lists
+Charts
+Text
+Long Paragraphs
+Last.
+
+18. Component Metadata
+Every component stores
+Component ID
+Category
+Industry
+Workflow
+Role
+Language
+Permissions
+Variables
+Dependencies
+Usage
+Version
+Analytics
+
+19. Component Relationships
+Components know
+Parent
+Children
+Alternatives
+Compatible Components
+Required Components
+Optional Components
+Never assemble invalid conversations.
+
+20. Conversation Builder Engine
+Builder selects
+Greeting
+↓
+Acknowledgement
+↓
+Question
+↓
+Validation
+↓
+Buttons
+↓
+Summary
+↓
+Recommendation
+↓
+Next Step
+Automatically.
+
+21. Adaptive Components
+CEO
+Shows
+Business KPIs
+Site Engineer
+Shows
+Technical Actions
+Accountant
+Shows
+Financial Details
+Same workflow.
+Different components.
+
+22. Component Analytics
+Track
+Usage
+Click Rate
+Completion
+Abandonment
+Time
+Errors
+User Satisfaction
+LLM Savings
+Token Savings
+
+23. Component Versioning
+Version
+1
+↓
+2
+↓
+3
+A/B Test
+↓
+Winner becomes Default
+
+24. Component Marketplace
+Every new module contributes components.
+Construction
+adds
+BOQ Card
+Drawing Card
+Inspection Card
+Accounting
+adds
+GST Card
+Invoice Card
+Ledger Card
+Payroll
+adds
+Attendance Card
+Salary Card
+Leave Card
+Everything becomes reusable.
+
+25. Component Categories
+Eventually CCL should contain 5,000–20,000 reusable components grouped into categories such as:
+Greetings
+Questions
+Clarifications
+Confirmations
+Approvals
+Suggestions
+Recommendations
+Alerts
+Notifications
+Error States
+Empty States
+Progress Indicators
+Summary Cards
+Comparison Cards
+Risk Cards
+Cost Cards
+Timeline Cards
+Workflow Cards
+Knowledge Cards
+AI Insight Cards
+Dashboards
+Micro-animations
+Smart Forms
+Action Menus
+Multi-step Wizards
+Command Palette Components
+Every module should compose these rather than inventing new UI or conversational patterns.
+
+26. Conversation Rendering Rules
+The renderer must follow these priorities:
+Prefer existing components over generating new text.
+Prefer structured interaction over free-text input.
+Prefer single-purpose components over large mixed cards.
+Assemble conversations from reusable pieces.
+Preserve a consistent VERI personality across all modules.
+Only invoke an LLM to generate new conversational content if no suitable component combination can satisfy the interaction.
+
+27. Worker Agents
+The Conversation Components Library should be managed by specialized worker agents:
+Component Registry Agent
+Component Builder Agent
+Component Composer Agent
+Conversation Renderer Agent
+UI Adaptation Agent
+Accessibility Agent
+Localization Agent
+Analytics Agent
+A/B Testing Agent
+Component Quality Agent
+Component Recommendation Agent
+Component Governance Agent
+
+28. Database Design
+Primary collections/tables:
+ConversationComponents
+ComponentCategories
+ComponentGroups
+ComponentVariants
+ComponentVariables
+ComponentLayouts
+ComponentThemes
+ComponentPermissions
+ComponentAnalytics
+ComponentDependencies
+ComponentRelationships
+ComponentLocalization
+ComponentVersionHistory
+ComponentUsageLogs
+ComponentRatings
+
+29. KPIs
+Success should be measured by:
+Component Reuse Rate
+Average Components per Conversation
+LLM-Free Conversation Percentage
+Average Token Savings
+Click-to-Type Ratio
+Workflow Completion Rate
+Conversation Consistency Score
+Accessibility Compliance
+Localization Coverage
+User Satisfaction
+Time to Complete Common Tasks
+
+30. AI Coding Implementation Directive
+Implement the Conversation Components Library as a platform-wide design system for conversations, analogous to a UI component framework.
+Business modules must never hardcode conversational text or interaction flows. Instead, they request components and provide structured business data. The Conversation Operating System assembles those components into complete interactions, ensuring consistency, reusability, accessibility, localization, analytics, and governance.
+Every new module added to VERIDIAN must contribute reusable conversation components back to the library, allowing the platform to grow richer over time rather than duplicating interaction patterns.
+
+VERIDIAN Innovation Proposal
+I believe VERIDIAN should introduce a concept I haven't seen formalized in enterprise AI platforms:
+Conversational Design System (CDS)
+Just as design systems like Material Design or Ant Design define reusable UI components, the CDS defines reusable conversation components.
+It consists of:
+Conversation Operating System (CSV 201) – The orchestration layer.
+Conversation Knowledge Base (CSV 202) – The repository of conversational assets.
+Conversation Components Library (CSV 203) – The reusable building blocks.
+Conversation Builder – The assembler.
+Conversation Renderer – The presentation layer.
+Conversation Analytics – Continuous measurement and optimization.
+Together, these layers let VERI deliver a guided, human-like experience while relying primarily on deterministic software. This approach minimizes token consumption, keeps conversations consistent across all ERP modules, and allows the platform to evolve by adding new reusable components instead of repeatedly generating text. I think this architecture could become one of VERIDIAN's defining technical differentiators.
+Next: CSV 204 – Conversation Planning Engine (CPE). This is the "brain" that decides what VERI should say next, whether to ask a question or show options, whether to invoke software or an LLM, and how to keep the user moving efficiently through a workflow. I consider it the intelligence layer that orchestrates the entire conversational experience.
+Study 11
+Excellent. CSV 205 is where VERI begins to "understand" rather than simply "chat."
+I would actually rename this subsystem from Intent Recognition Engine to Intent Intelligence Engine (IIE) because recognition alone is not enough. VERI must infer, predict, validate, and evolve user intent over time.
+This engine is arguably the most important for reducing token consumption because every correctly recognized intent avoids unnecessary conversation and LLM calls.
+
+VERIDIAN AI OS Engineering Standard
+CSV 205
+Intent Intelligence Engine (IIE)
+Version 1.0
+
+1. Vision
+The Intent Intelligence Engine (IIE) is responsible for understanding what the user is trying to accomplish, not merely what the user typed.
+VERI should think like an experienced operations manager:
+"I know what you're trying to achieve."
+The engine converts natural language, UI interactions, voice commands, workflow context, and historical behavior into structured business intents.
+
+2. Philosophy
+Intent is the destination.
+Language is only one way of expressing it.
+Never optimize for words.
+Always optimize for user goals.
+
+3. Primary Objectives
+IIE exists to:
+Minimize typing
+Minimize ambiguity
+Minimize clarification questions
+Minimize LLM usage
+Predict next actions
+Drive workflows automatically
+Standardize intent representation
+Learn from user behavior
+
+4. Core Architecture
+User
+
+↓
+
+Input Collector
+
+↓
+
+Intent Intelligence Engine
+
+↓
+
+Confidence Engine
+
+↓
+
+Workflow Resolver
+
+↓
+
+Software Decision Engine
+
+↓
+
+Need LLM?
+
+↓
+
+No → Execute
+
+↓
+
+Yes
+
+↓
+
+LLM Gateway
+
+↓
+
+Conversation Operating System
+
+5. Intent Sources
+IIE should not rely only on text.
+Intent can come from:
+Natural language
+Button clicks
+Menu selections
+Keyboard shortcuts
+Voice
+Document uploads
+Email
+Calendar events
+Workflow context
+Current screen
+Project stage
+User role
+Previous activity
+Enterprise policies
+Historical patterns
+Sensors (future)
+IoT events (future)
+
+6. Intent Levels
+Every intent has levels.
+Level 1
+Raw Input
+Example
+Create invoice
+
+Level 2
+Normalized Intent
+Create Invoice
+
+Level 3
+Business Intent
+Create Customer Invoice
+
+Level 4
+Workflow Intent
+Accounts Receivable
+↓
+Invoice Creation
+↓
+Approval Workflow
+
+Level 5
+Execution Intent
+Worker Agent
+Database
+Permissions
+Notifications
+
+7. Intent Object
+Every detected intent becomes an object.
+Example
+{
+  "intentId": "INT-000231",
+  "name": "CreateProject",
+  "category": "Construction",
+  "workflow": "Project Creation",
+  "confidence": 0.98,
+  "priority": "High",
+  "requiredData": [
+    "Project Name",
+    "Client"
+  ],
+  "nextActions": [],
+  "permissions": [],
+  "version": 1
+}
+
+8. Intent Taxonomy
+All intents belong to categories.
+Navigation
+CRUD
+Workflow
+Approval
+Review
+Analysis
+Reporting
+Search
+Calculation
+Communication
+Learning
+Planning
+Automation
+Compliance
+Monitoring
+Prediction
+Decision Support
+Configuration
+Administration
+Integration
+AI Assistance
+
+9. Confidence Engine
+Every intent has confidence.
+Above 98%
+Execute directly.
+95–98%
+Confirm silently if needed.
+80–95%
+Ask one clarification.
+Below 80%
+Use Conversation Planner.
+Below 60%
+Escalate to LLM.
+
+10. Multi-Intent Detection
+Users often ask for several things.
+Example
+Create project, assign John, upload BOQ and notify finance.
+IIE should split this into:
+Create Project
+Assign User
+Upload Document
+Notify Finance
+Each becomes an independent executable intent.
+
+11. Context Awareness
+Intent depends on context.
+Example
+User types
+Approve
+Current Screen
+Invoice
+↓
+Approve Invoice
+Current Screen
+Leave Application
+↓
+Approve Leave
+Never ask unnecessary questions.
+
+12. Intent Prediction
+IIE should predict the next likely intent.
+Example
+Project Created
+↓
+Invite Team
+↓
+Upload BOQ
+↓
+Create Tasks
+↓
+Schedule Kickoff
+Present as options before the user asks.
+
+13. Intent Memory
+Remember:
+Frequently used workflows
+Favorite reports
+Preferred formats
+Approval habits
+Industry terminology
+Common sequences
+Workspace preferences
+Intent recognition improves over time.
+
+14. Intent Library
+Maintain a platform-wide library.
+Eventually
+100,000+
+Intent Definitions
+Each includes:
+Name
+Description
+Synonyms
+Examples
+Negative Examples
+Required Fields
+Worker Agents
+Permissions
+Workflow Links
+UI Components
+Conversation Templates
+
+15. Synonym Engine
+Example
+Create Invoice
+Generate Invoice
+Make Invoice
+Raise Invoice
+Prepare Invoice
+All map to one canonical intent.
+
+16. Negative Intent Detection
+Detect when similar phrases mean different things.
+Examples
+Delete Project
+vs
+Archive Project
+Approve Payment
+vs
+Schedule Payment
+Merge Vendor
+vs
+Link Vendor
+IIE should distinguish them.
+
+17. Intent Resolution Pipeline
+Input
+
+↓
+
+Normalize
+
+↓
+
+Tokenize
+
+↓
+
+Context Merge
+
+↓
+
+Synonym Resolution
+
+↓
+
+Workflow Matching
+
+↓
+
+Confidence Score
+
+↓
+
+Intent Prediction
+
+↓
+
+Validation
+
+↓
+
+Execution
+
+18. Intent Learning
+Every correction improves the engine.
+If user changes
+Approve Invoice
+↓
+Approve Purchase Order
+Store:
+Original Intent
+Corrected Intent
+Context
+Pattern
+Human validation
+Update Intent Library after review.
+
+19. Intent Analytics
+Track:
+Detection Accuracy
+Clarification Rate
+Prediction Accuracy
+False Positives
+False Negatives
+Average Detection Time
+Average Tokens Saved
+Top Intents
+Emerging Intents
+Industry Trends
+
+20. Worker Agents
+Intent Detection Agent
+Intent Prediction Agent
+Intent Learning Agent
+Synonym Manager
+Context Agent
+Confidence Agent
+Workflow Resolver
+Intent Validator
+Intent Analytics Agent
+Intent Governance Agent
+
+21. Database Design
+Primary tables:
+IntentDefinitions
+IntentSynonyms
+IntentExamples
+IntentNegativeExamples
+IntentMappings
+IntentHistory
+IntentAnalytics
+IntentPredictions
+IntentConfidence
+IntentPermissions
+IntentWorkflows
+IntentLearningQueue
+IntentVersionHistory
+IntentRelationships
+
+22. AI Integration Rules
+Never call an LLM:
+for known intents
+for button clicks
+for menu actions
+for structured forms
+for deterministic workflows
+Call an LLM only when:
+multiple intents are ambiguous
+confidence remains low after clarification
+the request is novel
+creative reasoning is required
+Even then, the LLM should return structured intent objects, not executable business logic.
+
+23. KPIs
+Measure:
+Intent Detection Accuracy
+Intent Prediction Accuracy
+LLM Avoidance Rate
+Average Clarifications per Workflow
+Intent Reuse Rate
+Average Detection Latency
+Average Tokens Saved
+Automation Rate
+User Effort Score
+Workflow Completion Time
+
+24. Human-in-Control Rules
+The engine must never infer or execute high-impact actions without appropriate confirmation.
+High-impact intents include:
+Delete
+Archive
+Payment
+Approval
+Rejection
+Compliance Submission
+User Access Changes
+Data Export
+Configuration Changes
+Prediction is acceptable.
+Execution requires policy or approval.
+
+25. AI Coding Implementation Directive
+Implement the Intent Intelligence Engine as a platform service shared by every VERIDIAN module.
+All user interactions—text, clicks, forms, voice, APIs, uploads, and events—must first be converted into canonical intent objects before any business logic executes.
+Intent definitions must be versioned, searchable, testable, extensible, and independently deployable. Business modules should register new intents through metadata rather than embedding intent recognition logic in application code.
+The engine should continuously improve by learning from user corrections, workflow telemetry, and approved new intent definitions, while preserving deterministic behavior and minimizing dependence on LLM reasoning.
+
+VERIDIAN Innovation Proposal
+I recommend introducing a concept that goes beyond traditional intent classification:
+Enterprise Intent Graph (EIG)
+Instead of storing intents as isolated records, represent them as a graph.
+Each intent connects to:
+Workflows
+Worker Agents
+Business Rules
+Permissions
+Conversation Templates
+UI Components
+Data Models
+APIs
+Events
+KPIs
+Related Intents
+Parent/Child Intents
+Industry Variants
+This creates a living semantic model of the enterprise.
+The Intent Intelligence Engine can then traverse this graph to predict the next likely action, identify reusable workflows, discover automation opportunities, and reduce unnecessary LLM interactions. Over time, the Enterprise Intent Graph becomes a core knowledge structure that allows VERI to behave less like a chatbot and more like an experienced enterprise operating assistant that understands how work is actually performed.
+ Study 11
+Excellent. This is one of the most important engines in VERIDIAN.
+So far we have:
+CSV 201 → Conversation Operating System (The OS)
+CSV 202 → Conversation Knowledge Base (The Brain)
+CSV 203 → Conversation Components Library (The UI)
+CSV 204 → Conversation Planning Engine (The Planner)
+CSV 205 → Intent Intelligence Engine (The Understanding)
+Now comes the engine that glues everything together.
+This is the Conversation State Machine (CSM).
+
+VERIDIAN AI OS Engineering Standard
+CSV 206
+Conversation State Machine (CSM)
+Version 1.0
+
+1. Vision
+The Conversation State Machine (CSM) is the execution engine responsible for controlling every conversation inside VERIDIAN AI OS.
+Unlike chatbots that simply predict the next word, VERI always knows:
+Where the conversation started
+Current state
+Previous decisions
+Pending information
+Completed actions
+Waiting approvals
+Active workflows
+Future possibilities
+Every conversation behaves like a deterministic workflow.
+
+2. Philosophy
+Conversation is not text.
+Conversation is a state machine.
+Every interaction changes the system state.
+Never rely on the LLM to remember context.
+The software owns the state.
+
+3. Objectives
+CSM exists to:
+Eliminate repeated prompts
+Remove unnecessary memory tokens
+Resume conversations instantly
+Support long-running workflows
+Enable pause and resume
+Allow multiple simultaneous conversations
+Maintain deterministic execution
+Reduce LLM context requirements
+
+4. Core Architecture
+User
+
+↓
+
+Conversation UI
+
+↓
+
+Conversation Planner
+
+↓
+
+Conversation State Machine
+
+↓
+
+Workflow Engine
+
+↓
+
+Decision Engine
+
+↓
+
+Worker Agents
+
+↓
+
+Conversation Renderer
+
+↓
+
+User
+The LLM never stores conversation state.
+
+5. Conversation Lifecycle
+Every conversation follows:
+Created
+
+↓
+
+Initialized
+
+↓
+
+Context Loaded
+
+↓
+
+Intent Identified
+
+↓
+
+Workflow Selected
+
+↓
+
+Information Collection
+
+↓
+
+Validation
+
+↓
+
+Approval
+
+↓
+
+Execution
+
+↓
+
+Monitoring
+
+↓
+
+Completion
+
+↓
+
+Archived
+
+↓
+
+Learned
+Every workflow follows the same lifecycle.
+
+6. Conversation Object
+Every conversation is stored.
+Example
+{
+  "conversationId": "CONV-000123",
+  "workspaceId": "WS-1001",
+  "userId": "USR-0012",
+  "workflowId": "WF-210",
+  "currentState": "Validation",
+  "previousState": "InformationCollection",
+  "nextState": "Approval",
+  "status": "Running",
+  "createdAt": "...",
+  "updatedAt": "..."
+}
+
+7. State Types
+Primary states:
+Idle
+Greeting
+Intent Detection
+Clarification
+Information Collection
+Validation
+Decision
+Approval
+Permission
+Execution
+Waiting
+Monitoring
+Review
+Learning
+Completion
+Archive
+Error
+Recovery
+Escalation
+Termination
+
+8. State Transitions
+Every state knows
+Previous State
+Current State
+Next State
+Allowed States
+Blocked States
+Recovery States
+Timeout
+Owner
+Worker Agent
+No random transitions.
+
+9. State Memory
+Each state stores
+Collected Data
+Missing Data
+Confidence
+Current User
+Current Screen
+Current Workflow
+Current Project
+Pending Actions
+Completed Actions
+Errors
+Recommendations
+Nothing needs to be resent to the LLM.
+
+10. Nested State Machines
+Example
+Project Creation
+↓
+BOQ Upload
+↓
+Drawing Upload
+↓
+Task Assignment
+↓
+Kickoff Meeting
+Each is its own state machine.
+The parent workflow tracks them.
+
+11. Parallel Conversations
+VERI supports multiple conversations simultaneously.
+Example
+Conversation 1
+Project Creation
+Conversation 2
+GST Filing
+Conversation 3
+Payroll
+Conversation 4
+Tender Review
+Each has an independent state.
+
+12. State Persistence
+State survives
+Browser refresh
+Logout
+Power failure
+Server restart
+Device change
+Mobile
+Desktop
+Tablet
+Resume instantly.
+
+13. Context Management
+Context consists of
+User
+Workspace
+Role
+Permissions
+Workflow
+Conversation
+Industry
+Current Screen
+Active Objects
+Recent Decisions
+Only context references are stored.
+Not repeated prompts.
+
+14. Waiting States
+Many business processes wait.
+Waiting for
+Approval
+Upload
+Payment
+Email
+Vendor
+Customer
+Government API
+Worker Agent
+External System
+Conversation pauses safely.
+
+15. Interruptions
+User may interrupt.
+Example
+During invoice creation
+User asks
+Show dashboard
+Conversation pauses.
+Dashboard opens.
+Conversation resumes later.
+
+16. Recovery
+Failures never lose progress.
+Recovery
+Validation Error
+↓
+Return to Previous Step
+Server Failure
+↓
+Resume
+Worker Failure
+↓
+Retry
+Timeout
+↓
+Notify
+
+17. Human Override
+Managers can
+Pause
+Resume
+Skip
+Cancel
+Rollback
+Restart
+Transfer
+Escalate
+Every action logged.
+
+18. Event-Driven State Machine
+Every transition triggered by events.
+Examples
+Button Click
+Form Submit
+Upload
+Approval
+API Success
+API Failure
+Worker Completed
+Reminder Timeout
+Notification Read
+Voice Command
+
+19. State Rules
+Every state defines
+Required Inputs
+Allowed Outputs
+Business Rules
+Permissions
+Timeout
+Retry Count
+Validation Rules
+LLM Allowed?
+Worker Agent
+UI Components
+
+20. AI Rules
+LLM cannot
+Store state
+Change state
+Skip state
+Delete state
+Execute unauthorized transitions
+Only suggest.
+Software decides.
+
+21. State Analytics
+Track
+Average State Duration
+Most Frequent State
+Bottlenecks
+Timeouts
+Failures
+Recovery Rate
+Pause Rate
+Resume Rate
+Automation %
+LLM Usage
+State Accuracy
+
+22. Worker Agents
+State Manager Agent
+State Validator
+Transition Manager
+Recovery Agent
+Context Manager
+Resume Agent
+Analytics Agent
+Learning Agent
+Timeout Manager
+Parallel Conversation Manager
+
+23. Database Design
+Tables
+ConversationStates
+StateDefinitions
+StateTransitions
+ConversationSessions
+StateHistory
+ContextSnapshots
+WorkflowStates
+PausedConversations
+RecoveryLogs
+TransitionRules
+ConversationEvents
+StateAnalytics
+
+24. KPIs
+Average Conversation Time
+Average Pause Time
+Resume Success
+State Transition Accuracy
+Workflow Completion Rate
+LLM-Free State Transitions
+Recovery Success
+Average Tokens Saved
+Average Context Size
+Concurrent Conversations
+
+25. Token Optimization Rules
+Never resend history.
+Never resend previous prompts.
+Never resend user profile.
+Never resend workflow.
+Never resend permissions.
+Instead send
+ConversationID
+
+StateID
+
+WorkflowID
+
+ContextID
+
+WorkspaceID
+
+UserID
+Software reconstructs everything.
+
+26. Advanced State Types
+Introduce specialized state categories.
+Business State
+Invoice Pending
+Project Active
+GST Filed
+Payroll Approved
+
+Conversation State
+Greeting
+Clarification
+Approval
+Summary
+
+UI State
+Dialog Open
+Wizard Step
+Form Completed
+
+AI State
+Need Reasoning
+Need Summarization
+Need Classification
+Need Extraction
+
+Learning State
+Observe
+Compare
+Improve
+Publish
+
+27. Conversation Snapshots
+Automatically create snapshots at major milestones.
+Snapshot includes:
+Current workflow
+Filled fields
+Pending tasks
+Decisions made
+Active worker agents
+Open approvals
+Context references
+Snapshots enable instant recovery, audit, debugging, and replay without reconstructing the entire conversation.
+
+28. State Governance
+Every state definition must include:
+Owner
+Version
+Approval status
+Effective date
+Compliance tags
+Audit history
+Allowed modifications
+No state transition may be changed directly in production without governance.
+
+29. AI Coding Implementation Directive
+Implement the Conversation State Machine as an event-driven workflow orchestration service independent of the LLM.
+Business modules should never store conversational progress inside prompts or session memory. Instead, they update state objects through well-defined events.
+The Conversation Operating System queries the CSM to determine:
+Current state
+Allowed next states
+Required information
+Applicable UI components
+Appropriate worker agents
+Whether LLM assistance is required
+All transitions must be deterministic, testable, replayable, auditable, and resumable.
+
+30. VERIDIAN Innovation Proposal
+Enterprise Conversation State Graph (ECSG)
+Traditional chatbots keep a linear conversation history.
+VERIDIAN should maintain a graph of conversational states.
+Each state connects to:
+Previous states
+Next states
+Business workflows
+Worker agents
+Permissions
+Knowledge objects
+UI components
+Intent definitions
+Decision rules
+Audit events
+Learning observations
+This transforms conversations into navigable enterprise workflows rather than text transcripts.
+
+31. Relationship with Previous CSVs
+The Conversation State Machine is the execution backbone connecting all previous subsystems:
+CSV 201 – Conversation Operating System: Orchestrates the overall experience.
+CSV 202 – Conversation Knowledge Base: Supplies reusable conversational assets.
+CSV 203 – Conversation Components Library: Provides reusable UI and interaction components.
+CSV 204 – Conversation Planning Engine: Decides the optimal next conversational move.
+CSV 205 – Intent Intelligence Engine: Determines what the user is trying to achieve.
+CSV 206 – Conversation State Machine: Maintains, governs, and transitions the conversation through deterministic states until the workflow is complete.
+
+Engineering Recommendation
+I recommend adding another platform-wide concept called State-Driven Conversation Engineering (SDCE).
+The guiding principle is:
+LLMs generate understanding; state machines generate execution.
+In VERIDIAN, the LLM should never be responsible for remembering where the conversation is or what happens next. Instead, it contributes reasoning when needed, while the Conversation State Machine governs the workflow, maintains continuity, enforces business rules, supports pause/resume, and dramatically reduces token usage by replacing conversational memory with structured state management. This separation will make VERIDIAN significantly more scalable, reliable, and enterprise-ready than systems that rely primarily on prompt history.

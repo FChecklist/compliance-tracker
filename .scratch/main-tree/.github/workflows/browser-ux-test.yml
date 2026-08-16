@@ -1,0 +1,54 @@
+name: VERIDIAN Browser UX Test
+
+# Runs the 200-test browser-level UX harness (scripts/veridian-browser-ux-test.mjs)
+# against the live production app. Dispatched manually or via repository_dispatch
+# -- not on every push, since it hits real demo accounts on production and
+# spends real LLM budget ($3 Cerebras + $1 GLM-5.2 cap, enforced by the
+# script itself). See docs/testing/BROWSER_UX_TEST_RESULTS.md for the
+# findings this produces.
+on:
+  workflow_dispatch:
+    inputs:
+      smoke_test_limit:
+        description: "Run only N tests (one per category first) instead of the full 200 -- 0 means full run"
+        required: false
+        default: "0"
+  repository_dispatch:
+    types: [browser-ux-test]
+
+permissions:
+  contents: read
+
+jobs:
+  browser-ux-test:
+    name: Browser UX Test (200 tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 200
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright Chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Run browser UX test harness
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          SMOKE_TEST_LIMIT: ${{ github.event.inputs.smoke_test_limit || github.event.client_payload.smoke_test_limit || '0' }}
+        run: node scripts/veridian-browser-ux-test.mjs
+
+      - name: Upload results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-ux-test-results
+          path: test-results/
+          retention-days: 30

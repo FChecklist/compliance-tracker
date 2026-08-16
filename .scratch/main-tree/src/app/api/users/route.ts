@@ -1,0 +1,142 @@
+import { db, users } from "@/lib/db";
+import { withTenantContext } from "@/lib/db/tenant-scoped";
+import { NextRequest, NextResponse } from "next/server";
+import { asc, eq } from "drizzle-orm";
+import { requireAuth, requireRole } from "@/lib/supabase/auth-guard";
+import { createClient as createAdminClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
+import { canAssignSeat } from "@/lib/org-license-service";
+import { provisionAiAssistantsForUser } from "@/lib/services/subscription-plan-service";
+
+export async function GET() {
+  const { response, orgId } = await requireAuth()
+  if (response) return response
+  if (!orgId) return NextResponse.json({ users: [] })
+
+  try {
+    const allUsers = await withTenantContext({ orgId }, (db) =>
+      db.query.users.findMany({
+        with: { department: { columns: { name: true } } },
+        orderBy: asc(users.name),
+      })
+    )
+
+    return NextResponse.json({
+      users: allUsers.map((u) => ({
+        id: u.id,
+        name: u.name,
+        email: u.email,
+        role: u.role,
+        isActive: u.isActive,
+        lastLoginAt: u.lastLoginAt?.toISOString() ?? null,
+        department: u.department ? { name: u.department.name } : null,
+        createdAt: u.createdAt.toISOString(),
+      })),
+    })
+  } catch (error) {
+    console.error("Users API error:", error)
+    return NextResponse.json({ error: "Failed to fetch users" }, { status: 500 })
+  }
+}
+
+export async function POST(request: NextRequest) {
+  const { response, dbUser, orgId } = await requireAuth()
+  if (response) return response
+  // GAP found via OCID-047 live re-verification (UMR-20260805-002929-5560,
+  // UMR-20260802-165606-4413): this was a hardcoded role === 'admin' ||
+  // role === 'manager' string check, not ROLE_RANK -- live-confirmed to
+  // reject veridian_admin (rank 6, the platform's highest-privilege role),
+  // branch_manager (rank 4), and senior_professional (rank 3, same rank as
+  // manager) even though all three outrank or match manager's own rank 3.
+  // requireRole() is the same helper every other rank-gated route in this
+  // file's own module already uses (see the ERP journal-entries routes).
+  const roleCheck = requireRole(dbUser, 'manager')
+  if (roleCheck) return roleCheck
+  if (!orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  // Wave 172 (area 16, seat enforcement): checked at invite time too, not
+  // just at accept-time (auth-guard.ts) -- an org already at capacity
+  // shouldn't be allowed to create an invite that would just fail for the
+  // invitee later. No-op for the vast majority of orgs (enforcement is
+  // opt-in, off by default).
+  const seatCheck = await canAssignSeat(orgId)
+  if (!seatCheck.allowed) {
+    return NextResponse.json({ error: seatCheck.reason }, { status: 403 })
+  }
+
+  try {
+    const { name, email, role } = await request.json()
+    if (!name || !email) return NextResponse.json({ error: "Name and email are required" }, { status: 400 })
+    const VALID_ROLES = ['admin', 'manager', 'member', 'viewer'] as const
+    const userRole = (VALID_ROLES as readonly string[]).includes(role) ? role : 'member'
+
+    // Email is globally unique (mirrors the auth.users constraint) -- this
+    // check is intentionally NOT tenant-scoped, unlike everything else here.
+    const existing = await db.query.users.findFirst({ where: eq(users.email, email.toLowerCase().trim()) })
+    if (existing) {
+      // Priority 18b (Owner directive 2026-07-15, Option B, auto-upgrade
+      // Trigger A): a stage-0-only person (orgId IS NULL) being directly
+      // added as a real member -- upgrade their existing row in place
+      // instead of a flat 409. They already have a real Supabase Auth
+      // identity from their stage-0 signup, so this skips the
+      // inviteUserByEmail step entirely (that call would fail/duplicate
+      // against an email Supabase Auth already knows). A different real
+      // home org elsewhere still gets the original, honest 409 -- never
+      // silently reassigned.
+      if (existing.orgId) {
+        return NextResponse.json({ error: "A user with this email already belongs to a different organisation" }, { status: 409 })
+      }
+      const { tryUpgradeStage0UserInPlace } = await import("@/lib/services/stage0-service")
+      const upgrade = await tryUpgradeStage0UserInPlace(existing.email, { orgId, role: userRole })
+      if (!upgrade.ok) {
+        return NextResponse.json({ error: "A user with this email already exists" }, { status: 409 })
+      }
+      return NextResponse.json({ id: upgrade.user.id, name: upgrade.user.name, email: upgrade.user.email, role: upgrade.user.role }, { status: 200 })
+    }
+
+    // Create auth user via Supabase Admin API and send invite email
+    const supabaseAdmin = createAdminClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email.toLowerCase().trim(), {
+      data: { name, orgId, role: userRole },
+    })
+    if (authError) return NextResponse.json({ error: authError.message }, { status: 400 })
+
+    // compliance.users.passwordHash is legacy from before this app used
+    // Supabase Auth exclusively -- nothing reads it for real authentication
+    // anymore (login goes through supabase.auth.signInWithPassword), but the
+    // column is still NOT NULL. Fill it with an unusable random hash rather
+    // than leave it out, which would throw a NOT NULL violation on insert.
+    const placeholderPasswordHash = await bcrypt.hash(randomBytes(32).toString("hex"), 10)
+
+    // Create user record in compliance.users, scoped to the inviter's org
+    const [newUser] = await withTenantContext({ orgId }, (db) =>
+      db.insert(users).values({
+        name: name.trim(),
+        email: email.toLowerCase().trim(),
+        passwordHash: placeholderPasswordHash,
+        role: userRole as typeof VALID_ROLES[number],
+        authUserId: authData?.user?.id,
+        orgId,
+        isActive: false, // becomes active after they accept invite
+      }).returning()
+    )
+
+    // Wave 2: provision the invitee's AI Assistants, capped at the org's
+    // real resolved subscription-plan tier (GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT
+    // Task A -- was unconditionally 5 regardless of tier). Uses the raw
+    // (RLS-bypassing) db client deliberately -- ai_assistants RLS requires
+    // current_user_id() to equal the row's user_id, and the inviting admin's
+    // tenant context has no reason to carry the invitee's user id. This
+    // mirrors autoProvisionUser's rationale in auth-guard.ts.
+    await provisionAiAssistantsForUser(newUser.id, orgId)
+
+    return NextResponse.json({ id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role }, { status: 201 })
+  } catch (error) {
+    console.error("User invite error:", error)
+    return NextResponse.json({ error: "Failed to invite user" }, { status: 500 })
+  }
+}
