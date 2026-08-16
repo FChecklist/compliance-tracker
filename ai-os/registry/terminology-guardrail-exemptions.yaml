@@ -1201,3 +1201,11 @@ exemptions:
     findings_by_category:
       indian_gstin_literal: 2
       hardcoded_iso_date: 3
+  - file: src/lib/services/ai-cost-finops-service.test.ts
+    reason: "AI Cost Governance & FinOps gap-closure (task-20260718-095002, 2026-08-15): new file, 5 genuine test-fixture billingMonthIso literals ('2026-06-01') across reconcileFinOpsClaim's describe block (lines 201/207/213/219/225) -- load-bearing test data exercising the no-Finance-figure/balanced/under-reports/over-reports/boundary verdicts, not real business hardcoding, same class as this codebase's other exempted *.test.ts fixture files."
+    findings_by_category:
+      hardcoded_iso_date: 5
+  - file: src/components/AppSidebar.tsx
+    reason: "AI Cost Governance & FinOps gap-closure (task-20260718-095002, 2026-08-15): 3 pre-existing genuine dated comments unrelated to this PR's own change (a new FinOps nav item) -- Priority 11 Owner-directive comment (line 132, 2026-07-13), VERIDIAN Review Framework Wave B CRM comment (line 167, 2026-07-17), and the veridian-ui-kit migration comment (line 539, 2026-07-19) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments. Grandfathered here because this is the first PR to touch this file since the guardrail's Phase 3 CI wiring."
+    findings_by_category:
+      hardcoded_iso_date: 3
