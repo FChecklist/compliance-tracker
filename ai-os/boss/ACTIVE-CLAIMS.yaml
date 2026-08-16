@@ -11069,3 +11069,27 @@ recently_completed:
       `ai-os/boss/ACTIVE-CLAIMS.yaml`. No visibility or permission changes to any repository (PM
       explicitly withheld authorization for those this phase) -- any repo whose visibility or
       ownership looks wrong is a finding for the Owner, not an autonomous change.
+
+  - session_label: "claude-code (task-20260816-171212-classify-the-entire-compliance-tracker-p) -- deterministic bulk classification of all 422 open PRs on FChecklist/compliance-tracker by changed-file signature, plus disposal of EMPTY + superseded-DOCS-ONLY classes only"
+    claimed_at: "2026-08-16T17:12:39Z (this session)"
+    claim: |
+      Owner directive 2026-08-16: 422 open PRs on FChecklist/compliance-tracker
+      (414 FChecklist bot, 8 dependabot). Job: STEP ONE, script-driven
+      changed-file-signature classification of every open PR into exactly one
+      of DOCS-ONLY / CODE / DEPENDENCY / EMPTY, written to a real
+      machine-readable file committed to this branch. STEP TWO, conservative
+      disposal: close ONLY the EMPTY class and any DOCS-ONLY PR whose doc
+      content is already superseded on main (cited per-PR) -- never CODE or
+      DEPENDENCY, never a DOCS-ONLY PR just for being docs. STEP THREE: report
+      real class counts + what was closed + exact CODE-class list for the
+      sibling dispatch that owns landing the code-touching subset.
+      Explicitly NOT this task: per-PR manual audit of the CODE class,
+      merging/landing any PR, deploying anything.
+    scope_note: >-
+      File scope: new ai-os/registry/pr-classification-20260816.json (or
+      similar, committed machine-readable output),
+      progress/task-20260816-171212-classify-the-entire-compliance-tracker-p.md,
+      ai-os/boss/ACTIVE-CLAIMS.yaml. Read-only against all other repo source;
+      only mutation to repo state outside this branch is closing PRs in the
+      EMPTY/superseded-DOCS-ONLY classes via `gh pr close` with a cited
+      comment. No merges, no deploys, no CODE/DEPENDENCY PR closures.
