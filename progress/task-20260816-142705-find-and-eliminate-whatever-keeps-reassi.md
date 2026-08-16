@@ -55,8 +55,22 @@ UMR: UMR-20260816-142651-d552
       detected in minutes instead of days/weeks).
 - [x] Updated CLAUDE.md/AGENTS.md to point at the canonical record.
 - [x] Logged this session's real work + evidence in `ai-os/boss/COMPLETED.yaml`.
-- [x] Opened PR.
+- [x] Opened PR #1295.
+- [x] Fixed 2 real CI failures (Doc Cross-Reference Check, Metadata Index Coverage
+      Check) surfaced by the first CI run -- both caused by the staged-workflow
+      path not being referenced/indexed correctly; verified locally before
+      re-pushing.
+- [x] Dispatched an independent auditor (Agent tool, per AGENTS.md Rule 7(c) --
+      no self-certification) who re-verified the root cause claims independently
+      (re-read vercel.json + full git history, re-read the staged workflow to
+      confirm it is GET-only, cross-checked COMPLETED.yaml citations) and posted
+      `AUDIT: PASS` on PR #1295.
+- [x] All CI checks green except `audit-check` (expected to be stale against the
+      wrong SHA per the known issue_comment-trigger bug) and `Build`/`Vercel`
+      preview (still pending) -- pushing this progress-file update as the
+      required real-content commit to force a fresh `synchronize` re-run.
 
 ## Remaining
+- [ ] Confirm `audit-check` and `Build` go green on the post-synchronize re-run.
 - [ ] Record completion via agent_work_briefing.py record-completion.
-- [ ] Move ACTIVE-CLAIMS entry to recently_completed once PR is up.
+- [ ] Move ACTIVE-CLAIMS entry to recently_completed.
