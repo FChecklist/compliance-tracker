@@ -26,6 +26,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Opportunity = {
   id: string; name: string; leadId: string | null; clientId: string | null; stage: string;
@@ -54,6 +55,7 @@ export default function CrmOpportunitiesPage() {
   const [loading, setLoading] = useState(true);
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -86,6 +88,9 @@ export default function CrmOpportunitiesPage() {
   }, [page, view]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
+  }, []);
 
   const createOpportunity = async () => {
     if (!name.trim() || !leadId) return;
@@ -180,6 +185,10 @@ export default function CrmOpportunitiesPage() {
       </CardContent>
     </Card>
   );
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">

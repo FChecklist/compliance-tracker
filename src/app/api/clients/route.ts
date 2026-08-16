@@ -1,23 +1,37 @@
 import { clients, organisations } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { NextRequest, NextResponse } from "next/server"
-import { eq, asc } from "drizzle-orm"
+import { eq, asc, and, inArray } from "drizzle-orm"
 import { requireAuth, requireRole } from "@/lib/supabase/auth-guard"
 import { logActivity } from "@/lib/audit"
+import { resolveAccessibleClientIds } from "@/lib/services/client-access-service"
 
 // Lists every client this account serves. For a 'company' account this is
 // always exactly the one auto-backfilled "Self" client; for a ca_firm/
 // legal_firm/consultant account it's the actual client roster the whole
 // hierarchy exists for.
+//
+// Gap closure, real live-found bug (GAP-CLIENT-LIST-NO-SCOPE-ENFORCEMENT,
+// OCID-047 independent re-verification, UMR-20260802-165606-4413): this
+// handler used to query every client in the org unconditionally, so a
+// below-branch_manager caller (e.g. viewer) with zero `user_client_access`
+// grants still saw the full org roster. `clients` itself has no per-client
+// RLS policy to catch this at the DB layer (its policy is org-scoped only,
+// same as the org row it belongs to), so the accessible-id set has to be
+// resolved and applied explicitly here, same as firm-enablement-service.ts /
+// firm-practice-dashboard-service.ts already do for THE FIRM module.
 export async function GET() {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ clients: [] })
 
   try {
+    const accessibleClientIds = await resolveAccessibleClientIds(orgId, dbUser)
+    if (accessibleClientIds.length === 0) return NextResponse.json({ clients: [] })
+
     const rows = await withTenantContext({ orgId }, (db) =>
       db.query.clients.findMany({
-        where: eq(clients.orgId, orgId),
+        where: and(eq(clients.orgId, orgId), inArray(clients.id, accessibleClientIds)),
         with: { entities: true },
         orderBy: asc(clients.name),
       })

@@ -76,7 +76,7 @@
  * here -- see PROGRESS.md.
  */
 import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users, tenantAiConfig } from "@/lib/db"
-import { and, count, eq } from "drizzle-orm"
+import { and, count, eq, sql } from "drizzle-orm"
 import { checkTierEligibility, type TierEligibilityResult } from "@/lib/model-tier-eligibility"
 import { resolveModelConfig, platformApiKeyFor, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
 import { decryptApiKey } from "@/lib/ai-config-crypto"
@@ -519,7 +519,16 @@ export async function getOrgAiPackage(orgId: string): Promise<string | null> {
   const [[{ value: userCount }], plans] = await Promise.all([
     db.select({ value: count() }).from(users).where(eq(users.orgId, orgId)),
     db.query.subscriptionPlans.findMany({
-      where: eq(subscriptionPlans.isActive, true),
+      // GAP-OCID-049 live-reverify fix (UMR-20260804-221844-c915): the real
+      // subscription_plans table also carries 4 pre-existing legacy rows
+      // (Trial/Starter/Growth/Scale) seeded well before this task's own
+      // Basic/Standard/Professional/Enterprise scheme's migration -- see
+      // that migration's own file header for the real timeline -- that were
+      // never meant to participate in this fallback. This file's own header
+      // comment already names `features.aiPackage` as the deliberate
+      // discriminator for that scheme; filter on it here too so a legacy
+      // row can never win the band-fit `find()` below.
+      where: and(eq(subscriptionPlans.isActive, true), sql`${subscriptionPlans.features} ->> 'aiPackage' IS NOT NULL`),
       orderBy: (t, { asc }) => asc(t.userPackSize),
     }),
   ])

@@ -29,7 +29,7 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   try {
     const { id } = await params
     const body = await request.json()
-    const lead = await updateLead({ orgId, userId: dbUser.id }, id, body)
+    const lead = await updateLead({ orgId, userId: dbUser.id, role: dbUser.role }, id, body)
     return NextResponse.json(lead)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
@@ -45,7 +45,7 @@ export async function DELETE(_request: NextRequest, { params }: RouteContext) {
 
   try {
     const { id } = await params
-    const result = await deleteLead({ orgId, userId: dbUser.id }, id)
+    const result = await deleteLead({ orgId, userId: dbUser.id, role: dbUser.role }, id)
     return NextResponse.json(result)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

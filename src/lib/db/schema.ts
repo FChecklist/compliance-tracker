@@ -8,6 +8,16 @@ export const complianceSchemaDB = pgSchema('compliance')
 // designed for an easy future split. See ai-os/CONSTITUTION.yaml / PROGRESS.md for the move history.
 export const platformSchemaDB = pgSchema('platform')
 
+// VERIDIAN Review Framework, "Overall Code Quality Score" (Medium) gap
+// closure: this file is ~10,200 lines but already internally organized by
+// domain via 125 `// ─── Section Name ───` comment headers below (grep -c
+// "^// ─── " src/lib/db/schema.ts to recount). A full physical split into
+// per-domain files is the ideal end state but is deliberately deferred here
+// -- 6 PRs were open concurrently against this file at last check (gh pr
+// list --state open --json number,files --jq '[.[] | select(.files[].path
+// | test("schema\\.ts$")) | .number] | length'), so a physical split right
+// now would create a wall of merge conflicts for every one of them with no
+// functional benefit. Fast navigation: `grep -n "^// ─── " src/lib/db/schema.ts`.
 // ─── Enums ───────────────────────────────────────────────────────────────
 export const userRoleEnum = complianceSchemaDB.enum('user_role', [
   'admin', 'manager', 'member', 'viewer', // original 4
@@ -1355,6 +1365,16 @@ export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_override
   updatedByUserId: text('updated_by_user_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // VERIDIAN Review Framework gap-closure (2026-08-15, "AI Model Lifecycle
+  // & Benchmarking: A/B or shadow-testing capability for a candidate
+  // model" -- Critical). Both nullable/additive (drizzle/0313) -- NULL
+  // candidateModel or NULL/0 rolloutPercentage means no active rollout,
+  // identical to every row's behavior before this pair of columns existed.
+  // Read exclusively by roster-overrides.ts's resolveDispatchModel() --
+  // resolveEffectiveModel() (the plain override path every pre-existing
+  // caller uses) does not consult these at all.
+  candidateModel: text('candidate_model'),
+  rolloutPercentage: integer('rollout_percentage'),
 })
 
 // Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the AI Dev
@@ -2119,6 +2139,18 @@ export const productBranches = platformSchemaDB.table('product_branches', {
   // catalog so it's queryable and can't drift out of sync with the doc.
   buildTier: text('build_tier'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
+  // OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH, real Owner decision
+  // 2026-08-04 (UMR-20260804-090421-c647): the real HTTP host this brand's
+  // Stage 1 (pre-authentication) resolution should match, e.g.
+  // "projexa-ai.com". Deliberately a SEPARATE column from `domain` above --
+  // that one is an unrelated, pre-existing, free-text business-taxonomy
+  // grouping (real values: "construction", "compliance", etc.), not a DNS
+  // hostname; see drizzle/0312_stage1_preauth_brand_host_lookup.sql for the
+  // full real-data verification behind this distinction. Nullable: most
+  // branches have no dedicated pre-login domain of their own yet and fall
+  // through to the platform default (org-branding-service.ts's
+  // DEFAULT_BRAND_NAME).
+  hostDomain: text('host_domain'),
 })
 
 export const productBranchModules = platformSchemaDB.table('product_branch_modules', {
@@ -2412,14 +2444,30 @@ export const userClientAccessRelations = relations(userClientAccess, ({ one }) =
 export const departmentsRelations = relations(departments, ({ one, many }) => ({
   org: one(organisations, { fields: [departments.orgId], references: [organisations.id] }),
   head: one(users, { fields: [departments.headId], references: [users.id], relationName: 'deptHead' }),
-  users: many(users),
+  // UMR-20260802-165606-4413: `departments` and `users` have TWO distinct FK
+  // relations to each other (this member-of-department pair, and the
+  // headId-based `head`/`headOfDept` pair above). Drizzle's relational query
+  // builder requires every relation pair between two tables to be named with
+  // `relationName` once more than one pair exists -- leaving this pair
+  // unnamed while `head`/`headOfDept` was named made drizzle unable to
+  // resolve `with: { users: ... }` on `departments.findMany`, throwing
+  // "There are multiple relations between 'users' and 'departments'. Please
+  // specify relation name" at query-build time (before any network I/O,
+  // confirmed via direct reproduction against the real DB with RLS
+  // enforced, for both a fresh self-signup org and an old seeded org --
+  // this was never RLS/tenant-context-dependent). That 500 is what
+  // cascaded into the Compliance Register / Pendency View client-side
+  // crash. Do not remove this relationName without also removing
+  // `deptHead` -- Drizzle needs both sides of the ambiguity named, or
+  // neither.
+  users: many(users, { relationName: 'departmentMembers' }),
   complianceItems: many(complianceItems),
   notices: many(notices),
 }))
 
 export const usersRelations = relations(users, ({ one, many }) => ({
   org: one(organisations, { fields: [users.orgId], references: [organisations.id] }),
-  department: one(departments, { fields: [users.departmentId], references: [departments.id] }),
+  department: one(departments, { fields: [users.departmentId], references: [departments.id], relationName: 'departmentMembers' }),
   assignedCompliance: many(complianceItems, { relationName: 'assignedTo' }),
   auditPointAssignments: many(auditPoints, { relationName: 'auditAssignee' }),
   headOfDept: one(departments, { fields: [users.id], references: [departments.headId], relationName: 'deptHead' }),
@@ -4924,6 +4972,16 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   // record), independent of whether it also has a leadId/clientId. Same
   // bare-text/no-FK/nullable convention as accountId on crmLeads above.
   accountId: text('account_id'),
+  // VERIDIAN Review Framework Sales Pipeline closure (2026-08-07,
+  // "Localization Readiness" finding): estimatedValue had no currency
+  // field at all -- every pipeline-value rollup implicitly assumed a
+  // single currency. Same shape as drizzle/0208's identical fix for
+  // erp_quotations/erp_sales_orders (currencyId nullable bare text --
+  // matches this schema's bridge-column convention, no FK to keep this
+  // additive/safe -- + exchangeRate NOT NULL DEFAULT '1' so every existing
+  // row keeps reading as "org base currency, rate 1", unchanged behavior).
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_lost_reasons,
   // set only when stage='lost'. Same bare-text/no-FK/nullable convention
   // as accountId just above -- structured, org-configurable reason
@@ -4952,6 +5010,53 @@ export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
   note: text('note'),
   changedById: text('changed_by_id'),
   changedAt: timestamp('changed_at').notNull().defaultNow(),
+})
+
+// VERIDIAN Review Framework Sales Pipeline closure (2026-08-07, "Data Model
+// Completeness & Referential Integrity" finding): before this table, the
+// pipeline was derived purely from crmLeads.status/crmOpportunities.stage
+// free-text fields -- no org could rename/reorder a stage or mark which
+// stage is the "won"/"lost" terminal one without a code change. This is an
+// org-scoped, per-entityType (lead|opportunity -- same free-text
+// discriminator convention as crmStageHistory.entityType above) config
+// table. A brand-new org (or an org that pre-dates this migration) has zero
+// rows here until first read -- listPipelineStages() in crm-service.ts
+// lazily seeds the 5 pre-existing hardcoded stage strings
+// (prospecting/proposal/negotiation/won/lost) the first time it's queried,
+// so no data migration/backfill is required and every existing
+// lead/opportunity's stage value keeps resolving to a real config row.
+export const crmPipelineStages = complianceSchemaDB.table('crm_pipeline_stages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull().default('opportunity'), // 'lead' | 'opportunity'
+  stageKey: text('stage_key').notNull(), // matches crmOpportunities.stage / crmLeads.status
+  label: text('label').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  // Terminal-stage flags -- drive both the Kanban UI (a won/lost column
+  // renders as a closed lane) and isValidStageTransition()'s "can't move a
+  // deal back out of a closed stage without manager approval" rule.
+  isWon: boolean('is_won').notNull().default(false),
+  isLost: boolean('is_lost').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Sales Pipeline Interactive Dashboard (2026-07-27): the Monthly Revenue
+// Trend Analysis chart needs 3 series (Target/Achieved/Shortfall). Achieved
+// and Shortfall are both derivable from real crmOpportunities data (Awarded
+// deals summed by month), but "Target" has no existing source anywhere in
+// this schema -- it's a genuine new per-org, per-month input, not a
+// renaming of anything. Small, additive, no FK (same bare-text-id
+// convention as crmOpportunities.accountId above) -- does not touch
+// crm_leads/crm_opportunities.
+export const crmSalesTargets = complianceSchemaDB.table('crm_sales_targets', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  month: date('month', { mode: 'string' }).notNull(), // first-of-month, e.g. '2026-01-01'
+  targetValue: numeric('target_value').notNull(),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // ─── VERIDIAN CRM Accounts & Contacts (Review Framework Wave B, 2026-07-17) ─
