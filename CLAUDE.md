@@ -46,6 +46,20 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role (server-side only)
 
+## High-Risk Files (Large + Untested)
+
+VERIDIAN Review Framework gap-closure, AI Modification Readiness ([Medium], 2026-07-18): there is no single AI-modification-readiness score for this repo — readiness genuinely depends on which file you're touching. Rather than a fake aggregate number, this section names the concrete heuristic and the current files it flags, so an agent knows to slow down and read more context before editing them, not because a linter is watching but because a mistake here is expensive to catch.
+
+**Heuristic:** a file is high-risk if it is large (roughly 500+ lines) AND has no sibling `*.test.ts`/`*.test.tsx` covering it. Size alone means more surface area to misread; no tests means a bad edit has no automated way to surface itself before a human/agent reviewer notices in a PR diff. Re-derive this list yourself if it looks stale — `git ls-files 'src/**/*.ts' 'src/**/*.tsx'`, sort by line count, check for a same-directory `*.test.ts`/`*.test.tsx` — rather than trusting it blindly; it will drift as the codebase grows.
+
+As of 2026-08-15, the highest-risk files by this heuristic:
+- `src/lib/db/schema.ts` (11,500+ lines, untested by nature — it's schema, not logic) — every table in this repo lives in one file; a bad edit here doesn't just break the table you meant to touch, it can silently break Drizzle's generated types for everything downstream, or collide with another in-flight worker's migration number (see `scripts/check-migration-collision.mjs` / the CI job of the same name). Always run `bun run db:generate` and inspect the generated migration before assuming an edit here is safe, and never renumber an existing migration file.
+- `src/app/api/mcp/route.ts` (~590 lines, untested) — the MCP protocol entry point (see `MCP_PROTOCOL.md`); a change here can silently break every external MCP client integration at once, not just one API route.
+- `src/lib/services/erp-accounting-service.ts` (~590 lines, untested) and `src/lib/services/compliance-service.ts` (~580 lines, untested) — the largest untested files under `src/lib/services/`, the directory most business logic in this repo lives in (see the header-comment convention enforced by `scripts/check-service-header-comments.mjs`); read the file's own header comment and any adjacent smaller, tested sibling service before assuming you understand its invariants.
+- `src/lib/activity-log-service.ts` (~510 lines, untested) — feeds the audit trail multiple compliance features depend on being accurate; a silent logic change here doesn't fail loudly, it just makes the audit log quietly wrong.
+
+This list is illustrative, not exhaustive — dozens of large untested `page.tsx`/component files also exist (this repo currently has zero real Playwright E2E coverage, `ci.yml`'s `e2e` job passes with `--pass-with-no-tests`), but front-end pages fail visibly when broken, which is a materially different risk profile than the backend/schema files above failing silently. When in doubt about whether a file you're about to edit qualifies, check line count and test coverage yourself rather than assuming it's safe because it isn't on this list.
+
 ## AI-OS Rules
 - Open tasks/gaps tracked in `ai-os/MASTER-TRACKER.yaml`; closed work logged in `ai-os/boss/COMPLETED.yaml`. `ai-os/boss/BOARD.yaml` is stale (stopped 2026-06-29, self-declared "resume using COMPLETED.yaml instead") — do not use it.
 - `ai-os/CONSTITUTION.yaml` is supreme — never bypass a rule in it without the owner's explicit written instruction (see its own `amendment_rule`)
