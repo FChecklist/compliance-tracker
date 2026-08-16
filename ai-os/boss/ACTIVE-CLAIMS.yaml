@@ -40,7 +40,27 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
-  - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
+  - session_label: "claude-code (worker task-20260816-142705-find-and-eliminate-whatever-keeps-reassi, UMR-20260816-142651-d552) -- root-cause the recurring projexa-ai.com/www Vercel domain reassignment (2026-07-27 + 2026-08-16 occurrences) and structurally prevent recurrence"
+    claimed_at: "2026-08-16T (this session)"
+    claim: |
+      Owner directive: projexa-ai.com/www.projexa-ai.com keep getting found
+      re-attached to the `veridian-compliance-ai` Vercel project instead of
+      the correct `projexa` project. Exhaustive search of vercel.json (incl.
+      full git history), every GH Actions workflow, every cron/systemd unit
+      script, and .vercel/project.json in every repo on the box found ZERO
+      code/script/workflow that ever calls a Vercel domain-management
+      endpoint. ai-os/boss/COMPLETED.yaml's own history (WAVE-199 2026-07-21,
+      an undocumented 2026-07-27 reversal, WAVE-10-REDO 2026-08-02, another
+      undocumented flip found by 2026-08-07's a274c203e, and today's
+      2026-08-16 incident) shows every occurrence was a manual live Vercel
+      API/CLI action by a different session, with no persisted canonical
+      record anywhere and no automated drift detection. Fix: add
+      ai-os/DOMAIN_OWNERSHIP.yaml (canonical record) +
+      .github/workflows/domain-drift-check.yml (read-only scheduled GH
+      Action, GET-only, fails fast within 15 min of any future drift).
+      Scope: ai-os/DOMAIN_OWNERSHIP.yaml (new),
+      .github/workflows/domain-drift-check.yml (new), CLAUDE.md, AGENTS.md,
+      ai-os/boss/COMPLETED.yaml. No production Vercel settings touched.
     claimed_at: "2026-08-07T (this session)"
     claim: |
       ai-os/CONSTITUTION.yaml's prompt_cache_framework (CACHE-01..04,
