@@ -82,10 +82,10 @@
     session to know a prior "fix" had already happened or been reversed — a
     governance/observability gap, not a code bug (confirmed by an exhaustive,
     negative-result search of every script/workflow on the box, cited in that file).
-    `.github/workflows/domain-drift-check.yml` (staged at
-    `ai-os/ci-templates/domain-drift-check.yml.pending-workflow-scope` pending a
-    workflow-scoped push — see that file's header) polls the real Vercel API every
-    15 minutes and fails the run the moment live state stops matching that file's
+    `ai-os/ci-templates/domain-drift-check.yml.pending-workflow-scope` (staged; not
+    yet installed to `.github/workflows/` pending a workflow-scoped push — see that
+    file's header) polls the real Vercel API every 15 minutes and fails the run the
+    moment live state stops matching that file's
     canonical record — this cannot technically block a manual dashboard/API change
     (nothing in this repo can), but it turns a recurrence that previously went
     unnoticed for days-to-weeks into one caught within ~15 minutes. Never use
