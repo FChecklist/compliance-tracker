@@ -1,0 +1,28 @@
+{
+  "safe_to_close": {
+    "1087": "Content is already merged to origin/main verbatim: compliance-tracker PR #1080 (merge commit 21f925697ba7a2817026fc98f912b3476b9dd3c2, \"docs: RCA for killed UMR-20260808-175055-cebd, stuck-task SIGKILL working as designed (#1080)\") is a confirmed ancestor of origin/main and its merge-commit message matches this PR's own diff content point-for-point.",
+    "1096": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which independently re-derives the identical conclusion and explicitly names this PR (#1096) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion.",
+    "1103": "Self-declared pure duplicate citing already-merged evidence (commit ad143bfe9, merged in at bd6551cdf) for UMR-20260808-175055-cebd; no unique content beyond the duplicate-confirmation itself, which matches progress/task-20260814-201900-rca--umr-20260808-175055-cebd-killed.md already on main.",
+    "1115": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which explicitly names this PR (#1115) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion.",
+    "1128": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which explicitly names this PR (#1128) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion.",
+    "1130": "Self-declared pure 4th-dispatch duplicate for UMR-20260808-175055-cebd, citing 3 already-merged closures (commits ad143bfe9, 6579b5a13, 909467b49 -- PRs #1080/#1100/#1118); no unique content.",
+    "1152": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which explicitly names this PR (#1152) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion.",
+    "1159": "Self-declared pure 5th-dispatch duplicate for UMR-20260808-175055-cebd, citing 3 already-merged closures (PRs #1080/#1100/#1118) and explicitly naming this PR's own siblings (#1103/#1087/#1130) as stale/superseded; no unique content.",
+    "1176": "Superseded by progress/task-20260814-171913-rca--umr-20260806-223456-68d7-killed.md, already on main, which explicitly names this PR (#1176) and states \"No redispatch, no code fix, no new RCA content needed... Nothing to add beyond what's already recorded on the row and in PR #1176.\"",
+    "1182": "Superseded by progress/task-20260814-191650-rca--umr-20260806-173900-b504-killed.md, already on main (merged as PR #1185), which independently re-verifies the same substantive facts (PR #249 merged, PR #222 closed-as-obsolete, live disk state) and explicitly names this PR (#1182) as the already-completed prior RCA.",
+    "1184": "Superseded by progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md, already on main, which independently re-derives the identical two-grounds finding (resource-gate closure + Owner stop-work order) and explicitly names this PR (#1184) as the original RCA already reflected on the live row.",
+    "1186": "Superseded by progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md, already on main; this PR's own diff self-declares as a pure duplicate of PR #1184 with no unique content beyond the duplicate-confirmation.",
+    "1290": "Superseded by progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md, already on main; this PR's own diff self-declares as a triplicate-dispatch duplicate of PR #1184 with no unique content beyond the duplicate-confirmation."
+  },
+  "reviewed_not_closed_real_content": {
+    "1094": "Contains a real, unique correction (mark-umr-terminal status change from killed to completed, citing real evidence PR #277/commit 86a2a81) not reproduced anywhere on main -- the matched main file only mentions UMR-d105 in passing.",
+    "1148": "Contains a real, previously-undocumented finding (merge_gate.py find_latest_verdict() self-approval gap in the separate claude-control repo, PR #230) not present in the matched main file (which covers a different UMR, eb50).",
+    "1169": "Contains a real finding (3rd-occurrence repeat-dispatch pattern, filed as open_questions.json OQ-20260814-0003) that cannot be superseded via this repo's git history since open_questions.json lives outside this repo.",
+    "1177": "Contains a real, previously-undocumented bug finding (discover_nonprod_target() has no identity check, would fabricate load-test evidence against the wrong service) plus a filed owner-proposal (id=554) not present in the matched main file.",
+    "1191": "Contains the same real OQ-20260814-0003 open-question content as PR #1169, not captured on main.",
+    "1194": "Contains a real, previously-undocumented bug finding (query_umr_tasks()'s --exclude-rca-complete SQL filter only matches reason LIKE 'RCA (%', silently missing 7 of 12 already-RCA'd killed rows) not present anywhere on main.",
+    "1077": "Contains a real, unique technical diagnosis (reconcile_owner_dispatch_status.py's cross-repo-comment blind spot + apply_correction() omitting ts_completed/reason, landing 9 minutes too late) distinct from the matched main file's own (different) finding.",
+    "1192": "Substantive Amendment-2 5-point re-verification plus a live DB reason-field correction; matched main file covers the core conclusion but not all of this PR's granular verification detail -- left open out of caution."
+  },
+  "not_individually_verified_left_open": ["1171", "1193", "1195", "1289"]
+}

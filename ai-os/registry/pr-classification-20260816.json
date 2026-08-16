@@ -21,7 +21,8 @@
         "package.json"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 323,
@@ -53,7 +54,8 @@
         "src/lib/services/chat-service.ts"
       ],
       "class": "CODE",
-      "reason": "20 of 20 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)"
+      "reason": "20 of 20 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 407,
@@ -66,7 +68,8 @@
         ".github/workflows/claude.yml"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 410,
@@ -80,7 +83,8 @@
         "package.json"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 484,
@@ -97,7 +101,8 @@
         "drizzle/meta/_journal.json"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. drizzle/0001_wakeful_reptil.sql)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. drizzle/0001_wakeful_reptil.sql)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 489,
@@ -118,7 +123,8 @@
         "src/components/bottom-nav-items.ts"
       ],
       "class": "CODE",
-      "reason": "8 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "8 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 522,
@@ -151,7 +157,8 @@
         "src/lib/services/instruction-execution-cache-service.ts"
       ],
       "class": "CODE",
-      "reason": "20 of 21 changed file(s) are real source/config/test/schema (e.g. .github/CODEOWNERS)"
+      "reason": "20 of 21 changed file(s) are real source/config/test/schema (e.g. .github/CODEOWNERS)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 523,
@@ -164,7 +171,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 527,
@@ -177,7 +185,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 528,
@@ -193,7 +202,8 @@
         "ai-os/scripts/missed-execution-detector.py"
       ],
       "class": "CODE",
-      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/audit198/category-checkers.mjs)"
+      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/audit198/category-checkers.mjs)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 529,
@@ -210,7 +220,8 @@
         "src/lib/services/memory-tier-registry.ts"
       ],
       "class": "CODE",
-      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/audit198/category-checkers.mjs)"
+      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/audit198/category-checkers.mjs)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 530,
@@ -230,7 +241,8 @@
         "src/lib/task-execution-engine.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/audit198/category-checkers.mjs)"
+      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/audit198/category-checkers.mjs)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 531,
@@ -243,7 +255,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 532,
@@ -264,7 +277,8 @@
         "src/lib/orchestra-model-resolver.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/OSS_STUDY_LEDGER.yaml)"
+      "reason": "6 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/OSS_STUDY_LEDGER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 533,
@@ -277,7 +291,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 534,
@@ -306,7 +321,8 @@
         "src/lib/services/share-link-kernel.ts"
       ],
       "class": "CODE",
-      "reason": "16 of 17 changed file(s) are real source/config/test/schema (e.g. ai-os/UI_UX_DESIGN_SYSTEM.yaml)"
+      "reason": "16 of 17 changed file(s) are real source/config/test/schema (e.g. ai-os/UI_UX_DESIGN_SYSTEM.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 535,
@@ -319,7 +335,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 536,
@@ -340,7 +357,8 @@
         "scripts/check-hardcoded-config.mjs"
       ],
       "class": "CODE",
-      "reason": "7 of 9 changed file(s) are real source/config/test/schema (e.g. .github/ISSUE_TEMPLATE/bug_report.yml)"
+      "reason": "7 of 9 changed file(s) are real source/config/test/schema (e.g. .github/ISSUE_TEMPLATE/bug_report.yml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 537,
@@ -353,7 +371,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 538,
@@ -366,7 +385,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 551,
@@ -380,7 +400,8 @@
         "src/lib/llm-client.ts"
       ],
       "class": "CODE",
-      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. src/lib/ai-router/mother-router.ts)"
+      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. src/lib/ai-router/mother-router.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 554,
@@ -394,7 +415,8 @@
         "scripts/check-terminology-guardrail.mjs"
       ],
       "class": "CODE",
-      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)"
+      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 555,
@@ -407,7 +429,8 @@
         ".github/workflows/ai-prompt-evals.yml"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 556,
@@ -420,7 +443,8 @@
         "package.json"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 557,
@@ -433,7 +457,8 @@
         "package.json"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 558,
@@ -452,7 +477,8 @@
         "src/lib/utils/request-ip.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 7 changed file(s) are real source/config/test/schema (e.g. src/app/api/auth/failure-event/route.ts)"
+      "reason": "7 of 7 changed file(s) are real source/config/test/schema (e.g. src/app/api/auth/failure-event/route.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 566,
@@ -466,7 +492,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 570,
@@ -479,7 +506,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 571,
@@ -493,7 +521,8 @@
         "src/lib/guardrail-registrations.ts"
       ],
       "class": "CODE",
-      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. src/lib/guardrail-registrations.test.ts)"
+      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. src/lib/guardrail-registrations.test.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 574,
@@ -508,7 +537,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 575,
@@ -524,7 +554,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 576,
@@ -542,7 +573,8 @@
         "scripts/crm-perf-load-test.ts"
       ],
       "class": "CODE",
-      "reason": "3 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "3 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 577,
@@ -555,7 +587,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 578,
@@ -576,7 +609,8 @@
         "src/lib/ai-team/roster.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 9 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ai-dispatch.yml)"
+      "reason": "7 of 9 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ai-dispatch.yml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 579,
@@ -597,7 +631,8 @@
         "src/lib/services/erp-payment-entries-service.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 582,
@@ -614,7 +649,8 @@
         "drizzle/0264_search_perf_gin_trgm_indexes.sql"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 583,
@@ -641,7 +677,8 @@
         "src/lib/services/hr-service.ts"
       ],
       "class": "CODE",
-      "reason": "11 of 15 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "11 of 15 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 584,
@@ -680,7 +717,8 @@
         "src/lib/universal-hash.ts"
       ],
       "class": "CODE",
-      "reason": "26 of 27 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER_INDEX.yaml)"
+      "reason": "26 of 27 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER_INDEX.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 585,
@@ -698,7 +736,8 @@
         "src/lib/db/schema.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "5 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 604,
@@ -718,7 +757,8 @@
         "src/lib/services/tet-shield-gate.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 618,
@@ -757,7 +797,8 @@
         "src/lib/services/prompt-translation-service.ts"
       ],
       "class": "CODE",
-      "reason": "26 of 27 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "26 of 27 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 619,
@@ -771,7 +812,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 620,
@@ -787,7 +829,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 622,
@@ -801,7 +844,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 623,
@@ -814,7 +858,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 625,
@@ -827,7 +872,8 @@
         "ai-os/audits/functionality_completion_reaudit_2026-07-27.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 626,
@@ -843,7 +889,8 @@
         "ai-os/tasks/sap_mapping/SAP_REPORTS_80_CROSS_REFERENCE_STATUS.yaml"
       ],
       "class": "CODE",
-      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 632,
@@ -860,7 +907,8 @@
         "src/lib/services/notice-service.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)"
+      "reason": "5 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 635,
@@ -880,7 +928,8 @@
         "src/lib/services/token-usage-service.ts"
       ],
       "class": "CODE",
-      "reason": "8 of 8 changed file(s) are real source/config/test/schema (e.g. drizzle/0302_token_usage_ledger_cost_model_type.sql)"
+      "reason": "8 of 8 changed file(s) are real source/config/test/schema (e.g. drizzle/0302_token_usage_ledger_cost_model_type.sql)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 643,
@@ -896,7 +945,8 @@
         "src/lib/services/erp-financial-report-service.ts"
       ],
       "class": "CODE",
-      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 647,
@@ -915,7 +965,8 @@
         "src/lib/services/report-engine-service.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 7 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ai-prompt-evals.yml)"
+      "reason": "7 of 7 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ai-prompt-evals.yml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 652,
@@ -934,7 +985,8 @@
         "src/lib/services/report-engine-service.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 653,
@@ -962,7 +1014,8 @@
         "src/lib/services/report-catalog-service.ts"
       ],
       "class": "CODE",
-      "reason": "15 of 16 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "15 of 16 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 655,
@@ -982,7 +1035,8 @@
         "src/lib/services/crm-service.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 657,
@@ -999,7 +1053,8 @@
         "src/app/api/crm/sales-pipeline/route.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "5 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 659,
@@ -1016,7 +1071,8 @@
         "src/lib/services/schedule-service.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 5 changed file(s) are real source/config/test/schema (e.g. src/lib/services/pms-issue-service.test.ts)"
+      "reason": "5 of 5 changed file(s) are real source/config/test/schema (e.g. src/lib/services/pms-issue-service.test.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 660,
@@ -1035,7 +1091,8 @@
         "src/app/api/v1/projexa/timesheets/[id]/submit/route.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 661,
@@ -1053,7 +1110,8 @@
         "src/lib/data/geography.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "6 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 662,
@@ -1067,7 +1125,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 663,
@@ -1087,7 +1146,8 @@
         "src/lib/services/product-service.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 664,
@@ -1110,7 +1170,8 @@
         "src/lib/services/product-service.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "10 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 665,
@@ -1132,7 +1193,8 @@
         "src/lib/services/social-feed-service.ts"
       ],
       "class": "CODE",
-      "reason": "9 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "9 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 666,
@@ -1156,7 +1218,8 @@
         "src/lib/services/crm-import-export-service.ts"
       ],
       "class": "CODE",
-      "reason": "11 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "11 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 667,
@@ -1179,7 +1242,8 @@
         "src/lib/services/project-template-service.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "10 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 668,
@@ -1198,7 +1262,8 @@
         "src/lib/services/crm-campaigns-service.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 670,
@@ -1211,7 +1276,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 673,
@@ -1224,7 +1290,8 @@
         ".github/workflows/codeql.yml"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 682,
@@ -1238,7 +1305,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 683,
@@ -1254,7 +1322,8 @@
         "scripts/check-service-header-comment.mjs"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 684,
@@ -1280,7 +1349,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 14 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "6 of 14 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 685,
@@ -1302,7 +1372,8 @@
         "scripts/check-doc-drift.mjs"
       ],
       "class": "CODE",
-      "reason": "7 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 687,
@@ -1331,7 +1402,8 @@
         "src/lib/services/token-usage-service.ts"
       ],
       "class": "CODE",
-      "reason": "15 of 17 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "15 of 17 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 688,
@@ -1355,7 +1427,8 @@
         "src/lib/task-execution-engine.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 689,
@@ -1371,7 +1444,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 690,
@@ -1386,7 +1460,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 691,
@@ -1400,7 +1475,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 693,
@@ -1413,7 +1489,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 694,
@@ -1426,7 +1503,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 695,
@@ -1439,7 +1517,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 696,
@@ -1453,7 +1532,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 698,
@@ -1466,7 +1546,8 @@
         "ai-os/MASTER-TRACKER.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 699,
@@ -1481,7 +1562,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 700,
@@ -1494,7 +1576,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 701,
@@ -1507,7 +1590,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 702,
@@ -1520,7 +1604,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 703,
@@ -1535,7 +1620,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 704,
@@ -1548,7 +1634,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 706,
@@ -1561,7 +1648,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 707,
@@ -1575,7 +1663,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 709,
@@ -1588,7 +1677,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 711,
@@ -1601,7 +1691,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 712,
@@ -1615,7 +1706,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 714,
@@ -1629,7 +1721,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 715,
@@ -1645,7 +1738,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 718,
@@ -1659,7 +1753,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 719,
@@ -1673,7 +1768,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 721,
@@ -1686,7 +1782,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 722,
@@ -1701,7 +1798,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 724,
@@ -1716,7 +1814,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 727,
@@ -1729,7 +1828,8 @@
         "ai-os/PROJEXA_AI_COM_AUTHENTICATED_SCREENS_AUDIT_2026-08-02.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 728,
@@ -1744,7 +1844,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 730,
@@ -1758,7 +1859,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 733,
@@ -1771,7 +1873,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 734,
@@ -1785,7 +1888,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 735,
@@ -1799,7 +1903,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 736,
@@ -1814,7 +1919,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 738,
@@ -1829,7 +1935,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 744,
@@ -1842,7 +1949,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 749,
@@ -1857,7 +1965,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 760,
@@ -1871,7 +1980,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 761,
@@ -1885,7 +1995,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 762,
@@ -1899,7 +2010,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 787,
@@ -1915,7 +2027,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 790,
@@ -1929,7 +2042,8 @@
         "ai-os/MASTER-TRACKER.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 791,
@@ -1945,7 +2059,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 792,
@@ -1959,7 +2074,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 802,
@@ -1973,7 +2089,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 807,
@@ -1991,7 +2108,8 @@
         "src/app/api/clm/templates/route.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "5 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 808,
@@ -2013,7 +2131,8 @@
         "src/components/ModuleAccessNotice.tsx"
       ],
       "class": "CODE",
-      "reason": "9 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "9 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 819,
@@ -2027,7 +2146,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 821,
@@ -2042,7 +2162,8 @@
         "scripts/check-yaml-safe-load.mjs"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 827,
@@ -2057,7 +2178,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 838,
@@ -2071,7 +2193,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 839,
@@ -2085,7 +2208,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 840,
@@ -2099,7 +2223,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 841,
@@ -2112,7 +2237,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 845,
@@ -2126,7 +2252,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 857,
@@ -2140,7 +2267,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 858,
@@ -2155,7 +2283,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 861,
@@ -2168,7 +2297,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 871,
@@ -2182,7 +2312,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 872,
@@ -2197,7 +2328,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 877,
@@ -2211,7 +2343,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 880,
@@ -2224,7 +2357,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 887,
@@ -2238,7 +2372,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 888,
@@ -2253,7 +2388,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 889,
@@ -2272,7 +2408,8 @@
         "src/components/AppShell.tsx"
       ],
       "class": "CODE",
-      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 891,
@@ -2285,7 +2422,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 892,
@@ -2299,7 +2437,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 893,
@@ -2312,7 +2451,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 894,
@@ -2327,7 +2467,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 896,
@@ -2345,7 +2486,8 @@
         "src/lib/services/veri-todo-service.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "5 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 897,
@@ -2358,7 +2500,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 899,
@@ -2373,7 +2516,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 902,
@@ -2390,7 +2534,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 903,
@@ -2405,7 +2550,8 @@
         "ai-os/VERIDIAN_OCID_053_REGISTRATION_DUPLICATE_DISPATCH_FINDING_2026-08-04.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 905,
@@ -2422,7 +2568,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 909,
@@ -2439,7 +2586,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 915,
@@ -2456,7 +2604,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 916,
@@ -2470,7 +2619,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 918,
@@ -2484,7 +2634,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 921,
@@ -2498,7 +2649,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 922,
@@ -2512,7 +2664,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 923,
@@ -2527,7 +2680,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 929,
@@ -2544,7 +2698,8 @@
         "src/app/api/me/route.ts"
       ],
       "class": "CODE",
-      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 939,
@@ -2557,7 +2712,8 @@
         "ai-os/OS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 940,
@@ -2574,7 +2730,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 943,
@@ -2587,7 +2744,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 945,
@@ -2603,7 +2761,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 947,
@@ -2619,7 +2778,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 948,
@@ -2632,7 +2792,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 949,
@@ -2645,7 +2806,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 951,
@@ -2659,7 +2821,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 952,
@@ -2674,7 +2837,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 953,
@@ -2689,7 +2853,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 954,
@@ -2704,7 +2869,8 @@
         "src/app/signup/signup-form.tsx"
       ],
       "class": "CODE",
-      "reason": "3 of 3 changed file(s) are real source/config/test/schema (e.g. src/app/signup/page.test.ts)"
+      "reason": "3 of 3 changed file(s) are real source/config/test/schema (e.g. src/app/signup/page.test.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 955,
@@ -2717,7 +2883,8 @@
         "ai-os/MASTER_INDEX.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER_INDEX.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER_INDEX.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 956,
@@ -2731,7 +2898,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 957,
@@ -2745,7 +2913,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 958,
@@ -2759,7 +2928,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 959,
@@ -2786,7 +2956,8 @@
         "src/lib/services/org-branding-service.ts"
       ],
       "class": "CODE",
-      "reason": "15 of 15 changed file(s) are real source/config/test/schema (e.g. drizzle/0313_preauth_brand_footer_column.sql)"
+      "reason": "15 of 15 changed file(s) are real source/config/test/schema (e.g. drizzle/0313_preauth_brand_footer_column.sql)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 961,
@@ -2801,7 +2972,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 963,
@@ -2816,7 +2988,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 964,
@@ -2829,7 +3002,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 965,
@@ -2848,7 +3022,8 @@
         "src/app/signup/signup-form.tsx"
       ],
       "class": "CODE",
-      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 966,
@@ -2866,7 +3041,8 @@
         "src/app/pricing/pricing-content.tsx"
       ],
       "class": "CODE",
-      "reason": "4 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "4 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 967,
@@ -2882,7 +3058,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 968,
@@ -2905,7 +3082,8 @@
         "src/lib/services/org-branding-service.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "10 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 969,
@@ -2920,7 +3098,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 970,
@@ -2934,7 +3113,8 @@
         "ai-os/boss/COMPLETED.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/COMPLETED.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 971,
@@ -2948,7 +3128,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 972,
@@ -2962,7 +3143,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 973,
@@ -2977,7 +3159,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 974,
@@ -2991,7 +3174,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 975,
@@ -3005,7 +3189,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 976,
@@ -3019,7 +3204,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 977,
@@ -3036,7 +3222,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)"
+      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/CONSTITUTION.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 978,
@@ -3049,7 +3236,8 @@
         "src/app/sitemap.ts"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. src/app/sitemap.ts)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. src/app/sitemap.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 979,
@@ -3062,7 +3250,8 @@
         "src/app/layout.tsx"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. src/app/layout.tsx)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. src/app/layout.tsx)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 980,
@@ -3076,7 +3265,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 981,
@@ -3089,7 +3279,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 983,
@@ -3102,7 +3293,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 984,
@@ -3116,7 +3308,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 985,
@@ -3129,7 +3322,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 986,
@@ -3145,7 +3339,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 989,
@@ -3158,7 +3353,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 990,
@@ -3171,7 +3367,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 991,
@@ -3185,7 +3382,8 @@
         "package.json"
       ],
       "class": "CODE",
-      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. bun.lock)"
+      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. bun.lock)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 992,
@@ -3199,7 +3397,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 993,
@@ -3212,7 +3411,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 994,
@@ -3226,7 +3426,8 @@
         "next.config.ts"
       ],
       "class": "CODE",
-      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 995,
@@ -3256,7 +3457,8 @@
         "src/lib/services/report-engine-service.ts"
       ],
       "class": "CODE",
-      "reason": "17 of 18 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "17 of 18 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 996,
@@ -3269,7 +3471,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 997,
@@ -3311,7 +3514,8 @@
         "src/lib/services/report-engine-service.ts"
       ],
       "class": "CODE",
-      "reason": "29 of 30 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "29 of 30 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 998,
@@ -3325,7 +3529,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 999,
@@ -3340,7 +3545,8 @@
         "progress/task-20260806-151351-real-disk-root-cause-found-per-task-node.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1000,
@@ -3354,7 +3560,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1003,
@@ -3368,7 +3575,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1004,
@@ -3382,7 +3590,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1005,
@@ -3396,7 +3605,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1006,
@@ -3409,7 +3619,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1007,
@@ -3423,7 +3634,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1008,
@@ -3436,7 +3648,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1009,
@@ -3451,7 +3664,8 @@
         "ai-os/registry/reconcile-stale-sweep-20260806-235333.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1010,
@@ -3464,7 +3678,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1011,
@@ -3478,7 +3693,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1012,
@@ -3492,7 +3708,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1013,
@@ -3514,7 +3731,8 @@
         "src/lib/services/crm-service.ts"
       ],
       "class": "CODE",
-      "reason": "9 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "9 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1014,
@@ -3547,7 +3765,8 @@
         "vercel.json"
       ],
       "class": "CODE",
-      "reason": "19 of 21 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "19 of 21 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1015,
@@ -3572,7 +3791,8 @@
         "src/lib/services/veri-reward-service.ts"
       ],
       "class": "CODE",
-      "reason": "11 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "11 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1019,
@@ -3596,7 +3816,8 @@
         "src/lib/use-online-status.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1020,
@@ -3623,7 +3844,8 @@
         "src/lib/services/token-usage-service.ts"
       ],
       "class": "CODE",
-      "reason": "14 of 15 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "14 of 15 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1021,
@@ -3647,7 +3869,8 @@
         "src/lib/services/deployment-slo-service.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1022,
@@ -3661,7 +3884,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1023,
@@ -3675,7 +3899,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1024,
@@ -3689,7 +3914,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1025,
@@ -3703,7 +3929,8 @@
         "ai-os/AI_OS_TASK_RECORDS_AUDIT_2026-08-07.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1026,
@@ -3717,7 +3944,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1027,
@@ -3730,7 +3958,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1028,
@@ -3744,7 +3973,8 @@
         "ai-os/scripts/worker-entrypoint.sh"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/worker-entrypoint.sh)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/worker-entrypoint.sh)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1029,
@@ -3758,7 +3988,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1030,
@@ -3771,7 +4002,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1031,
@@ -3797,7 +4029,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 14 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "6 of 14 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1032,
@@ -3811,7 +4044,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1033,
@@ -3825,7 +4059,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1034,
@@ -3839,7 +4074,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1035,
@@ -3853,7 +4089,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1036,
@@ -3881,7 +4118,8 @@
         "src/lib/forge-captcha.ts"
       ],
       "class": "CODE",
-      "reason": "13 of 16 changed file(s) are real source/config/test/schema (e.g. .env.example)"
+      "reason": "13 of 16 changed file(s) are real source/config/test/schema (e.g. .env.example)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1037,
@@ -3898,7 +4136,8 @@
         "src/lib/services/construction-ai-service.ts"
       ],
       "class": "CODE",
-      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1038,
@@ -3929,7 +4168,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "11 of 19 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "11 of 19 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1039,
@@ -3944,7 +4184,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1040,
@@ -3957,7 +4198,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1041,
@@ -3971,7 +4213,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1042,
@@ -3985,7 +4228,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1043,
@@ -4002,7 +4246,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1044,
@@ -4016,7 +4261,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1045,
@@ -4033,7 +4279,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1046,
@@ -4063,7 +4310,8 @@
         "src/lib/services/cost-reconciliation-service.ts"
       ],
       "class": "CODE",
-      "reason": "16 of 18 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "16 of 18 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1047,
@@ -4088,7 +4336,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "5 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1048,
@@ -4101,7 +4350,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 1 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1049,
@@ -4114,7 +4364,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1050,
@@ -4127,7 +4378,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1052,
@@ -4141,7 +4393,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1053,
@@ -4154,7 +4407,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1054,
@@ -4167,7 +4421,8 @@
         "package.json"
       ],
       "class": "DEPENDENCY",
-      "reason": "authored by dependabot"
+      "reason": "authored by dependabot",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1055,
@@ -4180,7 +4435,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1056,
@@ -4193,7 +4449,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1057,
@@ -4207,7 +4464,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1058,
@@ -4221,7 +4479,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1059,
@@ -4236,7 +4495,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. .scratch/vs-work)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. .scratch/vs-work)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1060,
@@ -4249,7 +4509,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1061,
@@ -4262,7 +4523,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1062,
@@ -4276,7 +4538,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1063,
@@ -4291,7 +4554,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1064,
@@ -4305,7 +4569,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1065,
@@ -4321,7 +4586,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1066,
@@ -4335,7 +4601,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1067,
@@ -4349,7 +4616,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1068,
@@ -4363,7 +4631,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1069,
@@ -4377,7 +4646,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1071,
@@ -4391,7 +4661,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1072,
@@ -4405,7 +4676,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1074,
@@ -4418,7 +4690,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1077,
@@ -4431,7 +4704,9 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Contains a real, unique technical diagnosis (reconcile_owner_dispatch_status.py's cross-repo-comment blind spot + apply_correction() omitting ts_completed/reason, landing 9 minutes too late) distinct from the matched main file's own (different) finding."
     },
     {
       "number": 1078,
@@ -4444,7 +4719,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1079,
@@ -4457,7 +4733,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1083,
@@ -4470,7 +4747,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1084,
@@ -4484,7 +4762,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1086,
@@ -4497,7 +4776,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1087,
@@ -4510,7 +4790,9 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Content is already merged to origin/main verbatim: compliance-tracker PR #1080 (merge commit 21f925697ba7a2817026fc98f912b3476b9dd3c2, \"docs: RCA for killed UMR-20260808-175055-cebd, stuck-task SIGKILL working as designed (#1080)\") is a confirmed ancestor of origin/main and its merge-commit message matches this PR's own diff content point-for-point."
     },
     {
       "number": 1089,
@@ -4526,7 +4808,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1091,
@@ -4539,7 +4822,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1093,
@@ -4552,7 +4836,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1094,
@@ -4565,7 +4850,9 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Contains a real, unique correction (mark-umr-terminal status change from killed to completed, citing real evidence PR #277/commit 86a2a81) not reproduced anywhere on main -- the matched main file only mentions UMR-d105 in passing."
     },
     {
       "number": 1096,
@@ -4578,7 +4865,9 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which independently re-derives the identical conclusion and explicitly names this PR (#1096) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion."
     },
     {
       "number": 1097,
@@ -4591,7 +4880,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1103,
@@ -4604,7 +4894,9 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Self-declared pure duplicate citing already-merged evidence (commit ad143bfe9, merged in at bd6551cdf) for UMR-20260808-175055-cebd; no unique content beyond the duplicate-confirmation itself, which matches progress/task-20260814-201900-rca--umr-20260808-175055-cebd-killed.md already on main."
     },
     {
       "number": 1104,
@@ -4617,7 +4909,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1106,
@@ -4630,7 +4923,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1107,
@@ -4643,7 +4937,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1109,
@@ -4656,7 +4951,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1110,
@@ -4670,7 +4966,8 @@
         "ai-os/boss/ACTIVE-CLAIMS.yaml"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1113,
@@ -4683,7 +4980,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1115,
@@ -4696,7 +4994,9 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which explicitly names this PR (#1115) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion."
     },
     {
       "number": 1117,
@@ -4709,7 +5009,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1119,
@@ -4722,7 +5023,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1121,
@@ -4735,7 +5037,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1125,
@@ -4749,7 +5052,8 @@
         "progress/task-20260814-021614-rca--umr-20260807-063903-f604-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1126,
@@ -4762,7 +5066,8 @@
         "progress/task-20260814-021958-rca--umr-20260807-063851-df5e-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1128,
@@ -4776,7 +5081,9 @@
         "progress/task-20260814-051558-rca--umr-20260808-081216-db86-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which explicitly names this PR (#1128) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion."
     },
     {
       "number": 1129,
@@ -4790,7 +5097,8 @@
         "progress/task-20260814-051636-rca--umr-20260807-143102-a7e5-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1130,
@@ -4804,7 +5112,9 @@
         "progress/task-20260814-061744-rca--umr-20260808-175055-cebd-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Self-declared pure 4th-dispatch duplicate for UMR-20260808-175055-cebd, citing 3 already-merged closures (commits ad143bfe9, 6579b5a13, 909467b49 -- PRs #1080/#1100/#1118); no unique content."
     },
     {
       "number": 1131,
@@ -4817,7 +5127,8 @@
         "progress/task-20260814-061738-rca--umr-20260808-215121-1e87-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1132,
@@ -4834,7 +5145,8 @@
         "progress/task-20260814-062124-rca--umr-20260808-150937-43d0-killed.md"
       ],
       "class": "CODE",
-      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1133,
@@ -4848,7 +5160,8 @@
         "progress/task-20260814-061732-rca--umr-20260813-130245-6a26-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1136,
@@ -4862,7 +5175,8 @@
         "progress/task-20260814-071834-rca--umr-20260807-101751-68ff-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1137,
@@ -4875,7 +5189,8 @@
         "PROGRESS.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1138,
@@ -4888,7 +5203,8 @@
         "progress/task-20260814-082407-rca--umr-20260813-171554-e01e-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1140,
@@ -4903,7 +5219,8 @@
         "progress/task-20260814-082938-rca--umr-20260807-063918-f15d-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1141,
@@ -4917,7 +5234,8 @@
         "progress/task-20260814-082829-rca--umr-20260807-101751-68ff-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1144,
@@ -4932,7 +5250,8 @@
         "progress/task-20260814-091809-rca--umr-20260806-223456-68d7-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1145,
@@ -4956,7 +5275,8 @@
         "src/lib/protected-routes.generated.ts"
       ],
       "class": "CODE",
-      "reason": "12 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "12 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1147,
@@ -4971,7 +5291,8 @@
         "progress/task-20260814-113434-rca--umr-20260807-153242-ee23-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1148,
@@ -4984,7 +5305,9 @@
         "progress/task-20260814-121415-rca--umr-20260814-095518-ec65-status-run.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Contains a real, previously-undocumented finding (merge_gate.py find_latest_verdict() self-approval gap in the separate claude-control repo, PR #230) not present in the matched main file (which covers a different UMR, eb50)."
     },
     {
       "number": 1150,
@@ -4998,7 +5321,8 @@
         "progress/task-20260814-121357-rca--umr-20260807-063851-df5e-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1152,
@@ -5012,7 +5336,9 @@
         "progress/task-20260814-124353-rca--umr-20260808-081216-db86-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260814-181832-rca--umr-20260808-081216-db86-killed.md, already on main (merged as PR #1181), which explicitly names this PR (#1152) as one of 4 already-open duplicate RCA PRs reaching the identical conclusion."
     },
     {
       "number": 1156,
@@ -5026,7 +5352,8 @@
         "progress/task-20260814-124943-rca--umr-20260807-143102-a7e5-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1159,
@@ -5040,7 +5367,9 @@
         "progress/task-20260814-131802-rca--umr-20260808-175055-cebd-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Self-declared pure 5th-dispatch duplicate for UMR-20260808-175055-cebd, citing 3 already-merged closures (PRs #1080/#1100/#1118) and explicitly naming this PR's own siblings (#1103/#1087/#1130) as stale/superseded; no unique content."
     },
     {
       "number": 1161,
@@ -5053,7 +5382,8 @@
         "NOTES/aider-litellm-tier4-real-test.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1162,
@@ -5067,7 +5397,8 @@
         "progress/task-20260814-132645-rca--umr-20260814-125542-c8ce-status-run.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1163,
@@ -5081,7 +5412,8 @@
         "NOTES/aider-litellm-tier4-real-test.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. .gitignore)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. .gitignore)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1165,
@@ -5094,7 +5426,8 @@
         "progress/task-20260814-141638-rca--umr-20260808-215121-1e87-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1169,
@@ -5108,7 +5441,9 @@
         "progress/task-20260814-151735-rca--umr-20260807-063918-f15d-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Contains a real finding (3rd-occurrence repeat-dispatch pattern, filed as open_questions.json OQ-20260814-0003) that cannot be superseded via this repo's git history since open_questions.json lives outside this repo."
     },
     {
       "number": 1171,
@@ -5122,7 +5457,9 @@
         "progress/task-20260814-151720-rca--umr-20260813-092654-326b-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_NOT_VERIFIED",
+      "disposition_reason": "DOCS-ONLY, UMR id present, but not individually content-verified against main within this task's review budget -- left open per the conservative disposal mandate (never close without a verified citation)."
     },
     {
       "number": 1172,
@@ -5135,7 +5472,8 @@
         "progress/task-20260814-151819-rca--umr-20260807-003517-23bb-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1174,
@@ -5149,7 +5487,8 @@
         "progress/task-20260814-161812-rca--umr-20260806-202449-2e09-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1175,
@@ -5162,7 +5501,8 @@
         "progress/task-20260814-161759-rca--umr-20260807-063851-df5e-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1176,
@@ -5175,7 +5515,9 @@
         "progress/task-20260814-161806-rca--umr-20260806-223456-68d7-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260814-171913-rca--umr-20260806-223456-68d7-killed.md, already on main, which explicitly names this PR (#1176) and states \"No redispatch, no code fix, no new RCA content needed... Nothing to add beyond what's already recorded on the row and in PR #1176.\""
     },
     {
       "number": 1177,
@@ -5188,7 +5530,9 @@
         "progress/task-20260814-161849-rca--umr-20260806-175541-f164-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Contains a real, previously-undocumented bug finding (discover_nonprod_target() has no identity check, would fabricate load-test evidence against the wrong service) plus a filed owner-proposal (id=554) not present in the matched main file."
     },
     {
       "number": 1179,
@@ -5202,7 +5546,8 @@
         "progress/task-20260814-171926-rca--umr-20260814-170119-7a8a-status-run.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1180,
@@ -5215,7 +5560,8 @@
         "progress/task-20260814-171920-rca--umr-20260806-180933-d3bb-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1182,
@@ -5229,7 +5575,9 @@
         "progress/task-20260814-182050-rca--umr-20260806-173900-b504-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260814-191650-rca--umr-20260806-173900-b504-killed.md, already on main (merged as PR #1185), which independently re-verifies the same substantive facts (PR #249 merged, PR #222 closed-as-obsolete, live disk state) and explicitly names this PR (#1182) as the already-completed prior RCA."
     },
     {
       "number": 1184,
@@ -5243,7 +5591,9 @@
         "progress/task-20260814-182533-rca--umr-20260806-171558-146e-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md, already on main, which independently re-derives the identical two-grounds finding (resource-gate closure + Owner stop-work order) and explicitly names this PR (#1184) as the original RCA already reflected on the live row."
     },
     {
       "number": 1186,
@@ -5257,7 +5607,9 @@
         "progress/task-20260814-191657-rca--umr-20260806-171558-146e-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md, already on main; this PR's own diff self-declares as a pure duplicate of PR #1184 with no unique content beyond the duplicate-confirmation."
     },
     {
       "number": 1188,
@@ -5272,7 +5624,8 @@
         "progress/task-20260814-201850-rca--umr-20260808-215121-1e87-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1191,
@@ -5286,7 +5639,9 @@
         "progress/task-20260814-211842-rca--umr-20260807-063918-f15d-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Contains the same real OQ-20260814-0003 open-question content as PR #1169, not captured on main."
     },
     {
       "number": 1192,
@@ -5300,7 +5655,9 @@
         "progress/task-20260814-211756-rca--umr-20260813-092654-326b-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Substantive Amendment-2 5-point re-verification plus a live DB reason-field correction; matched main file covers the core conclusion but not all of this PR's granular verification detail -- left open out of caution."
     },
     {
       "number": 1193,
@@ -5313,7 +5670,9 @@
         "progress/task-20260814-211849-rca--umr-20260807-063911-48c3-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_NOT_VERIFIED",
+      "disposition_reason": "DOCS-ONLY, UMR id present, but not individually content-verified against main within this task's review budget -- left open per the conservative disposal mandate (never close without a verified citation)."
     },
     {
       "number": 1194,
@@ -5327,7 +5686,9 @@
         "progress/task-20260814-211805-rca--umr-20260807-101751-68ff-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_REAL_CONTENT",
+      "disposition_reason": "Contains a real, previously-undocumented bug finding (query_umr_tasks()'s --exclude-rca-complete SQL filter only matches reason LIKE 'RCA (%', silently missing 7 of 12 already-RCA'd killed rows) not present anywhere on main."
     },
     {
       "number": 1195,
@@ -5341,7 +5702,9 @@
         "progress/task-20260814-211926-rca--umr-20260807-030725-f8dd-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_NOT_VERIFIED",
+      "disposition_reason": "DOCS-ONLY, UMR id present, but not individually content-verified against main within this task's review budget -- left open per the conservative disposal mandate (never close without a verified citation)."
     },
     {
       "number": 1196,
@@ -5355,7 +5718,8 @@
         "progress/task-20260815-033356-urgent--governance-reconciliation-backgr.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1197,
@@ -5370,7 +5734,8 @@
         "progress/task-20260815-032657-merge-pr-954-959-962--exact-blocker-is-r.md"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. .gitignore)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. .gitignore)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1198,
@@ -5383,7 +5748,8 @@
         "progress/task-20260806-151345-critical-real-disk-exhaustion-root-files.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1199,
@@ -5400,7 +5766,8 @@
         "scripts/gtm-provision-cat15-16-test-tenant.ts"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. .scratch_final_check.py)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. .scratch_final_check.py)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1200,
@@ -5421,7 +5788,8 @@
         "src/app/sitemap.ts"
       ],
       "class": "CODE",
-      "reason": "8 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "8 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1201,
@@ -5446,7 +5814,8 @@
         "tmp_evidence/test_directive_engine_fail_closed_duplicate_battery.py"
       ],
       "class": "CODE",
-      "reason": "9 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "9 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1202,
@@ -5476,7 +5845,8 @@
         "src/app/sitemap.ts"
       ],
       "class": "CODE",
-      "reason": "13 of 18 changed file(s) are real source/config/test/schema (e.g. .scratch_specs/check_manifest.py)"
+      "reason": "13 of 18 changed file(s) are real source/config/test/schema (e.g. .scratch_specs/check_manifest.py)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1204,
@@ -5490,7 +5860,8 @@
         "progress/task-20260815-043432-root-cause-and-instrument-the-repeated-u.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1205,
@@ -5505,7 +5876,8 @@
         "progress/task-20260815-043932-run-the-deterministic-reconcile-stale-sw.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1207,
@@ -5524,7 +5896,8 @@
         "src/app/sitemap.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 7 changed file(s) are real source/config/test/schema (e.g. .scratch-audit.txt)"
+      "reason": "5 of 7 changed file(s) are real source/config/test/schema (e.g. .scratch-audit.txt)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1208,
@@ -5538,7 +5911,8 @@
         "progress/task-20260815-045117-urgent-implement-approved-fix--unbounded.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1209,
@@ -5552,7 +5926,8 @@
         "progress/task-20260718-062002-ai-cost-governance---finops--cost-monito.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1210,
@@ -5581,7 +5956,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "9 of 17 changed file(s) are real source/config/test/schema (e.g. .scratch/audit-comment-1210.txt)"
+      "reason": "9 of 17 changed file(s) are real source/config/test/schema (e.g. .scratch/audit-comment-1210.txt)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1211,
@@ -5604,7 +5980,8 @@
         "scripts/check-doc-drift.mjs"
       ],
       "class": "CODE",
-      "reason": "8 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "8 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1212,
@@ -5633,7 +6010,8 @@
         "src/lib/services/token-usage-service.ts"
       ],
       "class": "CODE",
-      "reason": "15 of 17 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "15 of 17 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1213,
@@ -5650,7 +6028,8 @@
         "scripts/report-high-risk-files.mjs"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1214,
@@ -5666,7 +6045,8 @@
         "scripts/audit-deterministic-first-coverage.mjs"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1215,
@@ -5690,7 +6070,8 @@
         "src/lib/task-execution-engine.ts"
       ],
       "class": "CODE",
-      "reason": "9 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "9 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1216,
@@ -5715,7 +6096,8 @@
         "src/lib/supabase/auth-guard.test.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 13 changed file(s) are real source/config/test/schema (e.g. .jscpd.json)"
+      "reason": "10 of 13 changed file(s) are real source/config/test/schema (e.g. .jscpd.json)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1217,
@@ -5736,7 +6118,8 @@
         "scripts/report-maintainability-gaps.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "6 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1218,
@@ -5763,7 +6146,8 @@
         "src/lib/services/confidence-correlation-service.ts"
       ],
       "class": "CODE",
-      "reason": "9 of 15 changed file(s) are real source/config/test/schema (e.g. .gitignore)"
+      "reason": "9 of 15 changed file(s) are real source/config/test/schema (e.g. .gitignore)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1220,
@@ -5785,7 +6169,8 @@
         "src/lib/task-execution/dispatch-tools.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)"
+      "reason": "6 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1222,
@@ -5801,7 +6186,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "1 of 4 changed file(s) are real source/config/test/schema (e.g. src/lib/openapi/generate.ts)"
+      "reason": "1 of 4 changed file(s) are real source/config/test/schema (e.g. src/lib/openapi/generate.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1223,
@@ -5816,7 +6202,8 @@
         "src/app/api/settings/model-config/route.test.ts"
       ],
       "class": "CODE",
-      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1224,
@@ -5835,7 +6222,8 @@
         "src/components/AppTopbar.tsx"
       ],
       "class": "CODE",
-      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1225,
@@ -5853,7 +6241,8 @@
         "scripts/classify-schema-tables.mjs"
       ],
       "class": "CODE",
-      "reason": "2 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1226,
@@ -5984,7 +6373,8 @@
         "src/components/veri-chat/VeriComposer.tsx"
       ],
       "class": "CODE",
-      "reason": "118 of 119 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "118 of 119 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1227,
@@ -6009,7 +6399,8 @@
         "src/lib/orchestra-model-resolver.ts"
       ],
       "class": "CODE",
-      "reason": "12 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "12 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1228,
@@ -6050,7 +6441,8 @@
         "src/lib/services/risk-register-service.ts"
       ],
       "class": "CODE",
-      "reason": "25 of 29 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "25 of 29 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1229,
@@ -6080,7 +6472,8 @@
         "vercel.json"
       ],
       "class": "CODE",
-      "reason": "17 of 18 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "17 of 18 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1230,
@@ -6100,7 +6493,8 @@
         "src/lib/supabase/api-key-auth.ts"
       ],
       "class": "CODE",
-      "reason": "4 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "4 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1231,
@@ -6123,7 +6517,8 @@
         "src/lib/webhook-deliver.ts"
       ],
       "class": "CODE",
-      "reason": "9 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "9 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1232,
@@ -6142,7 +6537,8 @@
         "src/lib/services/org-branding-service.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)"
+      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1233,
@@ -6156,7 +6552,8 @@
         "progress/task-20260718-080002-audit---governance--conversation-audit-l.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1234,
@@ -6177,7 +6574,8 @@
         "src/lib/db/schema.ts"
       ],
       "class": "CODE",
-      "reason": "8 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "8 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1235,
@@ -6205,7 +6603,8 @@
         "src/lib/logger.ts"
       ],
       "class": "CODE",
-      "reason": "12 of 16 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ci.yml)"
+      "reason": "12 of 16 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ci.yml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1236,
@@ -6224,7 +6623,8 @@
         "progress/task-20260718-071005-ai-model-lifecycle---benchmarking--evalu.md"
       ],
       "class": "CODE",
-      "reason": "5 of 7 changed file(s) are real source/config/test/schema (e.g. .scratch/audit-comment-1221.txt)"
+      "reason": "5 of 7 changed file(s) are real source/config/test/schema (e.g. .scratch/audit-comment-1221.txt)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1237,
@@ -6255,7 +6655,8 @@
         "src/lib/services/business-rules-service.ts"
       ],
       "class": "CODE",
-      "reason": "17 of 19 changed file(s) are real source/config/test/schema (e.g. .git-tmp/audit-comment.txt)"
+      "reason": "17 of 19 changed file(s) are real source/config/test/schema (e.g. .git-tmp/audit-comment.txt)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1238,
@@ -6281,7 +6682,8 @@
         "src/lib/services/report-engine-service.ts"
       ],
       "class": "CODE",
-      "reason": "12 of 14 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "12 of 14 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1239,
@@ -6295,7 +6697,8 @@
         "progress/task-20260718-110006-retry-2--ai-documentation--ai-readable.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1240,
@@ -6311,7 +6714,8 @@
         "scripts/check-service-header-comment.mjs"
       ],
       "class": "CODE",
-      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1241,
@@ -6330,7 +6734,8 @@
         "scripts/check-doc-drift.mjs"
       ],
       "class": "CODE",
-      "reason": "5 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "5 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1242,
@@ -6348,7 +6753,8 @@
         "scripts/check-guardrail-presence.mjs"
       ],
       "class": "CODE",
-      "reason": "4 of 6 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ci.yml)"
+      "reason": "4 of 6 changed file(s) are real source/config/test/schema (e.g. .github/workflows/ci.yml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1243,
@@ -6369,7 +6775,8 @@
         "src/lib/task-execution-engine.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "6 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1244,
@@ -6433,7 +6840,8 @@
         "src/lib/task-execution/dispatch-tds-engines.ts"
       ],
       "class": "CODE",
-      "reason": "50 of 52 changed file(s) are real source/config/test/schema (e.g. src/lib/task-execution-engine.ts)"
+      "reason": "50 of 52 changed file(s) are real source/config/test/schema (e.g. src/lib/task-execution-engine.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1245,
@@ -6457,7 +6865,8 @@
         "scripts/list-refactor-priority-candidates.mjs"
       ],
       "class": "CODE",
-      "reason": "11 of 12 changed file(s) are real source/config/test/schema (e.g. .jscpd.json)"
+      "reason": "11 of 12 changed file(s) are real source/config/test/schema (e.g. .jscpd.json)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1246,
@@ -6475,7 +6884,8 @@
         "scripts/report-test-coverage-gap.ts"
       ],
       "class": "CODE",
-      "reason": "4 of 6 changed file(s) are real source/config/test/schema (e.g. package.json)"
+      "reason": "4 of 6 changed file(s) are real source/config/test/schema (e.g. package.json)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1247,
@@ -6502,7 +6912,8 @@
         "src/lib/services/confidence-correlation-service.ts"
       ],
       "class": "CODE",
-      "reason": "13 of 15 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "13 of 15 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1249,
@@ -6516,7 +6927,8 @@
         "progress/task-20260815-114241-rca--umr-20260806-170158-b2b9-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1250,
@@ -6529,7 +6941,8 @@
         "progress/task-20260815-114253-rca--umr-20260806-115914-7112-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1252,
@@ -6543,7 +6956,8 @@
         "progress/task-20260718-114004-retry-0--ai-engineering-quality--logic.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1253,
@@ -6557,7 +6971,8 @@
         "progress/task-20260718-114002-retry-0--ai-engineering-quality--error.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1254,
@@ -6574,7 +6989,8 @@
         "src/lib/services/context.ts"
       ],
       "class": "CODE",
-      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "3 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1255,
@@ -6591,7 +7007,8 @@
         "src/lib/task-execution/tool-dispatch.ts"
       ],
       "class": "CODE",
-      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. src/lib/task-execution-engine.ts)"
+      "reason": "4 of 5 changed file(s) are real source/config/test/schema (e.g. src/lib/task-execution-engine.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1256,
@@ -6611,7 +7028,8 @@
         "scripts/check-deterministic-first-audit.test.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "5 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1257,
@@ -6636,7 +7054,8 @@
         "src/lib/task-execution/tool-dispatch.test.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "10 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1259,
@@ -6656,7 +7075,8 @@
         "scripts/report-test-coverage-gap.test.ts"
       ],
       "class": "CODE",
-      "reason": "5 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "5 of 8 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1260,
@@ -6672,7 +7092,8 @@
         "src/lib/orchestra-model-resolver.ts"
       ],
       "class": "CODE",
-      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1261,
@@ -6691,7 +7112,8 @@
         "src/lib/task-execution-engine.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "6 of 7 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1262,
@@ -6717,7 +7139,8 @@
         "src/lib/supabase/auth-guard.test.ts"
       ],
       "class": "CODE",
-      "reason": "12 of 14 changed file(s) are real source/config/test/schema (e.g. .jscpd.json)"
+      "reason": "12 of 14 changed file(s) are real source/config/test/schema (e.g. .jscpd.json)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1263,
@@ -6733,7 +7156,8 @@
         "src/lib/orchestra-model-resolver.ts"
       ],
       "class": "CODE",
-      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "3 of 4 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1264,
@@ -6757,7 +7181,8 @@
         "src/lib/services/model-scorecard-service.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)"
+      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/MASTER-TRACKER.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1265,
@@ -6771,7 +7196,8 @@
         "progress/task-20260718-125007-retry-1--ai-model-lifecycle---benchmark.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1266,
@@ -6786,7 +7212,8 @@
         "progress/task-20260718-131006-retry-0--api-governance--rate-limiting.md"
       ],
       "class": "CODE",
-      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1267,
@@ -6804,7 +7231,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "3 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "3 of 6 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1270,
@@ -6818,7 +7246,8 @@
         "src/lib/ai-team/roster.ts"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. src/lib/ai-team/roster.ts)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. src/lib/ai-team/roster.ts)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1273,
@@ -6834,7 +7263,8 @@
         "progress/task-20260815-141702-rca--umr-20260806-183347-06b0-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 4 changed file(s) are real source/config/test/schema (e.g. audit_query.py)"
+      "reason": "1 of 4 changed file(s) are real source/config/test/schema (e.g. audit_query.py)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1274,
@@ -6848,7 +7278,8 @@
         "progress/task-20260815-142556-rca--umr-20260806-171555-e811-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1277,
@@ -6862,7 +7293,8 @@
         "progress/task-20260815-153734-rca--umr-20260806-084306-f599-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 2 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1280,
@@ -6875,7 +7307,8 @@
         "progress/task-20260718-105002-retry-1--ai-cost-governance---finops--c.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1281,
@@ -6899,7 +7332,8 @@
         "src/lib/services/ai-cost-finops-service.ts"
       ],
       "class": "CODE",
-      "reason": "11 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)"
+      "reason": "11 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/registry/terminology-guardrail-exemptions.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1282,
@@ -6924,7 +7358,8 @@
         "src/lib/openapi/generate.ts"
       ],
       "class": "CODE",
-      "reason": "6 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)"
+      "reason": "6 of 13 changed file(s) are real source/config/test/schema (e.g. ai-os/OS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1283,
@@ -6941,7 +7376,8 @@
         "scripts/check-service-file-header-comment.mjs"
       ],
       "class": "CODE",
-      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "2 of 5 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1284,
@@ -6965,7 +7401,8 @@
         "src/lib/services/provider-outage-correlation-service.ts"
       ],
       "class": "CODE",
-      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "10 of 12 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1285,
@@ -6988,7 +7425,8 @@
         "scripts/check-doc-drift.mjs"
       ],
       "class": "CODE",
-      "reason": "7 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 11 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1286,
@@ -7003,7 +7441,8 @@
         "package.json"
       ],
       "class": "CODE",
-      "reason": "3 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/gtm_security_audit_gitleaksignore.txt)"
+      "reason": "3 of 3 changed file(s) are real source/config/test/schema (e.g. ai-os/scripts/gtm_security_audit_gitleaksignore.txt)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1287,
@@ -7017,7 +7456,8 @@
         "progress/task-20260815-113913-rca--umr-20260806-183347-06b0-killed.md"
       ],
       "class": "CODE",
-      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "1 of 2 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1288,
@@ -7039,7 +7479,8 @@
         "src/lib/task-execution-engine.ts"
       ],
       "class": "CODE",
-      "reason": "7 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)"
+      "reason": "7 of 10 changed file(s) are real source/config/test/schema (e.g. ai-os/boss/ACTIVE-CLAIMS.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1289,
@@ -7052,7 +7493,9 @@
         "progress/task-20260815-113951-rca--umr-20260806-175541-f164-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "LEFT_OPEN_NOT_VERIFIED",
+      "disposition_reason": "DOCS-ONLY, UMR id present, but not individually content-verified against main within this task's review budget -- left open per the conservative disposal mandate (never close without a verified citation)."
     },
     {
       "number": 1290,
@@ -7065,7 +7508,9 @@
         "progress/task-20260815-114029-rca--umr-20260806-171558-146e-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "CLOSED_SUPERSEDED",
+      "disposition_reason": "Superseded by progress/task-20260815-115101-rca--umr-20260806-171558-146e-killed.md, already on main; this PR's own diff self-declares as a triplicate-dispatch duplicate of PR #1184 with no unique content beyond the duplicate-confirmation."
     },
     {
       "number": 1291,
@@ -7078,7 +7523,8 @@
         "progress/task-20260815-114035-rca--umr-20260806-171555-e811-killed.md"
       ],
       "class": "DOCS-ONLY",
-      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir"
+      "reason": "all 1 changed file(s) are markdown/PROGRESS/docs-or-progress-dir",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     },
     {
       "number": 1295,
@@ -7099,7 +7545,16 @@
         "progress/task-20260816-142705-find-and-eliminate-whatever-keeps-reassi.md"
       ],
       "class": "CODE",
-      "reason": "5 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/DOMAIN_OWNERSHIP.yaml)"
+      "reason": "5 of 9 changed file(s) are real source/config/test/schema (e.g. ai-os/DOMAIN_OWNERSHIP.yaml)",
+      "disposition": "NOT_REVIEWED_FOR_DISPOSAL"
     }
-  ]
+  ],
+  "disposalSummary": {
+    "step": "STEP TWO -- conservative disposal, 2026-08-16",
+    "emptyClassClosed": 0,
+    "docsOnlyClosedSuperseded": 13,
+    "docsOnlyReviewedLeftOpenRealContent": 8,
+    "docsOnlyLeftOpenNotIndividuallyVerified": 4,
+    "note": "EMPTY class had 0 members this run -- nothing to close there. Of 115 DOCS-ONLY PRs, 26 named a UMR id in their title and were individually content-diffed against main; 13 were confirmed duplicate/superseded (closed, cited per-PR) and 8 were found to contain real, unique, unshipped content (proposals, bug findings, live corrections) that main does not yet capture -- left open per the \"never destroy real unshipped work\" mandate. 4 UMR-bearing candidates and all 89 remaining DOCS-ONLY PRs (47 with no UMR id in title, checked for uniquely-named-file presence on main with zero matches, plus the 42 UMR-bearing PRs whose UMR never appears anywhere on main) were left open as not superseded / not individually verified. CODE (299) and DEPENDENCY (8) classes were never considered for closure."
+  }
 }

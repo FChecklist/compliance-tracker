@@ -29,11 +29,32 @@ dispatch.
       scripts, so a change to them can alter governed behavior. See the
       classify.py module docstring for the full rationale.
 
+- [x] STEP TWO — EMPTY class confirmed empty (0 PRs) this run: nothing to close there.
+- [x] STEP TWO — reviewed all 115 DOCS-ONLY PRs. 68 named a UMR id in their
+      title; for each, grepped the full origin/main tree for that UMR id,
+      then individually content-diffed (`gh pr diff`) every candidate whose
+      UMR appeared on main against the actual matching main file(s) before
+      deciding — NOT a blind ID-match (caught and rejected one real
+      WAVE-181 sequential-id collision this way: same numeric id, two
+      completely unrelated pieces of work). Closed 13 PRs confirmed
+      duplicate/superseded with a cited main-branch file/commit in each
+      closing comment (`gh pr close --comment`, verified closed via
+      `gh pr view --json state`). Left 8 UMR-bearing PRs open after finding
+      each contained real, unique, unshipped content (owner-proposals, live
+      corrections, previously-undocumented bugs) NOT reproduced on main —
+      closing them would have destroyed real work. Left the remaining 4
+      UMR-bearing + all 47 no-UMR DOCS-ONLY PRs open: the 47 were checked for
+      a uniquely-named file already existing on main (zero matches, so not
+      superseded); the 4 ran out of review budget for individual content
+      verification and were left open per the conservative default (never
+      close without a verified citation). Full disposition + per-PR
+      citation recorded in `ai-os/registry/pr-classification-20260816.json`
+      (`disposition`/`disposition_reason` fields + top-level
+      `disposalSummary`) and `ai-os/registry/pr-classification-20260816-disposal-decisions.json`.
+- [x] Commit + push disposal actions (closures) — this commit.
+- [x] STEP THREE — final report written to the user (class counts, closed
+      count + reasons, exact CODE-class PR list already in the committed
+      JSON for the sibling dispatch).
+
 ## Remaining
-- [ ] STEP TWO — EMPTY class is empty (0 PRs) this run: nothing to close there.
-- [ ] STEP TWO — review DOCS-ONLY (115) PRs, close only those whose doc
-      content is already superseded on main (cite what supersedes it per PR)
-- [ ] Commit + push disposal actions (closures)
-- [ ] STEP THREE — write final report: class counts, closed count + reasons,
-      exact CODE-class PR list for sibling dispatch
 - [ ] record-completion via agent_work_briefing.py
