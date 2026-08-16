@@ -49,6 +49,29 @@ trigger), merge on genuine PASS, record real blocking reasons otherwise.
       (2026-08-06..08-14) is currently NOT in effect; `gh pr merge` is
       expected to work once CI+audit are genuinely green.
 
+- [x] PR #979, #978: found existing genuine AUDIT:PASS comments (2026-08-06)
+      matching current head SHA exactly, CI fully green except audit-check
+      (satisfied) and Vercel (rate-limited, non-required) -- BUT both PR
+      bodies carry an explicit `**Needs human review before merge — never
+      auto-merged.**` marker (external-agent provenance: ZAI-COMMS-02 /
+      DEEPSEEK-COMMS-03 retries). This is a real, distinct guardrail from
+      the audit gate -- per AGENTS.md Rule 9 (no guardrail weakened without
+      Owner sign-off) and Rule 12 ("does not relax any rule above"), did
+      NOT merge either despite green CI + matching audit. Left open,
+      documented as blocked-on-human-review in the final table.
+- [x] PR #991: no existing audit comment. Used the real adopt+supervisor-sweep
+      mechanism (task-20260816-172217-adopted-audit-pr-991, tier1). Genuine
+      independent Superboss review returned **reject** -- flagged as a
+      duplicate of already-merged work. Independently re-verified the
+      reviewer's own stated evidence was wrong (it misread its own
+      detached-HEAD checkout of the PR branch as "main"), but the real
+      underlying reason is sound: `git show origin/main:package.json`/
+      `bun.lock` already pin veridian-ui-kit at v0.3.2 (via PR #1293),
+      newer than this PR's v0.3.1 target -- merging would regress the pin.
+      Closed PR #991 citing PR #1293 as what superseded it, real AUDIT:FAIL
+      comment posted with corrected evidence.
+      https://github.com/FChecklist/compliance-tracker/pull/991#issuecomment-5308703190
+
 ## Remaining
 - [ ] Per-PR audit+merge loop (see table below, updated as each completes)
 - [ ] Final report table (number / outcome / real mergedAt or blocking reason)
@@ -65,9 +88,9 @@ trigger), merge on genuine PASS, record real blocking reasons otherwise.
 | 1028 | worker-entrypoint gate name | pending |
 | 997 | CO/FI/SD calc engines | pending |
 | 994 | CSP-Report-Only + XFO | pending |
-| 991 | re-pin veridian-ui-kit | pending |
-| 979 | layout.tsx PWA metadata | pending |
-| 978 | sitemap.ts canonical domain | pending |
+| 991 | re-pin veridian-ui-kit | **CLOSED** superseded by PR #1293 (main already at v0.3.2) |
+| 979 | layout.tsx PWA metadata | blocked: never_auto_merge (external-agent provenance), needs human review |
+| 978 | sitemap.ts canonical domain | blocked: never_auto_merge (external-agent provenance), needs human review |
 | 968 | brand pricing/contact/terms/privacy | pending |
 | 966 | pricing brand mismatch | pending |
 | 965 | signup/mfa-challenge brand | pending |
