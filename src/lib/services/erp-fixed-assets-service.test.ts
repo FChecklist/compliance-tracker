@@ -8,7 +8,7 @@
 // notes on this).
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { generateDepreciationSchedule, computeMonthlyDecliningRate, ServiceError } from "./erp-fixed-assets-service"
+import { generateDepreciationSchedule, computeMonthlyDecliningRate, computeAssetGlReconciliation, ServiceError, type AssetCategoryLedgerTotals } from "./erp-fixed-assets-service"
 import { hasRole, ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard"
 
 function sum(entries: { depreciationAmount: number }[]) {
@@ -151,5 +151,124 @@ describe("disposal approval gate -- hasRole(dbUser, 'manager') as used by the di
     for (const role of [...rolesBelowManager, ...rolesManagerOrAbove]) {
       expect(typeof ROLE_RANK[role]).toBe("number")
     }
+  })
+})
+
+
+// FI-AA-006 (Asset-to-GL Reconciliation, MEDIUM priority): tests the pure
+// variance-check core directly, same "no live DB from a .test.ts file"
+// convention as the rest of this file. Hand-computed expected values in
+// every case (not just re-deriving what the function itself would output),
+// per this codebase's own "cross-verify any new logic independently"
+// discipline.
+describe("computeAssetGlReconciliation", () => {
+  function category(overrides: Partial<AssetCategoryLedgerTotals> = {}): AssetCategoryLedgerTotals {
+    return {
+      categoryId: "cat-1", categoryName: "Office Equipment",
+      assetAccountId: "acc-asset-1", accumulatedDepreciationAccountId: "acc-accdep-1",
+      subledgerGrossCost: 0, subledgerAccumulatedDepreciation: 0,
+      ...overrides,
+    }
+  }
+
+  test("fully reconciled: sub-ledger totals exactly match GL balances (accumulated depreciation account is credit-natured, sign-flipped for comparison)", () => {
+    // Hand computation: gross cost 120,000 was debited to acc-asset-1 at
+    // acquisition (raw GL balance = +120,000 debit-credit). 30,000 of
+    // depreciation was debited to a Depreciation Expense account and
+    // CREDITED to acc-accdep-1 (a contra-asset, credit-natured) -- its raw
+    // debit-credit balance is therefore -30,000, which this function must
+    // flip to +30,000 before comparing against the sub-ledger's own
+    // (always-positive) accumulatedDepreciation total of 30,000.
+    const categories = [category({ subledgerGrossCost: 120000, subledgerAccumulatedDepreciation: 30000 })]
+    const glBalances = new Map([["acc-asset-1", 120000], ["acc-accdep-1", -30000]])
+
+    const [line] = computeAssetGlReconciliation(categories, glBalances)
+
+    expect(line.status).toBe("reconciled")
+    expect(line.subledgerNbv).toBeCloseTo(90000)
+    expect(line.glGrossCost).toBeCloseTo(120000)
+    expect(line.glAccumulatedDepreciation).toBeCloseTo(30000)
+    expect(line.glNbv).toBeCloseTo(90000)
+    expect(line.grossCostVariance).toBeCloseTo(0)
+    expect(line.accumulatedDepreciationVariance).toBeCloseTo(0)
+    expect(line.nbvVariance).toBeCloseTo(0)
+  })
+
+  test("real variance: sub-ledger gross cost exceeds the GL by 20,000 -- e.g. an acquisition posted to the sub-ledger's own currentValue but never wired to the GL account", () => {
+    // Hand computation: subledger says 500,000 of gross cost / 100,000
+    // accumulated depreciation (NBV 400,000). GL asset account only shows
+    // 480,000 (a real 20,000 gap); accumulated depreciation matches
+    // exactly. Variance = subledger - GL = 500,000 - 480,000 = 20,000 for
+    // gross cost, propagating straight through to NBV variance since
+    // accumulated depreciation itself is not the source of the gap.
+    const categories = [category({
+      categoryId: "cat-2", categoryName: "Vehicles",
+      assetAccountId: "acc-asset-2", accumulatedDepreciationAccountId: "acc-accdep-2",
+      subledgerGrossCost: 500000, subledgerAccumulatedDepreciation: 100000,
+    })]
+    const glBalances = new Map([["acc-asset-2", 480000], ["acc-accdep-2", -100000]])
+
+    const [line] = computeAssetGlReconciliation(categories, glBalances)
+
+    expect(line.status).toBe("variance")
+    expect(line.subledgerNbv).toBeCloseTo(400000)
+    expect(line.glNbv).toBeCloseTo(380000)
+    expect(line.grossCostVariance).toBeCloseTo(20000)
+    expect(line.accumulatedDepreciationVariance).toBeCloseTo(0)
+    expect(line.nbvVariance).toBeCloseTo(20000)
+  })
+
+  test("category with no GL accounts configured is reported honestly as not_mapped, not forced into a comparison or silently dropped", () => {
+    const categories = [category({
+      categoryId: "cat-3", categoryName: "IT Assets (unmapped)",
+      assetAccountId: null, accumulatedDepreciationAccountId: null,
+      subledgerGrossCost: 75000, subledgerAccumulatedDepreciation: 15000,
+    })]
+    const glBalances = new Map<string, number>()
+
+    const [line] = computeAssetGlReconciliation(categories, glBalances)
+
+    expect(line.status).toBe("not_mapped")
+    expect(line.note).toMatch(/no Asset Account/i)
+    expect(line.subledgerNbv).toBeCloseTo(60000) // sub-ledger side is still computed and shown
+    expect(line.glGrossCost).toBeNull()
+    expect(line.glAccumulatedDepreciation).toBeNull()
+    expect(line.glNbv).toBeNull()
+    expect(line.grossCostVariance).toBeNull()
+  })
+
+  test("tolerance: a sub-cent variance within the default 0.01 tolerance is still reconciled, one just outside it is flagged", () => {
+    const withinTolerance = category({ subledgerGrossCost: 100000.004, subledgerAccumulatedDepreciation: 0 })
+    const outsideTolerance = category({ subledgerGrossCost: 100000.02, subledgerAccumulatedDepreciation: 0 })
+    const glBalances = new Map([["acc-asset-1", 100000], ["acc-accdep-1", 0]])
+
+    const [reconciled] = computeAssetGlReconciliation([withinTolerance], glBalances)
+    const [flagged] = computeAssetGlReconciliation([outsideTolerance], glBalances)
+
+    expect(reconciled.status).toBe("reconciled")
+    expect(flagged.status).toBe("variance")
+  })
+
+  test("a custom tolerance widens or narrows what counts as reconciled", () => {
+    const categories = [category({ subledgerGrossCost: 100005, subledgerAccumulatedDepreciation: 0 })]
+    const glBalances = new Map([["acc-asset-1", 100000], ["acc-accdep-1", 0]])
+
+    const [strict] = computeAssetGlReconciliation(categories, glBalances, 0.01)
+    const [lenient] = computeAssetGlReconciliation(categories, glBalances, 10)
+
+    expect(strict.status).toBe("variance")
+    expect(lenient.status).toBe("reconciled")
+  })
+
+  test("a mapped category with a GL account that has zero postings reconciles at zero on both sides", () => {
+    const categories = [category({ subledgerGrossCost: 0, subledgerAccumulatedDepreciation: 0 })]
+    const glBalances = new Map<string, number>()
+
+    const [line] = computeAssetGlReconciliation(categories, glBalances)
+
+    expect(line.status).toBe("reconciled")
+    expect(line.glGrossCost).toBe(0)
+    expect(line.glAccumulatedDepreciation).toBe(0)
+    expect(line.nbvVariance).toBe(0)
   })
 })

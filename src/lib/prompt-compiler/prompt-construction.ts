@@ -13,11 +13,23 @@
 // Owner's 2026-07-25 UX directive reconciliation: it is the
 // machine-language-output CONTRACT phase_5's browser input surfaces will
 // later compile into, not a second AI pass.
-import { createHash } from "crypto"
+//
+// phase_5 (browser_execution_tiers): analyzeLightweight() below is now the
+// one function in this file with zero node-only imports -- deliberately,
+// so src/lib/browser-execution/client-compile.ts can import it straight
+// into a "use client" bundle for the real browser-native FIRST pass,
+// reusing this exact engine rather than a second, duplicated one. The two
+// functions that need node:crypto (hashContent/computeFingerprint) live in
+// ./prompt-hash and are re-exported here unchanged so every existing
+// import site (this file's own buildCompiledPrompt, prompt-os-service.ts,
+// tests) keeps working without edits.
 import { normalizeForLlm } from "@/lib/prompt-normalizer"
 import { classify, extractIntent } from "./intent-classifier"
 import { extractEntities, extractVariables } from "./entity-variable-extraction"
-import type { Classification, CompiledPrompt, Entity, IntentLevel, LightweightAnalysis, PromptVariable } from "./types"
+import { computeFingerprint, hashContent } from "./prompt-hash"
+import type { Classification, CompiledPrompt, IntentLevel, LightweightAnalysis } from "./types"
+
+export { hashContent, computeFingerprint } from "./prompt-hash"
 
 const ACTION_VERBS = new Set([
   "write", "create", "build", "fix", "debug", "analyze", "deploy", "update", "delete", "test", "configure",
@@ -119,28 +131,6 @@ export function estimateTokenReduction(original: string, machinePrompt: string) 
     estimatedMachineTokens: machineTokens,
     reductionPct: Math.round((1 - machineTokens / Math.max(origTokens, 1)) * 1000) / 10,
   }
-}
-
-/** sha256 of the exact cleaned text -- PROMPT_METADATA_SCHEMA's `version.diff_hash` field. */
-export function hashContent(text: string): string {
-  return createHash("sha256").update(text).digest("hex")
-}
-
-/**
- * Semantic fingerprint -- NOT a hash of the exact text (that's
- * hashContent()/diff_hash above). A signature of the compiled prompt's
- * *shape* (category + primary intent + sorted unique entity types + sorted
- * variable names) so two differently-worded prompts that compile to the
- * same intent/shape can be recognized as likely duplicates cheaply, before
- * ever running the real (and more expensive) embedding-similarity search
- * in prompt-similarity.ts. This is PROMPT_METADATA_SCHEMA_2026-07-25's
- * `cache.cache_key` field.
- */
-export function computeFingerprint(classification: Classification, intent: IntentLevel, entities: Entity[], variables: PromptVariable[]): string {
-  const entityTypes = [...new Set(entities.map((e) => e.type))].sort()
-  const variableNames = [...new Set(variables.map((v) => v.name))].sort()
-  const shape = `${classification.category}|${intent.primary}|${entityTypes.join(",")}|${variableNames.join(",")}`
-  return createHash("sha256").update(shape).digest("hex")
 }
 
 /**

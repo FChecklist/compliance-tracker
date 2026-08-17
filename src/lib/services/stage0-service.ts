@@ -40,6 +40,7 @@ import {
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, sql as drizzleSql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { provisionAiAssistantsForUser } from "./subscription-plan-service"
 export { ServiceError }
 
 // --- Token resolution ------------------------------------------------------
@@ -281,13 +282,7 @@ export async function tryUpgradeStage0UserInPlace(
 
   const existingAssistants = await db.query.aiAssistants.findFirst({ where: eq(aiAssistants.userId, existing.id) })
   if (!existingAssistants) {
-    await db.insert(aiAssistants).values(
-      Array.from({ length: 5 }, (_, i) => ({
-        userId: existing.id,
-        assistantNumber: i + 1,
-        label: `Assistant ${i + 1}`,
-      }))
-    )
+    await provisionAiAssistantsForUser(existing.id, target.orgId)
   }
 
   return { ok: true, user: updated, wasStage0 }
@@ -348,9 +343,7 @@ export async function autoUpgradeStage0UsersOnBranchEnable(orgId: string): Promi
     for (const u of eligible) {
       const existingAssistants = await db.query.aiAssistants.findFirst({ where: eq(aiAssistants.userId, u.id) })
       if (!existingAssistants) {
-        await db.insert(aiAssistants).values(
-          Array.from({ length: 5 }, (_, i) => ({ userId: u.id, assistantNumber: i + 1, label: `Assistant ${i + 1}` }))
-        )
+        await provisionAiAssistantsForUser(u.id, orgId)
       }
     }
   }

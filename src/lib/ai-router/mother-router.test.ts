@@ -311,6 +311,56 @@ describe("computeEndUserOrgResolution -- end_user_org scope", () => {
     expect(result.model).toBe(baseline.model)
     expect(result.reason).toContain("no resolvable subscription aiPackage")
   })
+
+  // phase_9_gateway_knowledge_sync_infrastructure (VERIDIAN_ARCHITECTURE_V2_
+  // PHASE_PLAN_2026-07-25.yaml): resolvedConfig is the field a real caller
+  // (orchestrate/route.ts) now consumes to actually invoke the LLM through
+  // this scope, instead of calling resolveModelConfig() independently.
+  describe("resolvedConfig", () => {
+    test("BYO branch: resolvedConfig is exactly the baseline (real apiKey included)", () => {
+      const baseline = fakeResolvedConfig({ isCustomerConfigured: true, provider: "anthropic", model: "claude-sonnet-5", apiKey: "byo-key" })
+      const result = computeEndUserOrgResolution(baseline, "basic", null)
+      expect(result.resolvedConfig).toEqual(baseline)
+    })
+
+    test("no override branch: resolvedConfig is exactly the baseline", () => {
+      const baseline = fakeResolvedConfig()
+      const result = computeEndUserOrgResolution(baseline, null, null)
+      expect(result.resolvedConfig).toEqual(baseline)
+    })
+
+    test("override with a configured platform key: resolvedConfig carries the override's provider/model/apiKey, not the baseline's", () => {
+      const originalKey = process.env.ANTHROPIC_API_KEY
+      process.env.ANTHROPIC_API_KEY = "platform-anthropic-key"
+      try {
+        const baseline = fakeResolvedConfig()
+        const policy: ActivePolicy = { version: 5, rule: { preferredModelByPackage: { enterprise: { provider: "anthropic", model: "claude-sonnet-5" } } } }
+        const result = computeEndUserOrgResolution(baseline, "enterprise", policy)
+        expect(result.resolvedConfig).toEqual({
+          provider: "anthropic", model: "claude-sonnet-5", apiKey: "platform-anthropic-key", isCustomerConfigured: false,
+        })
+      } finally {
+        if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY
+        else process.env.ANTHROPIC_API_KEY = originalKey
+      }
+    })
+
+    test("override naming a provider with NO platform key configured: resolvedConfig is undefined (never a silently-uncallable or silently-downgraded config), provider/model still report the named override for audit purposes", () => {
+      const originalKey = process.env.ANTHROPIC_API_KEY
+      delete process.env.ANTHROPIC_API_KEY
+      try {
+        const baseline = fakeResolvedConfig()
+        const policy: ActivePolicy = { version: 5, rule: { preferredModelByPackage: { enterprise: { provider: "anthropic", model: "claude-sonnet-5" } } } }
+        const result = computeEndUserOrgResolution(baseline, "enterprise", policy)
+        expect(result.provider).toBe("anthropic")
+        expect(result.model).toBe("claude-sonnet-5")
+        expect(result.resolvedConfig).toBeUndefined()
+      } finally {
+        if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY
+        else process.env.ANTHROPIC_API_KEY = originalKey
+      }
+    })
+  })
 })
 
 describe("computeSalesMarketingResolution -- sales_marketing scope (new)", () => {

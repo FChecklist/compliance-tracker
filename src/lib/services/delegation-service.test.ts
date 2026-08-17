@@ -4,7 +4,7 @@
 // touch the DB and are deliberately left untested here, matching this
 // repo's established pattern (see task-service.test.ts's own note).
 import { describe, expect, test } from "bun:test"
-import { validateDelegationInput, isDelegationActive, delegationGrantsUser, resolveDelegatedAuthority } from "./delegation-service"
+import { validateDelegationInput, isDelegationActive, delegationGrantsUser, resolveDelegatedAuthority, resolveDelegatedAuthorityFromAuthorizedDelegator } from "./delegation-service"
 
 const NOW = new Date("2026-07-12T12:00:00Z")
 const FUTURE = new Date("2026-08-01T00:00:00Z")
@@ -119,5 +119,48 @@ describe("resolveDelegatedAuthority", () => {
 
   test("rejects: no candidate delegations at all", () => {
     expect(resolveDelegatedAuthority([], "u2", [], NOW)).toBe(false)
+  })
+})
+
+// PR #579 AUDIT: FAIL fix (2026-07-26 comment): validateDelegationInput()
+// only blocks delegateUserId === delegatorUserId -- it never checks
+// whether the delegator actually held the authority they're handing away.
+// resolveDelegatedAuthorityFromAuthorizedDelegator() is the consumption-time
+// closure of that gap: a delegation only counts if its OWN delegatorUserId
+// independently satisfies the caller's authority predicate right now.
+describe("resolveDelegatedAuthorityFromAuthorizedDelegator", () => {
+  test("grants: an active delegation whose delegator is authorized", () => {
+    const active = { revokedAt: null, expiresAt: FUTURE, delegateUserId: "u2", delegateRoleKey: null, delegatorUserId: "manager1" }
+    expect(resolveDelegatedAuthorityFromAuthorizedDelegator([active], "u2", [], (id) => id === "manager1", NOW)).toBe(true)
+  })
+
+  test("rejects: an active, otherwise-matching delegation whose delegator is NOT authorized (the self-grant exploit)", () => {
+    // A rank-insufficient user ('member1') delegates their own role's
+    // approval_type authority to their own role -- validateDelegationInput
+    // permits this (delegateRoleKey !== delegatorUserId, no self-delegation
+    // check fires), but the delegator never held manager-rank authority to
+    // hand away, so this must not grant it.
+    const selfGrant = { revokedAt: null, expiresAt: null, delegateUserId: null, delegateRoleKey: "member", delegatorUserId: "member1" }
+    expect(resolveDelegatedAuthorityFromAuthorizedDelegator([selfGrant], "member1", ["member"], (id) => id === "manager1", NOW)).toBe(false)
+  })
+
+  test("rejects: an accomplice-grant from an unauthorized delegator", () => {
+    const accompliceGrant = { revokedAt: null, expiresAt: null, delegateUserId: "accomplice", delegateRoleKey: null, delegatorUserId: "member1" }
+    expect(resolveDelegatedAuthorityFromAuthorizedDelegator([accompliceGrant], "accomplice", [], (id) => id === "manager1", NOW)).toBe(false)
+  })
+
+  test("rejects: delegator was authorized but the delegation itself is expired", () => {
+    const expired = { revokedAt: null, expiresAt: PAST, delegateUserId: "u2", delegateRoleKey: null, delegatorUserId: "manager1" }
+    expect(resolveDelegatedAuthorityFromAuthorizedDelegator([expired], "u2", [], (id) => id === "manager1", NOW)).toBe(false)
+  })
+
+  test("grants: the authorized delegator among several candidates, rejects the unauthorized ones", () => {
+    const fromUnauthorized = { revokedAt: null, expiresAt: null, delegateUserId: null, delegateRoleKey: "member", delegatorUserId: "member1" }
+    const fromAuthorized = { revokedAt: null, expiresAt: null, delegateUserId: null, delegateRoleKey: "member", delegatorUserId: "manager1" }
+    expect(resolveDelegatedAuthorityFromAuthorizedDelegator([fromUnauthorized, fromAuthorized], "u3", ["member"], (id) => id === "manager1", NOW)).toBe(true)
+  })
+
+  test("rejects: no candidate delegations at all", () => {
+    expect(resolveDelegatedAuthorityFromAuthorizedDelegator([], "u2", [], () => true, NOW)).toBe(false)
   })
 })

@@ -265,3 +265,53 @@ export async function getWorkload(ctx: { orgId: string }, projectId: string, dai
     return { userId, date, allocatedHours, overAllocated: allocatedHours > dailyCapacityHours }
   })
 }
+
+// Gap closure (2026-07-27, DEEP_ERP_FUNCTIONALITY_COMPLETION_VIA_ODOO_ERPNEXT_REFERENCE):
+// "Resource-allocation conflict/over-allocation detection". getWorkload()
+// above is deliberately scoped to a SINGLE projectId (a per-project
+// workload view) -- the real, previously-undetected gap is that a user can
+// look fine within every individual project's workload view while still
+// being double- or triple-booked once their allocations across ALL of an
+// org's projects are summed together for the same day. detectResourceConflicts
+// closes that: it sums allocatedHoursPerDay per user per calendar day
+// across every allocation passed in, regardless of which project it
+// belongs to.
+export type ResourceConflict = { userId: string; date: string; totalAllocatedHours: number; capacityHours: number; projectIds: string[] }
+export type ResourceAllocationRow = { userId: string; projectId: string; allocatedHoursPerDay: string | number; startDate: string; endDate: string }
+
+/** Pure function, no DB access -- independently unit-testable. See header comment above this section for what this detects and why it's distinct from getWorkload(). */
+export function detectResourceConflicts(allocations: ResourceAllocationRow[], dailyCapacityHours = 8): ResourceConflict[] {
+  const byUserDate = new Map<string, { total: number; projectIds: Set<string> }>()
+  for (const a of allocations) {
+    let cursor = a.startDate
+    const hours = Number(a.allocatedHoursPerDay)
+    while (cursor <= a.endDate) {
+      const key = `${a.userId}__${cursor}`
+      const entry = byUserDate.get(key) ?? { total: 0, projectIds: new Set<string>() }
+      entry.total += hours
+      entry.projectIds.add(a.projectId)
+      byUserDate.set(key, entry)
+      cursor = addDays(cursor, 1)
+    }
+  }
+  const conflicts: ResourceConflict[] = []
+  for (const [key, { total, projectIds }] of byUserDate.entries()) {
+    if (total > dailyCapacityHours) {
+      const [userId, date] = key.split("__")
+      conflicts.push({ userId, date, totalAllocatedHours: total, capacityHours: dailyCapacityHours, projectIds: Array.from(projectIds) })
+    }
+  }
+  return conflicts.sort((a, b) => a.userId.localeCompare(b.userId) || a.date.localeCompare(b.date))
+}
+
+/** Org-wide (all projects) over-allocation check; pass userId to scope it to one person -- e.g. right after createResourceAllocation, to warn on the allocation that was just created. */
+export async function getResourceConflicts(ctx: { orgId: string }, options: { userId?: string; dailyCapacityHours?: number } = {}): Promise<ResourceConflict[]> {
+  const allocations = await withTenantContext({ orgId: ctx.orgId }, (db) =>
+    db.query.pmsResourceAllocations.findMany({
+      where: options.userId
+        ? and(eq(pmsResourceAllocations.orgId, ctx.orgId), eq(pmsResourceAllocations.userId, options.userId))
+        : eq(pmsResourceAllocations.orgId, ctx.orgId),
+    })
+  )
+  return detectResourceConflicts(allocations, options.dailyCapacityHours ?? 8)
+}

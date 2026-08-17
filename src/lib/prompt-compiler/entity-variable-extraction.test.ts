@@ -3,7 +3,7 @@
 // unit tests -- no live DB, matching this repo's established .test.ts
 // convention.
 import { describe, expect, test } from "bun:test"
-import { extractEntities, extractVariables, resolveVariableDefaults } from "./entity-variable-extraction"
+import { escapeRegExp, extractEntities, extractVariables, resolveVariableDefaults } from "./entity-variable-extraction"
 
 describe("extractEntities", () => {
   test("extracts a file path", () => {
@@ -78,6 +78,45 @@ describe("extractVariables", () => {
   test("de-duplicates repeated variable tokens", () => {
     const vars = extractVariables("{{name}} and {{name}} again")
     expect(vars.length).toBe(1)
+  })
+})
+
+describe("escapeRegExp (CodeQL js/regex-injection fix, 2026-07-27)", () => {
+  test("escapes every regex-special character so the result matches only the literal input", () => {
+    const raw = ".*+?^${}()|[]\\"
+    const escaped = escapeRegExp(raw)
+    const re = new RegExp(escaped)
+    expect(re.test(raw)).toBe(true)
+    expect(re.test("x" + raw)).toBe(true)
+    // an unescaped version of the same raw string would either throw or
+    // match something other than its own literal text -- confirm escaping
+    // actually changed the string, not a no-op.
+    expect(escaped).not.toBe(raw)
+  })
+
+  test("leaves an already-safe alphanumeric/underscore name unchanged", () => {
+    expect(escapeRegExp("orgName_2")).toBe("orgName_2")
+  })
+})
+
+describe("input length cap (CodeQL js/polynomial-redos fix, 2026-07-27)", () => {
+  test("extractEntities truncates pathological-length input instead of running unbounded regex work over all of it", () => {
+    const huge = "a".repeat(200_000) + " https://example.com/real-url"
+    const start = performance.now()
+    const entities = extractEntities(huge)
+    const elapsedMs = performance.now() - start
+    // real, generous bound -- this is a correctness/DoS-mitigation check,
+    // not a tight perf benchmark: it must not scale with the full 200k
+    // input, so a few seconds of slack is fine, an unbounded blowup is not.
+    expect(elapsedMs).toBeLessThan(5000)
+    // the real URL sits past the 50_000-char cap, so it is correctly NOT
+    // found -- proving the cap is actually applied, not just fast by luck.
+    expect(entities.find((e) => e.type === "URL")).toBeUndefined()
+  })
+
+  test("extractEntities still finds a real entity that sits within the length cap", () => {
+    const entities = extractEntities("see https://example.com/real-url for details")
+    expect(entities.find((e) => e.type === "URL")?.value).toBe("https://example.com/real-url")
   })
 })
 

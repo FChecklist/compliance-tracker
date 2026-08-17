@@ -142,6 +142,41 @@ export function resolveDelegatedAuthority(
 }
 
 /**
+ * Pure: same decision as resolveDelegatedAuthority, but ALSO requires that
+ * the specific delegation record granting authority came from a delegator
+ * who `delegatorIsAuthorized` says currently holds that authority
+ * independently. Closes the V2-11 audit gap (AUDIT: FAIL, 2026-07-26
+ * comment on PR #579): validateDelegationInput() only blocks
+ * delegateUserId === delegatorUserId (literal self-delegation to a named
+ * user) -- it never checks whether the delegator actually held the
+ * authority they're purporting to hand away, so a rank-insufficient user
+ * could otherwise grant themself (via delegateRoleKey equal to their own
+ * role) or an accomplice (via delegateUserId) authority nobody legitimately
+ * delegated. Split into its own pure predicate, same DB-fetch/decision
+ * split as resolveDelegatedAuthority above, so this is directly
+ * unit-testable without a DB.
+ */
+export function resolveDelegatedAuthorityFromAuthorizedDelegator(
+  candidates: { revokedAt: Date | null; expiresAt: Date | null; delegateUserId: string | null; delegateRoleKey: string | null; delegatorUserId: string }[],
+  userId: string, userRoleKeys: string[],
+  delegatorIsAuthorized: (delegatorUserId: string) => boolean,
+  now: Date = new Date()
+): boolean {
+  return candidates.some((d) => isDelegationActive(d, now) && delegationGrantsUser(d, userId, userRoleKeys) && delegatorIsAuthorized(d.delegatorUserId))
+}
+
+async function fetchDelegationCandidates(db: TenantDb, orgId: string, scopeType: DelegationScopeType, scopeId: string | undefined) {
+  return db.query.scopedDelegations.findMany({
+    where: and(
+      eq(scopedDelegations.orgId, orgId),
+      eq(scopedDelegations.scopeType, scopeType),
+      isNull(scopedDelegations.revokedAt),
+      scopeId ? or(eq(scopedDelegations.scopeId, scopeId), isNull(scopedDelegations.scopeId)) : isNull(scopedDelegations.scopeId)
+    ),
+  })
+}
+
+/**
  * The real check function other code can call before treating a delegate's
  * action as authorized on the delegator's behalf: does ANY active
  * delegation grant `userId` (holding `userRoleKeys`, typically just
@@ -157,19 +192,45 @@ export function resolveDelegatedAuthority(
  * nested transaction. A caller with no open transaction should wrap this
  * in withTenantContext itself, same as every other db-param service
  * function in this codebase.
+ *
+ * NOTE: this does NOT verify the delegator ever held the authority being
+ * granted -- fine for scope types with no rank/authority model of their own
+ * (plain task/project/module/communication_type delegation), but NOT safe
+ * to use standalone for a rank-gated scope like 'approval_type'. Callers
+ * gating a real authority decision (payment approval, workflow-step
+ * approval, etc.) must use isDelegatedByAuthorizedDelegator below instead.
  */
 export async function isDelegated(
   db: TenantDb, orgId: string,
   scopeType: DelegationScopeType, scopeId: string | undefined,
   userId: string, userRoleKeys: string[] = []
 ): Promise<boolean> {
-  const candidates = await db.query.scopedDelegations.findMany({
-    where: and(
-      eq(scopedDelegations.orgId, orgId),
-      eq(scopedDelegations.scopeType, scopeType),
-      isNull(scopedDelegations.revokedAt),
-      scopeId ? or(eq(scopedDelegations.scopeId, scopeId), isNull(scopedDelegations.scopeId)) : isNull(scopedDelegations.scopeId)
-    ),
-  })
+  const candidates = await fetchDelegationCandidates(db, orgId, scopeType, scopeId)
   return resolveDelegatedAuthority(candidates, userId, userRoleKeys)
+}
+
+/**
+ * Same lookup as isDelegated(), but additionally requires the delegation's
+ * own delegatorUserId to independently satisfy `delegatorIsAuthorized`
+ * right now (e.g. "currently holds manager rank or above") before the
+ * delegation is honored -- see resolveDelegatedAuthorityFromAuthorizedDelegator
+ * above for why this is the safe function to call for a rank-gated scope.
+ * `delegatorIsAuthorized` is only invoked once per distinct delegator among
+ * the active, granting candidates (not once per candidate row), so a
+ * caller doing a DB lookup per delegator (the expected use) isn't
+ * redundantly querying the same user twice.
+ */
+export async function isDelegatedByAuthorizedDelegator(
+  db: TenantDb, orgId: string,
+  scopeType: DelegationScopeType, scopeId: string | undefined,
+  userId: string, userRoleKeys: string[],
+  delegatorIsAuthorized: (delegatorUserId: string) => Promise<boolean>
+): Promise<boolean> {
+  const candidates = await fetchDelegationCandidates(db, orgId, scopeType, scopeId)
+  const now = new Date()
+  const granting = candidates.filter((d) => isDelegationActive(d, now) && delegationGrantsUser(d, userId, userRoleKeys))
+  const uniqueDelegatorIds = [...new Set(granting.map((d) => d.delegatorUserId))]
+  const authorizedEntries = await Promise.all(uniqueDelegatorIds.map(async (id) => [id, await delegatorIsAuthorized(id)] as const))
+  const authorized = new Map(authorizedEntries)
+  return resolveDelegatedAuthorityFromAuthorizedDelegator(granting, userId, userRoleKeys, (id) => authorized.get(id) ?? false, now)
 }

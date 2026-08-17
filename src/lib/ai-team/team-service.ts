@@ -29,8 +29,14 @@ import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { checkCostPolicy, checkOpenRouterBalance } from "./cost-policy"
 import { logTokenUsage } from "@/lib/services/token-usage-service"
 import { AI_TEAM_ROSTER, allGuardrailRoles, getRole, operationalRoles, type RoleDefinition } from "./roster"
-import { resolveEffectiveModel } from "./roster-overrides"
+import { resolveEffectiveModel, resolveDispatchModel } from "./roster-overrides"
 import type { LLMProvider } from "@/lib/llm-client"
+import type { ComplexityTier } from "../task-tightening"
+import {
+  checkForDuplicateDispatch,
+  recordDispatchOutcome,
+  type DuplicateDispatchWarning,
+} from "./dispatch-outcomes"
 
 // Local shape of mother-router.ts's ResolvedTenantAiConfig (avoids a
 // circular import: mother-router.ts imports from ./roster, and this module
@@ -43,6 +49,26 @@ export type TenantAiOverride = {
   model: string
   apiKey: string
   baseUrl: string | null
+}
+
+// Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the
+// optional real-dispatch context a caller supplies when a runRole() call IS
+// a genuine top-level AI Dev Team dispatch (as opposed to a guardrail
+// sub-call or the AI Router's classification call, neither of which has a
+// TightTask-shaped objective/scope and neither of which should create a
+// dispatch_outcomes row). Deliberately optional and additive -- every
+// pre-existing caller (runGuardrailLevel, classifyTask, and any other
+// direct runRole() call that omits it) keeps behaving exactly as before,
+// with no dispatch_outcomes write and no duplicate-check performed. Real
+// callers with real TightTask context (advisory-dispatch-service.ts's
+// dispatchAdvisoryTask) opt in by passing this.
+export type DispatchOutcomeContext = {
+  objective: string
+  scope?: string | null
+  successCriteria?: string | null
+  complexityTier?: string | null
+  orgId?: string | null
+  dispatchedBy?: string | null
 }
 
 function platformOpenRouterKey(): string {
@@ -83,12 +109,81 @@ function requireCallableRole(roleKey: string): RoleDefinition {
  * The cost policy + token-usage ledger reflect whichever model actually
  * ran. Omitted by every pre-existing caller (ordinary platform dispatch)
  * -> behaves exactly as before (platform key, effectiveModel).
+ *
+ * `dispatchContext` (Stage 12, VERIDIAN_CONSOLIDATED_COMPLETION plan):
+ * optional real-dispatch tracking. When supplied, this call:
+ *   1. runs checkForDuplicateDispatch() BEFORE the LLM call and attaches
+ *      any warning to the returned `duplicateWarning` (never blocks --
+ *      surfaces, per Stage 12's own scope, so a caller can still choose to
+ *      proceed on a genuine intentional retry);
+ *   2. writes one platform.dispatch_outcomes row on completion, success or
+ *      failure (recordDispatchOutcome never throws, so a persistence
+ *      failure here can't mask or replace the real LLM-call outcome).
+ * Omitted (the default) -> zero behavior change from before Stage 12.
+ *
+ * `rollout` (VERIDIAN Review Framework gap-closure, 2026-08-15, "AI Model
+ * Lifecycle & Benchmarking: A/B or shadow-testing capability"): optional
+ * `{ complexityTier, randomValue? }`. When supplied (and no `tenantConfig`
+ * -- a tenant's own BYO model always wins, same precedence as the plain DB
+ * override), this call resolves through roster-overrides.ts's
+ * resolveDispatchModel() instead of resolveEffectiveModel(), which may
+ * pick an admin-configured candidate model for a live percentage of
+ * dispatches. Omitted (the default, and every pre-existing caller) ->
+ * resolveDispatchModel() never activates a candidate (it requires a tier
+ * to do so, by design -- see that function's own header) and this behaves
+ * exactly as before. `randomValue`, if supplied, lets a caller that
+ * already tier-checked a specific resolved model (e.g. the dispatch
+ * route's pre-flight checkTierEligibility) guarantee this call resolves
+ * to the SAME variant rather than drawing its own independent bucket.
  */
 export async function runRole(
   roleKey: string,
   input: string,
-  tenantConfig?: TenantAiOverride
-): Promise<LLMResult & { role: RoleDefinition }> {
+  tenantConfig?: TenantAiOverride,
+  dispatchContext?: DispatchOutcomeContext,
+  rollout?: { complexityTier: ComplexityTier; randomValue?: number }
+): Promise<LLMResult & { role: RoleDefinition; duplicateWarning?: DuplicateDispatchWarning; modelVariant: "primary" | "candidate" }> {
+  let duplicateWarning: DuplicateDispatchWarning | undefined
+  if (dispatchContext) {
+    const duplicateCheck = await checkForDuplicateDispatch({
+      roleKey,
+      objective: dispatchContext.objective,
+      scope: dispatchContext.scope,
+      successCriteria: dispatchContext.successCriteria,
+      complexityTier: dispatchContext.complexityTier,
+    })
+    if (duplicateCheck.isDuplicate) duplicateWarning = duplicateCheck
+  }
+
+  try {
+    const executed = await runRoleAndRecord(roleKey, input, tenantConfig, dispatchContext, rollout)
+    return { ...executed, duplicateWarning }
+  } catch (err) {
+    if (dispatchContext) {
+      void recordDispatchOutcome({
+        roleKey,
+        dispatchPath: "advisory",
+        objective: dispatchContext.objective,
+        scope: dispatchContext.scope,
+        successCriteria: dispatchContext.successCriteria,
+        complexityTier: dispatchContext.complexityTier,
+        status: "failure",
+        errorDetail: err instanceof Error ? err.message : String(err),
+        orgId: dispatchContext.orgId,
+        dispatchedBy: dispatchContext.dispatchedBy,
+      })
+    }
+    throw err
+  }
+}
+
+async function runRoleAndRecord(
+  roleKey: string,
+  input: string,
+  tenantConfig: TenantAiOverride | undefined,
+  dispatchContext: DispatchOutcomeContext | undefined,
+  rollout?: { complexityTier: ComplexityTier; randomValue?: number }
+): Promise<LLMResult & { role: RoleDefinition; modelVariant: "primary" | "candidate" }> {
   const role = requireCallableRole(roleKey)
   const systemPrompt = await resolvePromptTemplate(role.promptKey!)
   const apiKey = tenantConfig?.apiKey ?? platformOpenRouterKey()
@@ -108,7 +203,17 @@ export async function runRole(
   // computeSoftwareTeamResolution(). The DB roster-overrides path is a
   // platform-admin control for the AI Dev Team's OWN platform key, not a
   // tenant control, so it does not apply to a tenant's own model.
-  const effectiveModel = tenantConfig?.model ?? (await resolveEffectiveModel(roleKey)) ?? role.model!
+  // VERIDIAN Review Framework gap-closure (2026-08-15, A/B / shadow-testing
+  // capability): resolveDispatchModel() only ever activates when `rollout`
+  // is supplied AND no tenantConfig is present (a tenant's BYO model still
+  // wins outright, same precedence rule as the plain DB override above it).
+  // Falls back to the exact same resolveEffectiveModel() every pre-existing
+  // caller already used when `rollout` is omitted.
+  const dispatchResolution = !tenantConfig && rollout
+    ? await resolveDispatchModel(roleKey, rollout.complexityTier, rollout.randomValue)
+    : null
+  const effectiveModel = tenantConfig?.model ?? dispatchResolution?.model ?? (await resolveEffectiveModel(roleKey)) ?? role.model!
+  const modelVariant: "primary" | "candidate" = dispatchResolution?.variant ?? "primary"
 
   // Cumulative balance check (2026-07-20, Owner zero-waste directive): the
   // per-call ceiling below has no memory of prior calls, so it alone
@@ -163,12 +268,35 @@ export async function runRole(
     usage: result.usage,
   })
 
+  // Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan): a genuine top-level
+  // dispatch (dispatchContext supplied) writes its success outcome here,
+  // fire-and-forget -- recordDispatchOutcome never throws, so a persistence
+  // failure can't mask the real, already-succeeded LLM call.
+  if (dispatchContext) {
+    void recordDispatchOutcome({
+      roleKey,
+      dispatchPath: "advisory",
+      objective: dispatchContext.objective,
+      scope: dispatchContext.scope,
+      successCriteria: dispatchContext.successCriteria,
+      complexityTier: dispatchContext.complexityTier,
+      status: "success",
+      modelUsed: effectiveModel,
+      orgId: dispatchContext.orgId,
+      dispatchedBy: dispatchContext.dispatchedBy,
+    })
+  }
+
   // `role` returned with its own `.model` set to the model actually called
   // (not necessarily roster.ts's static default) -- every existing
   // downstream reader of `execution.role.model` (dispatch route's
   // estimateCostUsd/executedBy response field) picks up the real value
-  // automatically, with no separate plumbing needed.
-  return { ...result, role: { ...role, model: effectiveModel } }
+  // automatically, with no separate plumbing needed. `modelVariant`
+  // ("primary"/"candidate") is the one piece of information
+  // `execution.role.model` alone can't convey -- surfaced separately so a
+  // caller (or the Token Usage Analyst comparing A/B cost/quality data)
+  // can tell a rollout-selected candidate call apart from an ordinary one.
+  return { ...result, role: { ...role, model: effectiveModel }, modelVariant }
 }
 
 export type ClassificationResult = { role: string; reasoning: string; confidence: number }

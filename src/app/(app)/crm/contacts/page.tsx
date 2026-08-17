@@ -17,6 +17,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Contact = { id: string; accountId: string; name: string; title: string | null; email: string | null; phone: string | null; isPrimary: boolean };
 type Account = { id: string; name: string };
@@ -29,6 +30,7 @@ export default function CrmContactsPage() {
   const pageSize = 25;
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -47,9 +49,16 @@ export default function CrmContactsPage() {
   }, [page, search]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
+  }, []);
 
   const accountName = (accountId: string) => accounts.find((a) => a.id === accountId)?.name ?? "Unknown account";
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">

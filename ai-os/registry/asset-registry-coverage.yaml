@@ -79,6 +79,8 @@ registered:
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped company-level account record, same class as crm_leads/crm_opportunities -- auto_register_asset_trg attached, name_column=name, owner_column=owner_id, no purpose/active column (no genuine fit)"
   - table: crm_contacts
     reason: "VERIDIAN Review Framework remediation, Wave B CRM Accounts & Contacts (drizzle/0219): org-scoped person record belonging to a crm_account -- auto_register_asset_trg attached, name_column=name, no owner_column (belongs to the account, not assigned to a rep directly, matching clients/erp_customers' own NULL-owner precedent), no purpose/active column"
+  - table: crm_pipeline_stages
+    reason: "VERIDIAN Review Framework gap-closure, Sales Pipeline (drizzle/0225, 2026-08-07): org-scoped per-entityType pipeline/stage config, same class as hr_holidays (has a genuine display-name column) unlike the already-exempted crm_stage_history ledger -- auto_register_asset_trg attached, name_column=label, no owner/purpose/active column"
   - table: crm_activities
     reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): Tasks/Meetings/Calls tied to any CRM record (lead/opportunity/account/contact) via a polymorphic entity_type+entity_id link -- auto_register_asset_trg attached (asset_registration_config row + trigger created in drizzle/0251 itself), asset_type other, name_column=subject, owner_column=assigned_to_id, org_column=org_id, no purpose/active column (no genuine fit)"
   - table: crm_campaigns
@@ -321,7 +323,11 @@ registered:
     reason: "AI Architecture / Explainability & Transparency gap-closure (drizzle/0225 creates the table, drizzle/0226 registers it): a genuinely named, purpose-bearing platform asset (asset_type=other, same reasoning as report_definitions -- term is the display name, definition is the purpose) -- auto_register_asset_trg attached, name_column=term, purpose_column=definition, module_column=category, org_column=org_id (nullable -- platform-wide when null, same convention as report_definitions), owner_column=NULL (no single-user ownership concept), active_column=NULL (no boolean active/inactive state on a glossary entry)"
   - table: ai_model_registry
     reason: "AIROUTER-01 (drizzle/0226): PLATFORM-WIDE by design (no org_id column -- a shared catalog of every AI model/provider pair the platform knows about, same class as module_registry/subscription_plans) -- auto_register_asset_trg attached, name_column=model (a genuine human-recognizable identifier e.g. \"z-ai/glm-5.2\"), purpose_column=notes, active_column=NULL (status is a real Postgres enum active/disabled/deprecated, not boolean, matching training_courses's own precedent)"
+  - table: construction_progress_claims
+    reason: "PHASE-2-CROSSREF workflow-track gap-closure (SD-002/SD-007, drizzle/0269 creates the table, drizzle/0270 registers it): asset_type=workflow -- the table IS the milestone_achieved->drafted->submitted->client_approved->invoiced state machine, not master data, distinct from construction_interim_bills (still grandfather-exempted) which holds the computed bill amount this workflow eventually produces -- auto_register_asset_trg attached, name_column=milestone_description (no dedicated display-name column), org_column=org_id, owner_column=created_by_id, active_column=NULL (status is a 6-value enum, not boolean)"
 exempted:
+  - table: crm_sales_targets
+    reason: "Sales Pipeline dashboard (2026-07-28): org-scoped monthly sales target row, real RLS attached (drizzle/0268), not yet reviewed for UMR auto_register_asset_trg registration -- tracked as a follow-on, same as this repo established pattern for newly-added tables pending full registry review."
   - table: crm_lost_reasons
     reason: "VERIDIAN CRM Wave 1 (2026-07-21, drizzle/0251): a small org-configurable picklist of Lost Reasons for crm_opportunities.lost_reason_id (Odoo reference pattern) -- comparable to a status/enum table, not itself a trackable business asset, matching this schema's own precedent of not registering lookup/config tables. Deliberately NOT registered, judgment documented in drizzle/0251's own header at the time it was written."
   - table: access_review_certifications
@@ -416,6 +422,8 @@ exempted:
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_labour_roster
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
+  - table: construction_prevailing_wage_rates
+    reason: "HCM-006 Certified Payroll Report (added this PR): has org_id/project_id but no single display-name column -- identity is a (project_id, trade, effective_from) compound (the government wage determination for a given trade classification on a given public-works project, effective as of a date), same shape as erp_statutory_rules' own exemption reason (Priority 4 domain B), not expressible via the trigger's single name_column pointer."
   - table: construction_punch_list_items
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: construction_site_diaries
@@ -438,6 +446,16 @@ exempted:
     reason: "Priority 15 Sales & CRM depth wave (2026-07-14): an append-only stage-change ledger for crm_leads/crm_opportunities (fromStage/toStage/note/changedById), same class as the already-exempted access_review_certifications -- no genuine display-name column (toStage is a status value, not this row's own name), a decision/audit-trail record, not a discoverable platform asset."
   - table: hr_attendance_records
     reason: "VERIDIAN Review Framework remediation, Wave B HR Attendance & Manpower (drizzle/0220): one per-user-per-day attendance status record (present/absent/half_day/on_leave/holiday), same class as crm_stage_history -- no genuine display-name column (status is an enum value, not this row's own name), a decision/log record, not a discoverable platform asset."
+  - table: hr_expense_claims
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-employee expense/reimbursement claim -- contains sensitive per-employee financial data (amount, receipt), same confidentiality-sensitive class as the already-exempted performance_reviews -- deliberately not surfaced as a discoverable UMR asset; its own approval workflow lives directly on status/approverId, same posture as leave_requests took before its own registration review."
+  - table: hr_employee_loans
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-employee loan/salary-advance record -- sensitive per-employee financial data (principal, outstanding balance), same confidentiality-sensitive class as hr_expense_claims/performance_reviews above -- deliberately not surfaced as a discoverable UMR asset this pass."
+  - table: hr_loan_installments
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): one repayment-schedule row per hr_employee_loans installment -- an append-only ledger record, same class as crm_stage_history -- no genuine display-name column (installment_number is a sequence position, not this row's own name)."
+  - table: hr_shift_types
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): small admin-defined shift master-data lookup (name + start/end time) -- reviewed and deliberately left as a lookup table, not a discoverable UMR asset, same posture as this file's already-exempted small lookup tables."
+  - table: hr_shift_roster_assignments
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): links an employee to a shift type for a date range -- an operational scheduling assignment record, same class as crm_stage_history -- no genuine display-name column of its own."
   - table: customer_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: data_separation_audit
@@ -766,6 +784,10 @@ exempted:
     reason: "domain C reviewed (drizzle/0155's dispatch), left exempted: this IS the root tenant table -- org_column would have to be the row's own id (self-referential, not covered by the standard org_column pattern), it also carries CIN/GSTIN/PAN government-ID columns, and it is the platform's single largest blast-radius table (fires on every org signup/update) -- deliberately left for explicit Super Boss-level review rather than a domain dispatch's own judgment call"
   - table: performance_reviews
     reason: "Priority 14/GAP-UMR-TABLE-COVERAGE 5th batch review (2026-07-14): contains sensitive per-employee evaluation content (self_rating/manager_rating/strengths/improvements/goals about a specific employee) -- same confidentiality-sensitive class as board_evaluations/posh_complaints/whistleblower_cases, deliberately not bundled into a routine tranche."
+  - table: performance_review_goals
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-review KRA/weighted-goal row -- contains a rating/comments about a specific employee's performance against that goal, same confidentiality-sensitive class as performance_reviews itself."
+  - table: performance_review_raters
+    reason: "Phase 0 HR gap-closure (2026-07-27, drizzle/0264): per-review 360-degree rater feedback row -- contains a rating/feedback about a specific employee from a peer/subordinate/other rater, same confidentiality-sensitive class as performance_reviews itself."
   - table: personal_model_config
     reason: "pre-Priority-4 grandfather -- not yet reviewed for registry-worthiness, tracked as a follow-on in 09-priority4-umr-universal-tracker.yaml's scope_decision"
   - table: platform_assets
@@ -930,3 +952,19 @@ exempted:
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): no genuine display-name column -- scope (enum) + version (int) is a compound identity, not a per-row name, and rule is opaque policy jsonb. A versioned configuration record, same class as approval_workflow_step_approvals/access_review_certifications -- not a discoverable named asset."
   - table: ai_routing_audit_log
     reason: "AIROUTER-01 (Owner directive 2026-07-18, Mother Router Phase 1): append-only audit log of routing decisions, no display-name column -- same class as the already-exempted activity_log/api_key_request_log."
+  - table: public_ticket_submission_attempts
+    reason: "Helpdesk gap-closure (self-service portal, Phase 0 2026-07-27): a rate-limit/abuse log for the new unauthenticated public ticket-submission surface, not a platform business asset -- same class as other rate-limit/audit-log exemptions above."
+  - table: ticket_teams
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration (compliance.asset_registration_config + auto_register_asset trigger) deferred to a future pass."
+  - table: business_hours_schedules
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: sla_policies
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: escalation_rules
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: ticket_escalation_events
+    reason: "Helpdesk gap-closure (tiered SLA + team routing, Phase 0 2026-07-27): append-only escalation audit log, same class as other append-only audit-log exemptions above, not a platform business asset requiring the generic active-record registration pattern."
+  - table: construction_interim_bills
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."
+  - table: construction_interim_bill_line_items
+    reason: "PR 596 BoQ/valuation gap-closure (2026-07-27): not yet reviewed for registry-worthiness, tracked as a follow-on -- new table, real registration deferred to a future pass."

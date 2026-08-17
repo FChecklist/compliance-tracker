@@ -25,6 +25,7 @@ import {
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
+import { ModuleNotEnabledCard } from "@/components/ModuleNotEnabledCard";
 
 type Lead = {
   id: string; name: string; contactEmail: string | null; source: string | null; status: string;
@@ -50,6 +51,7 @@ export default function CrmLeadsPage() {
   const [loading, setLoading] = useState(true);
   const [scoringId, setScoringId] = useState<string | null>(null);
   const [creatingTaskId, setCreatingTaskId] = useState<string | null>(null);
+  const [salesEnabled, setSalesEnabled] = useState<boolean | null>(null);
 
   const [open, setOpen] = useState(false);
   const [name, setName] = useState("");
@@ -70,6 +72,9 @@ export default function CrmLeadsPage() {
   }, [page, search, statusFilter]);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    fetch("/api/me").then((r) => r.json()).then((d) => setSalesEnabled(d.salesEnabled ?? false)).catch(() => setSalesEnabled(false));
+  }, []);
 
   const createLead = async () => {
     if (!name.trim()) return;
@@ -142,6 +147,10 @@ export default function CrmLeadsPage() {
   };
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
+
+  if (salesEnabled === false) {
+    return <ModuleNotEnabledCard moduleName="CRM" settingsSection="Sales & CRM" />;
+  }
 
   return (
     <div className="space-y-4">

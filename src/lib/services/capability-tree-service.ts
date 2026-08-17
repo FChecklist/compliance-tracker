@@ -7,17 +7,28 @@
 // Tree shape: org's enabled product branches -> their active modules,
 // grouped by domain -> real Worker Agents serving that domain (falling back
 // to the module list itself if no agent has been built for that domain
-// yet) -> Product -> that product's real Projects (Wave 19 L2 scope layer),
-// each with a generic project-action leaf set carrying the real projectId
-// for direct tasks.projectId scoping -> plus Customer/Vendor top-level
-// branches populated from real erpCustomers/erpSuppliers, each with a
+// yet) -> Product/Customer/Vendor top-level ERP branches, each populated
+// from the real ERP master data (erpItems/erpCustomers/erpSuppliers) with a
 // generic entity-action leaf set. The tree is only ever as complete as
 // what's actually enabled/registered for this org -- it grows automatically
-// as more branches/modules/agents/products/projects/customers get added,
-// rather than needing a taxonomy maintainer.
+// as more branches/modules/agents/items/customers get added, rather than
+// needing a taxonomy maintainer.
+//
+// Bug fix, 2026-07-27 (fix-veri-erp-product-chain-bug--shows-pr): the
+// "Product" branch used to source from `products`/`projects` -- an
+// unrelated PMS product-line/project grouping (see schema.ts's `products`
+// table, "a product's real Projects... Wave 19 L2 scope layer") -- so
+// selecting a real ERP Product surfaced Project rows and project-management
+// actions (Status update/Log a task/Flag a risk) instead of product ones.
+// Fixed to source from erpItems, the real ERP sellable-item/product master
+// (item_code, standard_selling_rate, stock flags -- see erp-inventory-
+// service.ts), matching how Customer/Vendor already source from
+// erpCustomers/erpSuppliers. `products`/`projects` (PMS grouping) is
+// untouched -- it's real data for other features, just never the right
+// source for this ERP entity-type branch.
 import {
   orgProductBranchEnablements, productBranches, productBranchModules, moduleRegistry,
-  workerAgents, erpCustomers, erpSuppliers, products, projects, computationEngines, complianceItems,
+  workerAgents, erpCustomers, erpSuppliers, erpItems, projects, computationEngines, complianceItems,
   gstImportBatches, gstCanonicalInvoices, gstReturnPeriods, departments, savedReports, taskCapabilities,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
@@ -887,24 +898,24 @@ Object.assign(WIRED_ENGINE_INPUT_FIELDS, COSTING_WIRED_ENGINE_INPUT_FIELDS)
 // customer/vendor" (invoice prep, reminders, GST filing) aren't domain-
 // grouped the same way as Finance/Compliance/etc. agents are, so this list
 // is the placeholder leaf set until those get their own domain tagging.
-const GENERIC_ENTITY_ACTIONS: CapabilityNode[] = [
+// Exported (was module-private) so the fix-veri-erp-product-chain-bug--
+// shows-pr regression test can assert this stays exactly what Customer/
+// Vendor render, unaffected by the sibling Product-branch fix below.
+export const GENERIC_ENTITY_ACTIONS: CapabilityNode[] = [
   { key: "invoice_preparation", label: "Invoice preparation", leaf: true },
   { key: "send_reminder", label: "Send reminder", leaf: true },
   { key: "gst_filing", label: "GST filing", leaf: true },
 ]
 
-// Same placeholder-leaf-set idea as GENERIC_ENTITY_ACTIONS, but for a
-// specific real project -- each leaf carries that project's real id so the
-// composer can pass it straight through to tasks.projectId (createTask
-// already accepts projectId, Wave 19) instead of relying on breadcrumb text
-// alone.
-function genericProjectActions(projectId: string): CapabilityNode[] {
-  return [
-    { key: "status_update", label: "Status update", leaf: true, projectId },
-    { key: "log_task", label: "Log a task", leaf: true, projectId },
-    { key: "flag_risk", label: "Flag a risk", leaf: true, projectId },
-  ]
-}
+// Same placeholder-leaf-set idea as GENERIC_ENTITY_ACTIONS, but for a real
+// ERP item/product (erpItems) -- product-management actions, not the
+// project-management actions a Product leaf used to carry before the
+// 2026-07-27 fix (see this file's header note). Exported for the same
+// direct-unit-test reason as GENERIC_ENTITY_ACTIONS above.
+export const GENERIC_PRODUCT_ACTIONS: CapabilityNode[] = [
+  { key: "update_price_stock", label: "Update price/stock", leaf: true },
+  { key: "create_quotation", label: "Create a quotation", leaf: true },
+]
 
 // D5.B7 (tree4-unified 50-completion-plan area 1, "per-module/per-page Mode
 // Pill and Chain option auto-adaptation"): the capability tree used to be
@@ -968,6 +979,7 @@ const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   construction: "Construction (PROJEXA)",
   "AI-ops": "AI Ops",
   custom: "Custom Reports",
+  CRM: "Sales & CRM",
 }
 
 // New "Reports & Analysis" branch, built from the unified REPORT_CATALOG
@@ -1171,14 +1183,14 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
 // Construction Intelligence (PROJEXA), Wave 128. Mirrors
 // buildGstReconciliationNodes()'s shape: check the worker_agents actually
 // exist for this platform tier first (empty tree if this wave hasn't been
-// applied), then build real per-project leaf nodes. Unlike the GST tree,
-// these don't need dynamic batch-pairing -- each is a single project-scoped
-// (or org-wide) read query, so this reuses genericProjectActions()'s
-// projectId-carrying leaf shape rather than a bespoke structure. Project
-// scoping here is generic `projects` (there's no dedicated "construction
-// project" flag -- a project becomes construction-flavored simply by having
-// constructionBoqs/constructionCategories rows, matching how buildProductNodes
-// above also lists all active projects without a domain filter).
+// applied), then build real per-project leaf nodes, each carrying a
+// projectId-scoped fixedInputs leaf shape. Unlike the GST tree, these don't
+// need dynamic batch-pairing -- each is a single project-scoped (or
+// org-wide) read query. Project scoping here is generic `projects` (there's
+// no dedicated "construction project" flag -- a project becomes
+// construction-flavored simply by having constructionBoqs/
+// constructionCategories rows) and is unrelated to the ERP "Product" branch
+// below, which sources from erpItems, not `projects`.
 // Exported (unlike the other builders here) so /api/v1/projexa/capability-tree
 // can call this subtree directly instead of the full buildCapabilityTree() --
 // PROJEXA must never see GST/compliance/other product nodes, only its own.
@@ -1314,30 +1326,15 @@ async function buildBranchNodes(db: TenantDb, orgId: string): Promise<Capability
 }
 
 async function buildProductNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
-  const activeProducts = await db.query.products.findMany({
-    where: and(eq(products.orgId, orgId), eq(products.isActive, true)),
+  const activeItems = await db.query.erpItems.findMany({
+    where: and(eq(erpItems.orgId, orgId), eq(erpItems.isActive, true)),
   })
-  if (activeProducts.length === 0) return []
+  if (activeItems.length === 0) return []
 
-  const productIds = activeProducts.map((p) => p.id)
-  const activeProjects = await db.query.projects.findMany({
-    where: and(inArray(projects.productId, productIds), eq(projects.isActive, true)),
-  })
-
-  const productChildren: CapabilityNode[] = []
-  for (const product of activeProducts) {
-    const projectsForProduct = activeProjects.filter((pr) => pr.productId === product.id)
-    if (projectsForProduct.length === 0) continue
-    productChildren.push({
-      key: product.id, label: product.name, leaf: false,
-      children: projectsForProduct.map((pr) => ({
-        key: pr.id, label: pr.name, leaf: false, children: genericProjectActions(pr.id),
-      })),
-    })
-  }
-  if (productChildren.length === 0) return []
-
-  return [{ key: "product", label: "Product", leaf: false, children: productChildren }]
+  return [{
+    key: "product", label: "Product", leaf: false,
+    children: activeItems.map((item) => ({ key: item.id, label: item.itemName, leaf: false, children: GENERIC_PRODUCT_ACTIONS })),
+  }]
 }
 
 async function buildEntityNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {

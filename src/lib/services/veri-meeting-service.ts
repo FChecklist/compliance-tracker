@@ -31,8 +31,26 @@ import { runMeetingIntelligenceGenerationMonitor } from "@/lib/monitors/meeting-
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import type { users } from "@/lib/db"
+import type { ServiceActor } from "./context"
 
-export type VeriMeetingContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
+// Wave 143 (PROJEXA Minutes of Meetings wiring): widened from a hardcoded
+// `dbUser: typeof users.$inferSelect` to the same dbUser|apiKey
+// discriminated union `ServiceActor` already used elsewhere in this
+// codebase for exactly this reason (see context.ts's own header) -- every
+// pre-existing caller (VeriChatPanel, voice/ticket/email intelligence,
+// mother-router) still just passes `{ orgId, userId, dbUser }`, which
+// satisfies the `dbUser` branch unchanged. New callers reachable only via a
+// Bearer API key (PROJEXA's callVeridian(), no cookie session) now have a
+// real `{ orgId, userId, apiKey }` option instead of needing a fabricated
+// dbUser.
+export type VeriMeetingContext = { orgId: string; userId: string } & ServiceActor
+
+// logActivity()/runMeetingIntelligenceGenerationMonitor() both require the
+// same discriminated dbUser XOR apiKey actor shape -- this is the one place
+// that ternary gets written, instead of at each of this file's ~9 call sites.
+function actorOf(ctx: VeriMeetingContext): ServiceActor {
+  return ctx.dbUser ? { dbUser: ctx.dbUser } : { apiKey: ctx.apiKey! }
+}
 
 function generateSystemId(): string {
   const year = new Date().getFullYear()
@@ -46,9 +64,18 @@ function assertEditable(meeting: { status: string }) {
   }
 }
 
-export async function listVeriMeetings(ctx: { orgId: string }) {
+// Wave 143: contextEntityId scoping added -- PROJEXA's MoM screen is
+// per-project, so it needs "meetings for this project" rather than the
+// full org-wide feed every existing internal caller (VeriChatPanel's
+// Meetings tab) wants.
+export async function listVeriMeetings(ctx: { orgId: string }, contextEntityId?: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
-    db.query.veriMeetings.findMany({ where: eq(veriMeetings.orgId, ctx.orgId), orderBy: desc(veriMeetings.scheduledAt) })
+    db.query.veriMeetings.findMany({
+      where: contextEntityId
+        ? and(eq(veriMeetings.orgId, ctx.orgId), eq(veriMeetings.contextEntityId, contextEntityId))
+        : eq(veriMeetings.orgId, ctx.orgId),
+      orderBy: desc(veriMeetings.scheduledAt),
+    })
   )
 }
 
@@ -83,7 +110,7 @@ export async function createVeriMeeting(
 
     await logActivity({
       tx: db, action: "veri_meeting.created", entityType: "veri_meeting", entityId: meeting!.id,
-      details: `Created meeting "${title}"`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Created meeting "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return meeting
   })
@@ -114,7 +141,7 @@ export async function updateVeriMeetingDetails(
     const changedFields = Object.keys(patch).filter((k) => k !== "updatedAt")
     await logActivity({
       tx: db, action: "veri_meeting.details_updated", entityType: "veri_meeting", entityId: meetingId,
-      details: `Updated: ${changedFields.join(", ")}`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Updated: ${changedFields.join(", ")}`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return updated
   })
@@ -135,7 +162,7 @@ export async function updateMeetingMinutes(ctx: VeriMeetingContext, meetingId: s
 
     await logActivity({
       tx: db, action: "veri_meeting.minutes_updated", entityType: "veri_meeting", entityId: meetingId,
-      details: "Minutes updated", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Minutes updated", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return updated
   })
@@ -155,7 +182,7 @@ export async function publishVeriMeeting(ctx: VeriMeetingContext, meetingId: str
 
     await logActivity({
       tx: db, action: "veri_meeting.published", entityType: "veri_meeting", entityId: meetingId,
-      details: "Meeting published and locked", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Meeting published and locked", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return row
   })
@@ -240,10 +267,10 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
 
       await logActivity({
         tx: db, action: "veri_meeting.ai_intelligence_generated", entityType: "veri_meeting", entityId: meetingId,
-        details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, dbUser: ctx.dbUser,
+        details: "AI summary/decisions/suggested action items generated", orgId: ctx.orgId, ...actorOf(ctx),
       })
 
-      await runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, { dbUser: ctx.dbUser }, {
+      await runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
         meetingId, title: meeting.title, succeeded: true,
       })
 
@@ -256,7 +283,7 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
     // read/write transactions" posture dispatch-completion-monitor.ts's own
     // runDispatchCompletionSweep already uses.
     await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
-      runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, { dbUser: ctx.dbUser }, {
+      runMeetingIntelligenceGenerationMonitor(db, ctx.orgId, actorOf(ctx), {
         meetingId, title: meeting.title, succeeded: false, failureReason: err instanceof Error ? err.message : String(err),
       })
     )
@@ -301,7 +328,7 @@ export async function addMeetingActionItem(
 
     await logActivity({
       tx: db, action: "veri_meeting.action_item_added", entityType: "veri_meeting", entityId: meetingId,
-      details: `Action item added: "${title}"`, orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: `Action item added: "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
     })
     return { actionItem, task: task! }
   })
@@ -360,7 +387,7 @@ export async function createMeetingShareLink(ctx: VeriMeetingContext, meetingId:
 
     await logActivity({
       tx: db, action: "veri_meeting.share_link_created", entityType: "veri_meeting", entityId: meetingId,
-      details: "Share link created", orgId: ctx.orgId, dbUser: ctx.dbUser,
+      details: "Share link created", orgId: ctx.orgId, ...actorOf(ctx),
     })
     return link
   })

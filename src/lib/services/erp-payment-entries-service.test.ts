@@ -6,7 +6,7 @@
 // it).
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
-import { nextPaymentEntryStatus, canDecidePaymentEntry } from "./erp-payment-entries-service"
+import { nextPaymentEntryStatus, canDecidePaymentEntry, computeSubcontractorPaymentApplicationWorklist, STUCK_APPLICATION_THRESHOLD_DAYS } from "./erp-payment-entries-service"
 
 describe("nextPaymentEntryStatus -- the approval state machine", () => {
   test("draft -> submitted via 'submit'", () => {
@@ -119,5 +119,159 @@ describe("canDecidePaymentEntry -- the mandatory manager-rank + no-self-approval
   test("a manager-rank-or-above actor is unaffected by hasDelegatedAuthority either way (already allowed on rank alone)", () => {
     expect(canDecidePaymentEntry("manager", "user_1", "user_2", false)).toEqual({ ok: true })
     expect(canDecidePaymentEntry("manager", "user_1", "user_2", true)).toEqual({ ok: true })
+  })
+})
+
+// FI-AP-008 (sap_mapping.sqlite gap analysis, "Subcontractor Payment
+// Application Status", BUILD_NEW/HIGH). Tests the pure worklist-computation
+// core directly, same no-live-DB convention as this file's other tests
+// above.
+describe("computeSubcontractorPaymentApplicationWorklist", () => {
+  const ASOF = "2026-08-06" // 6 days after the fixtures below's 2026-07-31 events, 30 days after 2026-07-07
+
+  test("a draft application ages from createdAt", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [{
+        id: "pe_1", supplierId: "sup_1", invoiceId: "inv_1", status: "draft",
+        paidAmount: "50000", createdAt: "2026-08-01T00:00:00Z", submittedAt: null, decidedAt: null,
+      }],
+      [],
+      ASOF,
+    )
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0].status).toBe("drafted")
+    expect(result.rows[0].submittedAt).toBeNull()
+    expect(result.rows[0].daysInCurrentStatus).toBe(5)
+    expect(result.rows[0].isStuck).toBe(false) // drafted is never flagged stuck, only submitted/not_yet_initiated
+  })
+
+  test("a submitted application ages from submittedAt, not createdAt, and is flagged stuck past the threshold", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [{
+        id: "pe_2", supplierId: "sup_1", invoiceId: "inv_2", status: "submitted", paidAmount: "120000",
+        createdAt: "2026-07-01T00:00:00Z", submittedAt: "2026-07-25T00:00:00Z", decidedAt: null,
+      }],
+      [],
+      ASOF,
+    )
+    expect(result.rows[0].status).toBe("submitted")
+    expect(result.rows[0].daysInCurrentStatus).toBe(12) // from submittedAt (Jul 25), not createdAt (Jul 1)
+    expect(result.rows[0].isStuck).toBe(true) // 12 > STUCK_APPLICATION_THRESHOLD_DAYS (7)
+    expect(result.stuckCount).toBe(1)
+  })
+
+  test("a submitted application within the threshold is not flagged stuck", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [{
+        id: "pe_3", supplierId: "sup_1", invoiceId: "inv_3", status: "submitted", paidAmount: "10000",
+        createdAt: "2026-08-03T00:00:00Z", submittedAt: "2026-08-03T00:00:00Z", decidedAt: null,
+      }],
+      [],
+      ASOF,
+    )
+    expect(result.rows[0].daysInCurrentStatus).toBe(3)
+    expect(result.rows[0].isStuck).toBe(false)
+  })
+
+  test("an approved application maps to approved_and_paid and ages from decidedAt", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [{
+        id: "pe_4", supplierId: "sup_2", invoiceId: "inv_4", status: "approved", paidAmount: "75000",
+        createdAt: "2026-07-01T00:00:00Z", submittedAt: "2026-07-02T00:00:00Z", decidedAt: "2026-08-04T00:00:00Z",
+      }],
+      [],
+      ASOF,
+    )
+    expect(result.rows[0].status).toBe("approved_and_paid")
+    expect(result.rows[0].daysInCurrentStatus).toBe(2)
+    expect(result.rows[0].isStuck).toBe(false) // approved/rejected/cancelled are never flagged stuck, only pending states
+  })
+
+  test("a rejected application maps to rejected and ages from decidedAt", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [{
+        id: "pe_5", supplierId: "sup_2", invoiceId: "inv_5", status: "rejected", paidAmount: "30000",
+        createdAt: "2026-07-01T00:00:00Z", submittedAt: "2026-07-02T00:00:00Z", decidedAt: "2026-08-01T00:00:00Z",
+      }],
+      [],
+      ASOF,
+    )
+    expect(result.rows[0].status).toBe("rejected")
+    expect(result.rows[0].daysInCurrentStatus).toBe(5)
+  })
+
+  test("a cancelled application (no dedicated timestamp column exists) ages from createdAt as the disclosed proxy", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [{
+        id: "pe_6", supplierId: "sup_2", invoiceId: "inv_6", status: "cancelled", paidAmount: "5000",
+        createdAt: "2026-08-02T00:00:00Z", submittedAt: null, decidedAt: null,
+      }],
+      [],
+      ASOF,
+    )
+    expect(result.rows[0].status).toBe("cancelled")
+    expect(result.rows[0].daysInCurrentStatus).toBe(4)
+  })
+
+  test("a subcontractor invoice with no payment entry yet surfaces as not_yet_initiated, aged from postingDate, and can be stuck", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [],
+      [{
+        invoiceId: "inv_7", supplierId: "sup_3", invoiceNumber: 42,
+        postingDate: "2026-07-20", grandTotal: "200000", outstandingAmount: "200000",
+      }],
+      ASOF,
+    )
+    expect(result.rows).toHaveLength(1)
+    expect(result.rows[0].status).toBe("not_yet_initiated")
+    expect(result.rows[0].applicationId).toBeNull()
+    expect(result.rows[0].invoiceNumber).toBe(42)
+    expect(result.rows[0].amount).toBe(200000)
+    expect(result.rows[0].daysInCurrentStatus).toBe(17)
+    expect(result.rows[0].isStuck).toBe(true)
+  })
+
+  test("mixed worklist sorts by daysInCurrentStatus descending -- the most-stuck row surfaces first", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [
+        {
+          id: "pe_a", supplierId: "sup_1", invoiceId: "inv_a", status: "submitted", paidAmount: "1000",
+          createdAt: "2026-08-05T00:00:00Z", submittedAt: "2026-08-05T00:00:00Z", decidedAt: null,
+        },
+        {
+          id: "pe_b", supplierId: "sup_2", invoiceId: "inv_b", status: "submitted", paidAmount: "2000",
+          createdAt: "2026-07-01T00:00:00Z", submittedAt: "2026-07-01T00:00:00Z", decidedAt: null,
+        },
+      ],
+      [],
+      ASOF,
+    )
+    expect(result.rows.map((r) => r.applicationId)).toEqual(["pe_b", "pe_a"]) // pe_b is older-in-status, sorts first
+  })
+
+  test("applicationCount counts every row across both buckets", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist(
+      [{
+        id: "pe_x", supplierId: "sup_1", invoiceId: "inv_x", status: "submitted", paidAmount: "1000",
+        createdAt: ASOF, submittedAt: ASOF, decidedAt: null,
+      }],
+      [{
+        invoiceId: "inv_y", supplierId: "sup_1", invoiceNumber: 1,
+        postingDate: ASOF, grandTotal: "500", outstandingAmount: "500",
+      }],
+      ASOF,
+    )
+    expect(result.applicationCount).toBe(2)
+  })
+
+  test("STUCK_APPLICATION_THRESHOLD_DAYS is the documented 7-day default", () => {
+    expect(STUCK_APPLICATION_THRESHOLD_DAYS).toBe(7)
+  })
+
+  test("empty input produces an empty, zero-count worklist", () => {
+    const result = computeSubcontractorPaymentApplicationWorklist([], [], ASOF)
+    expect(result.rows).toHaveLength(0)
+    expect(result.applicationCount).toBe(0)
+    expect(result.stuckCount).toBe(0)
   })
 })

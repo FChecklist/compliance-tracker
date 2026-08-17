@@ -30,7 +30,7 @@ import { evaluateAttributeConditions, type AttributeCondition } from "@/lib/abac
 import { checkAbacDenyPoliciesWithDb } from "./abac-policy-service"
 import { detectHighImpactAction, type HighImpactCategory } from "@/lib/high-impact-action-detector"
 import { runWorkflowCompletionMonitor } from "@/lib/monitors/workflow-completion-monitor"
-import { isDelegated } from "./delegation-service"
+import { isDelegatedByAuthorizedDelegator } from "./delegation-service"
 
 export type WorkflowContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
@@ -352,7 +352,18 @@ export async function decideApprovalStep(
       // at all. Purely additive: a user who already meets requiredRank
       // never reaches this branch, so behavior for every non-delegated
       // approval is unchanged.
-      const delegated = await isDelegated(db, ctx.orgId, "approval_type", step.instance.entityType, ctx.userId, [ctx.dbUser.role])
+      //
+      // V2-11 audit fix (AUDIT: FAIL, 2026-07-26 comment on PR #579): a
+      // delegation only counts here if its OWN delegatorUserId currently
+      // holds this step's requiredRank independently -- otherwise a
+      // rank-insufficient user could self-grant (delegateRoleKey equal to
+      // their own role) or accomplice-grant (delegateUserId) this step's
+      // approval authority nobody with real requiredRank authority ever
+      // delegated.
+      const delegated = await isDelegatedByAuthorizedDelegator(db, ctx.orgId, "approval_type", step.instance.entityType, ctx.userId, [ctx.dbUser.role], async (delegatorUserId) => {
+        const delegator = await db.query.users.findFirst({ where: eq(users.id, delegatorUserId) })
+        return Boolean(delegator) && (ROLE_RANK[delegator.role as UserRole] ?? 0) >= requiredRank
+      })
       if (!delegated) throw new ServiceError(`This step requires ${step.approverRole} role or higher`, 403)
     }
 

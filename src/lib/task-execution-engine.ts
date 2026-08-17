@@ -1,7 +1,8 @@
 import { workerAgents, tasks, taskExecutionPlan, taskAgentExecutions, taskChatMessages, complianceItems, departments, notices, users, gstCanonicalInvoices, gstReturnPeriods, dynamicChains, entityRelationships, computationEngines } from "@/lib/db";
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped";
 import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
-import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
+import { escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
+import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router";
 import { callLLMJson } from "@/lib/llm-client";
 import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
@@ -1987,7 +1988,19 @@ async function executePackageDispatch(
       );
       if (!policyDecision.allowed) throw new Error(refusalMessageFor(policyDecision));
 
-      const modelConfig = await resolveModelConfig(orgId, "task_oa");
+      // GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED fix (2026-08-04): resolves
+      // through Mother Router's end_user_org scope instead of calling
+      // orchestra-model-resolver.ts's resolveModelConfig() directly -- the
+      // exact same incremental-migration pattern orchestrate/route.ts already
+      // proved out for the same "task_oa" layer (see that route's own
+      // "Phase 9 ... crossed Gateway G05 for real" comment). Internally still
+      // calls the same resolveModelConfig() for the baseline (customer BYO
+      // config, cost-guard, source-type overrides all unchanged) and returns
+      // it via resolvedConfig -- this is additive (real ai_routing_audit_log
+      // coverage + any active end_user_org routing policy override), never a
+      // behavior change for a BYO-configured org (computeEndUserOrgResolution
+      // returns the baseline untouched whenever isCustomerConfigured is true).
+      const modelConfig = (await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" })).resolvedConfig ?? null;
       if (!modelConfig) throw new Error("No LLM provider is configured for this organisation (task_oa layer).");
 
       const systemPrompt =
@@ -2259,7 +2272,10 @@ export async function executeTask(
       console.error("Priority 6: UMR lookup failed for NOVEL-classified task, continuing without a hint:", err);
     }
 
-    const modelConfig = await resolveModelConfig(orgId, "task_oa");
+    // GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED fix (2026-08-04): same
+    // Mother Router migration as executePackageDispatch() above -- see that
+    // call site's comment for the full rationale.
+    const modelConfig = (await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" })).resolvedConfig ?? null;
     if (!modelConfig) {
       await markTaskOutcome(orgId, userId, taskId, "failed", "No LLM provider is configured for this organisation (task_oa layer). Set one up in Settings → AI Configuration.");
       return;

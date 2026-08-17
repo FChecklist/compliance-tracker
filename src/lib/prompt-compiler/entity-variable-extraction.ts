@@ -7,6 +7,22 @@
 // alongside it since both operate on the same cleaned text.
 import type { Entity, EntityType, PromptVariable, VariableType } from "./types"
 
+// CodeQL js/polynomial-redos + js/regex-injection (both real, both fixed 2026-07-27):
+// (a) escape any user-derived string before interpolating it into a RegExp
+// constructor -- VARIABLE_TOKEN_RE already constrains `name` to
+// [a-zA-Z0-9_], so this is defense-in-depth, not a currently-reachable
+// injection, but a future change to that pattern must not silently
+// reopen it. (b) cap input length before running any of the regex
+// patterns below over it -- several use nested quantifiers/alternation
+// that could show polynomial worst-case behavior on adversarial input;
+// a hard length cap bounds worst-case time regardless of which pattern.
+const MAX_EXTRACTION_INPUT_CHARS = 50_000
+
+export function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+}
+
+
 const FILE_PATH_RE = /[\w./-]+\.(?:py|js|ts|tsx|jsx|json|yaml|yml|toml|cfg|ini|sh|bash|sql|md|txt|html|css)\b/g
 const URL_RE = /https?:\/\/[^\s<>"{}|\\^`]+/g
 // classifier.py's CODE_REF pattern minus its English-stopword denylist,
@@ -31,6 +47,7 @@ function extractByPattern(text: string, re: RegExp, type: EntityType): Entity[] 
 
 /** Pure entity extraction over already-cleaned text. No AI, no I/O. */
 export function extractEntities(text: string): Entity[] {
+  text = text.slice(0, MAX_EXTRACTION_INPUT_CHARS)
   const entities: Entity[] = [
     ...extractByPattern(text, FILE_PATH_RE, "FILE_PATH"),
     ...extractByPattern(text, URL_RE, "URL"),
@@ -83,12 +100,13 @@ function inferVariableType(name: string): VariableType {
  * template's stored metadata) should pass it to resolveVariableDefaults().
  */
 export function extractVariables(text: string): PromptVariable[] {
+  text = text.slice(0, MAX_EXTRACTION_INPUT_CHARS)
   const seen = new Map<string, PromptVariable>()
   for (const m of text.matchAll(VARIABLE_TOKEN_RE)) {
     const name = m[1]
     if (seen.has(name)) continue
     const withoutTokens = text.replace(VARIABLE_TOKEN_RE, "")
-    const boundElsewhere = new RegExp(`\\b${name}\\b`, "i").test(withoutTokens)
+    const boundElsewhere = new RegExp(`\\b${escapeRegExp(name)}\\b`, "i").test(withoutTokens)
     seen.set(name, { name, inferredType: inferVariableType(name), defaultValue: null, boundElsewhere })
   }
   return [...seen.values()]

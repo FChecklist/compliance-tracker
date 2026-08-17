@@ -200,6 +200,54 @@ async function extendPromptWordIndex(capabilityId: string, promptText: string): 
   await db.update(taskCapabilities).set({ promptWordIndex: merged, updatedAt: new Date() }).where(eq(taskCapabilities.id, capabilityId))
 }
 
+// engine-ai-learning (VERIDIAN_Architecture_v2.0 phase_8, gap analysis
+// 2026-07-25 verdict re-verified 2026-07-27): "Learn from unknown prompts
+// through autonomous exploration, evaluation, and registration" -- a
+// distinct requirement from this file's own business-task-execution
+// learning loop above (recordExecutionOutcome et al.). The gap analysis's
+// own evidence explicitly ruled that loop out as "not a functional match"
+// (it learns whether a TASK is full-software/package-available/novel, not
+// whether a PROMPT was recognized), so this is wired as a genuine
+// extension -- reusing findOrCreateCapability/extendPromptWordIndex's real
+// (modePill, pathKeys)-keyed persistence instead of standing up a second
+// capability store, closing the actual gap by feeding it a distinct
+// modePill namespace so it can never collide with a real Dynamic Chain's
+// own modePill.
+export const UNKNOWN_PROMPT_MODE_PILL = "prompt_compiler_unknown"
+
+// Evaluate step (pure, unit-tested): only prompts phase_2's compiler
+// genuinely couldn't resolve confidently are worth autonomous exploration
+// -- gated on both signals the pipeline already computes (matchedTemplate
+// null means Layer 4 fell through to the compression fallback instead of a
+// real template match; a low verification confidence means Layer 5 also
+// wasn't confident) rather than registering every request as "unknown".
+const UNKNOWN_PROMPT_CONFIDENCE_FLOOR = 0.5
+
+export function shouldExploreAsUnknownPrompt(matchedTemplate: string | null, verificationConfidence: number): boolean {
+  return matchedTemplate === null && verificationConfidence < UNKNOWN_PROMPT_CONFIDENCE_FLOOR
+}
+
+// Exploration + registration step (DB-touching): finds-or-creates a
+// capability keyed by (UNKNOWN_PROMPT_MODE_PILL, [category, primary
+// intent]) and extends its word index with the real prompt text -- the
+// same autonomous "encounter it, index it, remember it for next time"
+// mechanism findOrCreateCapability already provides for business tasks,
+// applied here to the compiler's own classification/intent output instead
+// of a Dynamic Chain selection.
+export async function exploreUnknownPrompt(input: {
+  category: string
+  primaryIntent: string
+  rawText: string
+  orgId?: string | null
+}): Promise<TaskCapability> {
+  return findOrCreateCapability({
+    modePill: UNKNOWN_PROMPT_MODE_PILL,
+    pathKeys: [input.category, input.primaryIntent],
+    promptText: input.rawText,
+    orgId: input.orgId ?? null,
+  })
+}
+
 // Word-overlap fallback lookup for callers that only have free text (VERI
 // Chat, before any Chain Selector step) -- not a replacement for
 // capability-registry-service.ts's embedding search, a cheaper first pass

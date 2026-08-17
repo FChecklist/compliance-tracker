@@ -116,7 +116,7 @@ export async function createKbPage(
 export async function updateKbPage(
   ctx: KbContext,
   pageId: string,
-  patch: Partial<{ title: string; content: string | null; isArchived: boolean }>
+  patch: Partial<{ title: string; content: string | null; isArchived: boolean; isPublished: boolean }>
 ) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.knowledgeBasePages.findFirst({ where: and(eq(knowledgeBasePages.id, pageId), eq(knowledgeBasePages.orgId, ctx.orgId)) })

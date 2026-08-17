@@ -76,9 +76,9 @@
  * here -- see PROGRESS.md.
  */
 import { db, aiRoutingPolicies, aiRoutingAuditLog, organisations, subscriptionPlans, users, tenantAiConfig } from "@/lib/db"
-import { and, count, eq } from "drizzle-orm"
+import { and, count, eq, sql } from "drizzle-orm"
 import { checkTierEligibility, type TierEligibilityResult } from "@/lib/model-tier-eligibility"
-import { resolveModelConfig, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
+import { resolveModelConfig, platformApiKeyFor, type ResolvedModelConfig } from "@/lib/orchestra-model-resolver"
 import { decryptApiKey } from "@/lib/ai-config-crypto"
 import { AI_TEAM_ROSTER } from "@/lib/ai-team/roster"
 import type { LLMProvider } from "@/lib/llm-client"
@@ -132,6 +132,21 @@ export type MotherRouterResolution = {
   policyVersion?: number
   /** software_team only -- whether the resolved model is actually eligible for the requested complexity tier. */
   tierEligibility?: TierEligibilityResult
+  /**
+   * end_user_org only (phase_9_gateway_knowledge_sync_infrastructure,
+   * VERIDIAN_ARCHITECTURE_V2_PHASE_PLAN_2026-07-25.yaml) -- the full,
+   * ready-to-call config (apiKey/fallback/isCustomerConfigured included),
+   * so a caller like orchestrate/route.ts can resolve through this
+   * function ALONE (a real G05 hop) instead of also calling
+   * orchestra-model-resolver.ts's resolveModelConfig() independently
+   * afterwards to get the credentials this resolution's provider/model
+   * actually need. Always set together with provider/model for this scope
+   * (never provider/model without a matching resolvedConfig) -- undefined
+   * only in the "no baseline to resolve" branch of resolveModel()'s
+   * end_user_org case, which already signals "nothing to call" via
+   * model === "".
+   */
+  resolvedConfig?: ResolvedModelConfig
 }
 
 export type MotherRouterContext =
@@ -331,6 +346,19 @@ export function computeSoftwareTeamResolution(
  * overrides the PLATFORM DEFAULT branch (isCustomerConfigured === false)
  * with a subscription-package default when a policy names one -- an org's
  * own configured BYO model is never touched.
+ *
+ * `resolvedConfig` (phase_9_gateway_knowledge_sync_infrastructure) mirrors
+ * provider/model with the real apiKey/fallback a caller needs to actually
+ * invoke the LLM. provider/model (the top-level, audit-logged fields)
+ * always reflect the named policy override regardless of whether it's
+ * actually callable right now -- unchanged from this function's original,
+ * already-tested contract. resolvedConfig is left undefined (not silently
+ * downgraded to baseline) when a package override names a provider with no
+ * platform API key configured, matching orchestra-model-resolver.ts's own
+ * resolveModelConfig() convention (`if (!apiKey) return null`, its
+ * platform-default branch) rather than inventing a new "cannot call this"
+ * signal -- a caller reading resolvedConfig already knows undefined means
+ * "nothing to call."
  */
 export function computeEndUserOrgResolution(
   baseline: ResolvedModelConfig,
@@ -342,16 +370,21 @@ export function computeEndUserOrgResolution(
       provider: baseline.provider,
       model: baseline.model,
       reason: "org has an active customer_model_config (BYO) -- Mother Router never overrides an org's own configured model",
+      resolvedConfig: baseline,
     }
   }
 
   const override = aiPackage ? policy?.rule.preferredModelByPackage?.[aiPackage] : undefined
   if (override) {
+    const overrideApiKey = platformApiKeyFor(override.provider)
     return {
       provider: override.provider,
       model: override.model,
       reason: `ai_routing_policies v${policy!.version} default for aiPackage="${aiPackage}"`,
       policyVersion: policy!.version,
+      resolvedConfig: overrideApiKey
+        ? { ...baseline, provider: override.provider, model: override.model, apiKey: overrideApiKey }
+        : undefined,
     }
   }
 
@@ -361,6 +394,7 @@ export function computeEndUserOrgResolution(
     reason: aiPackage
       ? `no active routing policy default for aiPackage="${aiPackage}" -- platform default unchanged`
       : "org has no resolvable subscription aiPackage -- platform default unchanged",
+    resolvedConfig: baseline,
   }
 }
 
@@ -485,7 +519,16 @@ export async function getOrgAiPackage(orgId: string): Promise<string | null> {
   const [[{ value: userCount }], plans] = await Promise.all([
     db.select({ value: count() }).from(users).where(eq(users.orgId, orgId)),
     db.query.subscriptionPlans.findMany({
-      where: eq(subscriptionPlans.isActive, true),
+      // GAP-OCID-049 live-reverify fix (UMR-20260804-221844-c915): the real
+      // subscription_plans table also carries 4 pre-existing legacy rows
+      // (Trial/Starter/Growth/Scale) seeded well before this task's own
+      // Basic/Standard/Professional/Enterprise scheme's migration -- see
+      // that migration's own file header for the real timeline -- that were
+      // never meant to participate in this fallback. This file's own header
+      // comment already names `features.aiPackage` as the deliberate
+      // discriminator for that scheme; filter on it here too so a legacy
+      // row can never win the band-fit `find()` below.
+      where: and(eq(subscriptionPlans.isActive, true), sql`${subscriptionPlans.features} ->> 'aiPackage' IS NOT NULL`),
       orderBy: (t, { asc }) => asc(t.userPackSize),
     }),
   ])

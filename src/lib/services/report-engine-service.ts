@@ -60,6 +60,7 @@ import {
   constructionRfis, constructionSubmittals, constructionPunchListItems, constructionChangeOrders,
   constructionSiteDiaries, constructionExpenseEntries, constructionActivities,
   erpPurchaseOrders, erpSuppliers, erpStockLedgerEntries, erpBudgetLineItems, erpBudgets, erpCostCenters,
+  erpContracts, erpContractBillingSchedules,
   projects,
   interiorMoodBoards, interiorFfeItems, interiorFloorPlans, interiorFloorPlanRooms,
   interiorFurniturePlacements, interiorMaterials, users,
@@ -74,6 +75,7 @@ import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
+import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1215,6 +1217,165 @@ async function interiorDesignerProductivityAnalysis(ctx: { orgId: string }, para
   })
 }
 
+/**
+ * Pure predicate: is a billing schedule genuinely due for billing as of a
+ * given date? Extracted standalone (same precedent as
+ * deriveReportDomainFromClassifications above) so the "what counts as due"
+ * rule is unit-testable without a DB -- the SAP VF04 "billing date <=
+ * selection date AND not already billed" check, adapted to
+ * erp_contract_billing_schedules (Wave 71): isActive, lastInvoiceId still
+ * null (this cycle hasn't been invoiced), and nextBillingDate on or before
+ * asOfDate.
+ */
+export function isBillingScheduleDue(
+  schedule: { nextBillingDate: string; lastInvoiceId: string | null; isActive: boolean },
+  asOfDate: string
+): boolean {
+  return schedule.isActive && schedule.lastInvoiceId === null && schedule.nextBillingDate <= asOfDate
+}
+
+/**
+ * SD-002 (SAP VF04 "Billing Due List" equivalent) -- construction/PROJEXA
+ * adaptation per the 2026-07-28 gap analysis (sap_mapping.sqlite,
+ * BUILD_NEW, HIGH priority, re-verified 2026-07-30 directly against this
+ * repo). erp_contract_billing_schedules (Wave 71) already modelled
+ * billingFrequency/nextBillingDate/amount/lastInvoiceId, but nothing ever
+ * QUERIED "which schedules are due and not yet invoiced" --
+ * erp-contract-service.ts's addBillingSchedule only ever creates a row;
+ * there was no due-list read anywhere before this.
+ *
+ * "Due" = isActive, lastInvoiceId is still null, and nextBillingDate <=
+ * asOfDate (params.asOfDate, default today) -- see isBillingScheduleDue()
+ * above, the single source of truth this filters through.
+ *
+ * Actionable: each row carries Schedule ID + Contract ID so a caller can
+ * invoke POST /api/erp/contracts/{Contract ID}/billing-schedules/{Schedule
+ * ID}/generate-invoice (erp-contract-service.ts#
+ * generateInvoiceFromBillingSchedule, same PR) directly from this
+ * worklist -- a real worklist, not a static snapshot.
+ *
+ * Honest gap: the gap analysis's implementation_notes describe a fuller
+ * "milestone achieved -> claim drafted -> submitted -> client-approved ->
+ * invoiced" progress-claim workflow. No schema exists for those
+ * intermediate stages (erp_contract_billing_schedules has no status enum
+ * for them) -- this report surfaces only the two states the real schema
+ * supports: due-and-not-yet-invoiced (below) and invoiced (lastInvoiceId
+ * set, excluded). See PR description.
+ */
+async function computeBillingDueList(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : new Date().toISOString().slice(0, 10)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rows = await db
+      .select({
+        scheduleId: erpContractBillingSchedules.id,
+        contractId: erpContracts.id,
+        contractTitle: erpContracts.title,
+        customerName: erpCustomers.customerName,
+        billingFrequency: erpContractBillingSchedules.billingFrequency,
+        amount: erpContractBillingSchedules.amount,
+        nextBillingDate: erpContractBillingSchedules.nextBillingDate,
+        lastInvoiceId: erpContractBillingSchedules.lastInvoiceId,
+        isActive: erpContractBillingSchedules.isActive,
+      })
+      .from(erpContractBillingSchedules)
+      .innerJoin(erpContracts, eq(erpContractBillingSchedules.contractId, erpContracts.id))
+      .innerJoin(erpCustomers, eq(erpContracts.customerId, erpCustomers.id))
+      .where(and(eq(erpContracts.orgId, ctx.orgId), eq(erpContractBillingSchedules.isActive, true), isNull(erpContractBillingSchedules.lastInvoiceId)))
+
+    const due = rows
+      .filter((r) => isBillingScheduleDue({ nextBillingDate: r.nextBillingDate, lastInvoiceId: r.lastInvoiceId, isActive: r.isActive }, asOfDate))
+      .sort((a, b) => a.nextBillingDate.localeCompare(b.nextBillingDate))
+
+    return {
+      columns: ["Contract", "Customer", "Billing Frequency", "Amount", "Billing Date Due", "Schedule ID", "Contract ID"],
+      rows: due.map((r) => ({
+        Contract: r.contractTitle,
+        Customer: r.customerName,
+        "Billing Frequency": r.billingFrequency,
+        Amount: Number(r.amount),
+        "Billing Date Due": r.nextBillingDate,
+        "Schedule ID": r.scheduleId,
+        "Contract ID": r.contractId,
+      })),
+      note: due.length === 0
+        ? `No billing schedule (erp_contract_billing_schedules) is due and un-invoiced as of ${asOfDate}.`
+        : "Due = active billing schedule, not yet invoiced (lastInvoiceId is null), with nextBillingDate on or before the as-of date. Generate the invoice via POST /api/erp/contracts/{Contract ID}/billing-schedules/{Schedule ID}/generate-invoice -- does not yet cover the fuller draft/submit/client-approve claim workflow described in the SD-002 gap analysis (no schema exists for those intermediate stages).",
+    }
+  })
+}
+
+/**
+ * FI-AR-006 (SAP gap analysis, "Customer Payment Behavior / DSO", HIGH
+ * priority, BUILD_NEW, re-verified directly against this repo
+ * and the live Supabase project -- see erp-invoicing-service.ts's
+ * customerPaymentBehaviorReport() for the full real-vs-honest-gap writeup,
+ * which this thin wrapper reuses rather than re-querying (same
+ * cross-service-reuse precedent as computeBillingDueList's sibling
+ * imports from construction-reports-service.ts above). Distinct from
+ * arAgingReport (point-in-time snapshot) and FI-AR-004's dunning list
+ * (active overdue workflow): this is the only one of the three that reads
+ * historical PAID-invoice payment dates.
+ */
+async function computeCustomerPaymentBehavior(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const periodDays = typeof params.periodDays === "number" && params.periodDays > 0 ? params.periodDays : 90
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : undefined
+  const report = await customerPaymentBehaviorReport(ctx, { periodDays, asOfDate })
+
+  return {
+    columns: ["Customer", "Invoices", "Avg Days to Pay", "Avg Credit Days", "DSO", "Outstanding AR", "Credit Sales (Period)", "Reliability"],
+    rows: report.customers.map((c) => ({
+      Customer: c.customerName,
+      Invoices: c.invoiceCount,
+      "Avg Days to Pay": c.avgDaysToPay ?? "n/a -- no real payment date recorded (see note)",
+      "Avg Credit Days": c.avgCreditDays,
+      DSO: c.dso ?? "n/a -- no credit sales in period",
+      "Outstanding AR": c.outstandingAR,
+      "Credit Sales (Period)": c.creditSalesInPeriod,
+      Reliability: c.paymentReliability ?? "unknown",
+    })),
+    note: report.customers.every((c) => c.avgDaysToPay === null)
+      ? `No customer in this org has a real, discoverable payment-completion date as of ${report.asOfDate} -- every 'paid' invoice's status was set without going through either real payment-recording path (recordSalesInvoicePayment's direct posting or the erp_payment_entries approval workflow). Avg Days to Pay/Reliability are honestly "n/a"/"unknown", not fabricated. DSO and Outstanding AR are still real and computed from real invoice data.`
+      : `DSO period: ${report.periodDays} days ending ${report.asOfDate}. Avg Days to Pay only counts invoices with a real, discoverable payment-completion date -- see erp-invoicing-service.ts#customerPaymentBehaviorReport for which customers (if any) are missing one.`,
+  }
+}
+
+/**
+ * FI-AP-006 (SAP gap analysis, "Vendor Payment History / Payment Behavior
+ * Analysis", MEDIUM priority, BUILD_NEW). This wraps
+ * erp-invoicing-service.ts's vendorPaymentBehaviorReport() rather than
+ * re-querying (same cross-service-reuse precedent as computeBillingDueList's
+ * sibling imports from construction-reports-service.ts above) -- see that
+ * function's own header comment for the full real-vs-honest-gap writeup,
+ * including why this is a fresh implementation with distinct top-level names
+ * (vendorDaysToPay/computeDpoFormula/classifyVendorPaymentReliability/
+ * vendorPaymentBehaviorReport) mirroring FI-AR-006's calculation SHAPE
+ * (immediately above, PR #645) rather than importing it, adapted
+ * customer->vendor / DSO->DPO, at the time this PR was built (#645 was still
+ * open then; both now coexist in this file cleanly under distinct names).
+ */
+async function computeVendorPaymentBehavior(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const periodDays = typeof params.periodDays === "number" && params.periodDays > 0 ? params.periodDays : 90
+  const asOfDate = typeof params.asOfDate === "string" && params.asOfDate ? params.asOfDate : undefined
+  const report = await vendorPaymentBehaviorReport(ctx, { periodDays, asOfDate })
+
+  return {
+    columns: ["Supplier", "Invoices", "Avg Days to Pay", "Avg Credit Days", "DPO", "Outstanding AP", "Credit Purchases (Period)", "Reliability"],
+    rows: report.suppliers.map((s) => ({
+      Supplier: s.supplierName,
+      Invoices: s.invoiceCount,
+      "Avg Days to Pay": s.avgDaysToPay ?? "n/a -- no real payment date recorded (see note)",
+      "Avg Credit Days": s.avgCreditDays,
+      DPO: s.dpo ?? "n/a -- no credit purchases in period",
+      "Outstanding AP": s.outstandingAP,
+      "Credit Purchases (Period)": s.creditPurchasesInPeriod,
+      Reliability: s.paymentReliability ?? "unknown",
+    })),
+    note: report.suppliers.every((s) => s.avgDaysToPay === null)
+      ? `No supplier in this org has a real, discoverable payment-completion date as of ${report.asOfDate} -- every 'paid' invoice's status was set without going through the only real vendor payment-recording path (the erp_payment_entries approval workflow, paymentType='pay'/invoiceType='purchase_invoice'/status='approved'). Avg Days to Pay/Reliability are honestly "n/a"/"unknown", not fabricated. DPO and Outstanding AP are still real and computed from real invoice data.`
+      : `DPO period: ${report.periodDays} days ending ${report.asOfDate}. Avg Days to Pay only counts invoices with a real, discoverable payment-completion date -- see erp-invoicing-service.ts#vendorPaymentBehaviorReport for which suppliers (if any) are missing one.`,
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
@@ -1252,6 +1413,9 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   interior_vendor_lead_time_analysis: interiorVendorLeadTimeAnalysis,
   interior_profit_by_room_analysis: interiorProfitByRoomAnalysis,
   interior_designer_productivity_analysis: interiorDesignerProductivityAnalysis,
+  billing_due_list: computeBillingDueList,
+  customer_payment_behavior_dso: computeCustomerPaymentBehavior,
+  vendor_payment_behavior_dpo: computeVendorPaymentBehavior,
 }
 
 // ─── AI recipe executor (ai_recipe) ───────────────────────────────────────
@@ -1620,7 +1784,7 @@ export async function getFullReportCatalog(ctx: { orgId: string }): Promise<Full
 
 export async function getFullReportCatalogByDomain(ctx: { orgId: string }): Promise<Record<ReportDomain, FullCatalogEntry[]>> {
   const all = await getFullReportCatalog(ctx)
-  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [] }
+  const byDomain: Record<ReportDomain, FullCatalogEntry[]> = { compliance: [], ERP: [], construction: [], "AI-ops": [], custom: [], CRM: [] }
   for (const entry of all) byDomain[entry.domain].push(entry)
   return byDomain
 }
