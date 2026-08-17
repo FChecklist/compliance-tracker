@@ -24,6 +24,23 @@ export default function AiAssistantsSection() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState("");
   const [saving, setSaving] = useState(false);
+  // GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Task C: same "resolve once,
+  // read one flat field" /api/me pattern every salesEnabled/erpEnabled page
+  // already uses -- a real explanation instead of a silently-provisioned
+  // count that may not match the org's actual tier.
+  const [planName, setPlanName] = useState<string | null>(null);
+  const [assistantsLimit, setAssistantsLimit] = useState<number | null>(null);
+
+  useEffect(() => {
+    fetch("/api/me")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (!d) return;
+        setPlanName(d.subscriptionPlanName ?? null);
+        setAssistantsLimit(typeof d.assistantsPerUserLimit === "number" ? d.assistantsPerUserLimit : null);
+      })
+      .catch(() => {});
+  }, []);
 
   const fetchAssistants = useCallback(() => {
     setLoading(true);
@@ -91,9 +108,22 @@ export default function AiAssistantsSection() {
       <div>
         <h3 className="text-sm font-semibold text-ct-navy">AI Assistants</h3>
         <p className="text-xs text-ct-muted mt-0.5">
-          Your 5 personal AI assistants, each coordinating a set of worker agents on your behalf. See{" "}
+          Your personal AI assistants, each coordinating a set of worker agents on your behalf. See{" "}
           <span className="font-medium">AI Orchestra</span> in the sidebar for the full experience.
         </p>
+        {!loading && assistantsLimit !== null && (
+          <p className="text-xs mt-1">
+            <span className={assistants.length > assistantsLimit ? "text-destructive font-medium" : "text-ct-muted"}>
+              {assistants.length} of {assistantsLimit} assistants used
+              {planName ? ` (${planName} plan)` : ""}
+            </span>
+            {assistants.length > assistantsLimit && (
+              <span className="text-ct-muted">
+                {" "}-- ask an organisation admin to upgrade the subscription plan to add more.
+              </span>
+            )}
+          </p>
+        )}
       </div>
 
       {loading ? (

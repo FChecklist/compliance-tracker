@@ -5,6 +5,7 @@
 import {
   conversations, conversationParticipants, messages, messageAttachments, documents, conversationGuestAccess,
   instructionCommitments, instructionMismatchDetections, users, taskExecutionPlan, tasks,
+  policies, pmsIssues, projects, veriMeetings,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { eq, and, inArray, desc, asc, gt, isNull, ne, sql } from "drizzle-orm"
@@ -29,8 +30,12 @@ import { recordWorkerAgentLearning } from "./worker-agent-service"
 import { submitFdeRequest } from "./fde-service"
 import { resolveDynamicChainId } from "./task-service"
 import { runDialogueScriptTurn } from "./dialogue-script-executor"
+import { listGlossaryTerms } from "./glossary-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
+
+export type ConversationContextRef = { contextEntityType: string | null; contextEntityId: string | null }
+const NO_CONVERSATION_CONTEXT: ConversationContextRef = { contextEntityType: null, contextEntityId: null }
 
 export type ChatContext = { orgId: string; userId: string }
 
@@ -512,7 +517,103 @@ async function checkRecentTaskFailure(orgId: string, userId: string): Promise<bo
   })
 }
 
-async function generateAiReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
+// V2-13 (SUPERBOSS_IMPLEMENTATION_PLAN_2026-07-19_v2.md C4, CSV rows
+// #16/#17/#20 "Business Terminology / Context-Aware / Mode Pills"): closes a
+// confirmed gap where conversations.contextEntityType/contextEntityId (set
+// via veri-chat-service.ts's setConversationContext and veriMeetings'
+// own creation flow) was plumbed all the way to the DB column but never
+// read back by the one place that would make it useful -- the AI reply's
+// own prompt. Four known entity types today (see the `conversations`
+// schema comment); anything else (including the Shared-In inbox's own
+// internal 'shared_in_inbox' sentinel, which is not a user-facing entity)
+// is an honest no-op, never fabricated.
+export type ContextEntitySummary =
+  | { type: "policy"; title: string; category: string; status: string }
+  | { type: "pms_issue"; title: string; priority: string; description: string | null }
+  | { type: "project"; name: string; description: string | null }
+  | { type: "veri_meeting"; title: string; meetingType: string; scheduledAt: string; minutes: string | null }
+
+const CONTEXT_ENTITY_TEXT_CAP = 300
+
+/** Pure formatter -- unit-testable without a DB, same split as chain-usage-ranking.ts's scoring/DB-aggregation separation. */
+export function formatContextEntityBlock(summary: ContextEntitySummary | null): string {
+  if (!summary) return ""
+  switch (summary.type) {
+    case "policy":
+      return `[Conversation context: this thread is about the policy "${summary.title}" (category: ${summary.category}, status: ${summary.status}) -- ground your answer in this policy where relevant.]`
+    case "pms_issue":
+      return `[Conversation context: this thread is about project issue "${summary.title}" (priority: ${summary.priority})${summary.description ? ` -- ${summary.description.slice(0, CONTEXT_ENTITY_TEXT_CAP)}` : ""}.]`
+    case "project":
+      return `[Conversation context: this thread is about the project "${summary.name}"${summary.description ? ` -- ${summary.description.slice(0, CONTEXT_ENTITY_TEXT_CAP)}` : ""}.]`
+    case "veri_meeting":
+      return `[Conversation context: this thread is about the ${summary.meetingType} meeting "${summary.title}" (scheduled ${summary.scheduledAt})${summary.minutes ? ` -- minutes so far: ${summary.minutes.slice(0, CONTEXT_ENTITY_TEXT_CAP)}` : ""}.]`
+    default:
+      return ""
+  }
+}
+
+/**
+ * Real DB fetch, best-effort (same posture as generateAiReply's own
+ * requestingUser lookup below -- a lookup failure never blocks the reply).
+ * `contextEntityType` is free text set by the caller of setConversationContext,
+ * so only the known entity types are resolved; anything else falls through
+ * to the `default: null` case rather than throwing.
+ */
+async function fetchContextEntitySummary(orgId: string, userId: string, ref: ConversationContextRef): Promise<ContextEntitySummary | null> {
+  const { contextEntityType, contextEntityId } = ref
+  if (!contextEntityType || !contextEntityId) return null
+  return withTenantContext({ orgId, userId }, async (db) => {
+    switch (contextEntityType) {
+      case "policy": {
+        const row = await db.query.policies.findFirst({ where: eq(policies.id, contextEntityId) })
+        return row ? { type: "policy" as const, title: row.title, category: row.category, status: row.status } : null
+      }
+      case "pms_issue": {
+        const row = await db.query.pmsIssues.findFirst({ where: eq(pmsIssues.id, contextEntityId) })
+        return row ? { type: "pms_issue" as const, title: row.title, priority: row.priority, description: row.description } : null
+      }
+      case "project": {
+        const row = await db.query.projects.findFirst({ where: eq(projects.id, contextEntityId) })
+        return row ? { type: "project" as const, name: row.name, description: row.description } : null
+      }
+      case "veri_meeting": {
+        const row = await db.query.veriMeetings.findFirst({ where: eq(veriMeetings.id, contextEntityId) })
+        return row
+          ? { type: "veri_meeting" as const, title: row.title, meetingType: row.meetingType, scheduledAt: row.scheduledAt.toISOString(), minutes: row.minutes }
+          : null
+      }
+      default:
+        return null
+    }
+  }).catch(() => null)
+}
+
+// V2-13: org-glossary hook -- businessTerminologyGlossary (glossary-service.ts)
+// existed only as a UI hover-tooltip (GlossaryTermTooltip) before this, never
+// referenced by the AI's own system prompt. Bounded the same way
+// buildConversationHistory bounds history (HISTORY_CHAR_BUDGET) -- an org
+// with a very large glossary must not silently balloon every chat call's
+// token cost; terms beyond the budget are dropped, not truncated mid-term.
+const GLOSSARY_BLOCK_CHAR_BUDGET = 2000
+
+/** Pure formatter -- unit-testable without a DB. */
+export function formatGlossaryBlock(terms: { term: string; definition: string }[]): string {
+  const lines: string[] = []
+  let total = 0
+  for (const t of terms) {
+    const line = `- ${t.term}: ${t.definition}`
+    if (total + line.length > GLOSSARY_BLOCK_CHAR_BUDGET) break
+    lines.push(line)
+    total += line.length
+  }
+  if (lines.length === 0) return ""
+  return `[This organisation's business terminology -- use these definitions whenever the user or conversation references these terms:]\n${lines.join("\n")}`
+}
+
+async function generateAiReply(
+  orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string,
+  conversationContext: ConversationContextRef = NO_CONVERSATION_CONTEXT
+) {
   // Wave 12: the first real call site for the User Assistant OA layer --
   // seeded since Wave 4 but dormant until now (no code path invoked it).
   // `userId` here is the human participant, not the AI -- is_conversation_
@@ -577,7 +678,20 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
   try {
     const locale = await getPreferredAiResponseLocale()
     const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system", "production", locale)
-    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // V2-13: glossary + linked-entity context, both best-effort and both
+    // appended to the STATIC system prompt (not messageForLlm below) -- see
+    // formatGlossaryBlock/formatContextEntityBlock's own headers. Fetched in
+    // parallel since neither depends on the other.
+    const [glossaryTerms, contextEntitySummary] = await Promise.all([
+      listGlossaryTerms({ orgId }).catch(() => []),
+      fetchContextEntitySummary(orgId, userId, conversationContext),
+    ])
+    const systemPrompt = [
+      purposeSystemPrompt,
+      formatGlossaryBlock(glossaryTerms),
+      formatContextEntityBlock(contextEntitySummary),
+    ].filter(Boolean).join("\n\n")
     // Prompt & Cache Management Framework, Phase 1 (2026-07-14): systemPrompt
     // above is already the real static-prefix boundary for this call site --
     // resolved once per domain, substituted, identical across every message
@@ -792,7 +906,10 @@ async function generateAiReply(orgId: string, userId: string, conversationId: st
 // orchestra layer for model resolution -- see this wave's migration
 // (0159_priority6_veri_chat_participant.sql) comment for why a whole new
 // layer wasn't stood up for one narrow additive feature.
-async function generateVeriGroupReply(orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string) {
+async function generateVeriGroupReply(
+  orgId: string, userId: string, conversationId: string, triggerMessageId: string, userMessage: string,
+  conversationContext: ConversationContextRef = NO_CONVERSATION_CONTEXT
+) {
   const policyDecision = enforcePolicy(
     { orgId, userId, domain: DEFAULT_DOMAIN, layerKey: "user_assistant_oa", eventType: "chat.veri_group_reply" },
     userMessage
@@ -817,7 +934,17 @@ async function generateVeriGroupReply(orgId: string, userId: string, conversatio
   try {
     const locale = await getPreferredAiResponseLocale()
     const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant", "production", locale)
-    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // V2-13: same glossary + linked-entity wiring as generateAiReply() above.
+    const [glossaryTerms, contextEntitySummary] = await Promise.all([
+      listGlossaryTerms({ orgId }).catch(() => []),
+      fetchContextEntitySummary(orgId, userId, conversationContext),
+    ])
+    const systemPrompt = [
+      purposeSystemPrompt,
+      formatGlossaryBlock(glossaryTerms),
+      formatContextEntityBlock(contextEntitySummary),
+    ].filter(Boolean).join("\n\n")
     const history = await buildConversationHistory(orgId, userId, conversationId, triggerMessageId)
     const normalizedMessage = normalizeForLlm(userMessage)
 
@@ -937,7 +1064,10 @@ export async function sendMessage(
 
     await db.update(conversations).set({ updatedAt: new Date() }).where(eq(conversations.id, conversationId))
 
-    return { message, isAiThread: convo.isAiThread, veriParticipant: convo.veriParticipant }
+    return {
+      message, isAiThread: convo.isAiThread, veriParticipant: convo.veriParticipant,
+      contextEntityType: convo.contextEntityType, contextEntityId: convo.contextEntityId,
+    }
   })
 
   const response: { message: unknown; aiReply?: unknown } = {
@@ -955,13 +1085,15 @@ export async function sendMessage(
   // trigger this: senderId === ctx.userId is guaranteed non-null here
   // (the caller is always an authenticated participant), so there's no
   // ambiguity with the guestAccessId convention getMessages() handles.
+  const conversationContext: ConversationContextRef = { contextEntityType: result.contextEntityType, contextEntityId: result.contextEntityId }
+
   if (!result.isAiThread && result.veriParticipant && detectVeriMention(content)) {
-    const [aiMessage] = await generateVeriGroupReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
+    const [aiMessage] = await generateVeriGroupReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content, conversationContext)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
   }
 
   if (result.isAiThread) {
-    const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content)
+    const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, result.message.id, content, conversationContext)
     response.aiReply = { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
 
     // Inline VERI FDE evaluation (fire-and-forget, non-blocking, PASSIVE).
@@ -1011,7 +1143,7 @@ export async function sendMessage(
 // `!convo.isAiThread` guard above), so there is no audit/legal record tied
 // to an AI-authored message's immutability.
 export async function regenerateAiReply(ctx: ChatContext, conversationId: string) {
-  const { triggerMessageId, triggerContent } = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  const { triggerMessageId, triggerContent, contextEntityType, contextEntityId } = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     await assertParticipant(db, conversationId, ctx.userId)
     const convo = await db.query.conversations.findFirst({ where: eq(conversations.id, conversationId) })
     if (!convo?.isAiThread) throw new ServiceError("Regenerate is only available in the VERI AI thread", 400)
@@ -1027,10 +1159,13 @@ export async function regenerateAiReply(ctx: ChatContext, conversationId: string
     if (!trigger) throw new ServiceError("No prior message to regenerate a reply for", 400)
 
     await db.delete(messages).where(eq(messages.id, lastAiMessage.id))
-    return { triggerMessageId: trigger.id, triggerContent: trigger.content }
+    return {
+      triggerMessageId: trigger.id, triggerContent: trigger.content,
+      contextEntityType: convo.contextEntityType, contextEntityId: convo.contextEntityId,
+    }
   })
 
-  const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, triggerMessageId, triggerContent)
+  const [aiMessage] = await generateAiReply(ctx.orgId, ctx.userId, conversationId, triggerMessageId, triggerContent, { contextEntityType, contextEntityId })
   return { id: aiMessage.id, senderId: aiMessage.senderId, content: aiMessage.content, createdAt: aiMessage.createdAt.toISOString() }
 }
 

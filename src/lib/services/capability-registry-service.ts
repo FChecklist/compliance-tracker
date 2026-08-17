@@ -17,7 +17,21 @@ import { or, eq, isNull, and, inArray } from "drizzle-orm"
 // (capability-backfill-service.ts), and covered by findSimilarCapabilities()/
 // auditDuplicateCapabilities() below with zero code changes to either
 // function (both are already generic over CAPABILITY_ENTITY_TYPES).
-export const CAPABILITY_ENTITY_TYPES = ["worker_agent", "automation_rule", "module", "prompt_pattern", "dynamic_chain"] as const
+// VERIDIAN_Architecture_v2.0 phase_2 (2026-07-25, engine-prompt-similarity):
+// `prompt_version` added as a 6th type, same pattern as Wave 173's
+// dynamic_chain addition -- indexed at compile time
+// (prompt-compiler/prompt-similarity.ts's indexCompiledPromptVersion, called
+// from prompt-construction.ts's build path), and covered by
+// findSimilarCapabilities()/auditDuplicateCapabilities() with zero code
+// change to either (both are already generic over CAPABILITY_ENTITY_TYPES).
+// Distinct from the pre-existing `prompt_pattern` type above (that one
+// backs the separate, still-unwired "Prompt Directory" UI concept) --
+// `prompt_version` indexes real compliance.prompt_versions rows by their
+// compiled machine_prompt content, giving VERIDIAN_Architecture_v2.0's
+// prompt-compiler pipeline real duplicate-detection/clustering via this
+// same entity-agnostic embeddings store, per the gap analysis' own
+// explicit reuse note (do not build a parallel embedding store for prompts).
+export const CAPABILITY_ENTITY_TYPES = ["worker_agent", "automation_rule", "module", "prompt_pattern", "dynamic_chain", "prompt_version"] as const
 export type CapabilityEntityType = (typeof CAPABILITY_ENTITY_TYPES)[number]
 
 function isCapabilityEntityType(value: string): value is CapabilityEntityType {
@@ -98,6 +112,24 @@ export async function findSimilarPromptPatterns(query: string, orgId: string, li
 // rest of the Capability Registry -- no new table, no migration.
 export async function indexPromptPattern(entityId: string, content: string, orgId?: string | null): Promise<void> {
   await storeEmbedding("prompt_pattern", entityId, content, orgId ?? undefined)
+}
+
+// VERIDIAN_Architecture_v2.0 phase_2 (engine-prompt-similarity): mirrors
+// findSimilarPromptPatterns()/indexPromptPattern() above but scoped to the
+// `prompt_version` entity type -- see CAPABILITY_ENTITY_TYPES' own comment
+// for why this is a distinct type from `prompt_pattern`. `content` should
+// be the compiled machine_prompt (prompt-construction.ts's
+// buildCompiledPrompt().machinePrompt), not the raw uncompiled template
+// text, so similarity is computed over what the compiler actually produces.
+export async function findSimilarPromptVersions(query: string, orgId: string, limit = 5): Promise<CapabilityMatch[]> {
+  const results = await findSimilar(query, orgId, limit * 3)
+  return results
+    .filter((r): r is CapabilityMatch => r.entityType === "prompt_version" && r.score > RELEVANCE_THRESHOLD)
+    .slice(0, limit)
+}
+
+export async function indexPromptVersion(promptVersionId: string, machinePrompt: string, orgId?: string | null): Promise<void> {
+  await storeEmbedding("prompt_version", promptVersionId, machinePrompt, orgId ?? undefined)
 }
 
 // DMP-06 gap closure (CONSTITUTION.yaml, "Dynamic Chain Master Directory"):

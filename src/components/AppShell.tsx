@@ -88,6 +88,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // globals.css's :root block for the matching --org-brand-primary/
   // --org-brand-accent defaults these shadow per-tenant.
   const orgLogoUrl = me?.orgLogoUrl ?? null;
+  const brandName = me?.brandName ?? "VERIDIAN AI OS";
   const orgBrandPrimaryColor = me?.orgBrandPrimaryColor ?? undefined;
   const orgBrandAccentColor = me?.orgBrandAccentColor ?? undefined;
 
@@ -141,7 +142,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // whole branch is additive, not a rewrite of the legacy flow.
   const sidebarNode = sidebarCollapsed ? null : (
     <div className="print:hidden">
-      <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} />
+      <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} brandName={brandName} />
     </div>
   );
 
