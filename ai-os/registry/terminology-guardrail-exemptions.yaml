@@ -644,9 +644,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 2
   - file: src/lib/services/approval-workflow-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 4 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 4 pre-existing finding(s) reviewed and closed, not migrated. PR #579 audit fix (2026-08-17): +1 new finding, a real dated gap-closure comment referencing the AUDIT: FAIL comment this fix resolves -- individually verified, not human example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 4
+      hardcoded_iso_date: 5
   - file: src/lib/services/asset-registry-service.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 5 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
     findings_by_category:
@@ -771,7 +771,15 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 5
   - file: src/lib/services/erp-payment-entries-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated. PR #579 audit fix (2026-08-17): +1 new finding, a real dated gap-closure comment referencing the AUDIT: FAIL comment this fix resolves -- individually verified, not human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/lib/services/delegation-service.ts
+    reason: "PR #579 audit fix (2026-08-17): 1 real dated gap-closure comment referencing the AUDIT: FAIL comment (2026-07-26) this fix resolves -- individually verified, not human example/sample data, same class as this file's other permanently-exempted changelog/gap-closure-date comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/delegation-service.test.ts
+    reason: "PR #579 audit fix (2026-08-17): 1 real dated gap-closure comment referencing the AUDIT: FAIL comment (2026-07-26) this fix's regression tests cover -- individually verified, not human example/sample data, same class as this file's other permanently-exempted changelog/gap-closure-date comments."
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/services/erp-payroll-service.ts
