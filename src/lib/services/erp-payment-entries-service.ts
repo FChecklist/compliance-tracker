@@ -410,7 +410,7 @@ export async function decidePaymentEntry(ctx: ErpContext, id: string, decision: 
     const hasDelegatedAuthority = actorRank < MANAGER_RANK
       && await isDelegatedByAuthorizedDelegator(db, ctx.orgId, "approval_type", "erp_payment_entry", ctx.userId, [ctx.dbUser.role], async (delegatorUserId) => {
         const delegator = await db.query.users.findFirst({ where: eq(users.id, delegatorUserId) })
-        return Boolean(delegator) && (ROLE_RANK[delegator.role as UserRole] ?? 0) >= MANAGER_RANK
+        return delegator != null && (ROLE_RANK[delegator.role as UserRole] ?? 0) >= MANAGER_RANK
       })
     const gate = canDecidePaymentEntry(ctx.dbUser.role, entry.createdById, ctx.userId, hasDelegatedAuthority)
     if (!gate.ok) throw new ServiceError(gate.reason, 403)
