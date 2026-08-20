@@ -95,7 +95,11 @@ export default function ScopePage() {
 
   const createBoq = async () => {
     if (!projectId || !title.trim()) return;
-    const validLines = lines.filter((l) => l.description.trim() && l.unit.trim() && l.quantity && l.rate);
+    const validLines = lines.filter((l) => {
+      if (!l.description.trim() || !l.unit.trim()) return false;
+      if (l.parentItemCode.trim()) return true;
+      return Boolean(l.quantity && l.rate);
+    });
     if (validLines.length === 0) {
       toast.error("Add at least one complete line item");
       return;
