@@ -290,9 +290,12 @@ export default function ScopeDetailPage() {
               <TableBody>
                 {boq.lineItems.map((item) => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium text-ct-navy">
+                    <TableCell className={`font-medium text-ct-navy ${item.parentLineItemId ? "pl-8" : ""}`}>
                       {item.description}
                       {item.itemCode && <span className="ml-2 font-mono text-[10px] text-ct-muted">{item.itemCode}</span>}
+                      {item.parentLineItemId && item.breakdownPercentage && (
+                        <span className="ml-2 text-[10px] text-ct-muted">{item.breakdownPercentage}% of parent</span>
+                      )}
                     </TableCell>
                     <TableCell className="text-ct-muted">{item.unit}</TableCell>
                     <TableCell className="text-right">{item.quantity}</TableCell>
