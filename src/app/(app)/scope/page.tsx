@@ -31,7 +31,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ProjectPicker, NoProjectsCard, type PickerProject } from "@/components/ProjectPicker";
 
 type Boq = { id: string; version: number; title: string; status: string; parentBoqId: string | null; createdAt: string };
-type LineItemDraft = { description: string; unit: string; quantity: string; rate: string };
+type LineItemDraft = {
+  description: string; unit: string; quantity: string; rate: string;
+  itemCode: string; parentItemCode: string; breakdownPercentage: string;
+};
 
 const STATUS_COLORS: Record<string, string> = {
   draft: "bg-ct-cloud text-ct-muted",
@@ -40,7 +43,10 @@ const STATUS_COLORS: Record<string, string> = {
   superseded: "bg-red-100 text-red-700",
 };
 
-const emptyLine = (): LineItemDraft => ({ description: "", unit: "", quantity: "", rate: "" });
+const emptyLine = (): LineItemDraft => ({
+  description: "", unit: "", quantity: "", rate: "",
+  itemCode: "", parentItemCode: "", breakdownPercentage: "",
+});
 
 export default function ScopePage() {
   const [projects, setProjects] = useState<PickerProject[]>([]);
@@ -89,7 +95,11 @@ export default function ScopePage() {
 
   const createBoq = async () => {
     if (!projectId || !title.trim()) return;
-    const validLines = lines.filter((l) => l.description.trim() && l.unit.trim() && l.quantity && l.rate);
+    const validLines = lines.filter((l) => {
+      if (!l.description.trim() || !l.unit.trim()) return false;
+      if (l.parentItemCode.trim()) return true;
+      return Boolean(l.quantity && l.rate);
+    });
     if (validLines.length === 0) {
       toast.error("Add at least one complete line item");
       return;
@@ -101,7 +111,12 @@ export default function ScopePage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           projectId, title,
-          lineItems: validLines.map((l) => ({ description: l.description, unit: l.unit, quantity: Number(l.quantity), rate: Number(l.rate) })),
+          lineItems: validLines.map((l) => ({
+            description: l.description, unit: l.unit, quantity: Number(l.quantity), rate: Number(l.rate),
+            itemCode: l.itemCode.trim() ? l.itemCode.trim() : undefined,
+            parentItemCode: l.parentItemCode.trim() ? l.parentItemCode.trim() : undefined,
+            breakdownPercentage: l.breakdownPercentage.trim() ? Number(l.breakdownPercentage) : undefined,
+          })),
         }),
       });
       if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? "Failed");
@@ -139,11 +154,14 @@ export default function ScopePage() {
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-ct-muted uppercase">Line Items</Label>
                 {lines.map((line, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_80px_90px_100px_28px] gap-2">
+                  <div key={i} className="grid grid-cols-[1fr_80px_90px_100px_100px_120px_100px_28px] gap-2">
                     <Input placeholder="Description" value={line.description} onChange={(e) => updateLine(i, "description", e.target.value)} />
                     <Input placeholder="Unit" value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} />
                     <Input placeholder="Qty" type="number" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} />
                     <Input placeholder="Rate" type="number" value={line.rate} onChange={(e) => updateLine(i, "rate", e.target.value)} />
+                    <Input placeholder="Item Code" value={line.itemCode} onChange={(e) => updateLine(i, "itemCode", e.target.value)} />
+                    <Input placeholder="Parent Item Code" value={line.parentItemCode} onChange={(e) => updateLine(i, "parentItemCode", e.target.value)} />
+                    <Input placeholder="Breakdown %" type="number" value={line.breakdownPercentage} onChange={(e) => updateLine(i, "breakdownPercentage", e.target.value)} />
                     <Button variant="ghost" size="icon" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={lines.length === 1}>
                       <Trash2 className="size-4" />
                     </Button>
