@@ -388,7 +388,7 @@ export default function ScopeDetailPage() {
                   </Button>
                 </div>
               ))}
-              <Button variant="outline" size="sm" onClick={() => setRevisionLines((prev) => [...prev, { description: "", unit: "", quantity: "", rate: "" }])}>
+              <Button variant="outline" size="sm" onClick={() => setRevisionLines((prev) => [...prev, { description: "", unit: "", quantity: "", rate: "", itemCode: "", parentItemCode: "", breakdownPercentage: "" }])}>
                 <Plus className="size-3.5 mr-1" /> Add Line
               </Button>
             </div>
