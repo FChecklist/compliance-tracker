@@ -109,6 +109,15 @@ export async function sitePictureReport(ctx: { orgId: string }, projectId: strin
   })
 }
 
+// Shared BOQ money predicate (Master v5 B-3 / D-3): a weighted sub-task's amount
+// is derived from its ROOT ancestor's qty x rate x breakdown %, so the root row
+// already carries the full value. Summing roots AND sub-tasks double-counts.
+// Every BOQ value roll-up must aggregate ROOT rows only -- which is what the
+// customer-facing View dialog total already does (projexa ScopeClient.tsx
+// boqTotal). Used by scopeReport and categoryBoqAmountsReport.
+const rootBoqLineItemsOnly = (boqId: string) =>
+  and(eq(constructionBoqLineItems.boqId, boqId), isNull(constructionBoqLineItems.parentLineItemId))
+
 // 6. Scope Report -- BOQ total value + line-item count for the latest (non-superseded) revision.
 export async function scopeReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
@@ -117,7 +126,7 @@ export async function scopeReport(ctx: { orgId: string }, projectId: string) {
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
     if (!latest) return { boq: null, totalValue: 0, lineItemCount: 0, revisions: [] }
     const [valueRow] = await db.select({ total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float`, count: sql<number>`count(*)` })
-      .from(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, latest.id))
+      .from(constructionBoqLineItems).where(rootBoqLineItemsOnly(latest.id))
     return {
       boq: latest, totalValue: Number(valueRow?.total ?? 0), lineItemCount: Number(valueRow?.count ?? 0),
       revisions: boqs.map((b) => ({ id: b.id, version: b.version, status: b.status })),
@@ -657,7 +666,7 @@ export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId
     if (!latest) return { categories: [], uncategorizedAmount: 0, totalAmount: 0 }
 
     const [lineItems, categories, activities] = await Promise.all([
-      db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id), columns: { activityId: true, amount: true } }),
+      db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latest.id), columns: { activityId: true, amount: true } }),
       db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) }),
       activityIdsForProject(db, ctx.orgId, projectId),
     ])
