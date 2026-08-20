@@ -144,7 +144,7 @@ export default function ScopePage() {
               <Plus className="size-4 mr-1" /> New BOQ
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-4xl">
             <DialogHeader><DialogTitle>New Bill of Quantities</DialogTitle><DialogDescription>Version 1, created as a draft against the selected project.</DialogDescription></DialogHeader>
             <div className="space-y-4 py-2 max-h-[60vh] overflow-y-auto pr-1">
               <div className="space-y-1.5">
@@ -154,15 +154,15 @@ export default function ScopePage() {
               <div className="space-y-2">
                 <Label className="text-xs font-semibold text-ct-muted uppercase">Line Items</Label>
                 {lines.map((line, i) => (
-                  <div key={i} className="grid grid-cols-[1fr_80px_90px_100px_100px_120px_100px_28px] gap-2">
-                    <Input placeholder="Description" value={line.description} onChange={(e) => updateLine(i, "description", e.target.value)} />
-                    <Input placeholder="Unit" value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} />
-                    <Input placeholder="Qty" type="number" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} />
-                    <Input placeholder="Rate" type="number" value={line.rate} onChange={(e) => updateLine(i, "rate", e.target.value)} />
-                    <Input placeholder="Item Code" value={line.itemCode} onChange={(e) => updateLine(i, "itemCode", e.target.value)} />
-                    <Input placeholder="Parent Item Code" value={line.parentItemCode} onChange={(e) => updateLine(i, "parentItemCode", e.target.value)} />
-                    <Input placeholder="Breakdown %" type="number" value={line.breakdownPercentage} onChange={(e) => updateLine(i, "breakdownPercentage", e.target.value)} />
-                    <Button variant="ghost" size="icon" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={lines.length === 1}>
+                  <div key={i} className="flex flex-wrap items-center gap-2 rounded-md border border-ct-border p-2">
+                    <Input className="min-w-[160px] flex-[2]" placeholder="Description" value={line.description} onChange={(e) => updateLine(i, "description", e.target.value)} />
+                    <Input className="w-20" placeholder="Unit" value={line.unit} onChange={(e) => updateLine(i, "unit", e.target.value)} />
+                    <Input className="w-24" placeholder="Qty" type="number" value={line.quantity} onChange={(e) => updateLine(i, "quantity", e.target.value)} />
+                    <Input className="w-28" placeholder="Rate" type="number" value={line.rate} onChange={(e) => updateLine(i, "rate", e.target.value)} />
+                    <Input className="w-28" placeholder="Item Code" value={line.itemCode} onChange={(e) => updateLine(i, "itemCode", e.target.value)} />
+                    <Input className="w-36" placeholder="Parent Item Code" value={line.parentItemCode} onChange={(e) => updateLine(i, "parentItemCode", e.target.value)} />
+                    <Input className="w-28" placeholder="Breakdown %" type="number" value={line.breakdownPercentage} onChange={(e) => updateLine(i, "breakdownPercentage", e.target.value)} />
+                    <Button className="shrink-0" variant="ghost" size="icon" onClick={() => setLines((prev) => prev.filter((_, idx) => idx !== i))} disabled={lines.length === 1}>
                       <Trash2 className="size-4" />
                     </Button>
                   </div>
