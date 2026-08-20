@@ -46,6 +46,7 @@ import { currencyLabel, useCurrencies } from "@/lib/currency-format";
 type LineItem = {
   id: string; itemCode: string | null; description: string; unit: string;
   quantity: string; rate: string; amount: string; computedRate: number | null;
+  parentLineItemId: string | null;
 };
 type Boq = {
   id: string; projectId: string; version: number; title: string; status: string;
@@ -190,7 +191,7 @@ export default function ScopeDetailPage() {
   if (loading) return <p className="text-sm text-ct-muted">Loading...</p>;
   if (!boq) return <p className="text-sm text-ct-muted">BOQ not found.</p>;
 
-  const total = boq.lineItems.reduce((sum, i) => sum + Number(i.amount), 0);
+  const total = boq.lineItems.filter((i) => !i.parentLineItemId).reduce((sum, i) => sum + Number(i.amount), 0);
 
   return (
     <div className="space-y-4">
