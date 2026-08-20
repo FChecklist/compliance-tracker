@@ -1,0 +1,46 @@
+# Dead Code Detection baseline (VERIDIAN Review Framework: AI Engineering
+# Quality / Technical Debt & Complexity gap-closure, "Dead Code Detection"
+# finding -- "Add a dead-code scan (e.g. knip) to CI, matching the existing
+# check-*.mjs guardrail pattern").
+#
+# scripts/check-dead-code.mjs runs knip (config: knip.json) and fails CI if
+# any category's issue count EXCEEDS the max recorded here -- a count
+# ratchet, same enforcement class as
+# ai-os/registry/terminology-guardrail-exemptions.yaml (a reviewable-diff
+# guarantee via PR/CI, not a runtime-unbypassable lock; see that file's own
+# script header for the fuller honest-limitation note, which applies
+# identically here). Lower a number after a real cleanup PR that removes
+# findings; raise one only with a comment here explaining why (e.g. a
+# genuinely-needed new unused-at-authoring-time stub, or a knip false
+# positive from this codebase's data-driven dispatch pattern that static
+# analysis can't trace -- see below).
+#
+# Honest limitation: this is a COUNT ratchet, not a fingerprint ratchet -- a
+# PR that fixes one finding and introduces a different one in the same
+# category, holding the count static, is not caught. It guarantees the
+# total named-category debt cannot grow silently, not that any specific
+# instance is being watched. Same tradeoff terminology-guardrail-check.mjs
+# already documents for its own ratchet.
+#
+# Measured 2026-08-15 against knip.json's config (scripts/**/*.{mjs,ts} and
+# ai-os/scripts/**/*.mjs added as `entry` so real CLI tools invoked via
+# `node scripts/x.mjs` in CI/workflows aren't misreported as dead files;
+# examples/**, public/**, and src/components/ui/** [shadcn/ui-generated,
+# consumed via barrel-style imports knip's static graph traces poorly]
+# excluded from project scope). NOT individually verified file-by-file --
+# the 234 src/lib + 17 src/app "unused files" findings are plausibly a mix
+# of real dead code and false positives from this codebase's dynamic,
+# string-keyed dispatch pattern (roster.ts role keys resolved at runtime,
+# capability-registry lookups, cron-only route.ts entry points knip's
+# Next.js plugin may not all recognize) that a static import graph can't
+# fully trace. That per-file verification is the natural follow-up this
+# tool now makes visible for the first time -- out of scope for this
+# gap-closure PR, which adds the detection tool itself, not a cleanup pass.
+max_issues:
+  files: 257
+  exports: 148
+  types: 23
+  dependencies: 30
+  devDependencies: 1
+  unlisted: 0
+  binaries: 0
