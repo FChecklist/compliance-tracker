@@ -158,3 +158,212 @@ describe("parseBoqSpreadsheet -- real prospect BoQ file shape", () => {
     for (const sub of task2Subs) expect(sub.parentItemCode).not.toBe("1.01")
   })
 })
+
+// RUN R10-21AUG, points 3/4/5: Sumeet's real BoQ export ("Sample Scope with
+// Sub Task.xlsx") is NOT the same shape as the prospect-BoQ fixture above.
+// That fixture gives category headers a BLANK Description (Task) and puts
+// the header's name in Category -- so the pre-existing "no description"
+// skip already caught it by accident. Sumeet's headers are the OPPOSITE
+// shape: Sl No "1.00", Category blank, Description (Task) carries the
+// header name IN CAPS ("PARTITION AND LINING"), QTY/RATE/AMOUNT all blank.
+// A header shaped this way carries a description, so it was never caught,
+// and imported as a zero-value line item.
+//
+// The file itself is not checked into either repo and no live server/DB was
+// available to this run, so the full-file oracle figures (contract total
+// 420,250.00; 33 parent items across 6 categories summing 85,408 / 66,730 /
+// 34,320 / 55,577 / 10,800 / 167,415; 120 sub-tasks; 6 headers) could not be
+// reproduced end to end here -- see cc_notes on points 1-5 in platform.cc_spec.
+// This fixture instead demonstrates the same header/hierarchy mechanics at a
+// smaller scale, anchored on the one fully-specified oracle datapoint: item
+// 1.01, Frame 01 at a 30% breakdown, rate 108.00 / amount 50,976.00, giving
+// Frame's own weighted rate 32.40 and amount 15,292.80.
+describe("mapRowsToLineItems / parseBoqSpreadsheet -- Sumeet real-file shape (Sl No 'N.00', Category blank, header label in Description (Task))", () => {
+  const HEADER_ROW = { "Sl No": "", "Category": "", "Dwg Code": "", "Description (Task)": "", "Sub Task": "", "QTY": "", "UNIT": "", "Breakdown %": "", "RATE": "", "AMOUNT": "" }
+
+  test("category headers are skipped (not imported as zero-value line items); real tasks and their unlabeled sub-tasks import correctly, including the Frame 01 oracle datapoint", async () => {
+    const rows = [
+      { ...HEADER_ROW, "Sl No": "1.00", "Description (Task)": "PARTITION AND LINING" },
+      { ...HEADER_ROW, "Sl No": "1.01", "Description (Task)": "Partition wall as per drawing and specification.", "QTY": 472, "UNIT": "Sqm", "RATE": 108, "AMOUNT": 50976 },
+      { ...HEADER_ROW, "Sub Task": "Frame 01", "Breakdown %": 30, "AMOUNT": 15292.8 },
+      { ...HEADER_ROW, "Sub Task": "Gypsum Board", "Breakdown %": 70, "AMOUNT": 35683.2 },
+      { ...HEADER_ROW, "Sl No": "2.00", "Description (Task)": "FALSE CEILING" },
+      { ...HEADER_ROW, "Sl No": "2.01", "Description (Task)": "False ceiling in gypsum board.", "QTY": 80, "UNIT": "Sqm", "RATE": 700, "AMOUNT": 56000 },
+    ]
+    const buffer = buildXlsxBuffer(rows)
+
+    const result = await parseBoqSpreadsheet(buffer, "sumeet-boq.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    // 2 category headers, 2 real tasks, 2 sub-tasks under task 1.01 -- the 2
+    // headers must be skipped, not counted among the parents/line items.
+    expect(result.warnings.filter((w) => w.includes("category header"))).toHaveLength(2)
+    expect(result.lineItems).toHaveLength(4)
+    expect(result.lineItems.some((i) => i.description === "PARTITION AND LINING")).toBe(false)
+    expect(result.lineItems.some((i) => i.description === "FALSE CEILING")).toBe(false)
+
+    const task1 = result.lineItems.find((i) => i.itemCode === "1.01")!
+    expect(task1.parentItemCode).toBeUndefined()
+    expect(task1.quantity).toBe(472)
+    expect(task1.rate).toBe(108)
+    expect(task1.quantity * task1.rate).toBeCloseTo(50976, 5)
+
+    const frame = result.lineItems.find((i) => i.description === "Frame 01")!
+    expect(frame.parentItemCode).toBe("1.01")
+    expect(frame.breakdownPercentage).toBe(30)
+    // Oracle: Frame 01 at 30% on item 1.01 -> rate 32.40, amount 15292.80.
+    expect(task1.rate * (frame.breakdownPercentage! / 100)).toBeCloseTo(32.4, 5)
+    expect(task1.quantity * task1.rate * (frame.breakdownPercentage! / 100)).toBeCloseTo(15292.8, 5)
+
+    const task2 = result.lineItems.find((i) => i.itemCode === "2.01")!
+    expect(task2.parentItemCode).toBeUndefined()
+  })
+
+  // Point 3's own acceptance test: without the header fix, both category
+  // headers above would have imported as zero-value root "line items"
+  // alongside the 2 real tasks (2 headers + 2 tasks = 4 root-shaped rows
+  // instead of 2) -- the same 39-vs-33 inflation Sumeet's real file shows
+  // at full scale. Assert the count directly, not just by description.
+  test("root-level (parent) item count excludes headers", async () => {
+    const rows = [
+      { ...HEADER_ROW, "Sl No": "1.00", "Description (Task)": "PARTITION AND LINING" },
+      { ...HEADER_ROW, "Sl No": "1.01", "Description (Task)": "Partition wall", "QTY": 472, "RATE": 108, "AMOUNT": 50976 },
+      { ...HEADER_ROW, "Sl No": "2.00", "Description (Task)": "FALSE CEILING" },
+      { ...HEADER_ROW, "Sl No": "2.01", "Description (Task)": "False ceiling", "QTY": 80, "RATE": 700, "AMOUNT": 56000 },
+    ]
+    const buffer = buildXlsxBuffer(rows)
+    const result = await parseBoqSpreadsheet(buffer, "sumeet-boq-2.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    const roots = result.lineItems.filter((i) => !i.parentItemCode)
+    expect(roots).toHaveLength(2) // "1.01" and "2.01" only -- not the 2 headers too
+  })
+
+  // Point 4: a header's Sl No cell rendered in "General" number format
+  // ("1" instead of "1.00") must still never resolve as item 1.01's parent
+  // via the dot-prefix rule, whatever the header's own cell formatting --
+  // because the header itself never enters the parent-code candidate pool.
+  test("a General-formatted header itemCode never becomes a false parent via dot-prefix inference", () => {
+    const rows = [
+      { code: "1", desc: "PARTITION AND LINING", qty: "", rate: "" }, // header, bare "1" not "1.00"
+      { code: "1.01", desc: "Partition wall", qty: 472, rate: 108 },
+    ]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+
+    expect(warnings.some((w) => w.includes("category header"))).toBe(true)
+    expect(lineItems).toHaveLength(1)
+    const task1 = lineItems.find((i) => i.itemCode === "1.01")!
+    expect(task1.parentItemCode).toBeUndefined() // NOT "1" -- the header was never a candidate
+  })
+
+  // Point 5: a blank-Sl-No task row ("Reception Counter") must keep its own
+  // unlabeled sub-tasks -- they must not be misattributed to whichever
+  // numbered item preceded it (here "5.01"), across an intervening skipped
+  // category header ("6.00 JOINERY").
+  test("a blank-Sl-No task row keeps its own unlabeled sub-tasks; the preceding numbered item does not gain them", () => {
+    const rows = [
+      { slNo: "5.01", desc: "Skirting", qty: 40, rate: 60 },
+      { slNo: "", desc: "6.00 JOINERY", qty: "", rate: "" }, // category header, skipped
+      { slNo: "", desc: "Reception Counter", qty: 1, rate: 25000 }, // blank Sl No, real task
+      { slNo: "", desc: "", sub: "Shutter", qty: "", rate: "", pct: 40 },
+      { slNo: "", desc: "", sub: "Hardware", qty: "", rate: "", pct: 60 },
+    ]
+    const mapping = { itemCode: "slNo", description: "desc", subTask: "sub", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+
+    expect(warnings.some((w) => w.includes("category header"))).toBe(true)
+
+    const item501 = lineItems.find((i) => i.itemCode === "5.01")!
+    const receptionCounter = lineItems.find((i) => i.description === "Reception Counter")!
+    expect(receptionCounter.itemCode).toBeTruthy() // synthetic-but-stable code assigned
+    expect(receptionCounter.itemCode).not.toBe("5.01")
+
+    const subs = lineItems.filter((i) => i.description === "Shutter" || i.description === "Hardware")
+    expect(subs).toHaveLength(2)
+    for (const sub of subs) expect(sub.parentItemCode).toBe(receptionCounter.itemCode)
+    for (const sub of subs) expect(sub.parentItemCode).not.toBe("5.01")
+
+    // item 5.01 itself must not have gained Reception Counter's children.
+    expect(lineItems.filter((i) => i.parentItemCode === "5.01")).toHaveLength(0)
+    expect(item501.parentItemCode).toBeUndefined()
+  })
+
+  // Cycle 2 edge cases -----------------------------------------------------
+
+  // Point 3 edge case: "a header row carrying a stray zero". The blank test
+  // is deliberate (conditions: never use the itemCode's number format) --
+  // it only catches a BLANK Qty/Rate. A header with a literal typed "0" is,
+  // by that same rule, indistinguishable from a real zero-quantity line
+  // item and is intentionally NOT skipped -- it still imports (not silently
+  // dropped), just as a real zero-value row would.
+  test("edge case: a header row with a stray literal '0' in Qty is not blank, so it is not skipped by the header test", () => {
+    const rows = [{ code: "1.00", desc: "PARTITION AND LINING", qty: "0", rate: "" }]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(warnings.filter((w) => w.includes("category header"))).toHaveLength(0)
+    expect(lineItems).toHaveLength(1)
+    expect(lineItems[0].description).toBe("PARTITION AND LINING")
+  })
+
+  // Point 3 edge case: "a section with no items under it" -- two headers
+  // back to back, no real task row between them.
+  test("edge case: a section with no items under it produces no line items, just two skip warnings", () => {
+    const rows = [
+      { code: "1.00", desc: "PARTITION AND LINING", qty: "", rate: "" },
+      { code: "2.00", desc: "FALSE CEILING", qty: "", rate: "" },
+    ]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems).toHaveLength(0)
+    expect(warnings.filter((w) => w.includes("category header"))).toHaveLength(2)
+  })
+
+  // Point 4 edge case: "a three-level BoQ" -- 1 / 1.1 / 1.1.1 -- dot-prefix
+  // inference must still chain correctly through an extra level.
+  test("edge case: a three-level BoQ (1 / 1.1 / 1.1.1) chains parentItemCode through both levels", () => {
+    const rows = [
+      { code: "1", desc: "Main", qty: 10, rate: 5 },
+      { code: "1.1", desc: "Sub", qty: 4, rate: 5 },
+      { code: "1.1.1", desc: "Sub-sub", qty: 1, rate: 5 },
+    ]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems.find((i) => i.itemCode === "1")!.parentItemCode).toBeUndefined()
+    expect(lineItems.find((i) => i.itemCode === "1.1")!.parentItemCode).toBe("1")
+    expect(lineItems.find((i) => i.itemCode === "1.1.1")!.parentItemCode).toBe("1.1")
+  })
+
+  // Point 5 edge case: "two consecutive blank-Sl-No items" -- each gets its
+  // own distinct synthetic anchor, and sub-tasks attach to the NEAREST
+  // preceding one, not the first.
+  test("edge case: two consecutive blank-Sl-No items each get a distinct anchor; sub-tasks attach to the nearest one", () => {
+    const rows = [
+      { slNo: "", desc: "Reception Counter", qty: 1, rate: 25000 },
+      { slNo: "", desc: "Waiting Bench", qty: 2, rate: 8000 },
+      { slNo: "", desc: "", sub: "Cushion", qty: "", rate: "", pct: 100 },
+    ]
+    const mapping = { itemCode: "slNo", description: "desc", subTask: "sub", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+    const counter = lineItems.find((i) => i.description === "Reception Counter")!
+    const bench = lineItems.find((i) => i.description === "Waiting Bench")!
+    const cushion = lineItems.find((i) => i.description === "Cushion")!
+    expect(counter.itemCode).not.toBe(bench.itemCode)
+    expect(cushion.parentItemCode).toBe(bench.itemCode) // nearest preceding line item, not the first
+    expect(cushion.parentItemCode).not.toBe(counter.itemCode)
+  })
+
+  // Point 5 edge case: "a sub-task before any line item" -- pre-existing
+  // (unchanged) behavior: with no lastItemCode yet, the positional fallback
+  // cannot attach it to anything, so it lands as an unparented item rather
+  // than crashing or corrupting the rows around it.
+  test("edge case: an unlabeled sub-task row before any line item does not crash and does not attach to anything", () => {
+    const rows = [
+      { slNo: "", desc: "", sub: "Orphan Sub-Task", qty: "", rate: "", pct: 50 },
+      { slNo: "1.01", desc: "Real item", qty: 10, rate: 5 },
+    ]
+    const mapping = { itemCode: "slNo", description: "desc", subTask: "sub", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+    expect(lineItems).toHaveLength(2)
+    const orphan = lineItems.find((i) => i.description === "Orphan Sub-Task")!
+    expect(orphan.parentItemCode).toBeUndefined()
+    expect(lineItems.find((i) => i.itemCode === "1.01")!.parentItemCode).toBeUndefined()
+  })
+})
