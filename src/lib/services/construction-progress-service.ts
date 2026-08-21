@@ -97,7 +97,7 @@ export async function createProgressEntry(
 
     const [row] = await db.insert(constructionWorkProgressEntries).values({
       orgId: ctx.orgId, projectId: input.projectId, activityId: input.activityId, boqLineItemId,
-      entryDate: input.entryDate, quantityDone: String(input.quantityDone), percentComplete: Math.round(input.percentComplete),
+      entryDate: input.entryDate, quantityDone: String(input.quantityDone), percentComplete: String(input.percentComplete),
       remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
     return row

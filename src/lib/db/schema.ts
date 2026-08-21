@@ -10072,7 +10072,7 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   boqLineItemId: text('boq_line_item_id'),
   entryDate: date('entry_date', { mode: 'string' }).notNull(),
   quantityDone: numeric('quantity_done').notNull().default('0'),
-  percentComplete: integer('percent_complete').notNull().default(0), // 0-100, cumulative for the activity as of entryDate
+  percentComplete: numeric('percent_complete').notNull().default('0'), // 0-100 with decimals, cumulative for the activity as of entryDate
   remarks: text('remarks'),
   recordedById: text('recorded_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),

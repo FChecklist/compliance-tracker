@@ -1996,6 +1996,13 @@
       "when": 1787319413036,
       "tag": "0317_construction_materials_and_receipts",
       "breakpoints": true
+    },
+    {
+      "idx": 285,
+      "version": "7",
+      "when": 1787319935013,
+      "tag": "0318_work_progress_percent_complete_numeric",
+      "breakpoints": true
     }
   ]
 }
