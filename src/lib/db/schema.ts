@@ -10242,6 +10242,45 @@ export const constructionAttendanceRelations = relations(constructionAttendance,
   roster: one(constructionLabourRoster, { fields: [constructionAttendance.rosterId], references: [constructionLabourRoster.id] }),
 }))
 
+// Material master + inbound receipts (Point 33): his words, all of them --
+// "material database. material inbound, spec, cost, qty." A master (spec,
+// unit, cost) and inbound receipts against it. NOT interior_materials (a 3D
+// rendering library) and NOT erp_stock_* (a full valuation layer, heavier
+// than asked for). No outbound/consumption/stock-on-hand -- not requested.
+export const constructionMaterials = complianceSchemaDB.table('construction_materials', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  spec: text('spec'),
+  unit: text('unit').notNull(),
+  unitCost: numeric('unit_cost').notNull().default('0'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionMaterialReceipts = complianceSchemaDB.table('construction_material_receipts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  receivedDate: date('received_date', { mode: 'string' }).notNull(),
+  quantity: numeric('quantity').notNull(),
+  unitCost: numeric('unit_cost'),
+  vendorId: text('vendor_id'),
+  notes: text('notes'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
+  receipts: many(constructionMaterialReceipts),
+}))
+
+export const constructionMaterialReceiptsRelations = relations(constructionMaterialReceipts, ({ one }) => ({
+  material: one(constructionMaterials, { fields: [constructionMaterialReceipts.materialId], references: [constructionMaterials.id] }),
+}))
+
 // Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll
 // Report (Regulatory / Public Works)", US WH-347 equivalent, BUILD_NEW):
 // the government-mandated prevailing-wage determination -- minimum hourly
