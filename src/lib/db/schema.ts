@@ -11600,3 +11600,28 @@ export const supportSessionsRelations = relations(supportSessions, ({ one }) => 
   targetOrg: one(organisations, { fields: [supportSessions.targetOrgId], references: [organisations.id] }),
   targetUser: one(users, { fields: [supportSessions.targetUserId], references: [users.id] }),
 }))
+
+// Point 118 (WhatsApp share): tokenised, expiring, individually-revocable
+// public read-only report links -- mirrors compliance.veri_meeting_share_links
+// (Wave 44) exactly in shape and RLS posture. orgId is a deliberate addition
+// beyond that precedent's column list (which has none, since it can join
+// through meeting_id -> veri_meetings.org_id instead) -- reportRef is a
+// generic, non-FK reference (JSON-encoded {projectId, from, to} today, for
+// reportType='work_progress'), so there is no single table to join through
+// for RLS scoping; orgId is stored directly instead. AR-10: the public
+// resolve path (getReportShareLinkData in report-share-service.ts) uses the
+// RAW `db` export like getMeetingByShareToken() does, then re-derives the
+// underlying report data itself via withTenantContext({orgId: link.orgId})
+// -- orgId taken from the link ROW, never from request input -- so a public
+// visitor can only ever reach the one org the link was created for.
+export const reportShareLinks = complianceSchemaDB.table('report_share_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reportType: text('report_type').notNull(), // 'work_progress' today; extend, don't overload, for a second report type
+  reportRef: text('report_ref').notNull(), // JSON-encoded, report-type-specific (e.g. {projectId, from, to})
+  token: text('token').notNull().unique(),
+  createdById: text('created_by_id').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
