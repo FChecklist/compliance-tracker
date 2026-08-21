@@ -11,7 +11,7 @@
 // hierarchy is approximated via the project lead's department
 // (`projects.leadUserId` -> `users.departmentId`), not a direct FK. This is
 // documented here rather than silently treated as exact.
-import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users } from "@/lib/db"
+import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -72,6 +72,20 @@ export async function createProject(ctx: { orgId: string; userId: string; isReal
   })
 }
 
+// Point 121: sets (or clears, with null) the user-entered project value.
+// Wins over the PO-derived fallback at read time -- see getProjectDashboard.
+export async function updateProjectValue(ctx: { orgId: string }, projectId: string, projectValue: number | null) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+    const [row] = await db.update(projects)
+      .set({ projectValue: projectValue !== null ? String(projectValue) : null, updatedAt: new Date() })
+      .where(eq(projects.id, projectId))
+      .returning()
+    return row
+  })
+}
+
 export type ProjectDashboard = {
   projectId: string
   projectName: string
@@ -82,6 +96,11 @@ export type ProjectDashboard = {
   delayedTaskCount: number // open pms_issues past dueDate (approximation -- doesn't check status "completed" group, see comment above)
   photoCount: number
   taskCount: number
+  // Point 121: COALESCE(user-entered projects.projectValue, SUM of linked
+  // erp_purchase_orders.grandTotal). null (never 0) when NEITHER source
+  // exists -- a zero project value on a dashboard reads as a real figure.
+  // Deliberately NOT derived from the BOQ (Rajat's ruling, see schema.ts).
+  projectValue: number | null
 }
 
 export async function getProjectDashboard(ctx: { orgId: string }, projectId: string): Promise<ProjectDashboard> {
@@ -140,6 +159,17 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       .from(documents)
       .where(and(eq(documents.orgId, ctx.orgId), eq(documents.category, "site_photo"), eq(documents.linkedEntityType, "project"), eq(documents.linkedEntityId, projectId)))
 
+    // Point 121: user-entered value WINS when set -- a human overriding a
+    // derived figure is always deliberate. Falls back to the SUM of linked
+    // POs' grand_total. null (never 0) when neither exists.
+    let projectValue: number | null = project.projectValue !== null ? Number(project.projectValue) : null
+    if (projectValue === null) {
+      const [poRow] = await db.select({ total: sql<number | null>`sum(${erpPurchaseOrders.grandTotal})` })
+        .from(erpPurchaseOrders)
+        .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), eq(erpPurchaseOrders.projectId, projectId)))
+      projectValue = poRow?.total !== null && poRow?.total !== undefined ? Number(poRow.total) : null
+    }
+
     return {
       projectId: project.id,
       projectName: project.name,
@@ -150,6 +180,7 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       delayedTaskCount: Number(taskStats?.delayed ?? 0),
       photoCount: Number(photoRow?.total ?? 0),
       taskCount: Number(taskStats?.total ?? 0),
+      projectValue,
     }
   })
 }

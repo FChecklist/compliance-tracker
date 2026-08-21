@@ -5,7 +5,7 @@
 //
 // NOT a bare `export { POST } from "@/app/api/construction/boq/import/route"`
 // re-export, unlike src/app/api/v1/projexa/scope/route.ts's GET/POST. The
-// existing import route uses requireAuth() only (session cookie) -- a plain
+// existing import route uses session-cookie-only auth -- a plain
 // re-export would 401 every PROJEXA call, which authenticates with a Bearer
 // API key instead. This route duplicates that handler's body with
 // requireAuthOrApiKey() + requireRoleOrScope() and derives actorId as

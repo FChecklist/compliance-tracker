@@ -373,8 +373,8 @@ export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, 
   const byLineItemId = new Map<string, number>()
   const byActivityId = new Map<string, number>()
   for (const row of rows) {
-    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, row.percentComplete)
-    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, row.percentComplete)
+    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, Number(row.percentComplete))
+    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, Number(row.percentComplete))
   }
 
   return resolveProgressByLineItem(items, byLineItemId, byActivityId)

@@ -97,7 +97,7 @@ export async function createProgressEntry(
 
     const [row] = await db.insert(constructionWorkProgressEntries).values({
       orgId: ctx.orgId, projectId: input.projectId, activityId: input.activityId, boqLineItemId,
-      entryDate: input.entryDate, quantityDone: String(input.quantityDone), percentComplete: Math.round(input.percentComplete),
+      entryDate: input.entryDate, quantityDone: String(input.quantityDone), percentComplete: String(input.percentComplete),
       remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
     return row
@@ -105,7 +105,7 @@ export async function createProgressEntry(
     // Wave 126: fire-and-forget automation trigger, matching
     // pms-issue-service.ts's updateIssue() status-change trigger posture
     // (dynamic import, void, never blocks/breaks the write it enriches).
-    if (row.percentComplete >= 100) {
+    if (Number(row.percentComplete) >= 100) {
       void import("./automation-rule-service").then(({ evaluateAndRunRules }) =>
         evaluateAndRunRules({ orgId: ctx.orgId }, "construction_work_progress.completed", {
           activityId: row.activityId, projectId: row.projectId, percentComplete: row.percentComplete,

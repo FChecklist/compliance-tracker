@@ -4006,6 +4006,12 @@ export const projects = complianceSchemaDB.table('projects', {
   targetDate: date('target_date', { mode: 'string' }),
   healthStatus: text('health_status'), // 'on_track' | 'at_risk' | 'off_track' | null -- free text, not enum, since only PMS-using projects ever set it
   parentProjectId: text('parent_project_id'),
+  // Point 121: user-entered project value, in the org base currency. NULL
+  // means "not entered" -- COALESCEd against linked erp_purchase_orders.
+  // grand_total at read time in construction-dashboard-service.ts, never
+  // derived from the BOQ (Rajat explicitly ruled that out -- a BOQ is what
+  // WE think the job is worth, a PO is what the CLIENT has committed to).
+  projectValue: numeric('project_value'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -6619,6 +6625,10 @@ export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders',
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Point 121: the missing link a PO-derived project value needs. Nullable,
+  // no DB-level FK -- same posture as companyId two lines above, bare text
+  // with app-level validation only.
+  projectId: text('project_id'),
 })
 
 export const erpPurchaseOrderItems = complianceSchemaDB.table('erp_purchase_order_items', {
@@ -10072,7 +10082,7 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   boqLineItemId: text('boq_line_item_id'),
   entryDate: date('entry_date', { mode: 'string' }).notNull(),
   quantityDone: numeric('quantity_done').notNull().default('0'),
-  percentComplete: integer('percent_complete').notNull().default(0), // 0-100, cumulative for the activity as of entryDate
+  percentComplete: numeric('percent_complete').notNull().default('0'), // 0-100 with decimals, cumulative for the activity as of entryDate
   remarks: text('remarks'),
   recordedById: text('recorded_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -10213,6 +10223,7 @@ export const constructionLabourRoster = complianceSchemaDB.table('construction_l
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   name: text('name').notNull(),
+  employeeCode: text('employee_code'), // customer-assigned free-text label ("ID" in his sheet) -- not a key, not unique-enforced, not auto-generated
   trade: text('trade'), // free text (civil/electrical/painter/carpenter/plumber/POP/tiles etc.) -- advisory, not enum-enforced, same posture as documents.category
   skillLevel: text('skill_level'),
   vendorId: text('vendor_id'), // nullable FK to erp_suppliers -- subcontracted labour
@@ -10239,6 +10250,45 @@ export const constructionLabourRosterRelations = relations(constructionLabourRos
 
 export const constructionAttendanceRelations = relations(constructionAttendance, ({ one }) => ({
   roster: one(constructionLabourRoster, { fields: [constructionAttendance.rosterId], references: [constructionLabourRoster.id] }),
+}))
+
+// Material master + inbound receipts (Point 33): his words, all of them --
+// "material database. material inbound, spec, cost, qty." A master (spec,
+// unit, cost) and inbound receipts against it. NOT interior_materials (a 3D
+// rendering library) and NOT erp_stock_* (a full valuation layer, heavier
+// than asked for). No outbound/consumption/stock-on-hand -- not requested.
+export const constructionMaterials = complianceSchemaDB.table('construction_materials', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  spec: text('spec'),
+  unit: text('unit').notNull(),
+  unitCost: numeric('unit_cost').notNull().default('0'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionMaterialReceipts = complianceSchemaDB.table('construction_material_receipts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  receivedDate: date('received_date', { mode: 'string' }).notNull(),
+  quantity: numeric('quantity').notNull(),
+  unitCost: numeric('unit_cost'),
+  vendorId: text('vendor_id'),
+  notes: text('notes'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
+  receipts: many(constructionMaterialReceipts),
+}))
+
+export const constructionMaterialReceiptsRelations = relations(constructionMaterialReceipts, ({ one }) => ({
+  material: one(constructionMaterials, { fields: [constructionMaterialReceipts.materialId], references: [constructionMaterials.id] }),
 }))
 
 // Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll
@@ -11560,3 +11610,28 @@ export const supportSessionsRelations = relations(supportSessions, ({ one }) => 
   targetOrg: one(organisations, { fields: [supportSessions.targetOrgId], references: [organisations.id] }),
   targetUser: one(users, { fields: [supportSessions.targetUserId], references: [users.id] }),
 }))
+
+// Point 118 (WhatsApp share): tokenised, expiring, individually-revocable
+// public read-only report links -- mirrors compliance.veri_meeting_share_links
+// (Wave 44) exactly in shape and RLS posture. orgId is a deliberate addition
+// beyond that precedent's column list (which has none, since it can join
+// through meeting_id -> veri_meetings.org_id instead) -- reportRef is a
+// generic, non-FK reference (JSON-encoded {projectId, from, to} today, for
+// reportType='work_progress'), so there is no single table to join through
+// for RLS scoping; orgId is stored directly instead. AR-10: the public
+// resolve path (getReportShareLinkData in report-share-service.ts) uses the
+// RAW `db` export like getMeetingByShareToken() does, then re-derives the
+// underlying report data itself via withTenantContext({orgId: link.orgId})
+// -- orgId taken from the link ROW, never from request input -- so a public
+// visitor can only ever reach the one org the link was created for.
+export const reportShareLinks = complianceSchemaDB.table('report_share_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reportType: text('report_type').notNull(), // 'work_progress' today; extend, don't overload, for a second report type
+  reportRef: text('report_ref').notNull(), // JSON-encoded, report-type-specific (e.g. {projectId, from, to})
+  token: text('token').notNull().unique(),
+  createdById: text('created_by_id').notNull(),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
