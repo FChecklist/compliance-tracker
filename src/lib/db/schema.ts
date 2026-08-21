@@ -10063,6 +10063,13 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   activityId: text('activity_id').notNull(),
+  // R12 point 7 (Option B, drizzle/0315): direct link to the BOQ line the
+  // progress is actually against -- nullable, additive, activity_id kept
+  // unchanged so every pre-existing row keeps working. ON DELETE SET NULL
+  // matches the migration; a deleted line item's entries fall back to
+  // activity_id via loadLatestProgressByLineItem() rather than being
+  // orphaned or blocking the delete.
+  boqLineItemId: text('boq_line_item_id'),
   entryDate: date('entry_date', { mode: 'string' }).notNull(),
   quantityDone: numeric('quantity_done').notNull().default('0'),
   percentComplete: integer('percent_complete').notNull().default(0), // 0-100, cumulative for the activity as of entryDate
@@ -10165,8 +10172,9 @@ export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) 
   lineItems: many(constructionBoqLineItems),
 }))
 
-export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one }) => ({
+export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one, many }) => ({
   boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
+  progressEntries: many(constructionWorkProgressEntries),
 }))
 
 export const constructionInterimBillsRelations = relations(constructionInterimBills, ({ many }) => ({
@@ -10189,6 +10197,7 @@ export const constructionActivitiesRelations = relations(constructionActivities,
 
 export const constructionWorkProgressEntriesRelations = relations(constructionWorkProgressEntries, ({ one }) => ({
   activity: one(constructionActivities, { fields: [constructionWorkProgressEntries.activityId], references: [constructionActivities.id] }),
+  boqLineItem: one(constructionBoqLineItems, { fields: [constructionWorkProgressEntries.boqLineItemId], references: [constructionBoqLineItems.id] }),
 }))
 
 // ─── Construction Intelligence (Wave 116) ─────────────────────────────────

@@ -19,7 +19,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray } from "drizzle-orm"
+import { and, eq, inArray, or, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
@@ -219,8 +219,8 @@ export async function createBoqRevision(
     // the row just inserted above), not just the violating line items.
     const currentItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boq.id) })
     const { removed, changed } = diffLineItems(previousItems, currentItems)
-    const progressByActivityId = await loadLatestProgressByActivityId(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
-    const violations = findScopeReductionViolations({ removed, changed }, progressByActivityId)
+    const progressByLineItem = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
+    const violations = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     if (violations.length > 0 && !input.allowScopeReductionOverride) {
       throw new ServiceError(
         `Scope reduction blocked -- this revision would remove or reduce work already completed on site: ${violations.join("; ")}. ` +
@@ -280,18 +280,23 @@ export function computeTotalVariation(diff: { added: BoqLineItemRow[]; removed: 
  * soft warnings compareBoq() returns and the hard block createBoqRevision()
  * enforces -- kept as one function so the two can never disagree about what
  * counts as a violation. A violation is: a removed line item, or a changed
- * line item with a negative netVariation, whose linked activity has ANY
- * recorded completed progress (percentComplete > 0). progressByActivityId
- * is expected to hold each activity's MOST RECENT percentComplete only.
+ * line item with a negative netVariation, that the resolver found ANY
+ * recorded completed progress for (percentComplete > 0). R12 point 7
+ * (Option B): progressByLineItem is keyed by the line item's OWN id, not
+ * activityId -- produced by resolveProgressByLineItem()/
+ * loadLatestProgressByLineItem() below, which already resolved
+ * boq_line_item_id vs. activity_id per item. This function no longer knows
+ * or cares which link resolved it; it just holds each item's MOST RECENT
+ * percentComplete.
  */
 export function findScopeReductionViolations(
   diff: { removed: BoqLineItemRow[]; changed: ChangedLineItem[] },
-  progressByActivityId: Map<string, number>
+  progressByLineItem: Map<string, number>
 ): string[] {
   const violations: string[] = []
 
   for (const item of diff.removed) {
-    const pct = item.activityId ? progressByActivityId.get(item.activityId) : undefined
+    const pct = progressByLineItem.get(item.id)
     if (pct && pct > 0) {
       violations.push(`"${item.description}" is ${pct}% complete on site and would be removed entirely`)
     }
@@ -299,7 +304,7 @@ export function findScopeReductionViolations(
 
   for (const change of diff.changed) {
     if (change.netVariation >= 0) continue
-    const pct = change.current.activityId ? progressByActivityId.get(change.current.activityId) : undefined
+    const pct = progressByLineItem.get(change.current.id)
     if (pct && pct > 0) {
       violations.push(`"${change.current.description}" is ${pct}% complete on site -- this revision reduces its scope by ${Math.abs(change.netVariation)}`)
     }
@@ -308,19 +313,71 @@ export function findScopeReductionViolations(
   return violations
 }
 
-/** Most-recent percentComplete per activityId, for every activityId referenced by `items` -- the DB-touching half of the scope-reduction guard, kept separate from the pure violation logic above. */
-async function loadLatestProgressByActivityId(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, number>> {
+/**
+ * Pure merge step of the R12 point 7 (Option B) resolver -- factored out
+ * from loadLatestProgressByLineItem() below purely so it's independently
+ * unit-testable without a live DB (same "don't touch withTenantContext/a
+ * live DB from a .test.ts file" convention as computeHierarchicalAmount/
+ * diffLineItems in this same file). `byLineItemId`/`byActivityId` are
+ * already-fetched "most recent percentComplete per key" maps; this
+ * function only decides, per item, which key wins. boq_line_item_id
+ * (direct link) ALWAYS wins over activity_id (fallback) when both would
+ * resolve to a value for the same item -- "IF boq_line_item_id is set THEN
+ * it wins" is the point's own explicit rule, not just "prefer whichever
+ * came first."
+ */
+export function resolveProgressByLineItem(
+  items: BoqLineItemRow[],
+  byLineItemId: Map<string, number>,
+  byActivityId: Map<string, number>
+): Map<string, number> {
+  const progressByLineItem = new Map<string, number>()
+  for (const item of items) {
+    if (byLineItemId.has(item.id)) { progressByLineItem.set(item.id, byLineItemId.get(item.id)!); continue }
+    if (item.activityId && byActivityId.has(item.activityId)) progressByLineItem.set(item.id, byActivityId.get(item.activityId)!)
+  }
+  return progressByLineItem
+}
+
+/**
+ * R12 point 7 (Option B): most-recent percentComplete per BOQ line item, for
+ * every item in `items` -- keyed by lineItem.id, not activityId, because
+ * progress belongs to a BOQ line, not to an activity (activity is a
+ * project-management concept; this table is shared by every VERIDIAN
+ * product). Resolves boq_line_item_id FIRST (the direct link); falls back
+ * to activity_id ONLY when no boq_line_item_id-linked entry exists for that
+ * item, so every pre-R12 (legacy, activity-only) progress entry keeps being
+ * found unchanged. ONE resolver -- both the 409 scope-reduction guard below
+ * and compareBoq()'s warnings call this same function (arch rule AR-01), so
+ * a third link type later is a one-place change here, not a sweep of every
+ * caller. The DB-touching half of the scope-reduction guard, kept separate
+ * from the pure merge/violation logic above.
+ */
+export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, items: BoqLineItemRow[]): Promise<Map<string, number>> {
+  const lineItemIds = items.map((i) => i.id)
   const activityIds = [...new Set(items.map((i) => i.activityId).filter((id): id is string => !!id))]
-  if (activityIds.length === 0) return new Map()
+
+  const conditions: SQL[] = []
+  if (lineItemIds.length > 0) conditions.push(inArray(constructionWorkProgressEntries.boqLineItemId, lineItemIds))
+  if (activityIds.length > 0) conditions.push(inArray(constructionWorkProgressEntries.activityId, activityIds))
+  if (conditions.length === 0) return new Map()
 
   const rows = await db.query.constructionWorkProgressEntries.findMany({
-    where: and(eq(constructionWorkProgressEntries.orgId, orgId), inArray(constructionWorkProgressEntries.activityId, activityIds)),
+    where: and(eq(constructionWorkProgressEntries.orgId, orgId), or(...conditions)),
     orderBy: (t, { desc }) => desc(t.entryDate),
   })
 
-  const progressByActivityId = new Map<string, number>()
-  for (const row of rows) if (!progressByActivityId.has(row.activityId)) progressByActivityId.set(row.activityId, row.percentComplete)
-  return progressByActivityId
+  // Most-recent entry per direct link (boq_line_item_id) and per fallback
+  // link (activity_id) -- kept as two separate maps because a single row
+  // can satisfy either lookup and "most recent" is per-key, not per-row.
+  const byLineItemId = new Map<string, number>()
+  const byActivityId = new Map<string, number>()
+  for (const row of rows) {
+    if (row.boqLineItemId && !byLineItemId.has(row.boqLineItemId)) byLineItemId.set(row.boqLineItemId, row.percentComplete)
+    if (row.activityId && !byActivityId.has(row.activityId)) byActivityId.set(row.activityId, row.percentComplete)
+  }
+
+  return resolveProgressByLineItem(items, byLineItemId, byActivityId)
 }
 
 /**
@@ -380,8 +437,8 @@ export async function compareBoq(ctx: { orgId: string }, boqId: string, options:
     const previousItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, against.id) })
 
     const { added, removed, changed } = diffLineItems(previousItems, currentItems)
-    const progressByActivityId = await loadLatestProgressByActivityId(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
-    const warnings = findScopeReductionViolations({ removed, changed }, progressByActivityId)
+    const progressByLineItem = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
+    const warnings = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     const totalVariation = computeTotalVariation({ added, removed, changed })
 
     return { added, removed, changed, warnings, totalVariation }

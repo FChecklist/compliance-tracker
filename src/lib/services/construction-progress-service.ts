@@ -4,7 +4,7 @@
 // see schema.ts comment on constructionCategories) -- an org-wide
 // template/copy-down feature can be added later without a breaking migration.
 import {
-  constructionCategories, constructionActivities, constructionWorkProgressEntries, projects,
+  constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionBoqLineItems, constructionBoqs, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq } from "drizzle-orm"
@@ -72,7 +72,7 @@ export async function listProgressEntries(ctx: { orgId: string }, filters: { pro
 
 export async function createProgressEntry(
   ctx: { orgId: string; userId: string },
-  input: { projectId: string; activityId: string; entryDate: string; quantityDone: number; percentComplete: number; remarks?: string }
+  input: { projectId: string; activityId: string; boqLineItemId?: string; entryDate: string; quantityDone: number; percentComplete: number; remarks?: string }
 ) {
   if (!input.activityId) throw new ServiceError("activityId is required", 400)
   if (!input.entryDate) throw new ServiceError("entryDate is required", 400)
@@ -83,8 +83,20 @@ export async function createProgressEntry(
     const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId)) })
     if (!activity) throw new ServiceError("Activity not found", 404)
 
+    // R12 point 7 (Option B): the direct BOQ-line link -- optional, so
+    // every existing (activity-only) caller keeps working unchanged. When
+    // supplied, must resolve to a real line item this org owns (line items
+    // carry no orgId of their own; ownership is via their boq).
+    let boqLineItemId: string | null = null
+    if (input.boqLineItemId) {
+      const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, input.boqLineItemId) })
+      const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, ctx.orgId)) }) : null
+      if (!lineItem || !boq) throw new ServiceError("BOQ line item not found", 404)
+      boqLineItemId = input.boqLineItemId
+    }
+
     const [row] = await db.insert(constructionWorkProgressEntries).values({
-      orgId: ctx.orgId, projectId: input.projectId, activityId: input.activityId,
+      orgId: ctx.orgId, projectId: input.projectId, activityId: input.activityId, boqLineItemId,
       entryDate: input.entryDate, quantityDone: String(input.quantityDone), percentComplete: Math.round(input.percentComplete),
       remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
