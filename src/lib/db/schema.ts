@@ -4006,6 +4006,12 @@ export const projects = complianceSchemaDB.table('projects', {
   targetDate: date('target_date', { mode: 'string' }),
   healthStatus: text('health_status'), // 'on_track' | 'at_risk' | 'off_track' | null -- free text, not enum, since only PMS-using projects ever set it
   parentProjectId: text('parent_project_id'),
+  // Point 121: user-entered project value, in the org base currency. NULL
+  // means "not entered" -- COALESCEd against linked erp_purchase_orders.
+  // grand_total at read time in construction-dashboard-service.ts, never
+  // derived from the BOQ (Rajat explicitly ruled that out -- a BOQ is what
+  // WE think the job is worth, a PO is what the CLIENT has committed to).
+  projectValue: numeric('project_value'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -6619,6 +6625,10 @@ export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders',
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Point 121: the missing link a PO-derived project value needs. Nullable,
+  // no DB-level FK -- same posture as companyId two lines above, bare text
+  // with app-level validation only.
+  projectId: text('project_id'),
 })
 
 export const erpPurchaseOrderItems = complianceSchemaDB.table('erp_purchase_order_items', {
