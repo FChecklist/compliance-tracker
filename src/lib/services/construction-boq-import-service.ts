@@ -92,6 +92,23 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     const description = descriptionRaw || subTaskRaw
     if (!description) { warnings.push(`Row ${idx + 2}: skipped (no description)`); return }
 
+    // Category-header rows (e.g. Sl No "1.00", Description (Task) "PARTITION
+    // AND LINING" in caps, QTY/RATE blank) carry their own description, so
+    // the no-description skip above does not catch them. Unlike a real task
+    // row, a header has no Sub Task value and BLANK Qty/Rate cells -- not
+    // even a typed "0". Test the raw cell strings, not the parsed number:
+    // parseAmount("") and parseAmount("0") both come out 0, and a real task
+    // row legitimately carrying a stray literal "0" must stay a line item,
+    // not get mistaken for a header. Whole-number-looking Sl Nos (7.00,
+    // 20.00, ...) are real line items too -- never use the itemCode's number
+    // format to decide this, only blank-ness of Qty/Rate.
+    const quantityRaw = mapping.quantity ? String(row[mapping.quantity] ?? "").trim() : ""
+    const rateRaw = mapping.rate ? String(row[mapping.rate] ?? "").trim() : ""
+    if (descriptionRaw && !subTaskRaw && quantityRaw === "" && rateRaw === "") {
+      warnings.push(`Row ${idx + 2}: skipped (category header: "${descriptionRaw}")`)
+      return
+    }
+
     const itemCode = mapping.itemCode ? String(row[mapping.itemCode] ?? "").trim() || undefined : undefined
     const explicitParentCode = mapping.parentItemCode ? String(row[mapping.parentItemCode] ?? "").trim() || undefined : undefined
     const unit = mapping.unit ? String(row[mapping.unit] ?? "").trim() : ""
@@ -102,10 +119,16 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     rawItems.push({ itemCode, explicitParentCode, description, unit, quantity, rate, breakdownPercentage: breakdownPercentage || undefined, isUnlabeledSubTask: !descriptionRaw && !!subTaskRaw })
   })
 
-  const allItemCodes = new Set(rawItems.filter((i) => i.itemCode).map((i) => i.itemCode!))
+  // Built from rawItems ONLY, which -- thanks to the header skip above --
+  // never contains a category header's itemCode, whatever cell format that
+  // header's Sl No used. A "General"-formatted header rendering "1" instead
+  // of "1.00" therefore still cannot collide with the "1" prefix inferred
+  // from a real item "1.01" below: it was never a candidate. Trimmed
+  // defensively even though itemCode is already trimmed above.
+  const allItemCodes = new Set(rawItems.filter((i) => i.itemCode).map((i) => i.itemCode!.trim()))
 
   let lastItemCode: string | undefined
-  const lineItems: BoqLineItemInput[] = rawItems.map((i) => {
+  const lineItems: BoqLineItemInput[] = rawItems.map((i, idx) => {
     let parentItemCode = i.explicitParentCode
     if (!parentItemCode && i.itemCode) {
       const lastDot = i.itemCode.lastIndexOf(".")
@@ -122,9 +145,21 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     if (!parentItemCode && !i.itemCode && i.isUnlabeledSubTask && i.breakdownPercentage != null && lastItemCode) {
       parentItemCode = lastItemCode
     }
-    if (i.itemCode) lastItemCode = i.itemCode
+    // Anchor must follow the last LINE ITEM, not the last row that happened
+    // to carry an Sl No -- otherwise a blank-Sl-No task row (e.g. a
+    // "Reception Counter" line with no itemCode of its own) loses its own
+    // unlabeled sub-tasks to whatever numbered item came before it. A line
+    // item without an itemCode gets a synthetic-but-stable one so it can
+    // both anchor its own children AND resolve as their parent downstream --
+    // construction-boq-service.ts's parent resolver only matches
+    // parentItemCode against an item that itself carries an itemCode.
+    // Unlabeled sub-task rows themselves never become anchors -- only rows
+    // classified as a task/line item (isUnlabeledSubTask false) do.
+    let resolvedItemCode = i.itemCode
+    if (!resolvedItemCode && !i.isUnlabeledSubTask) resolvedItemCode = `__anchor-${idx}`
+    if (resolvedItemCode) lastItemCode = resolvedItemCode
     return {
-      itemCode: i.itemCode, parentItemCode,
+      itemCode: resolvedItemCode, parentItemCode,
       breakdownPercentage: parentItemCode ? i.breakdownPercentage : undefined,
       description: i.description, unit: i.unit, quantity: i.quantity, rate: i.rate,
     }

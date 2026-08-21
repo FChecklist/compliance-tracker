@@ -21,7 +21,7 @@ function toVendorShape(s: Awaited<ReturnType<typeof listSuppliers>>[number]) {
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ vendors: [] })
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const suppliers = await listSuppliers({ orgId: ctx.orgId })
