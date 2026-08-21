@@ -9,6 +9,7 @@
 import { describe, expect, test } from "bun:test"
 import * as XLSX from "xlsx"
 import { parseBoqSpreadsheet, mapBoqHeaders, mapRowsToLineItems } from "./construction-boq-import-service"
+import { parseAmount } from "@/lib/gst/column-mapper"
 
 function buildXlsxBuffer(rows: Record<string, string | number>[]): Buffer {
   const sheet = XLSX.utils.json_to_sheet(rows)
@@ -365,5 +366,144 @@ describe("mapRowsToLineItems / parseBoqSpreadsheet -- Sumeet real-file shape (Sl
     const orphan = lineItems.find((i) => i.description === "Orphan Sub-Task")!
     expect(orphan.parentItemCode).toBeUndefined()
     expect(lineItems.find((i) => i.itemCode === "1.01")!.parentItemCode).toBeUndefined()
+  })
+
+  // RUN R11-21AUG point 16: regression guard for R10's header fix (points
+  // 3/4/5) -- the case that would have collapsed the contract total to near
+  // zero if a header's Sl No happened to render bare ("1", "General" cell
+  // format) instead of "1.00": without the fix, a real item "1.01" would
+  // resolve its dot-prefix "1" against the (wrongly-imported) header's own
+  // itemCode and become ITS child instead of a root item. Checks every line
+  // item in the fixture, not just the one item most likely to collide.
+  test("REGRESSION GUARD (R10 header fix): no line item ever resolves a skipped, General-formatted category header as its parent", () => {
+    const rows = [
+      { code: "1", desc: "PARTITION AND LINING", qty: "", rate: "" }, // header, General format "1" not "1.00"
+      { code: "1.01", desc: "Partition wall", qty: 472, rate: 108 },
+      { code: "1.02", desc: "Another item under the same section", qty: 10, rate: 5 },
+    ]
+    const mapping = { itemCode: "code", description: "desc", quantity: "qty", rate: "rate" } as const
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+
+    expect(warnings.some((w) => w.includes("category header"))).toBe(true)
+    expect(lineItems.find((i) => i.itemCode === "1")).toBeUndefined() // the header itself never became a line item
+    for (const item of lineItems) expect(item.parentItemCode).not.toBe("1")
+  })
+})
+
+// RUN R11-21AUG point 6a (E-44): parseAmount used to strip only commas/
+// whitespace/the rupee glyph -- a non-INR cell (Sumeet's contract is in
+// AED) left its currency code in place ("AED50976.00"), parseFloat gave
+// NaN, and the function silently returned 0. This directly affects the BOQ
+// importer above (parseAmount is what construction-boq-import-service.ts
+// uses for every quantity/rate/amount cell), so it's covered here rather
+// than in a new, parallel test file for column-mapper.ts (which has none).
+describe("parseAmount -- currency-prefix stripping (R11 point 6a / E-44)", () => {
+  test("strips a leading currency CODE or symbol, not only the rupee glyph, before parsing", () => {
+    expect(parseAmount("AED 50,976.00")).toBe(50976)
+    expect(parseAmount("USD 1,200")).toBe(1200)
+    expect(parseAmount("$1,200.50")).toBe(1200.5)
+    expect(parseAmount("₹50,976.00")).toBe(50976) // existing rupee behaviour unchanged
+  })
+
+  test("percent strings are unaffected -- a leading digit is never stripped", () => {
+    expect(parseAmount("30%")).toBe(30)
+  })
+
+  test("parenthesised negatives still work -- the currency-token strip never eats a leading '('", () => {
+    expect(parseAmount("(100)")).toBe(-100)
+  })
+
+  // Edge case: a currency prefix AND a parenthesized negative together --
+  // the compound case that motivated protecting "(" in the strip regex
+  // instead of just reordering the two replace() calls.
+  test("edge case: a currency-prefixed parenthesized negative keeps its sign", () => {
+    expect(parseAmount("AED (100)")).toBe(-100)
+  })
+
+  // Edge case: a currency token with no number after it at all -- must fall
+  // back to 0 (the function's existing not-a-number contract), not throw.
+  test("edge case: a bare currency token with no number falls back to 0, does not throw", () => {
+    expect(() => parseAmount("AED")).not.toThrow()
+    expect(parseAmount("AED")).toBe(0)
+  })
+
+  test("already-numeric values and blanks are unaffected (return type/behaviour for valid input unchanged)", () => {
+    expect(parseAmount(50976)).toBe(50976)
+    expect(parseAmount("")).toBe(0)
+    expect(parseAmount(undefined)).toBe(0)
+    expect(parseAmount(null)).toBe(0)
+  })
+})
+
+// RUN R11-21AUG point 14 (E-57): the importer has no amount alias -- every
+// amount is recomputed as quantity x rate, and a printed amount that
+// differs (rounding, a manual override, a discount baked into the sheet's
+// own total) used to be silently replaced with no record of the
+// difference. The recompute itself is UNCHANGED (still quantity x rate) --
+// this only adds a warning when the sheet has an amount-like column and a
+// real task row's printed amount doesn't match it.
+describe("mapRowsToLineItems -- amount reconciliation warnings (R11 point 14 / E-57)", () => {
+  test("a printed amount that differs from quantity x rate produces a warning, imports the recomputed value, and does not throw", () => {
+    const rows = [{ slNo: "1.01", desc: "Real item", qty: 2008.0512, rate: 1, amt: 2008.05 }]
+    const mapping = { itemCode: "slNo", description: "desc", quantity: "qty", rate: "rate", amount: "amt" } as const
+
+    expect(() => mapRowsToLineItems(rows, mapping)).not.toThrow()
+    const { lineItems, warnings } = mapRowsToLineItems(rows, mapping)
+
+    expect(lineItems).toHaveLength(1)
+    expect(lineItems[0].quantity).toBe(2008.0512)
+    expect(lineItems[0].rate).toBe(1) // recomputed value (quantity x rate) is what's imported, not the printed 2008.05
+    expect(warnings.some((w) => w.includes("recomputed") && w.includes("2008.05"))).toBe(true)
+  })
+
+  test("a printed amount that matches quantity x rate produces no reconciliation warning", () => {
+    const rows = [{ slNo: "1.01", desc: "Real item", qty: 10, rate: 5, amt: 50 }]
+    const mapping = { itemCode: "slNo", description: "desc", quantity: "qty", rate: "rate", amount: "amt" } as const
+    const { warnings } = mapRowsToLineItems(rows, mapping)
+    expect(warnings.filter((w) => w.includes("recomputed"))).toHaveLength(0)
+  })
+
+  test("no amount column mapped at all -- no reconciliation attempted, no crash", () => {
+    const rows = [{ slNo: "1.01", desc: "Real item", qty: 10, rate: 5 }]
+    const mapping = { itemCode: "slNo", description: "desc", quantity: "qty", rate: "rate" } as const
+    expect(() => mapRowsToLineItems(rows, mapping)).not.toThrow()
+    const { warnings } = mapRowsToLineItems(rows, mapping)
+    expect(warnings.filter((w) => w.includes("recomputed"))).toHaveLength(0)
+  })
+
+  test("unlabeled sub-task rows are never reconciled against their own printed AMOUNT -- it's a weighted share of the parent's amount, not their own quantity x rate", () => {
+    const rows = [
+      { slNo: "1.01", desc: "Real item", qty: 100, rate: 10, amt: 1000 },
+      { slNo: "", desc: "", sub: "Frame", qty: "", rate: "", pct: 30, amt: 300 }, // weighted share (30% of 1000), qty x rate here is 0
+    ]
+    const mapping = { itemCode: "slNo", description: "desc", subTask: "sub", quantity: "qty", rate: "rate", breakdownPercentage: "pct", amount: "amt" } as const
+    const { warnings } = mapRowsToLineItems(rows, mapping)
+    expect(warnings.filter((w) => w.includes("recomputed"))).toHaveLength(0)
+  })
+})
+
+// RUN R11-21AUG point 15: the synthetic anchor for a blank-Sl-No line item
+// (R10 point 5) is WRITTEN to compliance.construction_boq_line_items.
+// item_code -- visible to exports and any API consumer of item_code, not
+// just an internal join key -- so it must read as a plain generated line
+// code, never as a debug artefact.
+describe("mapRowsToLineItems -- synthetic anchor codes read as data, not debug artefacts (R11 point 15)", () => {
+  test("a blank-Sl-No line item gets a neutral generated itemCode; no stored itemCode ever starts with '__'", () => {
+    const rows = [
+      { slNo: "5.01", desc: "Skirting", qty: 40, rate: 60 },
+      { slNo: "", desc: "Reception Counter", qty: 1, rate: 25000 },
+      { slNo: "", desc: "", sub: "Shutter", qty: "", rate: "", pct: 100 },
+    ]
+    const mapping = { itemCode: "slNo", description: "desc", subTask: "sub", quantity: "qty", rate: "rate", breakdownPercentage: "pct" } as const
+    const { lineItems } = mapRowsToLineItems(rows, mapping)
+
+    for (const item of lineItems) if (item.itemCode) expect(item.itemCode.startsWith("__")).toBe(false)
+
+    const receptionCounter = lineItems.find((i) => i.description === "Reception Counter")!
+    expect(receptionCounter.itemCode).toBeTruthy()
+    expect(receptionCounter.itemCode!.startsWith("__")).toBe(false)
+
+    const shutter = lineItems.find((i) => i.description === "Shutter")!
+    expect(shutter.parentItemCode).toBe(receptionCounter.itemCode) // still resolves correctly, just under the new naming
   })
 })
