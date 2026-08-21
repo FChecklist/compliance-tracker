@@ -19,7 +19,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionWorkProgressEntries, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, or } from "drizzle-orm"
+import { and, eq, inArray, or, type SQL } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 import { isSelfApproval } from "./approval-workflow-service"
 export { ServiceError }
@@ -357,7 +357,7 @@ export async function loadLatestProgressByLineItem(db: TenantDb, orgId: string, 
   const lineItemIds = items.map((i) => i.id)
   const activityIds = [...new Set(items.map((i) => i.activityId).filter((id): id is string => !!id))]
 
-  const conditions = []
+  const conditions: SQL[] = []
   if (lineItemIds.length > 0) conditions.push(inArray(constructionWorkProgressEntries.boqLineItemId, lineItemIds))
   if (activityIds.length > 0) conditions.push(inArray(constructionWorkProgressEntries.activityId, activityIds))
   if (conditions.length === 0) return new Map()
