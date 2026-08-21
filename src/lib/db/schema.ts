@@ -1891,6 +1891,15 @@ export const dynamicChains = platformSchemaDB.table('dynamic_chains', {
   aiConfig: jsonb('ai_config'), // { modelTier?; requiresHumanApproval?: boolean; confidenceThreshold?: number } -- generalizes aiBehaviorRef, AI sub-field
   workflowStepsConfig: jsonb('workflow_steps_config'), // step/SLA/escalation shape -- generalizes workflowRef, workflow sub-field
   linkedKnowledgeBasePageIds: jsonb('linked_knowledge_base_page_ids').notNull().default([]), // string[] of knowledge_base_pages.id -- knowledge sub-field, same denormalized-index shape as linkedApprovalWorkflowIds
+  // Point 141: the one missing segment of Rajat's fully-qualified key
+  // (VERIDIAN + PRODUCT + ORG + USER + pill + options) -- VERIDIAN is a
+  // constant, ORG is orgId above, USER (createdById) is excluded from
+  // matching per AR-14, and PRODUCT was the only genuinely absent piece.
+  // Nullable, no FK (the one existing chain row belongs to an org whose
+  // product branch is unknown -- a FK would fail on it), no backfill: NULL
+  // means product-agnostic and resolves exactly as before this column
+  // existed.
+  productBranchId: text('product_branch_id'),
 })
 
 // Priority 10 (GAP-DCMD, second real slice): task-execution-engine.ts's
