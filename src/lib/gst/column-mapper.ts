@@ -104,10 +104,27 @@ export function autoMapColumns(headers: string[], savedMapping?: ColumnMapping):
   return { mapping, confidence }
 }
 
+// R11 point 6a (E-44): parseAmount used to strip only commas/whitespace/the
+// rupee glyph, so a non-INR cell (Sumeet's contract is in AED, e.g. "AED
+// 50,976.00") left its currency CODE in place -- "AED50976.00" -> parseFloat
+// -> NaN -> silently coerced to 0. Now strips any leading currency TOKEN (a
+// 3-letter ISO code like AED/USD, or a symbol like $/€) after stripping
+// commas/whitespace, so any currency prefix is removed, not just ₹. The
+// currency-token strip explicitly leaves a leading "(" alone (excluded from
+// its character class) and runs BEFORE the parentheses-negative conversion,
+// so "AED (100)" still becomes -100 instead of silently losing its sign --
+// stripping "AED(" as one blind run would eat the "(" too and turn a real
+// negative into a positive. Return type and behaviour for already-numeric/
+// valid input are unchanged: a leading digit, ".", or "-" is never touched,
+// so "30%" (parseFloat stops at the "%") and plain numbers/percentages are
+// unaffected.
 export function parseAmount(value: unknown): number {
   if (value === null || value === undefined || value === "") return 0
   if (typeof value === "number") return value
-  const cleaned = String(value).replace(/[,₹\s]/g, "").replace(/^\((.*)\)$/, "-$1") // strip commas/currency, treat (100) as -100
+  const cleaned = String(value)
+    .replace(/[,₹\s]/g, "") // strip commas/rupee glyph/whitespace
+    .replace(/^[^\d.\-(]+/, "") // strip a leading currency token (AED, USD, $, €, ...), but never a leading "(" -- that's parentheses-negative syntax, handled next
+    .replace(/^\((.*)\)$/, "-$1") // treat (100) as -100
   const n = parseFloat(cleaned)
   return Number.isFinite(n) ? n : 0
 }
