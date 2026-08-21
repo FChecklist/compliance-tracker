@@ -19,7 +19,7 @@ import type { BoqLineItemInput } from "./construction-boq-service"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
-export type BoqFieldKey = "itemCode" | "parentItemCode" | "description" | "subTask" | "unit" | "quantity" | "rate" | "breakdownPercentage"
+export type BoqFieldKey = "itemCode" | "parentItemCode" | "description" | "subTask" | "unit" | "quantity" | "rate" | "breakdownPercentage" | "amount"
 
 // Alias order within each field is a PRIORITY order, not just a membership
 // list: mapBoqHeaders resolves a field by trying its aliases in order and
@@ -45,6 +45,10 @@ export const BOQ_FIELD_ALIASES: Record<BoqFieldKey, string[]> = {
   quantity: ["qty", "quantity"],
   rate: ["rate", "unit rate", "unit price"],
   breakdownPercentage: ["breakdown %", "breakdown percentage", "break up %", "break-up %", "split %"],
+  // R11 point 14 (E-57): recognized ONLY for reconciliation warnings below --
+  // the stored amount is still always quantity x rate (unchanged), never the
+  // printed value from this column.
+  amount: ["amount", "amt", "value"],
 }
 
 function normalizeHeader(h: string): string {
@@ -115,8 +119,32 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     const quantity = parseAmount(row[mapping.quantity!])
     const rate = parseAmount(row[mapping.rate!])
     const breakdownPercentage = mapping.breakdownPercentage ? parseAmount(row[mapping.breakdownPercentage]) : undefined
+    const isUnlabeledSubTask = !descriptionRaw && !!subTaskRaw
 
-    rawItems.push({ itemCode, explicitParentCode, description, unit, quantity, rate, breakdownPercentage: breakdownPercentage || undefined, isUnlabeledSubTask: !descriptionRaw && !!subTaskRaw })
+    // R11 point 14 (E-57): there is no amount ALIAS used for import -- the
+    // stored amount is always the recomputed quantity x rate, never this
+    // column's printed value (do not change that). This only RECONCILES:
+    // if the sheet has an amount-like column and a real task row's own
+    // printed amount doesn't match its recomputed quantity x rate (a
+    // rounding difference, a manual override, a discount the sheet baked
+    // into the total), warn about it -- loudly enough to say plainly that
+    // the recomputed value was the one actually imported -- rather than
+    // silently overwriting the customer's own number with no record of the
+    // difference. Skipped for unlabeled sub-task rows: their printed AMOUNT
+    // is a weighted share of the PARENT's amount (breakdownPercentage x
+    // parent amount), not their own quantity x rate (they carry no
+    // quantity/rate of their own), so comparing the two is meaningless and
+    // would warn on nearly every sub-task row.
+    const amountPrintedRaw = mapping.amount ? String(row[mapping.amount] ?? "").trim() : ""
+    if (amountPrintedRaw && !isUnlabeledSubTask) {
+      const printedAmount = parseAmount(row[mapping.amount!])
+      const recomputedAmount = quantity * rate
+      if (Math.abs(recomputedAmount - printedAmount) > 1e-6) {
+        warnings.push(`Row ${idx + 2}: printed amount ${printedAmount} does not match quantity x rate (${recomputedAmount}) -- the recomputed value was used`)
+      }
+    }
+
+    rawItems.push({ itemCode, explicitParentCode, description, unit, quantity, rate, breakdownPercentage: breakdownPercentage || undefined, isUnlabeledSubTask })
   })
 
   // Built from rawItems ONLY, which -- thanks to the header skip above --
@@ -155,8 +183,16 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     // parentItemCode against an item that itself carries an itemCode.
     // Unlabeled sub-task rows themselves never become anchors -- only rows
     // classified as a task/line item (isUnlabeledSubTask false) do.
+    //
+    // R11 point 15: this code is WRITTEN to
+    // compliance.construction_boq_line_items.item_code and is visible to
+    // exports and any API consumer of item_code, so it must read as a
+    // plain generated line code, not as a debug artefact -- "LI-<n>" rather
+    // than the earlier "__anchor-<n>". Still derived from this item's own
+    // position among the parsed line items, so it stays unique and stable
+    // within this submission.
     let resolvedItemCode = i.itemCode
-    if (!resolvedItemCode && !i.isUnlabeledSubTask) resolvedItemCode = `__anchor-${idx}`
+    if (!resolvedItemCode && !i.isUnlabeledSubTask) resolvedItemCode = `LI-${String(idx + 1).padStart(4, "0")}`
     if (resolvedItemCode) lastItemCode = resolvedItemCode
     return {
       itemCode: resolvedItemCode, parentItemCode,
