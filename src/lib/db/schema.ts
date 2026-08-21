@@ -10213,6 +10213,7 @@ export const constructionLabourRoster = complianceSchemaDB.table('construction_l
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   name: text('name').notNull(),
+  employeeCode: text('employee_code'), // customer-assigned free-text label ("ID" in his sheet) -- not a key, not unique-enforced, not auto-generated
   trade: text('trade'), // free text (civil/electrical/painter/carpenter/plumber/POP/tiles etc.) -- advisory, not enum-enforced, same posture as documents.category
   skillLevel: text('skill_level'),
   vendorId: text('vendor_id'), // nullable FK to erp_suppliers -- subcontracted labour

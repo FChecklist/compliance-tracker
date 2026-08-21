@@ -11,6 +11,7 @@ export { ServiceError }
 export type RosterInput = {
   projectId: string
   name: string
+  employeeCode?: string
   trade?: string
   skillLevel?: string
   vendorId?: string
@@ -36,6 +37,7 @@ export async function createRosterEntry(ctx: { orgId: string }, input: RosterInp
 
     const [row] = await db.insert(constructionLabourRoster).values({
       orgId: ctx.orgId, projectId: input.projectId, name,
+      employeeCode: input.employeeCode || null,
       trade: input.trade || null, skillLevel: input.skillLevel || null, vendorId: input.vendorId || null,
       dailyRate: String(input.dailyRate ?? 0),
     }).returning()
