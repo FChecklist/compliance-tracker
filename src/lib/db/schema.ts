@@ -10018,6 +10018,14 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
 
 export const constructionBoqLineItems = complianceSchemaDB.table('construction_boq_line_items', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
+  // Denormalized from construction_boqs.org_id, backfilled + kept NOT NULL by
+  // migration add_org_id_to_construction_boq_line_items -- purely an
+  // additive, defense-in-depth application-level filter (report-engine-
+  // service.ts's TABLE_REGISTRY needs a direct orgIdColumn to register this
+  // table the same way every other entry is structured). RLS isolation is
+  // still the real enforcement, via the existing EXISTS-against-
+  // construction_boqs policy, unchanged by this column.
+  orgId: text('org_id').notNull(),
   boqId: text('boq_id').notNull(),
   activityId: text('activity_id'), // nullable -- optional link to constructionActivities, used by the "warn if scope already executed" guard
   itemCode: text('item_code'), // stable key used for revision-to-revision diffing when present; service falls back to description match otherwise
