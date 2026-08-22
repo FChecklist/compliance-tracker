@@ -1979,7 +1979,7 @@
     {
       "idx": 282,
       "version": "7",
-      "when": 1785325200002,
+      "when": 1785325200005,
       "tag": "0315_construction_progress_boq_line_link",
       "breakpoints": true
     },
@@ -2016,6 +2016,41 @@
       "version": "7",
       "when": 1787322481455,
       "tag": "0320_project_value_and_po_link",
+      "breakpoints": true
+    },
+    {
+      "idx": 288,
+      "version": "7",
+      "when": 1785325200006,
+      "tag": "0290_fi_ar_004_dunning_list",
+      "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1785325200007,
+      "tag": "0312_stage1_preauth_brand_host_lookup",
+      "breakpoints": true
+    },
+    {
+      "idx": 290,
+      "version": "7",
+      "when": 1785325200008,
+      "tag": "0313_ai_team_role_overrides_rollout",
+      "breakpoints": true
+    },
+    {
+      "idx": 291,
+      "version": "7",
+      "when": 1785325200009,
+      "tag": "0314_sales_pipeline_module",
+      "breakpoints": true
+    },
+    {
+      "idx": 292,
+      "version": "7",
+      "when": 1787322481456,
+      "tag": "0321_dynamic_chains_product_branch_id",
       "breakpoints": true
     }
   ]
