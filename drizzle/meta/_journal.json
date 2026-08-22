@@ -2052,6 +2052,13 @@
       "when": 1787322481456,
       "tag": "0321_dynamic_chains_product_branch_id",
       "breakpoints": true
+    },
+    {
+      "idx": 293,
+      "version": "7",
+      "when": 1787412244153,
+      "tag": "0322_construction_boq_budget_percentage",
+      "breakpoints": true
     }
   ]
 }

@@ -10047,6 +10047,20 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   equipmentCost: numeric('equipment_cost'),
   overheadPercent: numeric('overhead_percent'),
   profitPercent: numeric('profit_percent'),
+  // Point 154 (Budget Report Summary, R12): Rajat ruled 22 Aug the 25% figure
+  // is a COST CEILING, not a margin -- budget = amount * budgetPercentage /
+  // 100 (NOT amount * (1 - budgetPercentage/100), which is the excluded
+  // margin reading). Per-line, editable, defaulting to 25 (AR-09: rules and
+  // labels live in data, not a hardcoded constant). vendorId is an optional
+  // link to erpSuppliers (the same list /api/vendors already serves, per
+  // point 32's Company field) -- no DB-level FK, matching this table's
+  // existing optional-link columns (activityId, parentLineItemId) above.
+  // vendorAmount is computed by the service layer on write, same convention
+  // as `amount` above -- not derived from the BOQ total (Rajat's PO/
+  // user-entered ruling for project value applies the same way here).
+  budgetPercentage: numeric('budget_percentage').notNull().default('25'),
+  vendorId: text('vendor_id'),
+  vendorAmount: numeric('vendor_amount'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
