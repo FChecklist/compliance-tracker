@@ -148,8 +148,17 @@ async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemIn
   }
 }
 
+/** Point 154 (R12): Rajat ruled 22 Aug the 25% figure is a COST CEILING, not
+ * a margin -- budget = amount * budgetPercentage / 100 (NOT the margin
+ * reading, amount * (1 - budgetPercentage/100), which is excluded). Computed
+ * at read time, same convention as computedRate() above -- not stored
+ * redundantly against the amount/budgetPercentage columns. */
+function computedBudget(item: { amount: string; budgetPercentage: string }): number {
+  return Number(item.amount) * (Number(item.budgetPercentage) / 100)
+}
+
 function withComputedRate(item: typeof constructionBoqLineItems.$inferSelect) {
-  return { ...item, computedRate: computedRate(item) }
+  return { ...item, computedRate: computedRate(item), computedBudget: computedBudget(item) }
 }
 
 export async function listBoqs(ctx: { orgId: string }, projectId: string) {
