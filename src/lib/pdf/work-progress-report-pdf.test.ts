@@ -13,7 +13,7 @@ import { generateWorkProgressReportPdf, computeRows, type WorkProgressReportPdfD
 const ORG = { name: "Meridian Construction Co.", address: "123 Site Road", gstin: "27AAAAA0000A1Z5" }
 
 // Same oracle line item used throughout this codebase's WPR test fixtures.
-const GYPSUM = { itemCode: "1.01.1", description: "Gypsum Board 01", unit: "sqm", quantity: 472, rate: 1, amount: 472, activityId: "act_gypsum", parentLineItemId: null };
+const GYPSUM = { id: "line_gypsum", itemCode: "1.01.1", description: "Gypsum Board 01", unit: "sqm", quantity: 472, rate: 1, amount: 472, activityId: "act_gypsum", parentLineItemId: null };
 const CATEGORY = { id: "cat_1", name: "Partitions" };
 const ACTIVITY = { id: "act_gypsum", categoryId: "cat_1", name: "Gypsum Board 01" };
 
@@ -107,5 +107,37 @@ describe("computeRows -- Previous/Current/Total-or-Balance arithmetic + WPR-06 c
     expect(rows[0].prevQty).toBe(0);
     expect(rows[0].currentQty).toBe(0);
     expect(rows[0].categoryName).toBe("Uncategorized");
+  });
+});
+
+// R12 point 7 (Option B) / E-89 (AR-01): preference-order entry-to-line
+// resolution -- boq_line_item_id, when present on an entry, wins over the
+// activityId match, and is never ALSO counted a second time via activityId.
+describe("computeRows -- Option B boq_line_item_id preference order (E-89/AR-01)", () => {
+  test("an entry keyed by boq_line_item_id is counted once, not twice, even though it shares the line's activityId", () => {
+    const rows = computeRows(baseData({
+      lineItems: [GYPSUM], categories: [CATEGORY], activities: [ACTIVITY],
+      entries: [{ activityId: "act_gypsum", boqLineItemId: "line_gypsum", entryDate: "2026-07-15", quantityDone: 100 }],
+    }), "total");
+    expect(rows[0].currentQty).toBe(100); // not 200 -- the entry must not match under both rules
+  });
+
+  test("a boq_line_item_id entry pointed at a DIFFERENT line is excluded here, even though activityId matches", () => {
+    const rows = computeRows(baseData({
+      lineItems: [GYPSUM], categories: [CATEGORY], activities: [ACTIVITY],
+      entries: [{ activityId: "act_gypsum", boqLineItemId: "some_other_line", entryDate: "2026-07-15", quantityDone: 100 }],
+    }), "total");
+    expect(rows[0].currentQty).toBe(0); // claimed exclusively by "some_other_line", not this one
+  });
+
+  test("boq_line_item_id-keyed and activityId-only entries for the same line both count (no boq_line_item_id on this line's own entries)", () => {
+    const rows = computeRows(baseData({
+      lineItems: [GYPSUM], categories: [CATEGORY], activities: [ACTIVITY],
+      entries: [
+        { activityId: "act_gypsum", boqLineItemId: "line_gypsum", entryDate: "2026-07-15", quantityDone: 100 },
+        { activityId: "act_gypsum", entryDate: "2026-07-16", quantityDone: 25 }, // legacy, activityId-only
+      ],
+    }), "total");
+    expect(rows[0].currentQty).toBe(125);
   });
 });

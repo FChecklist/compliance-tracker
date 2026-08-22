@@ -26,6 +26,13 @@
 import { createBrandedDocument, drawDocumentHeader, drawSectionLabel, drawFooterNote, pdfToBuffer, autoTable } from "@/lib/pdf-generator"
 
 export type WprPdfLineItem = {
+  // R12 point 7 (Option B): already present on getBoq()'s real row (every
+  // constructionBoqLineItems select carries `id`), just never declared on
+  // this local type before -- same "on the wire, invisible to TypeScript"
+  // situation parentLineItemId was in until it got added below. Needed now
+  // so computeRows() can match an entry's boq_line_item_id back to this
+  // line's own id.
+  id: string
   itemCode: string | null
   description: string
   unit: string
@@ -43,7 +50,19 @@ export type WprPdfLineItem = {
 }
 export type WprPdfActivity = { id: string; categoryId: string; name: string }
 export type WprPdfCategory = { id: string; name: string }
-export type WprPdfEntry = { activityId: string; entryDate: string; quantityDone: string | number }
+export type WprPdfEntry = {
+  activityId: string
+  // R12 point 7 (Option B, drizzle/0315): optional direct link to the BOQ
+  // line the progress is actually against -- same field
+  // construction_work_progress_entries.boq_line_item_id carries and
+  // listProgressEntries() already returns on the wire, just never declared
+  // on this local type before. null for every pre-Option-B entry, which
+  // keeps matching by activityId exactly as before -- see computeRows()'s
+  // preference order.
+  boqLineItemId?: string | null
+  entryDate: string
+  quantityDone: string | number
+}
 
 export type WorkProgressReportPdfData = {
   org: { name: string; address: string | null; gstin: string | null }
@@ -98,7 +117,18 @@ export function computeRows(data: WorkProgressReportPdfData, mode: "total" | "ba
     const activity = line.activityId ? activitiesById.get(line.activityId) : undefined
     const category = activity ? categoriesById.get(activity.categoryId) : undefined
 
-    const matches = line.activityId ? data.entries.filter((e) => e.activityId === line.activityId) : []
+    // R12 point 7 (Option B): preference-order entry-to-line resolution --
+    // an entry carrying boq_line_item_id is claimed EXCLUSIVELY by the line
+    // it names (never also falls through to the activityId rule below, for
+    // this line or any other -- that would count the same entry twice
+    // under two different rules). Only entries with no boq_line_item_id at
+    // all still resolve by activityId, exactly as before -- today's
+    // behavior, unchanged, for every line/entry that predates Option B. No
+    // more `line.activityId ?` guard: a line with no activityId can still
+    // have real Option-B entries keyed by boq_line_item_id.
+    const matches = data.entries.filter((e) =>
+      e.boqLineItemId ? e.boqLineItemId === line.id : line.activityId !== null && e.activityId === line.activityId
+    )
     const prevQty = matches.filter((e) => e.entryDate < data.from).reduce((s, e) => s + num(e.quantityDone), 0)
     const currentQty = matches.filter((e) => e.entryDate >= data.from && e.entryDate <= data.to).reduce((s, e) => s + num(e.quantityDone), 0)
     const totalQty = prevQty + currentQty
