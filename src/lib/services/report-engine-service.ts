@@ -59,6 +59,7 @@ import {
   constructionBoqs, constructionWorkProgressEntries, constructionAttendance, constructionLabourRoster,
   constructionRfis, constructionSubmittals, constructionPunchListItems, constructionChangeOrders,
   constructionSiteDiaries, constructionExpenseEntries, constructionActivities,
+  constructionBoqLineItems, constructionMaterials,
   erpPurchaseOrders, erpSuppliers, erpStockLedgerEntries, erpBudgetLineItems, erpBudgets, erpCostCenters,
   erpContracts, erpContractBillingSchedules,
   projects,
@@ -213,7 +214,16 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   incidents: { table: incidents, orgIdColumn: incidents.orgId, columns: { category: incidents.category, severity: incidents.severity, stage: incidents.stage } },
   construction_boqs: { table: constructionBoqs, orgIdColumn: constructionBoqs.orgId, columns: { status: constructionBoqs.status, projectId: constructionBoqs.projectId } },
   construction_work_progress_entries: { table: constructionWorkProgressEntries, orgIdColumn: constructionWorkProgressEntries.orgId, columns: { projectId: constructionWorkProgressEntries.projectId, activityId: constructionWorkProgressEntries.activityId, percentComplete: constructionWorkProgressEntries.percentComplete } },
-  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { projectId: constructionAttendance.projectId, status: constructionAttendance.status, rosterId: constructionAttendance.rosterId } },
+  // dailyCost/attendanceDate whitelisted 2026-08-22 (Sumeet 8-report closure
+  // pass): both are real, pre-existing columns (dailyCost already read via
+  // raw SQL by computeContractorPerformanceReport below) -- adding them here
+  // is what makes "Daily Cost Report" (group by attendanceDate, sum
+  // dailyCost) resolvable through the generic deterministic_aggregation
+  // path instead of needing a bespoke function. Grouping by `trade` still
+  // isn't possible here (that column lives on construction_labour_roster,
+  // one join away, and this engine is deliberately single-table) -- that
+  // remains a real, separate gap, not silently worked around.
+  construction_attendance: { table: constructionAttendance, orgIdColumn: constructionAttendance.orgId, columns: { projectId: constructionAttendance.projectId, status: constructionAttendance.status, rosterId: constructionAttendance.rosterId, dailyCost: constructionAttendance.dailyCost, attendanceDate: constructionAttendance.attendanceDate } },
   // -- new for the Owner's 30 Project Reports / 30 Analysis Dashboards / Executive KPI catalog (2026-07-13) --
   projects: { table: projects, orgIdColumn: projects.orgId, columns: { healthStatus: projects.healthStatus, isActive: projects.isActive } },
   pms_milestones: { table: pmsMilestones, orgIdColumn: pmsMilestones.orgId, columns: { status: pmsMilestones.status, projectId: pmsMilestones.projectId } },
@@ -261,6 +271,26 @@ export const TABLE_REGISTRY: Record<string, TableRegistryEntry> = {
   // report reading this table documents that limitation in its own
   // dataGapNote/description rather than silently overclaiming precision.
   veri_meetings: { table: veriMeetings, orgIdColumn: veriMeetings.orgId, columns: { meetingType: veriMeetings.meetingType, contextEntityType: veriMeetings.contextEntityType } },
+  // -- 2026-08-22 (Sumeet 8-report closure pass) --
+  // construction_boq_line_items had NO org_id column at all until migration
+  // add_org_id_to_construction_boq_line_items (this pass) added one,
+  // denormalized from construction_boqs.org_id and backfilled -- required
+  // because runAggregation()'s WHERE clause needs a real orgIdColumn on the
+  // table it queries; RLS alone (the EXISTS-against-construction_boqs
+  // policy) already enforced isolation but gave this generic single-table
+  // engine nothing to filter on directly. "Cost Report by Scope" reads this:
+  // amount summed, grouped by description (each line item IS a scope/work
+  // item) -- a real, populated table (179 rows for the demo org's projects).
+  construction_boq_line_items: { table: constructionBoqLineItems, orgIdColumn: constructionBoqLineItems.orgId, columns: { boqId: constructionBoqLineItems.boqId, description: constructionBoqLineItems.description, unit: constructionBoqLineItems.unit, amount: constructionBoqLineItems.amount, quantity: constructionBoqLineItems.quantity, rate: constructionBoqLineItems.rate } },
+  // construction_materials (point 33) IS correctly structured (real orgId
+  // column, same shape as every other entry) -- registered here so
+  // "Cost Report by Material" no longer 500s with "not registered in
+  // TABLE_REGISTRY". Left here for when data exists: the table has 0 rows
+  // for EVERY org today (not just the demo org), so this report_definitions
+  // row's status is deliberately NOT flipped to 'built' in this pass --
+  // doing so would produce an empty report that LOOKS built but isn't
+  // provably correct (do_not_assume rule 2, 2026-08-22 Sumeet pass).
+  construction_materials: { table: constructionMaterials, orgIdColumn: constructionMaterials.orgId, columns: { projectId: constructionMaterials.projectId, name: constructionMaterials.name, unit: constructionMaterials.unit, unitCost: constructionMaterials.unitCost, isActive: constructionMaterials.isActive } },
 }
 
 function resolveAggregationTarget(config: { tableKey?: string; groupByColumn?: string; aggregationColumnKey?: string; filterEquals?: { columnKey: string; value: string | number | boolean } }) {
@@ -635,6 +665,61 @@ async function computeTodaysSiteProgress(ctx: { orgId: string }): Promise<Report
       .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.entryDate, today)))
       .groupBy(constructionWorkProgressEntries.projectId)
     return { columns: ["Project ID", "Entries Logged Today", "Total Quantity Done Today"], rows: rows.map((r) => ({ "Project ID": r.projectId, "Entries Logged Today": Number(r.entries), "Total Quantity Done Today": Number(r.totalQuantity) })), note: rows.length === 0 ? "No progress entries logged for today's date yet." : undefined }
+  })
+}
+
+/**
+ * Weekly Project Report (2026-08-22, Sumeet 8-report closure pass) -- a
+ * genuinely new formula, NOT a repoint of computeTodaysSiteProgress above.
+ * That function is hardcoded to entryDate = today with no projectId/date
+ * params at all, and other report_definitions rows may already depend on
+ * its exact today-only behaviour (todays_site_progress formulaKey) -- this
+ * function is additive so nothing that already calls that one breaks.
+ *
+ * Params: `projectId` (optional -- omit for an org-wide/all-projects
+ * breakdown, same posture as computeTodaysSiteProgress); `weekEnding`
+ * (optional ISO date string, defaults to today) -- the 7-day window is
+ * [weekEnding - 6 days, weekEnding], inclusive, entryDate-based (real
+ * column on construction_work_progress_entries). Grouped by project so a
+ * multi-project org gets one row per project, matching the existing
+ * "today" formula's own shape.
+ */
+async function computeWeeklyProjectReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = typeof params.projectId === "string" && params.projectId ? params.projectId : undefined
+  const weekEndingRaw = typeof params.weekEnding === "string" && params.weekEnding ? params.weekEnding : new Date().toISOString().slice(0, 10)
+  const weekEndingDate = new Date(`${weekEndingRaw}T00:00:00Z`)
+  if (Number.isNaN(weekEndingDate.getTime())) throw new ServiceError(`Invalid weekEnding date: "${weekEndingRaw}"`, 400)
+  const weekStartDate = new Date(weekEndingDate.getTime() - 6 * 24 * 60 * 60 * 1000)
+  const weekStart = weekStartDate.toISOString().slice(0, 10)
+  const weekEnding = weekEndingDate.toISOString().slice(0, 10)
+
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const whereClauses = [
+      eq(constructionWorkProgressEntries.orgId, ctx.orgId),
+      gte(constructionWorkProgressEntries.entryDate, weekStart),
+      lte(constructionWorkProgressEntries.entryDate, weekEnding),
+    ]
+    if (projectId) whereClauses.push(eq(constructionWorkProgressEntries.projectId, projectId))
+
+    const rows = await db.select({
+      projectId: constructionWorkProgressEntries.projectId,
+      entries: sql<number>`count(*)`,
+      totalQuantity: sql<number>`coalesce(sum(${constructionWorkProgressEntries.quantityDone}), 0)::float`,
+      avgPercentComplete: sql<number>`coalesce(avg(${constructionWorkProgressEntries.percentComplete}), 0)::float`,
+    }).from(constructionWorkProgressEntries)
+      .where(and(...whereClauses))
+      .groupBy(constructionWorkProgressEntries.projectId)
+
+    return {
+      columns: ["Project ID", "Entries Logged This Week", "Total Quantity Done This Week", "Avg % Complete Logged This Week"],
+      rows: rows.map((r) => ({
+        "Project ID": r.projectId,
+        "Entries Logged This Week": Number(r.entries),
+        "Total Quantity Done This Week": Number(r.totalQuantity),
+        "Avg % Complete Logged This Week": Math.round(Number(r.avgPercentComplete) * 10) / 10,
+      })),
+      note: `Window: ${weekStart} to ${weekEnding} inclusive (entryDate-based)${projectId ? `, filtered to project ${projectId}` : ", all projects"}. ${rows.length === 0 ? "No progress entries logged in this window." : ""}`.trim(),
+    }
   })
 }
 
@@ -1391,6 +1476,7 @@ export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   portfolio_completion_percent: computePortfolioCompletionPercent,
   portfolio_budget_utilization: computePortfolioBudgetUtilization,
   todays_site_progress: computeTodaysSiteProgress,
+  weekly_project_report: computeWeeklyProjectReport,
   labour_on_site_today: computeLabourOnSiteToday,
   vendors_delayed_purchase_orders: computeVendorsDelayedPurchaseOrders,
   safety_incidents_this_month: computeSafetyIncidentsThisMonth,
