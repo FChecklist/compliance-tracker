@@ -15,6 +15,14 @@ import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, e
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+// R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
+// service.ts exposes as the "earned-value" named report -- NOT a second
+// summation path. This is a real circular import (construction-reports-
+// service.ts also imports getProjectDashboard FROM this file) -- safe here
+// because both references are only ever called from inside an async
+// function body, never at module-evaluation top level, so ESM's live
+// bindings resolve correctly by call time either direction.
+import { earnedValueReport } from "./construction-reports-service"
 export { ServiceError }
 
 // Lists the org's active Products (business lines a new Project nests
@@ -192,7 +200,7 @@ export type OrgDashboardSummary = {
   totalBudget: number
   totalRevenue: number
   totalExpenses: number
-  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number }[]
+  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number; earnedValue: number | null; percentByValue: number | null }[]
 }
 
 /** Company -> [Department] -> Project drill-down. departmentId filters by the project LEAD's department (projects has no direct departmentId column -- see file header). */
@@ -270,8 +278,23 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
     const taskMap = new Map(tasksByProject.map((r) => [r.projectId, { total: Number(r.total), delayed: Number(r.delayed) }]))
 
+    // R39/R-51: null (not 0) when construction isn't enabled for this org, or
+    // the project has no BOQ yet -- earnedValueReport() throws in the first
+    // case (requireConstructionEnabled) and returns contractValue 0 in the
+    // second, both real "not applicable yet" states, never silently 0.
+    const evByProject = new Map<string, { earnedValue: number; percentByValue: number } | null>()
+    await Promise.all(projectRows.map(async (p) => {
+      try {
+        const ev = await earnedValueReport(ctx, p.id)
+        evByProject.set(p.id, ev.contractValue > 0 ? { earnedValue: ev.earnedValue, percentByValue: ev.percentByValue } : null)
+      } catch {
+        evByProject.set(p.id, null)
+      }
+    }))
+
     const projectSummaries = projectRows.map((p) => {
       const activeBoqId = boqIdByProject.get(p.id)
+      const ev = evByProject.get(p.id) ?? null
       return {
         id: p.id, name: p.name,
         revenue: revenueMap.get(p.id) ?? 0,
@@ -281,6 +304,8 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
         // null (not 0) when the project has no BOQ at all yet -- a real "no
         // scope defined" state, distinct from a real BOQ worth zero.
         value: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,
+        earnedValue: ev?.earnedValue ?? null,
+        percentByValue: ev?.percentByValue ?? null,
       }
     })
 
