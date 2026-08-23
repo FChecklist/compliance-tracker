@@ -36,6 +36,9 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const weekStart = request.nextUrl.searchParams.get("weekStart")
       if (!weekStart) return NextResponse.json({ error: "weekStart query param is required for the certified-payroll report" }, { status: 400 })
       result = await REPORT_REGISTRY[reportName]({ orgId }, projectId, weekStart)
+    } else if (reportName === "manpower-cost") {
+      const date = request.nextUrl.searchParams.get("date") ?? undefined
+      result = await REPORT_REGISTRY[reportName]({ orgId }, projectId, date)
     } else {
       result = await REPORT_REGISTRY[reportName]({ orgId }, projectId)
     }

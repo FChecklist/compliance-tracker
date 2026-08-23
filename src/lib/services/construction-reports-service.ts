@@ -323,18 +323,28 @@ export async function vendorCostReport(ctx: { orgId: string }, projectId: string
 }
 
 // 11. Manpower Cost Report -- attendance dailyCost summed by trade.
-export async function manpowerCostReport(ctx: { orgId: string }, projectId: string) {
+// R39/R-C07: `date` is optional -- omitted, this is the existing all-time
+// aggregate (unchanged, zero regression for every caller that never passed
+// it). Scoped to one day, workerDays IS the real headcount for that date
+// (one attendance row per worker per day, so count(*) over a single-date
+// filter is exactly "how many people worked"), and totalCost is that same
+// day's real labour cost -- the row's own oracle ("trade-wise summary
+// returns correct headcount and cost for that date").
+export async function manpowerCostReport(ctx: { orgId: string }, projectId: string, date?: string, trade?: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)]
+    if (date) conditions.push(eq(constructionAttendance.attendanceDate, date))
+    if (trade) conditions.push(eq(constructionLabourRoster.trade, trade))
     const rows = await db.select({
       trade: constructionLabourRoster.trade,
       totalCost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
       workerDays: sql<number>`count(*)`,
     }).from(constructionAttendance)
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
-      .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)))
+      .where(and(...conditions))
       .groupBy(constructionLabourRoster.trade)
-    return { byTrade: rows }
+    return { byTrade: rows, date: date ?? null }
   })
 }
 
