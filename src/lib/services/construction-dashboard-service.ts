@@ -11,9 +11,9 @@
 // hierarchy is approximated via the project lead's department
 // (`projects.leadUserId` -> `users.departmentId`), not a direct FK. This is
 // documented here rather than silently treated as exact.
-import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders } from "@/lib/db"
+import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, sql } from "drizzle-orm"
+import { and, eq, inArray, sql, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 
@@ -239,17 +239,50 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
       .where(and(eq(erpBudgets.orgId, ctx.orgId), inArray(erpCostCenters.projectId, ids)))
 
+    // R38 (R-50/TC-40): the dashboard's per-project "value" now derives from
+    // the project's own active BOQ (root lines only, same rootBoqLineItemsOnly
+    // convention as construction-reports-service.ts#scopeReport -- summing
+    // children too would double-count, same D-3 rule) rather than a manually
+    // typed figure. "Active" = latest non-superseded BOQ, version DESC then
+    // createdAt DESC -- the identical tiebreaker construction-boq-service.ts
+    // #listBoqs() and the R38-fixed scopeReport()/categoryBoqAmountsReport()
+    // already use, kept consistent on purpose (three independent call sites,
+    // one convention). DISTINCT ON is Postgres-native and does this in one
+    // query rather than N -- there is no drizzle query-builder equivalent.
+    const projectIdsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
+    const latestBoqPerProject = (await db.execute(sql`
+      SELECT DISTINCT ON (project_id) project_id, id AS boq_id
+      FROM compliance.construction_boqs
+      WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}]) AND status != 'superseded'
+      ORDER BY project_id, version DESC, created_at DESC
+    `)) as { project_id: string; boq_id: string }[]
+    const boqIdByProject = new Map(latestBoqPerProject.map((r) => [r.project_id, r.boq_id]))
+    const activeBoqIds = Array.from(boqIdByProject.values())
+    const valueByBoq = activeBoqIds.length > 0
+      ? await db.select({ boqId: constructionBoqLineItems.boqId, total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float` })
+          .from(constructionBoqLineItems)
+          .where(and(inArray(constructionBoqLineItems.boqId, activeBoqIds), isNull(constructionBoqLineItems.parentLineItemId)))
+          .groupBy(constructionBoqLineItems.boqId)
+      : []
+    const valueByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Number(v.total)]))
+
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
     const taskMap = new Map(tasksByProject.map((r) => [r.projectId, { total: Number(r.total), delayed: Number(r.delayed) }]))
 
-    const projectSummaries = projectRows.map((p) => ({
-      id: p.id, name: p.name,
-      revenue: revenueMap.get(p.id) ?? 0,
-      expenses: expenseMap.get(p.id) ?? 0,
-      taskCount: taskMap.get(p.id)?.total ?? 0,
-      delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
-    }))
+    const projectSummaries = projectRows.map((p) => {
+      const activeBoqId = boqIdByProject.get(p.id)
+      return {
+        id: p.id, name: p.name,
+        revenue: revenueMap.get(p.id) ?? 0,
+        expenses: expenseMap.get(p.id) ?? 0,
+        taskCount: taskMap.get(p.id)?.total ?? 0,
+        delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
+        // null (not 0) when the project has no BOQ at all yet -- a real "no
+        // scope defined" state, distinct from a real BOQ worth zero.
+        value: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,
+      }
+    })
 
     return {
       totalProjects: projectRows.length,
