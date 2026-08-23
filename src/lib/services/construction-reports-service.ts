@@ -9,7 +9,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionAttendance, constructionLabourRoster, constructionPrevailingWageRates,
   constructionKpiDefinitions, constructionKpiEntries, constructionExpenseEntries, erpStockLedgerEntries, erpItems, erpSalesInvoices,
   documents, pmsIssues, pmsTimeEntries, pmsBillableRates, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
-  pmsBudgets, pmsBudgetLineItems, projects,
+  pmsBudgets, pmsBudgetLineItems, projects, erpSuppliers,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql, gte, lt, lte, or, isNull } from "drizzle-orm"
@@ -185,6 +185,54 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
 
     const percentByValue = contractValue > 0 ? Math.round((earnedValue / contractValue) * 10000) / 100 : 0
     return { earnedValue: Math.round(earnedValue * 100) / 100, contractValue, percentByValue }
+  })
+}
+
+// R39/R-C09 (Point 154 follow-on): per-line budget vs actual-vendor-cost
+// variance, over the latest (non-superseded) BOQ's line items -- reuses the
+// SAME budgetPercentage/vendorId/vendorAmount columns Point 154 already
+// shipped and computedBudget()'s exact formula (imported indirectly via the
+// same amount*pct/100 arithmetic, kept in one place per D-3 -- see that
+// function's own comment for why it's not stored). variance = vendorAmount -
+// budget; null (not 0) when no vendor amount has been entered yet for a
+// line, a real "not yet quoted" state, not a fabricated zero variance.
+export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    if (!latest) return { lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0 }
+
+    const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
+    const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
+    const suppliers = vendorIds.length > 0
+      ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName }).from(erpSuppliers).where(inArray(erpSuppliers.id, vendorIds))
+      : []
+    const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
+
+    const lines = lineItems.map((item) => {
+      const budget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
+      const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
+      return {
+        lineItemId: item.id,
+        code: item.itemCode,
+        description: item.description,
+        amount: Number(item.amount),
+        budgetPercentage: Number(item.budgetPercentage),
+        budget: Math.round(budget * 100) / 100,
+        vendorId: item.vendorId,
+        vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
+        vendorAmount,
+        variance: vendorAmount !== null ? Math.round((vendorAmount - budget) * 100) / 100 : null,
+      }
+    })
+
+    return {
+      lines,
+      totalBudget: Math.round(lines.reduce((s, l) => s + l.budget, 0) * 100) / 100,
+      totalVendorAmount: Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100,
+      totalVariance: Math.round(lines.reduce((s, l) => s + (l.variance ?? 0), 0) * 100) / 100,
+    }
   })
 }
 
@@ -983,6 +1031,7 @@ export const REPORT_REGISTRY = {
   "category-boq-amounts": categoryBoqAmountsReport,
   "certified-payroll": certifiedPayrollReport,
   "earned-value": earnedValueReport, // R39/R-51
+  "budget-variance": boqBudgetVarianceReport, // R39/R-C09
 } as const
 
 export type ReportName = keyof typeof REPORT_REGISTRY
