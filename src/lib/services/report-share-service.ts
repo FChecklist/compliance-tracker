@@ -16,7 +16,10 @@ export { ServiceError }
 export type ReportRef = { projectId: string; from: string; to: string }
 
 export async function createReportShareLink(
-  ctx: { orgId: string; userId: string },
+  // R38: userId is null for an API-key-authenticated (server-to-server)
+  // caller -- there is no real `users` row to attribute the link to. See
+  // schema.ts's createdById comment for the FK-violation bug this fixes.
+  ctx: { orgId: string; userId: string | null },
   input: { reportType: "work_progress"; reportRef: ReportRef; expiresInHours?: number }
 ) {
   if (input.reportType !== "work_progress") throw new ServiceError("Unsupported report type", 400)
@@ -24,7 +27,7 @@ export async function createReportShareLink(
     throw new ServiceError("reportRef.projectId, from and to are required", 400)
   }
   const expiresInHours = input.expiresInHours ?? 168 // 7 days, matching veri_meeting_share_links' default
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (tx) => {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (tx) => {
     const expiresAt = new Date(Date.now() + expiresInHours * 60 * 60 * 1000)
     const [link] = await tx.insert(reportShareLinks).values({
       orgId: ctx.orgId, reportType: input.reportType, reportRef: JSON.stringify(input.reportRef),

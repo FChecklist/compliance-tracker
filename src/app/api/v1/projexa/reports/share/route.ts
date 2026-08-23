@@ -10,13 +10,18 @@ export async function POST(request: NextRequest) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!ctx.orgId || !actorId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const body = await request.json()
+    // R38 (R-C15 fix): NOT ctx.dbUser?.id ?? ctx.apiKey?.id -- an API key's
+    // id is never a real `users` row, and created_by_id used to have a
+    // strict NOT NULL FK to `users`, so every API-key-authenticated request
+    // (the real production shape for PROJEXA's server-to-server calls) 500'd
+    // on this exact insert. null is now a valid, real "created by an API
+    // key, not a person" value (see schema.ts's createdById comment).
     const link = await createReportShareLink(
-      { orgId: ctx.orgId, userId: actorId },
+      { orgId: ctx.orgId, userId: ctx.dbUser?.id ?? null },
       { reportType: body.reportType, reportRef: body.reportRef, expiresInHours: body.expiresInHours }
     )
     return NextResponse.json({ token: link.token, expiresAt: link.expiresAt }, { status: 201 })
