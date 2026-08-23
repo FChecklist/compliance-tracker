@@ -51,6 +51,23 @@ export const BOQ_FIELD_ALIASES: Record<BoqFieldKey, string[]> = {
   amount: ["amount", "amt", "value"],
 }
 
+// R38 (R-71/TC-51): parseAmount() silently returns 0 for genuine garbage
+// text ("not-a-number", "TBD", "N/A") -- indistinguishable, at the call
+// site, from a real cell that legitimately says "0". Mirrors parseAmount's
+// own cleaning steps (strip commas/currency-glyphs/whitespace, a leading
+// currency token, and parentheses-negative syntax) before testing the
+// result against a plain numeric pattern, so a genuinely-numeric cell in
+// any of parseAmount's own accepted shapes ("5,000", "AED 50", "(100)")
+// is never flagged, and only true garbage is.
+function isMalformedNumericCell(raw: string): boolean {
+  if (raw === "") return false
+  const cleaned = raw
+    .replace(/[,₹\s]/g, "")
+    .replace(/^[^\d.\-(]+/, "")
+    .replace(/^\((.*)\)$/, "-$1")
+  return !/^-?\d+(\.\d+)?$/.test(cleaned)
+}
+
 function normalizeHeader(h: string): string {
   return h.trim().toLowerCase().replace(/[^a-z0-9%]+/g, " ").trim().replace(/\s+/g, " ")
 }
@@ -110,6 +127,20 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     const rateRaw = mapping.rate ? String(row[mapping.rate] ?? "").trim() : ""
     if (descriptionRaw && !subTaskRaw && quantityRaw === "" && rateRaw === "") {
       warnings.push(`Row ${idx + 2}: skipped (category header: "${descriptionRaw}")`)
+      return
+    }
+
+    // R38 (R-71/TC-51): a non-blank Qty or Rate cell that isn't a real
+    // number (typo, "TBD", stray text) must be rejected loudly and by row
+    // number, not silently imported as a $0 line item -- the failure mode
+    // parseAmount()'s own graceful-degradation-to-0 produces if left
+    // unchecked here.
+    if (isMalformedNumericCell(quantityRaw)) {
+      warnings.push(`Row ${idx + 2}: skipped (Quantity "${quantityRaw}" is not a number)`)
+      return
+    }
+    if (isMalformedNumericCell(rateRaw)) {
+      warnings.push(`Row ${idx + 2}: skipped (Rate "${rateRaw}" is not a number)`)
       return
     }
 
