@@ -237,7 +237,20 @@ export async function createBoqRevision(
     // the row just inserted above), not just the violating line items.
     const currentItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boq.id) })
     const { removed, changed } = diffLineItems(previousItems, currentItems)
-    const progressByLineItem = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
+    // R36 fix (real bug, found while verifying R-23): a revision always
+    // inserts BRAND NEW line item rows, so `changed[i].current.id` never
+    // matches any existing progress entry's boq_line_item_id -- those were
+    // recorded against the PREVIOUS row. Load progress keyed by the
+    // PREVIOUS id (where it actually lives), then re-key each changed
+    // item's result onto its CURRENT id, since findScopeReductionViolations
+    // looks progress up by change.current.id. Removed items are unaffected
+    // (their "id" IS the previous/only id, already correct).
+    const progressByPreviousId = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
+    const progressByLineItem = new Map(progressByPreviousId)
+    for (const c of changed) {
+      const pct = progressByPreviousId.get(c.previous.id)
+      if (pct !== undefined) progressByLineItem.set(c.current.id, pct)
+    }
     const violations = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     if (violations.length > 0 && !input.allowScopeReductionOverride) {
       throw new ServiceError(
@@ -455,7 +468,17 @@ export async function compareBoq(ctx: { orgId: string }, boqId: string, options:
     const previousItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, against.id) })
 
     const { added, removed, changed } = diffLineItems(previousItems, currentItems)
-    const progressByLineItem = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.current)])
+    // R36 fix: same bug as createBoqRevision (progress lives on the
+    // PREVIOUS line item's id, not the CURRENT/new one) -- see the comment
+    // there. Kept in sync deliberately so compareBoq()'s warnings and
+    // createBoqRevision()'s hard block can never disagree about what counts
+    // as a violation (this file's own docstring on findScopeReductionViolations).
+    const progressByPreviousId = await loadLatestProgressByLineItem(db, ctx.orgId, [...removed, ...changed.map((c) => c.previous)])
+    const progressByLineItem = new Map(progressByPreviousId)
+    for (const c of changed) {
+      const pct = progressByPreviousId.get(c.previous.id)
+      if (pct !== undefined) progressByLineItem.set(c.current.id, pct)
+    }
     const warnings = findScopeReductionViolations({ removed, changed }, progressByLineItem)
     const totalVariation = computeTotalVariation({ added, removed, changed })
 
