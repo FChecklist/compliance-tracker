@@ -10018,6 +10018,15 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
 
 export const constructionBoqLineItems = complianceSchemaDB.table('construction_boq_line_items', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
+  // Real DB column, NOT NULL, added directly against the live table by an
+  // earlier migration (report-engine gap closure, PR #1317) -- but never
+  // declared here in schema.ts, so Drizzle silently dropped it from every
+  // insert/select through this table regardless of what calling code set.
+  // Root-caused 2026-08-23 (R31) after a real BOQ import kept failing 23502
+  // (org_id NOT NULL violation) even after insertLineItems() was fixed to
+  // pass orgId -- Drizzle only emits columns it knows about from this
+  // declaration, so the fix was silently inert until this line existed.
+  orgId: text('org_id').notNull(),
   boqId: text('boq_id').notNull(),
   activityId: text('activity_id'), // nullable -- optional link to constructionActivities, used by the "warn if scope already executed" guard
   itemCode: text('item_code'), // stable key used for revision-to-revision diffing when present; service falls back to description match otherwise
