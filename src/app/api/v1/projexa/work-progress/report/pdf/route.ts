@@ -8,7 +8,8 @@
 // src/lib/pdf/work-progress-report-pdf.ts.
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
-import { db, organisations, projects } from "@/lib/db"
+import { organisations, projects } from "@/lib/db"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, and } from "drizzle-orm"
 import { listBoqs, getBoq } from "@/lib/services/construction-boq-service"
 import { listActivities, listCategories, listProgressEntries, ServiceError } from "@/lib/services/construction-progress-service"
@@ -18,6 +19,7 @@ export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  const orgId = ctx.orgId // narrow once -- TS can't carry the above null-check through the async closure below
 
   const { searchParams } = request.nextUrl
   const projectId = searchParams.get("projectId")
@@ -29,24 +31,36 @@ export async function GET(request: NextRequest) {
   if (!from || !to) return NextResponse.json({ error: "from and to (YYYY-MM-DD) query params are required" }, { status: 400 })
 
   try {
-    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    // Point 117 fix: compliance.projects/organisations carry ONLY an
+    // app_runtime_org_scoped RLS policy (org_id = compliance.current_org_id()).
+    // The bare `db` import is the plain app_runtime connection -- outside
+    // withTenantContext, current_org_id() is unset, so this SELECT was
+    // silently RLS-filtered to zero rows for EVERY caller (session or API
+    // key alike), and the route always 404'd "Project not found" even for a
+    // real, correctly org-scoped project. Same RLS-gap class already fixed
+    // 3x elsewhere this run (api_keys/users/report_share_links) -- here the
+    // fix is the existing withTenantContext wrapper, same as every other
+    // lookup in this same file (listBoqs/listActivities/etc. below).
+    const { project, org } = await withTenantContext({ orgId }, async (tx) => {
+      const project = await tx.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, orgId)) })
+      // Same org-lookup shape erp-payroll-service.ts's getPayslipDetail() uses
+      // for its own branded-header data, including the fallback default.
+      const org = await tx.query.organisations.findFirst({ where: eq(organisations.id, orgId), columns: { name: true, address: true, gstin: true } })
+      return { project, org }
+    })
     if (!project) return NextResponse.json({ error: "Project not found" }, { status: 404 })
 
-    // Same org-lookup shape erp-payroll-service.ts's getPayslipDetail() uses
-    // for its own branded-header data, including the fallback default.
-    const org = await db.query.organisations.findFirst({ where: eq(organisations.id, ctx.orgId), columns: { name: true, address: true, gstin: true } })
-
     const [boqs, activities, categories, entries] = await Promise.all([
-      listBoqs({ orgId: ctx.orgId }, projectId),
-      listActivities({ orgId: ctx.orgId }, { projectId }),
-      listCategories({ orgId: ctx.orgId }, projectId),
-      listProgressEntries({ orgId: ctx.orgId }, { projectId }),
+      listBoqs({ orgId }, projectId),
+      listActivities({ orgId }, { projectId }),
+      listCategories({ orgId }, projectId),
+      listProgressEntries({ orgId }, { projectId }),
     ])
     // Same "latest non-superseded revision" convention projexa's own
     // work-progress/report/route.ts uses, so scope-wise figures here never
     // double-count line items across a BoQ's revision history.
     const latestBoq = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
-    const lineItems = latestBoq ? (await getBoq({ orgId: ctx.orgId }, latestBoq.id)).lineItems : []
+    const lineItems = latestBoq ? (await getBoq({ orgId }, latestBoq.id)).lineItems : []
 
     const pdfBuffer = generateWorkProgressReportPdf({
       org: org ?? { name: "VERIDIAN AI", address: null, gstin: null },
