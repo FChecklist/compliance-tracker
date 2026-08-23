@@ -108,7 +108,7 @@ function computedRate(item: { materialCost: string | null; labourCost: string | 
  * way computeHierarchicalAmount does, so the error surfaces before any rows
  * are written rather than partway through.
  */
-async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemInput[]) {
+async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
 
@@ -125,6 +125,7 @@ async function insertLineItems(db: TenantDb, boqId: string, items: BoqLineItemIn
 
     const inserted = await db.insert(constructionBoqLineItems).values(
       ready.map((item) => ({
+        orgId,
         boqId,
         activityId: item.activityId || null,
         itemCode: item.itemCode || null,
@@ -192,7 +193,7 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
       orgId: ctx.orgId, projectId: input.projectId, version: 1, title, createdById: ctx.userId,
     }).returning()
 
-    await insertLineItems(db, boq.id, input.lineItems || [])
+    await insertLineItems(db, ctx.orgId, boq.id, input.lineItems || [])
     return getBoqRow(db, boq.id)
   })
 }
@@ -219,7 +220,7 @@ export async function createBoqRevision(
       parentBoqId: parent.id, title: input.title?.trim() || parent.title, createdById: ctx.userId,
     }).returning()
 
-    await insertLineItems(db, boq.id, input.lineItems || [])
+    await insertLineItems(db, ctx.orgId, boq.id, input.lineItems || [])
 
     // Owner directive: a negative variation (removing/reducing a line item)
     // must be blocked -- not just warned about -- when that item's linked
