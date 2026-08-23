@@ -122,7 +122,14 @@ const rootBoqLineItemsOnly = (boqId: string) =>
 export async function scopeReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => desc(t.version) })
+    // R38 (TC-11/TC-43 fix, same root cause class as point 177/PR #1325): version
+    // DESC alone has no tiebreaker when 2+ INDEPENDENT (non-revision-chain) BOQs
+    // for this project share the highest version number -- Postgres then returns
+    // an arbitrary one, not the actually-latest. createdAt DESC as a secondary
+    // key matches construction-boq-service.ts#listBoqs()'s already-fixed ordering
+    // (kept as an inline duplicate here rather than a cross-module call, to
+    // avoid nesting withTenantContext).
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
     if (!latest) return { boq: null, totalValue: 0, lineItemCount: 0, revisions: [] }
     const [valueRow] = await db.select({ total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float`, count: sql<number>`count(*)` })
@@ -661,7 +668,9 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
 export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => desc(t.version) })
+    // R38 (TC-42/TC-43 fix): same missing-tiebreaker bug as scopeReport() above --
+    // see its comment for the full explanation.
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
     if (!latest) return { categories: [], uncategorizedAmount: 0, totalAmount: 0 }
 
