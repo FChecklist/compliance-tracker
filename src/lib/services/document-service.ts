@@ -49,7 +49,11 @@ export type CreateDocumentRecordInput = {
 // versioning/auto-classification/AI-extraction/achievement side effects --
 // those are enhancements over the core "store a categorized file" contract,
 // not something a bearer-key upload from PROJEXA depends on.
-export async function createDocumentRecord(ctx: { orgId: string; userId: string }, input: CreateDocumentRecordInput) {
+// R39/R-C14: userId is nullable -- callers must pass ctx.dbUser?.id ?? null,
+// never ctx.apiKey?.id (that id has no row in compliance.users; see
+// schema.ts's own comment on documents.uploadedById for the real production
+// FK-violation this caused, and why null is the honest value instead).
+export async function createDocumentRecord(ctx: { orgId: string; userId: string | null }, input: CreateDocumentRecordInput) {
   if (!input.name?.trim()) throw new ServiceError("name is required", 400)
 
   let objectPath: string
@@ -78,7 +82,7 @@ export async function createDocumentRecord(ctx: { orgId: string; userId: string 
     meta.isExternalLink = true
   }
 
-  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+  return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const [doc] = await db.insert(documents).values({
       name: input.name.trim(),
       fileUrl: objectPath,

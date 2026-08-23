@@ -389,7 +389,16 @@ export const documents = complianceSchemaDB.table('documents', {
   complianceItemId: text('compliance_item_id'),
   noticeId: text('notice_id'),           // M-12: notice documents
   extractedData: jsonb('extracted_data'), // M-02: AI extracted fields
-  uploadedById: text('uploaded_by_id').notNull(),
+  // R39/R-C14 (E-class, same family as E-45/AR-04): nullable since 23 Aug --
+  // /api/v1/documents (and the permits/drawings routes sharing
+  // createDocumentRecord) used to fall back to ctx.apiKey?.id when an
+  // API-key-authenticated server-to-server call had no real dbUser, silently
+  // storing the API KEY's own id here. compliance.users has no row for an
+  // api_keys id, so every such upload 500'd on this column's FK (confirmed
+  // live -- real production error, not synthetic). Fixed at the route layer
+  // to pass ctx.dbUser?.id ?? null instead; null (not a fake id) is the
+  // honest answer for "who uploaded this" when the caller has no real user.
+  uploadedById: text('uploaded_by_id'),
   orgId: text('org_id').notNull(),
   clientId: text('client_id'), // Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
