@@ -10460,6 +10460,35 @@ export const constructionRfis = complianceSchemaDB.table('construction_rfis', {
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
+// R39/R-C14: SCHEMA-ASSUMED-INDUSTRY-STANDARD -- Sumeet never supplied a real
+// Site Instruction format, so this is the Architect/Site Instruction (SI)
+// record shape that's stable across Procore, CMiC and COINS (si_number,
+// issue_date, issued_by, to_contractor, description, drawing_ref,
+// cost_impact/time_impact flags), NOT a literal transcription of any of
+// them. Field names are the AI's best real-world guess pending Sumeet's
+// actual confirmation -- see the migration's own table comment. Attachments
+// go through the existing documents table (linkedEntityType=
+// 'site_instruction', linkedEntityId=this row's id) -- the same convention
+// site photos and every other attachment in this codebase already use, no
+// separate attachment column. boqId links this SI to the BOQ revision it
+// originates a variation from -- the row's own stated real business
+// purpose -- nullable, since an SI can exist before any variation is drafted.
+export const constructionSiteInstructions = complianceSchemaDB.table('construction_site_instructions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  siNumber: integer('si_number').notNull(),
+  issueDate: date('issue_date', { mode: 'string' }).notNull(),
+  issuedBy: text('issued_by').notNull(),
+  toContractor: text('to_contractor').notNull(),
+  description: text('description').notNull(),
+  drawingRef: text('drawing_ref'),
+  costImpact: boolean('cost_impact').notNull().default(false),
+  timeImpact: boolean('time_impact').notNull().default(false),
+  boqId: text('boq_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
 export const constructionSubmittalTypeEnum = complianceSchemaDB.enum('construction_submittal_type', ['shop_drawing', 'product_data', 'sample', 'other'])
 export const constructionSubmittalStatusEnum = complianceSchemaDB.enum('construction_submittal_status', ['pending', 'approved', 'approved_as_noted', 'revise_resubmit', 'rejected'])
 
