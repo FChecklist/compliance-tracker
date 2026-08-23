@@ -396,6 +396,43 @@ export type CombinedAuthContext = {
 }
 
 export async function requireAuthOrApiKey(request: Request): Promise<CombinedAuthContext> {
+  // R36/P6 (E-122, floor_plans perf bug): requireAuth() used to run
+  // unconditionally FIRST, even for a pure server-to-server Bearer-API-key
+  // request with no session cookie at all (exactly how PROJEXA's server
+  // authenticates) -- that's a real supabase.auth.getUser() network round
+  // trip wasted on every single API-key-authenticated request, and was
+  // measured taking 5.2 minutes end-to-end under load on /api/floor-plans
+  // (R33) and reproduced in prod at 24.49s/19.48s (R35). Skip straight to
+  // the API-key path when the request plainly has no session mechanism in
+  // play (no sb-*-auth-token cookie) and does carry a Bearer key -- this is
+  // the ONLY case being fast-pathed, so a real browser session (which never
+  // sends this cookie-less + Bearer-vk_ combination) is completely
+  // unaffected and still goes through requireAuth() exactly as before. If a
+  // request somehow carries BOTH a session cookie and a Bearer key, we fall
+  // through to the original session-first order below so "session wins"
+  // (this function's own contract, see the type's doc comment) is
+  // unchanged for that edge case.
+  const cookieHeader = request.headers.get("cookie") ?? ""
+  const authHeader = request.headers.get("authorization") ?? ""
+  const hasSessionCookie = cookieHeader.includes("-auth-token=")
+  const hasBearerApiKey = authHeader.startsWith("Bearer ")
+  if (!hasSessionCookie && hasBearerApiKey) {
+    const fastApiKeyResult = await validateApiKey(request)
+    if (fastApiKeyResult.status === "ok") {
+      const { context } = fastApiKeyResult
+      return {
+        orgId: context.orgId,
+        dbUser: null,
+        apiKey: { id: context.keyId, name: context.keyName, scopes: context.scopes },
+        response: null,
+      }
+    }
+    // Falls through to the normal path below (requireAuth() then, if that
+    // also fails, the rate-limited/invalid handling on apiKeyResult further
+    // down) -- an invalid/expired key with no cookie still gets exactly the
+    // same error responses as before, just via the original code path.
+  }
+
   const sessionCtx = await requireAuth()
   if (!sessionCtx.response) {
     return { orgId: sessionCtx.orgId, dbUser: sessionCtx.dbUser, apiKey: null, response: null }
