@@ -118,6 +118,76 @@ export async function sitePictureReport(ctx: { orgId: string }, projectId: strin
 const rootBoqLineItemsOnly = (boqId: string) =>
   and(eq(constructionBoqLineItems.boqId, boqId), isNull(constructionBoqLineItems.parentLineItemId))
 
+// R39/R-51 (D-3 extension, NOT a second summation path): earned value is a
+// faithful, minimal port of projexa's applyWeightedParentRollup -- the ONE
+// place this weighted-rollup algorithm lives (a real cross-repo constraint;
+// compliance-tracker cannot import from projexa). Both must be kept in sync
+// by hand; this comment is the pointer. Summed over ROOT lines only (same
+// rootBoqLineItemsOnly discipline as scopeReport/categoryBoqAmountsReport
+// above -- summing roots AND children double-counts, D-3/B-3). A childless
+// root uses its own cumulative DELTA quantity x its own rate. A root WITH
+// children uses SUM(child cumQty x root.rate x child.breakdownPercentage/100)
+// -- children's own rate/amount are always 0 in real BOQ storage (see
+// construction-boq-service.ts#insertLineItems), so this never double-counts
+// even though child rows exist in the same table. R-46-aware: only
+// entry_basis='DELTA' quantity is summed (a SNAPSHOT reading isn't a
+// this-period delta and must never be added into a cumulative sum -- same
+// rule as work-progress-report.ts's sumQtyInRange). KNOWN LIMITATION
+// (inherited from applyWeightedParentRollup's own documented one): only
+// ONE level of hierarchy nesting is handled -- see that function's comment.
+export async function earnedValueReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    if (!latest) return { earnedValue: 0, contractValue: 0, percentByValue: 0 }
+
+    const allItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
+    const roots = allItems.filter((i) => i.parentLineItemId === null)
+    const childrenByParent = new Map<string, typeof allItems>()
+    for (const item of allItems) {
+      if (item.parentLineItemId) {
+        const list = childrenByParent.get(item.parentLineItemId) ?? []
+        list.push(item)
+        childrenByParent.set(item.parentLineItemId, list)
+      }
+    }
+
+    const itemIds = allItems.map((i) => i.id)
+    let qtyByItem = new Map<string, number>()
+    if (itemIds.length > 0) {
+      const idsSql = sql.join(itemIds.map((id) => sql`${id}`), sql`, `)
+      const rows = (await db.execute(sql`
+        SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
+        FROM compliance.construction_work_progress_entries
+        WHERE boq_line_item_id = ANY(ARRAY[${idsSql}]) AND entry_basis = 'DELTA'
+        GROUP BY boq_line_item_id
+      `)) as { boq_line_item_id: string; total_qty: number }[]
+      qtyByItem = new Map(rows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+    }
+
+    let earnedValue = 0
+    let contractValue = 0
+    for (const root of roots) {
+      contractValue += Number(root.amount)
+      const children = childrenByParent.get(root.id)
+      if (children && children.length > 0) {
+        const rootRate = Number(root.rate)
+        for (const child of children) {
+          const childQty = qtyByItem.get(child.id) ?? 0
+          const breakdownPct = Number(child.breakdownPercentage ?? 0)
+          earnedValue += childQty * rootRate * (breakdownPct / 100)
+        }
+      } else {
+        earnedValue += (qtyByItem.get(root.id) ?? 0) * Number(root.rate)
+      }
+    }
+
+    const percentByValue = contractValue > 0 ? Math.round((earnedValue / contractValue) * 10000) / 100 : 0
+    return { earnedValue: Math.round(earnedValue * 100) / 100, contractValue, percentByValue }
+  })
+}
+
 // 6. Scope Report -- BOQ total value + line-item count for the latest (non-superseded) revision.
 export async function scopeReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
@@ -912,6 +982,7 @@ export const REPORT_REGISTRY = {
   "project-completion": projectCompletionReport,
   "category-boq-amounts": categoryBoqAmountsReport,
   "certified-payroll": certifiedPayrollReport,
+  "earned-value": earnedValueReport, // R39/R-51
 } as const
 
 export type ReportName = keyof typeof REPORT_REGISTRY
