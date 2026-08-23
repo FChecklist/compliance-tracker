@@ -503,13 +503,20 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
         orgWide: { byDesigner: [], byProject: [] },
       }
     }
+    // R39/R-C12 (D-10): approval must actually BLOCK, not just sit as a
+    // cosmetic status -- a draft/submitted/rejected hour is not yet a real
+    // cost until a manager approves it. approvalStatus='approved' here and
+    // in the allTimeEntries fetch below (both real cost-roll-up sources)
+    // is the fix; listTimeEntriesForProject/listTimeEntriesForIssue (the
+    // raw entry lists, not cost aggregates) are deliberately untouched --
+    // a designer/manager still needs to SEE a pending entry to review it.
     const rows = await db.select({
       userId: pmsTimeEntries.userId,
       userName: users.name,
       totalHours: sql<number>`coalesce(sum(${pmsTimeEntries.hours}), 0)::float`,
     }).from(pmsTimeEntries)
       .innerJoin(users, eq(pmsTimeEntries.userId, users.id))
-      .where(and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds)))
+      .where(and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds), eq(pmsTimeEntries.approvalStatus, "approved")))
       .groupBy(pmsTimeEntries.userId, users.name)
 
     // Budget-vs-Actual breakdown: Category/Designer-status/overall are
@@ -522,7 +529,7 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     const allProjects = await db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), columns: { id: true, name: true } })
     const allIssues = await db.query.pmsIssues.findMany({ where: eq(pmsIssues.orgId, ctx.orgId), columns: { id: true, projectId: true } })
     const allUsers = await db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true, isActive: true } })
-    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: eq(pmsTimeEntries.orgId, ctx.orgId) })
+    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: and(eq(pmsTimeEntries.orgId, ctx.orgId), eq(pmsTimeEntries.approvalStatus, "approved")) })
     // Fetched once upfront (not once per time entry, see resolvePmsBillableRatePure
     // below) -- same pattern pms-invoice-service.ts's buildInvoiceLinesFromTimeEntries
     // already uses to avoid the equivalent N+1 on this same table.
