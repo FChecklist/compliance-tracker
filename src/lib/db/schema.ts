@@ -5917,7 +5917,14 @@ export const veriMeetingShareLinks = complianceSchemaDB.table('veri_meeting_shar
   id: text('id').primaryKey().$defaultFn(() => createId()),
   meetingId: text('meeting_id').notNull(),
   token: text('token').notNull().unique(),
-  createdById: text('created_by_id').notNull(),
+  // R38 (r38_nullable_created_by_id_share_links): nullable -- an
+  // API-key-authenticated caller (real production shape for a
+  // server-to-server client like PROJEXA) has no real `users` row to
+  // reference at all; the FK was previously NOT NULL, so every API-key
+  // caller's insert violated it. NULL means "created by an API key, not a
+  // logged-in person" -- same convention createBoq()'s actorId fallback
+  // already established for tables with no created_by_id FK at all.
+  createdById: text('created_by_id'),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -11662,7 +11669,12 @@ export const reportShareLinks = complianceSchemaDB.table('report_share_links', {
   reportType: text('report_type').notNull(), // 'work_progress' today; extend, don't overload, for a second report type
   reportRef: text('report_ref').notNull(), // JSON-encoded, report-type-specific (e.g. {projectId, from, to})
   token: text('token').notNull().unique(),
-  createdById: text('created_by_id').notNull(),
+  // R38 (r38_nullable_created_by_id_share_links, R-C15/TC-share): nullable --
+  // see veriMeetingShareLinks.createdById's identical comment above. This is
+  // the concrete bug that made every real (API-key, server-to-server)
+  // PROJEXA share-link request fail with a 500: the FK to `users` had no
+  // row to reference for that caller shape at all.
+  createdById: text('created_by_id'),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
