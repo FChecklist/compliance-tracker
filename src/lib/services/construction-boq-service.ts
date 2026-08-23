@@ -188,6 +188,38 @@ export async function getBoq(ctx: { orgId: string }, boqId: string) {
   })
 }
 
+// R39/R-C09 (Point 154 follow-on): sets a line item's budget/vendor overlay
+// AFTER the BOQ already exists -- budgetPercentage/vendorId/vendorAmount
+// were already real, live columns (Point 154, 22 Aug) with a default of 25
+// and a computedBudget() read-time helper, but no write path existed to
+// change them post-creation. Reuses those SAME columns -- does NOT add a
+// duplicate budget_pct/vendor_amount pair (that would be the exact D-3/B-3
+// drift this run is elsewhere fixing). budgetPercentage recomputes
+// computedBudget on every read automatically (it's derived, never stored),
+// so "override to 40% -> recomputes" needs no extra logic here at all.
+export async function updateLineItemBudget(
+  ctx: { orgId: string },
+  lineItemId: string,
+  input: { budgetPercentage?: number; vendorId?: string | null; vendorAmount?: number | null }
+) {
+  if (input.budgetPercentage !== undefined && (input.budgetPercentage < 0 || input.budgetPercentage > 100)) {
+    throw new ServiceError("budgetPercentage must be between 0 and 100", 400)
+  }
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, lineItemId) })
+    if (!existing) throw new ServiceError("Line item not found", 404)
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, existing.boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("Line item not found", 404)
+
+    const [updated] = await db.update(constructionBoqLineItems).set({
+      ...(input.budgetPercentage !== undefined ? { budgetPercentage: String(input.budgetPercentage) } : {}),
+      ...(input.vendorId !== undefined ? { vendorId: input.vendorId } : {}),
+      ...(input.vendorAmount !== undefined ? { vendorAmount: input.vendorAmount === null ? null : String(input.vendorAmount) } : {}),
+    }).where(eq(constructionBoqLineItems.id, lineItemId)).returning()
+    return withComputedRate(updated)
+  })
+}
+
 export async function createBoq(ctx: BoqContext, input: BoqInput) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
