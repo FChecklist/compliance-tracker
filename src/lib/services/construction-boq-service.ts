@@ -166,7 +166,15 @@ export async function listBoqs(ctx: { orgId: string }, projectId: string) {
   return withTenantContext({ orgId: ctx.orgId }, (db) =>
     db.query.constructionBoqs.findMany({
       where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)),
-      orderBy: (t, { desc }) => desc(t.version),
+      // Point 177/E-116 fix: version DESC alone has no stable tiebreaker when a
+      // project has two or more INDEPENDENT (non-revision-chain) BOQs at the
+      // same version -- Postgres then returns them in an arbitrary physical
+      // order, so callers like work-progress/report/route.ts's
+      // `boqs.find(b => b.status !== "superseded")` silently picked whichever
+      // one the engine happened to return first, not the actual most-recent
+      // one. createdAt DESC as a secondary key makes the order deterministic
+      // and matches the intuitive meaning of "latest" when versions tie.
+      orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)],
     })
   )
 }
