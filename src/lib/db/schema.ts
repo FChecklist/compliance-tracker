@@ -10122,6 +10122,16 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   entryDate: date('entry_date', { mode: 'string' }).notNull(),
   quantityDone: numeric('quantity_done').notNull().default('0'),
   percentComplete: numeric('percent_complete').notNull().default('0'), // 0-100 with decimals, cumulative for the activity as of entryDate
+  // R39/R-46 (r39_wpr_entry_basis, non-destructive -- default 'DELTA' so every
+  // pre-existing row keeps meaning exactly what it already meant): AIA G703 +
+  // SAP PS resolution to the schema's real ambiguity (quantity_done AND
+  // percent_complete on the same NOT NULL row, two mutually exclusive
+  // measurement bases, no discriminator). 'DELTA' = this-period quantity,
+  // additive (G703 col E) -- the WPR roll-up sums it, exactly as before.
+  // 'SNAPSHOT' = a cumulative-to-date percentage that REPLACES the previous
+  // reading (G703 col G/C) -- the roll-up takes the LATEST by (entry_date,
+  // created_at) instead of summing. See work-progress-report.ts (projexa).
+  entryBasis: text('entry_basis').notNull().default('DELTA'), // 'DELTA' | 'SNAPSHOT'
   remarks: text('remarks'),
   recordedById: text('recorded_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
