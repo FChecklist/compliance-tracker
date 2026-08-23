@@ -5913,7 +5913,13 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   aiKeyDecisions: jsonb('ai_key_decisions').notNull().default([]), // string[]
   aiSuggestedActionItems: jsonb('ai_suggested_action_items').notNull().default([]), // { title, assignee: string | null, dueDateHint: string | null }[] -- suggestions only, never auto-created as real tasks
   aiGeneratedAt: timestamp('ai_generated_at'),
-  createdById: text('created_by_id').notNull(),
+  // R39/R-C04 (E-class, same family as E-45/AR-04/R-C14): nullable since 23
+  // Aug -- createVeriMeeting() used to pass ctx.apiKey?.id as a fallback
+  // "actor" on every Bearer-key (PROJEXA server-to-server) call, and an
+  // api_keys row has no matching compliance.users row, so this FK 500'd on
+  // every real PROJEXA-created meeting. Confirmed live, same investigation
+  // as documents.uploadedById's comment. null (not a borrowed id) is honest.
+  createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
