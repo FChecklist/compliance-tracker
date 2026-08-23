@@ -219,6 +219,36 @@ describe("mapRowsToLineItems / parseBoqSpreadsheet -- Sumeet real-file shape (Sl
     expect(task2.parentItemCode).toBeUndefined()
   })
 
+  // E-109: Excel stores a percentage-formatted cell as its underlying
+  // fraction (a cell displaying "30%" is really the number 0.3), and that's
+  // what a real Sumeet-authored file has -- confirmed directly against the
+  // real "Sample Scope with Sub Task.xlsx" via openpyxl(data_only=True):
+  // Frame 01's Breakdown % cell under item 1.01 is genuinely the raw value
+  // 0.3, not the text "30%" and not the number 30. The plain-number mock
+  // rows every other test in this file uses (`"Breakdown %": 30`) never
+  // exercised this -- they inject the already-correct value directly,
+  // which is why this bug shipped and stayed shipped. This test builds a
+  // REAL percentage-formatted cell (number_format "0%") to reproduce it.
+  test("a percentage-formatted Breakdown % cell (Excel fraction 0.3, displays as 30%) normalizes to the whole number 30, not 0.3", async () => {
+    const rows = [
+      { ...HEADER_ROW, "Sl No": "1.01", "Description (Task)": "Partition wall", "QTY": 472, "UNIT": "Sqm", "RATE": 108, "AMOUNT": 50976 },
+      { ...HEADER_ROW, "Sub Task": "Frame 01", "AMOUNT": 15292.8 }, // Breakdown % set below as a real formatted cell
+    ]
+    const sheet = XLSX.utils.json_to_sheet(rows)
+    const headerRow = Object.keys(rows[0])
+    const breakdownCol = headerRow.indexOf("Breakdown %")
+    const cellRef = XLSX.utils.encode_cell({ r: 2, c: breakdownCol }) // row index 2 = second data row (Frame 01)
+    sheet[cellRef] = { t: "n", v: 0.3, z: "0%" } // the real Excel representation of a cell showing "30%"
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, sheet, "BoQ")
+    const buffer = XLSX.write(workbook, { type: "buffer", bookType: "xlsx" }) as Buffer
+
+    const result = await parseBoqSpreadsheet(buffer, "sumeet-boq-pct.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    const frame = result.lineItems.find((i) => i.description === "Frame 01")!
+    expect(frame.breakdownPercentage).toBe(30)
+    expect(frame.breakdownPercentage).not.toBe(0.3)
+  })
+
   // Point 3's own acceptance test: without the header fix, both category
   // headers above would have imported as zero-value root "line items"
   // alongside the 2 real tasks (2 headers + 2 tasks = 4 root-shaped rows

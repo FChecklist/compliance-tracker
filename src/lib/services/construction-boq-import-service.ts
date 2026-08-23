@@ -118,7 +118,22 @@ export function mapRowsToLineItems(rows: Record<string, unknown>[], mapping: Boq
     const unit = mapping.unit ? String(row[mapping.unit] ?? "").trim() : ""
     const quantity = parseAmount(row[mapping.quantity!])
     const rate = parseAmount(row[mapping.rate!])
-    const breakdownPercentage = mapping.breakdownPercentage ? parseAmount(row[mapping.breakdownPercentage]) : undefined
+    // E-109: xlsx stores a percentage-formatted cell as its underlying
+    // fraction (30% -> 0.3), and parseAmount() (shared with plain-number
+    // columns, no percent-aware handling) passes that fraction straight
+    // through -- the DB then holds 0.3 where every downstream reader
+    // (computedBudget(), the UI, Sumeet's own printed sheet) expects the
+    // whole number 30. Confirmed directly against the real source cell
+    // (openpyxl data_only read): Frame 01 under item 1.01 is genuinely
+    // stored as 0.3, not "30%" text and not 30. A real breakdown percentage
+    // in this domain is always > 1 (the spec's smallest real example is 5,
+    // Sanding) and <= 100, so a parsed value in (0, 1] reliably identifies
+    // this fraction-leak rather than a legitimately tiny percentage --
+    // multiply back up to the whole-number reading the rest of the app uses.
+    const breakdownPercentageRaw = mapping.breakdownPercentage ? parseAmount(row[mapping.breakdownPercentage]) : undefined
+    const breakdownPercentage = breakdownPercentageRaw !== undefined && breakdownPercentageRaw > 0 && breakdownPercentageRaw <= 1
+      ? breakdownPercentageRaw * 100
+      : breakdownPercentageRaw
     const isUnlabeledSubTask = !descriptionRaw && !!subTaskRaw
 
     // R11 point 14 (E-57): there is no amount ALIAS used for import -- the
