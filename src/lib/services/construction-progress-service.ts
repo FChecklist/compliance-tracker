@@ -72,11 +72,17 @@ export async function listProgressEntries(ctx: { orgId: string }, filters: { pro
 
 export async function createProgressEntry(
   ctx: { orgId: string; userId: string },
-  input: { projectId: string; activityId: string; boqLineItemId?: string; entryDate: string; quantityDone: number; percentComplete: number; remarks?: string }
+  input: { projectId: string; activityId: string; boqLineItemId?: string; entryDate: string; quantityDone: number; percentComplete: number; remarks?: string; entryBasis?: "DELTA" | "SNAPSHOT" }
 ) {
   if (!input.activityId) throw new ServiceError("activityId is required", 400)
   if (!input.entryDate) throw new ServiceError("entryDate is required", 400)
   if (input.percentComplete < 0 || input.percentComplete > 100) throw new ServiceError("percentComplete must be between 0 and 100", 400)
+  // R39/R-46: defaults to DELTA (today's only real convention) so every
+  // existing caller -- none of which have ever sent this field -- keeps
+  // behaving identically. Only a caller that explicitly opts into SNAPSHOT
+  // gets the latest-wins roll-up treatment.
+  const entryBasis = input.entryBasis ?? "DELTA"
+  if (entryBasis !== "DELTA" && entryBasis !== "SNAPSHOT") throw new ServiceError("entryBasis must be DELTA or SNAPSHOT", 400)
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     await assertProject(db, ctx.orgId, input.projectId)
@@ -98,7 +104,7 @@ export async function createProgressEntry(
     const [row] = await db.insert(constructionWorkProgressEntries).values({
       orgId: ctx.orgId, projectId: input.projectId, activityId: input.activityId, boqLineItemId,
       entryDate: input.entryDate, quantityDone: input.quantityDone !== undefined ? String(input.quantityDone) : undefined, percentComplete: String(input.percentComplete),
-      remarks: input.remarks || null, recordedById: ctx.userId,
+      entryBasis, remarks: input.remarks || null, recordedById: ctx.userId,
     }).returning()
     return row
   }).then((row) => {
