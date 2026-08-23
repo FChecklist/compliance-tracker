@@ -15,11 +15,10 @@ import { defineConfig } from "@playwright/test";
 // package preference and this config's own module resolution have a real
 // package to find.
 //
-// Wave 79 note (still true): zero E2E tests exist yet -- writing real
-// Playwright browser tests (server + auth fixtures) is separate, larger
-// scope. testDir scopes discovery to a dedicated e2e/ directory
-// (currently empty), so --pass-with-no-tests in the CI workflow still
-// applies honestly.
+// Wave 79 note was already stale by the time this file was last touched
+// (e2e/browser-execution-tiers.spec.ts existed) and R38 adds a second real
+// test (e2e/demo-gate-smoke.spec.ts, R-B1) -- --pass-with-no-tests was
+// removed from the CI workflow accordingly (E-38).
 export default defineConfig({
   testDir: "./e2e",
 });

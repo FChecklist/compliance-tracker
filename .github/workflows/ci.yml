@@ -90,11 +90,12 @@ jobs:
       - uses: actions/checkout@v7
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
-      - run: bunx playwright install --with-deps chromium || true
-      # Honest limitation (AI_OS_CERTIFICATION.md, Wave 79): zero E2E tests
-      # exist yet -- writing real Playwright browser tests (server + auth
-      # fixtures) is out of scope for this wave's "minimal unit test suite"
-      # fix. --pass-with-no-tests stays here deliberately, unlike the
-      # unit-tests job above where it was removed because real tests now
-      # back it.
-      - run: bunx playwright test --pass-with-no-tests
+      # R38/R-B1 (Master v5 E-38): `|| true` used to mean a failed browser
+      # install still let this job "pass" with zero tests actually run.
+      # e2e/demo-gate-smoke.spec.ts (R38) is real now -- a failed install
+      # must fail the job like any other real dependency. --pass-with-no-
+      # tests is gone for the same reason: a real test exists, so a run
+      # that somehow discovers none again is itself a real failure, not an
+      # honest limitation to wave through.
+      - run: bunx playwright install --with-deps chromium
+      - run: bunx playwright test
