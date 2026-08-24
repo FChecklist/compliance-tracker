@@ -109,6 +109,12 @@ export type ProjectDashboard = {
   // exists -- a zero project value on a dashboard reads as a real figure.
   // Deliberately NOT derived from the BOQ (Rajat's ruling, see schema.ts).
   projectValue: number | null
+  // R42 seq24: same D-3 earnedValueReport() getOrgDashboard already
+  // exposes -- null (not 0) when construction isn't enabled or no BOQ
+  // exists yet. contractValue is parent-BOQ-lines-only (TC-11).
+  earnedValue: number | null
+  percentByValue: number | null
+  contractValue: number | null
 }
 
 export async function getProjectDashboard(ctx: { orgId: string }, projectId: string): Promise<ProjectDashboard> {
@@ -178,6 +184,27 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       projectValue = poRow?.total !== null && poRow?.total !== undefined ? Number(poRow.total) : null
     }
 
+    // R42 seq24 (M28 DASHBOARD.PROJECT, D-3): the SAME earnedValueReport()
+    // getOrgDashboard already calls -- ONE summation path, never a second,
+    // so the project dashboard and the org dashboard/WPR report can never
+    // disagree. contractValue is parent-lines-only by that function's own
+    // contract (v5 D-3) -- this is what TC-11 checks (5,000 not 10,000).
+    let earnedValue: number | null = null
+    let percentByValue: number | null = null
+    let contractValue: number | null = null
+    try {
+      const ev = await earnedValueReport(ctx, projectId)
+      if (ev.contractValue > 0) {
+        earnedValue = ev.earnedValue
+        percentByValue = ev.percentByValue
+        contractValue = ev.contractValue
+      }
+    } catch {
+      // requireConstructionEnabled() throws when construction isn't enabled
+      // for this org -- null (not 0) is the correct "no data" signal, same
+      // convention getOrgDashboard already uses for this exact case.
+    }
+
     return {
       projectId: project.id,
       projectName: project.name,
@@ -189,6 +216,9 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       photoCount: Number(photoRow?.total ?? 0),
       taskCount: Number(taskStats?.total ?? 0),
       projectValue,
+      earnedValue,
+      percentByValue,
+      contractValue,
     }
   })
 }
