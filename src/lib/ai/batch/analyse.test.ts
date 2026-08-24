@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
-import { clusterGaps, findEmbeddedSql, FORBIDDEN_SQL_PATTERN } from "./analyse";
+import { clusterGaps, findEmbeddedSql, FORBIDDEN_SQL_PATTERN, toReportDefinitionInput } from "./analyse";
 
 describe("clusterGaps -- pure aggregation, M26's frequency >= 3 gate", () => {
   test("a phrase seen 3+ times forms a cluster, citing every real gap_log id", () => {
@@ -70,5 +70,57 @@ describe("findEmbeddedSql + FORBIDDEN_SQL_PATTERN -- M26's SELECT-only, org-scop
     ]) {
       expect(FORBIDDEN_SQL_PATTERN.test(bad)).toBe(true);
     }
+  });
+});
+
+describe("toReportDefinitionInput -- R46 P9 seq33: report_definition artifacts becoming real, runnable rows", () => {
+  test("a deterministic_aggregation artifact with a real TABLE_REGISTRY tableKey maps to an insertable input", () => {
+    const artifact = {
+      kind: "report_definition" as const,
+      title: "Open compliance items by status",
+      definition: {
+        classifications: ["compliance"],
+        description: "Count of open compliance items grouped by status.",
+        executionType: "deterministic_aggregation",
+        executionConfig: { kind: "aggregation", tableKey: "compliance_items", groupByColumn: "status", aggregation: "count" },
+      },
+    };
+    const input = toReportDefinitionInput(artifact, "l2_batch:gap_log:g1,g2,g3");
+    expect(input).not.toBeNull();
+    expect(input?.executionType).toBe("deterministic_aggregation");
+    expect(input?.category).toBe("ai_new_report_promoted");
+    expect(input?.createdBy).toBe("ai");
+    expect(input?.status).toBe("built");
+    expect(input?.promotedFromContext).toBe("l2_batch:gap_log:g1,g2,g3");
+  });
+
+  test("an ai_recipe artifact is rejected (never auto-promoted without a human reviewer)", () => {
+    const artifact = {
+      kind: "report_definition" as const,
+      title: "Narrative risk summary",
+      definition: { executionType: "ai_recipe", executionConfig: { kind: "ai_recipe", promptKey: "x", groundingNote: "x" } },
+    };
+    expect(toReportDefinitionInput(artifact, "l2_batch:gap_log:g1")).toBeNull();
+  });
+
+  test("a tableKey that isn't in the real TABLE_REGISTRY whitelist is rejected", () => {
+    const artifact = {
+      kind: "report_definition" as const,
+      title: "Bogus table report",
+      definition: {
+        executionType: "deterministic_aggregation",
+        executionConfig: { kind: "aggregation", tableKey: "not_a_real_table", aggregation: "count" },
+      },
+    };
+    expect(toReportDefinitionInput(artifact, "l2_batch:gap_log:g1")).toBeNull();
+  });
+
+  test("a missing executionConfig is rejected", () => {
+    const artifact = {
+      kind: "report_definition" as const,
+      title: "No config",
+      definition: { executionType: "deterministic_aggregation" },
+    };
+    expect(toReportDefinitionInput(artifact, "l2_batch:gap_log:g1")).toBeNull();
   });
 });
