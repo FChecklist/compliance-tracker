@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { listProgressEntries, createProgressEntry, ServiceError } from "@/lib/services/construction-progress-service"
 
 export async function GET(request: NextRequest) {
@@ -29,8 +29,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const actorId = ctx.dbUser?.id ?? ctx.apiKey!.id
-    const result = await createProgressEntry({ orgId: ctx.orgId, userId: actorId }, body)
+    // R42 seq22 live-audit finding: `ctx.apiKey!.id` is an api_keys.id, not a
+    // real compliance.users.id -- the exact E-class FK-mismatch bug fixed
+    // independently 3 times elsewhere this run (see resolveActingUser()'s
+    // own doc comment in auth-guard.ts). PROJEXA's real proxy always
+    // authenticates with a shared per-org API key, so this path was live
+    // for every real progress entry PROJEXA has ever logged.
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+    if (actingUserErr) return actingUserErr
+    const result = await createProgressEntry({ orgId: ctx.orgId, userId: actingUser!.id }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
