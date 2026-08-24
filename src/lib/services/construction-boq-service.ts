@@ -672,6 +672,37 @@ export async function submitBoq(ctx: { orgId: string }, boqId: string) {
   return row
 }
 
+// R46/E-126b: no DELETE existed for a BOQ at all -- the demo-gate smoke
+// suite (e2e/demo-gate-smoke.spec.ts) creates real, timestamped BOQs on
+// every CI run with nowhere to clean them up, so the count of ""R-B1
+// smoke ..."" rows on the shared demo project grew unbounded (165 -> 170 ->
+// 204 over three sessions) until an afterEach in that spec could call a
+// real endpoint. Scoped the same way every other mutator in this file is
+// (ctx.orgId via withTenantContext -- a caller can only ever delete a BOQ
+// inside their OWN org, so this is not demo/test-specific, just a normal
+// missing CRUD operation). Restricted to status "draft" only: once a BOQ
+// has been submitted/approved it represents real, potentially executed
+// scope and must go through submitBoq/approveBoq's own state machine (a
+// revision or explicit descope), never a silent delete -- this also means
+// the smoke suite's own BOQs (always left in "draft", never submitted)
+// are always eligible for its own afterEach to remove.
+export async function deleteBoq(ctx: { orgId: string }, boqId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("BOQ not found", 404)
+    if (boq.status !== "draft") throw new ServiceError("Only a draft BOQ can be deleted -- submit/approve implies real scope that must be revised, not silently removed", 400)
+
+    const lineItemRows = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
+    const lineItemIds = lineItemRows.map((li) => li.id)
+    if (lineItemIds.length > 0) {
+      await db.delete(constructionWorkProgressEntries).where(inArray(constructionWorkProgressEntries.boqLineItemId, lineItemIds))
+      await db.delete(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, boqId))
+    }
+    await db.delete(constructionBoqs).where(eq(constructionBoqs.id, boqId))
+    return { deleted: true, id: boqId, lineItemsDeleted: lineItemIds.length }
+  })
+}
+
 export async function approveBoq(ctx: { orgId: string; userId: string }, boqId: string) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
