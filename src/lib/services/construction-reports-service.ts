@@ -129,14 +129,27 @@ const rootBoqLineItemsOnly = (boqId: string) =>
 // children uses SUM(child cumQty x root.rate x child.breakdownPercentage/100).
 // CORRECTED 2026-08-24 (R45 seq 7 / E-127): this file previously claimed
 // "children's own rate/amount are always 0 in real BOQ storage" -- checked
-// directly against production and that was FALSE (477/477 real child rows
-// carry a non-zero, F2-derived rate: root.rate x breakdownPercentage/100,
-// per the canonical rule in construction-boq-service.ts's
-// deriveLineItemQuantityAndRate). This calculation is still correct
-// regardless -- it multiplies by root.rate x breakdownPct/100 directly
-// rather than reading child.rate, which is mathematically identical to
-// child.rate now that F2 is enforced at write time, and never double-counts
-// even though child rows exist in the same table. R-46-aware: only
+// directly against production and that was FALSE. A follow-up verify pass
+// the same day re-checked the OPPOSITE claim this comment used to make ("477/
+// 477 child rows match, zero exceptions, no migration needed") and that was
+// ALSO FALSE -- re-verified live via Supabase MCP 2026-08-24 (root-ancestor
+// resolution via parent_line_item_id): 503 total child rows, 287 matching
+// F2/F3 exactly, 216 mismatching. Of those 216: 198 are harmless e2e test
+// noise (demo-gate-smoke.spec.ts submitting quantity:1/rate:1 on children
+// against real production before this write-path fix existed -- same family
+// as the accepted "R-B1 smoke" rows, left alone per this repo's P-11
+// protocol against raw-SQL test cleanup) and 18 were real, pre-existing
+// DEMO-ORG data (org_id='projexa_demo_org' and 've45lczmkodbiq1m20fy48r5',
+// both confirmed non-production demo tenants, created 2026-08-23/24 --
+// before this write-path fix landed). Those 18 were backfilled to the
+// canonical F2/F3 rate/quantity via scripts/backfill-r45-seq7-child-rate-
+// convention.ts (real before/after counts in that script's own header and
+// this PR's description) -- 0 real (non-smoke-noise) mismatches remained
+// immediately after. This calculation is still correct regardless of any of
+// the above -- it multiplies by root.rate x breakdownPct/100 directly rather
+// than reading child.rate, which is mathematically identical to child.rate
+// now that F2 is enforced at write time, and never double-counts even
+// though child rows exist in the same table. R-46-aware: only
 // entry_basis='DELTA' quantity is summed (a SNAPSHOT reading isn't a
 // this-period delta and must never be added into a cumulative sum -- same
 // rule as work-progress-report.ts's sumQtyInRange). KNOWN LIMITATION

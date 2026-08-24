@@ -97,9 +97,15 @@ describe("computeHierarchicalAmount -- Sub-Task Amount = Main QTY * Main RATE * 
 // price progress recorded against that specific child line, which is only
 // correct if the child's stored rate already equals the F2-derived value --
 // something nothing guaranteed. Settled per platform.sumeet_spec row BOQ-10
-// (the real, confirmed customer BoQ spec) and cross-checked against
-// production (477/477 real child rows matched F2/F3 exactly, 2026-08-24):
-// a child's quantity/rate are DERIVED (F2/F3), not independently entered --
+// (the real, confirmed customer BoQ spec). NOTE: an earlier version of this
+// comment claimed this was "cross-checked against production, 477/477 real
+// child rows matched F2/F3 exactly" -- that was FALSE (an adversarial verify
+// pass 2026-08-24 caught it: real count was 503 total / 287 matching / 216
+// mismatching, mostly harmless e2e noise plus 18 real pre-fix demo-org rows,
+// since backfilled -- see construction-reports-service.ts's
+// earnedValueReport() header for the full, real numbers). BOQ-10 is the
+// spec regardless of that false historical-verification claim -- a child's
+// quantity/rate are DERIVED (F2/F3), not independently entered --
 // this is now enforced at the one write path (insertLineItems), closing the
 // gap that let convention (B) silently disagree with convention (A).
 // These tests would FAIL if that enforcement were ever removed and a child

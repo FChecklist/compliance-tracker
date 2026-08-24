@@ -96,8 +96,13 @@ function resolveRootAncestor(item: BoqLineItemInput, byItemCode: Map<string, Boq
  * entered data -- they are DERIVED from the ROOT ancestor of the
  * parentItemCode chain. This is the real, confirmed customer spec
  * (platform.sumeet_spec row BOQ-10, "Sample Scope with Sub Task.xlsx",
- * CONFIRMED), verified 2026-08-24 against every one of the 477 real child
- * rows already in production at the time -- 100% match, 0 exceptions:
+ * CONFIRMED). NOTE: an earlier version of this comment claimed this was
+ * verified against "477/477 real child rows -- 100% match, 0 exceptions" --
+ * that was FALSE (an adversarial verify pass 2026-08-24 caught it; see
+ * construction-reports-service.ts's earnedValueReport() header comment for
+ * the real, re-verified numbers and the resulting backfill). The formula
+ * below is the correct rule regardless of that false historical-verification
+ * claim -- it is the real customer spec and is enforced at write time here:
  *   F1  AMOUNT_root  = QTY_root  x RATE_root                  (independently entered)
  *   F2  RATE_child   = RATE_root x (breakdownPercentage / 100)
  *   F3  QTY_child    = QTY_root                                (identical, always)
