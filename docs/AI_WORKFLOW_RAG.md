@@ -78,12 +78,28 @@ built.
 real entries (from real `gap_log`/`pipeline_tasks`/`phrase_map` history, per
 D.1's own "DERIVED entries, NOT invented" framing per `platform.r43_queue`
 seq31's own title) plus a provenance-breakdown schema is a multi-session
-engineering task in its own right (R43 seq31 in the queue, currently
-PENDING, zero attempts as of this doc). Per this work order's own
-instruction not to fabricate unbuilt subsystem work in this pass, it is
-reported here precisely instead: **no table, no rows, no code path reads or
-writes it, and no corpus categories exist yet to cross-reference against
-Part C's guardrails.**
+engineering task in its own right. Per this work order's own instruction not
+to fabricate unbuilt subsystem work in this pass, it is reported here
+precisely instead: **no table, no rows, no code path reads or writes it, and
+no corpus categories exist yet to cross-reference against Part C's
+guardrails.**
+
+**Update (seq31 landed after this document was first drafted, same day):**
+`ai-os/R46_P9_SEQ31_RAG_CORPUS_GAP_ANALYSIS.md` (R46 P9 seq31, PR #1366,
+merged) independently confirms the above and adds real detail worth citing
+here rather than duplicating: a *different*, real, already-wired derived
+store exists — `compliance.embeddings` (143 rows: 110 `module` + 27
+`worker_agent` + 5 `task` + 1 `dynamic_chain`, pgvector-backed, genuinely
+derived from `platform.module_registry` and the AI Dev Team roster) — but it
+serves capability-registry semantic search (which tool is relevant to a
+query), not R-43 D.1's user-utterance corpus; different shape, different
+job, not a substitute. That document also inventories the real source data
+available to build D.1's actual corpus (110 registry `function_id`s + 16
+`sumeet_coverage` rows + 21+ segmentation test fixtures + 0 `gap_log` rows
+— all counted directly via `execute_sql`, not estimated) at "on the order of
+147+, before dedup," genuinely close to D.1's ~150 target. It is still not
+built — the table, the transformation pass, and the L0/L1 hit-rate test
+oracle are all real remaining work, scoped there at roughly 1 engineer-day.
 
 ### Cross-reference (Part C ↔ Part D): blocked on Part D, not fabricated here
 
@@ -109,7 +125,7 @@ subsystem work as finished.
 - `ai-os/R46_P9_SEQ30_L1_GUARDRAILS_GAP_ANALYSIS.md` (R46 P9 seq30, PR #1363) — Part C, verbatim file:line citations.
 - `architecture/END_TO_END_TRACE.md` (R46 P9 seq34, PR #1370) — the real, live-traced flow evidence Part A and the guardrail-#6 claim above cite.
 - `src/lib/segmentation/{segment,classify,validate,pipeline,executor}.ts`, `src/lib/ai/adapter.ts`, `src/lib/ai/batch/analyse.ts` — read directly for this document, not summarised from memory.
-- Live Supabase schema query (`information_schema.tables`) + `audit/R1_R45_OPEN_ITEMS.md` (R46 P9 seq44, PR #1365) — Part D's "does not exist" claim, cross-confirmed two ways.
+- Live Supabase schema query (`information_schema.tables`) + `audit/R1_R45_OPEN_ITEMS.md` (R46 P9 seq44, PR #1365) + `ai-os/R46_P9_SEQ31_RAG_CORPUS_GAP_ANALYSIS.md` (R46 P9 seq31, PR #1366) — Part D's "does not exist" claim, cross-confirmed three ways, with the third source adding the real source-data inventory for building it.
 
 ## What this PR does and does not do
 
