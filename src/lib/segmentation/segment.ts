@@ -90,7 +90,13 @@ const LEADING_MARKER = /^(?:\d{1,2}[.)]|[-*•])\s+/;
 // substring containing "then" (must not fire inside "then" being part of a
 // longer word, and must not fire on a bare trailing "then" with nothing
 // after it).
-const THEN_CONNECTOR = /\s+(?:and\s+then|then)\s+/i;
+//
+// Whitespace runs are bounded (\s{1,20}, not \s+) -- CodeQL flagged the
+// unbounded form as a polynomial-time ReDoS risk on attacker-controlled
+// input (ai/adapter.ts's own concerns aside, rawInput here IS end-user
+// text). 20 is far more than any real run of spaces a person would type;
+// this changes worst-case behavior on pathological input, not real matches.
+const THEN_CONNECTOR = /\s{1,20}(?:and\s{1,20}then|then)\s{1,20}/i;
 
 function startsWithKnownVerbOrItemCode(fragment: string): boolean {
   const trimmed = fragment.trimStart();
