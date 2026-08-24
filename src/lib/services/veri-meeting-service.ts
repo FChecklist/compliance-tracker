@@ -307,6 +307,31 @@ export async function generateMeetingIntelligence(ctx: VeriMeetingContext, meeti
 // independent AI call. Still human-gated by this function's own explicit
 // invocation -- no unattended write action, matching task-execution-engine's
 // own doctrine.
+//
+// R-C04-GAP-01 (2026-08-25, latency/duplicate-row gap closure): this used to
+// `await executeTask(...)` inline before returning -- confirmed via real
+// orchestra_executions rows for task_execution.planning calls attached to
+// meeting action items (compliance.orchestra_executions, task_id in
+// veri_meeting_action_items.task_id): avg 12.1s, p50 8.85s, max 37.1s,
+// n=8, all real LLM planning latency sitting on the synchronous request
+// path. Real fallout of that: compliance.veri_meeting_action_items /
+// tasks show 6 duplicate "Order replacement rebar batch" rows on meeting
+// afng5r4rloi9egehpenznrg0 created 18:02:59-18:06:18 on 2026-08-24 -- the
+// exact signature of a client retrying a timed-out request. Two changes:
+// (1) DEDUPE_WINDOW_MS below -- a matching action item (same meeting, same
+// trimmed title) inserted in the last window is treated as the same
+// logical request and returned as-is instead of inserting a second row,
+// so even a retry that reaches this function again cannot create a
+// duplicate. (2) executeTask() is now dispatched via after() (the same
+// pattern publishVeriMeeting() already uses for
+// generateMeetingIntelligence, see its own header above) instead of being
+// awaited inline, so the response returns as soon as the task+action-item
+// rows exist -- the DB-only cost of this function -- instead of blocking
+// on a multi-second-to-37-second AI planning call. Best-effort/
+// non-blocking: a failure here still leaves a real task row (status stays
+// "in_progress"), it just doesn't get the AI-planned dispatch.
+const DEDUPE_WINDOW_MS = 30_000
+
 export async function addMeetingActionItem(
   ctx: VeriMeetingContext,
   meetingId: string,
@@ -318,6 +343,16 @@ export async function addMeetingActionItem(
   const created = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, async (db) => {
     const meeting = await db.query.veriMeetings.findFirst({ where: and(eq(veriMeetings.id, meetingId), eq(veriMeetings.orgId, ctx.orgId)) })
     if (!meeting) throw new ServiceError("Meeting not found", 404)
+
+    const dedupeWindowStart = new Date(Date.now() - DEDUPE_WINDOW_MS)
+    const recentItems = await db.query.veriMeetingActionItems.findMany({
+      where: eq(veriMeetingActionItems.meetingId, meetingId),
+      with: { task: true },
+      orderBy: desc(veriMeetingActionItems.createdAt),
+      limit: 5,
+    })
+    const duplicate = recentItems.find((r) => r.task?.title === title && r.createdAt >= dedupeWindowStart)
+    if (duplicate) return { actionItem: duplicate, task: duplicate.task!, deduped: true as const }
 
     const description = `Action item from meeting: ${meeting.title}`
     const [task] = await db.insert(tasks).values({
@@ -332,19 +367,22 @@ export async function addMeetingActionItem(
       tx: db, action: "veri_meeting.action_item_added", entityType: "veri_meeting", entityId: meetingId,
       details: `Action item added: "${title}"`, orgId: ctx.orgId, ...actorOf(ctx),
     })
-    return { actionItem, task: task! }
+    return { actionItem, task: task!, deduped: false as const }
   })
+
+  if (created.deduped) return { ...created.actionItem, task: created.task }
 
   // R39/R-C04: executeTask needs a real actor -- prefer the task's own
   // resolved assignee (real whenever assigneeUserId was supplied, which the
   // route requires for API-key callers with no dbUser) over ctx.userId.
   const executorId = created.task.userId ?? ctx.userId
   if (!executorId) throw new ServiceError("A real user (assigneeUserId, or a session actor) is required to execute this action item", 400)
-  await executeTask(ctx.orgId, executorId, created.task.id, created.task.title, created.task.description, null, null)
-  const finalTask = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId ?? undefined }, (db) =>
-    db.query.tasks.findFirst({ where: eq(tasks.id, created.task.id) })
+  after(() =>
+    executeTask(ctx.orgId, executorId, created.task.id, created.task.title, created.task.description, null, null).catch((err) => {
+      console.error("addMeetingActionItem: executeTask failed (non-fatal, action item still created):", err)
+    })
   )
-  return { ...created.actionItem, task: finalTask ?? created.task }
+  return { ...created.actionItem, task: created.task }
 }
 
 // Priority 18a (VERI Chat second-screen unification): the panel's Meetings
