@@ -10028,7 +10028,28 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   version: integer('version').notNull().default(1),
-  parentBoqId: text('parent_boq_id'), // self-FK -- previous revision in the chain
+  // E-128: UNIQUE, not just a plain self-FK -- (project_id, version) is
+  // deliberately NOT globally unique (E-116/a13cf547: a project can hold two
+  // or more INDEPENDENT, non-revision-chain BOQs that each legitimately
+  // start at version 1 -- e.g. "Villa 21 - Original BOQ" and "Sumeet Sample
+  // Scope", both real, both version 1, both intentional; every "latest BOQ"
+  // reader already resolves that tie deterministically via version DESC,
+  // createdAt DESC -- see listBoqs()/scopeReport() etc.). The REAL, provably
+  // illegitimate duplicate case found live (2026-08-25, E-128) was different:
+  // createBoqRevision() had no guard against being called twice for the same
+  // parent, so a retried/double-submitted request could give one parent TWO
+  // children both claiming parent.version + 1 (verified live: parent
+  // n1aowsmdxp0xim4zb394zxb2 had two "version 2" children 13s apart, both
+  // empty drafts, zero downstream progress-entry references -- the extra one
+  // was removed as inert duplicate debris in the same migration that added
+  // this constraint). A revision CHAIN's version numbers are only meaningful
+  // and strictly increasing if each parent supersedes into exactly one
+  // child, so that -- not a project-wide (project_id, version) unique, which
+  // would reject the legitimate independent-BOQ case above -- is the real
+  // invariant to enforce at the DB layer. createBoqRevision() also checks
+  // this explicitly up front (a clean 409 ServiceError) so a caller sees a
+  // real error instead of a raw unique-violation.
+  parentBoqId: text('parent_boq_id').unique(), // self-FK -- previous revision in the chain; UNIQUE so a parent can supersede into at most one child
   title: text('title').notNull(),
   status: constructionBoqStatusEnum('status').notNull().default('draft'),
   createdById: text('created_by_id').notNull(),
