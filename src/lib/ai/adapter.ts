@@ -105,8 +105,10 @@ export function getAiProvider(): AiProvider {
   // Neither module should be evaluated (and neither's env checks should run)
   // for the provider that isn't selected.
   if (name === "openrouter") {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     cachedProvider = require("./providers/openrouter").openrouterProvider as AiProvider;
   } else {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
     cachedProvider = require("./providers/claude-cli").claudeCliProvider as AiProvider;
   }
   cachedProviderName = name;
