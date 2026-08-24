@@ -347,6 +347,27 @@ export async function createBoqRevision(
     const parent = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, parentBoqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!parent) throw new ServiceError("Parent BOQ not found", 404)
 
+    // E-128 (real bug, found while investigating duplicate (project_id,
+    // version) rows): nothing previously stopped this function from being
+    // called twice for the same parent -- a double-submit or a retried
+    // request would each read the SAME parent.version and both insert
+    // version = parent.version + 1, giving one parent two sibling children
+    // that collide on version (verified live: parent n1aowsmdxp0xim4zb394zxb2
+    // had exactly this happen, 13 seconds apart). A revision chain's version
+    // numbers only mean anything if each parent supersedes into at most one
+    // child, so that -- not project-wide version uniqueness, which would
+    // wrongly reject the legitimate "two independent, non-chained BOQs both
+    // start at version 1" case documented on schema.ts's parentBoqId column
+    // -- is the real invariant. The DB now also enforces this at the layer
+    // that actually matters (parentBoqId UNIQUE) so a race loses to a clean
+    // constraint violation even if this check and the constraint-add race
+    // each other; this check exists so the common (non-racing) case gets a
+    // real 409 instead of a raw postgres unique-violation bubbling up.
+    const existingChild = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.parentBoqId, parent.id) })
+    if (existingChild) {
+      throw new ServiceError(`This BOQ has already been revised (revision ${existingChild.version}, id ${existingChild.id}) -- create a new revision from that one instead.`, 409)
+    }
+
     const previousItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, parent.id) })
 
     const [boq] = await db.insert(constructionBoqs).values({
