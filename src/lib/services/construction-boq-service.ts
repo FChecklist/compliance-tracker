@@ -211,6 +211,33 @@ async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items
   }
 }
 
+/**
+ * R44 seq3: the inverse of insertLineItems' row shape -- turns an already-
+ * persisted line item back into the BoqLineItemInput shape createBoqRevision
+ * accepts, so "copy the parent BOQ's line items forward" can reuse the exact
+ * same insert path a caller-supplied revision uses (no separate "clone" SQL
+ * path to keep in sync). `itemCodeById` resolves parentLineItemId (a row id)
+ * back to the parent's itemCode, since insertLineItems' hierarchy resolution
+ * works off itemCode, not row id.
+ */
+export function toLineItemInput(item: BoqLineItemRow, itemCodeById: Map<string, string>): BoqLineItemInput {
+  return {
+    activityId: item.activityId ?? undefined,
+    itemCode: item.itemCode ?? undefined,
+    parentItemCode: item.parentLineItemId ? itemCodeById.get(item.parentLineItemId) : undefined,
+    breakdownPercentage: item.breakdownPercentage !== null ? Number(item.breakdownPercentage) : undefined,
+    description: item.description,
+    unit: item.unit,
+    quantity: Number(item.quantity),
+    rate: Number(item.rate),
+    materialCost: item.materialCost !== null ? Number(item.materialCost) : undefined,
+    labourCost: item.labourCost !== null ? Number(item.labourCost) : undefined,
+    equipmentCost: item.equipmentCost !== null ? Number(item.equipmentCost) : undefined,
+    overheadPercent: item.overheadPercent !== null ? Number(item.overheadPercent) : undefined,
+    profitPercent: item.profitPercent !== null ? Number(item.profitPercent) : undefined,
+  }
+}
+
 /** Point 154 (R12): Rajat ruled 22 Aug the 25% figure is a COST CEILING, not
  * a margin -- budget = amount * budgetPercentage / 100 (NOT the margin
  * reading, amount * (1 - budgetPercentage/100), which is excluded). Computed
@@ -309,7 +336,7 @@ async function getBoqRow(db: TenantDb, boqId: string) {
 export async function createBoqRevision(
   ctx: BoqContext,
   parentBoqId: string,
-  input: { title?: string; lineItems: BoqLineItemInput[]; allowScopeReductionOverride?: boolean }
+  input: { title?: string; lineItems?: BoqLineItemInput[]; allowScopeReductionOverride?: boolean }
 ) {
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const parent = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, parentBoqId), eq(constructionBoqs.orgId, ctx.orgId)) })
@@ -322,7 +349,20 @@ export async function createBoqRevision(
       parentBoqId: parent.id, title: input.title?.trim() || parent.title, createdById: ctx.userId,
     }).returning()
 
-    await insertLineItems(db, ctx.orgId, boq.id, input.lineItems || [])
+    // R44 seq3 fix (real defect, found while building the COMPARE archetype):
+    // this used to default a missing `lineItems` to `[]`, so "create a
+    // revision" silently created an EMPTY one unless the caller happened to
+    // re-submit all previous items itself -- the opposite of "create WITH
+    // REFERENCE" (M31: "the single biggest typing saver in an ERP"). Only an
+    // *explicit* `input.lineItems` (including an explicit `[]`, a genuine
+    // "start this revision empty" caller intent) overrides the copy-forward
+    // default; `undefined` now means "copy every parent line item forward
+    // unchanged," matching the create-with-reference contract the TIMELINE/
+    // COMPARE archetypes' test oracle requires.
+    const itemCodeById = new Map(previousItems.filter((i) => i.itemCode).map((i) => [i.id, i.itemCode!]))
+    const lineItems = input.lineItems ?? previousItems.map((row) => toLineItemInput(row, itemCodeById))
+
+    await insertLineItems(db, ctx.orgId, boq.id, lineItems)
 
     // Owner directive: a negative variation (removing/reducing a line item)
     // must be blocked -- not just warned about -- when that item's linked
