@@ -4755,6 +4755,12 @@ export const reportSchedules = complianceSchemaDB.table('report_schedules', {
 // equivalent of report-catalog-service.ts's static REPORT_CATALOG entries);
 // a real orgId = an org-specific definition (e.g. one an org's AI report
 // builder promoted into a reusable row).
+// R46 P9 seq32 (R-43 G.10-G.17): shared by reportDefinitions.scope below and
+// the reuse-store tables (reuseCache/memoryStore) further down this file --
+// declared here, ahead of reportDefinitions, since a Drizzle pgEnum must be
+// initialized before any table column references it.
+export const reuseScopeEnum = complianceSchemaDB.enum('reuse_scope', ['user', 'organization', 'global'])
+
 export const reportDefinitions = complianceSchemaDB.table('report_definitions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id'), // nullable = platform-wide
@@ -4772,6 +4778,11 @@ export const reportDefinitions = complianceSchemaDB.table('report_definitions', 
   createdBy: text('created_by').notNull().default('system'), // 'system' | 'ai' | a real users.id
   promotedFromContext: text('promoted_from_context'), // free-text traceability pointer when createdBy='ai', not a FK
   isActive: boolean('is_active').notNull().default(true),
+  // R46 P9 seq32 (R-43 G.10-G.17): reports/analyses reuse THIS table rather
+  // than a parallel stored_reports/stored_analyses table -- nullable/
+  // additive, the existing 218 rows are unaffected (verified via count()
+  // before/after the migration that added this column).
+  scope: reuseScopeEnum('scope'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -11915,4 +11926,66 @@ export const screenDrafts = complianceSchemaDB.table('screen_drafts', {
   lockExpiresAt: timestamp('lock_expires_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── R46 P9 seq32 (R-43 G.10-G.17) -- reuse store, THREE tables only ──────
+// Deliberately NOT eight tables (an earlier chat pass over-engineered this
+// to 8, including a "stored_functions" table with a `code` column -- that
+// is code-as-data, a self-modifying-system pattern v5 P-6/D-6 bans
+// outright, and was removed). Function reuse means referencing a
+// function_id already in the module registry, NEVER storing or executing
+// code from a row. Reports/analyses deliberately do NOT get a parallel
+// table -- they reuse compliance.report_definitions (218 rows, unaffected
+// by this migration), extended above (see reportDefinitions) with a
+// `scope` column using this same enum (declared before reportDefinitions
+// in this file so that column's reference to it is valid).
+// Covers both TASKS and CHAT RESPONSES -- same shape (an input resolving to
+// a function_id + a response), so one table, not two. UNIQUE(org_id,
+// user_id, scope, input_hash) enforced in the migration -- this is what
+// makes "second identical request -> reuse hit, reuse_count increments,
+// zero model calls" a real, checkable guarantee rather than app-level
+// discipline. A different org with the identical input_hash is a MISS
+// (gets its own row) unless scope='global' groups across orgs deliberately.
+export const reuseCache = complianceSchemaDB.table('reuse_cache', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  scope: reuseScopeEnum('scope').notNull().default('user'),
+  inputHash: text('input_hash').notNull(),
+  functionId: text('function_id'),
+  params: jsonb('params').notNull().default({}),
+  response: jsonb('response'),
+  reuseCount: integer('reuse_count').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Covers both ERRORS and FIXES -- a fix is a solved error (solved=true,
+// solution populated), not a separate concept/table.
+export const incidentLog = complianceSchemaDB.table('incident_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  errorType: text('error_type').notNull(),
+  message: text('message').notNull(),
+  filePath: text('file_path'),
+  context: jsonb('context'),
+  solution: text('solution'),
+  solved: boolean('solved').notNull().default(false),
+  solvedAt: timestamp('solved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Generic scoped key/value memory -- UNIQUE(scope, org_id, user_id, key)
+// enforced in the migration.
+export const memoryStore = complianceSchemaDB.table('memory_store', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: reuseScopeEnum('scope').notNull().default('user'),
+  orgId: text('org_id'),
+  userId: text('user_id'),
+  key: text('key').notNull(),
+  value: jsonb('value').notNull(),
+  interactions: integer('interactions').notNull().default(1),
+  lastUsed: timestamp('last_used').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })
