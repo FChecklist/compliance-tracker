@@ -11733,3 +11733,107 @@ export const reportShareLinks = complianceSchemaDB.table('report_share_links', {
   revokedAt: timestamp('revoked_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── R42 seq12 (M25 submission -> segmentation -> task pipeline, P2) ──────
+// NAMING NOTE, real collision found and avoided: the work order's own "how"
+// names this table `tasks`, but compliance.tasks ALREADY EXISTS (1,904 rows)
+// as the unrelated AI-workforce/dynamic-chain dispatch table (client_id,
+// assistant_id, task_embedding, resolved_worker_agent_id, dynamic_chain_id,
+// search_vector -- none of M25's shape). A second `tasks` table would either
+// fail to create outright, or a silent IF NOT EXISTS would no-op and corrupt
+// this feature from the first migration. Named `pipeline_tasks` instead --
+// everything else in the "how" (columns, statuses, project-resolution rule)
+// is unchanged.
+export const pipelineTaskStatusEnum = complianceSchemaDB.enum('pipeline_task_status', [
+  'to_do', 'in_progress', 'waiting', 'done', 'blocked', // M24's closed 5-status set, verbatim -- no sixth value
+])
+export const pipelineTaskExecutorEnum = complianceSchemaDB.enum('pipeline_task_executor', ['software', 'ai', 'person'])
+export const pipelineTaskProjectSourceEnum = complianceSchemaDB.enum('pipeline_task_project_source', ['inherited', 'stated'])
+// Not a closed set the way pipelineTaskStatusEnum is -- 'chat' covers a
+// submission that produced zero tasks (pure Q&A/acknowledgement, M25's
+// "reads/questions never become tasks"). DERIVED, never set independently by
+// request input -- see submissions.status's own column comment below.
+export const submissionStatusEnum = complianceSchemaDB.enum('submission_status', ['chat', 'in_progress', 'done', 'partial', 'failed'])
+
+export const submissions = complianceSchemaDB.table('submissions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  // M25: "project = the user's default, not a constraint" -- resolved from
+  // the top rail at submission time. Nullable: a submission can legitimately
+  // carry no default project (org-level work, or Mode=Customers/Vendors).
+  projectId: text('project_id'),
+  mode: text('mode').notNull(), // 'Projects' | 'Customers' | 'Vendors' today (M24) -- deliberately text, not enum: M24 does not close this set the way the verb list is closed, and a future module adding a mode must not require a migration.
+  selectedChain: jsonb('selected_chain'), // the user's pill-built chain -- a HINT (M25), never binding on any task's derived_chain/function_id
+  rawInput: text('raw_input').notNull(),
+  userId: text('user_id').notNull(),
+  // DERIVED from this submission's own pipelineTasks, never set independently
+  // by a route handler (M25: "submission status is DERIVED from tasks, never
+  // set independently; any FAILED task -> submission is PARTIAL"). Stored
+  // (not computed on every read) purely so Task Master can list/filter
+  // submissions cheaply; the only writer of this column after INSERT must be
+  // the same service function that recomputes it from child task statuses.
+  status: submissionStatusEnum('status').notNull().default('in_progress'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
+  sequence: integer('sequence').notNull(), // 0-based position within the submission, execution order for depends_on chaining
+  dependsOn: text('depends_on'), // self-referential (another pipelineTasks.id in the same submission); FK added via ALTER TABLE in the migration, same forward-reference pattern as pmsTimeEntries.invoiceItemId
+  orgId: text('org_id').notNull(),
+  // *** RESOLVED AT CREATION, NEVER RE-READ AT EXECUTION (M25) *** -- a task
+  // that later re-read the top rail's current project would silently
+  // retarget mid-flight; that is the wrong-project write arriving by another
+  // door. Every consumer of this column must treat it as immutable post-insert.
+  projectId: text('project_id'),
+  projectSource: pipelineTaskProjectSourceEnum('project_source').notNull(), // INHERITED (from the submission's default) | STATED (the segment named its own project)
+  derivedChain: jsonb('derived_chain'), // re-derived per task by classify.ts -- never copied from submissions.selectedChain
+  functionId: text('function_id'), // null while unresolved (L0 miss awaiting L1, seq13/14)
+  params: jsonb('params').notNull().default({}),
+  chainMatchedHint: boolean('chain_matched_hint').notNull().default(false), // did derivedChain end up matching the submission's selectedChain hint? Audit/telemetry only -- never used to skip re-derivation.
+  executor: pipelineTaskExecutorEnum('executor').notNull().default('software'),
+  status: pipelineTaskStatusEnum('status').notNull().default('to_do'),
+  result: jsonb('result'),
+  error: text('error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const submissionsRelations = relations(submissions, ({ many }) => ({
+  tasks: many(pipelineTasks),
+}))
+export const pipelineTasksRelations = relations(pipelineTasks, ({ one }) => ({
+  submission: one(submissions, { fields: [pipelineTasks.submissionId], references: [submissions.id] }),
+}))
+
+// L0's exact-match table (M26): PHRASE -> function_id, keyed by function per
+// M25's correction to the original chain-keyed reading. UNIQUE(org_id,
+// normalised_phrase) enforced in the migration (a DB constraint, not just
+// app-level discipline) -- classify.ts's L0 lookup depends on there being at
+// most one row per (org, phrase).
+export const phraseMap = complianceSchemaDB.table('phrase_map', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  normalisedPhrase: text('normalised_phrase').notNull(),
+  functionId: text('function_id').notNull(),
+  fixedParams: jsonb('fixed_params'),
+  hitCount: integer('hit_count').notNull().default(0),
+  promotedById: text('promoted_by_id'), // the Level-3 (human) approver, M26 -- null until an actual promotion has happened
+  promotedAt: timestamp('promoted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Every L0/L1 MISS lands here (M26: "FAIL -> gap_log + honest 'cannot do
+// that yet'"), feeding L2's nightly clustering (seq15). Never read by L0/L1
+// themselves -- write-only from their perspective.
+export const gapLog = complianceSchemaDB.table('gap_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  submissionId: text('submission_id').references(() => submissions.id, { onDelete: 'set null' }),
+  segmentText: text('segment_text').notNull(),
+  normalisedIntent: text('normalised_intent'),
+  reason: text('reason').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
