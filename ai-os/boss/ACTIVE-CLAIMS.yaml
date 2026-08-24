@@ -6168,6 +6168,29 @@ active:
       ai-os/boss/ACTIVE-CLAIMS.yaml (this entry). Read-only investigation only
       -- zero PRs closed/merged/triaged, zero product code touched, per SPEC's
       explicit instruction.
+  - session_label: "Super Boss (Claude Code, laptop, Sonnet 5) -- R43 seq2: expose the existing screen_definitions registry to PROJEXA"
+    claimed_at: "2026-08-24T (this session)"
+    claim: |
+      CORRECTED CLAIM (superseded my own earlier entry in this file, which I
+      had to `git reset --hard origin/main` away after discovering it was
+      based on a stale local `main` -- I branched after `git fetch` without
+      `git pull`, missing R42 seq20-24 which already shipped the real
+      screen_definitions Drizzle table + resolveScreenDefinition()
+      (src/lib/screens/resolve-definition.ts, withTenantContext-based, org-
+      row-overrides-global). Re-confirmed via `git grep` on real origin/main:
+      NOTHING under src/app/api/** references screenDefinitions or
+      resolveScreenDefinition -- no route exposes it to PROJEXA's Bearer-key
+      surface, and PermitObjectClient.tsx (the seq21 PERMITS.OBJECT screen)
+      doesn't call it either. The core R43 seq2 finding (nothing renders
+      from a screen_definitions row yet, in either repo) still holds; only
+      my planned FIX was wrong. Real claim this time: ONE new file,
+      src/app/api/v1/projexa/screen-definitions/[functionId]/route.ts
+      (Bearer-key GET, requireAuthOrApiKey pattern, calls the EXISTING
+      resolveScreenDefinition(orgId, functionId) -- not rebuilding it). Not
+      touching src/lib/db/schema.ts or src/lib/screens/resolve-definition.ts
+      at all. Sibling claim in projexa: PermitsListClient.tsx +
+      permits/page.tsx (unchanged from my first pass -- projexa's own main
+      was NOT stale, confirmed separately).
 recently_completed:
   - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
     claimed_at: "2026-08-16T (this session, closed same session)"
