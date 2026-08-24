@@ -8,7 +8,7 @@
 // authority/number/issue date inside metadata) it was never meant to carry.
 import { NextRequest, NextResponse } from "next/server"
 import { and, eq } from "drizzle-orm"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { documents } from "@/lib/db/schema"
 import { createClient } from "@supabase/supabase-js"
@@ -66,9 +66,17 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
   const { id } = await params
-  const actorId = ctx.dbUser?.id ?? null
-
   const body = await request.json().catch(() => ({}))
+  // R42 seq21 live-oracle finding: draft discard on save silently never fired
+  // for PROJEXA's real (API-key) caller -- actorId was always null, same
+  // shared-API-key gap already fixed on timesheets submit/approve/reject.
+  // Only resolved (and only required) when a draft is actually in play.
+  let actorId: string | null = ctx.dbUser?.id ?? null
+  if (!actorId && typeof body.draftId === "string") {
+    const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+    if (actingUserErr) return actingUserErr
+    actorId = actingUser!.id
+  }
 
   const updated = await withTenantContext({ orgId: ctx.orgId, userId: actorId ?? undefined }, async (db) => {
     const existing = await db.query.documents.findFirst({ where: and(eq(documents.id, id), eq(documents.orgId, ctx.orgId!), eq(documents.category, "permit")) })
