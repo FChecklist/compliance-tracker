@@ -25,6 +25,7 @@
     { "path": "/api/internal/ai-reduction-snapshot/run", "schedule": "0 2 1 * *" },
     { "path": "/api/internal/cost-anomalies/run", "schedule": "15 9 * * *" },
     { "path": "/api/internal/idle-ai-capacity/run", "schedule": "0 10 1 1,4,7,10 *" },
-    { "path": "/api/internal/pipeline-stuck-deal-digest/run", "schedule": "50 9 * * *" }
+    { "path": "/api/internal/pipeline-stuck-deal-digest/run", "schedule": "50 9 * * *" },
+    { "path": "/api/internal/l2-phrase-promotion/run", "schedule": "30 10 * * *" }
   ]
 }

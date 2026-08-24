@@ -7,7 +7,7 @@
 // adapter.classify() call [seq13, the only AI in this file] -> validate()
 // [seq12] -> create the pipeline_tasks row -> executeTask() [this seq,
 // executor.ts] -> update the row with its real outcome.
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { submissions, pipelineTasks, phraseMap, gapLog } from "@/lib/db/schema";
 import { segment } from "./segment";
@@ -56,8 +56,13 @@ function makeL0Repo(orgId: string, userId: string): L0Repo {
   return {
     async findPhraseMapMatch(_orgId, normalisedPhrase) {
       return withTenantContext({ orgId }, async (db) => {
+        // seq15: L0 only ever matches a PROMOTED phrase (promotedAt set) --
+        // L2's own candidates land in this same table unpromoted (M26:
+        // "Level 3 approves phrase-map promotions"). Without this filter, an
+        // unreviewed AI-proposed candidate would go live in L0 the instant
+        // it's written, skipping the human approval step entirely.
         const row = await db.query.phraseMap.findFirst({
-          where: and(eq(phraseMap.orgId, orgId), eq(phraseMap.normalisedPhrase, normalisedPhrase)),
+          where: and(eq(phraseMap.orgId, orgId), eq(phraseMap.normalisedPhrase, normalisedPhrase), isNotNull(phraseMap.promotedAt)),
         });
         if (!row) return null;
         return { functionId: row.functionId, fixedParams: (row.fixedParams as Record<string, unknown> | null) ?? null };
