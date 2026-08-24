@@ -10059,12 +10059,23 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (not a DB generated column, matching this codebase's convention elsewhere)
   // Hierarchical BoQ breakdown (Owner directive, PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
   // 2026-07-27): self-FK to another row in the SAME boqId, matching the
-  // constructionCategories.parentCategoryId precedent above. When set,
-  // `amount` above is computed by construction-boq-service.ts as
-  // `Sub-Task Amount = Main QTY * Main RATE * Breakdown %` -- "Main" is the
-  // ROOT ancestor of the parent chain (not necessarily the immediate
-  // parent), per the Owner's exact formula wording. breakdownPercentage is
-  // required when parentLineItemId is set, ignored (null) otherwise.
+  // constructionCategories.parentCategoryId precedent above. breakdownPercentage
+  // is required when parentLineItemId is set, ignored (null) otherwise.
+  //
+  // *** CANONICAL CHILD-RATE RULE -- settled R45 seq 7 / E-127, do not
+  // reintroduce a second convention. *** When parentLineItemId is set, BOTH
+  // `rate` AND `quantity` above are DERIVED at write time by
+  // construction-boq-service.ts's deriveLineItemQuantityAndRate() -- they
+  // are not independently-entered data for a child row, confirmed against
+  // the real customer BoQ spec (platform.sumeet_spec row BOQ-10):
+  //   F1  AMOUNT_root  = QTY_root  x RATE_root                 (independently entered)
+  //   F2  RATE_child   = RATE_root x (breakdownPercentage/100)
+  //   F3  QTY_child    = QTY_root                                (identical, always)
+  //   F4  AMOUNT_child = QTY_child x RATE_child = AMOUNT_root x (breakdownPercentage/100)
+  // "Root" is the ROOT ancestor of the parent chain (not necessarily the
+  // immediate parent). See deriveLineItemQuantityAndRate's own doc comment
+  // for why this must be enforced at the write path, not left to whatever a
+  // caller happens to submit.
   parentLineItemId: text('parent_line_item_id'),
   breakdownPercentage: numeric('breakdown_percentage'),
   // Wave 125 (OpenConstructionERP-style rate analysis/cost buildup, studied

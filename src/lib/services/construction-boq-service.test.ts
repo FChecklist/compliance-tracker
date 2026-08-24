@@ -7,7 +7,7 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test"
 import {
-  computeHierarchicalAmount, diffLineItems, computeTotalVariation, findScopeReductionViolations,
+  computeHierarchicalAmount, deriveLineItemQuantityAndRate, diffLineItems, computeTotalVariation, findScopeReductionViolations,
   resolveProgressByLineItem, toLineItemInput,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
@@ -85,6 +85,90 @@ describe("computeHierarchicalAmount -- Sub-Task Amount = Main QTY * Main RATE * 
     const b: BoqLineItemInput = { itemCode: "B", parentItemCode: "A", breakdownPercentage: 50, description: "B", unit: "cum", quantity: 0, rate: 0 }
     const byCode = new Map([["A", a], ["B", b]])
     expect(() => computeHierarchicalAmount(a, byCode)).toThrow(ServiceError)
+  })
+})
+
+// R45 seq 7 / E-127 -- "Settle the two child-rate conventions." Two real,
+// contradictory conventions existed: (A) construction-boq-service.ts /
+// schema.ts computed a child's `amount` from the ROOT's qty*rate*breakdown%
+// while leaving the child's OWN stored quantity/rate columns as whatever a
+// caller happened to submit, unenforced; (B) work-progress-report-pdf.ts's
+// computeRows() read a line's own `rate` column DIRECTLY (qty x rate) to
+// price progress recorded against that specific child line, which is only
+// correct if the child's stored rate already equals the F2-derived value --
+// something nothing guaranteed. Settled per platform.sumeet_spec row BOQ-10
+// (the real, confirmed customer BoQ spec). NOTE: an earlier version of this
+// comment claimed this was "cross-checked against production, 477/477 real
+// child rows matched F2/F3 exactly" -- that was FALSE (an adversarial verify
+// pass 2026-08-24 caught it: real count was 503 total / 287 matching / 216
+// mismatching, mostly harmless e2e noise plus 18 real pre-fix demo-org rows,
+// since backfilled -- see construction-reports-service.ts's
+// earnedValueReport() header for the full, real numbers). BOQ-10 is the
+// spec regardless of that false historical-verification claim -- a child's
+// quantity/rate are DERIVED (F2/F3), not independently entered --
+// this is now enforced at the one write path (insertLineItems), closing the
+// gap that let convention (B) silently disagree with convention (A).
+// These tests would FAIL if that enforcement were ever removed and a child
+// row's own submitted quantity/rate were trusted again.
+describe("deriveLineItemQuantityAndRate -- canonical child-rate rule (R45 seq 7 / E-127)", () => {
+  test("a root-level item (no parentItemCode) keeps its own quantity/rate exactly as entered -- F1", () => {
+    const item: BoqLineItemInput = { description: "Excavation", unit: "cum", quantity: 100, rate: 50 }
+    expect(deriveLineItemQuantityAndRate(item, new Map())).toEqual({ quantity: 100, rate: 50 })
+  })
+
+  test("a child's quantity is the ROOT's quantity, unscaled -- F3", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]])).quantity).toBe(472)
+  })
+
+  test("a child's rate is ROOT rate x breakdown% / 100 -- F2 (the Sumeet spec's own worked example: 108 x 30% = 32.4)", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]])).rate).toBeCloseTo(32.4, 6)
+  })
+
+  test("*** THE CORE FIX ***: a child's OWN submitted quantity/rate are IGNORED and overwritten by the derived root values -- proves independent entry (convention B) is no longer possible", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    // caller submits garbage/stale quantity+rate on a child row -- must not survive.
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 999999, rate: 1 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toEqual({ quantity: 472, rate: 32.4 })
+  })
+
+  test("a child submitted with quantity/rate both 0 (the historically 'always 0' assumption) still derives the correct non-zero values", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 15, description: "Gypsum Board 01", unit: "sqm", quantity: 0, rate: 0 }
+    expect(deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toEqual({ quantity: 472, rate: 16.2 })
+  })
+
+  test("multi-level nesting (Main -> Sub -> Sub-sub) derives off the ROOT Main's qty/rate, not the immediate parent Sub's", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "cum", quantity: 100, rate: 50 }
+    const sub: BoqLineItemInput = { itemCode: "S1", parentItemCode: "M1", breakdownPercentage: 40, description: "Sub", unit: "cum", quantity: 0, rate: 0 }
+    const subsub: BoqLineItemInput = { parentItemCode: "S1", breakdownPercentage: 50, description: "Sub-sub", unit: "cum", quantity: 0, rate: 0 }
+    const byCode = new Map([["M1", main], ["S1", sub]])
+    expect(deriveLineItemQuantityAndRate(subsub, byCode)).toEqual({ quantity: 100, rate: 25 })
+  })
+
+  test("computeHierarchicalAmount's output equals derived quantity x derived rate (F4) -- amount and the stored columns can never disagree", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "sqm", quantity: 472, rate: 108 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", breakdownPercentage: 30, description: "Frame 01", unit: "sqm", quantity: 0, rate: 0 }
+    const byCode = new Map([["M1", main]])
+    const { quantity, rate } = deriveLineItemQuantityAndRate(sub, byCode)
+    expect(computeHierarchicalAmount(sub, byCode)).toBe(quantity * rate)
+    expect(computeHierarchicalAmount(sub, byCode)).toBeCloseTo(15292.8, 6) // Sumeet spec's own worked example, item 1.01 Frame 01
+  })
+
+  test("missing breakdownPercentage on a child item throws a 400 ServiceError, same as computeHierarchicalAmount", () => {
+    const main: BoqLineItemInput = { itemCode: "M1", description: "Main", unit: "cum", quantity: 100, rate: 50 }
+    const sub: BoqLineItemInput = { parentItemCode: "M1", description: "Sub", unit: "cum", quantity: 0, rate: 0 }
+    expect(() => deriveLineItemQuantityAndRate(sub, new Map([["M1", main]]))).toThrow(ServiceError)
+  })
+
+  test("a circular parentItemCode chain throws rather than looping forever, same as computeHierarchicalAmount", () => {
+    const a: BoqLineItemInput = { itemCode: "A", parentItemCode: "B", breakdownPercentage: 50, description: "A", unit: "cum", quantity: 0, rate: 0 }
+    const b: BoqLineItemInput = { itemCode: "B", parentItemCode: "A", breakdownPercentage: 50, description: "B", unit: "cum", quantity: 0, rate: 0 }
+    const byCode = new Map([["A", a], ["B", b]])
+    expect(() => deriveLineItemQuantityAndRate(a, byCode)).toThrow(ServiceError)
   })
 })
 
