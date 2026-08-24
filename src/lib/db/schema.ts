@@ -11837,3 +11837,50 @@ export const gapLog = complianceSchemaDB.table('gap_log', {
   reason: text('reason').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── R42 seq20 (M28 screen registry + M29 draft lifecycle, S1) ────────────
+// "A function is a row, not a folder" -- adding a screen = inserting one
+// row, no PR, no deploy, no build (M28). CHECK/UNIQUE constraints enforcing
+// M31's field-status rule and M29's "never two drafts on one entity" rule
+// are added via raw SQL in the migration (drizzle-orm has no first-class
+// CHECK-constraint builder as of this schema's drizzle-kit version) -- see
+// that migration file's own comments for the exact constraint text.
+export const screenArchetypeEnum = complianceSchemaDB.enum('screen_archetype', [
+  'LIST', 'OBJECT', 'FORM', 'DASHBOARD', 'REPORT', 'TIMELINE', 'COMPARE', 'CUSTOM',
+])
+
+export const screenDefinitions = complianceSchemaDB.table('screen_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // null = global (M28's reuse mechanism -- most rows are global; an org row overrides the global one for that function_id when present)
+  functionId: text('function_id').notNull(),
+  archetype: screenArchetypeEnum('archetype').notNull(),
+  customComponent: text('custom_component'), // only meaningful when archetype='CUSTOM' -- M28 expects 5-10 of these out of ~80, not a per-module default
+  dataSource: text('data_source').notNull(), // a view name or an org-scoped SELECT identifier the screen reads from
+  // Each element: {label, field, type, control, options_source, default_value,
+  // required, unit, importance, derived_from, field_status, inherits_from_header, level}
+  // -- kept as one jsonb array rather than a child table because M28's own
+  // worked examples treat a screen's column set as a single atomic unit
+  // (versioned together, never independently queried per-column).
+  columns: jsonb('columns').notNull().default([]),
+  filters: jsonb('filters'),
+  actions: jsonb('actions'), // [{label, kind, enabled_when}] -- Filter|Export|+New plus any per-screen extras
+  drillTo: text('drill_to'), // function_id of the screen a row click opens
+  breadcrumbTemplate: text('breadcrumb_template'),
+  flowParent: text('flow_parent'), // function_id (M31 document flow)
+  flowChildren: jsonb('flow_children'), // function_id[]
+  createWithReference: text('create_with_reference'), // function_id this screen can be created "with reference" from (M31)
+  version: integer('version').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const screenDrafts = complianceSchemaDB.table('screen_drafts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  functionId: text('function_id').notNull(),
+  objectId: text('object_id'), // null = a CREATE-mode draft (M29)
+  payload: jsonb('payload').notNull().default({}),
+  lockExpiresAt: timestamp('lock_expires_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
