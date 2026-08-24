@@ -10,7 +10,7 @@
 // "My Timesheet" view can reuse the existing per-project listing without
 // adding business logic here beyond a plain array filter.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { listTimeEntriesForProject, listTimeEntriesForIssue, logTime, ServiceError } from "@/lib/services/pms-time-service"
 
 export async function GET(request: NextRequest) {
@@ -45,15 +45,23 @@ export async function POST(request: NextRequest) {
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+
+  const body = await request.json().catch(() => ({}))
   // logTime() attributes the entry to ctx.userId (the logging user) --
   // matches the identical requirement already on /v1/pms/time-entries'
   // own POST (a real user, not a shared API key, must own a timesheet
   // entry).
-  if (!ctx.dbUser) return NextResponse.json({ error: "This action requires a real user session, not an API key" }, { status: 400 })
+  //
+  // R39/R-C12 fix-2 (live-oracle finding): the same `!ctx.dbUser` 400
+  // fixed on submit/approve/reject applies here too, and predates R39 --
+  // PROJEXA's real POST /api/timesheets has been unreachable end-to-end
+  // since Priority 17 Wave 1 for the identical reason (a shared per-org API
+  // key, never a per-user identity). Same resolveActingUser() fix.
+  const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+  if (actingUserErr) return actingUserErr
 
   try {
-    const body = await request.json()
-    const result = await logTime({ orgId: ctx.orgId, userId: ctx.dbUser.id, dbUser: ctx.dbUser }, body)
+    const result = await logTime({ orgId: ctx.orgId, userId: actingUser!.id, dbUser: actingUser! }, body)
     return NextResponse.json(result, { status: 201 })
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
