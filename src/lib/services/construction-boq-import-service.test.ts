@@ -10,6 +10,7 @@ import { describe, expect, test } from "bun:test"
 import * as XLSX from "xlsx"
 import { parseBoqSpreadsheet, mapBoqHeaders, mapRowsToLineItems } from "./construction-boq-import-service"
 import { parseAmount } from "@/lib/gst/column-mapper"
+import { deriveLineItemQuantityAndRate, type BoqLineItemInput } from "./construction-boq-service"
 
 function buildXlsxBuffer(rows: Record<string, string | number>[]): Buffer {
   const sheet = XLSX.utils.json_to_sheet(rows)
@@ -417,6 +418,62 @@ describe("mapRowsToLineItems / parseBoqSpreadsheet -- Sumeet real-file shape (Sl
     expect(warnings.some((w) => w.includes("category header"))).toBe(true)
     expect(lineItems.find((i) => i.itemCode === "1")).toBeUndefined() // the header itself never became a line item
     for (const item of lineItems) expect(item.parentItemCode).not.toBe("1")
+  })
+})
+
+// E-127 regression guard: the two BOQ write paths (this importer and
+// construction-boq-service.ts's insertLineItems) must land on ONE child-rate
+// convention, not two. Before the R45 seq 7 / E-127 fix, insertLineItems
+// stored a child row's own submitted quantity/rate VERBATIM, so whatever this
+// importer happened to parse off a sub-task row's (often blank -> 0) QTY/RATE
+// cells could silently become the STORED value -- diverging from the
+// Sumeet-confirmed rule (platform.sumeet_spec BOQ-10: QTY_child = QTY_root,
+// RATE_child = RATE_root x breakdown%/100) even though AMOUNT stayed correct
+// via the separate root-rollup path, exactly the "amount right, stored
+// rate/qty wrong" defect real rows in the DB were found with (E-127 finding:
+// child_rate=1/child_qty=1 fixture rows whose amount was already the correct
+// 2,000/1,750/1,250 -- see the backfill this same closure applied). This test
+// exercises the REAL cross-module chain: parse a Sumeet-shaped spreadsheet
+// with this importer, then run every parsed child through the exact function
+// insertLineItems calls at write time (deriveLineItemQuantityAndRate) -- so a
+// future change to either module that lets the two conventions drift apart
+// again fails HERE, not silently in production data.
+describe("cross-module regression: importer output -> insertLineItems' derivation land on ONE convention (E-127)", () => {
+  test("a parsed sub-task row's OWN quantity/rate (as the importer produced them) are irrelevant -- insertLineItems' derivation always recovers the Sumeet-confirmed F2/F3 values from the parsed hierarchy", async () => {
+    const HEADER_ROW = { "Sl No": "", "Category": "", "Dwg Code": "", "Description (Task)": "", "Sub Task": "", "QTY": "", "UNIT": "", "Breakdown %": "", "RATE": "", "AMOUNT": "" }
+    const rows = [
+      { ...HEADER_ROW, "Sl No": "1.01", "Description (Task)": "Partition wall", "QTY": 472, "UNIT": "Sqm", "RATE": 108, "AMOUNT": 50976 },
+      { ...HEADER_ROW, "Sub Task": "Frame 01", "Breakdown %": 30, "AMOUNT": 15292.8 },
+      { ...HEADER_ROW, "Sub Task": "Gypsum Board 01", "Breakdown %": 15, "AMOUNT": 7646.4 },
+    ]
+    const buffer = buildXlsxBuffer(rows)
+    const { lineItems } = await parseBoqSpreadsheet(buffer, "sumeet-boq-e127.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+    // The importer itself parses a blank sub-task QTY/RATE cell as 0 -- this
+    // is the exact un-derived state that used to leak into storage.
+    const frame = lineItems.find((i) => i.description === "Frame 01")!
+    const gypsum = lineItems.find((i) => i.description === "Gypsum Board 01")!
+    expect(frame.quantity).toBe(0)
+    expect(frame.rate).toBe(0)
+    expect(gypsum.quantity).toBe(0)
+    expect(gypsum.rate).toBe(0)
+
+    // The same byItemCode map insertLineItems builds from the submission.
+    const byItemCode = new Map(lineItems.filter((i) => i.itemCode).map((i) => [i.itemCode!, i] as [string, BoqLineItemInput]))
+
+    const frameDerived = deriveLineItemQuantityAndRate(frame, byItemCode)
+    const gypsumDerived = deriveLineItemQuantityAndRate(gypsum, byItemCode)
+
+    // Sumeet-confirmed oracle (platform.sumeet_spec BOQ-10 worked example):
+    // Frame 01 @ 30% on item 1.01 (qty 472, rate 108) -> qty 472, rate 32.40.
+    expect(frameDerived).toEqual({ quantity: 472, rate: 32.4 })
+    expect(gypsumDerived).toEqual({ quantity: 472, rate: 16.2 })
+
+    // F4: amount derived from the WRITE-TIME values must match the sheet's
+    // own printed amount -- the one invariant that was already correct
+    // before this fix, now joined by F2/F3 holding on the STORED columns too.
+    expect(frameDerived.quantity * frameDerived.rate).toBeCloseTo(15292.8, 5)
+    expect(gypsumDerived.quantity * gypsumDerived.rate).toBeCloseTo(7646.4, 5)
   })
 })
 
