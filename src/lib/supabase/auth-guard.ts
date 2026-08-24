@@ -468,6 +468,51 @@ export async function requireAuthOrApiKey(request: Request): Promise<CombinedAut
   }
 }
 
+// R39/R-C12 fix-2 (live-oracle finding): PROJEXA never forwards a per-user
+// VERIDIAN identity on server-to-server calls -- every request authenticates
+// with a single shared per-org API key (see PROJEXA's own auth-guard.ts
+// OrgRole comment: "PROJEXA's server routes call VERIDIAN with a single
+// shared per-org API key... not a per-user VERIDIAN identity"). Confirmed
+// live: calling the new v1/projexa/timesheets/[id]/{submit,approve,reject}
+// routes through the real deployed PROJEXA proxy always 400'd with "This
+// action requires a real user session, not an API key" -- ctx.dbUser is
+// always null for an API-key caller, so those routes were dead-on-arrival
+// end-to-end despite passing typecheck/unit tests.
+//
+// Actions that MUST know a specific real acting user (timesheet self-
+// approval-block, approvedById) cannot use ctx.dbUser for an API-key caller,
+// and must NOT fall back to ctx.apiKey.id either -- that's the E-class
+// FK-mismatch bug (api_keys.id stored where a real compliance.users.id FK is
+// expected) fixed independently 3 times elsewhere this run. Instead, a
+// trusted API-key caller may pass `actorEmail` in the request body; this
+// resolves it to a real, org-scoped, active compliance.users row -- an
+// actual person, verifiable and auditable, never a fabricated identity. A
+// session caller's ctx.dbUser is always preferred and actorEmail is ignored
+// for them, so this changes nothing for a direct/session-authenticated call.
+export async function resolveActingUser(
+  ctx: CombinedAuthContext,
+  actorEmail?: string | null
+): Promise<{ user: typeof users.$inferSelect | null; error: NextResponse | null }> {
+  if (ctx.dbUser) return { user: ctx.dbUser, error: null }
+  if (!ctx.apiKey) return { user: null, error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
+  if (!actorEmail) {
+    return {
+      user: null,
+      error: NextResponse.json({ error: "actorEmail is required in the request body when this action is called with an API key" }, { status: 400 }),
+    }
+  }
+  const actingUser = ctx.orgId
+    ? (await db.query.users.findFirst({ where: and(eq(users.email, actorEmail), eq(users.orgId, ctx.orgId)) })) ?? null
+    : null
+  if (!actingUser) {
+    return { user: null, error: NextResponse.json({ error: `No user found for actorEmail "${actorEmail}" in this organisation` }, { status: 400 }) }
+  }
+  if (!actingUser.isActive) {
+    return { user: null, error: NextResponse.json({ error: `actorEmail "${actorEmail}" resolves to a deactivated user` }, { status: 400 }) }
+  }
+  return { user: actingUser, error: null }
+}
+
 // A real logged-in session always has full access -- scopes are an API-key-
 // only concept (a session's actual permissions are governed by role/rank
 // via hasRole()/requireRole(), a separate axis from read/write scopes).

@@ -2,8 +2,18 @@
 // Bearer-key-callable twin of /api/pms/time-entries/[id]/approve. Gated to
 // a real manager+ dbUser -- an API key can never approve its own submitted
 // hours, matching pms-time-service.ts's own self-approval guard.
+//
+// R39/R-C12 fix-2 (live-oracle finding): a hard `!ctx.dbUser` 400 made this
+// unreachable from the real PROJEXA proxy, which only ever authenticates
+// with a shared per-org API key (ctx.dbUser is always null there) -- see
+// resolveActingUser()'s own doc comment in auth-guard.ts for the full
+// evidence trail. Now resolves the real acting user via body.actorEmail for
+// an API-key caller and role-gates THAT resolved user (still real,
+// org-scoped, manager+) instead of the API key itself -- self-approval-block
+// (reviewTimeEntry's `existing.userId === ctx.userId` check) still applies
+// unchanged, now keyed off a real resolved person either way.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRole } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRole, resolveActingUser } from "@/lib/supabase/auth-guard"
 import { approveTimeEntry, ServiceError } from "@/lib/services/pms-time-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -12,13 +22,16 @@ export async function POST(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
-  if (!ctx.dbUser) return NextResponse.json({ error: "This action requires a real user session, not an API key" }, { status: 400 })
-  const roleErr = requireRole(ctx.dbUser, "manager")
+
+  const body = await request.json().catch(() => ({}))
+  const { user: actingUser, error: actingUserErr } = await resolveActingUser(ctx, body?.actorEmail)
+  if (actingUserErr) return actingUserErr
+  const roleErr = requireRole(actingUser, "manager")
   if (roleErr) return roleErr
 
   try {
     const { id } = await params
-    const entry = await approveTimeEntry({ orgId: ctx.orgId, userId: ctx.dbUser.id }, id)
+    const entry = await approveTimeEntry({ orgId: ctx.orgId, userId: actingUser!.id }, id)
     return NextResponse.json(entry)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })
