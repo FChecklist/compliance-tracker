@@ -12,14 +12,21 @@ import { test, expect, type APIRequestContext } from "@playwright/test";
 // verified against -- not a mock, not a local dev server (which would need
 // its own Supabase credentials wired into CI, a separate and larger task).
 //
-// Known, accepted tradeoff: each run creates 3 real, timestamped BOQs on
-// Oakwood and never deletes them -- there is no DELETE endpoint for a BOQ
-// (confirmed absent this session), and this repo's own protocol forbids
-// writing to production via raw SQL to make a test pass/clean up (P-11).
-// Test data accretes on a real demo project across CI runs; titles are
-// timestamped and clearly test-marked ("R-B1 smoke ...") so they're always
-// identifiable for a periodic manual sweep, same posture this session's own
-// live-evidence-gathering already required (see this PR's own history).
+// R46/E-126b (real fix, not a known tradeoff any more): each run creates 3
+// real, timestamped BOQs on Oakwood -- previously never deleted, because no
+// DELETE endpoint existed for a BOQ. That is what actually leaked: the
+// count of this suite's own "R-B1 smoke ..." rows on the shared demo
+// project grew unbounded across sessions (165 -> 170 -> 204) until this fix.
+// Now a real DELETE exists end-to-end (projexa's DELETE /api/scope/[id] ->
+// compliance-tracker's DELETE /api/v1/projexa/scope/[id] -> construction-
+// boq-service.ts's deleteBoq(), draft-only) and test.afterEach below calls
+// it for every BOQ this run created, via the SAME authenticated browser
+// context the test itself used (no new auth, no raw SQL -- this is P-11-
+// clean: the test cleans up data IT created, through the real API, not a
+// database write to make an assertion pass). Titles stay timestamped and
+// test-marked ("R-B1 smoke ...") regardless, so any pre-existing backlog
+// from before this fix is still identifiable for the one-time sweep this
+// session's own R46/P2 purge already performed.
 //
 // Auth: the SAME zero-password session-minting mechanism this entire work
 // order used throughout (mint-session-r33 Edge Function -> GoTrue token_hash
@@ -91,6 +98,33 @@ async function pollUntil<T>(fn: () => Promise<T>, isReady: (value: T) => boolean
   return last;
 }
 
+// R46/E-126b: module-scoped so both the test body and afterEach can see
+// them -- afterEach has no access to a test's local `const`s otherwise.
+// currentContext is closed by afterEach (not the test body itself) so
+// cleanup can still use its authenticated apiRequest before teardown.
+let currentContext: import("@playwright/test").BrowserContext | null = null;
+let createdBoqIds: string[] = [];
+
+test.afterEach(async () => {
+  const ids = createdBoqIds;
+  createdBoqIds = [];
+  if (currentContext) {
+    const apiRequest = currentContext.request;
+    for (const id of ids) {
+      try {
+        const res = await apiRequest.delete(`/api/scope/${id}`);
+        if (!res.ok()) {
+          console.warn(`afterEach cleanup: DELETE /api/scope/${id} returned ${res.status()} (non-fatal, will remain identifiable as "R-B1 smoke ..." for a manual sweep)`);
+        }
+      } catch (err) {
+        console.warn(`afterEach cleanup: DELETE /api/scope/${id} threw (non-fatal):`, err);
+      }
+    }
+    await currentContext.close();
+    currentContext = null;
+  }
+});
+
 async function mintSessionCookie(request: APIRequestContext) {
   const mintRes = await request.get(
     `${SUPABASE_URL}/functions/v1/mint-session-r33`,
@@ -128,6 +162,7 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
 
   const cookieValue = await mintSessionCookie(request);
   const context = await browser.newContext({ baseURL: PROJEXA_ORIGIN });
+  currentContext = context; // R46/E-126b: lets afterEach clean up + close
   await context.addCookies([
     {
       name: "sb-evpckeuxgvahguwsaeul-auth-token",
@@ -163,6 +198,7 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   });
   expect(tc01.status(), "TC-01: a valid BOQ must be created").toBe(201);
   const tc01Boq = await tc01.json();
+  createdBoqIds.push(tc01Boq.id); // R46/E-126b: cleaned up by afterEach
   expect(tc01Boq.status).toBe("draft");
   expect(Number(tc01Boq.lineItems[0].amount)).toBe(5000);
 
@@ -181,6 +217,7 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   });
   expect(tc10.status(), "TC-10: a valid weighted BOQ must be created").toBe(201);
   const tc10Boq = await tc10.json();
+  createdBoqIds.push(tc10Boq.id); // R46/E-126b: cleaned up by afterEach
   const amountsByCode = Object.fromEntries(
     tc10Boq.lineItems.map((li: { itemCode: string; amount: string }) => [li.itemCode, Number(li.amount)])
   );
@@ -263,6 +300,7 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   });
   expect(tc30Boq.status()).toBe(201);
   const tc30BoqBody = await tc30Boq.json();
+  createdBoqIds.push(tc30BoqBody.id); // R46/E-126b: cleaned up by afterEach
   const frame01 = tc30BoqBody.lineItems.find((li: { itemCode: string }) => li.itemCode === "F01");
 
   const activityRes = await apiRequest.post("/api/work-progress/activities", {
@@ -313,5 +351,8 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   await page.goto("/dashboard");
   await expect(page.getByText(expectedAedText, { exact: false })).toBeVisible({ timeout: 15_000 });
 
-  await context.close();
+  // R46/E-126b: context is closed by test.afterEach above, AFTER it uses
+  // this same context's authenticated apiRequest to delete the 3 BOQs this
+  // run just created (createdBoqIds) -- not here, so cleanup still has a
+  // live, authenticated request context to work with.
 });
