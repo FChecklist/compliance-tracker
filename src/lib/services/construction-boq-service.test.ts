@@ -8,7 +8,7 @@
 import { describe, expect, test } from "bun:test"
 import {
   computeHierarchicalAmount, diffLineItems, computeTotalVariation, findScopeReductionViolations,
-  resolveProgressByLineItem,
+  resolveProgressByLineItem, toLineItemInput,
   ServiceError, type BoqLineItemInput, type BoqLineItemRow, type ChangedLineItem,
 } from "./construction-boq-service"
 
@@ -278,5 +278,51 @@ describe("R12 point 7 -- the 409 guard's full pure pipeline through the NEW (boq
     const violations = findScopeReductionViolations({ removed, changed: [] }, resolved)
     expect(violations).toHaveLength(1)
     expect(violations[0]).toContain("Legacy Item")
+  })
+})
+
+// R44 seq3: real defect found while building the COMPARE archetype --
+// createBoqRevision used to default a missing `lineItems` to `[]`, silently
+// creating an EMPTY revision instead of "create WITH REFERENCE" (M31). The
+// fix is this pure round-trip: a persisted row -> toLineItemInput() -> the
+// same BoqLineItemInput shape insertLineItems() (and therefore
+// createBoqRevision()) accepts, so copy-forward reuses the normal insert
+// path rather than a separate clone query.
+describe("toLineItemInput -- copy-forward round-trip for create-with-reference", () => {
+  test("a plain flat item round-trips every field insertLineItems() reads", () => {
+    const persisted = row({
+      id: "p1", activityId: "act-1", itemCode: "C001", description: "Excavation", unit: "cum",
+      quantity: "100", rate: "50", amount: "5000",
+      materialCost: "10", labourCost: "20", equipmentCost: "5", overheadPercent: "8", profitPercent: "12",
+    })
+    const input = toLineItemInput(persisted, new Map())
+    expect(input).toEqual({
+      activityId: "act-1", itemCode: "C001", parentItemCode: undefined, breakdownPercentage: undefined,
+      description: "Excavation", unit: "cum", quantity: 100, rate: 50,
+      materialCost: 10, labourCost: 20, equipmentCost: 5, overheadPercent: 8, profitPercent: 12,
+    })
+  })
+
+  test("null optional DB fields become undefined (not null) -- BoqLineItemInput's fields are all optional, never nullable", () => {
+    const persisted = row({ id: "p1", description: "Plain item", unit: "nos", quantity: "1", rate: "1" })
+    const input = toLineItemInput(persisted, new Map())
+    expect(input.activityId).toBeUndefined()
+    expect(input.itemCode).toBeUndefined()
+    expect(input.parentItemCode).toBeUndefined()
+    expect(input.materialCost).toBeUndefined()
+  })
+
+  test("a sub-item's parentLineItemId (a row id) resolves back to the parent's itemCode via the id->itemCode map", () => {
+    const sub = row({ id: "c1", itemCode: "S1", parentLineItemId: "main-row-id", breakdownPercentage: "40", description: "Sub", unit: "cum", quantity: "0", rate: "0" })
+    const input = toLineItemInput(sub, new Map([["main-row-id", "M1"]]))
+    expect(input.parentItemCode).toBe("M1")
+    expect(input.breakdownPercentage).toBe(40)
+  })
+
+  test("a whole revision's worth of items (153, matching the real 'Sumeet Sample Scope' BOQ) round-trips to the same count with amounts preserved", () => {
+    const persisted = Array.from({ length: 153 }, (_, i) => row({ id: `p${i}`, itemCode: `C${i}`, description: `Item ${i}`, unit: "nos", quantity: "10", rate: "5", amount: "50" }))
+    const mapped = persisted.map((item) => toLineItemInput(item, new Map()))
+    expect(mapped).toHaveLength(153)
+    expect(mapped.every((i) => i.quantity === 10 && i.rate === 5)).toBe(true)
   })
 })
