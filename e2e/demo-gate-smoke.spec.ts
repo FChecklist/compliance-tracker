@@ -69,7 +69,19 @@ const PROJEXA_ORIGIN = "https://projexa-ai.com";
 // that row -- the fix has to stop assuming this test's own most-recent
 // write will always win a project-wide "latest" contest it does not
 // exclusively control, per the assertions below.
-async function pollUntil<T>(fn: () => Promise<T>, isReady: (value: T) => boolean, attempts = 6, delayMs = 500): Promise<T> {
+// R45 seq6 follow-up (real CI evidence, not a guess): the first push of this
+// fix (commit 57138cc3) failed E2E Tests too, but on a genuinely NEW cause --
+// "Test timeout of 60000ms exceeded" mid-TC-30, not the original TC-11
+// assertion at all. Root cause: given the permanent stray row above, every
+// single run now exhausts pollUntil's full attempts budget (it can never
+// match), so each retry's real network round-trip is pure added latency,
+// every time, on top of this suite's ~12 other sequential real API calls.
+// Trimmed the default budget accordingly (still 2 real retries beyond the
+// first -- enough to catch a genuine brief concurrent-CI race, the original
+// point of polling -- without paying for 6 when the common case can never
+// succeed early) and gave the whole test more headroom below to match how
+// much more real network work it legitimately does now.
+async function pollUntil<T>(fn: () => Promise<T>, isReady: (value: T) => boolean, attempts = 3, delayMs = 400): Promise<T> {
   let last!: T;
   for (let i = 0; i < attempts; i++) {
     last = await fn();
@@ -106,7 +118,13 @@ test("demo gate: TC-01, TC-10, TC-11, TC-30, TC-40 all hold against real product
   browser,
   request,
 }) => {
-  test.setTimeout(60_000);
+  // Raised from the original 60s (see pollUntil's own follow-up comment
+  // above): this test now makes a genuinely larger number of real,
+  // sequential production API calls than it did originally (TC-11's own
+  // resolution poll, informational as it is, still costs real round-trips),
+  // and the first push of this fix hit the old 60s ceiling on real CI
+  // evidence, mid-TC-30, with no assertion failure -- just ran out of clock.
+  test.setTimeout(90_000);
 
   const cookieValue = await mintSessionCookie(request);
   const context = await browser.newContext({ baseURL: PROJEXA_ORIGIN });
