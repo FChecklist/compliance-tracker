@@ -100,9 +100,16 @@ export async function runL2Batch(): Promise<L2BatchResult> {
   // Cross-org discovery only (which orgs have any gap_log activity at all in
   // the window) -- every actual read/write of that org's own rows still
   // happens inside withTenantContext, org-scoped, above.
-  const orgRows = (await rawDb.execute(
-    sql`select distinct org_id from compliance.gap_log where created_at >= now() - interval '24 hours'`
-  )) as { org_id: string }[];
+  // REAL BUG FOUND LIVE (R42 seq15 follow-up): a plain cross-org SELECT
+  // through this file's "raw" db client silently returned zero rows in
+  // production. lib/db/index.ts's own header comment describes DATABASE_URL
+  // as RLS-bypassing, but a live diagnostic proved it actually authenticates
+  // as app_runtime here (not postgres), which does NOT bypass RLS -- so the
+  // query always matched nothing, indistinguishable from "no gap_log
+  // activity" without checking runtime logs. Fixed with a narrowly-scoped
+  // SECURITY DEFINER function (owned by postgres, which does bypass RLS)
+  // rather than widening any role's RLS bypass.
+  const orgRows = (await rawDb.execute(sql`select * from compliance.gap_log_orgs_with_recent_activity()`)) as { org_id: string }[];
   const orgIds = orgRows.map((r) => r.org_id);
 
   let clustersAnalysed = 0;
