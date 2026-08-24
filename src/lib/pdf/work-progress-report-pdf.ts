@@ -110,6 +110,15 @@ export function computeRows(data: WorkProgressReportPdfData, mode: "total" | "ba
   const categoriesById = new Map(data.categories.map((c) => [c.id, c]))
 
   return data.lineItems.map((line) => {
+    // R45 seq 7 / E-127: reading a CHILD line's own `rate` column directly
+    // here (rather than re-deriving root.rate x breakdownPercentage/100) is
+    // safe because construction-boq-service.ts's deriveLineItemQuantityAndRate()
+    // now enforces, at write time, that a child's stored rate/quantity ARE
+    // exactly that derived value (F2/F3) -- not independently entered.
+    // Before that fix this line was silently WRONG for any child row whose
+    // stored rate hadn't happened to already match (e.g. 0), since nothing
+    // enforced the two conventions agreeing. Do not start trusting a raw
+    // `rate` column again anywhere this invariant isn't guaranteed.
     const rate = line.computedRate ?? num(line.rate)
     const qtyTotalBoq = num(line.quantity)
     const amtTotalBoq = num(line.amount) || qtyTotalBoq * rate

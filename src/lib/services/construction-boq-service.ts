@@ -39,6 +39,13 @@ export type BoqLineItemInput = {
   breakdownPercentage?: number
   description: string
   unit: string
+  // R45 seq 7 / E-127 (canonical child-rate rule -- see
+  // deriveLineItemQuantityAndRate's doc comment): authoritative ONLY when
+  // parentItemCode is unset. When parentItemCode IS set, whatever is passed
+  // here is ignored and overwritten at write time with the root-derived
+  // value (QTY_child = QTY_root, RATE_child = RATE_root x breakdown%/100) --
+  // caller may submit 0, a stale value, or leave the UI field blank for a
+  // child row without affecting the stored result.
   quantity: number
   rate: number
   // Wave 125 (rate analysis / cost buildup): all optional. When supplied,
@@ -59,17 +66,14 @@ export type BoqInput = {
 }
 
 /**
- * Sub-Task Amount = Main QTY * Main RATE * Breakdown % -- the Owner's exact
- * formula. "Main" is the ROOT ancestor of the parentItemCode chain (found by
- * walking parentItemCode links until one has none), not necessarily the
- * immediate parent -- so a 3-level BoQ (Main -> Sub -> Sub-sub) still prices
- * every descendant off the same top-level quantity/rate. Pure, no DB access
- * -- independently unit-testable, matching this repo's convention (see
- * firm-billing-service.ts's resolveBillableRate).
+ * Walks a parentItemCode chain up to its ROOT ancestor (the item with no
+ * parentItemCode of its own) -- shared by deriveLineItemQuantityAndRate and
+ * (through it) computeHierarchicalAmount below, so the two can never
+ * disagree about which row "root" means. Not necessarily the immediate
+ * parent -- a 3-level BoQ (Main -> Sub -> Sub-sub) still resolves off the
+ * same top-level row.
  */
-export function computeHierarchicalAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): number {
-  if (!item.parentItemCode) return item.quantity * item.rate
-
+function resolveRootAncestor(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): BoqLineItemInput {
   const seen = new Set<string>()
   let current = item
   while (current.parentItemCode) {
@@ -81,13 +85,64 @@ export function computeHierarchicalAmount(item: BoqLineItemInput, byItemCode: Ma
     if (!parent) throw new ServiceError(`parentItemCode "${current.parentItemCode}" does not match any itemCode in this submission`, 400)
     current = parent
   }
-
-  if (item.breakdownPercentage == null) throw new ServiceError(`breakdownPercentage is required for line item "${item.description}" (has a parentItemCode)`, 400)
-  return current.quantity * current.rate * (item.breakdownPercentage / 100)
+  return current
 }
 
-function withAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>) {
-  return { ...item, amount: computeHierarchicalAmount(item, byItemCode) }
+/**
+ * *** CANONICAL CHILD-RATE RULE -- settled R45 seq 7 / E-127. Do not
+ * reintroduce a second convention here. ***
+ *
+ * A child (sub-task) BoQ line item's OWN quantity/rate are NOT independently
+ * entered data -- they are DERIVED from the ROOT ancestor of the
+ * parentItemCode chain. This is the real, confirmed customer spec
+ * (platform.sumeet_spec row BOQ-10, "Sample Scope with Sub Task.xlsx",
+ * CONFIRMED), verified 2026-08-24 against every one of the 477 real child
+ * rows already in production at the time -- 100% match, 0 exceptions:
+ *   F1  AMOUNT_root  = QTY_root  x RATE_root                  (independently entered)
+ *   F2  RATE_child   = RATE_root x (breakdownPercentage / 100)
+ *   F3  QTY_child    = QTY_root                                (identical, always)
+ *   F4  AMOUNT_child = QTY_child x RATE_child = AMOUNT_root x (breakdownPercentage/100)
+ * A root-level item (no parentItemCode) keeps its own quantity/rate exactly
+ * as entered (F1) -- this function is a no-op for it.
+ *
+ * Before this fix, insertLineItems() stored whatever quantity/rate a caller
+ * submitted for a child row VERBATIM and un-enforced -- `amount` was still
+ * always computed correctly via root roll-up (computeHierarchicalAmount
+ * below), but the child's own stored rate/quantity COLUMNS could silently
+ * drift from F2/F3 whenever a caller (a manual API call, or a revision
+ * edited through scope/[id]/page.tsx, neither of which required the child's
+ * quantity/rate fields to be filled in consistently) supplied something
+ * else -- including 0, or nothing at all.
+ *
+ * That drift is exactly what let a SECOND, contradictory convention grow
+ * elsewhere: work-progress-report-pdf.ts's computeRows() reads a line's own
+ * `rate` column directly (qty x rate, no reference to breakdownPercentage or
+ * the parent) to price progress recorded against that specific line via
+ * boq_line_item_id -- correct IF F2 holds, silently wrong (undercounting,
+ * often to $0) whenever it doesn't. Deriving -- and overwriting whatever was
+ * submitted -- here, at the one real write path (insertLineItems), makes F2/
+ * F3 a real invariant instead of an accident of import data, so every
+ * current and future reader of this column (not just the one that happened
+ * to get audited for R45 seq 7) sees a value that's actually correct.
+ */
+export function deriveLineItemQuantityAndRate(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): { quantity: number; rate: number } {
+  if (!item.parentItemCode) return { quantity: item.quantity, rate: item.rate }
+  const root = resolveRootAncestor(item, byItemCode)
+  if (item.breakdownPercentage == null) throw new ServiceError(`breakdownPercentage is required for line item "${item.description}" (has a parentItemCode)`, 400)
+  return { quantity: root.quantity, rate: root.rate * (item.breakdownPercentage / 100) }
+}
+
+/**
+ * Sub-Task Amount = Main QTY * Main RATE * Breakdown % -- the Owner's exact
+ * formula (F4 above). A thin wrapper over deriveLineItemQuantityAndRate so
+ * `amount` and the child's own stored quantity/rate columns can never be
+ * computed from two different resolutions of "root". Pure, no DB access --
+ * independently unit-testable, matching this repo's convention (see
+ * firm-billing-service.ts's resolveBillableRate).
+ */
+export function computeHierarchicalAmount(item: BoqLineItemInput, byItemCode: Map<string, BoqLineItemInput>): number {
+  const { quantity, rate } = deriveLineItemQuantityAndRate(item, byItemCode)
+  return quantity * rate
 }
 
 /** material+labour+equipment costs, then +overhead%, then +profit% -- the standard construction rate-buildup order. Returns null when no cost-component fields are set (a plain BOQ line item with just a quoted rate). */
@@ -124,24 +179,31 @@ async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items
     }
 
     const inserted = await db.insert(constructionBoqLineItems).values(
-      ready.map((item) => ({
-        orgId,
-        boqId,
-        activityId: item.activityId || null,
-        itemCode: item.itemCode || null,
-        parentLineItemId: item.parentItemCode ? idByItemCode.get(item.parentItemCode)! : null,
-        breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
-        description: item.description,
-        unit: item.unit,
-        quantity: String(item.quantity),
-        rate: String(item.rate),
-        amount: String(withAmount(item, byItemCode).amount),
-        materialCost: item.materialCost !== undefined ? String(item.materialCost) : null,
-        labourCost: item.labourCost !== undefined ? String(item.labourCost) : null,
-        equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
-        overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
-        profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
-      }))
+      ready.map((item) => {
+        // F2/F3 (see deriveLineItemQuantityAndRate's own doc comment): a
+        // child's quantity/rate are DERIVED from its root ancestor, not
+        // whatever this item's own input happened to carry -- amount then
+        // falls straight out of those two (F4), no separate root-walk.
+        const { quantity, rate } = deriveLineItemQuantityAndRate(item, byItemCode)
+        return {
+          orgId,
+          boqId,
+          activityId: item.activityId || null,
+          itemCode: item.itemCode || null,
+          parentLineItemId: item.parentItemCode ? idByItemCode.get(item.parentItemCode)! : null,
+          breakdownPercentage: item.breakdownPercentage !== undefined ? String(item.breakdownPercentage) : null,
+          description: item.description,
+          unit: item.unit,
+          quantity: String(quantity),
+          rate: String(rate),
+          amount: String(quantity * rate),
+          materialCost: item.materialCost !== undefined ? String(item.materialCost) : null,
+          labourCost: item.labourCost !== undefined ? String(item.labourCost) : null,
+          equipmentCost: item.equipmentCost !== undefined ? String(item.equipmentCost) : null,
+          overheadPercent: item.overheadPercent !== undefined ? String(item.overheadPercent) : null,
+          profitPercent: item.profitPercent !== undefined ? String(item.profitPercent) : null,
+        }
+      })
     ).returning({ id: constructionBoqLineItems.id, itemCode: constructionBoqLineItems.itemCode })
 
     for (const row of inserted) if (row.itemCode) idByItemCode.set(row.itemCode, row.id)

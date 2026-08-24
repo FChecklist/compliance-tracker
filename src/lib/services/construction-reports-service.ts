@@ -126,9 +126,16 @@ const rootBoqLineItemsOnly = (boqId: string) =>
 // rootBoqLineItemsOnly discipline as scopeReport/categoryBoqAmountsReport
 // above -- summing roots AND children double-counts, D-3/B-3). A childless
 // root uses its own cumulative DELTA quantity x its own rate. A root WITH
-// children uses SUM(child cumQty x root.rate x child.breakdownPercentage/100)
-// -- children's own rate/amount are always 0 in real BOQ storage (see
-// construction-boq-service.ts#insertLineItems), so this never double-counts
+// children uses SUM(child cumQty x root.rate x child.breakdownPercentage/100).
+// CORRECTED 2026-08-24 (R45 seq 7 / E-127): this file previously claimed
+// "children's own rate/amount are always 0 in real BOQ storage" -- checked
+// directly against production and that was FALSE (477/477 real child rows
+// carry a non-zero, F2-derived rate: root.rate x breakdownPercentage/100,
+// per the canonical rule in construction-boq-service.ts's
+// deriveLineItemQuantityAndRate). This calculation is still correct
+// regardless -- it multiplies by root.rate x breakdownPct/100 directly
+// rather than reading child.rate, which is mathematically identical to
+// child.rate now that F2 is enforced at write time, and never double-counts
 // even though child rows exist in the same table. R-46-aware: only
 // entry_basis='DELTA' quantity is summed (a SNAPSHOT reading isn't a
 // this-period delta and must never be added into a cumulative sum -- same
