@@ -98,6 +98,31 @@ export async function createProgressEntry(
       const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, input.boqLineItemId) })
       const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, ctx.orgId)) }) : null
       if (!lineItem || !boq) throw new ServiceError("BOQ line item not found", 404)
+
+      // T-WPR-15-1 (WPR-15, R41-R45): confirmed live 2026-08-25 that this
+      // endpoint accepted a progress entry posted directly against a PARENT
+      // BOQ line item with zero guard (POST against item 1.01 "Partition
+      // wall", which HAS breakdown children, returned 201 -- the exact
+      // failure mode WPR-15 forbids: "a parent figure must never be storable
+      // directly"). The schema's own canonical-child-rate-rule comment on
+      // constructionBoqLineItems.parentLineItemId establishes the real
+      // invariant this enforces: a ROOT/parent line's percent/qty is always
+      // DERIVED (rolled up from its children, see
+      // work-progress-report.ts's applyWeightedParentRollup on the PROJEXA
+      // side), never independently entered -- so a caller must never be able
+      // to store one directly, only the roll-up may produce it. "Parent"
+      // here means "has at least one other line item pointing at it via
+      // parentLineItemId", NOT merely "parentLineItemId is null" -- a
+      // standalone leaf line with no children of its own (parentLineItemId
+      // null, e.g. a line with no hierarchical breakdown) is a perfectly
+      // valid, real progress-tracking target and must keep working.
+      const child = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.parentLineItemId, input.boqLineItemId) })
+      if (child) {
+        throw new ServiceError(
+          "Progress cannot be recorded directly against a parent BOQ line item -- its quantity/percent is derived from its child line items. Select one of its child line items instead.",
+          400
+        )
+      }
       boqLineItemId = input.boqLineItemId
     }
 
