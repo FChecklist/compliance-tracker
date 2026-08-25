@@ -155,6 +155,108 @@ const rootBoqLineItemsOnly = (boqId: string) =>
 // rule as work-progress-report.ts's sumQtyInRange). KNOWN LIMITATION
 // (inherited from applyWeightedParentRollup's own documented one): only
 // ONE level of hierarchy nesting is handled -- see that function's comment.
+export type EvLineItem = {
+  id: string
+  parentLineItemId: string | null
+  rate: string | number
+  amount: string | number
+  breakdownPercentage: string | number | null
+}
+
+// R46/R-51 (D-3 extension, confirmed live 2026-08-25 -- fault
+// R46P5_R51_01): earnedValueReport() only ever read `quantity_done`
+// (physical "Units Completed" method, BCWP = qty x rate) and completely
+// ignored `percentComplete`, even though createProgressEntry() requires
+// and validates percentComplete (0-100) on every real progress entry
+// exactly as it requires quantityDone -- both are equally real, equally
+// recorded signals, but only one was ever read here. A field crew that
+// reports "50% done" before a precise quantity survey is a normal,
+// legitimate real-world logging pattern (industry-standard EVM's own
+// "% Complete method", BCWP = %complete x line's contracted value, a
+// long-standing alternative to the "Units Completed method" this file
+// already implements) -- previously that entry was silently worth $0 of
+// earned value, identical to a line with NO progress logged at all.
+// Live evidence: Oakwood Residence (upv2q7pv8qcwdayybvu74egm) had 13 real
+// construction_work_progress_entries rows (percent_complete 15-60,
+// 2026-08-24) yet GET /api/projects read earnedValue:0 -- confirmed via
+// Supabase MCP that its active BOQ's own root line item (which has
+// children, so its own quantity_done was ALSO already being dropped
+// entirely by the pre-existing children-only loop below, a second, related
+// bug fixed in the same pass) had 2 real entries, percentComplete=50,
+// quantityDone=0 both times: real, reported progress with nothing to show
+// for it under the old qty-only formula.
+//
+// Fix, applied per line item (root's own line, and independently per
+// child): prefer a real measured quantity (qty x rate) exactly as before
+// -- this is strictly additive, every existing qty>0 code path is
+// byte-for-byte unchanged. ONLY when a line's summed DELTA quantity is 0
+// (no physical measurement recorded for it at all) does it fall back to
+// (latest percentComplete / 100) x that line's own contracted value
+// (root.amount for a childless root or the root itself; root.amount x
+// breakdownPercentage/100 -- the same share-of-parent-value convention the
+// qty-based child formula already uses -- for a child). "Latest
+// percentComplete per item" uses the same DISTINCT ON ... ORDER BY
+// entry_date DESC convention categoryProgressReport() above already uses;
+// unlike quantity_done, percentComplete is a cumulative/absolute reading,
+// never summed across entries.
+export function computeEarnedValue(
+  allItems: EvLineItem[],
+  qtyByItem: Map<string, number>,
+  latestPercentByItem: Map<string, number>
+): { earnedValue: number; contractValue: number; percentByValue: number } {
+  const roots = allItems.filter((i) => i.parentLineItemId === null)
+  const childrenByParent = new Map<string, EvLineItem[]>()
+  for (const item of allItems) {
+    if (item.parentLineItemId) {
+      const list = childrenByParent.get(item.parentLineItemId) ?? []
+      list.push(item)
+      childrenByParent.set(item.parentLineItemId, list)
+    }
+  }
+
+  // Earned value for one line: real measured quantity wins when there is
+  // one; percentComplete of the line's own contracted value only fills in
+  // when there is nothing measured to read.
+  const lineEarnedValue = (itemId: string, rate: number, lineValue: number) => {
+    const measuredQty = qtyByItem.get(itemId) ?? 0
+    if (measuredQty > 0) return measuredQty * rate
+    const pct = latestPercentByItem.get(itemId)
+    return pct ? (pct / 100) * lineValue : 0
+  }
+
+  let earnedValue = 0
+  let contractValue = 0
+  for (const root of roots) {
+    const rootAmount = Number(root.amount)
+    const rootRate = Number(root.rate)
+    contractValue += rootAmount
+    const children = childrenByParent.get(root.id)
+    if (children && children.length > 0) {
+      // The root's own line can carry real progress too (logged before its
+      // scope was broken into weighted children, or reported at the parent
+      // level directly) -- previously dropped unconditionally whenever
+      // children existed; now counted additively on top of whatever the
+      // children separately earn, never double-counted against them.
+      earnedValue += lineEarnedValue(root.id, rootRate, rootAmount)
+      for (const child of children) {
+        const breakdownPct = Number(child.breakdownPercentage ?? 0)
+        const childShareOfContractValue = rootAmount * (breakdownPct / 100)
+        // A measured child quantity must still be scaled by the same
+        // rootRate x breakdownPct/100 the pre-existing formula always used
+        // -- folded into the "rate" passed to lineEarnedValue() so the
+        // percent-fallback branch (which needs the child's plain share of
+        // contract value, not that value again) stays correct too.
+        earnedValue += lineEarnedValue(child.id, rootRate * (breakdownPct / 100), childShareOfContractValue)
+      }
+    } else {
+      earnedValue += lineEarnedValue(root.id, rootRate, rootAmount)
+    }
+  }
+
+  const percentByValue = contractValue > 0 ? Math.round((earnedValue / contractValue) * 10000) / 100 : 0
+  return { earnedValue: Math.round(earnedValue * 100) / 100, contractValue, percentByValue }
+}
+
 export async function earnedValueReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -163,18 +265,10 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
     if (!latest) return { earnedValue: 0, contractValue: 0, percentByValue: 0 }
 
     const allItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
-    const roots = allItems.filter((i) => i.parentLineItemId === null)
-    const childrenByParent = new Map<string, typeof allItems>()
-    for (const item of allItems) {
-      if (item.parentLineItemId) {
-        const list = childrenByParent.get(item.parentLineItemId) ?? []
-        list.push(item)
-        childrenByParent.set(item.parentLineItemId, list)
-      }
-    }
 
     const itemIds = allItems.map((i) => i.id)
     let qtyByItem = new Map<string, number>()
+    let latestPercentByItem = new Map<string, number>()
     if (itemIds.length > 0) {
       const idsSql = sql.join(itemIds.map((id) => sql`${id}`), sql`, `)
       const rows = (await db.execute(sql`
@@ -184,27 +278,17 @@ export async function earnedValueReport(ctx: { orgId: string }, projectId: strin
         GROUP BY boq_line_item_id
       `)) as { boq_line_item_id: string; total_qty: number }[]
       qtyByItem = new Map(rows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+
+      const percentRows = (await db.execute(sql`
+        SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
+        FROM compliance.construction_work_progress_entries
+        WHERE boq_line_item_id = ANY(ARRAY[${idsSql}])
+        ORDER BY boq_line_item_id, entry_date DESC
+      `)) as { boq_line_item_id: string; percent_complete: number }[]
+      latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
     }
 
-    let earnedValue = 0
-    let contractValue = 0
-    for (const root of roots) {
-      contractValue += Number(root.amount)
-      const children = childrenByParent.get(root.id)
-      if (children && children.length > 0) {
-        const rootRate = Number(root.rate)
-        for (const child of children) {
-          const childQty = qtyByItem.get(child.id) ?? 0
-          const breakdownPct = Number(child.breakdownPercentage ?? 0)
-          earnedValue += childQty * rootRate * (breakdownPct / 100)
-        }
-      } else {
-        earnedValue += (qtyByItem.get(root.id) ?? 0) * Number(root.rate)
-      }
-    }
-
-    const percentByValue = contractValue > 0 ? Math.round((earnedValue / contractValue) * 10000) / 100 : 0
-    return { earnedValue: Math.round(earnedValue * 100) / 100, contractValue, percentByValue }
+    return computeEarnedValue(allItems, qtyByItem, latestPercentByItem)
   })
 }
 

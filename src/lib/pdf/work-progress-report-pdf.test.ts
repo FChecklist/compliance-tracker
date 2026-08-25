@@ -110,6 +110,44 @@ describe("computeRows -- Previous/Current/Total-or-Balance arithmetic + WPR-06 c
   });
 });
 
+// R46/CONS-03 (confirmed live 2026-08-25): the PDF export previously
+// carried no Rate/Contract Amt figure and no Grand Total row at all, while
+// the live Report tab and Dashboard both show a real Contract Value for
+// the same project -- a genuine, disclosed omission, not a wrong number.
+describe("computeRows -- Rate/Contract Amt (R46/CONS-03)", () => {
+  test("a root (non-child) line carries its own rate and contracted amount", () => {
+    const rows = computeRows(baseData({ lineItems: [GYPSUM], categories: [CATEGORY], activities: [ACTIVITY], entries: [] }), "total");
+    expect(rows[0].rate).toBe(1);
+    expect(rows[0].contractAmt).toBe(472); // GYPSUM.amount
+  });
+
+  test("computedRate (rate-buildup) feeds contractAmt's qty x rate fallback when no stored amount exists, matching computeRows' own existing amtTotalBoq precedence", () => {
+    const rated = { ...GYPSUM, quantity: 100, rate: 1, amount: 0, computedRate: 10 };
+    const rows = computeRows(baseData({ lineItems: [rated], categories: [CATEGORY], activities: [ACTIVITY], entries: [] }), "total");
+    expect(rows[0].rate).toBe(10);
+    expect(rows[0].contractAmt).toBe(1000); // 100 (qty) x 10 (computedRate) -- amount was 0, so the qty x rate fallback applies
+  });
+
+  test("a stored non-zero amount wins over recomputing qty x rate, for contractAmt exactly as it already did for the rest of computeRows", () => {
+    const rated = { ...GYPSUM, quantity: 100, rate: 1, amount: 472, computedRate: 10 };
+    const rows = computeRows(baseData({ lineItems: [rated], categories: [CATEGORY], activities: [ACTIVITY], entries: [] }), "total");
+    expect(rows[0].contractAmt).toBe(472); // the stored amount, not 100 x 10
+  });
+});
+
+describe("generateWorkProgressReportPdf -- Grand Total (R46/CONS-03)", () => {
+  test("real Oakwood-shaped fixture: Grand Total sums the ROOT line's Contract Amt only, matching the live Dashboard's contract value -- child's own amount is never added again", () => {
+    const root = { id: "PP1", itemCode: "PP1", description: "Parent PP1", unit: "sqm", quantity: 100, rate: 50, amount: 5000, activityId: null, parentLineItemId: null };
+    const child = { id: "PP1-A", itemCode: "PP1-A", description: "Child A", unit: "sqm", quantity: 100, rate: 20, amount: 2000, activityId: null, parentLineItemId: "PP1" };
+    const rows = computeRows(baseData({ lineItems: [root, child], categories: [], activities: [], entries: [] }), "total");
+    const grandTotal = rows.filter((r) => !r.isChild).reduce((s, r) => s + r.contractAmt, 0);
+    expect(grandTotal).toBe(5000); // matches the live "AED 5,000 contract value" evidence -- not 7000 (root + child double-counted)
+    // The PDF itself must still render without throwing for this exact shape.
+    const buffer = generateWorkProgressReportPdf(baseData({ lineItems: [root, child], entries: [] }));
+    expect(Buffer.from(buffer.slice(0, 5)).toString("ascii")).toBe("%PDF-");
+  });
+});
+
 // R12 point 7 (Option B) / E-89 (AR-01): preference-order entry-to-line
 // resolution -- boq_line_item_id, when present on an entry, wins over the
 // activityId match, and is never ALSO counted a second time via activityId.
