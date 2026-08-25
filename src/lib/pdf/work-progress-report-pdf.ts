@@ -96,6 +96,8 @@ export type ComputedRow = {
   description: string
   categoryName: string
   isChild: boolean // WPR-06: a hierarchical BoQ sub-task -- percent cells render blank
+  rate: number
+  contractAmt: number // R46/CONS-03: this line's own contracted value (qty x rate) -- see generateWorkProgressReportPdf's Grand Total note below
   prevQty: number; currentQty: number; thirdQty: number
   prevAmt: number; currentAmt: number; thirdAmt: number
   prevPct: number; currentPct: number; thirdPct: number
@@ -157,6 +159,7 @@ export function computeRows(data: WorkProgressReportPdfData, mode: "total" | "ba
       description: line.description,
       categoryName: category?.name ?? "Uncategorized",
       isChild: !!line.parentLineItemId,
+      rate, contractAmt: amtTotalBoq,
       prevQty, currentQty, thirdQty: mode === "balance" ? balanceQty : totalQty,
       prevAmt, currentAmt, thirdAmt: mode === "balance" ? balanceAmt : totalAmt,
       prevPct: pct(prevAmt), currentPct: pct(currentAmt), thirdPct: mode === "balance" ? balancePct : totalPct,
@@ -203,27 +206,47 @@ export function generateWorkProgressReportPdf(data: WorkProgressReportPdfData): 
     doc.setFont("helvetica", "normal")
     doc.setTextColor(28, 43, 58)
   } else {
+    // R46/CONS-03 (confirmed live 2026-08-25): this table used to carry
+    // only the progress-breakdown columns and dropped the Rate/Contract Amt
+    // figures and Grand Total row the live Report tab and Dashboard both
+    // show for the same project -- a genuine, disclosed omission (not a
+    // wrong number, an absent one), not this file's original "hierarchical
+    // parent rarely receives progress entries itself" limitation noted
+    // above (that's about progress amounts, this is about the STATIC
+    // contracted value, which every line always has). Rate/Contract Amt
+    // are blanked on a child row for the same reason percentages already
+    // are (WPR-06): a child's value is already counted inside its parent's
+    // Contract Amt (D-3's root-only rollup, the same convention
+    // earnedValueReport()'s contractValue and scopeReport()'s totalValue
+    // already use) -- showing it again on the child row would visually
+    // suggest double the real contract value. Grand Total sums Contract
+    // Amt over root lines only for the identical reason.
+    const grandTotalContractAmt = rows.filter((r) => !r.isChild).reduce((s, r) => s + r.contractAmt, 0)
+
     autoTable(doc, {
       startY: y,
       head: [[
-        "Code", "Description", "Category",
+        "Code", "Description", "Category", "Rate", "Contract Amt",
         "% Previous", "% Current", `% ${thirdLabel}`,
         "Qty Previous", "Qty Current", `Qty ${thirdLabel}`,
         "Amt Previous", "Amt Current", `Amt ${thirdLabel}`,
       ]],
       body: rows.map((r) => [
         r.code || "—", r.description, r.categoryName,
+        r.isChild ? "" : money(r.rate), r.isChild ? "" : money(r.contractAmt),
         r.isChild ? "" : `${r.prevPct}%`, r.isChild ? "" : `${r.currentPct}%`, r.isChild ? "" : `${r.thirdPct}%`,
         money(r.prevQty), money(r.currentQty), money(r.thirdQty),
         money(r.prevAmt), money(r.currentAmt), money(r.thirdAmt),
       ]),
+      foot: [["", "", "Grand Total", "", money(grandTotalContractAmt), "", "", "", "", "", "", "", "", ""]],
       margin: { left: 32, right: 32 },
       headStyles: { fillColor: "#1C2B3A", textColor: "#FFFFFF", fontStyle: "bold", fontSize: 8 },
+      footStyles: { fillColor: "#F5820A", textColor: "#FFFFFF", fontStyle: "bold", fontSize: 8 },
       styles: { fontSize: 8, cellPadding: 4 },
       columnStyles: {
         3: { halign: "right" }, 4: { halign: "right" }, 5: { halign: "right" },
         6: { halign: "right" }, 7: { halign: "right" }, 8: { halign: "right" },
-        9: { halign: "right" }, 10: { halign: "right" }, 11: { halign: "right" },
+        9: { halign: "right" }, 10: { halign: "right" }, 11: { halign: "right" }, 12: { halign: "right" }, 13: { halign: "right" },
       },
     })
 
@@ -232,7 +255,7 @@ export function generateWorkProgressReportPdf(data: WorkProgressReportPdfData): 
     doc.setFontSize(7.5)
     doc.setTextColor(100, 100, 100)
     doc.text(
-      "Percentages are shown for parent scope lines only -- a hierarchical BoQ sub-task's own percentage is left blank here.",
+      "Percentages, Rate and Contract Amt are shown for parent scope lines only -- a hierarchical BoQ sub-task's own figures are already counted inside its parent's and are left blank here.",
       32, noteY
     )
     doc.setFont("helvetica", "normal")
