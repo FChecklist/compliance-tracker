@@ -14,6 +14,17 @@ function getAppRuntimeConnectionString(): string {
   )
 }
 
+// R46 (production incident, 2026-08-25: "Vercel Runtime Timeout Error: Task
+// timed out after 300 seconds", 138 occurrences / 18 real users, chronic
+// since 2026-07-15, across ~19 unrelated routes -- see db/index.ts's sibling
+// comment for the full writeup). This is the client "every query running
+// through withTenantContext" actually uses (per this file's own header
+// comment) -- i.e. the real tenant-scoped path most of the affected routes
+// go through -- and it had the identical gap: no connect_timeout,
+// idle_timeout, or statement_timeout, so a single slow/stuck query could
+// occupy one of only 5 connections indefinitely, up to Vercel's own 300s
+// cap. Same fix as db/index.ts, same reasoning: bounds exposure, does not
+// change `max` (a separate, larger tradeoff not addressed here).
 let client: ReturnType<typeof postgres> | null = null
 function getClient() {
   if (!client) {
@@ -21,6 +32,9 @@ function getClient() {
       prepare: false,
       ssl: { rejectUnauthorized: false },
       max: 5,
+      connect_timeout: 10,
+      idle_timeout: 30,
+      connection: { statement_timeout: 25_000 },
     })
   }
   return client
