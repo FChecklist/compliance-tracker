@@ -14,6 +14,8 @@
 // header comment already documented before this extraction).
 import { db, organisations, departments, productBranches, orgProductBranchEnablements } from "@/lib/db"
 import { eq } from "drizzle-orm"
+import { getProvisioningDb } from "@/lib/db/provisioning"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 
 export function slugify(name: string): string {
   return name
@@ -89,7 +91,15 @@ export async function provisionOrganisation(input: ProvisionOrganisationInput): 
   }
 
   const plan = "free"
-  const [org] = await db.insert(organisations).values({
+  // R48_ORG_PROVISION_RLS_BLOCKED_01 / R-CRR-23. THE ONE STATEMENT that runs
+  // on the elevated connection. compliance.organisations has FORCED RLS whose
+  // only app_runtime policy is WITH CHECK (id = current_org_id()), and a row
+  // that is creating the org itself can never satisfy that -- proved by
+  // running this exact INSERT under SET ROLE app_runtime and getting "new row
+  // violates row-level security policy". You cannot be inside a tenant before
+  // the tenant exists. Everything below this line goes back through
+  // app_runtime under normal RLS, scoped to the org we just created.
+  const [org] = await getProvisioningDb().insert(organisations).values({
     name: orgName,
     slug,
     plan,
@@ -100,15 +110,21 @@ export async function provisionOrganisation(input: ProvisionOrganisationInput): 
 
   // Wave 113 (VERI Treasure): free/on-by-default for every org, unlike
   // opt-in branches like PMS. Never blocks provisioning on failure.
+  // From here on the org EXISTS, so we are legitimately inside a tenant and
+  // every remaining write runs as app_runtime with RLS enforcing
+  // org_id = current_org_id(). That is R-CRR-23 constraint (4), and it is why
+  // the elevated connection above is a single statement rather than a mode.
   try {
     const veriRewardBranch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_reward") })
     if (veriRewardBranch) {
-      await db.insert(orgProductBranchEnablements).values({
-        orgId: org.id,
-        productBranchId: veriRewardBranch.id,
-        isEnabled: true,
-        enabledAt: new Date(),
-      })
+      await withTenantContext({ orgId: org.id }, (tx) =>
+        tx.insert(orgProductBranchEnablements).values({
+          orgId: org.id,
+          productBranchId: veriRewardBranch.id,
+          isEnabled: true,
+          enabledAt: new Date(),
+        })
+      )
     }
   } catch (err) {
     console.warn("VERI Treasure auto-enablement failed (non-fatal):", err)
@@ -120,21 +136,25 @@ export async function provisionOrganisation(input: ProvisionOrganisationInput): 
   try {
     const veriChatV2Branch = await db.query.productBranches.findFirst({ where: eq(productBranches.branchKey, "veri_chat_v2") })
     if (veriChatV2Branch) {
-      await db.insert(orgProductBranchEnablements).values({
-        orgId: org.id,
-        productBranchId: veriChatV2Branch.id,
-        isEnabled: true,
-        enabledAt: new Date(),
-      })
+      await withTenantContext({ orgId: org.id }, (tx) =>
+        tx.insert(orgProductBranchEnablements).values({
+          orgId: org.id,
+          productBranchId: veriChatV2Branch.id,
+          isEnabled: true,
+          enabledAt: new Date(),
+        })
+      )
     }
   } catch (err) {
     console.warn("VERI Chat v2 auto-enablement failed (non-fatal):", err)
   }
 
-  const [dept] = await db.insert(departments).values({
-    name: "General",
-    orgId: org.id,
-  }).returning()
+  const [dept] = await withTenantContext({ orgId: org.id }, (tx) =>
+    tx.insert(departments).values({
+      name: "General",
+      orgId: org.id,
+    }).returning()
+  )
 
   return { organisationId: org.id, defaultDepartmentId: dept.id }
 }

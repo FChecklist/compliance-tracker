@@ -18,6 +18,7 @@ import { eq, inArray } from "drizzle-orm"
 import { validatePlatformApplicationKey } from "@/lib/supabase/platform-application-auth"
 import { provisionOrganisation } from "@/lib/services/org-provisioning-service"
 import { hashSHA256, generateApiKey } from "@/lib/api-keys"
+import { withTenantContext } from "@/lib/db/tenant-scoped"
 
 // Which product_branches (beyond the 2 free/on-by-default ones
 // provisionOrganisation() already enables for every org: veri_reward,
@@ -41,12 +42,39 @@ const REQUIRED_BRANCHES_BY_APPLICATION: Record<string, string[]> = {
   projexa: ["construction", "erp", "sales", "hr"],
 }
 
+// R-CRR-23 constraint (2): this endpoint is authenticated AND rate-limited.
+// Provisioning is inherently low-volume -- a real application provisions an
+// org when a customer signs up, not in a loop -- so a small per-application
+// budget is generous for legitimate traffic while bounding the blast radius
+// if a platform key ever leaks. Deliberately in-process: it is a backstop on
+// top of the platform-key check, not the security boundary, and on
+// serverless it bounds a single warm instance rather than the fleet. Stated
+// plainly here rather than implied, so nobody mistakes it for a global quota.
+const PROVISION_MAX_PER_WINDOW = 20
+const PROVISION_WINDOW_MS = 60_000
+const provisionHits = new Map<string, number[]>()
+
+function overProvisioningRateLimit(applicationId: string): boolean {
+  const now = Date.now()
+  const recent = (provisionHits.get(applicationId) ?? []).filter((t) => now - t < PROVISION_WINDOW_MS)
+  recent.push(now)
+  provisionHits.set(applicationId, recent)
+  return recent.length > PROVISION_MAX_PER_WINDOW
+}
+
 export async function POST(request: NextRequest) {
   const authResult = await validatePlatformApplicationKey(request)
   if (authResult.status !== "ok") {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
   const platformApp = authResult.context
+
+  if (overProvisioningRateLimit(platformApp.id)) {
+    return NextResponse.json(
+      { error: "Too many provisioning requests. Try again in a minute." },
+      { status: 429, headers: { "Retry-After": "60" } }
+    )
+  }
 
   let body: { customerOrgName?: unknown; country?: unknown; primaryCurrency?: unknown }
   try {
@@ -102,13 +130,17 @@ export async function POST(request: NextRequest) {
           where: inArray(productBranches.branchKey, requiredBranchKeys),
         })
         if (requiredBranches.length) {
-          await db.insert(orgProductBranchEnablements).values(
-            requiredBranches.map((rb) => ({
-              orgId: organisationId,
-              productBranchId: rb.id,
-              isEnabled: true,
-              enabledAt: new Date(),
-            }))
+          // Org-scoped write: goes through app_runtime with the tenant
+          // context set to the org we just created (R-CRR-23 constraint 4).
+          await withTenantContext({ orgId: organisationId }, (tx) =>
+            tx.insert(orgProductBranchEnablements).values(
+              requiredBranches.map((rb) => ({
+                orgId: organisationId,
+                productBranchId: rb.id,
+                isEnabled: true,
+                enabledAt: new Date(),
+              }))
+            )
           )
         }
       } catch (err) {
@@ -131,15 +163,21 @@ export async function POST(request: NextRequest) {
     const keyHash = await hashSHA256(rawKey)
     const keyPrefix = rawKey.substring(0, 8) + "..."
 
-    await db.insert(apiKeys).values({
-      name: `${platformApp.displayName} (provisioned)`,
-      keyHash,
-      keyPrefix,
-      orgId: organisationId,
-      scopes: "read,write",
-      isActive: true,
-      issuedForApplicationId: platformApp.id,
-    })
+    // compliance.api_keys is org-scoped too (app_runtime_tenant_isolation,
+    // org_id = current_org_id()), so this runs under the new org's tenant
+    // context rather than on the elevated connection. The elevated connection
+    // stays limited to the single organisations INSERT.
+    await withTenantContext({ orgId: organisationId }, (tx) =>
+      tx.insert(apiKeys).values({
+        name: `${platformApp.displayName} (provisioned)`,
+        keyHash,
+        keyPrefix,
+        orgId: organisationId,
+        scopes: "read,write",
+        isActive: true,
+        issuedForApplicationId: platformApp.id,
+      })
+    )
 
     // Return the FULL key ONLY on creation -- never retrievable again after
     // this response, identical contract to the existing human-facing
