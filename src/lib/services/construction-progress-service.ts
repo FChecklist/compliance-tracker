@@ -86,7 +86,15 @@ export async function createProgressEntry(
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     await assertProject(db, ctx.orgId, input.projectId)
-    const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId)) })
+    // R53 / R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_01: SCOPED TO THE
+    // SUPPLIED PROJECT, not just to the org. Without the projectId predicate a
+    // caller could post progress against project A while naming an activity
+    // that belongs to project B of the same org -- and input.projectId is
+    // written verbatim onto the row, so the entry then surfaces under a
+    // project whose activity it does not belong to. constructionActivities
+    // carries project_id NOT NULL, so this is a direct check, not a hop.
+    // Same shape src/lib/pipeline/executor.ts already uses.
+    const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, input.projectId)) })
     if (!activity) throw new ServiceError("Activity not found", 404)
 
     // R12 point 7 (Option B): the direct BOQ-line link -- optional, so
@@ -95,8 +103,13 @@ export async function createProgressEntry(
     // carry no orgId of their own; ownership is via their boq).
     let boqLineItemId: string | null = null
     if (input.boqLineItemId) {
-      const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, input.boqLineItemId) })
-      const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, ctx.orgId)) }) : null
+      // org-scoped DIRECTLY (the column exists) rather than only inferentially
+    // through the parent BOQ read below.
+    const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: and(eq(constructionBoqLineItems.id, input.boqLineItemId), eq(constructionBoqLineItems.orgId, ctx.orgId)) })
+      // Same rule one hop further out. construction_boq_line_items has no
+    // project_id column, so the project boundary has to be enforced on the
+    // parent BOQ -- which does carry project_id NOT NULL.
+    const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, input.projectId)) }) : null
       if (!lineItem || !boq) throw new ServiceError("BOQ line item not found", 404)
 
       // T-WPR-15-1 (WPR-15, R41-R45): confirmed live 2026-08-25 that this

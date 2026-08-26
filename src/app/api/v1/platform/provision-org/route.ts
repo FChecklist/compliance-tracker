@@ -185,6 +185,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ organisationId, apiKey: rawKey }, { status: 201 })
   } catch (error) {
     console.error("Platform org provisioning error:", error)
+    // R53 / R48_ORG_PROVISION_RLS_BLOCKED_01: the actionable reason used to
+    // be swallowed into console.error while the caller got a generic 500, so
+    // "no new organisation can be provisioned" looked like a mystery outage
+    // for days. The configuration failure is a DEPLOYMENT fact, not a secret:
+    // naming which env var is missing tells an operator what to do and tells
+    // an attacker nothing they could not learn from the public source.
+    // Every other failure keeps the generic message.
+    const raw = error instanceof Error ? error.message : ""
+    if (raw.includes("Organisation provisioning needs an elevated connection")) {
+      return NextResponse.json(
+        {
+          error:
+            "Organisation provisioning is not configured on this deployment: neither PROVISIONING_DATABASE_URL nor (NEXT_PUBLIC_SUPABASE_URL + SUPABASE_DB_PASSWORD) is set. The app_runtime role cannot create an organisation by design.",
+        },
+        { status: 503 }
+      )
+    }
     return NextResponse.json({ error: "Failed to provision organisation" }, { status: 500 })
   }
 }
