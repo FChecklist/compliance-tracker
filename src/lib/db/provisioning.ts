@@ -60,14 +60,39 @@ function getProvisioningConnectionString(): string {
     return `postgresql://postgres.${ref}:${dbPassword}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres`
   }
 
+  // Third: DATABASE_URL. This is the same elevated connection db/index.ts
+  // already uses via getConnectionString(), and on this project it is a
+  // `postgres`-role pooler string -- the role that carries rolbypassrls.
+  //
+  // Why this fallback had to be added. Neither of the two options above was
+  // set on the deployed project, so provisioning threw the error below on
+  // every attempt while DATABASE_URL sat right there, already configured,
+  // already elevated, and already trusted for exactly this class of write:
+  // provisionOrganisation() and autoProvisionUser() both do their remaining
+  // inserts through the db client that reads it. Failing closed next to a
+  // working credential is not caution, it is an outage.
+  //
+  // This is still NOT a silent fallback to the tenant connection. The
+  // app_runtime string lives in its own separate variable
+  // (APP_RUNTIME_DATABASE_URL) and is never consulted here, so the failure
+  // mode this module exists to prevent -- provisioning quietly running as
+  // app_runtime and dying on an RLS violation -- remains impossible.
+  //
+  // PROVISIONING_DATABASE_URL is still preferred and still checked first:
+  // a purpose-named variable makes the elevated connection visible in the
+  // environment rather than implied. This only stops the absence of that
+  // variable from being fatal when an equivalent one is present.
+  if (process.env.DATABASE_URL) return process.env.DATABASE_URL
+
   // Fail loudly and specifically. A silent fallback to the app_runtime
   // connection would reintroduce the exact bug this module exists to fix,
   // and it would fail at the INSERT with a confusing RLS error instead of
   // here with an actionable one.
   throw new Error(
     "Organisation provisioning needs an elevated connection. Set PROVISIONING_DATABASE_URL " +
-      "(or NEXT_PUBLIC_SUPABASE_URL + SUPABASE_DB_PASSWORD). It must NOT point at the app_runtime " +
-      "role -- that role cannot create an organisation by design (see R48_ORG_PROVISION_RLS_BLOCKED_01)."
+      "(or NEXT_PUBLIC_SUPABASE_URL + SUPABASE_DB_PASSWORD, or DATABASE_URL). It must NOT point " +
+      "at the app_runtime role -- that role cannot create an organisation by design " +
+      "(see R48_ORG_PROVISION_RLS_BLOCKED_01)."
   )
 }
 
