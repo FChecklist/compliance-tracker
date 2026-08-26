@@ -12,7 +12,7 @@
 // new tenant is inherently a platform-level operation that can't be scoped
 // to an org that doesn't exist yet (same reasoning autoProvisionUser's own
 // header comment already documented before this extraction).
-import { db, organisations, departments, productBranches, orgProductBranchEnablements } from "@/lib/db"
+import { db, organisations, departments, productBranches, orgProductBranchEnablements, erpCurrencies } from "@/lib/db"
 import { eq } from "drizzle-orm"
 import { getProvisioningDb } from "@/lib/db/provisioning"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
@@ -28,13 +28,29 @@ export function slugify(name: string): string {
 
 export type ProvisionOrganisationInput = {
   name: string
-  // Accepted for forward-compatibility with the later Workstream 4
-  // (multi-currency) / Workstream 6 (per-country compliance) waves --
-  // explicitly OUT OF SCOPE for this wave. organisations has no `country`
-  // column and no currency FK yet, so neither value is persisted anywhere
-  // by this function today; they are accepted (not silently dropped by a
-  // TypeScript error) so a future wave can wire real persistence without
-  // changing this function's call signature or its callers.
+  // R51 go-to-market (R-62 "screens show AED", R-63 "org has no currency row
+  // - would fall back to rupee"). These two were previously accepted and then
+  // DISCARDED here, on the stated grounds that "organisations has no `country`
+  // column and no currency FK yet". Both halves of that are now false, and the
+  // consequences were live in production:
+  //
+  //   * organisations.country DOES exist and defaults to 'IN' (schema.ts:123).
+  //     So dropping the caller's country did not leave it unset -- it silently
+  //     stamped every new tenant as an INDIAN company. Measured 2026-08-26:
+  //     the live demo tenant "Demo Organization", "Cobalt Fitout FZE" (a UAE
+  //     free-zone entity) and "Meridian Interiors LLC" were all country='IN'.
+  //     That is not cosmetic: country routes the compliance engine
+  //     (compliance-engine-registry.ts / einvoice-format.ts), so UAE companies
+  //     were being given Indian GST/TDS instead of UAE VAT.
+  //   * currency has a real home in compliance.erp_currencies (org_id, code,
+  //     is_base_currency). Dropping primaryCurrency left every new org with NO
+  //     base-currency row, which is exactly the condition that made the UI fall
+  //     back to a rupee label for every amount on every screen.
+  //
+  // PROJEXA already sends both (see projexa's /api/org/provision and
+  // /api/org/repair) and /api/v1/platform/provision-org already parses and
+  // forwards both. The values travelled the whole way here and died on this
+  // line. They are now persisted.
   country?: string
   primaryCurrency?: string
   // PLATFORM-01 Wave 1: which sibling product this org primarily belongs
@@ -69,6 +85,22 @@ export type ProvisionOrganisationResult = {
 // explicitly not this change) sets one.
 export function defaultMonthlyCostCapUsdForPlan(plan: string): number | null {
   return plan === "free" ? 20 : null
+}
+
+// Display names for the currencies this product is actually sold in. Anything
+// not listed falls back to its own ISO code as the name -- deliberately, so we
+// never invent a label for a currency we were not told about.
+const CURRENCY_NAMES: Record<string, string> = {
+  AED: "UAE Dirham",
+  INR: "Indian Rupee",
+  USD: "US Dollar",
+  EUR: "Euro",
+  GBP: "Pound Sterling",
+  SAR: "Saudi Riyal",
+  QAR: "Qatari Riyal",
+  OMR: "Omani Rial",
+  BHD: "Bahraini Dinar",
+  KWD: "Kuwaiti Dinar",
 }
 
 /**
@@ -116,10 +148,40 @@ export async function provisionOrganisation(input: ProvisionOrganisationInput): 
     name: orgName,
     slug,
     plan,
+    // R51: persist the caller's country instead of letting the column default
+    // to 'IN'. Omitted only when the caller genuinely didn't supply one, in
+    // which case the schema default still applies -- we never invent a country.
+    ...(input.country?.trim() ? { country: input.country.trim().toUpperCase() } : {}),
     primaryProductBranchId: input.primaryProductBranchId ?? null,
     monthlyCostCapUsd: defaultMonthlyCostCapUsdForPlan(plan)?.toString() ?? null,
     costCapEnforcementEnabled: true,
   }).returning()
+
+  // R51 (R-63): give the org its base currency row. Without this a brand-new
+  // tenant has NO row in erp_currencies, and every money figure in the product
+  // renders with whatever the UI falls back to -- precisely the R-62/R-63
+  // defect. Non-fatal, matching the enablement blocks below: a failure here
+  // must not strand a tenant that is otherwise fully created, and the UI no
+  // longer asserts a wrong currency when the row is missing (it renders the
+  // bare number instead), so the degradation is honest.
+  if (input.primaryCurrency?.trim()) {
+    const code = input.primaryCurrency.trim().toUpperCase()
+    try {
+      await withTenantContext({ orgId: org.id }, (tx) =>
+        tx.insert(erpCurrencies).values({
+          orgId: org.id,
+          code,
+          // We know the ISO code, not the localised display name. Use the code
+          // for both rather than inventing a name we were not given.
+          name: CURRENCY_NAMES[code] ?? code,
+          symbol: code,
+          isBaseCurrency: true,
+        })
+      )
+    } catch (err) {
+      console.warn(`Base-currency seeding failed for org ${org.id} (${code}) (non-fatal):`, err)
+    }
+  }
 
   // Wave 113 (VERI Treasure): free/on-by-default for every org, unlike
   // opt-in branches like PMS. Never blocks provisioning on failure.
