@@ -1,6 +1,6 @@
 /// <reference types="bun-types" />
 import { describe, expect, test } from "bun:test";
-import { classifyL0, type L0Repo } from "./classify";
+import { classifyL0, type L0Repo } from "./level0";
 
 function fakeRepo(overrides: Partial<L0Repo> = {}): L0Repo {
   return {

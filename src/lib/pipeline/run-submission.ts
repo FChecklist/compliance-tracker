@@ -11,7 +11,7 @@ import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { submissions, pipelineTasks, phraseMap, gapLog } from "@/lib/db/schema";
 import { segment } from "./segment";
-import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./classify";
+import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./level0";
 import { validate, type ValidationContext } from "./validate";
 import { getAiProvider, assertAiProviderAllowed } from "@/lib/ai/adapter";
 import { executeTask, hasExecutor } from "./executor";

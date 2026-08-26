@@ -21,7 +21,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { dispatchTool } from "@/lib/task-execution-engine"
-import { runSubmission } from "@/lib/segmentation/pipeline"
+import { runSubmission } from "@/lib/pipeline/run-submission"
 
 const ALLOWED_CODE_REFERENCES = [
   "get_construction_project_dashboard",
