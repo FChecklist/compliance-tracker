@@ -84,7 +84,20 @@ export async function provisionOrganisation(input: ProvisionOrganisationInput): 
   let slug = baseSlug
   let attempt = 0
   // Find a free slug (organisations.slug is unique).
-  while (await db.query.organisations.findFirst({ where: eq(organisations.slug, slug) })) {
+  //
+  // This MUST read on the elevated connection, not `db`. compliance.organisations
+  // has FORCED RLS and the app_runtime policy is (id = current_org_id()), so a
+  // read through `db` while outside any tenant context matches NO rows -- the
+  // loop then believes every slug is free, exits immediately, and the INSERT
+  // below dies on the unique constraint.
+  //
+  // Observed in production on 2026-08-26: provisioning for an org whose slug
+  // already existed logged `slug=meridian-interiors-llc` with no `-1` suffix
+  // and failed at the INSERT. Probed directly: app_runtime with no tenant
+  // context returns 0 rows for that exact slug, while an elevated role returns
+  // 1. A blind uniqueness check is worse than none -- it turns a handled
+  // collision into an unhandled 500.
+  while (await getProvisioningDb().query.organisations.findFirst({ where: eq(organisations.slug, slug) })) {
     attempt += 1
     slug = `${baseSlug}-${attempt}`
     if (attempt > 20) break // pathological collision case, give up gracefully
