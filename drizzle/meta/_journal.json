@@ -2073,6 +2073,13 @@
       "when": 1787753440762,
       "tag": "0325_r53_pill_usage_chain_history",
       "breakpoints": true
+    },
+    {
+      "idx": 296,
+      "version": "7",
+      "when": 1787772543081,
+      "tag": "0326_r53_one_base_currency_per_org",
+      "breakpoints": true
     }
   ]
 }
