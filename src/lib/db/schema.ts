@@ -11989,3 +11989,44 @@ export const memoryStore = complianceSchemaDB.table('memory_store', {
   lastUsed: timestamp('last_used').notNull().defaultNow(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── R53 Phase 2 (M24's pill ranking + chain history) ─────────────────────
+// APPEND ONLY. Nothing above this line is edited by R53.
+//
+// M24 rules three things that had nowhere to live: MP-RULE-3's rolling
+// 7-day per-user pill ranking, PINNED PILLS NEVER DECAY, and LAST-USED-EVER
+// as the tiebreak below the 7-day window (MP-RISK-3). It separately rules
+// that HISTORY shows the WHOLE chain, DEDUPLICATED, INCLUDING FAILED ones.
+// Migration drizzle/0325_r53_pill_usage_chain_history.sql.
+export const chainOutcomeEnum = complianceSchemaDB.enum('chain_outcome', ['ok', 'failed'])
+
+export const pillUsage = complianceSchemaDB.table('pill_usage', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // MP-RULE-3 is per USER, not per org -- one PM's ranking must never reorder another's strip
+  pillKey: text('pill_key').notNull(), // the pill's stable identity (M24's 14 universal pills + module pills), NOT its display label
+  functionId: text('function_id'),
+  derivedChain: jsonb('derived_chain'), // the chain this pill last produced -- output of derive-chain.ts, never an input to it (M26)
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(), // powers BOTH the 7-day window and the last-used-ever tiebreak below it
+  useCount: integer('use_count').notNull().default(0),
+  pinned: boolean('pinned').notNull().default(false), // M24: a pinned pill NEVER decays out of the strip, whatever the window says
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// full_chain is TEXT, not jsonb: the UNIQUE (org, user, full_chain) index IS
+// M24's dedup rule, and jsonb key-order/whitespace differences would defeat
+// an equality constraint on a value the user identifies by how it READS.
+export const chainHistory = complianceSchemaDB.table('chain_history', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  fullChain: text('full_chain').notNull(), // "Oakwood > Scope > Import BOQ" -- M24: never a fragment, "Import BOQ" alone is ambiguous
+  functionId: text('function_id'),
+  mode: text('mode'), // the entity the chain rooted on -- a history click ALSO SETS MODE, so the strip can never contradict itself (M24)
+  projectId: text('project_id'),
+  outcome: chainOutcomeEnum('outcome').notNull().default('ok'), // failed chains are KEPT and shown (M24)
+  pinned: boolean('pinned').notNull().default(false),
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(),
+  useCount: integer('use_count').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

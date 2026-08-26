@@ -8,7 +8,7 @@ import { sql, gte, and, eq, isNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { gapLog, phraseMap } from "@/lib/db/schema";
 import { getAiProvider, type Artifact } from "@/lib/ai/adapter";
-import { normalisePhrase } from "@/lib/segmentation/pipeline";
+import { normalisePhrase } from "@/lib/pipeline/run-submission";
 import { db as rawDb } from "@/lib/db"; // read-only, cross-org: only used to discover WHICH orgs have gap_log activity; every per-org read/write below still goes through withTenantContext
 // R46 P9 seq33: report_definition artifacts now become real, immediately
 // runnable rows (compliance.report_definitions) via this existing service --
