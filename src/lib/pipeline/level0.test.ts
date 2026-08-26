@@ -5,7 +5,7 @@ import { classifyL0, type L0Repo } from "./level0";
 function fakeRepo(overrides: Partial<L0Repo> = {}): L0Repo {
   return {
     findPhraseMapMatch: async () => null,
-    findLastTask: async () => null,
+    findLastPillUse: async () => null,
     ...overrides,
   };
 }
@@ -75,7 +75,7 @@ describe("classifyL0 -- the L0 ladder stops at the first hit", () => {
 
   test("tier 4: last-action recall reuses the prior task's function + context, overriding only percent", async () => {
     const repo = fakeRepo({
-      findLastTask: async (orgId, userId) => {
+      findLastPillUse: async (orgId, userId) => {
         if (orgId === "org_1" && userId === "user_1") {
           return { functionId: "record_work_progress", params: { itemCode: "BBC-005", percent: 30 } };
         }
@@ -87,13 +87,13 @@ describe("classifyL0 -- the L0 ladder stops at the first hit", () => {
   });
 
   test("tier 4 is a miss when there is no prior task", async () => {
-    const repo = fakeRepo({ findLastTask: async () => null });
+    const repo = fakeRepo({ findLastPillUse: async () => null });
     const r = await classifyL0("70% now", CTX, repo);
     expect(r.kind).toBe("miss");
   });
 
   test("tier 4 never fires when the prior task carries no function_id", async () => {
-    const repo = fakeRepo({ findLastTask: async () => ({ functionId: null, params: {} }) });
+    const repo = fakeRepo({ findLastPillUse: async () => ({ functionId: null, params: {} }) });
     const r = await classifyL0("70% now", CTX, repo);
     expect(r.kind).toBe("miss");
   });
@@ -106,7 +106,7 @@ describe("classifyL0 -- the L0 ladder stops at the first hit", () => {
 
   test("ladder order: structural beats last-action even when both could theoretically apply", async () => {
     const repo = fakeRepo({
-      findLastTask: async () => ({ functionId: "some_other_function", params: { itemCode: "SHOULD-NOT-BE-USED" } }),
+      findLastPillUse: async () => ({ functionId: "some_other_function", params: { itemCode: "SHOULD-NOT-BE-USED" } }),
     });
     const r = await classifyL0("MVT-002 is 40% done", CTX, repo);
     expect(r.kind).toBe("match");

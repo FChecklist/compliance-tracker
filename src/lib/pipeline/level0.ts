@@ -17,8 +17,19 @@ import { isAcknowledgement, normaliseForMatch } from "./classify";
 export type L0Repo = {
   /** EXACT match only (M26) -- normalisedPhrase must already be normalised by the caller. */
   findPhraseMapMatch(orgId: string, normalisedPhrase: string): Promise<{ functionId: string; fixedParams: Record<string, unknown> | null } | null>;
-  /** Most recent task for this user in this org, for last-action recall. Null if none. */
-  findLastTask(orgId: string, userId: string): Promise<{ functionId: string | null; params: Record<string, unknown> } | null>;
+  /**
+   * R53 Phase 6: LAST-ACTION RECALL COMES FROM compliance.pill_usage, not
+   * from the task table. Two reasons, both real:
+   *   - pill_usage is PER USER (its unique key is org+user+pill). The old
+   *     read took the most recent pipeline_tasks row for the whole ORG, so
+   *     one engineer typing "60% now" would silently inherit whatever a
+   *     different engineer had just done. That is a wrong-write hazard, not
+   *     a nicety.
+   *   - it is the same row the pill strip ranks on, so "what I did last" has
+   *     exactly one meaning in this product.
+   * Null if this user has never used a pill.
+   */
+  findLastPillUse(orgId: string, userId: string): Promise<{ functionId: string | null; params: Record<string, unknown> } | null>;
 };
 
 export type ClassificationResult =
@@ -74,10 +85,14 @@ function tryStructuralMatch(text: string): { functionId: string; params: Record<
 }
 
 // Tier 4: last-action recall -- a bare follow-up ("60% now", "same but 70")
-// with a percent but NO item code reuses the user's most recently dispatched
-// task's function_id + whatever context it carried (e.g. its itemCode),
-// overriding only the new percent. Never invented from nothing -- if there
-// is no prior task, this tier is a miss like any other.
+// with a percent but NO item code reuses THIS USER'S own most recent pill
+// (its function_id and whatever context it carried, e.g. its itemCode),
+// overriding only the new percent. Site work repeats; this is the tier that
+// makes the second entry of the day cheap.
+//
+// Never invented from nothing -- if this user has no prior pill use, this
+// tier is a miss like any other. NO FUZZY MATCHING anywhere in this file
+// (M26): every tier either matches exactly or does not match.
 async function tryLastActionRecall(
   text: string,
   repo: L0Repo,
@@ -89,7 +104,7 @@ async function tryLastActionRecall(
   const percent = Number(percentMatch[1]);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
 
-  const last = await repo.findLastTask(orgId, userId);
+  const last = await repo.findLastPillUse(orgId, userId);
   if (!last || !last.functionId) return null;
 
   return {
