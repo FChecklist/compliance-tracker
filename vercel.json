@@ -1,7 +1,7 @@
 {
   "installCommand": "bun install",
   "framework": "nextjs",
-  "regions": ["sin1"],
+  "regions": ["bom1"],
   "crons": [
     { "path": "/api/internal/fm-ppm/generate-occurrences/run", "schedule": "0 2 * * *" },
     { "path": "/api/internal/loops/run", "schedule": "0 3 * * *" },

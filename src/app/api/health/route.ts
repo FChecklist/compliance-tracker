@@ -16,19 +16,33 @@ import { NextResponse } from 'next/server'
 import { sql } from 'drizzle-orm'
 import { db } from '@/lib/db'
 
+// R52: report the region this function actually executed in, alongside the
+// DB latency it measured. Without this the two numbers can't be related to
+// each other -- `latencyMs` on its own cannot distinguish "the query was
+// slow" from "the query was fast but ran a continent away", which is exactly
+// the confusion that made the cross-region round trip invisible for weeks.
+//
+// The pairing is what makes it useful: this same probe measured latencyMs 62
+// consistently from sin1 (Singapore) against a database in ap-south-1
+// (Mumbai), while the identical statement's server-side `EXPLAIN ANALYZE`
+// Execution Time is 0.105 ms. Effectively all 62 ms was network. Emitting
+// `region` makes that finding re-checkable by anyone with curl, and makes a
+// silent region regression (or a vercel.json `regions` value that isn't
+// being honoured) visible instead of merely slow.
 export async function GET() {
   const startedAt = Date.now()
+  const region = process.env.VERCEL_REGION ?? null
   try {
     await db.execute(sql`select current_database() as db, current_user as usr`)
     return NextResponse.json(
-      { ok: true, db: 'up', latencyMs: Date.now() - startedAt, ts: Date.now() },
+      { ok: true, db: 'up', region, latencyMs: Date.now() - startedAt, ts: Date.now() },
       { status: 200 },
     )
   } catch (err) {
     const code = (err as { code?: string })?.code ?? null
     console.error('health: database probe failed', code, (err as Error)?.message)
     return NextResponse.json(
-      { ok: false, db: 'down', code, latencyMs: Date.now() - startedAt, ts: Date.now() },
+      { ok: false, db: 'down', region, code, latencyMs: Date.now() - startedAt, ts: Date.now() },
       { status: 503 },
     )
   }
