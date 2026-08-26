@@ -79,7 +79,10 @@ export const MAX_SEGMENTS = 5;
 // M24's closed verb set -- task names (and, here, segmentation's "does the
 // next fragment start with an actionable word" check) may only ever use
 // these. Deliberately not open to extension without an M24 amendment.
-const KNOWN_VERBS = [
+// EXPORTED since R53 Phase 4: classify.ts's isImperative() decides "opens
+// with a verb" against this same closed list. Two copies of a closed set is
+// how a closed set stops being closed.
+export const KNOWN_VERBS = [
   "approve",
   "confirm",
   "sign off",

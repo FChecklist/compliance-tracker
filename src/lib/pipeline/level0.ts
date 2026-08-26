@@ -12,6 +12,8 @@
 // a live database or withTenantContext mocking gymnastics -- callers wire
 // `dbBackedL0Repo` (below) in production, tests wire a fake.
 
+import { isAcknowledgement, normaliseForMatch } from "./classify";
+
 export type L0Repo = {
   /** EXACT match only (M26) -- normalisedPhrase must already be normalised by the caller. */
   findPhraseMapMatch(orgId: string, normalisedPhrase: string): Promise<{ functionId: string; fixedParams: Record<string, unknown> | null } | null>;
@@ -24,27 +26,14 @@ export type ClassificationResult =
   | { kind: "match"; functionId: string; params: Record<string, unknown>; source: "phrase_map" | "structural" | "last_action" }
   | { kind: "miss" };
 
-// Tier 1: acknowledgement list -> CHAT. Closed set -- a message that is
-// ONLY one of these (after trimming trailing punctuation) carries no
-// actionable content and must never become a task (M25: "reads/questions
-// never become tasks").
-const ACKNOWLEDGEMENTS = new Set([
-  "thanks", "thank you", "thanks a lot", "ty",
-  "ok", "okay", "k", "kk",
-  "cool", "great", "nice", "good", "perfect",
-  "got it", "noted", "understood", "sure", "alright", "fine",
-  "yes", "yep", "yeah", "no", "nope",
-  "np", "no problem", "no problem thanks",
-  "welcome", "you're welcome", "youre welcome",
-]);
-
-function normalisePhrase(text: string): string {
-  return text.trim().toLowerCase().replace(/[.!?]+$/, "").replace(/\s+/g, " ");
-}
-
-function isAcknowledgement(text: string): boolean {
-  return ACKNOWLEDGEMENTS.has(normalisePhrase(text));
-}
+// Tier 1: acknowledgement list -> CHAT. A message that is ONLY an
+// acknowledgement carries no actionable content and must never become a
+// task (M25: "reads/questions never become tasks").
+//
+// R53 Phase 4: the list and the normaliser now live in classify.ts and are
+// imported here. They are CLASSIFICATION facts, not lookup facts, and a
+// second copy of a closed set is how a closed set stops being closed.
+const normalisePhrase = normaliseForMatch;
 
 // Tier 3: structural pattern -- an item code ANYWHERE in the segment,
 // together with a percentage number, with no model involved. Same shape as
