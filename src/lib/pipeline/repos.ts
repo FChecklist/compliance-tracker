@@ -12,6 +12,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { gapLog, phraseMap, pillUsage, projects, screenDefinitions } from "@/lib/db/schema";
 import type { L0Repo } from "./level0";
 import type { ChainRepo } from "./derive-chain";
+import { functionWrites } from "./executor";
 
 export function makeL0Repo(orgId: string, userId: string): L0Repo {
   return {
@@ -37,10 +38,16 @@ export function makeL0Repo(orgId: string, userId: string): L0Repo {
         // PER USER. Reading the org's newest task instead would let one
         // engineer's bare "60% now" inherit a different engineer's last
         // action and write against the wrong line.
-        const row = await db.query.pillUsage.findFirst({
+        // WRITE FUNCTIONS ONLY -- see the L0Repo doc comment. Filtered here
+        // rather than in SQL because "does this function write" is a code
+        // fact (executor.ts's closed allowlist), not a column. A small
+        // bounded read, not a scan: the strip is six pills, not six hundred.
+        const rows = await db.query.pillUsage.findMany({
           where: and(eq(pillUsage.orgId, orgId), eq(pillUsage.userId, userId)),
           orderBy: [desc(pillUsage.lastUsedAt)],
+          limit: 25,
         });
+        const row = rows.find((r) => r.functionId && functionWrites(r.functionId));
         if (!row || !row.functionId) return null;
         const chain = row.derivedChain as { params?: Record<string, unknown> } | null;
         return { functionId: row.functionId, params: chain?.params ?? {} };

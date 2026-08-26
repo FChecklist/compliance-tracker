@@ -27,7 +27,12 @@ export type L0Repo = {
    *     a nicety.
    *   - it is the same row the pill strip ranks on, so "what I did last" has
    *     exactly one meaning in this product.
-   * Null if this user has never used a pill.
+   * ONLY WRITE FUNCTIONS. A percent-only follow-up ("60% now") is a repeat
+   * of an ACTION; recalling a read-only function here produces a report call
+   * carrying a percentage, which is meaningless. Measured live 26 Aug 2026
+   * before this filter existed.
+   *
+   * Null if this user has never run a write pill.
    */
   findLastPillUse(orgId: string, userId: string): Promise<{ functionId: string | null; params: Record<string, unknown> } | null>;
 };
@@ -51,7 +56,24 @@ const normalisePhrase = normaliseForMatch;
 // segment.ts's ITEM_CODE_PATTERN (see that file's header for how it was
 // measured) but unanchored, since here we're scanning a whole segment for a
 // mention rather than checking a fragment's start.
-const ITEM_CODE_TOKEN = /\b(?:[A-Za-z]{2,5}-){0,2}[A-Za-z]{0,4}\d{1,4}(?:\.\d{1,2})?(?:-[A-Za-z]{1,2})?\b/;
+// TWO SHAPES, TRIED IN ORDER, because the live BOQ genuinely contains both
+// and one pattern cannot cover them without also swallowing the percentage.
+//
+//   LETTER-LED   PP1 · F01 · M9 · M9-A · CDR-001 · HLW-BOQ-999 · ZZ-AUDIT1-999R
+//                opens with a letter, contains at least one digit, and may
+//                carry hyphenated parts. The lookahead is what makes
+//                "frame" (no digit) not an item code.
+//   NUMERIC      1.01 · 4.04 · 99 · 9
+//                the bare/decimal codes measured on real rows.
+//
+// R53 FIX: the old single pattern could not match ZZ-AUDIT1-999R at all --
+// it required the digits to sit within four letters of the start of a
+// hyphen group. Live evidence: compliance.submissions igtnbo6sj5a2wsagy0fe4g7k
+// ("ZZ-AUDIT1-999R 15% done") got NO structural match, fell through the
+// ladder, and was resolved by last-action recall to a completely unrelated
+// READ function. Both halves of that are fixed here.
+const ITEM_CODE_LETTER_LED = /\b(?=[A-Za-z0-9-]*[0-9])[A-Za-z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)*\b/;
+const ITEM_CODE_NUMERIC = /\b\d{1,4}(?:\.\d{1,2})?\b/;
 // NOTE: the trailing \b must sit inside the alternation, after "percent"
 // only -- a \b immediately after a literal "%" never matches ("%" and the
 // following space/end-of-string are both non-word characters, so there is
@@ -67,17 +89,20 @@ const STRUCTURAL_FUNCTION_ID = "record_work_progress";
 function tryStructuralMatch(text: string): { functionId: string; params: Record<string, unknown> } | null {
   const percentMatch = PERCENT_TOKEN.exec(text);
   if (!percentMatch) return null;
-  const codeMatch = ITEM_CODE_TOKEN.exec(text);
-  if (!codeMatch) return null;
-  // The percent match must not itself have been consumed as part of the
-  // "item code" token (a bare "50" before a "%" sign is the percent, not a
-  // second item code) -- reject if they overlap.
-  const codeStart = codeMatch.index;
-  const codeEnd = codeStart + codeMatch[0].length;
-  const percentStart = percentMatch.index;
-  if (percentStart >= codeStart && percentStart < codeEnd) return null;
   const percent = Number(percentMatch[1]);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
+
+  // Cut the percentage out before looking for the code. The old version
+  // searched the whole string and then rejected an overlap, which meant a
+  // real code LATER in the sentence was never reached once the percent's own
+  // digits matched first. Removing the percent makes the search
+  // unambiguous instead of order-dependent.
+  const withoutPercent =
+    text.slice(0, percentMatch.index) + " ".repeat(percentMatch[0].length) + text.slice(percentMatch.index + percentMatch[0].length);
+
+  const codeMatch = ITEM_CODE_LETTER_LED.exec(withoutPercent) ?? ITEM_CODE_NUMERIC.exec(withoutPercent);
+  if (!codeMatch) return null;
+
   return {
     functionId: STRUCTURAL_FUNCTION_ID,
     params: { itemCode: codeMatch[0], percent },
@@ -104,6 +129,14 @@ async function tryLastActionRecall(
   const percent = Number(percentMatch[1]);
   if (!Number.isFinite(percent) || percent < 0 || percent > 100) return null;
 
+  // *** ONLY A WRITE ACTION IS RECALLABLE. *** The repo filters to write
+  // functions, and this is not a nicety: on 26 Aug a live run of
+  // "ZZ-AUDIT1-999R 15% done" missed the structural tier, fell to this one,
+  // and recalled the user's most recent pill -- which was the read-only
+  // BUDGET function. It produced a budget lookup carrying percent=15, which
+  // is not a wrong answer so much as a meaningless one. "60% now" is a
+  // follow-up to an ACTION; there is no such thing as a follow-up to a
+  // report.
   const last = await repo.findLastPillUse(orgId, userId);
   if (!last || !last.functionId) return null;
 
