@@ -5,7 +5,7 @@ import { classifyL0, type L0Repo } from "./level0";
 function fakeRepo(overrides: Partial<L0Repo> = {}): L0Repo {
   return {
     findPhraseMapMatch: async () => null,
-    findLastTask: async () => null,
+    findLastPillUse: async () => null,
     ...overrides,
   };
 }
@@ -75,7 +75,7 @@ describe("classifyL0 -- the L0 ladder stops at the first hit", () => {
 
   test("tier 4: last-action recall reuses the prior task's function + context, overriding only percent", async () => {
     const repo = fakeRepo({
-      findLastTask: async (orgId, userId) => {
+      findLastPillUse: async (orgId, userId) => {
         if (orgId === "org_1" && userId === "user_1") {
           return { functionId: "record_work_progress", params: { itemCode: "BBC-005", percent: 30 } };
         }
@@ -87,13 +87,13 @@ describe("classifyL0 -- the L0 ladder stops at the first hit", () => {
   });
 
   test("tier 4 is a miss when there is no prior task", async () => {
-    const repo = fakeRepo({ findLastTask: async () => null });
+    const repo = fakeRepo({ findLastPillUse: async () => null });
     const r = await classifyL0("70% now", CTX, repo);
     expect(r.kind).toBe("miss");
   });
 
   test("tier 4 never fires when the prior task carries no function_id", async () => {
-    const repo = fakeRepo({ findLastTask: async () => ({ functionId: null, params: {} }) });
+    const repo = fakeRepo({ findLastPillUse: async () => ({ functionId: null, params: {} }) });
     const r = await classifyL0("70% now", CTX, repo);
     expect(r.kind).toBe("miss");
   });
@@ -106,7 +106,7 @@ describe("classifyL0 -- the L0 ladder stops at the first hit", () => {
 
   test("ladder order: structural beats last-action even when both could theoretically apply", async () => {
     const repo = fakeRepo({
-      findLastTask: async () => ({ functionId: "some_other_function", params: { itemCode: "SHOULD-NOT-BE-USED" } }),
+      findLastPillUse: async () => ({ functionId: "some_other_function", params: { itemCode: "SHOULD-NOT-BE-USED" } }),
     });
     const r = await classifyL0("MVT-002 is 40% done", CTX, repo);
     expect(r.kind).toBe("match");
@@ -114,5 +114,99 @@ describe("classifyL0 -- the L0 ladder stops at the first hit", () => {
       expect(r.source).toBe("structural");
       expect(r.params.itemCode).toBe("MVT-002");
     }
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────
+// R53: the two defects a LIVE run found on 26 Aug 2026, both fixed here.
+//
+// compliance.submissions igtnbo6sj5a2wsagy0fe4g7k reads
+// "ZZ-AUDIT1-999R 15% done". The old single item-code pattern could not
+// match that shape at all, so the structural tier missed, the ladder fell
+// through to last-action recall, and recall returned the user's most recent
+// pill -- which was the READ-ONLY budget function. The result was a budget
+// lookup carrying percent=15: not a wrong answer so much as a meaningless
+// one, produced silently.
+// ─────────────────────────────────────────────────────────────────────────
+describe("classifyL0 -- structural tier, every real item-code shape", () => {
+  const emptyRepo: L0Repo = {
+    async findPhraseMapMatch() { return null; },
+    async findLastPillUse() { return null; },
+  };
+  const ctx = { orgId: "org1", userId: "u1" };
+
+  // Shapes measured on compliance.construction_boq_line_items.item_code,
+  // plus the ZZ-AUDIT fixture shape that appears in the live submissions.
+  const cases: Array<[string, string, number]> = [
+    ["PP1 is 50% done", "PP1", 50],
+    ["F01 is 50% done", "F01", 50],
+    ["M9 is 20% done", "M9", 20],
+    ["M9-A is 20% done", "M9-A", 20],
+    ["CDR-001 is 75% done", "CDR-001", 75],
+    ["HLW-BOQ-999 is 10% done", "HLW-BOQ-999", 10],
+    ["ZZ-AUDIT1-999R 15% done", "ZZ-AUDIT1-999R", 15],
+    ["ZZ-AUDIT5-999 15 percent done", "ZZ-AUDIT5-999", 15],
+    ["item 1.01 is at 50 percent", "1.01", 50],
+    ["4.04 is 65% done", "4.04", 65],
+    ["99 is 30% done", "99", 30],
+  ];
+
+  for (const [input, expectedCode, expectedPercent] of cases) {
+    test(`"${input}" -> record_work_progress(${expectedCode}, ${expectedPercent})`, async () => {
+      const r = await classifyL0(input, ctx, emptyRepo);
+      expect(r.kind).toBe("match");
+      if (r.kind !== "match") return;
+      expect(r.functionId).toBe("record_work_progress");
+      expect(r.source).toBe("structural");
+      expect(r.params.itemCode).toBe(expectedCode);
+      expect(r.params.percent).toBe(expectedPercent);
+    });
+  }
+
+  test("the percentage is never mistaken for the item code", async () => {
+    const r = await classifyL0("50% done on CDR-001", ctx, emptyRepo);
+    expect(r.kind).toBe("match");
+    if (r.kind !== "match") return;
+    expect(r.params.itemCode).toBe("CDR-001");
+    expect(r.params.percent).toBe(50);
+  });
+
+  test('a word with no digit is not an item code -- "frame" alone does not match', async () => {
+    const r = await classifyL0("frame is 50% done", ctx, emptyRepo);
+    // no code at all in the sentence -> structural misses, ladder falls through
+    expect(r.kind).toBe("miss");
+  });
+
+  test("a percent outside 0-100 is refused rather than clamped", async () => {
+    expect((await classifyL0("PP1 is 150% done", ctx, emptyRepo)).kind).toBe("miss");
+  });
+});
+
+describe("classifyL0 -- last-action recall reuses only a WRITE action", () => {
+  const ctx = { orgId: "org1", userId: "u1" };
+
+  test("a bare percent follow-up reuses the last WRITE action", async () => {
+    const repo: L0Repo = {
+      async findPhraseMapMatch() { return null; },
+      async findLastPillUse() { return { functionId: "record_work_progress", params: { itemCode: "CDR-001", percent: 50 } }; },
+    };
+    const r = await classifyL0("60% now", ctx, repo);
+    expect(r.kind).toBe("match");
+    if (r.kind !== "match") return;
+    expect(r.functionId).toBe("record_work_progress");
+    expect(r.source).toBe("last_action");
+    expect(r.params.itemCode).toBe("CDR-001");
+    expect(r.params.percent).toBe(60);
+  });
+
+  // The repo is what filters reads out (it is the layer that knows which
+  // functions write). With nothing recallable it must MISS and escalate --
+  // never invent, never reach for whatever happens to be most recent.
+  test("with no recallable write action, a bare percent is a MISS, not a guess", async () => {
+    const repo: L0Repo = {
+      async findPhraseMapMatch() { return null; },
+      async findLastPillUse() { return null; },
+    };
+    expect((await classifyL0("60% now", ctx, repo)).kind).toBe("miss");
   });
 });
