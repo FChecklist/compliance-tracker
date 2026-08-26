@@ -17,11 +17,12 @@
 // execute everything. ***
 import { eq, and, desc, isNotNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { submissions, pipelineTasks, phraseMap, gapLog } from "@/lib/db/schema";
+import { submissions, pipelineTasks, phraseMap, gapLog, screenDefinitions, projects } from "@/lib/db/schema";
 import { segment, rejoinCandidate, type Segment } from "./segment";
 import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./level0";
 import { classifySegment, normaliseForMatch, type Classification, type ResolvedFunction } from "./classify";
 import { validate, type ValidationContext } from "./validate";
+import { deriveChain, type ChainRepo, type DerivedChain } from "./derive-chain";
 import { getAiProvider, assertAiProviderAllowed } from "@/lib/ai/adapter";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 
@@ -97,6 +98,48 @@ function makeL0Repo(orgId: string, userId: string): L0Repo {
   };
 }
 
+/**
+ * R53 Phase 5. compliance.screen_definitions is READ ONLY to R53 -- R52 owns
+ * every write to it. This repo only ever SELECTs.
+ *
+ * Rows may be global (org_id NULL) or org-specific; the org-specific one
+ * wins when both exist, which is the same precedence the rest of this
+ * codebase gives org overrides.
+ */
+function makeChainRepo(orgId: string): ChainRepo {
+  return {
+    async findScreen(functionId: string) {
+      return withTenantContext({ orgId }, async (db) => {
+        const rows = await db.query.screenDefinitions.findMany({
+          where: eq(screenDefinitions.functionId, functionId),
+        });
+        if (rows.length === 0) return null;
+        const row = rows.find((r) => r.orgId === orgId) ?? rows[0];
+        return {
+          functionId: row.functionId,
+          breadcrumbTemplate: row.breadcrumbTemplate ?? null,
+          flowParent: row.flowParent ?? null,
+        };
+      });
+    },
+  };
+}
+
+/**
+ * The chain's ROOT is the entity's own name, never its id. M24: the top rail
+ * shows the PROJECT at all times because "logging progress or a variation
+ * against the wrong project is the most expensive mistake available in this
+ * product" -- a chain rooted on "upv2q7pv8qcwdayybvu74egm" would defeat that
+ * entirely. Null project -> buildChain() renders M24's null state.
+ */
+async function resolveRootLabel(orgId: string, projectId: string | null): Promise<string | null> {
+  if (!projectId) return null;
+  return withTenantContext({ orgId }, async (db) => {
+    const row = await db.query.projects.findFirst({ where: eq(projects.id, projectId) });
+    return row?.name ?? null;
+  });
+}
+
 /** One segment, all the way through resolution but NOT yet executed. */
 type ResolvedSegment = {
   text: string;
@@ -133,6 +176,8 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   });
 
   const repo = makeL0Repo(input.orgId, input.userId);
+  const chainRepo = makeChainRepo(input.orgId);
+  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
   let l0Hits = 0;
   let resolvedCount = 0;
 
@@ -159,6 +204,9 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   // budget read wait on the progress write.
   let previousOrderedTaskId: string | null = null;
   let previousOrderedFailed = false;
+  // The chain of the first task minted, used to close submissions.
+  // selected_chain when the caller supplied none. See the update at the end.
+  let firstDerivedChain: DerivedChain | null = null;
 
   for (const seg of resolved) {
     if (seg.merged) continue;
@@ -205,8 +253,21 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       continue;
     }
 
+    // R53 PHASE 5: PHRASE -> FUNCTION -> CHAIN, never the reverse. The chain
+    // is derived from the function the PHRASE resolved to, and from the mode
+    // and project the request already carried. input.selectedChain -- the
+    // user's own pill selection -- is deliberately NOT consulted here: M25
+    // calls it a HINT and M26 rules the phrase is the authority.
+    const derived = await deriveChain(chainRepo, {
+      mode: input.mode,
+      rootLabel,
+      functionId: c.functionId,
+      params: c.params,
+    });
+    if (!firstDerivedChain) firstDerivedChain = derived;
+
     const dependsOn = seg.orderingHint !== undefined ? previousOrderedTaskId : null;
-    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, c.params);
+    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, c.params, derived);
 
     const advance = (failed: boolean) => {
       if (seg.orderingHint !== undefined) {
@@ -262,8 +323,14 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   }
 
   const status = deriveSubmissionStatus(tasks, gaps.length);
+  // selected_chain is NULL on every one of the 16 rows that existed before
+  // R53. When the caller supplied a chain we keep THEIRS -- it is the user's
+  // own pill selection and this column is where it belongs. When they did
+  // not, the derived chain of the first task fills it, so the column stops
+  // being universally null and Task Master has something to render.
+  const selectedChain = (input.selectedChain as object | undefined) ?? (firstDerivedChain as object | null);
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status }).where(eq(submissions.id, submissionId))
+    db.update(submissions).set({ status, selectedChain }).where(eq(submissions.id, submissionId))
   );
 
   return {
@@ -425,7 +492,8 @@ async function mintTask(
   sequence: number,
   dependsOn: string | null,
   functionId: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  derivedChain: DerivedChain
 ): Promise<string> {
   return withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
@@ -437,7 +505,7 @@ async function mintTask(
         orgId: input.orgId,
         projectId: input.projectId ?? null,
         projectSource: input.projectId ? "inherited" : "stated",
-        derivedChain: null, // filled by R53 Phase 5's derive-chain.ts
+        derivedChain,
         functionId,
         params,
         executor: "software",
