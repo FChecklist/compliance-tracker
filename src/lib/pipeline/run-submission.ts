@@ -15,14 +15,16 @@
 // before deciding which to merge, and merging a segment that had ALREADY
 // EXECUTED would run its write a second time. Resolve everything, then
 // execute everything. ***
-import { eq, and, desc, isNotNull } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
-import { submissions, pipelineTasks, phraseMap, gapLog } from "@/lib/db/schema";
+import { submissions, pipelineTasks, pillUsage, chainHistory } from "@/lib/db/schema";
 import { segment, rejoinCandidate, type Segment } from "./segment";
 import { classifyL0, type L0Repo, type ClassificationResult as L0Result } from "./level0";
+import { makeL0Repo, makeChainRepo, resolveRootLabel, logGapRow } from "./repos";
 import { classifySegment, normaliseForMatch, type Classification, type ResolvedFunction } from "./classify";
 import { validate, type ValidationContext } from "./validate";
-import { getAiProvider, assertAiProviderAllowed } from "@/lib/ai/adapter";
+import { deriveChain, type DerivedChain } from "./derive-chain";
+import { runLevel1 } from "./level1";
 import { executeTask, hasExecutor, functionWrites, EXECUTABLE_FUNCTION_IDS } from "./executor";
 
 // M26: "Pass the module's 5-15 functions ... NEVER 400 unbound functions --
@@ -62,40 +64,24 @@ export type RunSubmissionResult = {
   flagged: boolean; // MAX_SEGMENTS truncation, surfaced so the caller can ask the user to split their message
   /** fraction of resolved segments that Level 0 handled with no model call. */
   l0HitRate: number;
+  /** how many model calls this submission actually made. 0 for a pure Level 0 hit. */
+  modelCalls: number;
 };
 
 function normalisePhrase(text: string): string {
   return normaliseForMatch(text);
 }
 
-function makeL0Repo(orgId: string, userId: string): L0Repo {
-  return {
-    async findPhraseMapMatch(_orgId, normalisedPhrase) {
-      return withTenantContext({ orgId }, async (db) => {
-        // seq15: L0 only ever matches a PROMOTED phrase (promotedAt set) --
-        // L2's own candidates land in this same table unpromoted (M26:
-        // "Level 3 approves phrase-map promotions"). Without this filter, an
-        // unreviewed AI-proposed candidate would go live in L0 the instant
-        // it's written, skipping the human approval step entirely.
-        const row = await db.query.phraseMap.findFirst({
-          where: and(eq(phraseMap.orgId, orgId), eq(phraseMap.normalisedPhrase, normalisedPhrase), isNotNull(phraseMap.promotedAt)),
-        });
-        if (!row) return null;
-        return { functionId: row.functionId, fixedParams: (row.fixedParams as Record<string, unknown> | null) ?? null };
-      });
-    },
-    async findLastTask(_orgId, _userId) {
-      return withTenantContext({ orgId }, async (db) => {
-        const row = await db.query.pipelineTasks.findFirst({
-          where: eq(pipelineTasks.orgId, orgId),
-          orderBy: [desc(pipelineTasks.createdAt)],
-        });
-        if (!row || !row.functionId) return null;
-        return { functionId: row.functionId, params: (row.params as Record<string, unknown>) ?? {} };
-      });
-    },
-  };
-}
+/**
+ * R53 Phase 6 DONE test: "a Level 0 hit served with ZERO model calls, proven
+ * in the logs." Counted, not assumed -- level1.ts reports what it actually
+ * did and this accumulates it. Module-scoped rather than threaded through
+ * every function signature, and reset at the top of each runSubmission();
+ * this pipeline is synchronous and single-request by design (M26: no queue
+ * until something outlives a request), so there is no concurrent submission
+ * in the same module instance to interleave with it.
+ */
+let modelCallCount = 0;
 
 /** One segment, all the way through resolution but NOT yet executed. */
 type ResolvedSegment = {
@@ -112,9 +98,10 @@ function l0ToResolution(r: L0Result): ResolvedFunction | null {
 }
 
 export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmissionResult> {
+  modelCallCount = 0;
   const { segments: segs, flagged } = segment(input.rawInput);
   if (segs.length === 0) {
-    return { submissionId: null, status: "chat", chatMessages: [], tasks: [], gaps: [], flagged: false, l0HitRate: 1 };
+    return { submissionId: null, status: "chat", chatMessages: [], tasks: [], gaps: [], flagged: false, l0HitRate: 1, modelCalls: 0 };
   }
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -133,6 +120,8 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   });
 
   const repo = makeL0Repo(input.orgId, input.userId);
+  const chainRepo = makeChainRepo(input.orgId);
+  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
   let l0Hits = 0;
   let resolvedCount = 0;
 
@@ -159,6 +148,10 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
   // budget read wait on the progress write.
   let previousOrderedTaskId: string | null = null;
   let previousOrderedFailed = false;
+  // The chain of the first task minted, used to close submissions.
+  // selected_chain when the caller supplied none. See the update at the end.
+  let firstDerivedChain: DerivedChain | null = null;
+  const chainByTaskId = new Map<string, DerivedChain>();
 
   for (const seg of resolved) {
     if (seg.merged) continue;
@@ -205,8 +198,22 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       continue;
     }
 
+    // R53 PHASE 5: PHRASE -> FUNCTION -> CHAIN, never the reverse. The chain
+    // is derived from the function the PHRASE resolved to, and from the mode
+    // and project the request already carried. input.selectedChain -- the
+    // user's own pill selection -- is deliberately NOT consulted here: M25
+    // calls it a HINT and M26 rules the phrase is the authority.
+    const derived = await deriveChain(chainRepo, {
+      mode: input.mode,
+      rootLabel,
+      functionId: c.functionId,
+      params: c.params,
+    });
+    if (!firstDerivedChain) firstDerivedChain = derived;
+
     const dependsOn = seg.orderingHint !== undefined ? previousOrderedTaskId : null;
-    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, c.params);
+    const taskId = await mintTask(input, submissionId, tasks.length, dependsOn, c.functionId, c.params, derived);
+    chainByTaskId.set(taskId, derived);
 
     const advance = (failed: boolean) => {
       if (seg.orderingHint !== undefined) {
@@ -261,9 +268,34 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     advance(!outcome.success);
   }
 
+  // R53 Phase 2's two tables, written for the first time. Recording a row is
+  // NOT running a task (M24: a history click loads the chain and STOPS) --
+  // these are the strip's memory, nothing more.
+  for (const t of tasks) {
+    const chain = chainByTaskId.get(t.taskId);
+    if (!chain) continue;
+    await recordPillUse(input, t.functionId, chain);
+    await recordChainHistory(input, t.functionId, chain, t.status === "done" ? "ok" : "failed");
+  }
+
   const status = deriveSubmissionStatus(tasks, gaps.length);
+  // selected_chain is NULL on every one of the 16 rows that existed before
+  // R53. When the caller supplied a chain we keep THEIRS -- it is the user's
+  // own pill selection and this column is where it belongs. When they did
+  // not, the derived chain of the first task fills it, so the column stops
+  // being universally null and Task Master has something to render.
+  const selectedChain = (input.selectedChain as object | undefined) ?? (firstDerivedChain as object | null);
   await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.update(submissions).set({ status }).where(eq(submissions.id, submissionId))
+    db.update(submissions).set({ status, selectedChain }).where(eq(submissions.id, submissionId))
+  );
+
+  const l0HitRate = resolvedCount === 0 ? 0 : l0Hits / resolvedCount;
+
+  // THE PROOF, IN THE LOGS. One structured line per submission. A Level 0
+  // hit reads model_calls=0; anything that reached the model cannot hide it.
+  console.info(
+    `[pipeline] submission=${submissionId} segments=${segs.length} resolved=${resolvedCount} l0_hits=${l0Hits} ` +
+      `l0_hit_rate=${l0HitRate.toFixed(2)} model_calls=${modelCallCount} tasks=${tasks.length} gaps=${gaps.length} status=${status}`
   );
 
   return {
@@ -273,8 +305,210 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
     tasks,
     gaps,
     flagged,
-    l0HitRate: resolvedCount === 0 ? 0 : l0Hits / resolvedCount,
+    l0HitRate,
+    modelCalls: modelCallCount,
   };
+}
+
+/**
+ * R53 Phase 6 -- THE PILL PATH. One already-chosen function, minted and run
+ * directly, with no segmentation and NO MODEL CALL EVER.
+ *
+ * This exists because M24's strip is a real input method, not a shortcut for
+ * typing: a user who clicks Work Progress > New entry has already told the
+ * system exactly what they want, and putting that through a classifier would
+ * be re-deriving an answer the user already gave.
+ *
+ * *** IT STILL GOES THROUGH validate() AND THE EXECUTOR REGISTRY. *** A pill
+ * click is not authorisation either. The function must be in the candidate
+ * set, the params must type-check, and the caller's permission is checked by
+ * the route before this is ever reached.
+ */
+export type RunDirectTaskInput = {
+  orgId: string;
+  userId: string;
+  mode: string;
+  projectId?: string | null;
+  functionId: string;
+  params?: Record<string, unknown>;
+  /** the raw text the user typed alongside the pill, kept for the audit trail. */
+  note?: string;
+};
+
+export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
+  const params = input.params ?? {};
+  const base: RunSubmissionInput = {
+    orgId: input.orgId,
+    userId: input.userId,
+    mode: input.mode,
+    projectId: input.projectId ?? null,
+    rawInput: input.note ?? `[pill] ${input.functionId}`,
+  };
+
+  const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
+    const [row] = await db
+      .insert(submissions)
+      .values({
+        orgId: input.orgId,
+        projectId: input.projectId ?? null,
+        mode: input.mode,
+        rawInput: base.rawInput,
+        userId: input.userId,
+      })
+      .returning({ id: submissions.id });
+    return row.id;
+  });
+
+  const validationCtx: ValidationContext = {
+    candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
+    boqLineItemIds: new Set(),
+    userPermittedFunctionIds: new Set(CANDIDATE_FUNCTION_IDS),
+    reachableProjectIds: input.projectId ? new Set([input.projectId]) : new Set(),
+  };
+  const v = validate({ functionId: input.functionId, params }, validationCtx);
+  if (!v.valid) {
+    await logGap(base, submissionId, base.rawInput, input.functionId, v.reason);
+    await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+      db.update(submissions).set({ status: "failed" }).where(eq(submissions.id, submissionId))
+    );
+    return {
+      submissionId,
+      status: "failed",
+      chatMessages: [`I can't do that yet: ${v.reason}`],
+      tasks: [],
+      gaps: [{ text: base.rawInput, reason: v.reason }],
+      flagged: false,
+      l0HitRate: 1,
+      modelCalls: 0,
+    };
+  }
+
+  const rootLabel = await resolveRootLabel(input.orgId, input.projectId ?? null);
+  const derived = await deriveChain(makeChainRepo(input.orgId), {
+    mode: input.mode,
+    rootLabel,
+    functionId: input.functionId,
+    params,
+  });
+
+  const taskId = await mintTask(base, submissionId, 0, null, input.functionId, params, derived);
+
+  let outcome: { success: boolean; result?: unknown; error?: string };
+  if (!hasExecutor(input.functionId)) {
+    outcome = { success: false, error: `no executor is registered for function_id "${input.functionId}" yet` };
+  } else {
+    outcome = await executeTask({
+      orgId: input.orgId,
+      userId: input.userId,
+      projectId: input.projectId ?? null,
+      functionId: input.functionId,
+      params,
+    });
+  }
+
+  const verdict = functionWrites(input.functionId) ? ("task" as const) : ("chat" as const);
+  if (outcome.success) {
+    await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
+  } else {
+    await updateTask(input.orgId, taskId, "blocked", undefined, outcome.error);
+  }
+
+  await recordPillUse(base, input.functionId, derived);
+  await recordChainHistory(base, input.functionId, derived, outcome.success ? "ok" : "failed");
+
+  const status = outcome.success ? "done" : "failed";
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db.update(submissions).set({ status, selectedChain: derived as unknown as object }).where(eq(submissions.id, submissionId))
+  );
+
+  console.info(
+    `[pipeline] submission=${submissionId} source=pill function=${input.functionId} model_calls=0 status=${status}`
+  );
+
+  return {
+    submissionId,
+    status,
+    chatMessages: outcome.success ? [] : [outcome.error ?? "That did not run."],
+    tasks: [
+      {
+        taskId,
+        functionId: input.functionId,
+        verdict,
+        status: outcome.success ? "done" : "blocked",
+        segmentText: base.rawInput,
+        result: outcome.result,
+        error: outcome.error,
+      },
+    ],
+    gaps: [],
+    flagged: false,
+    l0HitRate: 1, // a pill is Level 0 by definition -- the user supplied the function
+    modelCalls: 0,
+  };
+}
+
+/**
+ * MP-RULE-3's storage, written. Upsert, never read-modify-write: the UNIQUE
+ * (org_id, user_id, pill_key) index from Phase 2 is what makes "increment
+ * the count" safe under concurrency.
+ *
+ * The pill_key is the CHAIN'S FIRST STEP -- the module the chain roots into
+ * ("Work Progress", "Budget"). That is the thing M24's strip actually shows,
+ * and it is why two different budget functions rank as one Budget pill
+ * rather than splitting the user's own usage in half.
+ */
+async function recordPillUse(input: RunSubmissionInput, functionId: string | null, chain: DerivedChain) {
+  const pillKey = chain.steps[0];
+  if (!pillKey) return;
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db
+      .insert(pillUsage)
+      .values({
+        orgId: input.orgId,
+        userId: input.userId,
+        pillKey,
+        functionId,
+        derivedChain: chain as unknown as object,
+        useCount: 1,
+      })
+      .onConflictDoUpdate({
+        target: [pillUsage.orgId, pillUsage.userId, pillUsage.pillKey],
+        set: { useCount: sql`${pillUsage.useCount} + 1`, lastUsedAt: new Date(), functionId, derivedChain: chain as unknown as object },
+      })
+  );
+}
+
+/**
+ * M24's HISTORY drop-down, written. DEDUP IS A CONSTRAINT, NOT CODE --
+ * ON CONFLICT on Phase 2's UNIQUE (org_id, user_id, full_chain) is the whole
+ * of "running Daily entry six times leaves ONE row".
+ *
+ * FAILED CHAINS ARE KEPT. M24: "the commonest reason to re-run something is
+ * that it went wrong."
+ */
+async function recordChainHistory(
+  input: RunSubmissionInput,
+  functionId: string | null,
+  chain: DerivedChain,
+  outcome: "ok" | "failed"
+) {
+  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
+    db
+      .insert(chainHistory)
+      .values({
+        orgId: input.orgId,
+        userId: input.userId,
+        fullChain: chain.full,
+        functionId,
+        mode: input.mode,
+        projectId: input.projectId ?? null,
+        outcome,
+      })
+      .onConflictDoUpdate({
+        target: [chainHistory.orgId, chainHistory.userId, chainHistory.fullChain],
+        set: { useCount: sql`${chainHistory.useCount} + 1`, lastUsedAt: new Date(), outcome, functionId },
+      })
+  );
 }
 
 /**
@@ -286,10 +520,9 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
   const l0 = await Promise.all(segs.map((s) => classifyL0(s.text, { orgId: input.orgId, userId: input.userId }, repo)));
 
   const missIndices = l0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const aiByIndex = await runLevel1(
-    missIndices.map((i) => segs[i].text),
-    input
-  );
+  const level1 = await runLevel1(missIndices.map((i) => segs[i].text), level1Context(input));
+  modelCallCount += level1.modelCalls;
+  const aiByIndex = level1.resolutions;
 
   const out: ResolvedSegment[] = segs.map((s, i) => {
     let resolution: ResolvedFunction | null = null;
@@ -348,10 +581,9 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
     retryTexts.map((r) => classifyL0(r.text, { orgId: input.orgId, userId: input.userId }, repo))
   );
   const retryMissIdx = retryL0.map((r, i) => (r.kind === "miss" ? i : -1)).filter((i) => i >= 0);
-  const retryAi = await runLevel1(
-    retryMissIdx.map((i) => retryTexts[i].text),
-    input
-  );
+  const retryLevel1 = await runLevel1(retryMissIdx.map((i) => retryTexts[i].text), level1Context(input));
+  modelCallCount += retryLevel1.modelCalls;
+  const retryAi = retryLevel1.resolutions;
 
   retryTexts.forEach((r, i) => {
     let resolution: ResolvedFunction | null = null;
@@ -378,37 +610,17 @@ async function resolveAll(segs: Segment[], input: RunSubmissionInput, repo: L0Re
 }
 
 /**
- * ONE batched Level 1 call for every unresolved segment (M26/M27: "3
- * segments cost the same as 1 and are 3x faster than 3 calls"). Returns a
- * ResolvedFunction per input, or null where the model produced nothing
- * usable.
- *
- * *** EVERY MODEL OUTPUT IS RE-VALIDATED IN CODE. *** The function_id must
- * be in the candidate set and the confidence must clear M26's 0.8 floor
- * before this returns anything at all; validate() then re-checks types,
- * ids and permission downstream. A model output that fails is a FAIL, not
- * a lower-confidence suggestion.
+ * The bound context every Level 1 call gets. M26: "Pass the module's 5-15
+ * candidate functions and the valid line-item ids -- NEVER the full
+ * catalogue." level1.ts loads the ids itself from this project's latest BOQ.
  */
-async function runLevel1(texts: string[], input: RunSubmissionInput): Promise<(ResolvedFunction | null)[]> {
-  if (texts.length === 0) return [];
-  assertAiProviderAllowed(input.userId);
-  const provider = getAiProvider();
-  const results = await provider.classify(texts, [...CANDIDATE_FUNCTION_IDS], {
+function level1Context(input: RunSubmissionInput) {
+  return {
     orgId: input.orgId,
-    projectId: input.projectId ?? undefined,
-  });
-  return results.map((r) => {
-    if (!r || r.functionId === null) return null;
-    if (!CANDIDATE_FUNCTION_IDS.includes(r.functionId)) return null;
-    if (typeof r.confidence !== "number" || r.confidence < 0.8) return null;
-    return {
-      functionId: r.functionId,
-      params: r.params ?? {},
-      missingParams: r.missingParams ?? [],
-      source: "level1" as const,
-      level: 1 as const,
-    };
-  });
+    userId: input.userId,
+    projectId: input.projectId ?? null,
+    candidateFunctionIds: CANDIDATE_FUNCTION_IDS,
+  };
 }
 
 function deriveSubmissionStatus(tasks: TaskOutcome[], gapCount: number): RunSubmissionResult["status"] {
@@ -425,7 +637,8 @@ async function mintTask(
   sequence: number,
   dependsOn: string | null,
   functionId: string,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  derivedChain: DerivedChain
 ): Promise<string> {
   return withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
     const [row] = await db
@@ -437,7 +650,7 @@ async function mintTask(
         orgId: input.orgId,
         projectId: input.projectId ?? null,
         projectSource: input.projectId ? "inherited" : "stated",
-        derivedChain: null, // filled by R53 Phase 5's derive-chain.ts
+        derivedChain,
         functionId,
         params,
         executor: "software",
@@ -464,16 +677,7 @@ async function logGap(
   normalisedIntent: string | null,
   reason: string
 ) {
-  await withTenantContext({ orgId: input.orgId, userId: input.userId }, (db) =>
-    db.insert(gapLog).values({
-      orgId: input.orgId,
-      userId: input.userId,
-      submissionId,
-      segmentText,
-      normalisedIntent,
-      reason,
-    })
-  );
+  await logGapRow(input.orgId, input.userId, submissionId, segmentText, normalisedIntent, reason);
 }
 
 export { normalisePhrase };
