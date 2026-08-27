@@ -12030,3 +12030,165 @@ export const chainHistory = complianceSchemaDB.table('chain_history', {
   useCount: integer('use_count').notNull().default(1),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
+
+// ─── CRR P2-SCHEMA (2026-08-27) ──────────────────────────────────────────
+// Built directly against the live database (migrations crr041_048_054_p2_schema_foundation
+// through crr045_tsvector_gin, plus crr224_supersession_columns and
+// crr068_fix_missed_rls_gaps -- see platform.crr_spec CRR-041 through
+// CRR-069 for the point-by-point spec and closure proofs, and
+// docs/CRR_SCHEMA.md for the full data dictionary). These definitions
+// document that already-live schema in Drizzle -- see this section's own
+// migration file for how the live DB and this codebase's migration
+// journal are reconciled without re-running DDL that already exists.
+export const sourceObjectOriginEnum = complianceSchemaDB.enum('source_object_origin', ['upload', 'connector', 'email', 'inapp', 'api'])
+export const precedentOutcomeEnum = complianceSchemaDB.enum('precedent_outcome', ['SUCCESS', 'FAILURE', 'ABANDONED'])
+export const chunkPolicySplitOnEnum = complianceSchemaDB.enum('chunk_policy_split_on', ['paragraph', 'sentence', 'page', 'fixed'])
+
+// The single capture table for every artefact from every source -- replaces
+// the prior split across `documents` (uploads only), `connector_documents`
+// (connector files only), and nowhere at all for email. doc_uid is the
+// permanent, birth-assigned identity (CRR-221/222): a trigger blocks any
+// UPDATE that changes it, verified live. content_erased_at/erased_by_id/
+// erasure_authority are tombstone fields for right-to-erasure -- the row
+// and its doc_uid survive erasure, only content is nulled.
+export const sourceObject = complianceSchemaDB.table('source_object', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  origin: sourceObjectOriginEnum('origin').notNull(),
+  originRef: text('origin_ref'),
+  mimeType: text('mime_type'),
+  byteSize: integer('byte_size'),
+  storagePath: text('storage_path'),
+  sha256: text('sha256'),
+  title: text('title'),
+  linkedEntityType: text('linked_entity_type'),
+  linkedEntityId: text('linked_entity_id'),
+  businessObjectType: text('business_object_type'),
+  extractStatus: text('extract_status').notNull().default('PENDING'),
+  extractError: text('extract_error'),
+  pageCount: integer('page_count'),
+  charCount: integer('char_count'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+  docUid: text('doc_uid').notNull().unique(),
+  contentSha256: text('content_sha256'),
+  displayName: text('display_name'),
+  contentErasedAt: timestamp('content_erased_at'),
+  erasedById: text('erased_by_id'),
+  erasureAuthority: text('erasure_authority'),
+  supersedesDocUid: text('supersedes_doc_uid'),
+  supersededByDocUid: text('superseded_by_doc_uid'),
+  isCurrent: boolean('is_current').notNull().default(true),
+})
+
+// One row per chunk of a source_object's extracted content.
+// `embedding vector(1536)` column intentionally omitted here (Drizzle has no
+// first-class pgvector type; managed via raw SQL, same pattern as
+// embeddings.embedding and task_embedding elsewhere in this file). HNSW
+// index and a GIN tsvector index (search_vector, generated column) also
+// live only in the migration, not modeled here, same reason.
+export const documentChunk = complianceSchemaDB.table('document_chunk', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourceObjectId: text('source_object_id').notNull().references(() => sourceObject.id, { onDelete: 'restrict' }),
+  orgId: text('org_id').notNull(),
+  seq: integer('seq').notNull(),
+  page: integer('page'),
+  charStart: integer('char_start'),
+  charEnd: integer('char_end'),
+  content: text('content'),
+  contentHash: text('content_hash'),
+  tokenEstimate: integer('token_estimate'),
+  isReal: boolean('is_real').notNull().default(false),
+  contentErasedAt: timestamp('content_erased_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Field specs per business-object type -- replaces the India-tax-specific
+// extractor that was hard-coded into documents/extract/route.ts.
+export const extractionProfile = complianceSchemaDB.table('extraction_profile', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  businessObjectType: text('business_object_type').notNull(),
+  name: text('name').notNull(),
+  fieldSpec: jsonb('field_spec').notNull(),
+  promptPreamble: text('prompt_preamble'),
+  isActive: boolean('is_active').notNull().default(true),
+  isPlatformDefault: boolean('is_platform_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// The "similar" tier of reuse -- reuse_cache already handles "same" by hash;
+// this handles semantically similar past requests, and always records the
+// real outcome so a past FAILURE is never resurfaced as a suggestion.
+// `intent_embedding vector(1536)` intentionally omitted, same reason as
+// document_chunk.embedding above.
+export const precedent = complianceSchemaDB.table('precedent', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  normalisedIntent: text('normalised_intent').notNull(),
+  functionId: text('function_id'),
+  params: jsonb('params'),
+  outcome: precedentOutcomeEnum('outcome').notNull(),
+  sourceTaskId: text('source_task_id'),
+  occurredAt: timestamp('occurred_at'),
+  reuseCount: integer('reuse_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Records that a chunk was cited in an answer. chunkId is ON DELETE RESTRICT
+// by design -- a citation must outlive a redaction and resolve to a
+// tombstone, never silently vanish.
+export const retrievalCitation = complianceSchemaDB.table('retrieval_citation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  chunkId: text('chunk_id').notNull().references(() => documentChunk.id, { onDelete: 'restrict' }),
+  queryText: text('query_text'),
+  responseId: text('response_id'),
+  citedAt: timestamp('cited_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Global, non-tenant-scoped chunking configuration per business-object type
+// -- replaces a hard-coded 1000-character constant in TypeScript. No orgId:
+// this is shared platform config, not tenant data.
+export const chunkPolicy = complianceSchemaDB.table('chunk_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  businessObjectType: text('business_object_type').notNull().unique(),
+  maxChars: integer('max_chars').notNull(),
+  overlapChars: integer('overlap_chars').notNull(),
+  splitOn: chunkPolicySplitOnEnum('split_on').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Audit trail for right-to-erasure requests.
+export const crrErasureLog = complianceSchemaDB.table('crr_erasure_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  subjectRef: text('subject_ref').notNull(),
+  requestedAt: timestamp('requested_at').notNull(),
+  sourceObjectsDeleted: integer('source_objects_deleted'),
+  chunksDeleted: integer('chunks_deleted'),
+  citationsDeleted: integer('citations_deleted'),
+  embeddingsDeleted: integer('embeddings_deleted'),
+  completedAt: timestamp('completed_at'),
+  performedById: text('performed_by_id'),
+})
+
+// Per-stage ingest failure log. orgId nullable by design -- a failure can
+// occur before the org is even resolved; such rows are visible only to the
+// service role (fail closed), never to app_runtime.
+export const crrIngestError = complianceSchemaDB.table('crr_ingest_error', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  sourceObjectId: text('source_object_id'),
+  stage: text('stage').notNull(),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  retryCount: integer('retry_count').default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
