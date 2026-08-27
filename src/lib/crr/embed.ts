@@ -20,6 +20,10 @@
 // policy (`org_id = compliance.current_org_id()`) depends on this column
 // being correct for every row.
 //
+// CRR-223 (doc_uid as the retrieval/storage key): document_chunk also
+// carries doc_uid now, required and passed straight through alongside
+// source_object_id -- see StoreChunkEmbeddingInput's own doc comment below.
+//
 // document_chunk.embedding (vector(1536)) has no Drizzle column (see
 // schema.ts's own comment on the documentChunk table) -- written via the
 // same raw postgres.js tagged-template client pattern as embeddings.ts's
@@ -83,6 +87,17 @@ export type StoreChunkEmbeddingInput = {
   /** Always the parent source_object's own org_id -- see this file's D-2 header note. */
   orgId: string
   sourceObjectId: string
+  /**
+   * CRR-223: always the parent source_object's own doc_uid (CRR-221/222's
+   * permanent, birth-assigned identity) -- required, never inferred, never
+   * defaulted, same discipline as orgId's own D-2 note above. Every chunk
+   * carries its parent's doc_uid alongside source_object_id so a chunk (and
+   * anything that cites it, e.g. retrieval_citation via chunk_id) resolves
+   * back to its document by the permanent id, not only by a row id that a
+   * future supersession/re-versioning pass (CRR-224/225) could leave
+   * pointing at a superseded row.
+   */
+  docUid: string
   chunk: TextChunk
 }
 
@@ -116,9 +131,9 @@ export async function storeChunkEmbedding(
 
   const rows = await client`
     INSERT INTO compliance.document_chunk
-      (id, source_object_id, org_id, seq, char_start, char_end, content, content_hash, token_estimate, is_real, embedding, created_at)
+      (id, source_object_id, org_id, doc_uid, seq, char_start, char_end, content, content_hash, token_estimate, is_real, embedding, created_at)
     VALUES
-      (gen_random_uuid()::text, ${input.sourceObjectId}, ${input.orgId}, ${input.chunk.seq}, ${input.chunk.charStart}, ${input.chunk.charEnd}, ${input.chunk.content}, ${contentHash}, ${tokenEstimate}, true, ${vectorStr}::vector, NOW())
+      (gen_random_uuid()::text, ${input.sourceObjectId}, ${input.orgId}, ${input.docUid}, ${input.chunk.seq}, ${input.chunk.charStart}, ${input.chunk.charEnd}, ${input.chunk.content}, ${contentHash}, ${tokenEstimate}, true, ${vectorStr}::vector, NOW())
     RETURNING id
   `
   return { id: rows[0].id, isReal: true }
