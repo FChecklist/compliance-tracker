@@ -11,6 +11,7 @@ import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { constructionBoqLineItems, constructionBoqs, constructionActivities } from "@/lib/db/schema";
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
+import { dispatchTool } from "@/lib/task-execution-engine";
 
 export type ExecutionOutcome = { success: true; result: unknown } | { success: false; error: string };
 
@@ -83,10 +84,65 @@ async function executeGetProjectDashboard(task: ExecutableTask): Promise<Executi
   return { success: true, result: dashboard };
 }
 
+// R53 Phase 4 -- the six remaining PROJEXA construction functions, reached
+// through the SAME dispatchTool() mechanism the /api/v1/projexa/assistant
+// codeReference path has used since Wave 128. Not a new capability and not
+// a new taxonomy: these seven ids are already the route's own
+// ALLOWED_CODE_REFERENCES allowlist, already registered in
+// task-execution-engine.ts, already read-only there by that function's own
+// stated contract. Before R53 the pipeline could resolve exactly TWO
+// functions, which is why "show me the budget" had nowhere to land and was
+// silently dropped.
+//
+// M26 caps the candidate set at "the module's 5-15 functions ... NEVER 400
+// unbound functions". Seven reads plus one write is eight. Well inside it.
+const READ_ONLY_DISPATCH_FUNCTION_IDS = [
+  "get_construction_budget_status",
+  "get_construction_kpi_status",
+  "list_delayed_activities",
+  "list_over_budget_projects",
+  "generate_construction_progress_summary",
+  "detect_construction_budget_schedule_risk",
+] as const;
+
+function makeDispatchExecutor(codeReference: string): (task: ExecutableTask) => Promise<ExecutionOutcome> {
+  return async (task) => {
+    // list_over_budget_projects and list_delayed_activities are org-scoped
+    // and need no project; the rest throw "Missing projectId" inside
+    // dispatchTool if one was not resolved. Checked here so the user gets
+    // the honest reason rather than a raw engine error.
+    const needsProject = codeReference !== "list_over_budget_projects" && codeReference !== "list_delayed_activities";
+    if (needsProject && !task.projectId) return { success: false, error: "no project resolved for this task" };
+    const result = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+      dispatchTool(db, task.orgId, task.userId, codeReference, { inputs: { projectId: task.projectId ?? undefined } })
+    );
+    return { success: true, result };
+  };
+}
+
 const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   record_work_progress: executeRecordWorkProgress,
   get_construction_project_dashboard: executeGetProjectDashboard,
+  ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
 };
+
+/**
+ * R53 Phase 4's writes/reads split -- the one fact classify.ts needs to
+ * separate a TASK from a CHAT.
+ *
+ * A CLOSED ALLOWLIST OF WRITERS, NOT A GUESS. Everything not named here is
+ * treated as a read, which is the safe direction to be wrong in: mistaking
+ * a write for a read blocks it with an honest reason, while mistaking a
+ * read for a write would let a question record a real row.
+ */
+const WRITE_FUNCTION_IDS: ReadonlySet<string> = new Set(["record_work_progress"]);
+
+export function functionWrites(functionId: string): boolean {
+  return WRITE_FUNCTION_IDS.has(functionId);
+}
+
+/** The pipeline's candidate set -- every function it can actually run today. */
+export const EXECUTABLE_FUNCTION_IDS: readonly string[] = Object.keys(EXECUTORS);
 
 export function hasExecutor(functionId: string): boolean {
   return functionId in EXECUTORS;

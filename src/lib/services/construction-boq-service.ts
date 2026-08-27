@@ -168,6 +168,144 @@ function computedRate(item: { materialCost: string | null; labourCost: string | 
  * way computeHierarchicalAmount does, so the error surfaces before any rows
  * are written rather than partway through.
  */
+/**
+ * R53 / R46M13_TC10_01 -- THE FALSE-POSITIVE SUCCESS GUARD.
+ *
+ * THE DEFECT: creating a weighted-sub-task BOQ (a parent plus breakdown-
+ * percentage children) through the real "New BOQ" dialog showed a green
+ * "BOQ created" toast and a cleanly closing dialog -- exactly like a real
+ * success -- while the children were not stored. The projexa half of that
+ * (a caller that did not check res.ok) is fixed in that repo. THIS is the
+ * backend half, and the backend half is the one that matters: the service
+ * could return 201 with children silently dropped, so a caller that DID
+ * check the status still had nothing to check.
+ *
+ * BoqLineItemInput is a TypeScript type. Types are erased at runtime, so
+ * before this function the request body was never validated at all. Three
+ * consequences, all of which produced a 201:
+ *
+ *   1. A client that spells a key snake_case ("parent_item_code" instead of
+ *      "parentItemCode") reads as undefined. Every row then falls into the
+ *      first batch as a ROOT: parent_line_item_id null, breakdown_percentage
+ *      null, and because deriveLineItemQuantityAndRate returns early when
+ *      parentItemCode is unset, child rows store their submitted 0/0 and an
+ *      amount of "0". The hierarchy is gone and the response says 201.
+ *   2. Duplicate itemCodes silently re-parent -- both the byItemCode map and
+ *      idByItemCode keep the LAST writer, so children attach to the wrong
+ *      parent with no error.
+ *   3. A row missing description/unit hits a raw Postgres 23502 that the
+ *      route turns into a generic 500 naming no field.
+ *
+ * EVERY CHECK HERE NAMES THE FIELD AND THE ROW. "A BOQ without a title is
+ * rejected with a message naming the title field" is requirement R-04's
+ * standard; there is no reason line items get a lower one.
+ */
+const SNAKE_CASE_TRAPS: ReadonlyArray<[string, string]> = [
+  ["item_code", "itemCode"],
+  ["parent_item_code", "parentItemCode"],
+  ["breakdown_percentage", "breakdownPercentage"],
+  ["activity_id", "activityId"],
+  ["material_cost", "materialCost"],
+  ["labour_cost", "labourCost"],
+  ["equipment_cost", "equipmentCost"],
+  ["overhead_percent", "overheadPercent"],
+  ["profit_percent", "profitPercent"],
+];
+
+/**
+ * R53 / R46M13_TC10_01, second pass. The line-item guard below protects the
+ * FIELDS of a line item; this protects the KEY that carries them.
+ *
+ * R-03 rules that "a BOQ may be created with a title and no line items", so
+ * an absent or empty lineItems is LEGAL and must stay legal. What is not
+ * legal is a caller that sent items under a name this service does not read:
+ * that body produces a header-only BOQ and a 201, which is the same
+ * false-positive success one level up. Rejecting only the recognised
+ * misspellings keeps R-03 intact while closing the hole.
+ */
+const LINE_ITEMS_KEY_TRAPS = ["line_items", "lineitems", "items", "lines", "boqLineItems", "boq_line_items"] as const;
+
+export function validateBoqBodyShape(input: unknown): void {
+  if (!input || typeof input !== "object") return;
+  const raw = input as Record<string, unknown>;
+  if (raw.lineItems !== undefined) return; // the caller used the right key
+  for (const trap of LINE_ITEMS_KEY_TRAPS) {
+    if (raw[trap] !== undefined) {
+      throw new ServiceError(`"${trap}" is not a recognised field -- use "lineItems"`, 400);
+    }
+  }
+}
+
+export function validateLineItemInputs(items: BoqLineItemInput[]): void {
+  const seenItemCodes = new Set<string>();
+
+  items.forEach((item, index) => {
+    const where = `line item ${index + 1}${item.itemCode ? ` (${item.itemCode})` : ""}`;
+    const raw = item as unknown as Record<string, unknown>;
+
+    // A misspelled key is REJECTED, never ignored. Ignoring it is what
+    // silently flattened the hierarchy while reporting success.
+    for (const [wrong, right] of SNAKE_CASE_TRAPS) {
+      if (raw[wrong] !== undefined) {
+        throw new ServiceError(`${where}: "${wrong}" is not a recognised field -- use "${right}"`, 400);
+      }
+    }
+
+    if (typeof item.description !== "string" || item.description.trim() === "") {
+      throw new ServiceError(`${where}: description is required`, 400);
+    }
+    if (typeof item.unit !== "string" || item.unit.trim() === "") {
+      throw new ServiceError(`${where}: unit is required`, 400);
+    }
+
+    if (item.itemCode) {
+      if (seenItemCodes.has(item.itemCode)) {
+        // Silently keeping the last one is how children end up under the
+        // wrong parent with a 201 and no complaint.
+        throw new ServiceError(`${where}: duplicate itemCode "${item.itemCode}" -- item codes must be unique within one BOQ`, 400);
+      }
+      seenItemCodes.add(item.itemCode);
+    }
+
+    // A child's quantity/rate are derived from its root, so they are only
+    // checked on roots -- checking them on children would reject exactly the
+    // blank fields R-13 says a child is allowed to leave blank.
+    if (!item.parentItemCode) {
+      for (const key of ["quantity", "rate"] as const) {
+        const v = item[key];
+        if (v !== undefined && (typeof v !== "number" || !Number.isFinite(v) || v < 0)) {
+          throw new ServiceError(`${where}: ${key} must be a non-negative number, got ${JSON.stringify(v)}`, 400);
+        }
+      }
+    }
+
+    if (item.parentItemCode && item.breakdownPercentage === undefined) {
+      throw new ServiceError(`${where}: breakdownPercentage is required when parentItemCode is set`, 400);
+    }
+  });
+}
+
+/**
+ * R53 / R46M13_TC10_01 -- the assertion that makes "BOQ created" mean it.
+ *
+ * Runs INSIDE the same transaction as the inserts, so a mismatch rolls the
+ * whole BOQ back rather than leaving a half-written one behind. A caller
+ * can now trust a 201 absolutely: either every line item the caller sent is
+ * stored, or there is no BOQ and an error says how many went missing.
+ */
+async function assertLineItemsPersisted(db: TenantDb, boqId: string, expected: number): Promise<void> {
+  const stored = await db.query.constructionBoqLineItems.findMany({
+    where: eq(constructionBoqLineItems.boqId, boqId),
+    columns: { id: true },
+  });
+  if (stored.length !== expected) {
+    throw new ServiceError(
+      `BOQ was not created: ${expected} line item(s) submitted but ${stored.length} stored. Nothing was saved.`,
+      500
+    );
+  }
+}
+
 async function insertLineItems(db: TenantDb, orgId: string, boqId: string, items: BoqLineItemInput[]) {
   if (items.length === 0) return
   const byItemCode = new Map(items.filter((i) => i.itemCode).map((i) => [i.itemCode!, i]))
@@ -318,6 +456,9 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
   const title = input.title?.trim()
   if (!title) throw new ServiceError("title is required", 400)
   if (!input.projectId) throw new ServiceError("projectId is required", 400)
+  // Before the transaction: a malformed body should never open one.
+  validateBoqBodyShape(input)
+  validateLineItemInputs(input.lineItems || [])
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const project = await db.query.projects.findFirst({ where: and(eq(projects.id, input.projectId), eq(projects.orgId, ctx.orgId)) })
@@ -327,13 +468,21 @@ export async function createBoq(ctx: BoqContext, input: BoqInput) {
       orgId: ctx.orgId, projectId: input.projectId, version: 1, title, createdById: ctx.userId,
     }).returning()
 
-    await insertLineItems(db, ctx.orgId, boq.id, input.lineItems || [])
+    const lineItems = input.lineItems || []
+    await insertLineItems(db, ctx.orgId, boq.id, lineItems)
+    await assertLineItemsPersisted(db, boq.id, lineItems.length)
     return getBoqRow(db, boq.id)
   })
 }
 
 async function getBoqRow(db: TenantDb, boqId: string) {
   const boq = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.id, boqId) })
+  // R53 / R46M13_TC10_01: `{ ...undefined }` is legal JavaScript, so without
+  // this guard a read that found nothing returned a 201 whose body carried
+  // no id and an empty lineItems array -- indistinguishable, to a caller,
+  // from a BOQ that was created and simply had no lines. getBoq() has always
+  // thrown 404 in this situation; this path silently did not.
+  if (!boq) throw new ServiceError("BOQ not found after write -- nothing was saved", 500)
   const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
   return { ...boq, lineItems: lineItems.map(withComputedRate) }
 }
@@ -346,6 +495,27 @@ export async function createBoqRevision(
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const parent = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, parentBoqId), eq(constructionBoqs.orgId, ctx.orgId)) })
     if (!parent) throw new ServiceError("Parent BOQ not found", 404)
+
+    // E-128 (real bug, found while investigating duplicate (project_id,
+    // version) rows): nothing previously stopped this function from being
+    // called twice for the same parent -- a double-submit or a retried
+    // request would each read the SAME parent.version and both insert
+    // version = parent.version + 1, giving one parent two sibling children
+    // that collide on version (verified live: parent n1aowsmdxp0xim4zb394zxb2
+    // had exactly this happen, 13 seconds apart). A revision chain's version
+    // numbers only mean anything if each parent supersedes into at most one
+    // child, so that -- not project-wide version uniqueness, which would
+    // wrongly reject the legitimate "two independent, non-chained BOQs both
+    // start at version 1" case documented on schema.ts's parentBoqId column
+    // -- is the real invariant. The DB now also enforces this at the layer
+    // that actually matters (parentBoqId UNIQUE) so a race loses to a clean
+    // constraint violation even if this check and the constraint-add race
+    // each other; this check exists so the common (non-racing) case gets a
+    // real 409 instead of a raw postgres unique-violation bubbling up.
+    const existingChild = await db.query.constructionBoqs.findFirst({ where: eq(constructionBoqs.parentBoqId, parent.id) })
+    if (existingChild) {
+      throw new ServiceError(`This BOQ has already been revised (revision ${existingChild.version}, id ${existingChild.id}) -- create a new revision from that one instead.`, 409)
+    }
 
     const previousItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, parent.id) })
 
@@ -367,7 +537,9 @@ export async function createBoqRevision(
     const itemCodeById = new Map(previousItems.filter((i) => i.itemCode).map((i) => [i.id, i.itemCode!]))
     const lineItems = input.lineItems ?? previousItems.map((row) => toLineItemInput(row, itemCodeById))
 
+    validateLineItemInputs(lineItems)
     await insertLineItems(db, ctx.orgId, boq.id, lineItems)
+    await assertLineItemsPersisted(db, boq.id, lineItems.length)
 
     // Owner directive: a negative variation (removing/reducing a line item)
     // must be blocked -- not just warned about -- when that item's linked
@@ -649,6 +821,37 @@ export async function submitBoq(ctx: { orgId: string }, boqId: string) {
     })
   }
   return row
+}
+
+// R46/E-126b: no DELETE existed for a BOQ at all -- the demo-gate smoke
+// suite (e2e/demo-gate-smoke.spec.ts) creates real, timestamped BOQs on
+// every CI run with nowhere to clean them up, so the count of ""R-B1
+// smoke ..."" rows on the shared demo project grew unbounded (165 -> 170 ->
+// 204 over three sessions) until an afterEach in that spec could call a
+// real endpoint. Scoped the same way every other mutator in this file is
+// (ctx.orgId via withTenantContext -- a caller can only ever delete a BOQ
+// inside their OWN org, so this is not demo/test-specific, just a normal
+// missing CRUD operation). Restricted to status "draft" only: once a BOQ
+// has been submitted/approved it represents real, potentially executed
+// scope and must go through submitBoq/approveBoq's own state machine (a
+// revision or explicit descope), never a silent delete -- this also means
+// the smoke suite's own BOQs (always left in "draft", never submitted)
+// are always eligible for its own afterEach to remove.
+export async function deleteBoq(ctx: { orgId: string }, boqId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boq = await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, boqId), eq(constructionBoqs.orgId, ctx.orgId)) })
+    if (!boq) throw new ServiceError("BOQ not found", 404)
+    if (boq.status !== "draft") throw new ServiceError("Only a draft BOQ can be deleted -- submit/approve implies real scope that must be revised, not silently removed", 400)
+
+    const lineItemRows = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, boqId) })
+    const lineItemIds = lineItemRows.map((li) => li.id)
+    if (lineItemIds.length > 0) {
+      await db.delete(constructionWorkProgressEntries).where(inArray(constructionWorkProgressEntries.boqLineItemId, lineItemIds))
+      await db.delete(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, boqId))
+    }
+    await db.delete(constructionBoqs).where(eq(constructionBoqs.id, boqId))
+    return { deleted: true, id: boqId, lineItemsDeleted: lineItemIds.length }
+  })
 }
 
 export async function approveBoq(ctx: { orgId: string; userId: string }, boqId: string) {

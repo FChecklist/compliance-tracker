@@ -4755,6 +4755,12 @@ export const reportSchedules = complianceSchemaDB.table('report_schedules', {
 // equivalent of report-catalog-service.ts's static REPORT_CATALOG entries);
 // a real orgId = an org-specific definition (e.g. one an org's AI report
 // builder promoted into a reusable row).
+// R46 P9 seq32 (R-43 G.10-G.17): shared by reportDefinitions.scope below and
+// the reuse-store tables (reuseCache/memoryStore) further down this file --
+// declared here, ahead of reportDefinitions, since a Drizzle pgEnum must be
+// initialized before any table column references it.
+export const reuseScopeEnum = complianceSchemaDB.enum('reuse_scope', ['user', 'organization', 'global'])
+
 export const reportDefinitions = complianceSchemaDB.table('report_definitions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id'), // nullable = platform-wide
@@ -4772,6 +4778,11 @@ export const reportDefinitions = complianceSchemaDB.table('report_definitions', 
   createdBy: text('created_by').notNull().default('system'), // 'system' | 'ai' | a real users.id
   promotedFromContext: text('promoted_from_context'), // free-text traceability pointer when createdBy='ai', not a FK
   isActive: boolean('is_active').notNull().default(true),
+  // R46 P9 seq32 (R-43 G.10-G.17): reports/analyses reuse THIS table rather
+  // than a parallel stored_reports/stored_analyses table -- nullable/
+  // additive, the existing 218 rows are unaffected (verified via count()
+  // before/after the migration that added this column).
+  scope: reuseScopeEnum('scope'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -10028,7 +10039,28 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   version: integer('version').notNull().default(1),
-  parentBoqId: text('parent_boq_id'), // self-FK -- previous revision in the chain
+  // E-128: UNIQUE, not just a plain self-FK -- (project_id, version) is
+  // deliberately NOT globally unique (E-116/a13cf547: a project can hold two
+  // or more INDEPENDENT, non-revision-chain BOQs that each legitimately
+  // start at version 1 -- e.g. "Villa 21 - Original BOQ" and "Sumeet Sample
+  // Scope", both real, both version 1, both intentional; every "latest BOQ"
+  // reader already resolves that tie deterministically via version DESC,
+  // createdAt DESC -- see listBoqs()/scopeReport() etc.). The REAL, provably
+  // illegitimate duplicate case found live (2026-08-25, E-128) was different:
+  // createBoqRevision() had no guard against being called twice for the same
+  // parent, so a retried/double-submitted request could give one parent TWO
+  // children both claiming parent.version + 1 (verified live: parent
+  // n1aowsmdxp0xim4zb394zxb2 had two "version 2" children 13s apart, both
+  // empty drafts, zero downstream progress-entry references -- the extra one
+  // was removed as inert duplicate debris in the same migration that added
+  // this constraint). A revision CHAIN's version numbers are only meaningful
+  // and strictly increasing if each parent supersedes into exactly one
+  // child, so that -- not a project-wide (project_id, version) unique, which
+  // would reject the legitimate independent-BOQ case above -- is the real
+  // invariant to enforce at the DB layer. createBoqRevision() also checks
+  // this explicitly up front (a clean 409 ServiceError) so a caller sees a
+  // real error instead of a raw unique-violation.
+  parentBoqId: text('parent_boq_id').unique(), // self-FK -- previous revision in the chain; UNIQUE so a parent can supersede into at most one child
   title: text('title').notNull(),
   status: constructionBoqStatusEnum('status').notNull().default('draft'),
   createdById: text('created_by_id').notNull(),
@@ -11894,4 +11926,269 @@ export const screenDrafts = complianceSchemaDB.table('screen_drafts', {
   lockExpiresAt: timestamp('lock_expires_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── R46 P9 seq32 (R-43 G.10-G.17) -- reuse store, THREE tables only ──────
+// Deliberately NOT eight tables (an earlier chat pass over-engineered this
+// to 8, including a "stored_functions" table with a `code` column -- that
+// is code-as-data, a self-modifying-system pattern v5 P-6/D-6 bans
+// outright, and was removed). Function reuse means referencing a
+// function_id already in the module registry, NEVER storing or executing
+// code from a row. Reports/analyses deliberately do NOT get a parallel
+// table -- they reuse compliance.report_definitions (218 rows, unaffected
+// by this migration), extended above (see reportDefinitions) with a
+// `scope` column using this same enum (declared before reportDefinitions
+// in this file so that column's reference to it is valid).
+// Covers both TASKS and CHAT RESPONSES -- same shape (an input resolving to
+// a function_id + a response), so one table, not two. UNIQUE(org_id,
+// user_id, scope, input_hash) enforced in the migration -- this is what
+// makes "second identical request -> reuse hit, reuse_count increments,
+// zero model calls" a real, checkable guarantee rather than app-level
+// discipline. A different org with the identical input_hash is a MISS
+// (gets its own row) unless scope='global' groups across orgs deliberately.
+export const reuseCache = complianceSchemaDB.table('reuse_cache', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  scope: reuseScopeEnum('scope').notNull().default('user'),
+  inputHash: text('input_hash').notNull(),
+  functionId: text('function_id'),
+  params: jsonb('params').notNull().default({}),
+  response: jsonb('response'),
+  reuseCount: integer('reuse_count').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Covers both ERRORS and FIXES -- a fix is a solved error (solved=true,
+// solution populated), not a separate concept/table.
+export const incidentLog = complianceSchemaDB.table('incident_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  errorType: text('error_type').notNull(),
+  message: text('message').notNull(),
+  filePath: text('file_path'),
+  context: jsonb('context'),
+  solution: text('solution'),
+  solved: boolean('solved').notNull().default(false),
+  solvedAt: timestamp('solved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Generic scoped key/value memory -- UNIQUE(scope, org_id, user_id, key)
+// enforced in the migration.
+export const memoryStore = complianceSchemaDB.table('memory_store', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: reuseScopeEnum('scope').notNull().default('user'),
+  orgId: text('org_id'),
+  userId: text('user_id'),
+  key: text('key').notNull(),
+  value: jsonb('value').notNull(),
+  interactions: integer('interactions').notNull().default(1),
+  lastUsed: timestamp('last_used').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── R53 Phase 2 (M24's pill ranking + chain history) ─────────────────────
+// APPEND ONLY. Nothing above this line is edited by R53.
+//
+// M24 rules three things that had nowhere to live: MP-RULE-3's rolling
+// 7-day per-user pill ranking, PINNED PILLS NEVER DECAY, and LAST-USED-EVER
+// as the tiebreak below the 7-day window (MP-RISK-3). It separately rules
+// that HISTORY shows the WHOLE chain, DEDUPLICATED, INCLUDING FAILED ones.
+// Migration drizzle/0325_r53_pill_usage_chain_history.sql.
+export const chainOutcomeEnum = complianceSchemaDB.enum('chain_outcome', ['ok', 'failed'])
+
+export const pillUsage = complianceSchemaDB.table('pill_usage', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // MP-RULE-3 is per USER, not per org -- one PM's ranking must never reorder another's strip
+  pillKey: text('pill_key').notNull(), // the pill's stable identity (M24's 14 universal pills + module pills), NOT its display label
+  functionId: text('function_id'),
+  derivedChain: jsonb('derived_chain'), // the chain this pill last produced -- output of derive-chain.ts, never an input to it (M26)
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(), // powers BOTH the 7-day window and the last-used-ever tiebreak below it
+  useCount: integer('use_count').notNull().default(0),
+  pinned: boolean('pinned').notNull().default(false), // M24: a pinned pill NEVER decays out of the strip, whatever the window says
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// full_chain is TEXT, not jsonb: the UNIQUE (org, user, full_chain) index IS
+// M24's dedup rule, and jsonb key-order/whitespace differences would defeat
+// an equality constraint on a value the user identifies by how it READS.
+export const chainHistory = complianceSchemaDB.table('chain_history', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  fullChain: text('full_chain').notNull(), // "Oakwood > Scope > Import BOQ" -- M24: never a fragment, "Import BOQ" alone is ambiguous
+  functionId: text('function_id'),
+  mode: text('mode'), // the entity the chain rooted on -- a history click ALSO SETS MODE, so the strip can never contradict itself (M24)
+  projectId: text('project_id'),
+  outcome: chainOutcomeEnum('outcome').notNull().default('ok'), // failed chains are KEPT and shown (M24)
+  pinned: boolean('pinned').notNull().default(false),
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(),
+  useCount: integer('use_count').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── CRR P2-SCHEMA (2026-08-27) ──────────────────────────────────────────
+// Built directly against the live database (migrations crr041_048_054_p2_schema_foundation
+// through crr045_tsvector_gin, plus crr224_supersession_columns and
+// crr068_fix_missed_rls_gaps -- see platform.crr_spec CRR-041 through
+// CRR-069 for the point-by-point spec and closure proofs, and
+// docs/CRR_SCHEMA.md for the full data dictionary). These definitions
+// document that already-live schema in Drizzle -- see this section's own
+// migration file for how the live DB and this codebase's migration
+// journal are reconciled without re-running DDL that already exists.
+export const sourceObjectOriginEnum = complianceSchemaDB.enum('source_object_origin', ['upload', 'connector', 'email', 'inapp', 'api'])
+export const precedentOutcomeEnum = complianceSchemaDB.enum('precedent_outcome', ['SUCCESS', 'FAILURE', 'ABANDONED'])
+export const chunkPolicySplitOnEnum = complianceSchemaDB.enum('chunk_policy_split_on', ['paragraph', 'sentence', 'page', 'fixed'])
+
+// The single capture table for every artefact from every source -- replaces
+// the prior split across `documents` (uploads only), `connector_documents`
+// (connector files only), and nowhere at all for email. doc_uid is the
+// permanent, birth-assigned identity (CRR-221/222): a trigger blocks any
+// UPDATE that changes it, verified live. content_erased_at/erased_by_id/
+// erasure_authority are tombstone fields for right-to-erasure -- the row
+// and its doc_uid survive erasure, only content is nulled.
+export const sourceObject = complianceSchemaDB.table('source_object', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  origin: sourceObjectOriginEnum('origin').notNull(),
+  originRef: text('origin_ref'),
+  mimeType: text('mime_type'),
+  byteSize: integer('byte_size'),
+  storagePath: text('storage_path'),
+  sha256: text('sha256'),
+  title: text('title'),
+  linkedEntityType: text('linked_entity_type'),
+  linkedEntityId: text('linked_entity_id'),
+  businessObjectType: text('business_object_type'),
+  extractStatus: text('extract_status').notNull().default('PENDING'),
+  extractError: text('extract_error'),
+  pageCount: integer('page_count'),
+  charCount: integer('char_count'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+  docUid: text('doc_uid').notNull().unique(),
+  contentSha256: text('content_sha256'),
+  displayName: text('display_name'),
+  contentErasedAt: timestamp('content_erased_at'),
+  erasedById: text('erased_by_id'),
+  erasureAuthority: text('erasure_authority'),
+  supersedesDocUid: text('supersedes_doc_uid'),
+  supersededByDocUid: text('superseded_by_doc_uid'),
+  isCurrent: boolean('is_current').notNull().default(true),
+})
+
+// One row per chunk of a source_object's extracted content.
+// `embedding vector(1536)` column intentionally omitted here (Drizzle has no
+// first-class pgvector type; managed via raw SQL, same pattern as
+// embeddings.embedding and task_embedding elsewhere in this file). HNSW
+// index and a GIN tsvector index (search_vector, generated column) also
+// live only in the migration, not modeled here, same reason.
+export const documentChunk = complianceSchemaDB.table('document_chunk', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourceObjectId: text('source_object_id').notNull().references(() => sourceObject.id, { onDelete: 'restrict' }),
+  orgId: text('org_id').notNull(),
+  seq: integer('seq').notNull(),
+  page: integer('page'),
+  charStart: integer('char_start'),
+  charEnd: integer('char_end'),
+  content: text('content'),
+  contentHash: text('content_hash'),
+  tokenEstimate: integer('token_estimate'),
+  isReal: boolean('is_real').notNull().default(false),
+  contentErasedAt: timestamp('content_erased_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Field specs per business-object type -- replaces the India-tax-specific
+// extractor that was hard-coded into documents/extract/route.ts.
+export const extractionProfile = complianceSchemaDB.table('extraction_profile', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  businessObjectType: text('business_object_type').notNull(),
+  name: text('name').notNull(),
+  fieldSpec: jsonb('field_spec').notNull(),
+  promptPreamble: text('prompt_preamble'),
+  isActive: boolean('is_active').notNull().default(true),
+  isPlatformDefault: boolean('is_platform_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// The "similar" tier of reuse -- reuse_cache already handles "same" by hash;
+// this handles semantically similar past requests, and always records the
+// real outcome so a past FAILURE is never resurfaced as a suggestion.
+// `intent_embedding vector(1536)` intentionally omitted, same reason as
+// document_chunk.embedding above.
+export const precedent = complianceSchemaDB.table('precedent', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  normalisedIntent: text('normalised_intent').notNull(),
+  functionId: text('function_id'),
+  params: jsonb('params'),
+  outcome: precedentOutcomeEnum('outcome').notNull(),
+  sourceTaskId: text('source_task_id'),
+  occurredAt: timestamp('occurred_at'),
+  reuseCount: integer('reuse_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Records that a chunk was cited in an answer. chunkId is ON DELETE RESTRICT
+// by design -- a citation must outlive a redaction and resolve to a
+// tombstone, never silently vanish.
+export const retrievalCitation = complianceSchemaDB.table('retrieval_citation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  chunkId: text('chunk_id').notNull().references(() => documentChunk.id, { onDelete: 'restrict' }),
+  queryText: text('query_text'),
+  responseId: text('response_id'),
+  citedAt: timestamp('cited_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Global, non-tenant-scoped chunking configuration per business-object type
+// -- replaces a hard-coded 1000-character constant in TypeScript. No orgId:
+// this is shared platform config, not tenant data.
+export const chunkPolicy = complianceSchemaDB.table('chunk_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  businessObjectType: text('business_object_type').notNull().unique(),
+  maxChars: integer('max_chars').notNull(),
+  overlapChars: integer('overlap_chars').notNull(),
+  splitOn: chunkPolicySplitOnEnum('split_on').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Audit trail for right-to-erasure requests.
+export const crrErasureLog = complianceSchemaDB.table('crr_erasure_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  subjectRef: text('subject_ref').notNull(),
+  requestedAt: timestamp('requested_at').notNull(),
+  sourceObjectsDeleted: integer('source_objects_deleted'),
+  chunksDeleted: integer('chunks_deleted'),
+  citationsDeleted: integer('citations_deleted'),
+  embeddingsDeleted: integer('embeddings_deleted'),
+  completedAt: timestamp('completed_at'),
+  performedById: text('performed_by_id'),
+})
+
+// Per-stage ingest failure log. orgId nullable by design -- a failure can
+// occur before the org is even resolved; such rows are visible only to the
+// service role (fail closed), never to app_runtime.
+export const crrIngestError = complianceSchemaDB.table('crr_ingest_error', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  sourceObjectId: text('source_object_id'),
+  stage: text('stage').notNull(),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  retryCount: integer('retry_count').default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
 })

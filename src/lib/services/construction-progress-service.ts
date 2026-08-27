@@ -86,7 +86,15 @@ export async function createProgressEntry(
 
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     await assertProject(db, ctx.orgId, input.projectId)
-    const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId)) })
+    // R53 / R48_PROGRESS_ENTRY_NO_PROJECT_MEMBERSHIP_CHECK_01: SCOPED TO THE
+    // SUPPLIED PROJECT, not just to the org. Without the projectId predicate a
+    // caller could post progress against project A while naming an activity
+    // that belongs to project B of the same org -- and input.projectId is
+    // written verbatim onto the row, so the entry then surfaces under a
+    // project whose activity it does not belong to. constructionActivities
+    // carries project_id NOT NULL, so this is a direct check, not a hop.
+    // Same shape src/lib/pipeline/executor.ts already uses.
+    const activity = await db.query.constructionActivities.findFirst({ where: and(eq(constructionActivities.id, input.activityId), eq(constructionActivities.orgId, ctx.orgId), eq(constructionActivities.projectId, input.projectId)) })
     if (!activity) throw new ServiceError("Activity not found", 404)
 
     // R12 point 7 (Option B): the direct BOQ-line link -- optional, so
@@ -95,9 +103,39 @@ export async function createProgressEntry(
     // carry no orgId of their own; ownership is via their boq).
     let boqLineItemId: string | null = null
     if (input.boqLineItemId) {
-      const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.id, input.boqLineItemId) })
-      const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, ctx.orgId)) }) : null
+      // org-scoped DIRECTLY (the column exists) rather than only inferentially
+    // through the parent BOQ read below.
+    const lineItem = await db.query.constructionBoqLineItems.findFirst({ where: and(eq(constructionBoqLineItems.id, input.boqLineItemId), eq(constructionBoqLineItems.orgId, ctx.orgId)) })
+      // Same rule one hop further out. construction_boq_line_items has no
+    // project_id column, so the project boundary has to be enforced on the
+    // parent BOQ -- which does carry project_id NOT NULL.
+    const boq = lineItem ? await db.query.constructionBoqs.findFirst({ where: and(eq(constructionBoqs.id, lineItem.boqId), eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, input.projectId)) }) : null
       if (!lineItem || !boq) throw new ServiceError("BOQ line item not found", 404)
+
+      // T-WPR-15-1 (WPR-15, R41-R45): confirmed live 2026-08-25 that this
+      // endpoint accepted a progress entry posted directly against a PARENT
+      // BOQ line item with zero guard (POST against item 1.01 "Partition
+      // wall", which HAS breakdown children, returned 201 -- the exact
+      // failure mode WPR-15 forbids: "a parent figure must never be storable
+      // directly"). The schema's own canonical-child-rate-rule comment on
+      // constructionBoqLineItems.parentLineItemId establishes the real
+      // invariant this enforces: a ROOT/parent line's percent/qty is always
+      // DERIVED (rolled up from its children, see
+      // work-progress-report.ts's applyWeightedParentRollup on the PROJEXA
+      // side), never independently entered -- so a caller must never be able
+      // to store one directly, only the roll-up may produce it. "Parent"
+      // here means "has at least one other line item pointing at it via
+      // parentLineItemId", NOT merely "parentLineItemId is null" -- a
+      // standalone leaf line with no children of its own (parentLineItemId
+      // null, e.g. a line with no hierarchical breakdown) is a perfectly
+      // valid, real progress-tracking target and must keep working.
+      const child = await db.query.constructionBoqLineItems.findFirst({ where: eq(constructionBoqLineItems.parentLineItemId, input.boqLineItemId) })
+      if (child) {
+        throw new ServiceError(
+          "Progress cannot be recorded directly against a parent BOQ line item -- its quantity/percent is derived from its child line items. Select one of its child line items instead.",
+          400
+        )
+      }
       boqLineItemId = input.boqLineItemId
     }
 

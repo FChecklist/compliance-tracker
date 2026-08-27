@@ -8,8 +8,18 @@ import { sql, gte, and, eq, isNull } from "drizzle-orm";
 import { withTenantContext } from "@/lib/db/tenant-scoped";
 import { gapLog, phraseMap } from "@/lib/db/schema";
 import { getAiProvider, type Artifact } from "@/lib/ai/adapter";
-import { normalisePhrase } from "@/lib/segmentation/pipeline";
+import { normalisePhrase } from "@/lib/pipeline/run-submission";
 import { db as rawDb } from "@/lib/db"; // read-only, cross-org: only used to discover WHICH orgs have gap_log activity; every per-org read/write below still goes through withTenantContext
+// R46 P9 seq33: report_definition artifacts now become real, immediately
+// runnable rows (compliance.report_definitions) via this existing service --
+// previously they only reached otherArtifacts (this file's return value),
+// which the cron route (l2-phrase-promotion/run/route.ts) just serialised
+// into a JSON response and discarded. Only createReportDefinition +
+// validateReportDefinitionInput + TABLE_REGISTRY are imported: this file
+// still never runs arbitrary SQL -- TABLE_REGISTRY is the same code-reviewed
+// whitelist deterministic_aggregation/ai_recipe execution already goes
+// through (report-engine-service.ts's own header).
+import { createReportDefinition, validateReportDefinitionInput, TABLE_REGISTRY, type CreateReportDefinitionInput } from "@/lib/services/report-engine-service";
 
 const MIN_CLUSTER_FREQUENCY = 3; // M26: "clusters with frequency >= 3 only -- one user's one-off is not a product signal"
 
@@ -37,9 +47,58 @@ export type L2BatchResult = {
   orgsProcessed: number;
   clustersAnalysed: number;
   phraseMapCandidatesCreated: number;
-  otherArtifacts: Artifact[]; // report_definition/capability_gap/no_action -- no dedicated table yet (v5 D-5's report-definitions-as-data table is separate future scope), surfaced here rather than silently dropped
+  reportDefinitionsCreated: number; // R46 P9 seq33: report_definition artifacts persisted as real, runnable compliance.report_definitions rows (createdBy:'ai') -- no deploy required
+  otherArtifacts: Artifact[]; // capability_gap/no_action, plus any report_definition artifact whose shape didn't validate (kept here, never silently dropped)
   rejectedForEmbeddedDml: Artifact[]; // artifacts whose own SQL field failed the SELECT-only check -- never written anywhere
 };
+
+// A report_definition artifact's `definition` field is model output (free-
+// form JSON), so this is a defensive mapper, not a trust boundary widening:
+// createReportDefinition() below still runs validateReportDefinitionInput
+// (M26/M27's own validation), and any deterministic_aggregation config still
+// must resolve a real TABLE_REGISTRY entry (report-engine-service.ts's
+// whitelist) before executeReportDefinition() can ever run it -- an
+// unresolved tableKey throws at run time rather than executing anything.
+// Anything that doesn't validate falls through to otherArtifacts unchanged
+// (M26: "never state a figure -- emit the query/definition, not the
+// answer", and never silently drop a model artifact).
+export function toReportDefinitionInput(
+  artifact: Extract<Artifact, { kind: "report_definition" }>,
+  promotedFromContext: string
+): CreateReportDefinitionInput | null {
+  const d = artifact.definition as Record<string, unknown>;
+  const classifications = Array.isArray(d.classifications) ? (d.classifications as unknown[]).filter((c): c is string => typeof c === "string") : [];
+  const executionType = d.executionType;
+  const executionConfig = d.executionConfig as Record<string, unknown> | undefined;
+  if (executionType !== "deterministic_aggregation" || !executionConfig || executionConfig.kind !== "aggregation") {
+    // Only the fully-deterministic, whitelist-checkable shape is ever
+    // auto-promoted to a live row -- ai_recipe/formula/external_service
+    // artifacts from a nightly batch (no human in the loop) stay in
+    // otherArtifacts for a real person to review before they go live.
+    return null;
+  }
+  const tableKey = typeof executionConfig.tableKey === "string" ? executionConfig.tableKey : null;
+  if (!tableKey || !(tableKey in TABLE_REGISTRY)) return null; // unresolvable against the real whitelist -- never insert a definition that can only 500 at run time
+
+  const input: CreateReportDefinitionInput = {
+    name: artifact.title,
+    description: typeof d.description === "string" ? d.description : artifact.title,
+    // report-taxonomy.ts CATEGORY 5 ("ai_new_report_promoted": "originated
+    // as an ad-hoc AI report-builder proposal, then promoted into a
+    // reusable report_definitions row so it's deterministic from then on")
+    // describes this exact code path verbatim -- hardcoded, never trusted
+    // from the model's own free-form JSON, since only this file's own
+    // gap_log->cluster->promotion flow can honestly claim that category.
+    category: "ai_new_report_promoted",
+    classifications,
+    executionType: "deterministic_aggregation",
+    executionConfig: executionConfig as CreateReportDefinitionInput["executionConfig"],
+    status: "built",
+    createdBy: "ai",
+    promotedFromContext,
+  };
+  return validateReportDefinitionInput(input).valid ? input : null;
+}
 
 type GapLogRow = { id: string; segmentText: string; reason: string };
 
@@ -114,6 +173,7 @@ export async function runL2Batch(): Promise<L2BatchResult> {
 
   let clustersAnalysed = 0;
   let phraseMapCandidatesCreated = 0;
+  let reportDefinitionsCreated = 0;
   const otherArtifacts: Artifact[] = [];
   const rejectedForEmbeddedDml: Artifact[] = [];
 
@@ -140,6 +200,19 @@ export async function runL2Batch(): Promise<L2BatchResult> {
       if (artifact.kind === "phrase_map_candidate") {
         const created = await upsertPhraseMapCandidate(orgId, artifact);
         if (created) phraseMapCandidatesCreated += 1;
+      } else if (artifact.kind === "report_definition") {
+        // Artifact has no back-reference to a specific cluster (provider.analyse
+        // takes the whole org batch), so promotedFromContext cites every
+        // gap_log id considered in this org's run -- traceable, not precise
+        // to one cluster; a real reviewer can still open every cited row.
+        const promotedFromContext = `l2_batch:gap_log:${clusters.flatMap((c) => c.gapLogIds).join(",")}`;
+        const input = toReportDefinitionInput(artifact, promotedFromContext);
+        if (input) {
+          await createReportDefinition({ orgId }, input); // createReportDefinition already runs its own withTenantContext (report-engine-service.ts)
+          reportDefinitionsCreated += 1;
+        } else {
+          otherArtifacts.push(artifact); // didn't resolve to a whitelisted, runnable shape -- surfaced for human review, never silently dropped
+        }
       } else {
         otherArtifacts.push(artifact);
       }
@@ -151,6 +224,7 @@ export async function runL2Batch(): Promise<L2BatchResult> {
     orgsProcessed: orgIds.length,
     clustersAnalysed,
     phraseMapCandidatesCreated,
+    reportDefinitionsCreated,
     otherArtifacts,
     rejectedForEmbeddedDml,
   };
