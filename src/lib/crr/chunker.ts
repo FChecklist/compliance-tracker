@@ -98,16 +98,37 @@ export function chunkText(text: string, policy: ChunkPolicy): TextChunk[] {
   const chunks: TextChunk[] = []
   let start = 0
   let seq = 0
+  // Regression fix (found during CRR-079's real-embedding verification,
+  // 2026-08-27): the end of the PREVIOUSLY emitted (or skipped-whitespace)
+  // chunk, so a boundary can never be re-selected as `end` a second time.
+  // Before this fix, when two+ consecutive paragraphs were each longer than
+  // max_chars but the *next* paragraph boundary sat within max_chars+
+  // overlap_chars of the current window, the same faraway boundary kept
+  // being the largest candidate <= hardEnd on every iteration while `start`
+  // only crept forward 1 char at a time (the overlap-driven fallback below)
+  // -- reproduced directly against a real 30KB multi-paragraph document:
+  // 2833 near-duplicate chunks instead of the ~29 the max_chars/overlap
+  // policy implies. Requiring every candidate boundary to be a genuinely
+  // NEW one (past the last chunk actually emitted) forces a hard cut at
+  // hardEnd instead of re-picking a stale boundary, guaranteeing real
+  // forward progress every iteration. -1 is always less than any real
+  // boundary (boundaryOffsets never emits 0), so the very first iteration
+  // is unaffected. See chunker.test.ts's own regression test for the exact
+  // reproduction.
+  let lastEnd = -1
 
   while (start < text.length) {
     const hardEnd = Math.min(start + policy.maxChars, text.length)
 
-    // Prefer the largest boundary that fits in (start, hardEnd] -- the
-    // biggest chunk that still ends on a natural split point. Falls back to
-    // a hard cut at hardEnd when no boundary fits in this window (a single
-    // paragraph/sentence/page longer than max_chars, or split_on: 'fixed').
-    const candidates = boundaries.filter((b) => b > start && b <= hardEnd)
+    // Prefer the largest boundary that fits in (start, hardEnd] AND extends
+    // past the last chunk already emitted -- the biggest chunk that still
+    // ends on a natural, NEW split point. Falls back to a hard cut at
+    // hardEnd when no such boundary exists (a single paragraph/sentence/page
+    // longer than max_chars, split_on: 'fixed', or -- per the regression
+    // above -- every boundary in range has already been used as an end).
+    const candidates = boundaries.filter((b) => b > start && b > lastEnd && b <= hardEnd)
     const end = candidates.length > 0 ? Math.max(...candidates) : hardEnd
+    lastEnd = end
 
     const content = text.slice(start, end)
     if (content.trim().length > 0) {

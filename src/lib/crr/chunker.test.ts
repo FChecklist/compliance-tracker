@@ -133,6 +133,30 @@ describe("chunkText -- charStart/charEnd reconstruct the exact original substrin
   })
 })
 
+describe("chunkText -- stale-boundary regression (CRR-079 real-embedding verification finding, 2026-08-27)", () => {
+  test("consecutive paragraphs each longer than max_chars, with the next boundary within max_chars+overlap_chars, do not explode into hundreds of near-duplicate chunks", () => {
+    // Each paragraph is 300 chars (no internal newlines), well over
+    // max_chars=100, separated by "\n\n". Before the fix, the boundary
+    // ending each long paragraph kept being re-selected as `end` on every
+    // 1-char-advance iteration while `start` crept forward, because
+    // end(300ish) - overlap(30) stayed below the next `start`, forcing the
+    // fallback `start + 1` branch to fire every single time.
+    const paragraph = "word ".repeat(60).trim() // 299 chars, no newlines
+    const text = Array.from({ length: 10 }, () => paragraph).join("\n\n")
+    const chunks = chunkText(text, policy({ maxChars: 100, overlapChars: 30, splitOn: "paragraph" }))
+
+    // A sane chunker covers ~3000 chars at (100-30)=70 effective chars/chunk
+    // net of overlap -> on the order of 40-50 chunks, never in the hundreds.
+    expect(chunks.length).toBeLessThan(100)
+    assertReconstructs(text, chunks)
+    // No two consecutive chunks may share the exact same charEnd -- that was
+    // the literal symptom (same boundary re-picked while only charStart crept).
+    for (let i = 1; i < chunks.length; i++) {
+      expect(chunks[i].charEnd).not.toBe(chunks[i - 1].charEnd)
+    }
+  })
+})
+
 describe("chunkText -- paragraph splitting and overlap behavior", () => {
   test("a paragraph that fits within max_chars is not split further", () => {
     const text = "Short first paragraph.\n\nShort second paragraph."
