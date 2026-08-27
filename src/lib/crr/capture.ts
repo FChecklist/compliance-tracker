@@ -56,13 +56,30 @@ export type CreateSourceObjectInput = {
   createdById?: string | null
 }
 
+// Only the one method this file actually calls -- narrow on purpose so
+// capture.test.ts can pass a plain object literal as `deps.storageClient`
+// instead of a real (or fully-shaped fake) SupabaseClient. The real
+// getStorageAdminClient() below returns a full SupabaseClient, which
+// structurally satisfies this narrower type.
+export type SourceObjectStorageClient = {
+  storage: {
+    from(bucket: string): {
+      upload(
+        path: string,
+        bytes: Uint8Array,
+        options: { contentType: string; upsert: boolean }
+      ): Promise<{ error: { message: string } | null }>
+    }
+  }
+}
+
 // service-role client, used ONLY server-side -- same pattern as
 // app/api/documents/route.ts's getStorageAdminClient(): the bucket has no
 // anon/authenticated storage policies at all, so this is the only kind of
 // client that can ever touch it, and callers are trusted server code (an
 // API route that already ran requireAuth(), a connector sync job, an email
 // ingest worker), never a browser.
-function getStorageAdminClient() {
+function getStorageAdminClient(): SourceObjectStorageClient {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.SUPABASE_SERVICE_ROLE_KEY!
@@ -91,8 +108,21 @@ function sha256Hex(bytes: Uint8Array): string {
  * enforce this.
  *
  * Deliberately does NOT extract, chunk or embed -- see this file's header.
+ *
+ * `deps.storageClient` is test-only dependency injection (defaults to the
+ * real service-role admin client) -- capture.test.ts passes a fake here
+ * instead of mock.module()'ing "@supabase/supabase-js" itself, because that
+ * module is imported unmocked, for real, by other unrelated test files
+ * (org-branding-service.test.ts's real getPublicUrl() calls) that Bun's
+ * mock.module leaks across test FILES within one run, not just within this
+ * one. Discovered the hard way: an earlier version of this test globally
+ * mocked "@supabase/supabase-js" and broke org-branding-service.test.ts in
+ * CI even though that file never imports capture.ts or capture.test.ts.
  */
-export async function createSourceObject(input: CreateSourceObjectInput): Promise<string> {
+export async function createSourceObject(
+  input: CreateSourceObjectInput,
+  deps: { storageClient?: SourceObjectStorageClient } = {}
+): Promise<string> {
   const sha256 = sha256Hex(input.bytes)
 
   return withTenantContext(
@@ -118,7 +148,7 @@ export async function createSourceObject(input: CreateSourceObjectInput): Promis
       if (existing) return existing.id
 
       const objectPath = `${input.orgId}/${createId()}-${sanitizeFileName(input.title || "untitled")}`
-      const admin = getStorageAdminClient()
+      const admin = deps.storageClient ?? getStorageAdminClient()
       const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, input.bytes, {
         contentType: input.mimeType || "application/octet-stream",
         upsert: false,
