@@ -30,13 +30,51 @@ import { getConnectionString } from './connection-string'
 // so a hang now fails fast (with a clear Postgres/postgres.js timeout
 // error) instead of consuming the full 300s Vercel limit and blocking
 // every other request queued behind it.
+//
+// R43_EXEC_02 (this IS the "separate, larger tradeoff" the comment above
+// deferred): intermittent 504s on member-role reads, reproduced live --
+// get_runtime_errors on this project shows 16 "Task timed out after 300
+// seconds" occurrences across 10 users specifically on
+// /api/v1/projexa/vendors and /api/v1/projexa/employees, 2026-07-15 through
+// 2026-08-25. Both routes call requireAuthOrApiKey() -> validateApiKey()
+// (api-key-auth.ts), which runs entirely on THIS client -- the API-key
+// lookup, the fire-and-forget lastUsedAt update, and the request-log
+// insert. `max: 1` meant every one of those queries, from every
+// concurrently-in-flight request sharing a warm Lambda instance (Fluid
+// Compute keeps this module-level `client` singleton alive across
+// concurrent invocations, not just across cold/warm boundaries), serialized
+// onto the SAME one connection -- so a burst of ordinary concurrent traffic
+// (PROJEXA alone fires ~6 API calls per page load, see veridian-client.ts)
+// was enough to queue requests behind each other even with no query
+// actually stuck. A queued request has no wait-for-a-free-connection
+// timeout of its own in postgres.js -- it can wait the full
+// statement_timeout (25s) behind whatever else is holding the connection --
+// which lines up with the fault's observed ~21s/~36s 504s (PROJEXA's own
+// 20s-per-attempt client timeout in veridian-client.ts firing while still
+// queued here).
+// Ruled out first: query plans on both routes already use indexed
+// lookups (api_keys.key_hash is UNIQUE-indexed; users/employee_profiles/
+// erp_suppliers all have an org_id index -- see drizzle/0004, 0030, 0043)
+// and Supabase's own performance advisor reports zero missing-index/seq-
+// scan findings for any of them -- this is concurrency contention on a
+// single connection, not a slow query or a missing index.
+// Fix: raise `max` from 1 to 5 -- matching tenant-scoped.ts's own
+// already-deployed, already-safe value for a comparably hot, comparably
+// tenant-request-driven client. Safe to raise: this connects through
+// Supabase's transaction-mode pooler (port 6543 / Supavisor, see
+// connection-string.ts), which multiplexes many client-side connections
+// down to a small number of real Postgres backend connections by design --
+// client-side `max` is not a 1:1 draw against the DB server's own
+// max_connections (confirmed live at 60 on this project). Does not touch
+// tenant-scoped.ts's pool (already at 5, not the outlier here) or any
+// timeout value above (unrelated axis, already fixed by R46).
 let client: ReturnType<typeof postgres> | null = null
 function getClient() {
   if (!client) {
     client = postgres(getConnectionString(), {
       prepare: false,
       ssl: { rejectUnauthorized: false },
-      max: 1,
+      max: 5,
       connect_timeout: 10,
       idle_timeout: 30,
       connection: { statement_timeout: 25_000 },
