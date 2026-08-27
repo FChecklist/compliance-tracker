@@ -7,12 +7,22 @@
 // action, not something a quotation/sales-order/purchase-order creation
 // form needs to do inline.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { listCurrencies, ServiceError } from "@/lib/services/erp-accounting-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
+  // API_READ_WITHOUT_ROLE_CHECK (R58 Lane 2, 2026-08-27): this read had no
+  // floor at all -- rank-1 roles (viewer/client_viewer/external_auditor/
+  // stage_0, see ROLE_RANK in auth-guard.ts) could call it despite being the
+  // codebase's most-restricted tier. "member" (not higher) because the
+  // response is pure reference/lookup data -- id/code/name/symbol/
+  // isBaseCurrency, mapped explicitly below, nothing else off the row --
+  // same sensitivity tier as cost-centers/fiscal-years and matching the
+  // sibling ./base route's own GET, which already gates at "member".
+  const roleErr = requireRoleOrScope(ctx, "member", "read")
+  if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
