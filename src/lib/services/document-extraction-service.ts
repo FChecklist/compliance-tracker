@@ -33,7 +33,18 @@
 // (construction-ai-service.ts's header: "a documented prior bug of an AI
 // surface hallucinating generic placeholder numbers... these prompts exist
 // specifically to not repeat that") treats as worse than not supporting it.
-import { documents } from "@/lib/db"
+//
+// CRR P3-BRIDGE (2026-08-27), platform.crr_spec CRR-079: this file used to
+// write documents.extractedData and stop -- extracted text was never
+// chunked or embedded, so nothing uploaded through the real upload route
+// was ever retrievable. chunkAndEmbedSourceObject (below) is that missing
+// bridge: chunkText (CRR-076/077) -> storeChunkEmbedding (CRR-079/080) ->
+// compliance.document_chunk, with source_object.extract_status walked
+// through EXTRACTED -> CHUNKED -> EMBEDDED as each stage completes. See
+// chunkAndEmbedSourceObject's own header for the full design, including why
+// it (still) creates its own source_object row today rather than requiring
+// one from the caller (that requirement lands in CRR-084).
+import { documents, sourceObject, chunkPolicy } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq } from "drizzle-orm"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
@@ -42,6 +53,9 @@ import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { autoClassifyDocument } from "@/lib/services/document-classification-service"
 import { extractDocxRawText, extractPptxRawText } from "@/lib/officecli-client"
+import { createSourceObject } from "@/lib/crr/capture"
+import { chunkText, type ChunkPolicy } from "@/lib/crr/chunker"
+import { storeChunkEmbedding } from "@/lib/crr/embed"
 
 const VISION_MIME_TYPES = new Set(["image/jpeg", "image/png", "image/webp"])
 const PDF_MIME_TYPE = "application/pdf"
@@ -239,8 +253,145 @@ export async function extractComplianceFields(
   return data
 }
 
+// CRR-079 (P3-BRIDGE): picks the compliance.chunk_policy row to chunk this
+// text with -- an exact match on businessObjectType when one is known and a
+// policy row exists for it, else the always-present 'generic' row (see
+// chunk_policy's own schema.ts comment: "Global, non-tenant-scoped chunking
+// configuration"). Exported as a pure, DB-free function (same convention as
+// this file's extractEmailRawText/extractRawTextForMimeType) -- the actual
+// chunk_policy rows are fetched once in chunkAndEmbedSourceObject below and
+// handed to this function, so the matching rule itself is unit-testable
+// without a live DB.
+export function pickChunkPolicy<T extends { businessObjectType: string }>(
+  businessObjectType: string | null | undefined,
+  policies: T[]
+): T | null {
+  if (businessObjectType) {
+    const exact = policies.find((p) => p.businessObjectType === businessObjectType)
+    if (exact) return exact
+  }
+  return policies.find((p) => p.businessObjectType === "generic") ?? null
+}
+
+// CRR-079 (P3-BRIDGE): the missing chunk+embed bridge -- see this file's own
+// header and platform.crr_spec CRR-079/CRR-080. Turns the plain text
+// extractRawTextForMimeType just produced into real, retrievable
+// compliance.document_chunk rows.
+//
+// Runs only for the text-extraction branch (rawText is this bridge's only
+// real input) -- the vision branch's `extracted` JSON is a model's
+// structured READ of the document, not its source text, so it is not a
+// valid chunkText input; wiring vision-sourced documents into this same
+// pipeline is separate, later scope.
+//
+// CRR-084 (not yet done as of this point's own closure) will make the live
+// upload route (src/app/api/documents/route.ts) call createSourceObject
+// itself, persist documents.source_object_id, and pass ctx.sourceObjectId
+// into extractDocumentContent -- until then, this function creates its own
+// source_object row on the fly so there is something real for chunks to
+// hang off of today. createSourceObject's own sha256-dedup contract (CRR-078)
+// means re-running extraction against identical bytes never double-captures
+// a second source_object row. A caller that DOES already have one
+// (ctx.sourceObjectId) skips capture entirely and chunks straight against it.
+//
+// Every failure here is caught by the caller (extractDocumentContent) and
+// recorded on source_object.extract_status=FAILED / extract_error -- a
+// retrieval-indexing failure must never turn an otherwise-successful
+// compliance-field extraction (extractedData, already written by the time
+// this runs) into a failed orchestra_executions row.
+//
+// Deliberately serial, one chunk embedded at a time -- CRR-081 (batch the
+// provider calls) and CRR-082 (resumable / skip-already-embedded) are
+// separate, later points in this same P3-BRIDGE phase; this point's own
+// failure_points already discloses the large-document timeout risk that
+// leaves open, and CRR-083 is where console.error here becomes a real
+// compliance.crr_ingest_error row.
+async function chunkAndEmbedSourceObject(ctx: {
+  orgId: string
+  userId: string
+  documentId: string
+  mimeType: string
+  buffer: Buffer
+  rawText: string
+  sourceObjectId?: string
+  businessObjectType?: string | null
+}): Promise<{ sourceObjectId: string; chunkCount: number }> {
+  const sourceObjectId =
+    ctx.sourceObjectId ??
+    (await createSourceObject({
+      orgId: ctx.orgId,
+      origin: "upload",
+      mimeType: ctx.mimeType,
+      bytes: ctx.buffer,
+      linkedEntityType: "document",
+      linkedEntityId: ctx.documentId,
+      businessObjectType: ctx.businessObjectType ?? null,
+      createdById: ctx.userId,
+    }))
+
+  try {
+    // extract_status: PENDING (createSourceObject's own DB default) -> EXTRACTED,
+    // now that rawText is real, non-empty extracted content.
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      db
+        .update(sourceObject)
+        .set({ extractStatus: "EXTRACTED", charCount: ctx.rawText.length })
+        .where(eq(sourceObject.id, sourceObjectId))
+    )
+
+    const policies = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      db.select().from(chunkPolicy)
+    )
+    const policy = pickChunkPolicy(ctx.businessObjectType, policies)
+    if (!policy) {
+      throw new Error(
+        `chunkAndEmbedSourceObject: no chunk_policy row for businessObjectType=${JSON.stringify(ctx.businessObjectType ?? null)} and no "generic" fallback policy exists either -- see compliance.chunk_policy`
+      )
+    }
+
+    const chunks = chunkText(ctx.rawText, policy as ChunkPolicy)
+
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      db.update(sourceObject).set({ extractStatus: "CHUNKED" }).where(eq(sourceObject.id, sourceObjectId))
+    )
+
+    for (const chunk of chunks) {
+      await storeChunkEmbedding({ orgId: ctx.orgId, sourceObjectId, chunk })
+    }
+
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      db.update(sourceObject).set({ extractStatus: "EMBEDDED" }).where(eq(sourceObject.id, sourceObjectId))
+    )
+
+    return { sourceObjectId, chunkCount: chunks.length }
+  } catch (err) {
+    await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      db
+        .update(sourceObject)
+        .set({ extractStatus: "FAILED", extractError: err instanceof Error ? err.message : String(err) })
+        .where(eq(sourceObject.id, sourceObjectId))
+    ).catch(() => {
+      // Never let a failed status-write mask the real error being rethrown below.
+    })
+    throw err
+  }
+}
+
 export async function extractDocumentContent(
-  ctx: { orgId: string; userId: string; documentId: string; fileBase64: string; mimeType: string }
+  ctx: {
+    orgId: string
+    userId: string
+    documentId: string
+    fileBase64: string
+    mimeType: string
+    // CRR-079: both optional and unused by today's only real caller
+    // (src/app/api/documents/route.ts) -- forward-compatible with CRR-084,
+    // which will start passing a real sourceObjectId once the upload route
+    // itself calls createSourceObject. See chunkAndEmbedSourceObject's own
+    // header for what happens when these are omitted.
+    sourceObjectId?: string
+    businessObjectType?: string | null
+  }
 ): Promise<void> {
   const startedAt = Date.now()
   const isVision = isVisionExtractable(ctx.mimeType)
@@ -284,6 +435,19 @@ export async function extractDocumentContent(
     } else {
       const buffer = Buffer.from(ctx.fileBase64, "base64")
       const rawText = await extractRawTextForMimeType(ctx.mimeType, buffer)
+
+      // CRR-079 (P3-BRIDGE): the chunk+embed bridge -- see
+      // chunkAndEmbedSourceObject's own header. Independent of, and never
+      // allowed to fail, the compliance-field extraction below (a retrieval-
+      // indexing failure must not turn an otherwise-successful extraction
+      // into a failed orchestra_executions row -- see that function's own
+      // failure handling, which already records source_object.extract_status
+      // =FAILED/extract_error for this exact case).
+      await chunkAndEmbedSourceObject({
+        orgId: ctx.orgId, userId: ctx.userId, documentId: ctx.documentId, mimeType: ctx.mimeType,
+        buffer, rawText, sourceObjectId: ctx.sourceObjectId, businessObjectType: ctx.businessObjectType,
+      }).catch((err) => console.error("Chunk-and-embed bridge (CRR-079) failed:", err))
+
       const result = await callLLMJson<ExtractedDocumentData>(
         modelConfig.provider, modelConfig.model, modelConfig.apiKey,
         systemPrompt,
