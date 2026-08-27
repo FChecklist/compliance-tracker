@@ -1,10 +1,18 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
 import { getOrgDashboard, ServiceError } from "@/lib/services/construction-dashboard-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
+  // API_READ_WITHOUT_ROLE_CHECK (found via R43_EXEC_01 investigation, 2026-08-27):
+  // this read had no floor at all -- rank-1 roles (viewer/client_viewer/
+  // external_auditor/stage_0, see ROLE_RANK in auth-guard.ts) could read every
+  // project's revenue/expenses/budget. Matches the exact
+  // requireRoleOrScope(ctx, "member", "read") pattern already used identically
+  // by 10 sibling /api/v1/projexa/** and /api/v1/brain/** GET routes.
+  const roleErr = requireRoleOrScope(ctx, "member", "read")
+  if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ totalProjects: 0, totalBudget: 0, totalRevenue: 0, totalExpenses: 0, projects: [] })
 
   try {
