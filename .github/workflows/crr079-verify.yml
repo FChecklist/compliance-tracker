@@ -1,0 +1,33 @@
+name: CRR-079 Closure Proof (temporary, manual only)
+# ONE-TIME verification workflow for platform.crr_spec CRR-079 -- runs the
+# real chunk+embed bridge against the real database and a real embedding
+# provider using this repo's own secrets (never available to the agent
+# session that authored this workflow directly). workflow_dispatch only --
+# never runs on push/PR, so it adds zero cost/risk to the normal CI surface.
+# Removed in a follow-up commit on this branch once CRR-079's evidence is
+# captured -- not part of the merged CRR-100 P3 PR surface.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  verify:
+    name: Run CRR-079 verify script
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run scripts/crr079-verify.ts
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # No dedicated APP_RUNTIME_DATABASE_URL secret exists in this repo
+          # (only the production Vercel project has one) -- for this
+          # verification-only run, withTenantContext's app_runtime-role
+          # queries are pointed at the same DATABASE_URL. Real production
+          # traffic still goes through the real app_runtime role; this
+          # substitution exists only inside this temporary script's run.
+          APP_RUNTIME_DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
