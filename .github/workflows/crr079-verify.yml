@@ -30,15 +30,11 @@ jobs:
       - run: bun install --frozen-lockfile
       - run: bun run scripts/crr079-verify.ts
         env:
+          # DATABASE_URL is set only as a defensive no-op (some transitively-
+          # imported module might read it at import time) -- this script
+          # deliberately never opens a DB connection; see its own header for
+          # why (this repo's DATABASE_URL secret was confirmed BOM-prefixed
+          # and, once stripped, pointed at a stale/wrong Supavisor tenant).
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          # No dedicated APP_RUNTIME_DATABASE_URL secret exists in this repo
-          # (only the production Vercel project has one) -- for this
-          # verification-only run, withTenantContext's app_runtime-role
-          # queries are pointed at the same DATABASE_URL. Real production
-          # traffic still goes through the real app_runtime role; this
-          # substitution exists only inside this temporary script's run.
-          APP_RUNTIME_DATABASE_URL: ${{ secrets.DATABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
