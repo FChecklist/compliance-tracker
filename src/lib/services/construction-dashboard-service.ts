@@ -22,7 +22,14 @@ import { ServiceError } from "./compliance-service"
 // because both references are only ever called from inside an async
 // function body, never at module-evaluation top level, so ESM's live
 // bindings resolve correctly by call time either direction.
-import { earnedValueReport } from "./construction-reports-service"
+//
+// R43_MGR_01 (2026-08-27): computeEarnedValue and EvLineItem are the pure,
+// no-DB-call half of earnedValueReport() -- getOrgDashboard batches its own
+// BOQ/progress reads and calls this directly (see below) instead of calling
+// earnedValueReport() once per project. Same circular-import safety as
+// earnedValueReport above (call-time only, never module-evaluation time).
+import { earnedValueReport, computeEarnedValue, type EvLineItem } from "./construction-reports-service"
+import { isConstructionEnabledForOrg } from "./construction-enablement-service"
 export { ServiceError }
 
 // Lists the org's active Products (business lines a new Project nests
@@ -309,18 +316,110 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
     const taskMap = new Map(tasksByProject.map((r) => [r.projectId, { total: Number(r.total), delayed: Number(r.delayed) }]))
 
     // R39/R-51: null (not 0) when construction isn't enabled for this org, or
-    // the project has no BOQ yet -- earnedValueReport() throws in the first
-    // case (requireConstructionEnabled) and returns contractValue 0 in the
-    // second, both real "not applicable yet" states, never silently 0.
+    // the project has no BOQ yet -- both real "not applicable yet" states,
+    // never silently 0.
+    //
+    // R43_MGR_01 (2026-08-27, shared root cause with F_030/F_033's
+    // "/api/v1/projexa/dashboard" timeouts): this used to call
+    // earnedValueReport(ctx, p.id) once per project via Promise.all. Each
+    // call opens its OWN withTenantContext() transaction, AND its internal
+    // requireConstructionEnabled() opens a SECOND one on top of that -- so
+    // an org with N active projects fired up to 2N *concurrent* nested
+    // transactions, each requesting its own connection from tenant-
+    // scoped.ts's pool (`max: 5`, ONE pool shared by every request on the
+    // warm instance, confirmed in that file), on top of the ONE connection
+    // this function's own outer withTenantContext already holds for its
+    // entire duration. Any org with more than a handful of active projects
+    // needs more simultaneous connections than the pool has, so the excess
+    // transactions queue behind whichever got there first -- a stall whose
+    // odds scale with concurrent project count, not a uniform latency tax.
+    // That shape matches what R52's own probe measured directly: 19/20
+    // sub-second responses and 1 hang of 21s+, never a consistent slowdown
+    // across all of them (ruled out cold start for the same reason). #1389
+    // already named "per-project BOQ reads" as one of getOrgDashboard's
+    // sequential-await hot spots and fixed the per-round-trip latency
+    // (region pin, sin1 -> bom1) but explicitly scoped out "connection
+    // handling" as a separate, still-open problem -- this is that fix.
+    //
+    // Batched instead: ONE enablement check (not N), and the BOQ line items
+    // + progress data for EVERY active project's BOQ fetched in at most two
+    // more queries, all reusing the SAME already-open outer transaction --
+    // zero additional pool connections for the data reads, versus up to 2N
+    // before. The pure, already-exported computeEarnedValue() (construction-
+    // reports-service.ts) is reused UNCHANGED, run once per BOQ in memory --
+    // so the earned-value arithmetic, and therefore every figure this
+    // produces, is byte-for-byte identical to calling earnedValueReport()
+    // per project; only the round-trip/connection count changes. Wrapped in
+    // try/catch, same as the old per-project version, so an unexpected
+    // failure here still degrades to "no earned-value data" rather than
+    // failing the whole dashboard.
+    //
+    // One narrow, deliberate behavior change: this reuses boqIdByProject
+    // above, which only ever holds a NON-superseded BOQ (its own query
+    // filters status != 'superseded', same as the "value" field a few lines
+    // up). earnedValueReport()'s own `boqs.find(...) ?? boqs[0]` fallback
+    // would still compute against an all-superseded project's newest BOQ;
+    // this now reports null for that project instead -- like "value"
+    // already does for the same project today. Consistent within this
+    // function (a project with no active BOQ now shows null for BOTH
+    // fields, not value=null alongside a stale earnedValue), at the cost of
+    // that one pre-existing inconsistency for the rare project with zero
+    // non-superseded BOQs. getProjectDashboard (single project, still calls
+    // earnedValueReport() directly, untouched here) keeps the old fallback.
     const evByProject = new Map<string, { earnedValue: number; percentByValue: number } | null>()
-    await Promise.all(projectRows.map(async (p) => {
-      try {
-        const ev = await earnedValueReport(ctx, p.id)
-        evByProject.set(p.id, ev.contractValue > 0 ? { earnedValue: ev.earnedValue, percentByValue: ev.percentByValue } : null)
-      } catch {
-        evByProject.set(p.id, null)
+    try {
+      if (activeBoqIds.length > 0 && (await isConstructionEnabledForOrg(ctx.orgId))) {
+        const allLineItems = await db.query.constructionBoqLineItems.findMany({
+          where: inArray(constructionBoqLineItems.boqId, activeBoqIds),
+          columns: { id: true, boqId: true, parentLineItemId: true, rate: true, amount: true, breakdownPercentage: true },
+        })
+        const itemIds = allLineItems.map((i) => i.id)
+
+        let qtyByItem = new Map<string, number>()
+        let latestPercentByItem = new Map<string, number>()
+        if (itemIds.length > 0) {
+          // Same ARRAY[...] construction as latestBoqPerProject above (and
+          // earnedValueReport()'s own equivalent query) -- sql.join, not a
+          // bound JS array; see that query's comment for why a plain array
+          // parameter doesn't serialize as Postgres array syntax. Scoped to
+          // every item across every project's active BOQ at once, instead
+          // of one project's.
+          const evItemIdsSql = sql.join(itemIds.map((id) => sql`${id}`), sql`, `)
+          const qtyRows = (await db.execute(sql`
+            SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
+            FROM compliance.construction_work_progress_entries
+            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}]) AND entry_basis = 'DELTA'
+            GROUP BY boq_line_item_id
+          `)) as { boq_line_item_id: string; total_qty: number }[]
+          qtyByItem = new Map(qtyRows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+
+          const percentRows = (await db.execute(sql`
+            SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
+            FROM compliance.construction_work_progress_entries
+            WHERE boq_line_item_id = ANY(ARRAY[${evItemIdsSql}])
+            ORDER BY boq_line_item_id, entry_date DESC
+          `)) as { boq_line_item_id: string; percent_complete: number }[]
+          latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
+        }
+
+        const itemsByBoq = new Map<string, EvLineItem[]>()
+        for (const item of allLineItems) {
+          const list = itemsByBoq.get(item.boqId) ?? []
+          list.push(item)
+          itemsByBoq.set(item.boqId, list)
+        }
+
+        for (const [projectId, boqId] of boqIdByProject) {
+          const ev = computeEarnedValue(itemsByBoq.get(boqId) ?? [], qtyByItem, latestPercentByItem)
+          evByProject.set(projectId, ev.contractValue > 0 ? { earnedValue: ev.earnedValue, percentByValue: ev.percentByValue } : null)
+        }
       }
-    }))
+    } catch {
+      // Same fail-open contract the old per-project try/catch had --
+      // construction disabled, or any other unexpected error, both leave
+      // every project's earned value at its Map default (null via `?? null`
+      // below), never a fabricated 0 and never a failed dashboard.
+    }
 
     const projectSummaries = projectRows.map((p) => {
       const activeBoqId = boqIdByProject.get(p.id)
