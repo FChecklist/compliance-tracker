@@ -1,4 +1,7 @@
-// CRR P3-BRIDGE (2026-08-27), platform.crr_spec CRR-079/CRR-080:
+// CRR P3-BRIDGE (2026-08-27), platform.crr_spec CRR-079/CRR-080 (this
+// file's original storeChunkEmbedding) plus CRR-081/CRR-082 (added below:
+// storeChunkEmbeddingsBatch, its batched-and-resumable sibling -- see that
+// function's own header for the split of responsibilities).
 // storeChunkEmbedding is the "then chunk/embed separately" half of
 // capture.ts's own header comment -- turns one already-chunked TextChunk
 // (chunker.ts's pure, DB-free output) into a real compliance.document_chunk
@@ -127,4 +130,119 @@ export async function storeChunkEmbedding(
 async function defaultEmbed(text: string): Promise<{ vector: number[]; isReal: boolean }> {
   const { generateEmbeddingUncached } = await import("@/lib/embeddings")
   return generateEmbeddingUncached(text)
+}
+
+// CRR-081/CRR-082 (P3-BRIDGE): storeChunkEmbeddingsBatch is the batched,
+// resumable sibling of storeChunkEmbedding above -- used by
+// chunkAndEmbedSourceObject (document-extraction-service.ts) instead of
+// calling storeChunkEmbedding in a plain per-chunk loop.
+//
+// CRR-081 (batching): chunks are grouped into DEFAULT_BATCH_SIZE-sized
+// groups and each group is embedded with ONE call to deps.embedBatch (real
+// default: generateEmbeddingsBatchUncached, one HTTP request carrying an
+// array `input` -- see embeddings.ts's own header) instead of one HTTP call
+// per chunk. Each embedded chunk is still persisted through the existing,
+// already-tested storeChunkEmbedding (same D-1/D-2 guarantees, same exact
+// INSERT shape) by handing it a trivial `embed` stub that just resolves to
+// the batch-computed vector -- this reuses the one tested INSERT code path
+// instead of forking a second copy of it.
+//
+// CRR-082 (resumable): before embedding anything, reads which (source_
+// object_id, seq) pairs already have a compliance.document_chunk row (a
+// prior attempt that got partway through and crashed/timed out/hit
+// maxDuration, then was retried) and skips those chunks entirely -- neither
+// re-embedded (no wasted provider call) nor re-inserted (no risk of
+// violating document_chunk_source_object_id_seq_key, the live unique index
+// on (source_object_id, seq)). A batch that fails partway through (a batch
+// embed call throws) throws out of this function without having advanced
+// source_object.extract_status past CHUNKED -- chunkAndEmbedSourceObject's
+// own embed-phase handling (not this file) is what leaves extract_status at
+// CHUNKED rather than regressing it to FAILED, exactly so a retry calls this
+// same function again and the pre-check above skips everything already
+// written.
+export type BatchEmbedFn = (texts: string[]) => Promise<{ vector: number[]; isReal: boolean }[]>
+
+// The one shape this file's resumability pre-check actually needs: a
+// tagged-template function returning rows with a numeric `seq`. Separately
+// typed from ChunkSqlClient (whose rows carry `id`, from an INSERT...
+// RETURNING) even though both are satisfied by the same real postgres.js
+// client at runtime -- same narrow-on-purpose reasoning as ChunkSqlClient
+// itself, so a test can inject a fake that only needs to answer this one
+// SELECT shape.
+export type ChunkSeqLookupClient = (strings: TemplateStringsArray, ...values: unknown[]) => Promise<{ seq: number }[]>
+
+// One provider HTTP call per this many chunks -- matches
+// generateEmbeddingsBatchUncached's own 8000-char-per-text truncation with
+// headroom: a generic chunk_policy row (max_chars=1200) times 16 stays
+// comfortably under typical request-body/provider batch-size ceilings
+// (OpenAI's own embeddings endpoint documents up to 2048 inputs per call;
+// this is deliberately far below that, favouring more, smaller, resumable
+// batches over fewer, larger ones that lose more work on a single failure).
+const DEFAULT_BATCH_SIZE = 16
+
+export type StoreChunkEmbeddingsBatchInput = {
+  orgId: string
+  sourceObjectId: string
+  chunks: TextChunk[]
+}
+
+export type StoreChunkEmbeddingsBatchResult = {
+  /** Count of chunks newly embedded and written by this call. */
+  written: number
+  /** Count of chunks whose (source_object_id, seq) already existed and were left untouched -- see CRR-082. */
+  skipped: number
+}
+
+async function getExistingSeqs(sourceObjectId: string, client: ChunkSeqLookupClient): Promise<Set<number>> {
+  const rows = await client`SELECT seq FROM compliance.document_chunk WHERE source_object_id = ${sourceObjectId}`
+  return new Set(rows.map((r) => r.seq))
+}
+
+export async function storeChunkEmbeddingsBatch(
+  input: StoreChunkEmbeddingsBatchInput,
+  deps: {
+    embedBatch?: BatchEmbedFn
+    sqlClient?: ChunkSqlClient
+    seqLookupClient?: ChunkSeqLookupClient
+    batchSize?: number
+  } = {}
+): Promise<StoreChunkEmbeddingsBatchResult> {
+  const embedBatch = deps.embedBatch ?? defaultEmbedBatch
+  const insertClient = deps.sqlClient ?? (getRawClient() as unknown as ChunkSqlClient)
+  const seqLookupClient = deps.seqLookupClient ?? (getRawClient() as unknown as ChunkSeqLookupClient)
+  const batchSize = deps.batchSize && deps.batchSize > 0 ? deps.batchSize : DEFAULT_BATCH_SIZE
+
+  const existingSeqs = await getExistingSeqs(input.sourceObjectId, seqLookupClient)
+  const pending = input.chunks.filter((c) => !existingSeqs.has(c.seq))
+  const skipped = input.chunks.length - pending.length
+
+  let written = 0
+  for (let i = 0; i < pending.length; i += batchSize) {
+    const batch = pending.slice(i, i + batchSize)
+    const results = await embedBatch(batch.map((c) => c.content))
+    if (results.length !== batch.length) {
+      throw new Error(
+        `storeChunkEmbeddingsBatch: provider returned ${results.length} vectors for a batch of ${batch.length} chunks (source_object ${input.sourceObjectId}) -- refusing to write mismatched rows`
+      )
+    }
+
+    for (let j = 0; j < batch.length; j++) {
+      const chunk = batch[j]
+      const result = results[j]
+      // storeChunkEmbedding's own D-1 check (throws, writes nothing) fires
+      // here when result.isReal is false -- not duplicated in this function.
+      await storeChunkEmbedding(
+        { orgId: input.orgId, sourceObjectId: input.sourceObjectId, chunk },
+        { embed: async () => result, sqlClient: insertClient }
+      )
+      written++
+    }
+  }
+
+  return { written, skipped }
+}
+
+async function defaultEmbedBatch(texts: string[]): Promise<{ vector: number[]; isReal: boolean }[]> {
+  const { generateEmbeddingsBatchUncached } = await import("@/lib/embeddings")
+  return generateEmbeddingsBatchUncached(texts)
 }

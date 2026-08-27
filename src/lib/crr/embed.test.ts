@@ -12,7 +12,14 @@
 // separately against the real table -- see CRR-079's evidence in
 // platform.crr_spec for that query and its result.
 import { describe, expect, test } from "bun:test"
-import { storeChunkEmbedding, type ChunkSqlClient, type EmbedFn } from "./embed"
+import {
+  storeChunkEmbedding,
+  storeChunkEmbeddingsBatch,
+  type BatchEmbedFn,
+  type ChunkSeqLookupClient,
+  type ChunkSqlClient,
+  type EmbedFn,
+} from "./embed"
 import type { TextChunk } from "./chunker"
 
 function makeChunk(overrides: Partial<TextChunk> = {}): TextChunk {
@@ -119,5 +126,109 @@ describe("storeChunkEmbedding", () => {
       { embed: realEmbed, sqlClient: client }
     )
     expect(calls[0].values[6]).not.toBe(calls[1].values[6])
+  })
+})
+
+// CRR-081 (batching) / CRR-082 (resumable) -- storeChunkEmbeddingsBatch.
+function makeChunks(n: number): TextChunk[] {
+  return Array.from({ length: n }, (_, i) => ({
+    seq: i,
+    charStart: i * 10,
+    charEnd: i * 10 + 9,
+    content: `chunk content number ${i}`,
+  }))
+}
+
+function makeFakeSeqLookupClient(existing: number[]): ChunkSeqLookupClient {
+  return (async () => existing.map((seq) => ({ seq }))) as unknown as ChunkSeqLookupClient
+}
+
+describe("storeChunkEmbeddingsBatch", () => {
+  test("CRR-081: sends one embedBatch call per BATCH of chunks, not one call per chunk", async () => {
+    const { client } = makeFakeSqlClient()
+    const batchCalls: string[][] = []
+    const embedBatch: BatchEmbedFn = async (texts) => {
+      batchCalls.push(texts)
+      return texts.map((t) => ({ isReal: true, vector: [t.length, 0, 0] }))
+    }
+
+    const result = await storeChunkEmbeddingsBatch(
+      { orgId: "org_batch_1", sourceObjectId: "so_batch_1", chunks: makeChunks(10) },
+      { embedBatch, sqlClient: client, seqLookupClient: makeFakeSeqLookupClient([]), batchSize: 4 }
+    )
+
+    // 10 chunks at batchSize=4 -> 3 provider calls (4, 4, 2), never 10.
+    expect(batchCalls.length).toBe(3)
+    expect(batchCalls[0].length).toBe(4)
+    expect(batchCalls[1].length).toBe(4)
+    expect(batchCalls[2].length).toBe(2)
+    expect(result.written).toBe(10)
+    expect(result.skipped).toBe(0)
+  })
+
+  test("CRR-082: skips chunks whose seq already has a document_chunk row, and never embeds them", async () => {
+    const { client } = makeFakeSqlClient()
+    const embeddedSeqs: number[] = []
+    const embedBatch: BatchEmbedFn = async (texts) => {
+      // Content is "chunk content number N" -- record which N's were embedded.
+      for (const t of texts) embeddedSeqs.push(Number(t.split(" ").pop()))
+      return texts.map(() => ({ isReal: true, vector: [1, 2, 3] }))
+    }
+
+    // Simulate a prior attempt that got 5 of 10 chunks (seq 0-4) written
+    // before crashing.
+    const result = await storeChunkEmbeddingsBatch(
+      { orgId: "org_resume_1", sourceObjectId: "so_resume_1", chunks: makeChunks(10) },
+      { embedBatch, sqlClient: client, seqLookupClient: makeFakeSeqLookupClient([0, 1, 2, 3, 4]), batchSize: 16 }
+    )
+
+    expect(result.skipped).toBe(5)
+    expect(result.written).toBe(5)
+    expect(embeddedSeqs.sort((a, b) => a - b)).toEqual([5, 6, 7, 8, 9])
+  })
+
+  test("CRR-082: a full resume (every seq already exists) makes zero provider calls and writes nothing", async () => {
+    const { client } = makeFakeSqlClient()
+    let embedBatchCalls = 0
+    const embedBatch: BatchEmbedFn = async (texts) => {
+      embedBatchCalls++
+      return texts.map(() => ({ isReal: true, vector: [1] }))
+    }
+
+    const result = await storeChunkEmbeddingsBatch(
+      { orgId: "org_resume_2", sourceObjectId: "so_resume_2", chunks: makeChunks(5) },
+      { embedBatch, sqlClient: client, seqLookupClient: makeFakeSeqLookupClient([0, 1, 2, 3, 4]) }
+    )
+
+    expect(embedBatchCalls).toBe(0)
+    expect(result.written).toBe(0)
+    expect(result.skipped).toBe(5)
+  })
+
+  test("D-1 still applies per-item inside a batch: a hash pseudo-vector in the results throws and stops further writes in that batch", async () => {
+    const { client, calls } = makeFakeSqlClient()
+    const embedBatch: BatchEmbedFn = async (texts) =>
+      texts.map((_, i) => (i === 1 ? { isReal: false, vector: [0] } : { isReal: true, vector: [1, 2] }))
+
+    await expect(
+      storeChunkEmbeddingsBatch(
+        { orgId: "org_d1", sourceObjectId: "so_d1", chunks: makeChunks(3) },
+        { embedBatch, sqlClient: client, seqLookupClient: makeFakeSeqLookupClient([]), batchSize: 3 }
+      )
+    ).rejects.toThrow(/refusing to persist a hash pseudo-vector/)
+    // Chunk 0 (real) was written before chunk 1 (hash) threw; chunk 2 never ran.
+    expect(calls.length).toBe(1)
+  })
+
+  test("throws when the provider returns a different number of vectors than chunks in the batch", async () => {
+    const { client } = makeFakeSqlClient()
+    const embedBatch: BatchEmbedFn = async () => [{ isReal: true, vector: [1] }] // 1 result for 3 chunks
+
+    await expect(
+      storeChunkEmbeddingsBatch(
+        { orgId: "org_mismatch", sourceObjectId: "so_mismatch", chunks: makeChunks(3) },
+        { embedBatch, sqlClient: client, seqLookupClient: makeFakeSeqLookupClient([]) }
+      )
+    ).rejects.toThrow(/provider returned 1 vectors for a batch of 3 chunks/)
   })
 })
