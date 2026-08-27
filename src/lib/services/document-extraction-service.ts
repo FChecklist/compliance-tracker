@@ -306,7 +306,13 @@ export function pickChunkPolicy<T extends { businessObjectType: string }>(
 // failure_points already discloses the large-document timeout risk that
 // leaves open, and CRR-083 is where console.error here becomes a real
 // compliance.crr_ingest_error row.
-async function chunkAndEmbedSourceObject(ctx: {
+// Exported solely for direct integration testing (CRR-079's own gate_pass:
+// "Integration test: upload a 20-page PDF, assert document_chunk count > 10
+// and every row has is_real=true") and for CRR-084's future reuse when the
+// upload route starts calling this directly with a real sourceObjectId --
+// not meant to be a public entry point other services should call for
+// day-to-day extraction (call extractDocumentContent for that).
+export async function chunkAndEmbedSourceObject(ctx: {
   orgId: string
   userId: string
   documentId: string
