@@ -86,10 +86,6 @@ function getStorageAdminClient(): SourceObjectStorageClient {
   )
 }
 
-function sanitizeFileName(name: string): string {
-  return name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-120)
-}
-
 function sha256Hex(bytes: Uint8Array): string {
   return createHash("sha256").update(bytes).digest("hex")
 }
@@ -147,7 +143,20 @@ export async function createSourceObject(
         .limit(1)
       if (existing) return existing.id
 
-      const objectPath = `${input.orgId}/${createId()}-${sanitizeFileName(input.title || "untitled")}`
+      // CRR-223: the storage path is derived from doc_uid -- the permanent,
+      // birth-assigned identity (CRR-221/222, enforced immutable by the DB
+      // trigger source_object_doc_uid_immutable_trg) -- never from title or
+      // any other mutable display name. The bug this replaced generated the
+      // path from a SEPARATE createId() call than the one that became
+      // docUid below, so the two never matched, and it also folded the
+      // sanitized file name into the path -- exactly what R-CRR-03 warns
+      // against: "a path containing a mutable name is a broken link waiting
+      // for a rename." Generating docUid once, up front, and using that same
+      // value for both the path and the column guarantees they can never
+      // drift apart, and a rename (which only ever touches title/
+      // displayName) can never touch this path at all.
+      const docUid = createId()
+      const objectPath = `${input.orgId}/${docUid}`
       const admin = deps.storageClient ?? getStorageAdminClient()
       const { error: uploadError } = await admin.storage.from(BUCKET).upload(objectPath, input.bytes, {
         contentType: input.mimeType || "application/octet-stream",
@@ -174,7 +183,7 @@ export async function createSourceObject(
           linkedEntityId: input.linkedEntityId ?? null,
           businessObjectType: input.businessObjectType ?? null,
           createdById: input.createdById ?? null,
-          docUid: createId(),
+          docUid,
         })
         // Race-condition fallback: two concurrent captures of identical
         // bytes can both pass the SELECT above before either commits its
