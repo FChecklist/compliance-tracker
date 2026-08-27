@@ -6095,7 +6095,151 @@ active:
       these same files (veridian-ui-kit v0.2.0 consumption swap, 2026-07-19)
       is long since superseded -- package.json already pins v0.2.2, so that
       migration is done, not a live conflict.
+  - session_label: "claude-code (worker task-20260718-115006-retry-1--ai-engineering-quality--overal) -- Overall Code Quality Score: task-execution-engine.ts split, retry 2"
+    claimed_at: "2026-08-15T (this session, invocation 15)"
+    claim: |
+      Re-attempting the task-execution-engine.ts half of the "Overall Code
+      Quality Score" finding (schema.ts's navigational-aid comment already
+      merged clean via PR #1258; the split itself was built once, verified
+      tsc/test/lint clean, then reverted because origin/main diverged again
+      mid-push -- see this task's own progress/*.md "Honest final state").
+
+      Re-checked live before re-claiming: this repo currently has at least
+      3 OTHER open PRs independently attempting the same
+      task-execution-engine.ts split (#1255 retry-0 -- same 2-file
+      tool-dispatch/engine-dispatch approach, currently CI-red on Unit
+      Tests/Guardrail Presence/Terminology Guardrail/CodeQL; #1244 retry-2 --
+      a much more granular ~15-file per-domain split, currently CONFLICTING;
+      #688 -- the original 2026-08-01 attempt, CONFLICTING/stale). None are
+      currently mergeable. Redoing the 2-file split fresh on this task's own
+      already-origin/main-synced branch (same shape PR #1258 validated
+      clean once already) rather than trying to rescue any of the 3 stale
+      siblings -- this task's completion gate requires the change in its
+      OWN commit regardless. Will flag the redundant siblings as duplicates
+      once this lands.
+
+      File scope: src/lib/task-execution-engine.ts,
+      src/lib/task-execution-engine.test.ts, new
+      src/lib/services/task-execution/{tool-dispatch,engine-dispatch}.ts
+      (+ tests). Not touching schema.ts again (already done), not touching
+      permission-service.ts or any other in-flight worker's declared scope.
+  - session_label: "claude-code (worker task-20260815-153742-rca--umr-20260806-091546-087b-killed) -- RCA for killed row UMR-20260806-091546-087b"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      resource_governor.py --query-umr --umr-id UMR-20260806-091546-087b shows
+      status=killed, task_identity="test-fresh-row", source_trigger="unit_test",
+      utm_source="test_harness", unit_name=null, ts_dispatched=null. Real recorded
+      reason: "TEST CONTAMINATION CLEANUP (unit-test module-import-ordering bug,
+      UMR-20260806-090229-f2a7 investigation) -- this row was never real production
+      work, neutralized immediately, never dispatched". Investigating whether this
+      is a genuine correctly-killed test artifact (matches the precedent group in
+      [[veridian-killed-rca-series-index]], e.g. UMR-1e87 deliberate probe) or a
+      mislabeled-real-work case. No prior PR found for this exact UMR
+      (`gh pr list --search "087b"` empty); no conflicting active claim found.
+    scope_note: >-
+      File scope (expected docs-only, pending real finding): this task's own
+      progress/*.md, ai-os/boss/ACTIVE-CLAIMS.yaml. Will widen if the row turns
+      out to be a mislabeled real deliverable requiring fix + redispatch.
+  - session_label: "claude-code (worker task-20260816-171220-root-cause-why-the-compliance-repository) -- RCA: root-cause the 422-open-PR structural backlog on FChecklist/compliance-tracker, propose a fix [DONE, read-only diagnosis + recommendation, no PR triaged/merged]"
+    claimed_at: "2026-08-16T (this session, closed same session)"
+    claim: |
+      Owner directive: diagnose why compliance-tracker has 422 open PRs (414
+      FChecklist-bot-authored) with a ~20/day arrival rate and near-zero net
+      landing. Explicitly out of scope: triaging, closing, or merging any PR
+      (three live sibling tasks own that -- observed running concurrently via
+      `systemctl --user list-units`: task-20260816-171212-classify-the-entire-
+      compliance-tracker-p, task-20260816-171257-land-the-genuinely-code-
+      touching-pull-re, task-20260816-171304-continue-landing-and-disposing-
+      the-remai, task-20260816-171310-finish-disposing-the-last-open-pull-requ).
+      Real findings (full evidence in this task's own progress/*.md): (1)
+      supervisor-entrypoint.sh's `gh pr create` fires unconditionally for any
+      branch with >=1 commit ahead of base -- by design (its own code comment:
+      "record exists regardless of outcome"), no guard distinguishes
+      docs/RCA-only content from real product code; confirmed 72/72 sampled
+      rca--umr-*-killed branch PRs touch zero src/ or drizzle/ files. (2) The
+      merge/audit pipeline is NOT absent or broken (539/600 most-recently-
+      updated closed PRs are genuinely merged; required_approving_review_count
+      is 0, no self-approval deadlock) -- the real bottleneck is throughput vs.
+      arrival rate: 24/25 most-recently-opened PRs sampled are
+      behind/dirty mergeable_state, and a failed merge attempt is never
+      retried/rebased, only marked blocked and abandoned. (3) 22 UMR ids are
+      each referenced by 2-4 separate still-open PRs, plus an 11-gap-slug
+      retry-0/1/2 branch-naming pattern where each retry opens its OWN new PR
+      instead of superseding the last -- real duplicate-report evidence. (4)
+      Cross-repo contrast: claude-control has 8 open PRs, veridian-scripts 16,
+      projexa 4 -- same merge script, compliance-tracker just receives an
+      order of magnitude more dispatch volume as the flagship product repo.
+      Recommendation (NOT implemented, flagged for Owner decision per SPEC):
+      teach supervisor-entrypoint.sh to skip `gh pr create` when a branch's
+      entire diff is progress/**-or-governance-only and append to a single
+      rolling log file instead -- narrow, reuses the existing no-op-guard
+      pattern, does not touch merge/audit logic. Not shipped unilaterally
+      since it changes how every worker reports.
+    scope_note: >-
+      File scope: this task's own progress/*.md (full RCA write-up),
+      ai-os/boss/ACTIVE-CLAIMS.yaml (this entry). Read-only investigation only
+      -- zero PRs closed/merged/triaged, zero product code touched, per SPEC's
+      explicit instruction.
+  - session_label: "Super Boss (Claude Code, laptop, Sonnet 5) -- R43 seq2: expose the existing screen_definitions registry to PROJEXA"
+    claimed_at: "2026-08-24T (this session)"
+    claim: |
+      CORRECTED CLAIM (superseded my own earlier entry in this file, which I
+      had to `git reset --hard origin/main` away after discovering it was
+      based on a stale local `main` -- I branched after `git fetch` without
+      `git pull`, missing R42 seq20-24 which already shipped the real
+      screen_definitions Drizzle table + resolveScreenDefinition()
+      (src/lib/screens/resolve-definition.ts, withTenantContext-based, org-
+      row-overrides-global). Re-confirmed via `git grep` on real origin/main:
+      NOTHING under src/app/api/** references screenDefinitions or
+      resolveScreenDefinition -- no route exposes it to PROJEXA's Bearer-key
+      surface, and PermitObjectClient.tsx (the seq21 PERMITS.OBJECT screen)
+      doesn't call it either. The core R43 seq2 finding (nothing renders
+      from a screen_definitions row yet, in either repo) still holds; only
+      my planned FIX was wrong. Real claim this time: ONE new file,
+      src/app/api/v1/projexa/screen-definitions/[functionId]/route.ts
+      (Bearer-key GET, requireAuthOrApiKey pattern, calls the EXISTING
+      resolveScreenDefinition(orgId, functionId) -- not rebuilding it). Not
+      touching src/lib/db/schema.ts or src/lib/screens/resolve-definition.ts
+      at all. Sibling claim in projexa: PermitsListClient.tsx +
+      permits/page.tsx (unchanged from my first pass -- projexa's own main
+      was NOT stale, confirmed separately).
 recently_completed:
+  - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
+    claimed_at: "2026-08-16T (this session, closed same session)"
+    merged_as: "FChecklist/veridian-ui-kit PR #8 (v0.3.2 tag), FChecklist/compliance-tracker PR #1293 (dependency bump, real independent audit posted and passing, all 18 CI checks green), FChecklist/projexa PR #72 (dependency bump, all CI green)."
+    claim: |
+      Owner directive: restructure the app shell into a real 3-screen proportion
+      (left nav ~10%, main content+composer ~50%, right VeriChatPanel ~40%),
+      scoped strictly to LAYOUT ONLY -- no functionality, flow, font, or
+      color-token change. Ground-truthed against real code first (read
+      AppShellFrame.tsx, AppSidebar.tsx, VeriComposer.tsx, VeriChatPanel.tsx in
+      full in both compliance-tracker and projexa) before touching anything:
+      confirmed the shell was already structurally 3-part -- the real gap was
+      fixed-pixel default widths (220px sidebar, 420px right panel) instead of
+      true viewport percentages. Fix landed entirely in the shared package
+      (FChecklist/veridian-ui-kit): src/shell/useResizable.ts gained an
+      optional, backward-compatible post-mount responsive-default parameter
+      (every existing call site that omits it is unaffected); AppShellFrame.tsx
+      and AppSidebar.tsx now target 40vw/10vw as their real defaults, existing
+      320-640px/140-320px drag bounds unchanged. Tagged v0.3.2, bumped in both
+      real consuming apps.
+
+      Real incidents hit and resolved along the way: (1) a genuine merge
+      conflict in compliance-tracker's package.json against a concurrent
+      session's independent CVE-remediation dependency bump on the same line
+      -- resolved by keeping v0.3.2 since it's a strict superset (includes
+      that exact commit plus the layout fix); (2) a stale/corrupt
+      multi-pack-index + commit-graph in compliance-tracker's shared object
+      store (unrelated pre-existing repo-hygiene issue, not caused by this
+      work -- real commits/pushes were unaffected throughout, confirmed via
+      successful pushes despite the fsck complaint; removed the two stale
+      derived caches, safe since they carry no unique data); (3) the
+      mandatory-audit-check gate correctly rejected self-certification --
+      dispatched a genuinely independent subagent to audit the real diff (it
+      fetched and read the actual upstream v0.3.2 diff itself rather than
+      trusting the PR description), which posted a real AUDIT: PASS with all 8
+      required structured fields after one format correction (Title-Case
+      labels, not camelCase).
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |

@@ -28,6 +28,13 @@ const REQUIRED_ENV_VARS = [
   "NEXT_PUBLIC_SUPABASE_ANON_KEY",
   "SUPABASE_SERVICE_ROLE_KEY",
   "AI_CONFIG_ENCRYPTION_KEY",
+  // R53 / R48_ORG_PROVISION_RLS_BLOCKED_01: provisioning has been dead in
+  // production since it shipped because neither of these is set, and this
+  // audit -- the platform's own missing-secret monitor -- did not list
+  // them, so nothing ever raised it. Either one satisfies the requirement;
+  // the audit reports each independently and the operator needs only one.
+  "PROVISIONING_DATABASE_URL",
+  "SUPABASE_DB_PASSWORD",
 ]
 
 function isAuthorized(request: NextRequest): boolean {

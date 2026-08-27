@@ -37,8 +37,12 @@ export async function POST(request: NextRequest) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!ctx.orgId || !actorId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R39/R-C14: ctx.apiKey?.id is NOT a real compliance.users row -- falling
+  // back to it here used to violate documents.uploaded_by_id's FK on every
+  // API-key-authenticated upload (confirmed live, real 500). null is the
+  // honest "no real user" value now that the column is nullable.
+  const actorId = ctx.dbUser?.id ?? null
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const formData = await request.formData()

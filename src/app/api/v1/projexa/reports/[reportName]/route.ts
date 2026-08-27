@@ -29,6 +29,12 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
       const weekStart = request.nextUrl.searchParams.get("weekStart")
       if (!weekStart) return NextResponse.json({ error: "weekStart query param is required for the certified-payroll report" }, { status: 400 })
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, weekStart)
+    } else if (reportName === "manpower-cost") {
+      // R39/R-C07: both optional -- omitted keeps the existing all-time,
+      // all-trade behavior.
+      const date = request.nextUrl.searchParams.get("date") ?? undefined
+      const trade = request.nextUrl.searchParams.get("trade") ?? undefined
+      result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId, date, trade)
     } else {
       result = await REPORT_REGISTRY[reportName]({ orgId: ctx.orgId }, projectId)
     }
