@@ -5387,6 +5387,37 @@ active:
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
 
+  - session_label: "claude-code (worker task-20260718-072004-ai-platform--ai-platform---general) -- Review Framework gap-closure: AI Platform / BYOAI provider test coverage"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Finding: "[Low] Option to Bring Your Own AI (BYOAI) Integration --
+      not all 6 supported providers are equally validated/tested for BYO
+      keys." Recommended approach: write a test suite hitting
+      src/app/api/settings/model-config/route.ts with a mock key per
+      provider.
+      Verified before starting (per this task's own instruction not to
+      trust the finding's framing blindly): PR #384 (merged 2026-07-16,
+      see recently_completed below) already added the real
+      testProviderConnection() connectivity check and
+      orchestra-model-resolver.test.ts, but that test file only exercises
+      testProviderConnection() directly with openai/groq mock fetches --
+      it never hits the route.ts handler itself (auth/role gate, VALID_
+      PROVIDERS validation, existing-key-reuse-on-update path, persist-
+      after-successful-test flow), and never covers anthropic/google.
+      Also: llm-client.ts's LLMProvider type has 6 values (adds openrouter,
+      cerebras) but the DB's own `ai_provider` Postgres enum
+      (schema.ts) only has 5 (no cerebras) and route.ts's own
+      VALID_PROVIDERS allow-list only has 4 (groq/openai/anthropic/
+      google) -- openrouter/cerebras are platform-internal-only, not
+      BYO-configurable at this route today. Documenting this rather than
+      silently widening VALID_PROVIDERS, which would be a separate,
+      bigger schema-migration decision out of this Low-severity finding's
+      scope.
+      File scope: new src/app/api/settings/model-config/route.test.ts
+      only (test-only addition, matching the finding's own recommended
+      approach). Not touching orchestra-model-resolver.ts,
+      permission-service.ts, or the customer_model_config schema.
+
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap-closure: AI Architecture / Domain Accuracy & Quality"
     claimed_at: "2026-07-18T (this session)"
     claim: |
