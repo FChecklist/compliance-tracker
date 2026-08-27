@@ -33,6 +33,17 @@ function buildLongText(): string {
 }
 
 async function main() {
+  // This repo's DATABASE_URL/APP_RUNTIME_DATABASE_URL GitHub secrets carry a
+  // leading UTF-8 BOM (confirmed via this script's own diagnostic run --
+  // dbUrlFirst12 came back as "﻿postgresql:", not "postgresql:"),
+  // which breaks postgres.js's own URL parser ("Invalid URL"). Stripped here
+  // only, for this one-time verification script -- not a production code
+  // change; the real app reads these from Vercel env vars, a different
+  // storage path this BOM was never shown to affect.
+  const stripBom = (s: string) => s.replace(/^﻿/, "")
+  if (process.env.DATABASE_URL) process.env.DATABASE_URL = stripBom(process.env.DATABASE_URL)
+  if (process.env.APP_RUNTIME_DATABASE_URL) process.env.APP_RUNTIME_DATABASE_URL = stripBom(process.env.APP_RUNTIME_DATABASE_URL)
+
   // Diagnostic only -- never prints the actual secret value, just its shape,
   // to distinguish "secret unset/empty in this workflow" from "secret set
   // but genuinely malformed" before touching any real connection code.
