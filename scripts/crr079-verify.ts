@@ -41,6 +41,12 @@ async function main() {
   console.log("CRR079_DIAG", JSON.stringify({
     dbUrlLength: dbUrl.length,
     dbUrlStartsWithPostgres: dbUrl.startsWith("postgres"),
+    // Scheme/host shape only -- never the credentials segment (everything
+    // from "://" onward up to, and not including, the "@" host separator is
+    // withheld).
+    dbUrlFirst12: dbUrl.slice(0, 12),
+    dbUrlSchemeSepIndex: dbUrl.indexOf("://"),
+    dbUrlAtIndex: dbUrl.indexOf("@"),
     appDbUrlLength: appDbUrl.length,
     appDbUrlStartsWithPostgres: appDbUrl.startsWith("postgres"),
     openrouterKeyLength: (process.env.OPENROUTER_API_KEY ?? "").length,
