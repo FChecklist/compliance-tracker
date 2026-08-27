@@ -16,6 +16,7 @@ import postgres from "postgres"
 import { getConnectionString } from "../src/lib/db/connection-string"
 
 const TEST_ORG_ID = "crr079_ci_verify_org"
+// run marker: retrigger after exporting chunkAndEmbedSourceObject
 
 function buildLongText(): string {
   // ~20 paragraphs, ~1000 chars each -- well over the 'generic' chunk_policy
