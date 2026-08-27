@@ -1,13 +1,24 @@
-name: CRR-079 Closure Proof (temporary, manual only)
+name: CRR-079 Closure Proof (temporary, one-time)
 # ONE-TIME verification workflow for platform.crr_spec CRR-079 -- runs the
 # real chunk+embed bridge against the real database and a real embedding
 # provider using this repo's own secrets (never available to the agent
-# session that authored this workflow directly). workflow_dispatch only --
-# never runs on push/PR, so it adds zero cost/risk to the normal CI surface.
+# session that authored this workflow directly).
+#
+# workflow_dispatch requires the workflow file to already exist on the
+# default branch before GitHub will register/dispatch it -- not true yet for
+# a file that only exists on this PR branch -- so this instead uses
+# pull_request (same event ci.yml already reacts to on this exact open PR,
+# #1398), scoped narrowly via `paths:` to only this file and the verify
+# script so it does not run on any other change to this PR. Same-repo PR
+# (not a fork), so secrets are available.
 # Removed in a follow-up commit on this branch once CRR-079's evidence is
 # captured -- not part of the merged CRR-100 P3 PR surface.
 on:
-  workflow_dispatch: {}
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/crr079-verify.ts"
+      - ".github/workflows/crr079-verify.yml"
 
 jobs:
   verify:
