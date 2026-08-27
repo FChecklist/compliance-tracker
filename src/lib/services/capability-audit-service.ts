@@ -443,7 +443,7 @@ export async function findCapabilitiesDueForAudit(limit: number): Promise<TaskCa
   return db.query.taskCapabilities.findMany({
     where: (t, { and, ne, or, isNull, sql: rawSql }) =>
       and(ne(t.needsImprovement, "in_progress"), or(isNull(t.lastAuditedVersion), rawSql`${t.lastAuditedVersion} != ${t.version}`)),
-    orderBy: (t, { asc, sql: rawSql }) => asc(rawSql`${t.lastAuditedAt} nulls first`),
+    orderBy: (t, { sql: rawSql }) => rawSql`${t.lastAuditedAt} asc nulls first`,
     limit,
   })
 }

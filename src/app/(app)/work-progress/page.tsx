@@ -457,7 +457,7 @@ export default function WorkProgressPage() {
                         <TableCell className="text-ct-muted whitespace-nowrap">{new Date(e.entryDate).toLocaleDateString()}</TableCell>
                         <TableCell className="text-ct-navy">{activitiesById.get(e.activityId)?.name ?? <span className="font-mono text-xs">{e.activityId}</span>}</TableCell>
                         <TableCell>{e.quantityDone}</TableCell>
-                        <TableCell><Badge className={`text-xs border-0 ${progressColor(e.percentComplete)}`}>{e.percentComplete}%</Badge></TableCell>
+                        <TableCell><Badge className={`text-xs border-0 ${progressColor(Number(e.percentComplete))}`}>{e.percentComplete}%</Badge></TableCell>
                         <TableCell className="max-w-xs truncate text-ct-muted">{e.remarks ?? "--"}</TableCell>
                       </TableRow>
                     ))}

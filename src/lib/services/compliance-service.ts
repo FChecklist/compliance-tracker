@@ -292,7 +292,7 @@ export async function getComplianceItem(ctx: ReadContext, id: string) {
     })),
     documents: item.documents.map((doc) => ({
       id: doc.id, name: doc.name, fileUrl: doc.fileUrl, fileType: doc.fileType, fileSize: doc.fileSize,
-      uploadedBy: { name: doc.uploadedBy.name }, createdAt: doc.createdAt.toISOString(),
+      uploadedBy: doc.uploadedBy ? { name: doc.uploadedBy.name } : null, createdAt: doc.createdAt.toISOString(),
     })),
     comments: item.comments.map((c) => ({
       id: c.id, content: c.content, author: { name: c.author.name, avatarUrl: c.author.avatarUrl }, createdAt: c.createdAt.toISOString(),

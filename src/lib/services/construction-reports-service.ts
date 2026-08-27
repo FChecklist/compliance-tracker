@@ -9,7 +9,7 @@ import {
   constructionBoqs, constructionBoqLineItems, constructionAttendance, constructionLabourRoster, constructionPrevailingWageRates,
   constructionKpiDefinitions, constructionKpiEntries, constructionExpenseEntries, erpStockLedgerEntries, erpItems, erpSalesInvoices,
   documents, pmsIssues, pmsTimeEntries, pmsBillableRates, users, erpBudgetLineItems, erpBudgets, erpCostCenters,
-  pmsBudgets, pmsBudgetLineItems, projects,
+  pmsBudgets, pmsBudgetLineItems, projects, erpSuppliers,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, inArray, sql, gte, lt, lte, or, isNull } from "drizzle-orm"
@@ -109,15 +109,253 @@ export async function sitePictureReport(ctx: { orgId: string }, projectId: strin
   })
 }
 
+// Shared BOQ money predicate (Master v5 B-3 / D-3): a weighted sub-task's amount
+// is derived from its ROOT ancestor's qty x rate x breakdown %, so the root row
+// already carries the full value. Summing roots AND sub-tasks double-counts.
+// Every BOQ value roll-up must aggregate ROOT rows only -- which is what the
+// customer-facing View dialog total already does (projexa ScopeClient.tsx
+// boqTotal). Used by scopeReport and categoryBoqAmountsReport.
+const rootBoqLineItemsOnly = (boqId: string) =>
+  and(eq(constructionBoqLineItems.boqId, boqId), isNull(constructionBoqLineItems.parentLineItemId))
+
+// R39/R-51 (D-3 extension, NOT a second summation path): earned value is a
+// faithful, minimal port of projexa's applyWeightedParentRollup -- the ONE
+// place this weighted-rollup algorithm lives (a real cross-repo constraint;
+// compliance-tracker cannot import from projexa). Both must be kept in sync
+// by hand; this comment is the pointer. Summed over ROOT lines only (same
+// rootBoqLineItemsOnly discipline as scopeReport/categoryBoqAmountsReport
+// above -- summing roots AND children double-counts, D-3/B-3). A childless
+// root uses its own cumulative DELTA quantity x its own rate. A root WITH
+// children uses SUM(child cumQty x root.rate x child.breakdownPercentage/100).
+// CORRECTED 2026-08-24 (R45 seq 7 / E-127): this file previously claimed
+// "children's own rate/amount are always 0 in real BOQ storage" -- checked
+// directly against production and that was FALSE. A follow-up verify pass
+// the same day re-checked the OPPOSITE claim this comment used to make ("477/
+// 477 child rows match, zero exceptions, no migration needed") and that was
+// ALSO FALSE -- re-verified live via Supabase MCP 2026-08-24 (root-ancestor
+// resolution via parent_line_item_id): 503 total child rows, 287 matching
+// F2/F3 exactly, 216 mismatching. Of those 216: 198 are harmless e2e test
+// noise (demo-gate-smoke.spec.ts submitting quantity:1/rate:1 on children
+// against real production before this write-path fix existed -- same family
+// as the accepted "R-B1 smoke" rows, left alone per this repo's P-11
+// protocol against raw-SQL test cleanup) and 18 were real, pre-existing
+// DEMO-ORG data (org_id='projexa_demo_org' and 've45lczmkodbiq1m20fy48r5',
+// both confirmed non-production demo tenants, created 2026-08-23/24 --
+// before this write-path fix landed). Those 18 were backfilled to the
+// canonical F2/F3 rate/quantity via scripts/backfill-r45-seq7-child-rate-
+// convention.ts (real before/after counts in that script's own header and
+// this PR's description) -- 0 real (non-smoke-noise) mismatches remained
+// immediately after. This calculation is still correct regardless of any of
+// the above -- it multiplies by root.rate x breakdownPct/100 directly rather
+// than reading child.rate, which is mathematically identical to child.rate
+// now that F2 is enforced at write time, and never double-counts even
+// though child rows exist in the same table. R-46-aware: only
+// entry_basis='DELTA' quantity is summed (a SNAPSHOT reading isn't a
+// this-period delta and must never be added into a cumulative sum -- same
+// rule as work-progress-report.ts's sumQtyInRange). KNOWN LIMITATION
+// (inherited from applyWeightedParentRollup's own documented one): only
+// ONE level of hierarchy nesting is handled -- see that function's comment.
+export type EvLineItem = {
+  id: string
+  parentLineItemId: string | null
+  rate: string | number
+  amount: string | number
+  breakdownPercentage: string | number | null
+}
+
+// R46/R-51 (D-3 extension, confirmed live 2026-08-25 -- fault
+// R46P5_R51_01): earnedValueReport() only ever read `quantity_done`
+// (physical "Units Completed" method, BCWP = qty x rate) and completely
+// ignored `percentComplete`, even though createProgressEntry() requires
+// and validates percentComplete (0-100) on every real progress entry
+// exactly as it requires quantityDone -- both are equally real, equally
+// recorded signals, but only one was ever read here. A field crew that
+// reports "50% done" before a precise quantity survey is a normal,
+// legitimate real-world logging pattern (industry-standard EVM's own
+// "% Complete method", BCWP = %complete x line's contracted value, a
+// long-standing alternative to the "Units Completed method" this file
+// already implements) -- previously that entry was silently worth $0 of
+// earned value, identical to a line with NO progress logged at all.
+// Live evidence: Oakwood Residence (upv2q7pv8qcwdayybvu74egm) had 13 real
+// construction_work_progress_entries rows (percent_complete 15-60,
+// 2026-08-24) yet GET /api/projects read earnedValue:0 -- confirmed via
+// Supabase MCP that its active BOQ's own root line item (which has
+// children, so its own quantity_done was ALSO already being dropped
+// entirely by the pre-existing children-only loop below, a second, related
+// bug fixed in the same pass) had 2 real entries, percentComplete=50,
+// quantityDone=0 both times: real, reported progress with nothing to show
+// for it under the old qty-only formula.
+//
+// Fix, applied per line item (root's own line, and independently per
+// child): prefer a real measured quantity (qty x rate) exactly as before
+// -- this is strictly additive, every existing qty>0 code path is
+// byte-for-byte unchanged. ONLY when a line's summed DELTA quantity is 0
+// (no physical measurement recorded for it at all) does it fall back to
+// (latest percentComplete / 100) x that line's own contracted value
+// (root.amount for a childless root or the root itself; root.amount x
+// breakdownPercentage/100 -- the same share-of-parent-value convention the
+// qty-based child formula already uses -- for a child). "Latest
+// percentComplete per item" uses the same DISTINCT ON ... ORDER BY
+// entry_date DESC convention categoryProgressReport() above already uses;
+// unlike quantity_done, percentComplete is a cumulative/absolute reading,
+// never summed across entries.
+export function computeEarnedValue(
+  allItems: EvLineItem[],
+  qtyByItem: Map<string, number>,
+  latestPercentByItem: Map<string, number>
+): { earnedValue: number; contractValue: number; percentByValue: number } {
+  const roots = allItems.filter((i) => i.parentLineItemId === null)
+  const childrenByParent = new Map<string, EvLineItem[]>()
+  for (const item of allItems) {
+    if (item.parentLineItemId) {
+      const list = childrenByParent.get(item.parentLineItemId) ?? []
+      list.push(item)
+      childrenByParent.set(item.parentLineItemId, list)
+    }
+  }
+
+  // Earned value for one line: real measured quantity wins when there is
+  // one; percentComplete of the line's own contracted value only fills in
+  // when there is nothing measured to read.
+  const lineEarnedValue = (itemId: string, rate: number, lineValue: number) => {
+    const measuredQty = qtyByItem.get(itemId) ?? 0
+    if (measuredQty > 0) return measuredQty * rate
+    const pct = latestPercentByItem.get(itemId)
+    return pct ? (pct / 100) * lineValue : 0
+  }
+
+  let earnedValue = 0
+  let contractValue = 0
+  for (const root of roots) {
+    const rootAmount = Number(root.amount)
+    const rootRate = Number(root.rate)
+    contractValue += rootAmount
+    const children = childrenByParent.get(root.id)
+    if (children && children.length > 0) {
+      // The root's own line can carry real progress too (logged before its
+      // scope was broken into weighted children, or reported at the parent
+      // level directly) -- previously dropped unconditionally whenever
+      // children existed; now counted additively on top of whatever the
+      // children separately earn, never double-counted against them.
+      earnedValue += lineEarnedValue(root.id, rootRate, rootAmount)
+      for (const child of children) {
+        const breakdownPct = Number(child.breakdownPercentage ?? 0)
+        const childShareOfContractValue = rootAmount * (breakdownPct / 100)
+        // A measured child quantity must still be scaled by the same
+        // rootRate x breakdownPct/100 the pre-existing formula always used
+        // -- folded into the "rate" passed to lineEarnedValue() so the
+        // percent-fallback branch (which needs the child's plain share of
+        // contract value, not that value again) stays correct too.
+        earnedValue += lineEarnedValue(child.id, rootRate * (breakdownPct / 100), childShareOfContractValue)
+      }
+    } else {
+      earnedValue += lineEarnedValue(root.id, rootRate, rootAmount)
+    }
+  }
+
+  const percentByValue = contractValue > 0 ? Math.round((earnedValue / contractValue) * 10000) / 100 : 0
+  return { earnedValue: Math.round(earnedValue * 100) / 100, contractValue, percentByValue }
+}
+
+export async function earnedValueReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    if (!latest) return { earnedValue: 0, contractValue: 0, percentByValue: 0 }
+
+    const allItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
+
+    const itemIds = allItems.map((i) => i.id)
+    let qtyByItem = new Map<string, number>()
+    let latestPercentByItem = new Map<string, number>()
+    if (itemIds.length > 0) {
+      const idsSql = sql.join(itemIds.map((id) => sql`${id}`), sql`, `)
+      const rows = (await db.execute(sql`
+        SELECT boq_line_item_id, coalesce(sum(quantity_done), 0)::float AS total_qty
+        FROM compliance.construction_work_progress_entries
+        WHERE boq_line_item_id = ANY(ARRAY[${idsSql}]) AND entry_basis = 'DELTA'
+        GROUP BY boq_line_item_id
+      `)) as { boq_line_item_id: string; total_qty: number }[]
+      qtyByItem = new Map(rows.map((r) => [r.boq_line_item_id, Number(r.total_qty)]))
+
+      const percentRows = (await db.execute(sql`
+        SELECT DISTINCT ON (boq_line_item_id) boq_line_item_id, percent_complete
+        FROM compliance.construction_work_progress_entries
+        WHERE boq_line_item_id = ANY(ARRAY[${idsSql}])
+        ORDER BY boq_line_item_id, entry_date DESC
+      `)) as { boq_line_item_id: string; percent_complete: number }[]
+      latestPercentByItem = new Map(percentRows.map((r) => [r.boq_line_item_id, Number(r.percent_complete)]))
+    }
+
+    return computeEarnedValue(allItems, qtyByItem, latestPercentByItem)
+  })
+}
+
+// R39/R-C09 (Point 154 follow-on): per-line budget vs actual-vendor-cost
+// variance, over the latest (non-superseded) BOQ's line items -- reuses the
+// SAME budgetPercentage/vendorId/vendorAmount columns Point 154 already
+// shipped and computedBudget()'s exact formula (imported indirectly via the
+// same amount*pct/100 arithmetic, kept in one place per D-3 -- see that
+// function's own comment for why it's not stored). variance = vendorAmount -
+// budget; null (not 0) when no vendor amount has been entered yet for a
+// line, a real "not yet quoted" state, not a fabricated zero variance.
+export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId: string) {
+  await requireConstructionEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
+    const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
+    if (!latest) return { lines: [], totalBudget: 0, totalVendorAmount: 0, totalVariance: 0 }
+
+    const lineItems = await db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id) })
+    const vendorIds = [...new Set(lineItems.map((i) => i.vendorId).filter((id): id is string => !!id))]
+    const suppliers = vendorIds.length > 0
+      ? await db.select({ id: erpSuppliers.id, name: erpSuppliers.supplierName }).from(erpSuppliers).where(inArray(erpSuppliers.id, vendorIds))
+      : []
+    const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
+
+    const lines = lineItems.map((item) => {
+      const budget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
+      const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
+      return {
+        lineItemId: item.id,
+        code: item.itemCode,
+        description: item.description,
+        amount: Number(item.amount),
+        budgetPercentage: Number(item.budgetPercentage),
+        budget: Math.round(budget * 100) / 100,
+        vendorId: item.vendorId,
+        vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
+        vendorAmount,
+        variance: vendorAmount !== null ? Math.round((vendorAmount - budget) * 100) / 100 : null,
+      }
+    })
+
+    return {
+      lines,
+      totalBudget: Math.round(lines.reduce((s, l) => s + l.budget, 0) * 100) / 100,
+      totalVendorAmount: Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100,
+      totalVariance: Math.round(lines.reduce((s, l) => s + (l.variance ?? 0), 0) * 100) / 100,
+    }
+  })
+}
+
 // 6. Scope Report -- BOQ total value + line-item count for the latest (non-superseded) revision.
 export async function scopeReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => desc(t.version) })
+    // R38 (TC-11/TC-43 fix, same root cause class as point 177/PR #1325): version
+    // DESC alone has no tiebreaker when 2+ INDEPENDENT (non-revision-chain) BOQs
+    // for this project share the highest version number -- Postgres then returns
+    // an arbitrary one, not the actually-latest. createdAt DESC as a secondary
+    // key matches construction-boq-service.ts#listBoqs()'s already-fixed ordering
+    // (kept as an inline duplicate here rather than a cross-module call, to
+    // avoid nesting withTenantContext).
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
     if (!latest) return { boq: null, totalValue: 0, lineItemCount: 0, revisions: [] }
     const [valueRow] = await db.select({ total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float`, count: sql<number>`count(*)` })
-      .from(constructionBoqLineItems).where(eq(constructionBoqLineItems.boqId, latest.id))
+      .from(constructionBoqLineItems).where(rootBoqLineItemsOnly(latest.id))
     return {
       boq: latest, totalValue: Number(valueRow?.total ?? 0), lineItemCount: Number(valueRow?.count ?? 0),
       revisions: boqs.map((b) => ({ id: b.id, version: b.version, status: b.status })),
@@ -189,18 +427,28 @@ export async function vendorCostReport(ctx: { orgId: string }, projectId: string
 }
 
 // 11. Manpower Cost Report -- attendance dailyCost summed by trade.
-export async function manpowerCostReport(ctx: { orgId: string }, projectId: string) {
+// R39/R-C07: `date` is optional -- omitted, this is the existing all-time
+// aggregate (unchanged, zero regression for every caller that never passed
+// it). Scoped to one day, workerDays IS the real headcount for that date
+// (one attendance row per worker per day, so count(*) over a single-date
+// filter is exactly "how many people worked"), and totalCost is that same
+// day's real labour cost -- the row's own oracle ("trade-wise summary
+// returns correct headcount and cost for that date").
+export async function manpowerCostReport(ctx: { orgId: string }, projectId: string, date?: string, trade?: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const conditions = [eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)]
+    if (date) conditions.push(eq(constructionAttendance.attendanceDate, date))
+    if (trade) conditions.push(eq(constructionLabourRoster.trade, trade))
     const rows = await db.select({
       trade: constructionLabourRoster.trade,
       totalCost: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`,
       workerDays: sql<number>`count(*)`,
     }).from(constructionAttendance)
       .innerJoin(constructionLabourRoster, eq(constructionAttendance.rosterId, constructionLabourRoster.id))
-      .where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId)))
+      .where(and(...conditions))
       .groupBy(constructionLabourRoster.trade)
-    return { byTrade: rows }
+    return { byTrade: rows, date: date ?? null }
   })
 }
 
@@ -359,13 +607,20 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
         orgWide: { byDesigner: [], byProject: [] },
       }
     }
+    // R39/R-C12 (D-10): approval must actually BLOCK, not just sit as a
+    // cosmetic status -- a draft/submitted/rejected hour is not yet a real
+    // cost until a manager approves it. approvalStatus='approved' here and
+    // in the allTimeEntries fetch below (both real cost-roll-up sources)
+    // is the fix; listTimeEntriesForProject/listTimeEntriesForIssue (the
+    // raw entry lists, not cost aggregates) are deliberately untouched --
+    // a designer/manager still needs to SEE a pending entry to review it.
     const rows = await db.select({
       userId: pmsTimeEntries.userId,
       userName: users.name,
       totalHours: sql<number>`coalesce(sum(${pmsTimeEntries.hours}), 0)::float`,
     }).from(pmsTimeEntries)
       .innerJoin(users, eq(pmsTimeEntries.userId, users.id))
-      .where(and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds)))
+      .where(and(eq(pmsTimeEntries.orgId, ctx.orgId), inArray(pmsTimeEntries.issueId, issueIds), eq(pmsTimeEntries.approvalStatus, "approved")))
       .groupBy(pmsTimeEntries.userId, users.name)
 
     // Budget-vs-Actual breakdown: Category/Designer-status/overall are
@@ -378,7 +633,7 @@ export async function designerTimesheetReport(ctx: { orgId: string }, projectId:
     const allProjects = await db.query.projects.findMany({ where: eq(projects.orgId, ctx.orgId), columns: { id: true, name: true } })
     const allIssues = await db.query.pmsIssues.findMany({ where: eq(pmsIssues.orgId, ctx.orgId), columns: { id: true, projectId: true } })
     const allUsers = await db.query.users.findMany({ where: eq(users.orgId, ctx.orgId), columns: { id: true, name: true, isActive: true } })
-    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: eq(pmsTimeEntries.orgId, ctx.orgId) })
+    const allTimeEntries = await db.query.pmsTimeEntries.findMany({ where: and(eq(pmsTimeEntries.orgId, ctx.orgId), eq(pmsTimeEntries.approvalStatus, "approved")) })
     // Fetched once upfront (not once per time entry, see resolvePmsBillableRatePure
     // below) -- same pattern pms-invoice-service.ts's buildInvoiceLinesFromTimeEntries
     // already uses to avoid the equivalent N+1 on this same table.
@@ -652,12 +907,14 @@ export async function projectCompletionReport(ctx: { orgId: string }, projectId:
 export async function categoryBoqAmountsReport(ctx: { orgId: string }, projectId: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => desc(t.version) })
+    // R38 (TC-42/TC-43 fix): same missing-tiebreaker bug as scopeReport() above --
+    // see its comment for the full explanation.
+    const boqs = await db.query.constructionBoqs.findMany({ where: and(eq(constructionBoqs.orgId, ctx.orgId), eq(constructionBoqs.projectId, projectId)), orderBy: (t, { desc }) => [desc(t.version), desc(t.createdAt)] })
     const latest = boqs.find((b) => b.status !== "superseded") ?? boqs[0]
     if (!latest) return { categories: [], uncategorizedAmount: 0, totalAmount: 0 }
 
     const [lineItems, categories, activities] = await Promise.all([
-      db.query.constructionBoqLineItems.findMany({ where: eq(constructionBoqLineItems.boqId, latest.id), columns: { activityId: true, amount: true } }),
+      db.query.constructionBoqLineItems.findMany({ where: rootBoqLineItemsOnly(latest.id), columns: { activityId: true, amount: true } }),
       db.query.constructionCategories.findMany({ where: and(eq(constructionCategories.orgId, ctx.orgId), eq(constructionCategories.projectId, projectId)) }),
       activityIdsForProject(db, ctx.orgId, projectId),
     ])
@@ -894,6 +1151,8 @@ export const REPORT_REGISTRY = {
   "project-completion": projectCompletionReport,
   "category-boq-amounts": categoryBoqAmountsReport,
   "certified-payroll": certifiedPayrollReport,
+  "earned-value": earnedValueReport, // R39/R-51
+  "budget-variance": boqBudgetVarianceReport, // R39/R-C09
 } as const
 
 export type ReportName = keyof typeof REPORT_REGISTRY

@@ -65,9 +65,12 @@ export async function indexCapability(
   entityType: CapabilityEntityType,
   entityId: string,
   content: string,
-  orgId?: string | null
+  orgId: string
 ): Promise<void> {
-  await storeEmbedding(entityType, entityId, content, orgId ?? undefined)
+  // CRR-018: orgId is mandatory on storeEmbedding now -- callers that mean
+  // "platform-wide" (module, dynamic_chain rows with no tenant) must pass
+  // PLATFORM_SCOPE_ORG_ID explicitly instead of null/undefined.
+  await storeEmbedding(entityType, entityId, content, orgId)
 }
 
 export async function removeCapabilityIndex(entityType: CapabilityEntityType, entityId: string): Promise<void> {
@@ -110,8 +113,10 @@ export async function findSimilarPromptPatterns(query: string, orgId: string, li
 // but is hardcoded to the 'prompt_pattern' entity type, so prompt patterns
 // flow into the same entity-agnostic embeddings backing store used by the
 // rest of the Capability Registry -- no new table, no migration.
-export async function indexPromptPattern(entityId: string, content: string, orgId?: string | null): Promise<void> {
-  await storeEmbedding("prompt_pattern", entityId, content, orgId ?? undefined)
+// CRR-018: orgId tightened to required -- this function has zero callers
+// today (grepped, 2026-08-25), so this is a pure type fix, no behavior change.
+export async function indexPromptPattern(entityId: string, content: string, orgId: string): Promise<void> {
+  await storeEmbedding("prompt_pattern", entityId, content, orgId)
 }
 
 // VERIDIAN_Architecture_v2.0 phase_2 (engine-prompt-similarity): mirrors
@@ -128,8 +133,11 @@ export async function findSimilarPromptVersions(query: string, orgId: string, li
     .slice(0, limit)
 }
 
-export async function indexPromptVersion(promptVersionId: string, machinePrompt: string, orgId?: string | null): Promise<void> {
-  await storeEmbedding("prompt_version", promptVersionId, machinePrompt, orgId ?? undefined)
+// CRR-018: orgId tightened to required -- its one call chain
+// (persist-compiled-prompt.ts -> indexCompiledPromptVersion -> here) already
+// carries a required `orgId: string` end to end, so this is a pure type fix.
+export async function indexPromptVersion(promptVersionId: string, machinePrompt: string, orgId: string): Promise<void> {
+  await storeEmbedding("prompt_version", promptVersionId, machinePrompt, orgId)
 }
 
 // DMP-06 gap closure (CONSTITUTION.yaml, "Dynamic Chain Master Directory"):

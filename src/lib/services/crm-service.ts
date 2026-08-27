@@ -5,9 +5,9 @@
 // needed for a compliance-service-provider's business). Gated identically
 // to the existing Clients page (accountType !== 'company') at the UI
 // layer, matching that page's own precedent.
-import { crmLeads, crmOpportunities, crmStageHistory, crmLostReasons, crmSalesTargets, crmActivities, clients, erpCustomers, tasks, users } from "@/lib/db"
+import { crmLeads, crmOpportunities, crmStageHistory, crmPipelineStages, crmLostReasons, crmSalesTargets, crmActivities, clients, erpCustomers, tasks, users } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { eq, and, ilike, inArray, sql, lte, isNotNull, isNull } from "drizzle-orm"
+import { eq, and, ilike, inArray, sql, lte, isNotNull, isNull, ne } from "drizzle-orm"
 import { buildPipelineDeals } from "./sales-pipeline-dashboard-service"
 import { resolveModelConfig } from "@/lib/orchestra-model-resolver"
 import { callLLMJson } from "@/lib/llm-client"
@@ -22,14 +22,25 @@ import { requireSalesEnabled } from "./crm-enablement-service"
 import { explainCrmLeadDecision, explainCrmOpportunityDecision } from "@/lib/explainability/ai-decision-explanation"
 export { ServiceError, serviceErrorBody }
 
-// role is optional -- only the create/update entry points below (the ones
-// reachable from the native /api/crm/leads* and /api/crm/opportunities*
-// routes, which always authenticate via requireAuth() and so always have a
-// real dbUser.role) enforce it. Every other function in this file (scoring,
-// analysis, follow-up-task chaining, convert-to-client, the v1/projexa
-// bulk-reassign aliases which already gate at manager rank via
-// requireRoleOrScope() at the route layer) is unaffected by this field.
-export type CrmContext = { orgId: string; userId: string; role?: string }
+// Sales Pipeline closure (2026-08-07): actorRole is optional and additive --
+// every pre-existing call site (createLead, bulkReassignLeads, etc.) keeps
+// working unchanged. Only updateOpportunity() reads it, to decide whether a
+// caller is allowed to move a deal OUT of a closed (won/lost) stage --
+// see isValidStageTransition() below.
+//
+// role (below, merged from the separate own-record-or-manager RBAC closure
+// landed on main the same window) is a second, independently-optional field
+// -- only the create/update entry points below (the ones reachable from the
+// native /api/crm/leads* and /api/crm/opportunities* routes, which always
+// authenticate via requireAuth() and so always have a real dbUser.role)
+// enforce it. Every other function in this file (scoring, analysis,
+// follow-up-task chaining, convert-to-client, the v1/projexa bulk-reassign
+// aliases which already gate at manager rank via requireRoleOrScope() at the
+// route layer) is unaffected by this field. Deliberately not unified into
+// one field: actorRole is typed UserRole (stage-transition rank lookup),
+// role is a plain string (RBAC gate functions below); merging them would
+// widen either type unnecessarily.
+export type CrmContext = { orgId: string; userId: string; actorRole?: UserRole; role?: string }
 
 // Gap found via a fresh audit immediately before this wave: crm-accounts-
 // service.ts got a real owner-or-manager RBAC gate in Wave 4 (17 Jul 2026,
@@ -251,6 +262,7 @@ export async function createOpportunity(
   ctx: CrmContext,
   input: {
     name: string; leadId?: string; clientId?: string; erpCustomerId?: string; stage?: string; estimatedValue?: number;
+    currencyId?: string; exchangeRate?: number;
     expectedCloseDate?: string; ownerId?: string; nextActionDate?: string; nextActionNote?: string
   }
 ) {
@@ -268,6 +280,7 @@ export async function createOpportunity(
     const [opportunity] = await db.insert(crmOpportunities).values({
       orgId: ctx.orgId, name, leadId: input.leadId || null, clientId: input.clientId || null, erpCustomerId: input.erpCustomerId || null,
       stage: input.stage || "prospecting", estimatedValue: input.estimatedValue != null ? String(input.estimatedValue) : null,
+      currencyId: input.currencyId || null, exchangeRate: input.exchangeRate != null ? String(input.exchangeRate) : undefined,
       expectedCloseDate: input.expectedCloseDate || null, ownerId: input.ownerId || null, createdById: ctx.userId,
       nextActionDate: input.nextActionDate || null, nextActionNote: input.nextActionNote || null,
     }).returning()
@@ -279,20 +292,44 @@ export async function createOpportunity(
 export async function updateOpportunity(
   ctx: CrmContext,
   opportunityId: string,
-  patch: Partial<{ stage: string; estimatedValue: number | null; expectedCloseDate: string | null; ownerId: string | null; nextActionDate: string | null; nextActionNote: string | null; lostReasonId: string | null }>,
+  patch: Partial<{
+    stage: string; estimatedValue: number | null; currencyId: string | null; exchangeRate: number;
+    expectedCloseDate: string | null; ownerId: string | null; nextActionDate: string | null; nextActionNote: string | null;
+    lostReasonId: string | null
+  }>,
   stageChangeNote?: string
 ) {
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const existing = await db.query.crmOpportunities.findFirst({ where: and(eq(crmOpportunities.id, opportunityId), eq(crmOpportunities.orgId, ctx.orgId)) })
     if (!existing) throw new ServiceError("Opportunity not found", 404)
+
+    // VERIDIAN Review Framework Sales Pipeline closure (2026-08-07,
+    // "Business Rule & Validation Accuracy" finding): stage-transition
+    // legality was previously entirely unenforced -- the UI's plain
+    // <Select> let a deal jump from "won" straight back to "prospecting"
+    // with no check at all. isValidStageTransition() is pure/unit-tested;
+    // this is its one real call site.
+    if (patch.stage && patch.stage !== existing.stage) {
+      const stages = await listPipelineStages({ orgId: ctx.orgId }, "opportunity")
+      const actorRank = ctx.actorRole ? ROLE_RANK[ctx.actorRole] : 0
+      const verdict = isValidStageTransition(existing.stage, patch.stage, stages, actorRank)
+      if (!verdict.valid) throw new ServiceError(verdict.reason ?? "Invalid stage transition", 400)
+    }
+
     if (ctx.role !== undefined) {
       // Same reassignment-vs-edit split as updateLead above.
       const isReassignment = patch.ownerId !== undefined && (patch.ownerId || null) !== existing.ownerId
       assertGate(isReassignment ? canReassignOrDeleteOpportunity(ctx.role) : canEditOpportunity(ctx.role, existing.ownerId, ctx.userId))
     }
+
     const [updated] = await db.update(crmOpportunities)
-      .set({ ...patch, estimatedValue: patch.estimatedValue != null ? String(patch.estimatedValue) : undefined, updatedAt: new Date() })
+      .set({
+        ...patch,
+        estimatedValue: patch.estimatedValue != null ? String(patch.estimatedValue) : undefined,
+        exchangeRate: patch.exchangeRate != null ? String(patch.exchangeRate) : undefined,
+        updatedAt: new Date(),
+      })
       .where(eq(crmOpportunities.id, opportunityId)).returning()
     if (patch.stage && patch.stage !== existing.stage) {
       await db.insert(crmStageHistory).values({
@@ -643,11 +680,142 @@ export async function listStageHistory(ctx: { orgId: string }, entityType: "lead
   )
 }
 
+// ─── VERIDIAN Review Framework gap-closure: Sales Pipeline (2026-08-07) ───
+// "Data Model Completeness & Referential Integrity" finding: pipeline
+// stages were hardcoded strings ('prospecting'|'proposal'|'negotiation'|
+// 'won'|'lost') duplicated across crm-service.ts and crm/page.tsx, with no
+// per-org configurability and no machine-readable "this is a terminal
+// stage" flag. crm_pipeline_stages (drizzle/0314) is the new config table;
+// these 5 rows are exactly the pre-existing hardcoded set, so seeding them
+// changes no observable behavior for any org that hasn't touched pipeline
+// config yet.
+export type PipelineStageRow = typeof crmPipelineStages.$inferSelect
+const DEFAULT_PIPELINE_STAGES: { stageKey: string; label: string; sortOrder: number; isWon: boolean; isLost: boolean }[] = [
+  { stageKey: "prospecting", label: "Prospecting", sortOrder: 0, isWon: false, isLost: false },
+  { stageKey: "proposal", label: "Proposal", sortOrder: 1, isWon: false, isLost: false },
+  { stageKey: "negotiation", label: "Negotiation", sortOrder: 2, isWon: false, isLost: false },
+  { stageKey: "won", label: "Won", sortOrder: 3, isWon: true, isLost: false },
+  { stageKey: "lost", label: "Lost", sortOrder: 4, isWon: false, isLost: true },
+]
+
+/**
+ * Returns this org's configured pipeline stages for `entityType`, lazily
+ * seeding the 5 defaults above on first read (never on every read -- only
+ * inserted when the org has zero rows for this entityType yet). This is the
+ * one function every other pipeline-stage consumer (the Kanban UI,
+ * isValidStageTransition below, getSalesPipelineOverview) goes through, so
+ * an org's config is always resolvable even if it pre-dates drizzle/0314.
+ */
+export async function listPipelineStages(ctx: { orgId: string }, entityType: "lead" | "opportunity" = "opportunity"): Promise<PipelineStageRow[]> {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.crmPipelineStages.findMany({
+      where: and(eq(crmPipelineStages.orgId, ctx.orgId), eq(crmPipelineStages.entityType, entityType)),
+      orderBy: (t, { asc }) => asc(t.sortOrder),
+    })
+    if (existing.length > 0) return existing
+    const seeded = await db.insert(crmPipelineStages).values(
+      DEFAULT_PIPELINE_STAGES.map((s) => ({ orgId: ctx.orgId, entityType, ...s }))
+    ).returning()
+    return seeded.sort((a, b) => a.sortOrder - b.sortOrder)
+  })
+}
+
+export async function createPipelineStage(
+  ctx: { orgId: string },
+  input: { entityType?: "lead" | "opportunity"; stageKey: string; label: string; sortOrder?: number; isWon?: boolean; isLost?: boolean }
+) {
+  await requireSalesEnabled(ctx.orgId)
+  const stageKey = input.stageKey?.trim()
+  const label = input.label?.trim()
+  if (!stageKey || !label) throw new ServiceError("stageKey and label are required", 400)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [stage] = await db.insert(crmPipelineStages).values({
+      orgId: ctx.orgId, entityType: input.entityType ?? "opportunity", stageKey, label,
+      sortOrder: input.sortOrder ?? 0, isWon: input.isWon ?? false, isLost: input.isLost ?? false,
+    }).returning()
+    return stage
+  })
+}
+
+export async function updatePipelineStage(
+  ctx: { orgId: string },
+  stageId: string,
+  patch: Partial<{ label: string; sortOrder: number; isWon: boolean; isLost: boolean }>
+) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.crmPipelineStages.findFirst({ where: and(eq(crmPipelineStages.id, stageId), eq(crmPipelineStages.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Pipeline stage not found", 404)
+    const [updated] = await db.update(crmPipelineStages).set({ ...patch, updatedAt: new Date() }).where(eq(crmPipelineStages.id, stageId)).returning()
+    return updated
+  })
+}
+
+export async function deletePipelineStage(ctx: { orgId: string }, stageId: string) {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.crmPipelineStages.findFirst({ where: and(eq(crmPipelineStages.id, stageId), eq(crmPipelineStages.orgId, ctx.orgId)) })
+    if (!existing) throw new ServiceError("Pipeline stage not found", 404)
+    // Referential-integrity guard: refuse to delete a stage that any live
+    // opportunity (or lead, for the entityType='lead' config) still
+    // references -- deleting it out from under them would leave orphaned
+    // stage values with no matching config row. Two explicit branches
+    // (rather than a dynamic table variable) since crmLeads.status and
+    // crmOpportunities.stage are different columns on different tables.
+    const inUseCount = existing.entityType === "lead"
+      ? await db.select({ count: sql<number>`count(*)` }).from(crmLeads).where(and(eq(crmLeads.orgId, ctx.orgId), eq(crmLeads.status, existing.stageKey)))
+      : await db.select({ count: sql<number>`count(*)` }).from(crmOpportunities).where(and(eq(crmOpportunities.orgId, ctx.orgId), eq(crmOpportunities.stage, existing.stageKey)))
+    if (Number(inUseCount[0]?.count ?? 0) > 0) {
+      throw new ServiceError(`Cannot delete stage "${existing.label}" -- ${inUseCount[0].count} record(s) still use it`, 400)
+    }
+    await db.delete(crmPipelineStages).where(eq(crmPipelineStages.id, stageId))
+    return { id: stageId }
+  })
+}
+
+/**
+ * Pure/unit-tested: is moving from `fromStage` to `toStage` legal? A deal
+ * can move freely between any two non-terminal stages (backward included --
+ * e.g. "negotiation" cooling back off to "proposal" is a real, common
+ * pipeline event, not an error), and into a terminal (won/lost) stage from
+ * anywhere. Moving OUT of a terminal stage ("reopening" a closed deal)
+ * requires manager rank or above -- falls back to the hardcoded 'won'/'lost'
+ * strings if `stages` has no matching config row (defensive; every real
+ * call site resolves stages via listPipelineStages first, which always
+ * returns at least the 5 seeded defaults).
+ */
+export function isValidStageTransition(
+  fromStage: string,
+  toStage: string,
+  stages: Pick<PipelineStageRow, "stageKey" | "isWon" | "isLost">[],
+  actorRank: number
+): { valid: boolean; reason?: string } {
+  if (fromStage === toStage) return { valid: true }
+  const to = stages.find((s) => s.stageKey === toStage)
+  if (!to) return { valid: false, reason: `Unknown pipeline stage "${toStage}"` }
+  const from = stages.find((s) => s.stageKey === fromStage)
+  const fromIsTerminal = from ? from.isWon || from.isLost : fromStage === "won" || fromStage === "lost"
+  if (fromIsTerminal && actorRank < ROLE_RANK.manager) {
+    return { valid: false, reason: `Cannot move a deal out of the closed stage "${fromStage}" -- requires manager approval` }
+  }
+  return { valid: true }
+}
+
 // Priority 15 (Sales & CRM depth wave): the pipeline/funnel dashboard's
 // cross-cutting rollup -- stage totals + win/loss rate + overdue follow-ups,
 // computed directly from crm_leads/crm_opportunities/crm_stage_history
 // rather than a separate materialized/cached table (org-scale here, not
 // platform-scale, so a live aggregate is cheap enough not to need caching).
+//
+// Sales Pipeline closure (2026-08-07, "Localization Readiness" finding):
+// opportunitiesByStage/openPipelineValue now sum estimatedValue *
+// exchangeRate rather than the raw estimatedValue -- every opportunity's
+// exchangeRate defaults to '1' (org base currency), so an org that has
+// never touched the new currencyId field gets byte-identical totals to
+// before this change; only opportunities explicitly given a foreign
+// currencyId/exchangeRate now roll up correctly into a single base-currency
+// total instead of silently mixing currencies.
 export async function getSalesPipelineOverview(ctx: { orgId: string }) {
   await requireSalesEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -659,6 +827,9 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
       db.select({ count: sql<number>`count(*)` }).from(crmOpportunities).where(and(eq(crmOpportunities.orgId, ctx.orgId), isNotNull(crmOpportunities.nextActionDate), lte(crmOpportunities.nextActionDate, today))),
     ])
 
+    const baseValue = (o: typeof opportunities[number]) =>
+      o.estimatedValue != null ? Number(o.estimatedValue) * Number(o.exchangeRate ?? 1) : 0
+
     const leadsByStatus: Record<string, number> = {}
     for (const l of leads) leadsByStatus[l.status] = (leadsByStatus[l.status] ?? 0) + 1
 
@@ -666,7 +837,7 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
     for (const o of opportunities) {
       const bucket = (opportunitiesByStage[o.stage] ??= { count: 0, value: 0 })
       bucket.count += 1
-      bucket.value += o.estimatedValue != null ? Number(o.estimatedValue) : 0
+      bucket.value += baseValue(o)
     }
 
     const won = opportunities.filter((o) => o.stage === "won").length
@@ -674,7 +845,7 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
     const winRate = won + lost > 0 ? won / (won + lost) : null
     const openPipelineValue = opportunities
       .filter((o) => o.stage !== "won" && o.stage !== "lost")
-      .reduce((sum, o) => sum + (o.estimatedValue != null ? Number(o.estimatedValue) : 0), 0)
+      .reduce((sum, o) => sum + baseValue(o), 0)
 
     return {
       totalLeads: leads.length,
@@ -689,6 +860,93 @@ export async function getSalesPipelineOverview(ctx: { orgId: string }) {
       overdueOpportunityFollowUps: Number(overdueOppCountRows[0]?.count ?? 0),
     }
   })
+}
+
+// Sales Pipeline closure (2026-08-07, "Notification & Alert Trigger
+// Correctness" finding): "days stuck in current stage" for every open
+// opportunity, resolved from crm_stage_history's latest row per opportunity
+// (falling back to createdAt if an opportunity somehow has no history row --
+// defensive only, every real create/update path writes one). This is the
+// shared read both the Kanban UI's "stuck" badge and
+// pipeline-stuck-deal-digest-service.ts's cron job consume, so the exact
+// same definition of "stuck" is used in both places.
+export type StuckOpportunity = { id: string; name: string; stage: string; ownerId: string | null; daysInStage: number }
+
+export async function listStuckOpportunities(ctx: { orgId: string }, minDaysInStage: number = 30): Promise<StuckOpportunity[]> {
+  await requireSalesEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const open = await db.query.crmOpportunities.findMany({
+      where: and(eq(crmOpportunities.orgId, ctx.orgId), ne(crmOpportunities.stage, "won"), ne(crmOpportunities.stage, "lost")),
+    })
+    if (open.length === 0) return []
+    const history = await db.query.crmStageHistory.findMany({
+      where: and(eq(crmStageHistory.orgId, ctx.orgId), eq(crmStageHistory.entityType, "opportunity"), inArray(crmStageHistory.entityId, open.map((o) => o.id))),
+      orderBy: (t, { desc }) => desc(t.changedAt),
+    })
+    const latestChangeByOpp = new Map<string, Date>()
+    for (const h of history) if (!latestChangeByOpp.has(h.entityId)) latestChangeByOpp.set(h.entityId, h.changedAt)
+
+    const now = Date.now()
+    const result: StuckOpportunity[] = []
+    for (const o of open) {
+      const since = latestChangeByOpp.get(o.id) ?? o.createdAt
+      const daysInStage = Math.floor((now - since.getTime()) / 86_400_000)
+      if (daysInStage >= minDaysInStage) result.push({ id: o.id, name: o.name, stage: o.stage, ownerId: o.ownerId, daysInStage })
+    }
+    return result.sort((a, b) => b.daysInStage - a.daysInStage)
+  })
+}
+
+// Sales Pipeline closure (2026-08-07, "AI Copilot / Worker Agent
+// Integration Depth" finding): aiWinProbability (analyzeOpportunity above)
+// reasons about ONE opportunity at a time. This aggregates across the
+// entire open funnel ("which deals are at risk this quarter") -- same
+// 6-step orchestration shape as scoreLead/analyzeOpportunity, but with no
+// single entity row to write the result back to, so the result is returned
+// ephemeral (computed on demand, not cached/persisted) rather than forcing
+// a new column onto an org-level table for a summary that goes stale the
+// moment any opportunity changes.
+export async function getPipelineAiSummary(ctx: CrmContext) {
+  await requireSalesEnabled(ctx.orgId)
+  const [opportunities, stuck] = await Promise.all([
+    withTenantContext({ orgId: ctx.orgId }, (db) => db.query.crmOpportunities.findMany({ where: and(eq(crmOpportunities.orgId, ctx.orgId), ne(crmOpportunities.stage, "won"), ne(crmOpportunities.stage, "lost")) })),
+    listStuckOpportunities({ orgId: ctx.orgId }),
+  ])
+  if (opportunities.length === 0) throw new ServiceError("No open opportunities to summarize", 400)
+
+  const stuckIds = new Set(stuck.map((s) => s.id))
+  const dealLines = opportunities.map((o) => {
+    const daysInStage = stuck.find((s) => s.id === o.id)?.daysInStage
+    return `- "${o.name}": stage=${o.stage}, value=${o.estimatedValue ?? "unknown"}, closeDate=${o.expectedCloseDate ?? "unknown"}, winProbability=${o.aiWinProbability ?? "not analyzed"}${daysInStage != null ? `, daysInStage=${daysInStage} (stuck)` : ""}`
+  })
+
+  // Same reasoning as scoreLead/analyzeOpportunity: opportunity names are
+  // the only genuinely user-authored text reaching the model here.
+  const policyDecision = enforcePolicy(
+    { orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.pipeline_summary" },
+    opportunities.map((o) => o.name).join("\n")
+  )
+  if (!policyDecision.allowed) throw new ServiceError(refusalMessageFor(policyDecision), 403)
+
+  const modelConfig = await resolveModelConfig(ctx.orgId, "task_oa")
+  if (!modelConfig) throw new ServiceError("No AI provider configured for this organisation", 503)
+
+  const systemPrompt = await resolvePromptTemplate("crm_intelligence.pipeline_summary")
+  const userMessage = `Open pipeline (${opportunities.length} deals, ${stuckIds.size} stuck 30+ days in their current stage):\n${dealLines.join("\n")}`
+
+  const startedAt = Date.now()
+  const { data: result, usage } = await callLLMJson<{ atRiskDealNames: string[]; summary: string; recommendedFocus: string }>(
+    modelConfig.provider, modelConfig.model, modelConfig.apiKey, systemPrompt, userMessage, { temperature: 0.2, maxTokens: 500 }, modelConfig.fallback
+  )
+
+  recordOrchestraExecution({
+    orgId: ctx.orgId, userId: ctx.userId, layerKey: "task_oa", eventType: "crm_intelligence.pipeline_summary",
+    input: { openOpportunityCount: opportunities.length }, output: { atRiskCount: result.atRiskDealNames?.length ?? 0 },
+    status: "completed", durationMs: Date.now() - startedAt,
+    provider: modelConfig.provider, model: modelConfig.model, usage,
+  })
+
+  return { ...result, generatedAt: new Date().toISOString(), openOpportunityCount: opportunities.length, stuckOpportunityCount: stuckIds.size }
 }
 
 // sap_reports gap analysis, lead_source_effectiveness (BUILD_NEW, no existing

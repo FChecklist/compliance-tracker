@@ -163,6 +163,82 @@ export async function extractRawTextForMimeType(mimeType: string, buffer: Buffer
   throw new Error(`Unsupported mime type for text extraction: ${mimeType}`)
 }
 
+// CRR-035 (Capture/Recall/Reuse, R-70): moved out of
+// src/app/api/documents/extract/route.ts, which used to make this exact
+// callLLMJson call itself with this exact prompt inline -- that route is now
+// a thin transport wrapper (auth, input-shape handling, response formatting)
+// with zero extraction logic of its own, per this project's "the service is
+// the tested home; the route is transport" rule. Schema/prompt content is
+// unchanged from the route's original -- this is a relocation, not a
+// behavior change, so existing callers of that route keep the same response
+// shape (noticeNumber/authority/demandAmount/pan/gstin/... fields).
+export type ExtractedComplianceFields = {
+  noticeNumber: string | null
+  authority: string | null
+  demandAmount: number | null
+  pan: string | null
+  gstin: string | null
+  arn: string | null
+  period: string | null
+  dueDate: string | null
+  complianceType: string | null
+  description: string | null
+  title: string | null
+}
+
+const COMPLIANCE_EXTRACTION_PROMPT = `You are a compliance document extraction AI for Indian regulatory filings. Extract structured information from the document text provided.
+
+Analyze the text and return a JSON object with the following fields (use null for fields you cannot determine):
+
+{
+  "noticeNumber": "The notice/challan/reference number if found",
+  "authority": "The issuing authority (e.g., CGST, ITD, EPFO, MCA, State GST, etc.)",
+  "demandAmount": "The demand/tax/penalty amount as a number, or null",
+  "pan": "PAN number if found (10-char alphanumeric)",
+  "gstin": "GSTIN if found (15-char alphanumeric starting with digits)",
+  "arn": "Acknowledgement Reference Number if found",
+  "period": "The tax period (e.g., 'March 2025', 'Q4 FY2024-25', 'FY 2024-25')",
+  "dueDate": "Due date in ISO 8601 format (YYYY-MM-DD) if found, or null",
+  "complianceType": "One of: GST, TDS, PF, ESIC, INCOME_TAX, MCA, ROC, LABOUR, ENVIRONMENTAL, OTHER",
+  "description": "A brief 1-2 sentence summary of the document content",
+  "title": "A short title for this document/compliance item"
+}
+
+Rules:
+- Be precise with numbers and dates
+- Default complianceType to "OTHER" if you cannot determine it
+- For demandAmount, extract only the numeric value without currency symbols
+- Return ONLY the JSON object, no additional text`
+
+/**
+ * Compliance-specific structured-field extraction (noticeNumber/PAN/GSTIN/
+ * demandAmount/...) from already-obtained plain text. Distinct from
+ * extractDocumentContent above (ExtractedDocumentData: summary/dates/
+ * amounts/parties, vision+text, writes straight to compliance.documents) --
+ * this one is synchronous-response-shaped for a caller that needs the
+ * fields back immediately (the /api/documents/extract route), not a
+ * fire-and-forget background writer.
+ */
+export async function extractComplianceFields(
+  orgId: string,
+  textContent: string
+): Promise<ExtractedComplianceFields> {
+  const modelConfig = await resolveModelConfig(orgId, "customer_account_oa")
+  if (!modelConfig) {
+    throw new Error("No AI model configured for document extraction. Configure one in Settings -> AI Configuration.")
+  }
+  const { data } = await callLLMJson<ExtractedComplianceFields>(
+    modelConfig.provider,
+    modelConfig.model,
+    modelConfig.apiKey,
+    COMPLIANCE_EXTRACTION_PROMPT,
+    textContent.slice(0, MAX_EXTRACTED_CHARS),
+    { temperature: 0.1, maxTokens: 2048 },
+    modelConfig.fallback
+  )
+  return data
+}
+
 export async function extractDocumentContent(
   ctx: { orgId: string; userId: string; documentId: string; fileBase64: string; mimeType: string }
 ): Promise<void> {

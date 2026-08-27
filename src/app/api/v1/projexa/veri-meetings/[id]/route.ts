@@ -30,8 +30,10 @@ export async function PATCH(request: NextRequest, { params }: RouteContext) {
   if (ctx.response) return ctx.response
   const roleErr = requireRoleOrScope(ctx, "member", "write")
   if (roleErr) return roleErr
-  const actorId = ctx.dbUser?.id ?? ctx.apiKey?.id
-  if (!ctx.orgId || !actorId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
+  // R39/R-C04: ctx.apiKey?.id is not a real compliance.users row -- see
+  // veriMeetings.createdById's schema.ts comment.
+  const actorId = ctx.dbUser?.id ?? null
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const { id } = await params
