@@ -5,7 +5,7 @@ import { listKpiDefinitions, createKpiDefinition, ServiceError } from "@/lib/ser
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ definitions: [] })
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const definitions = await listKpiDefinitions({ orgId: ctx.orgId }, request.nextUrl.searchParams.get("projectId") ?? undefined)

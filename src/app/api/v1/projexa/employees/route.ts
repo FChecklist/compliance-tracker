@@ -13,7 +13,7 @@ import { listEmployees, upsertEmployeeProfile, ServiceError } from "@/lib/servic
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ employees: [] })
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const companyId = request.nextUrl.searchParams.get("companyId") ?? undefined

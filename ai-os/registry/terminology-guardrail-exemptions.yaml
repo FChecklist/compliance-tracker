@@ -188,9 +188,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 5
   - file: src/lib/db/schema.ts
-    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt. Bumped 80 -> 82 (PR #610 conflict-resolution merge, 2026-07-29): Sales Pipeline Interactive Dashboard's crmSalesTargets table adds one real dated changelog comment ('Sales Pipeline Interactive Dashboard (2026-07-27)') plus one date-shaped example value in a column comment ('e.g. 2026-01-01') -- both verified by direct diff read, neither is human example/sample data needing a placeholder. Bumped 82 -> 83 (PR #610 rebase onto main, 2026-07-31): main independently landed FI-AP-007 Subcontractor Retention Summary's own +1 (line 6215, retentionPercent/retentionAmount/retentionReleasedAmount columns) while this branch was open -- both real, additive, combined here. Bumped 83 -> 84 (OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix, UMR-20260804-090421-c647, 2026-08-04): one new real dated comment on the new product_branches.hostDomain column explaining the Owner decision it implements -- same class as every other entry here, not example/sample data."
+    reason: "First real baseline for this file (2026-07-27, Helpdesk gap-closure task-20260727-101134): src/lib/db/schema.ts is a single shared ~10,900-line file that every feature across the whole project's life has added real, evidenced dated comments to -- it never had a terminology-guardrail exemption entry, so any PR touching it inherited the FULL file's historical debt as 'new'. Count (68) verified by direct read of the current real file content, not guessed -- every finding is a legitimate dated gap-closure/decision comment, none are accidental hardcoded secrets or PII. This baseline only grandfathers what already exists; any future PR that pushes the real count above 68 will correctly be flagged as new debt. Bumped 80 -> 82 (PR #610 conflict-resolution merge, 2026-07-29): Sales Pipeline Interactive Dashboard's crmSalesTargets table adds one real dated changelog comment ('Sales Pipeline Interactive Dashboard (2026-07-27)') plus one date-shaped example value in a column comment ('e.g. 2026-01-01') -- both verified by direct diff read, neither is human example/sample data needing a placeholder. Bumped 82 -> 83 (PR #610 rebase onto main, 2026-07-31): main independently landed FI-AP-007 Subcontractor Retention Summary's own +1 (line 6215, retentionPercent/retentionAmount/retentionReleasedAmount columns) while this branch was open -- both real, additive, combined here. Bumped 83 -> 84 (OCID-038 GAP-OCID038-PROJEXA-DOMAIN-BRAND-MISMATCH real fix, UMR-20260804-090421-c647, 2026-08-04): one new real dated comment on the new product_branches.hostDomain column explaining the Owner decision it implements -- same class as every other entry here, not example/sample data. Bumped 84 -> 86 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 2 new real dated comments (crmPipelineStages table, crmOpportunities.currencyId/exchangeRate columns) documenting this task's own gap-closure decisions -- verified by direct diff read, not example/sample data. Bumped 86 -> 87 (VERIDIAN Review Framework gap-closure, AI Model Lifecycle & Benchmarking, 2026-08-15, merged in from origin/main alongside this task's own bump above): one new real dated comment on aiTeamRoleOverrides' new candidateModel/rolloutPercentage columns explaining the A/B/shadow-testing gap-closure they implement."
     findings_by_category:
-      hardcoded_iso_date: 84
+      hardcoded_iso_date: 87
   - file: src/app/api/ai/orchestrate/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -208,14 +208,14 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/app/api/ai/team/dispatch/route.test.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated. Bumped 1 -> 2 (VERIDIAN Review Framework gap-closure, 2026-08-15): +1 real dated changelog comment (line 64) on the updated roster-overrides mock for the new A/B rollout resolver."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 2
       placeholder_email_domain: 1
   - file: src/app/api/ai/team/dispatch/route.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 6 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 6 pre-existing finding(s) reviewed and closed, not migrated. Bumped 6 -> 9 (VERIDIAN Review Framework gap-closure, 2026-08-15): +3 real dated design-rationale comments documenting the tier pre-flight check's switch to resolveDispatchModel(), the new modelVariant field, and the PATCH endpoint's additive rollout body field."
     findings_by_category:
-      hardcoded_iso_date: 6
+      hardcoded_iso_date: 9
   - file: src/app/api/ai/team/governance-health/route.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -398,9 +398,13 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/ai-team/roster-overrides.test.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 2 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 2 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated. Bumped 2 -> 3 (VERIDIAN Review Framework gap-closure, 2026-08-15): +1 real dated changelog comment (line 110) on the new A/B/shadow-testing rollout test suite."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
+  - file: src/lib/ai-team/roster-overrides.ts
+    reason: "First real baseline for this file (VERIDIAN Review Framework gap-closure, 2026-08-15): first PR to touch roster-overrides.ts since the exemptions manifest was seeded, so it had no prior entry and inherited the file's full pre-existing debt as 'new'. 3 real dated design-rationale comments verified by direct read (lines 2, 25, 121 -- documenting the BYOB admin-override layer's origin, the isKnownModel/knownModels registry-backed follow-up, and this PR's own A/B/shadow-testing rollout extension) -- none are human example/sample data."
+    findings_by_category:
+      hardcoded_iso_date: 3
   - file: src/lib/audit-protocol.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -524,9 +528,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 3
   - file: src/lib/llm-client.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 23 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 23 pre-existing finding(s) reviewed and closed, not migrated. Bumped 23->24 for Cache & Synchronization: Cache Utilization & Prediction task (PR #1017, 2026-08-07): 1 new dated gap-closure comment on estimatePromptCacheSavingsUsd(), same class as every other entry already reviewed here -- not example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 23
+      hardcoded_iso_date: 24
   - file: src/lib/llm-response-cache.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -730,9 +734,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 2
   - file: src/lib/services/crm-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 3 pre-existing finding(s) reviewed and closed, not migrated. Bumped 4 -> 10 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 6 new real dated comments documenting this task's own gap-closure decisions (pipeline stage CRUD, stage-transition validation, currency-aware overview aggregation, AI pipeline insight, stuck-deal digest wiring) -- verified by direct diff read, not example/sample data, not example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 4
+      hardcoded_iso_date: 10
   - file: src/lib/services/custom-report-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -867,13 +871,13 @@ exemptions:
     findings_by_category:
       indian_gstin_literal: 10
   - file: src/lib/services/permission-service.test.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated. Bumped 1 -> 2 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 1 new real dated comment documenting the new crm.pipeline_stages.manage addition to the manager-gated-action test list -- not example/sample data, same class as this file's own pre-existing exemption."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 2
   - file: src/lib/services/permission-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 1 pre-existing finding(s) reviewed and closed, not migrated. Bumped 1 -> 3 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 2 new real dated comments documenting the new crm.pipeline_stages.manage permission and this task's own additive scope note -- verified by direct diff read, not example/sample data, not example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 3
   - file: src/lib/services/product-branch-service.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
     findings_by_category:
@@ -883,13 +887,13 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 4
   - file: src/lib/services/report-catalog-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's anthropic-version header or MCP's protocolVersion, or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2 -> 4 (both real, independently reviewed additions, same merge wave): PR #636 (feat/fi-ar-004-dunning-list, +1, mandatory-audit-check auditor review 2026-07-30) -- a gap-closure task-id comment documenting when the Dunning List report entry was added; and PR #642 (feat/fi-ap-007-subcontractor-retention-summary, +1) -- a matching gap-closure comment documenting when the Subcontractor Retention Summary report entry was added. Both verified on direct read against each PR's real diff, not assumed -- neither is human example/sample data."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's anthropic-version header or MCP's protocolVersion, or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Raised 2 -> 4 (both real, independently reviewed additions, same merge wave): PR #636 (feat/fi-ar-004-dunning-list, +1, mandatory-audit-check auditor review 2026-07-30) -- a gap-closure task-id comment documenting when the Dunning List report entry was added; and PR #642 (feat/fi-ap-007-subcontractor-retention-summary, +1) -- a matching gap-closure comment documenting when the Subcontractor Retention Summary report entry was added. Both verified on direct read against each PR's real diff, not assumed -- neither is human example/sample data. Bumped 4 -> 6 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 2 new real dated comments documenting the new 'CRM' ReportDomain and the sales-pipeline-overview catalog entry -- verified by direct diff read, not example/sample data, not example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 4
+      hardcoded_iso_date: 6
   - file: src/lib/services/report-domain-enablement-service.ts
-    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated."
+    reason: "Phase 4 finalized (2026-07-24): permanent exemption -- confirmed false positive on direct read. The hardcoded_iso_date pattern is a bare ISO-date-shape regex with no comment/string-literal distinction; every non-comment instance in this file was individually verified this phase (changelog/gap-closure/commit-date comments, external API/protocol version-literal constants such as Anthropic's 'anthropic-version' header or MCP's 'protocolVersion', or an Owner-decision-date reference in a log string) -- none are human example/sample data. 2 pre-existing finding(s) reviewed and closed, not migrated. Bumped 2 -> 3 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 1 new real dated comment documenting the new CRM -> 'sales' product-branch gate -- verified by direct diff read, not example/sample data, not example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 2
+      hardcoded_iso_date: 3
   - file: src/lib/services/report-engine-service.test.ts
     reason: "Phase 4 finalized (2026-07-24): permanent exemption per Phase 2's own directory classification (task-20260724-115921-phase2-directory-scoped-guardrail-rollout) -- src/db/seed.ts + *.test.ts local-dev/test fixture example data is explicitly out of scope for placeholder migration (exercises local dev/test flows, not AI prompt/template authoring). 1 pre-existing finding(s) reviewed and closed as out-of-scope, not migrated. SD-002 (Billing Due List, 2026-07-30) adds 7 more: 1 dated comment + 6 concrete ISO date-string literals the isBillingScheduleDue describe block genuinely needs as test fixture data to exercise date-comparison logic -- same out-of-scope class as the pre-existing finding."
     findings_by_category:
@@ -935,9 +939,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/app/(app)/crm/page.tsx
-    reason: "PR #610 conflict-resolution merge (2026-07-29): this file was never previously exempted (it hadn't appeared in a diff scanned by this check since it went live 2026-07-24). PR #610 adds a nav link to the new Sales Pipeline Dashboard here, which pulls the file's one pre-existing, unrelated finding -- a real dated comment ('Wave 3 (2026-07-21) refactor') -- into scope as if it were new debt. Verified by direct diff read: PR #610 does not touch that comment."
+    reason: "PR #610 conflict-resolution merge (2026-07-29): this file was never previously exempted (it hadn't appeared in a diff scanned by this check since it went live 2026-07-24). PR #610 adds a nav link to the new Sales Pipeline Dashboard here, which pulls the file's one pre-existing, unrelated finding -- a real dated comment ('Wave 3 (2026-07-21) refactor') -- into scope as if it were new debt. Verified by direct diff read: PR #610 does not touch that comment. Bumped 1 -> 3 (Sales Pipeline gap-closure, task-20260718-082004, 2026-08-07): 2 new real dated comments (config-driven Kanban board note, Wave-3-refactor cross-reference) added while wiring the new Pipeline module link into this page's MODULES grid -- verified by direct diff read, not example/sample data, not example/sample data."
     findings_by_category:
-      hardcoded_iso_date: 1
+      hardcoded_iso_date: 3
   - file: src/app/(app)/crm/sales-pipeline/page.tsx
     reason: "Sales Pipeline Interactive Dashboard task (2026-07-27): real dated comment documenting when this feature was built, same class as every other changelog/gap-closure-date comment in this file."
     findings_by_category:
@@ -1133,9 +1137,9 @@ exemptions:
     findings_by_category:
       hardcoded_iso_date: 1
   - file: src/lib/ai-team/team-service.ts
-    reason: "Stage 12 dispatch_outcomes gap-closure (2026-07-30): first PR to touch this file since Phase 3 CI wiring, so it had no prior baseline entry. 5 pre-existing hardcoded_iso_date findings (lines 13/98/174/190/229, dated design-rationale comments from BYOB/Wave163/token-usage-ledger work predating this change) grandfathered here, not introduced by this PR."
+    reason: "Stage 12 dispatch_outcomes gap-closure (2026-07-30): first PR to touch this file since Phase 3 CI wiring, so it had no prior baseline entry. 5 pre-existing hardcoded_iso_date findings (lines 13/98/174/190/229, dated design-rationale comments from BYOB/Wave163/token-usage-ledger work predating this change) grandfathered here, not introduced by this PR. Bumped 5 -> 7 (VERIDIAN Review Framework gap-closure, 2026-08-15): +2 real dated design-rationale comments documenting the new optional `rollout` param on runRole()/runRoleAndRecord()."
     findings_by_category:
-      hardcoded_iso_date: 5
+      hardcoded_iso_date: 7
   - file: "src/app/(app)/settings/page.tsx"
     reason: "GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Task E (PR #865, 2026-08-04): 1 genuine dated design-rationale comment (line 337, 'Super Boss v2 plan task V2-5 (BYOB, 2026-07-20)') predating this PR's own Subscription Plan admin tab addition to the same file -- not example/placeholder data, same class as this codebase's other exempted dated gap-closure comments."
     findings_by_category:
@@ -1144,6 +1148,54 @@ exemptions:
     reason: "GAP-OCID-049-SUBSCRIPTION-PLAN-ENTITLEMENT Tasks A/B/E (PR #865, 2026-08-04): new file, 2 genuine dated design-rationale comments (line 3, this PR's own 2026-08-04 dispatch date; line 40, a 2026-08-03 OCID_049 certification-doc amendment date cited as evidence) documenting the real assistants-per-user enforcement finding -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
     findings_by_category:
       hardcoded_iso_date: 2
+  - file: src/app/api/ai/team/cache-utilization/route.ts
+    reason: "Cache & Synchronization: Cache Utilization & Prediction task (PR #1017, 2026-08-07): new file, 1 genuine dated gap-closure comment (line 6, 'Phase 1 (2026-07-14)' referencing the prior prompt_cache_framework phase this route closes the reader gap for) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/prompt-cache/utilization.ts
+    reason: "Cache & Synchronization: Cache Utilization & Prediction task (PR #1017, 2026-08-07): new file, 2 genuine dated gap-closure comments (lines 2-3, referencing this task's own 2026-08-07 build and the prior 2026-07-14 CACHE-01..04 phase it extends) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/lib/prompt-cache/utilization.test.ts
+    reason: "Cache & Synchronization: Cache Utilization & Prediction task (PR #1017, 2026-08-07): new file, 7 genuine test-fixture literal dates (lines 60-62, 65, 96-97) exercising buildDailyBuckets()/predictNextDayCacheSavings()'s real by-day grouping and sort-order logic -- literal dates are load-bearing for the assertions, same class as this codebase's other exempted test-fixture files."
+    findings_by_category:
+      hardcoded_iso_date: 7
+  - file: "src/app/(app)/crm/pipeline/page.tsx"
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): new file (re-homed here during the merge-conflict resolution with main's Wave 3 CRM refactor). 2 genuine dated design-rationale comments (task-id/date header, cross-reference to the Wave 3 refactor date) -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 2
+  - file: src/app/api/crm/opportunities/[id]/route.ts
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): 1 genuine dated comment documenting why actorRole is threaded through to updateOpportunity() for stage-transition rank enforcement -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/crm/opportunities/bulk-reassign/route.ts
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): new file, 1 genuine dated header comment documenting the gap-closure finding this route addresses -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/app/api/crm/pipeline/export/route.ts
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): new file, 1 genuine dated header comment documenting the gap-closure finding this route addresses -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/components/ReportCatalogList.tsx
+    reason: "Priority 17 remaining gap (2026-07-16, Reports and Analysis consuming UI): 1 genuine dated design-rationale comment pulled into scope by this task's additive Record<ReportDomain> exhaustiveness fix for the new 'CRM' domain -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/components/crm/PipelineKanbanBoard.tsx
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): new file, 1 genuine dated header comment documenting the gap-closure findings this component addresses -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/crm-service.test.ts
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): new file, 1 genuine dated header comment documenting the gap-closure this test file covers -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/pipeline-stuck-deal-digest-service.ts
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): new file, 1 genuine dated header comment documenting the 'Notification & Alert Trigger Correctness' finding this service addresses -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
+  - file: src/lib/services/report-domain-enablement-service.test.ts
+    reason: "Sales Pipeline gap-closure (task-20260718-082004, 2026-08-07): 1 genuine dated test-name comment documenting the new CRM -> 'sales' product-branch gate test case -- not example/placeholder data, same pattern as this codebase's other dated gap-closure comments."
+    findings_by_category:
+      hardcoded_iso_date: 1
   - file: src/lib/gst/reconciliation-engine.test.ts
     reason: "GTM cat13 AI-testing (OCID-020, UMR-20260807-153553-449c, PR #1051): 5 genuine test-fixture literals in the new reconciliation-engine test suite -- 2 fake counterparty GSTINs (GSTIN_A/GSTIN_B constants, lines 23-24) and 3 fixture invoiceDate literals (lines 30/63/64) exercised by exact/tolerance/probable-match assertions -- load-bearing test data, not real business hardcoding, same class as this codebase's other exempted *.test.ts fixture files."
     findings_by_category:

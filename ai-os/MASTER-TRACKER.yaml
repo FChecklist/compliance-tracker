@@ -4646,3 +4646,68 @@ closed_priorities:
       feat/agent-review-registry. PR opened, NOT merged by this session per
       standing dispatch instructions -- left for the supervising session's
       audit.
+
+  - priority: 26
+    name: "Prompt & Cache Management Framework Phase 2: cache utilization report + prediction (CACHE-05/CACHE-06)"
+    summary: |
+      Task worker (task-20260718-083006-cache---synchronization--cache-
+      utilizati), title "Cache & Synchronization: Cache Utilization &
+      Prediction" -- no matching spec doc found anywhere in this repo
+      (checked this file and confirmed control/CONTROLLER.yaml, cited by
+      CACHE-01's own `source` field, does not exist here); interpreted
+      honestly as closing the real gap Priority 23's own Phase 1 left
+      open. Confirmed via `git grep promptCacheMetrics` before writing
+      anything: only schema.ts (table def), prompt-cache/metrics.ts (the
+      Phase 1 writer), and chat-service.ts (its one call site) matched --
+      the table was a write-only sink with zero readers, zero API routes,
+      zero aggregation.
+
+      Built src/lib/prompt-cache/utilization.ts:
+      getCacheUtilizationSummary(sinceDays) (platform-wide report,
+      grouped by layer and by day -- total calls, cache-attempted, real
+      hits defined as cacheReadTokens > 0 not just attempted, hit rate,
+      tokens, estimated USD saved) and predictNextDayCacheSavings() (a
+      documented trailing <=7-day moving average over real daily
+      buckets -- deliberately NOT a trained model or external forecasting
+      library; `confidence` is a data-volume signal stated honestly as
+      such, not a statistical error bound). buildLayerSummaries()/
+      buildDailyBuckets() exported as pure functions specifically so
+      they're unit-testable without a DB (8 tests, all passing).
+      Added estimatePromptCacheSavingsUsd() to llm-client.ts, additive
+      next to the existing estimateCostUsd() -- Anthropic's published
+      cache pricing (reads 0.1x base price, writes 1.25x), null for
+      unpriced models, same honest-limitation convention as
+      estimateCostUsd. New veridian_admin-gated GET
+      /api/ai/team/cache-utilization route, matching the sibling
+      /api/ai/team/token-usage route's posture (platform-wide,
+      cross-org observability data, not exposed to every user).
+
+      Uses the raw `db` client rather than withTenantContext, following
+      token-usage-service.ts's own precedent and reasoning (this is a
+      platform-wide ledger, not an org-scoped resource).
+
+      Deliberately NOT built this pass: any new write site --
+      CACHE-03's Phase 1 gap (only chat-service.ts's generateAiReply is
+      wired) is unchanged; a UI/dashboard page (this route follows the
+      existing API-only convention already used by /scorecard,
+      /governance-health, /d1-metrics, /token-usage -- none of which have
+      a dedicated page either); any true statistical forecasting model
+      (would need meaningfully more historical data than a fresh Phase 1
+      table has accumulated to validate against).
+
+      bun test: 8/8 new tests pass. eslint clean on every changed/new
+      file. Full-project `tsc --noEmit` could NOT be independently
+      confirmed this pass -- attempted twice (foreground with 6GB heap,
+      then background with 8GB heap), both times killed by this box's own
+      resource pressure before completing (see Priority 25's own note
+      above confirming a full tsc run normally completes with 21
+      pre-existing, unrelated package-mismatch errors as its clean
+      baseline -- this is a today's-load problem, not evidence tsc itself
+      is broken here). Risk assessed as low, not zero: every new query
+      shape directly mirrors an already-compiling precedent
+      (db.select().groupBy() matches token-usage-service.ts's
+      getTokenUsageSummary() exactly; the db.execute(sql\`...\`) + `as
+      unknown as {...}[]` cast matches report-engine-service.ts's
+      computeSnagTrendAnalysis()) -- flagged here honestly rather than
+      silently claimed clean; the next session touching this area should
+      run a full tsc pass once box load allows.

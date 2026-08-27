@@ -8,6 +8,16 @@ export const complianceSchemaDB = pgSchema('compliance')
 // designed for an easy future split. See ai-os/CONSTITUTION.yaml / PROGRESS.md for the move history.
 export const platformSchemaDB = pgSchema('platform')
 
+// VERIDIAN Review Framework, "Overall Code Quality Score" (Medium) gap
+// closure: this file is ~10,200 lines but already internally organized by
+// domain via 125 `// ─── Section Name ───` comment headers below (grep -c
+// "^// ─── " src/lib/db/schema.ts to recount). A full physical split into
+// per-domain files is the ideal end state but is deliberately deferred here
+// -- 6 PRs were open concurrently against this file at last check (gh pr
+// list --state open --json number,files --jq '[.[] | select(.files[].path
+// | test("schema\\.ts$")) | .number] | length'), so a physical split right
+// now would create a wall of merge conflicts for every one of them with no
+// functional benefit. Fast navigation: `grep -n "^// ─── " src/lib/db/schema.ts`.
 // ─── Enums ───────────────────────────────────────────────────────────────
 export const userRoleEnum = complianceSchemaDB.enum('user_role', [
   'admin', 'manager', 'member', 'viewer', // original 4
@@ -379,7 +389,16 @@ export const documents = complianceSchemaDB.table('documents', {
   complianceItemId: text('compliance_item_id'),
   noticeId: text('notice_id'),           // M-12: notice documents
   extractedData: jsonb('extracted_data'), // M-02: AI extracted fields
-  uploadedById: text('uploaded_by_id').notNull(),
+  // R39/R-C14 (E-class, same family as E-45/AR-04): nullable since 23 Aug --
+  // /api/v1/documents (and the permits/drawings routes sharing
+  // createDocumentRecord) used to fall back to ctx.apiKey?.id when an
+  // API-key-authenticated server-to-server call had no real dbUser, silently
+  // storing the API KEY's own id here. compliance.users has no row for an
+  // api_keys id, so every such upload 500'd on this column's FK (confirmed
+  // live -- real production error, not synthetic). Fixed at the route layer
+  // to pass ctx.dbUser?.id ?? null instead; null (not a fake id) is the
+  // honest answer for "who uploaded this" when the caller has no real user.
+  uploadedById: text('uploaded_by_id'),
   orgId: text('org_id').notNull(),
   clientId: text('client_id'), // Wave 1
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -1355,6 +1374,16 @@ export const aiTeamRoleOverrides = platformSchemaDB.table('ai_team_role_override
   updatedByUserId: text('updated_by_user_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // VERIDIAN Review Framework gap-closure (2026-08-15, "AI Model Lifecycle
+  // & Benchmarking: A/B or shadow-testing capability for a candidate
+  // model" -- Critical). Both nullable/additive (drizzle/0313) -- NULL
+  // candidateModel or NULL/0 rolloutPercentage means no active rollout,
+  // identical to every row's behavior before this pair of columns existed.
+  // Read exclusively by roster-overrides.ts's resolveDispatchModel() --
+  // resolveEffectiveModel() (the plain override path every pre-existing
+  // caller uses) does not consult these at all.
+  candidateModel: text('candidate_model'),
+  rolloutPercentage: integer('rollout_percentage'),
 })
 
 // Stage 12 (VERIDIAN_CONSOLIDATED_COMPLETION plan, drizzle/0269): the AI Dev
@@ -1871,6 +1900,15 @@ export const dynamicChains = platformSchemaDB.table('dynamic_chains', {
   aiConfig: jsonb('ai_config'), // { modelTier?; requiresHumanApproval?: boolean; confidenceThreshold?: number } -- generalizes aiBehaviorRef, AI sub-field
   workflowStepsConfig: jsonb('workflow_steps_config'), // step/SLA/escalation shape -- generalizes workflowRef, workflow sub-field
   linkedKnowledgeBasePageIds: jsonb('linked_knowledge_base_page_ids').notNull().default([]), // string[] of knowledge_base_pages.id -- knowledge sub-field, same denormalized-index shape as linkedApprovalWorkflowIds
+  // Point 141: the one missing segment of Rajat's fully-qualified key
+  // (VERIDIAN + PRODUCT + ORG + USER + pill + options) -- VERIDIAN is a
+  // constant, ORG is orgId above, USER (createdById) is excluded from
+  // matching per AR-14, and PRODUCT was the only genuinely absent piece.
+  // Nullable, no FK (the one existing chain row belongs to an org whose
+  // product branch is unknown -- a FK would fail on it), no backfill: NULL
+  // means product-agnostic and resolves exactly as before this column
+  // existed.
+  productBranchId: text('product_branch_id'),
 })
 
 // Priority 10 (GAP-DCMD, second real slice): task-execution-engine.ts's
@@ -3986,6 +4024,12 @@ export const projects = complianceSchemaDB.table('projects', {
   targetDate: date('target_date', { mode: 'string' }),
   healthStatus: text('health_status'), // 'on_track' | 'at_risk' | 'off_track' | null -- free text, not enum, since only PMS-using projects ever set it
   parentProjectId: text('parent_project_id'),
+  // Point 121: user-entered project value, in the org base currency. NULL
+  // means "not entered" -- COALESCEd against linked erp_purchase_orders.
+  // grand_total at read time in construction-dashboard-service.ts, never
+  // derived from the BOQ (Rajat explicitly ruled that out -- a BOQ is what
+  // WE think the job is worth, a PO is what the CLIENT has committed to).
+  projectValue: numeric('project_value'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -4711,6 +4755,12 @@ export const reportSchedules = complianceSchemaDB.table('report_schedules', {
 // equivalent of report-catalog-service.ts's static REPORT_CATALOG entries);
 // a real orgId = an org-specific definition (e.g. one an org's AI report
 // builder promoted into a reusable row).
+// R46 P9 seq32 (R-43 G.10-G.17): shared by reportDefinitions.scope below and
+// the reuse-store tables (reuseCache/memoryStore) further down this file --
+// declared here, ahead of reportDefinitions, since a Drizzle pgEnum must be
+// initialized before any table column references it.
+export const reuseScopeEnum = complianceSchemaDB.enum('reuse_scope', ['user', 'organization', 'global'])
+
 export const reportDefinitions = complianceSchemaDB.table('report_definitions', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   orgId: text('org_id'), // nullable = platform-wide
@@ -4728,6 +4778,11 @@ export const reportDefinitions = complianceSchemaDB.table('report_definitions', 
   createdBy: text('created_by').notNull().default('system'), // 'system' | 'ai' | a real users.id
   promotedFromContext: text('promoted_from_context'), // free-text traceability pointer when createdBy='ai', not a FK
   isActive: boolean('is_active').notNull().default(true),
+  // R46 P9 seq32 (R-43 G.10-G.17): reports/analyses reuse THIS table rather
+  // than a parallel stored_reports/stored_analyses table -- nullable/
+  // additive, the existing 218 rows are unaffected (verified via count()
+  // before/after the migration that added this column).
+  scope: reuseScopeEnum('scope'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -4952,6 +5007,16 @@ export const crmOpportunities = complianceSchemaDB.table('crm_opportunities', {
   // record), independent of whether it also has a leadId/clientId. Same
   // bare-text/no-FK/nullable convention as accountId on crmLeads above.
   accountId: text('account_id'),
+  // VERIDIAN Review Framework Sales Pipeline closure (2026-08-07,
+  // "Localization Readiness" finding): estimatedValue had no currency
+  // field at all -- every pipeline-value rollup implicitly assumed a
+  // single currency. Same shape as drizzle/0208's identical fix for
+  // erp_quotations/erp_sales_orders (currencyId nullable bare text --
+  // matches this schema's bridge-column convention, no FK to keep this
+  // additive/safe -- + exchangeRate NOT NULL DEFAULT '1' so every existing
+  // row keeps reading as "org base currency, rate 1", unchanged behavior).
+  currencyId: text('currency_id'),
+  exchangeRate: numeric('exchange_rate').notNull().default('1'),
   // VERIDIAN CRM Wave 1 (2026-07-21): nullable link to crm_lost_reasons,
   // set only when stage='lost'. Same bare-text/no-FK/nullable convention
   // as accountId just above -- structured, org-configurable reason
@@ -4980,6 +5045,35 @@ export const crmStageHistory = complianceSchemaDB.table('crm_stage_history', {
   note: text('note'),
   changedById: text('changed_by_id'),
   changedAt: timestamp('changed_at').notNull().defaultNow(),
+})
+
+// VERIDIAN Review Framework Sales Pipeline closure (2026-08-07, "Data Model
+// Completeness & Referential Integrity" finding): before this table, the
+// pipeline was derived purely from crmLeads.status/crmOpportunities.stage
+// free-text fields -- no org could rename/reorder a stage or mark which
+// stage is the "won"/"lost" terminal one without a code change. This is an
+// org-scoped, per-entityType (lead|opportunity -- same free-text
+// discriminator convention as crmStageHistory.entityType above) config
+// table. A brand-new org (or an org that pre-dates this migration) has zero
+// rows here until first read -- listPipelineStages() in crm-service.ts
+// lazily seeds the 5 pre-existing hardcoded stage strings
+// (prospecting/proposal/negotiation/won/lost) the first time it's queried,
+// so no data migration/backfill is required and every existing
+// lead/opportunity's stage value keeps resolving to a real config row.
+export const crmPipelineStages = complianceSchemaDB.table('crm_pipeline_stages', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  entityType: text('entity_type').notNull().default('opportunity'), // 'lead' | 'opportunity'
+  stageKey: text('stage_key').notNull(), // matches crmOpportunities.stage / crmLeads.status
+  label: text('label').notNull(),
+  sortOrder: integer('sort_order').notNull().default(0),
+  // Terminal-stage flags -- drive both the Kanban UI (a won/lost column
+  // renders as a closed lane) and isValidStageTransition()'s "can't move a
+  // deal back out of a closed stage without manager approval" rule.
+  isWon: boolean('is_won').notNull().default(false),
+  isLost: boolean('is_lost').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
 // Sales Pipeline Interactive Dashboard (2026-07-27): the Monthly Revenue
@@ -5830,7 +5924,13 @@ export const veriMeetings = complianceSchemaDB.table('veri_meetings', {
   aiKeyDecisions: jsonb('ai_key_decisions').notNull().default([]), // string[]
   aiSuggestedActionItems: jsonb('ai_suggested_action_items').notNull().default([]), // { title, assignee: string | null, dueDateHint: string | null }[] -- suggestions only, never auto-created as real tasks
   aiGeneratedAt: timestamp('ai_generated_at'),
-  createdById: text('created_by_id').notNull(),
+  // R39/R-C04 (E-class, same family as E-45/AR-04/R-C14): nullable since 23
+  // Aug -- createVeriMeeting() used to pass ctx.apiKey?.id as a fallback
+  // "actor" on every Bearer-key (PROJEXA server-to-server) call, and an
+  // api_keys row has no matching compliance.users row, so this FK 500'd on
+  // every real PROJEXA-created meeting. Confirmed live, same investigation
+  // as documents.uploadedById's comment. null (not a borrowed id) is honest.
+  createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
@@ -5843,7 +5943,14 @@ export const veriMeetingShareLinks = complianceSchemaDB.table('veri_meeting_shar
   id: text('id').primaryKey().$defaultFn(() => createId()),
   meetingId: text('meeting_id').notNull(),
   token: text('token').notNull().unique(),
-  createdById: text('created_by_id').notNull(),
+  // R38 (r38_nullable_created_by_id_share_links): nullable -- an
+  // API-key-authenticated caller (real production shape for a
+  // server-to-server client like PROJEXA) has no real `users` row to
+  // reference at all; the FK was previously NOT NULL, so every API-key
+  // caller's insert violated it. NULL means "created by an API key, not a
+  // logged-in person" -- same convention createBoq()'s actorId fallback
+  // already established for tables with no created_by_id FK at all.
+  createdById: text('created_by_id'),
   expiresAt: timestamp('expires_at').notNull(),
   revokedAt: timestamp('revoked_at'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -6560,6 +6667,10 @@ export const erpPurchaseOrders = complianceSchemaDB.table('erp_purchase_orders',
   createdById: text('created_by_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  // Point 121: the missing link a PO-derived project value needs. Nullable,
+  // no DB-level FK -- same posture as companyId two lines above, bare text
+  // with app-level validation only.
+  projectId: text('project_id'),
 })
 
 export const erpPurchaseOrderItems = complianceSchemaDB.table('erp_purchase_order_items', {
@@ -9928,7 +10039,28 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   version: integer('version').notNull().default(1),
-  parentBoqId: text('parent_boq_id'), // self-FK -- previous revision in the chain
+  // E-128: UNIQUE, not just a plain self-FK -- (project_id, version) is
+  // deliberately NOT globally unique (E-116/a13cf547: a project can hold two
+  // or more INDEPENDENT, non-revision-chain BOQs that each legitimately
+  // start at version 1 -- e.g. "Villa 21 - Original BOQ" and "Sumeet Sample
+  // Scope", both real, both version 1, both intentional; every "latest BOQ"
+  // reader already resolves that tie deterministically via version DESC,
+  // createdAt DESC -- see listBoqs()/scopeReport() etc.). The REAL, provably
+  // illegitimate duplicate case found live (2026-08-25, E-128) was different:
+  // createBoqRevision() had no guard against being called twice for the same
+  // parent, so a retried/double-submitted request could give one parent TWO
+  // children both claiming parent.version + 1 (verified live: parent
+  // n1aowsmdxp0xim4zb394zxb2 had two "version 2" children 13s apart, both
+  // empty drafts, zero downstream progress-entry references -- the extra one
+  // was removed as inert duplicate debris in the same migration that added
+  // this constraint). A revision CHAIN's version numbers are only meaningful
+  // and strictly increasing if each parent supersedes into exactly one
+  // child, so that -- not a project-wide (project_id, version) unique, which
+  // would reject the legitimate independent-BOQ case above -- is the real
+  // invariant to enforce at the DB layer. createBoqRevision() also checks
+  // this explicitly up front (a clean 409 ServiceError) so a caller sees a
+  // real error instead of a raw unique-violation.
+  parentBoqId: text('parent_boq_id').unique(), // self-FK -- previous revision in the chain; UNIQUE so a parent can supersede into at most one child
   title: text('title').notNull(),
   status: constructionBoqStatusEnum('status').notNull().default('draft'),
   createdById: text('created_by_id').notNull(),
@@ -9940,6 +10072,15 @@ export const constructionBoqs = complianceSchemaDB.table('construction_boqs', {
 
 export const constructionBoqLineItems = complianceSchemaDB.table('construction_boq_line_items', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
+  // Real DB column, NOT NULL, added directly against the live table by an
+  // earlier migration (report-engine gap closure, PR #1317) -- but never
+  // declared here in schema.ts, so Drizzle silently dropped it from every
+  // insert/select through this table regardless of what calling code set.
+  // Root-caused 2026-08-23 (R31) after a real BOQ import kept failing 23502
+  // (org_id NOT NULL violation) even after insertLineItems() was fixed to
+  // pass orgId -- Drizzle only emits columns it knows about from this
+  // declaration, so the fix was silently inert until this line existed.
+  orgId: text('org_id').notNull(),
   boqId: text('boq_id').notNull(),
   activityId: text('activity_id'), // nullable -- optional link to constructionActivities, used by the "warn if scope already executed" guard
   itemCode: text('item_code'), // stable key used for revision-to-revision diffing when present; service falls back to description match otherwise
@@ -9950,12 +10091,23 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   amount: numeric('amount').notNull().default('0'), // quantity * rate, computed by the service layer on write (not a DB generated column, matching this codebase's convention elsewhere)
   // Hierarchical BoQ breakdown (Owner directive, PROJEXA_ERP_END_TO_END_REQUIREMENT_ANALYSIS_GAP_FILL_AND_IMPLEMENTATION,
   // 2026-07-27): self-FK to another row in the SAME boqId, matching the
-  // constructionCategories.parentCategoryId precedent above. When set,
-  // `amount` above is computed by construction-boq-service.ts as
-  // `Sub-Task Amount = Main QTY * Main RATE * Breakdown %` -- "Main" is the
-  // ROOT ancestor of the parent chain (not necessarily the immediate
-  // parent), per the Owner's exact formula wording. breakdownPercentage is
-  // required when parentLineItemId is set, ignored (null) otherwise.
+  // constructionCategories.parentCategoryId precedent above. breakdownPercentage
+  // is required when parentLineItemId is set, ignored (null) otherwise.
+  //
+  // *** CANONICAL CHILD-RATE RULE -- settled R45 seq 7 / E-127, do not
+  // reintroduce a second convention. *** When parentLineItemId is set, BOTH
+  // `rate` AND `quantity` above are DERIVED at write time by
+  // construction-boq-service.ts's deriveLineItemQuantityAndRate() -- they
+  // are not independently-entered data for a child row, confirmed against
+  // the real customer BoQ spec (platform.sumeet_spec row BOQ-10):
+  //   F1  AMOUNT_root  = QTY_root  x RATE_root                 (independently entered)
+  //   F2  RATE_child   = RATE_root x (breakdownPercentage/100)
+  //   F3  QTY_child    = QTY_root                                (identical, always)
+  //   F4  AMOUNT_child = QTY_child x RATE_child = AMOUNT_root x (breakdownPercentage/100)
+  // "Root" is the ROOT ancestor of the parent chain (not necessarily the
+  // immediate parent). See deriveLineItemQuantityAndRate's own doc comment
+  // for why this must be enforced at the write path, not left to whatever a
+  // caller happens to submit.
   parentLineItemId: text('parent_line_item_id'),
   breakdownPercentage: numeric('breakdown_percentage'),
   // Wave 125 (OpenConstructionERP-style rate analysis/cost buildup, studied
@@ -9969,6 +10121,20 @@ export const constructionBoqLineItems = complianceSchemaDB.table('construction_b
   equipmentCost: numeric('equipment_cost'),
   overheadPercent: numeric('overhead_percent'),
   profitPercent: numeric('profit_percent'),
+  // Point 154 (Budget Report Summary, R12): Rajat ruled 22 Aug the 25% figure
+  // is a COST CEILING, not a margin -- budget = amount * budgetPercentage /
+  // 100 (NOT amount * (1 - budgetPercentage/100), which is the excluded
+  // margin reading). Per-line, editable, defaulting to 25 (AR-09: rules and
+  // labels live in data, not a hardcoded constant). vendorId is an optional
+  // link to erpSuppliers (the same list /api/vendors already serves, per
+  // point 32's Company field) -- no DB-level FK, matching this table's
+  // existing optional-link columns (activityId, parentLineItemId) above.
+  // vendorAmount is computed by the service layer on write, same convention
+  // as `amount` above -- not derived from the BOQ total (Rajat's PO/
+  // user-entered ruling for project value applies the same way here).
+  budgetPercentage: numeric('budget_percentage').notNull().default('25'),
+  vendorId: text('vendor_id'),
+  vendorAmount: numeric('vendor_amount'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -10004,9 +10170,26 @@ export const constructionWorkProgressEntries = complianceSchemaDB.table('constru
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   activityId: text('activity_id').notNull(),
+  // R12 point 7 (Option B, drizzle/0315): direct link to the BOQ line the
+  // progress is actually against -- nullable, additive, activity_id kept
+  // unchanged so every pre-existing row keeps working. ON DELETE SET NULL
+  // matches the migration; a deleted line item's entries fall back to
+  // activity_id via loadLatestProgressByLineItem() rather than being
+  // orphaned or blocking the delete.
+  boqLineItemId: text('boq_line_item_id'),
   entryDate: date('entry_date', { mode: 'string' }).notNull(),
   quantityDone: numeric('quantity_done').notNull().default('0'),
-  percentComplete: integer('percent_complete').notNull().default(0), // 0-100, cumulative for the activity as of entryDate
+  percentComplete: numeric('percent_complete').notNull().default('0'), // 0-100 with decimals, cumulative for the activity as of entryDate
+  // R39/R-46 (r39_wpr_entry_basis, non-destructive -- default 'DELTA' so every
+  // pre-existing row keeps meaning exactly what it already meant): AIA G703 +
+  // SAP PS resolution to the schema's real ambiguity (quantity_done AND
+  // percent_complete on the same NOT NULL row, two mutually exclusive
+  // measurement bases, no discriminator). 'DELTA' = this-period quantity,
+  // additive (G703 col E) -- the WPR roll-up sums it, exactly as before.
+  // 'SNAPSHOT' = a cumulative-to-date percentage that REPLACES the previous
+  // reading (G703 col G/C) -- the roll-up takes the LATEST by (entry_date,
+  // created_at) instead of summing. See work-progress-report.ts (projexa).
+  entryBasis: text('entry_basis').notNull().default('DELTA'), // 'DELTA' | 'SNAPSHOT'
   remarks: text('remarks'),
   recordedById: text('recorded_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
@@ -10106,8 +10289,9 @@ export const constructionBoqsRelations = relations(constructionBoqs, ({ many }) 
   lineItems: many(constructionBoqLineItems),
 }))
 
-export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one }) => ({
+export const constructionBoqLineItemsRelations = relations(constructionBoqLineItems, ({ one, many }) => ({
   boq: one(constructionBoqs, { fields: [constructionBoqLineItems.boqId], references: [constructionBoqs.id] }),
+  progressEntries: many(constructionWorkProgressEntries),
 }))
 
 export const constructionInterimBillsRelations = relations(constructionInterimBills, ({ many }) => ({
@@ -10130,6 +10314,7 @@ export const constructionActivitiesRelations = relations(constructionActivities,
 
 export const constructionWorkProgressEntriesRelations = relations(constructionWorkProgressEntries, ({ one }) => ({
   activity: one(constructionActivities, { fields: [constructionWorkProgressEntries.activityId], references: [constructionActivities.id] }),
+  boqLineItem: one(constructionBoqLineItems, { fields: [constructionWorkProgressEntries.boqLineItemId], references: [constructionBoqLineItems.id] }),
 }))
 
 // ─── Construction Intelligence (Wave 116) ─────────────────────────────────
@@ -10145,6 +10330,7 @@ export const constructionLabourRoster = complianceSchemaDB.table('construction_l
   orgId: text('org_id').notNull(),
   projectId: text('project_id').notNull(),
   name: text('name').notNull(),
+  employeeCode: text('employee_code'), // customer-assigned free-text label ("ID" in his sheet) -- not a key, not unique-enforced, not auto-generated
   trade: text('trade'), // free text (civil/electrical/painter/carpenter/plumber/POP/tiles etc.) -- advisory, not enum-enforced, same posture as documents.category
   skillLevel: text('skill_level'),
   vendorId: text('vendor_id'), // nullable FK to erp_suppliers -- subcontracted labour
@@ -10171,6 +10357,45 @@ export const constructionLabourRosterRelations = relations(constructionLabourRos
 
 export const constructionAttendanceRelations = relations(constructionAttendance, ({ one }) => ({
   roster: one(constructionLabourRoster, { fields: [constructionAttendance.rosterId], references: [constructionLabourRoster.id] }),
+}))
+
+// Material master + inbound receipts (Point 33): his words, all of them --
+// "material database. material inbound, spec, cost, qty." A master (spec,
+// unit, cost) and inbound receipts against it. NOT interior_materials (a 3D
+// rendering library) and NOT erp_stock_* (a full valuation layer, heavier
+// than asked for). No outbound/consumption/stock-on-hand -- not requested.
+export const constructionMaterials = complianceSchemaDB.table('construction_materials', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  name: text('name').notNull(),
+  spec: text('spec'),
+  unit: text('unit').notNull(),
+  unitCost: numeric('unit_cost').notNull().default('0'),
+  isActive: boolean('is_active').notNull().default(true),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionMaterialReceipts = complianceSchemaDB.table('construction_material_receipts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  materialId: text('material_id').notNull().references(() => constructionMaterials.id),
+  receivedDate: date('received_date', { mode: 'string' }).notNull(),
+  quantity: numeric('quantity').notNull(),
+  unitCost: numeric('unit_cost'),
+  vendorId: text('vendor_id'),
+  notes: text('notes'),
+  createdById: text('created_by_id').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const constructionMaterialsRelations = relations(constructionMaterials, ({ many }) => ({
+  receipts: many(constructionMaterialReceipts),
+}))
+
+export const constructionMaterialReceiptsRelations = relations(constructionMaterialReceipts, ({ one }) => ({
+  material: one(constructionMaterials, { fields: [constructionMaterialReceipts.materialId], references: [constructionMaterials.id] }),
 }))
 
 // Certified Payroll (SAP-mapping gap analysis HCM-006, "Certified Payroll
@@ -10290,6 +10515,35 @@ export const constructionRfis = complianceSchemaDB.table('construction_rfis', {
   answer: text('answer'),
   answeredById: text('answered_by_id'),
   answeredAt: timestamp('answered_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// R39/R-C14: SCHEMA-ASSUMED-INDUSTRY-STANDARD -- Sumeet never supplied a real
+// Site Instruction format, so this is the Architect/Site Instruction (SI)
+// record shape that's stable across Procore, CMiC and COINS (si_number,
+// issue_date, issued_by, to_contractor, description, drawing_ref,
+// cost_impact/time_impact flags), NOT a literal transcription of any of
+// them. Field names are the AI's best real-world guess pending Sumeet's
+// actual confirmation -- see the migration's own table comment. Attachments
+// go through the existing documents table (linkedEntityType=
+// 'site_instruction', linkedEntityId=this row's id) -- the same convention
+// site photos and every other attachment in this codebase already use, no
+// separate attachment column. boqId links this SI to the BOQ revision it
+// originates a variation from -- the row's own stated real business
+// purpose -- nullable, since an SI can exist before any variation is drafted.
+export const constructionSiteInstructions = complianceSchemaDB.table('construction_site_instructions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  projectId: text('project_id').notNull(),
+  siNumber: integer('si_number').notNull(),
+  issueDate: date('issue_date', { mode: 'string' }).notNull(),
+  issuedBy: text('issued_by').notNull(),
+  toContractor: text('to_contractor').notNull(),
+  description: text('description').notNull(),
+  drawingRef: text('drawing_ref'),
+  costImpact: boolean('cost_impact').notNull().default(false),
+  timeImpact: boolean('time_impact').notNull().default(false),
+  boqId: text('boq_id'),
   createdAt: timestamp('created_at').notNull().defaultNow(),
 })
 
@@ -11492,3 +11746,449 @@ export const supportSessionsRelations = relations(supportSessions, ({ one }) => 
   targetOrg: one(organisations, { fields: [supportSessions.targetOrgId], references: [organisations.id] }),
   targetUser: one(users, { fields: [supportSessions.targetUserId], references: [users.id] }),
 }))
+
+// Point 118 (WhatsApp share): tokenised, expiring, individually-revocable
+// public read-only report links -- mirrors compliance.veri_meeting_share_links
+// (Wave 44) exactly in shape and RLS posture. orgId is a deliberate addition
+// beyond that precedent's column list (which has none, since it can join
+// through meeting_id -> veri_meetings.org_id instead) -- reportRef is a
+// generic, non-FK reference (JSON-encoded {projectId, from, to} today, for
+// reportType='work_progress'), so there is no single table to join through
+// for RLS scoping; orgId is stored directly instead. AR-10: the public
+// resolve path (getReportShareLinkData in report-share-service.ts) uses the
+// RAW `db` export like getMeetingByShareToken() does, then re-derives the
+// underlying report data itself via withTenantContext({orgId: link.orgId})
+// -- orgId taken from the link ROW, never from request input -- so a public
+// visitor can only ever reach the one org the link was created for.
+export const reportShareLinks = complianceSchemaDB.table('report_share_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  reportType: text('report_type').notNull(), // 'work_progress' today; extend, don't overload, for a second report type
+  reportRef: text('report_ref').notNull(), // JSON-encoded, report-type-specific (e.g. {projectId, from, to})
+  token: text('token').notNull().unique(),
+  // R38 (r38_nullable_created_by_id_share_links, R-C15/TC-share): nullable --
+  // see veriMeetingShareLinks.createdById's identical comment above. This is
+  // the concrete bug that made every real (API-key, server-to-server)
+  // PROJEXA share-link request fail with a 500: the FK to `users` had no
+  // row to reference for that caller shape at all.
+  createdById: text('created_by_id'),
+  expiresAt: timestamp('expires_at').notNull(),
+  revokedAt: timestamp('revoked_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── R42 seq12 (M25 submission -> segmentation -> task pipeline, P2) ──────
+// NAMING NOTE, real collision found and avoided: the work order's own "how"
+// names this table `tasks`, but compliance.tasks ALREADY EXISTS (1,904 rows)
+// as the unrelated AI-workforce/dynamic-chain dispatch table (client_id,
+// assistant_id, task_embedding, resolved_worker_agent_id, dynamic_chain_id,
+// search_vector -- none of M25's shape). A second `tasks` table would either
+// fail to create outright, or a silent IF NOT EXISTS would no-op and corrupt
+// this feature from the first migration. Named `pipeline_tasks` instead --
+// everything else in the "how" (columns, statuses, project-resolution rule)
+// is unchanged.
+export const pipelineTaskStatusEnum = complianceSchemaDB.enum('pipeline_task_status', [
+  'to_do', 'in_progress', 'waiting', 'done', 'blocked', // M24's closed 5-status set, verbatim -- no sixth value
+])
+export const pipelineTaskExecutorEnum = complianceSchemaDB.enum('pipeline_task_executor', ['software', 'ai', 'person'])
+export const pipelineTaskProjectSourceEnum = complianceSchemaDB.enum('pipeline_task_project_source', ['inherited', 'stated'])
+// Not a closed set the way pipelineTaskStatusEnum is -- 'chat' covers a
+// submission that produced zero tasks (pure Q&A/acknowledgement, M25's
+// "reads/questions never become tasks"). DERIVED, never set independently by
+// request input -- see submissions.status's own column comment below.
+export const submissionStatusEnum = complianceSchemaDB.enum('submission_status', ['chat', 'in_progress', 'done', 'partial', 'failed'])
+
+export const submissions = complianceSchemaDB.table('submissions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  // M25: "project = the user's default, not a constraint" -- resolved from
+  // the top rail at submission time. Nullable: a submission can legitimately
+  // carry no default project (org-level work, or Mode=Customers/Vendors).
+  projectId: text('project_id'),
+  mode: text('mode').notNull(), // 'Projects' | 'Customers' | 'Vendors' today (M24) -- deliberately text, not enum: M24 does not close this set the way the verb list is closed, and a future module adding a mode must not require a migration.
+  selectedChain: jsonb('selected_chain'), // the user's pill-built chain -- a HINT (M25), never binding on any task's derived_chain/function_id
+  rawInput: text('raw_input').notNull(),
+  userId: text('user_id').notNull(),
+  // DERIVED from this submission's own pipelineTasks, never set independently
+  // by a route handler (M25: "submission status is DERIVED from tasks, never
+  // set independently; any FAILED task -> submission is PARTIAL"). Stored
+  // (not computed on every read) purely so Task Master can list/filter
+  // submissions cheaply; the only writer of this column after INSERT must be
+  // the same service function that recomputes it from child task statuses.
+  status: submissionStatusEnum('status').notNull().default('in_progress'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const pipelineTasks = complianceSchemaDB.table('pipeline_tasks', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  submissionId: text('submission_id').notNull().references(() => submissions.id, { onDelete: 'cascade' }),
+  sequence: integer('sequence').notNull(), // 0-based position within the submission, execution order for depends_on chaining
+  dependsOn: text('depends_on'), // self-referential (another pipelineTasks.id in the same submission); FK added via ALTER TABLE in the migration, same forward-reference pattern as pmsTimeEntries.invoiceItemId
+  orgId: text('org_id').notNull(),
+  // *** RESOLVED AT CREATION, NEVER RE-READ AT EXECUTION (M25) *** -- a task
+  // that later re-read the top rail's current project would silently
+  // retarget mid-flight; that is the wrong-project write arriving by another
+  // door. Every consumer of this column must treat it as immutable post-insert.
+  projectId: text('project_id'),
+  projectSource: pipelineTaskProjectSourceEnum('project_source').notNull(), // INHERITED (from the submission's default) | STATED (the segment named its own project)
+  derivedChain: jsonb('derived_chain'), // re-derived per task by classify.ts -- never copied from submissions.selectedChain
+  functionId: text('function_id'), // null while unresolved (L0 miss awaiting L1, seq13/14)
+  params: jsonb('params').notNull().default({}),
+  chainMatchedHint: boolean('chain_matched_hint').notNull().default(false), // did derivedChain end up matching the submission's selectedChain hint? Audit/telemetry only -- never used to skip re-derivation.
+  executor: pipelineTaskExecutorEnum('executor').notNull().default('software'),
+  status: pipelineTaskStatusEnum('status').notNull().default('to_do'),
+  result: jsonb('result'),
+  error: text('error'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+export const submissionsRelations = relations(submissions, ({ many }) => ({
+  tasks: many(pipelineTasks),
+}))
+export const pipelineTasksRelations = relations(pipelineTasks, ({ one }) => ({
+  submission: one(submissions, { fields: [pipelineTasks.submissionId], references: [submissions.id] }),
+}))
+
+// L0's exact-match table (M26): PHRASE -> function_id, keyed by function per
+// M25's correction to the original chain-keyed reading. UNIQUE(org_id,
+// normalised_phrase) enforced in the migration (a DB constraint, not just
+// app-level discipline) -- classify.ts's L0 lookup depends on there being at
+// most one row per (org, phrase).
+export const phraseMap = complianceSchemaDB.table('phrase_map', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  normalisedPhrase: text('normalised_phrase').notNull(),
+  functionId: text('function_id').notNull(),
+  fixedParams: jsonb('fixed_params'),
+  hitCount: integer('hit_count').notNull().default(0),
+  promotedById: text('promoted_by_id'), // the Level-3 (human) approver, M26 -- null until an actual promotion has happened
+  promotedAt: timestamp('promoted_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Every L0/L1 MISS lands here (M26: "FAIL -> gap_log + honest 'cannot do
+// that yet'"), feeding L2's nightly clustering (seq15). Never read by L0/L1
+// themselves -- write-only from their perspective.
+export const gapLog = complianceSchemaDB.table('gap_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  submissionId: text('submission_id').references(() => submissions.id, { onDelete: 'set null' }),
+  segmentText: text('segment_text').notNull(),
+  normalisedIntent: text('normalised_intent'),
+  reason: text('reason').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── R42 seq20 (M28 screen registry + M29 draft lifecycle, S1) ────────────
+// "A function is a row, not a folder" -- adding a screen = inserting one
+// row, no PR, no deploy, no build (M28). CHECK/UNIQUE constraints enforcing
+// M31's field-status rule and M29's "never two drafts on one entity" rule
+// are added via raw SQL in the migration (drizzle-orm has no first-class
+// CHECK-constraint builder as of this schema's drizzle-kit version) -- see
+// that migration file's own comments for the exact constraint text.
+export const screenArchetypeEnum = complianceSchemaDB.enum('screen_archetype', [
+  'LIST', 'OBJECT', 'FORM', 'DASHBOARD', 'REPORT', 'TIMELINE', 'COMPARE', 'CUSTOM',
+])
+
+export const screenDefinitions = complianceSchemaDB.table('screen_definitions', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'), // null = global (M28's reuse mechanism -- most rows are global; an org row overrides the global one for that function_id when present)
+  functionId: text('function_id').notNull(),
+  archetype: screenArchetypeEnum('archetype').notNull(),
+  customComponent: text('custom_component'), // only meaningful when archetype='CUSTOM' -- M28 expects 5-10 of these out of ~80, not a per-module default
+  dataSource: text('data_source').notNull(), // a view name or an org-scoped SELECT identifier the screen reads from
+  // Each element: {label, field, type, control, options_source, default_value,
+  // required, unit, importance, derived_from, field_status, inherits_from_header, level}
+  // -- kept as one jsonb array rather than a child table because M28's own
+  // worked examples treat a screen's column set as a single atomic unit
+  // (versioned together, never independently queried per-column).
+  columns: jsonb('columns').notNull().default([]),
+  filters: jsonb('filters'),
+  actions: jsonb('actions'), // [{label, kind, enabled_when}] -- Filter|Export|+New plus any per-screen extras
+  drillTo: text('drill_to'), // function_id of the screen a row click opens
+  breadcrumbTemplate: text('breadcrumb_template'),
+  flowParent: text('flow_parent'), // function_id (M31 document flow)
+  flowChildren: jsonb('flow_children'), // function_id[]
+  createWithReference: text('create_with_reference'), // function_id this screen can be created "with reference" from (M31)
+  version: integer('version').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+export const screenDrafts = complianceSchemaDB.table('screen_drafts', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  functionId: text('function_id').notNull(),
+  objectId: text('object_id'), // null = a CREATE-mode draft (M29)
+  payload: jsonb('payload').notNull().default({}),
+  lockExpiresAt: timestamp('lock_expires_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// ─── R46 P9 seq32 (R-43 G.10-G.17) -- reuse store, THREE tables only ──────
+// Deliberately NOT eight tables (an earlier chat pass over-engineered this
+// to 8, including a "stored_functions" table with a `code` column -- that
+// is code-as-data, a self-modifying-system pattern v5 P-6/D-6 bans
+// outright, and was removed). Function reuse means referencing a
+// function_id already in the module registry, NEVER storing or executing
+// code from a row. Reports/analyses deliberately do NOT get a parallel
+// table -- they reuse compliance.report_definitions (218 rows, unaffected
+// by this migration), extended above (see reportDefinitions) with a
+// `scope` column using this same enum (declared before reportDefinitions
+// in this file so that column's reference to it is valid).
+// Covers both TASKS and CHAT RESPONSES -- same shape (an input resolving to
+// a function_id + a response), so one table, not two. UNIQUE(org_id,
+// user_id, scope, input_hash) enforced in the migration -- this is what
+// makes "second identical request -> reuse hit, reuse_count increments,
+// zero model calls" a real, checkable guarantee rather than app-level
+// discipline. A different org with the identical input_hash is a MISS
+// (gets its own row) unless scope='global' groups across orgs deliberately.
+export const reuseCache = complianceSchemaDB.table('reuse_cache', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  scope: reuseScopeEnum('scope').notNull().default('user'),
+  inputHash: text('input_hash').notNull(),
+  functionId: text('function_id'),
+  params: jsonb('params').notNull().default({}),
+  response: jsonb('response'),
+  reuseCount: integer('reuse_count').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// Covers both ERRORS and FIXES -- a fix is a solved error (solved=true,
+// solution populated), not a separate concept/table.
+export const incidentLog = complianceSchemaDB.table('incident_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  errorType: text('error_type').notNull(),
+  message: text('message').notNull(),
+  filePath: text('file_path'),
+  context: jsonb('context'),
+  solution: text('solution'),
+  solved: boolean('solved').notNull().default(false),
+  solvedAt: timestamp('solved_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Generic scoped key/value memory -- UNIQUE(scope, org_id, user_id, key)
+// enforced in the migration.
+export const memoryStore = complianceSchemaDB.table('memory_store', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  scope: reuseScopeEnum('scope').notNull().default('user'),
+  orgId: text('org_id'),
+  userId: text('user_id'),
+  key: text('key').notNull(),
+  value: jsonb('value').notNull(),
+  interactions: integer('interactions').notNull().default(1),
+  lastUsed: timestamp('last_used').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── R53 Phase 2 (M24's pill ranking + chain history) ─────────────────────
+// APPEND ONLY. Nothing above this line is edited by R53.
+//
+// M24 rules three things that had nowhere to live: MP-RULE-3's rolling
+// 7-day per-user pill ranking, PINNED PILLS NEVER DECAY, and LAST-USED-EVER
+// as the tiebreak below the 7-day window (MP-RISK-3). It separately rules
+// that HISTORY shows the WHOLE chain, DEDUPLICATED, INCLUDING FAILED ones.
+// Migration drizzle/0325_r53_pill_usage_chain_history.sql.
+export const chainOutcomeEnum = complianceSchemaDB.enum('chain_outcome', ['ok', 'failed'])
+
+export const pillUsage = complianceSchemaDB.table('pill_usage', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(), // MP-RULE-3 is per USER, not per org -- one PM's ranking must never reorder another's strip
+  pillKey: text('pill_key').notNull(), // the pill's stable identity (M24's 14 universal pills + module pills), NOT its display label
+  functionId: text('function_id'),
+  derivedChain: jsonb('derived_chain'), // the chain this pill last produced -- output of derive-chain.ts, never an input to it (M26)
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(), // powers BOTH the 7-day window and the last-used-ever tiebreak below it
+  useCount: integer('use_count').notNull().default(0),
+  pinned: boolean('pinned').notNull().default(false), // M24: a pinned pill NEVER decays out of the strip, whatever the window says
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// full_chain is TEXT, not jsonb: the UNIQUE (org, user, full_chain) index IS
+// M24's dedup rule, and jsonb key-order/whitespace differences would defeat
+// an equality constraint on a value the user identifies by how it READS.
+export const chainHistory = complianceSchemaDB.table('chain_history', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  fullChain: text('full_chain').notNull(), // "Oakwood > Scope > Import BOQ" -- M24: never a fragment, "Import BOQ" alone is ambiguous
+  functionId: text('function_id'),
+  mode: text('mode'), // the entity the chain rooted on -- a history click ALSO SETS MODE, so the strip can never contradict itself (M24)
+  projectId: text('project_id'),
+  outcome: chainOutcomeEnum('outcome').notNull().default('ok'), // failed chains are KEPT and shown (M24)
+  pinned: boolean('pinned').notNull().default(false),
+  lastUsedAt: timestamp('last_used_at').notNull().defaultNow(),
+  useCount: integer('use_count').notNull().default(1),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// ─── CRR P2-SCHEMA (2026-08-27) ──────────────────────────────────────────
+// Built directly against the live database (migrations crr041_048_054_p2_schema_foundation
+// through crr045_tsvector_gin, plus crr224_supersession_columns and
+// crr068_fix_missed_rls_gaps -- see platform.crr_spec CRR-041 through
+// CRR-069 for the point-by-point spec and closure proofs, and
+// docs/CRR_SCHEMA.md for the full data dictionary). These definitions
+// document that already-live schema in Drizzle -- see this section's own
+// migration file for how the live DB and this codebase's migration
+// journal are reconciled without re-running DDL that already exists.
+export const sourceObjectOriginEnum = complianceSchemaDB.enum('source_object_origin', ['upload', 'connector', 'email', 'inapp', 'api'])
+export const precedentOutcomeEnum = complianceSchemaDB.enum('precedent_outcome', ['SUCCESS', 'FAILURE', 'ABANDONED'])
+export const chunkPolicySplitOnEnum = complianceSchemaDB.enum('chunk_policy_split_on', ['paragraph', 'sentence', 'page', 'fixed'])
+
+// The single capture table for every artefact from every source -- replaces
+// the prior split across `documents` (uploads only), `connector_documents`
+// (connector files only), and nowhere at all for email. doc_uid is the
+// permanent, birth-assigned identity (CRR-221/222): a trigger blocks any
+// UPDATE that changes it, verified live. content_erased_at/erased_by_id/
+// erasure_authority are tombstone fields for right-to-erasure -- the row
+// and its doc_uid survive erasure, only content is nulled.
+export const sourceObject = complianceSchemaDB.table('source_object', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  clientId: text('client_id'),
+  origin: sourceObjectOriginEnum('origin').notNull(),
+  originRef: text('origin_ref'),
+  mimeType: text('mime_type'),
+  byteSize: integer('byte_size'),
+  storagePath: text('storage_path'),
+  sha256: text('sha256'),
+  title: text('title'),
+  linkedEntityType: text('linked_entity_type'),
+  linkedEntityId: text('linked_entity_id'),
+  businessObjectType: text('business_object_type'),
+  extractStatus: text('extract_status').notNull().default('PENDING'),
+  extractError: text('extract_error'),
+  pageCount: integer('page_count'),
+  charCount: integer('char_count'),
+  createdById: text('created_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  deletedAt: timestamp('deleted_at'),
+  docUid: text('doc_uid').notNull().unique(),
+  contentSha256: text('content_sha256'),
+  displayName: text('display_name'),
+  contentErasedAt: timestamp('content_erased_at'),
+  erasedById: text('erased_by_id'),
+  erasureAuthority: text('erasure_authority'),
+  supersedesDocUid: text('supersedes_doc_uid'),
+  supersededByDocUid: text('superseded_by_doc_uid'),
+  isCurrent: boolean('is_current').notNull().default(true),
+})
+
+// One row per chunk of a source_object's extracted content.
+// `embedding vector(1536)` column intentionally omitted here (Drizzle has no
+// first-class pgvector type; managed via raw SQL, same pattern as
+// embeddings.embedding and task_embedding elsewhere in this file). HNSW
+// index and a GIN tsvector index (search_vector, generated column) also
+// live only in the migration, not modeled here, same reason.
+export const documentChunk = complianceSchemaDB.table('document_chunk', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  sourceObjectId: text('source_object_id').notNull().references(() => sourceObject.id, { onDelete: 'restrict' }),
+  orgId: text('org_id').notNull(),
+  seq: integer('seq').notNull(),
+  page: integer('page'),
+  charStart: integer('char_start'),
+  charEnd: integer('char_end'),
+  content: text('content'),
+  contentHash: text('content_hash'),
+  tokenEstimate: integer('token_estimate'),
+  isReal: boolean('is_real').notNull().default(false),
+  contentErasedAt: timestamp('content_erased_at'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Field specs per business-object type -- replaces the India-tax-specific
+// extractor that was hard-coded into documents/extract/route.ts.
+export const extractionProfile = complianceSchemaDB.table('extraction_profile', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  businessObjectType: text('business_object_type').notNull(),
+  name: text('name').notNull(),
+  fieldSpec: jsonb('field_spec').notNull(),
+  promptPreamble: text('prompt_preamble'),
+  isActive: boolean('is_active').notNull().default(true),
+  isPlatformDefault: boolean('is_platform_default').notNull().default(false),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
+// The "similar" tier of reuse -- reuse_cache already handles "same" by hash;
+// this handles semantically similar past requests, and always records the
+// real outcome so a past FAILURE is never resurfaced as a suggestion.
+// `intent_embedding vector(1536)` intentionally omitted, same reason as
+// document_chunk.embedding above.
+export const precedent = complianceSchemaDB.table('precedent', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id'),
+  normalisedIntent: text('normalised_intent').notNull(),
+  functionId: text('function_id'),
+  params: jsonb('params'),
+  outcome: precedentOutcomeEnum('outcome').notNull(),
+  sourceTaskId: text('source_task_id'),
+  occurredAt: timestamp('occurred_at'),
+  reuseCount: integer('reuse_count').notNull().default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Records that a chunk was cited in an answer. chunkId is ON DELETE RESTRICT
+// by design -- a citation must outlive a redaction and resolve to a
+// tombstone, never silently vanish.
+export const retrievalCitation = complianceSchemaDB.table('retrieval_citation', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  chunkId: text('chunk_id').notNull().references(() => documentChunk.id, { onDelete: 'restrict' }),
+  queryText: text('query_text'),
+  responseId: text('response_id'),
+  citedAt: timestamp('cited_at').notNull().defaultNow(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Global, non-tenant-scoped chunking configuration per business-object type
+// -- replaces a hard-coded 1000-character constant in TypeScript. No orgId:
+// this is shared platform config, not tenant data.
+export const chunkPolicy = complianceSchemaDB.table('chunk_policy', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  businessObjectType: text('business_object_type').notNull().unique(),
+  maxChars: integer('max_chars').notNull(),
+  overlapChars: integer('overlap_chars').notNull(),
+  splitOn: chunkPolicySplitOnEnum('split_on').notNull(),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})
+
+// Audit trail for right-to-erasure requests.
+export const crrErasureLog = complianceSchemaDB.table('crr_erasure_log', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  subjectRef: text('subject_ref').notNull(),
+  requestedAt: timestamp('requested_at').notNull(),
+  sourceObjectsDeleted: integer('source_objects_deleted'),
+  chunksDeleted: integer('chunks_deleted'),
+  citationsDeleted: integer('citations_deleted'),
+  embeddingsDeleted: integer('embeddings_deleted'),
+  completedAt: timestamp('completed_at'),
+  performedById: text('performed_by_id'),
+})
+
+// Per-stage ingest failure log. orgId nullable by design -- a failure can
+// occur before the org is even resolved; such rows are visible only to the
+// service role (fail closed), never to app_runtime.
+export const crrIngestError = complianceSchemaDB.table('crr_ingest_error', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id'),
+  sourceObjectId: text('source_object_id'),
+  stage: text('stage').notNull(),
+  errorCode: text('error_code'),
+  errorMessage: text('error_message'),
+  retryCount: integer('retry_count').default(0),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+})

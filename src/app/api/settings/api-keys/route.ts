@@ -53,7 +53,25 @@ export async function POST(request: NextRequest) {
     // external AI (ChatGPT/z.ai) for src/app/api/v1/reports/** can scope it
     // down to reports-only instead of the broad "read" scope every other
     // /v1/* domain already accepts.
-    const validScopes = (scopes || "read")
+    // R45 gap (found 2026-08-24 UAT-testing R-C12): a caller sending `scopes`
+    // as a JSON array (e.g. {"scopes":["read","write"]}) instead of a
+    // comma-separated string crashed this into a generic 500 via
+    // Array.prototype.split not existing -- normalize both shapes before
+    // splitting so a malformed value gets the intended 400 instead.
+    let scopesString: string;
+    if (scopes === undefined || scopes === null) {
+      scopesString = "read";
+    } else if (Array.isArray(scopes)) {
+      scopesString = scopes.join(",");
+    } else if (typeof scopes === "string") {
+      scopesString = scopes;
+    } else {
+      // Any other shape (number, boolean, object) is malformed input, not a
+      // server error -- fall through to the empty-validScopes 400 below
+      // instead of throwing on .split.
+      scopesString = "";
+    }
+    const validScopes = scopesString
       .split(",")
       .map((s: string) => s.trim())
       .filter((s: string) => s === "read" || s === "write" || s === "read:reports");

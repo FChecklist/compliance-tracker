@@ -979,6 +979,7 @@ const REPORT_DOMAIN_LABELS: Record<ReportDomain, string> = {
   construction: "Construction (PROJEXA)",
   "AI-ops": "AI Ops",
   custom: "Custom Reports",
+  CRM: "Sales & CRM",
 }
 
 // New "Reports & Analysis" branch, built from the unified REPORT_CATALOG
