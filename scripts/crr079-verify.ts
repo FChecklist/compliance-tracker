@@ -33,6 +33,21 @@ function buildLongText(): string {
 }
 
 async function main() {
+  // Diagnostic only -- never prints the actual secret value, just its shape,
+  // to distinguish "secret unset/empty in this workflow" from "secret set
+  // but genuinely malformed" before touching any real connection code.
+  const dbUrl = process.env.DATABASE_URL ?? ""
+  const appDbUrl = process.env.APP_RUNTIME_DATABASE_URL ?? ""
+  console.log("CRR079_DIAG", JSON.stringify({
+    dbUrlLength: dbUrl.length,
+    dbUrlStartsWithPostgres: dbUrl.startsWith("postgres"),
+    appDbUrlLength: appDbUrl.length,
+    appDbUrlStartsWithPostgres: appDbUrl.startsWith("postgres"),
+    openrouterKeyLength: (process.env.OPENROUTER_API_KEY ?? "").length,
+    supabaseUrlLength: (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").length,
+    serviceRoleKeyLength: (process.env.SUPABASE_SERVICE_ROLE_KEY ?? "").length,
+  }))
+
   const text = buildLongText()
   console.log("CRR079_VERIFY_TEXT_LENGTH", text.length)
 
