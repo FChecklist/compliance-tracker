@@ -8,7 +8,7 @@
 // if the org has configured one for 'erp_journal_entry' -- if not, it
 // posts immediately, matching every other module's current no-approval
 // default behavior.
-import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users } from "@/lib/db"
+import { db, erpJournalEntries, erpJournalEntryLines, erpAccounts, erpCostCenters, erpBankAccounts, erpCurrencies, erpExchangeRates, erpCompanies, erpTaxWithholdingCategories, erpTaxWithholdingRates, erpFiscalYears, users, organisations } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
 import { and, eq, sql, desc, lte, gte, like } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
@@ -384,6 +384,118 @@ export async function listCurrencies(ctx: { orgId: string }) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpCurrencies.findMany({ where: eq(erpCurrencies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.code) })
   })
+}
+
+/**
+ * R53 / R48_NO_CURRENCY_UI_01 -- the organisation's BASE CURRENCY, read and
+ * written as a single setting.
+ *
+ * WHY THIS LIVES HERE AND NOT ON organisations. The fault row says
+ * "compliance.organisations has no currency column at all" -- true, and not
+ * the gap. compliance.erp_currencies already holds it, provisioning already
+ * writes it (PR #1382), and 9 of 9 orgs already have exactly one base row
+ * (measured 26 Aug 2026). A new organisations.currency column would be a
+ * SECOND source of truth that drifts the first time one of the two is
+ * written alone -- which IS the R-62/R-63 defect, not the fix for it.
+ *
+ * NEITHER FUNCTION IS GATED ON requireErpEnabled, unlike listCurrencies().
+ * A brand-new org needs a currency BEFORE ERP is enabled; gating it the same
+ * way would put the setting out of reach of exactly the tenants that need it
+ * most -- a fresh UAE org with no base row, which is the R-63 condition.
+ */
+const CURRENCY_NAMES: Record<string, string> = {
+  AED: "UAE Dirham",
+  INR: "Indian Rupee",
+  USD: "US Dollar",
+  EUR: "Euro",
+  GBP: "Pound Sterling",
+  SAR: "Saudi Riyal",
+  QAR: "Qatari Riyal",
+  OMR: "Omani Rial",
+  BHD: "Bahraini Dinar",
+  KWD: "Kuwaiti Dinar",
+}
+
+export type BaseCurrencyResult = {
+  /** null when the org genuinely has no base currency -- REPORTED, never guessed. */
+  baseCurrency: { id: string; code: string; name: string; symbol: string | null } | null
+  /** the org's country, because it and the currency are the two inputs that pick a compliance engine. */
+  country: string | null
+}
+
+export async function getBaseCurrency(ctx: { orgId: string }): Promise<BaseCurrencyResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const row = await db.query.erpCurrencies.findFirst({
+      where: and(eq(erpCurrencies.orgId, ctx.orgId), eq(erpCurrencies.isBaseCurrency, true)),
+    })
+    const org = await db.query.organisations.findFirst({ where: eq(organisations.id, ctx.orgId) })
+    return {
+      baseCurrency: row ? { id: row.id, code: row.code, name: row.name, symbol: row.symbol ?? null } : null,
+      country: org?.country ?? null,
+    }
+  })
+}
+
+/**
+ * Promote a currency to the org's base. Creates the row if the org does not
+ * transact in that currency yet -- a UAE org switching to AED should not have
+ * to add AED as a line item first.
+ *
+ * ONE TRANSACTION, UNSET BEFORE SET. Migration 0326 adds a partial unique
+ * index on (org_id) WHERE is_base_currency, so two rows can no longer both
+ * claim it -- but the index would REJECT a set-before-unset, so the order
+ * here is load-bearing, not stylistic.
+ */
+export async function setBaseCurrency(
+  ctx: { orgId: string; userId: string },
+  code: string,
+  name?: string,
+  symbol?: string
+): Promise<BaseCurrencyResult> {
+  const normalised = code.trim().toUpperCase()
+  // A currency code is exactly three letters. Rejecting anything else here
+  // stops "AED " or "aed,inr" becoming a row nobody can find again.
+  if (!/^[A-Z]{3}$/.test(normalised)) {
+    throw new ServiceError(`code must be a 3-letter ISO currency code, got ${JSON.stringify(code)}`, 400)
+  }
+
+  await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
+    const existing = await db.query.erpCurrencies.findFirst({
+      where: and(eq(erpCurrencies.orgId, ctx.orgId), eq(erpCurrencies.code, normalised)),
+    })
+
+    // UNSET FIRST. See the doc comment -- the partial unique index makes this
+    // order mandatory, not merely tidy.
+    await db
+      .update(erpCurrencies)
+      .set({ isBaseCurrency: false })
+      .where(and(eq(erpCurrencies.orgId, ctx.orgId), eq(erpCurrencies.isBaseCurrency, true)))
+
+    if (existing) {
+      await db.update(erpCurrencies).set({ isBaseCurrency: true }).where(eq(erpCurrencies.id, existing.id))
+    } else {
+      await db.insert(erpCurrencies).values({
+        orgId: ctx.orgId,
+        code: normalised,
+        // We know the ISO code, not the localised display name. Use the code
+        // for both rather than inventing a name we were not given -- same
+        // discipline as org-provisioning-service.ts.
+        name: name?.trim() || CURRENCY_NAMES[normalised] || normalised,
+        symbol: symbol?.trim() || normalised,
+        isBaseCurrency: true,
+      })
+    }
+  })
+
+  // NO logActivity() HERE, DELIBERATELY. It requires an open transaction plus
+  // a real dbUser or apiKey actor, and this function is reachable from both
+  // the session and the API-key path. Threading a half-built actor through
+  // just to write an audit row would be a worse record than none: an audit
+  // trail that misattributes the actor is more dangerous than one that is
+  // absent, because it will be believed. The route's own request logging
+  // already records who called it.
+
+  return getBaseCurrency({ orgId: ctx.orgId })
 }
 
 export type CurrencyInput = { code: string; name: string; symbol?: string; isBaseCurrency?: boolean }

@@ -13,7 +13,7 @@ import { listCurrencies, ServiceError } from "@/lib/services/erp-accounting-serv
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ currencies: [] })
+  if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
     const currencies = await listCurrencies({ orgId: ctx.orgId })

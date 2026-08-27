@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { requireAuth } from "@/lib/supabase/auth-guard"
 import { classifyTask, runRole, runGuardrailLevel, getRole } from "@/lib/ai-team/team-service"
-import { resolveEffectiveModel } from "@/lib/ai-team/roster-overrides"
+import { resolveDispatchModel } from "@/lib/ai-team/roster-overrides"
 import { RoleNotCallableError } from "@/lib/ai-team/team-service"
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine"
 import { registerAllGuardrails, AI_TEAM_DISPATCH_LEAF, HANDOVER_PROTOCOL_LEAF } from "@/lib/guardrail-registrations"
@@ -219,7 +219,21 @@ export async function POST(request: NextRequest) {
     // targetRole.model here while an override silently ran a different,
     // ineligible model would be a real guardrail bypass, not just a stale
     // check.
-    const effectiveModel = (await resolveEffectiveModel(classification.role)) ?? targetRole.model
+    //
+    // VERIDIAN Review Framework gap-closure (2026-08-15, A/B / shadow-
+    // testing capability): resolveDispatchModel() replaces
+    // resolveEffectiveModel() here so an active rollout's CANDIDATE (not
+    // just the plain override) is what actually gets tier-checked --
+    // otherwise a candidate could be dispatched below without ever passing
+    // this gate. `rolloutSeed` is drawn ONCE and reused for the real
+    // runRole() call below (the retry loop's own runRole() call does not
+    // carry tenantConfig either -- see that call site's own established
+    // behavior -- so it isn't threaded a rollout, same posture), so the
+    // model checked here is guaranteed to be the model that actually runs,
+    // not an independently-redrawn bucket.
+    const rolloutSeed = Math.random()
+    const dispatchResolution = await resolveDispatchModel(classification.role, complexityTier!, rolloutSeed)
+    const effectiveModel = dispatchResolution?.model ?? targetRole.model
     const tierCheck = checkTierEligibility(effectiveModel, complexityTier!)
     if (!tierCheck.eligible) {
       if (orgId) recordActivity({ orgId, userId: dbUser.id, activityType: "ai_team_dispatch", lifecycleStage: "failed", objective, roleKey: classification.role, complexityTier, errorReason: tierCheck.reason, durationMs: Date.now() - dispatchStartedAt })
@@ -389,7 +403,11 @@ export async function POST(request: NextRequest) {
       }, { status: 422 })
     }
 
-    let execution = await runRole(classification.role, task, tenantAiConfig ?? undefined)
+    // `rolloutSeed` reused from the tier pre-flight check above -- resolves
+    // to the exact same variant that already passed checkTierEligibility.
+    // Only takes effect when tenantAiConfig is absent (runRole's own
+    // precedence: a tenant's BYO model always wins over a platform rollout).
+    let execution = await runRole(classification.role, task, tenantAiConfig ?? undefined, undefined, { complexityTier: complexityTier!, randomValue: rolloutSeed })
     let retryCount = 0
     // Audit round 2 (GLM-5.2, m7 finding): tokens_used previously reflected
     // only the FINAL retry attempt's usage -- a step that retried once
@@ -659,7 +677,14 @@ export async function POST(request: NextRequest) {
       // multi-step L2/L3 workflow is actually finished.
       status: requiresAudit ? "pending_review" : "completed",
       classification,
-      executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model },
+      // modelVariant (2026-08-15, A/B / shadow-testing gap-closure):
+      // "primary" for every dispatch unless an admin-configured rollout
+      // (roster-overrides.ts's setRoleRollout) was live AND this
+      // particular call happened to bucket into the candidate -- lets a
+      // caller/reviewer distinguish a candidate-model response from an
+      // ordinary one without having to separately look up the role's
+      // current rollout config.
+      executedBy: { roleKey: execution.role.roleKey, title: execution.role.title, model: execution.role.model, modelVariant: execution.modelVariant },
       output: execution.content,
       usage: execution.usage,
       requiresAudit,
@@ -726,10 +751,33 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json()
-    const { roleKey, model, reason } = body as { roleKey?: string; model?: string | null; reason?: string }
+    const { roleKey, model, reason, rollout } = body as {
+      roleKey?: string
+      model?: string | null
+      reason?: string
+      // VERIDIAN Review Framework gap-closure (2026-08-15, A/B / shadow-
+      // testing capability): a separate, additive action from `model`
+      // above -- `rollout: null` clears an active rollout, an object
+      // sets/replaces one, and omitting the key entirely (the default)
+      // leaves any existing rollout untouched.
+      rollout?: { candidateModel: string; rolloutPercentage: number } | null
+    }
     if (!roleKey) return NextResponse.json({ error: "roleKey is required" }, { status: 400 })
 
-    const { setRoleOverride, clearRoleOverride } = await import("@/lib/ai-team/roster-overrides")
+    const { setRoleOverride, clearRoleOverride, setRoleRollout, clearRoleRollout } = await import("@/lib/ai-team/roster-overrides")
+
+    if (rollout !== undefined) {
+      if (rollout === null) {
+        await clearRoleRollout(roleKey)
+      } else {
+        await setRoleRollout(roleKey, rollout.candidateModel, rollout.rolloutPercentage, dbUser.id, reason)
+      }
+      // A body with ONLY `rollout` (no `model` key at all) is done here --
+      // falling through to the `model` handling below would incorrectly
+      // clearRoleOverride() the row this call just wrote.
+      if (model === undefined) return NextResponse.json({ status: rollout === null ? "rollout_cleared" : "rollout_set", roleKey, rollout })
+    }
+
     if (model === null || model === undefined) {
       await clearRoleOverride(roleKey)
       return NextResponse.json({ status: "cleared", roleKey })

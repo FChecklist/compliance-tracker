@@ -11,10 +11,18 @@
 // hierarchy is approximated via the project lead's department
 // (`projects.leadUserId` -> `users.departmentId`), not a direct FK. This is
 // documented here rather than silently treated as exact.
-import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users } from "@/lib/db"
+import { projects, products, erpSalesInvoices, erpBudgetLineItems, erpBudgets, erpCostCenters, constructionExpenseEntries, constructionActivities, constructionWorkProgressEntries, pmsIssues, documents, users, erpPurchaseOrders, constructionBoqs, constructionBoqLineItems } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { and, eq, inArray, sql } from "drizzle-orm"
+import { and, eq, inArray, sql, isNull } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+// R39/R-51 (D-3): reuses the SAME earnedValueReport construction-reports-
+// service.ts exposes as the "earned-value" named report -- NOT a second
+// summation path. This is a real circular import (construction-reports-
+// service.ts also imports getProjectDashboard FROM this file) -- safe here
+// because both references are only ever called from inside an async
+// function body, never at module-evaluation top level, so ESM's live
+// bindings resolve correctly by call time either direction.
+import { earnedValueReport } from "./construction-reports-service"
 export { ServiceError }
 
 // Lists the org's active Products (business lines a new Project nests
@@ -72,6 +80,20 @@ export async function createProject(ctx: { orgId: string; userId: string; isReal
   })
 }
 
+// Point 121: sets (or clears, with null) the user-entered project value.
+// Wins over the PO-derived fallback at read time -- see getProjectDashboard.
+export async function updateProjectValue(ctx: { orgId: string }, projectId: string, projectValue: number | null) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, ctx.orgId)) })
+    if (!project) throw new ServiceError("Project not found", 404)
+    const [row] = await db.update(projects)
+      .set({ projectValue: projectValue !== null ? String(projectValue) : null, updatedAt: new Date() })
+      .where(eq(projects.id, projectId))
+      .returning()
+    return row
+  })
+}
+
 export type ProjectDashboard = {
   projectId: string
   projectName: string
@@ -82,6 +104,17 @@ export type ProjectDashboard = {
   delayedTaskCount: number // open pms_issues past dueDate (approximation -- doesn't check status "completed" group, see comment above)
   photoCount: number
   taskCount: number
+  // Point 121: COALESCE(user-entered projects.projectValue, SUM of linked
+  // erp_purchase_orders.grandTotal). null (never 0) when NEITHER source
+  // exists -- a zero project value on a dashboard reads as a real figure.
+  // Deliberately NOT derived from the BOQ (Rajat's ruling, see schema.ts).
+  projectValue: number | null
+  // R42 seq24: same D-3 earnedValueReport() getOrgDashboard already
+  // exposes -- null (not 0) when construction isn't enabled or no BOQ
+  // exists yet. contractValue is parent-BOQ-lines-only (TC-11).
+  earnedValue: number | null
+  percentByValue: number | null
+  contractValue: number | null
 }
 
 export async function getProjectDashboard(ctx: { orgId: string }, projectId: string): Promise<ProjectDashboard> {
@@ -140,6 +173,38 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       .from(documents)
       .where(and(eq(documents.orgId, ctx.orgId), eq(documents.category, "site_photo"), eq(documents.linkedEntityType, "project"), eq(documents.linkedEntityId, projectId)))
 
+    // Point 121: user-entered value WINS when set -- a human overriding a
+    // derived figure is always deliberate. Falls back to the SUM of linked
+    // POs' grand_total. null (never 0) when neither exists.
+    let projectValue: number | null = project.projectValue !== null ? Number(project.projectValue) : null
+    if (projectValue === null) {
+      const [poRow] = await db.select({ total: sql<number | null>`sum(${erpPurchaseOrders.grandTotal})` })
+        .from(erpPurchaseOrders)
+        .where(and(eq(erpPurchaseOrders.orgId, ctx.orgId), eq(erpPurchaseOrders.projectId, projectId)))
+      projectValue = poRow?.total !== null && poRow?.total !== undefined ? Number(poRow.total) : null
+    }
+
+    // R42 seq24 (M28 DASHBOARD.PROJECT, D-3): the SAME earnedValueReport()
+    // getOrgDashboard already calls -- ONE summation path, never a second,
+    // so the project dashboard and the org dashboard/WPR report can never
+    // disagree. contractValue is parent-lines-only by that function's own
+    // contract (v5 D-3) -- this is what TC-11 checks (5,000 not 10,000).
+    let earnedValue: number | null = null
+    let percentByValue: number | null = null
+    let contractValue: number | null = null
+    try {
+      const ev = await earnedValueReport(ctx, projectId)
+      if (ev.contractValue > 0) {
+        earnedValue = ev.earnedValue
+        percentByValue = ev.percentByValue
+        contractValue = ev.contractValue
+      }
+    } catch {
+      // requireConstructionEnabled() throws when construction isn't enabled
+      // for this org -- null (not 0) is the correct "no data" signal, same
+      // convention getOrgDashboard already uses for this exact case.
+    }
+
     return {
       projectId: project.id,
       projectName: project.name,
@@ -150,6 +215,10 @@ export async function getProjectDashboard(ctx: { orgId: string }, projectId: str
       delayedTaskCount: Number(taskStats?.delayed ?? 0),
       photoCount: Number(photoRow?.total ?? 0),
       taskCount: Number(taskStats?.total ?? 0),
+      projectValue,
+      earnedValue,
+      percentByValue,
+      contractValue,
     }
   })
 }
@@ -161,7 +230,7 @@ export type OrgDashboardSummary = {
   totalBudget: number
   totalRevenue: number
   totalExpenses: number
-  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number }[]
+  projects: { id: string; name: string; revenue: number; expenses: number; taskCount: number; delayedTaskCount: number; earnedValue: number | null; percentByValue: number | null }[]
 }
 
 /** Company -> [Department] -> Project drill-down. departmentId filters by the project LEAD's department (projects has no direct departmentId column -- see file header). */
@@ -208,17 +277,67 @@ export async function getOrgDashboard(ctx: { orgId: string }, filters: OrgDashbo
       .innerJoin(erpCostCenters, eq(erpBudgets.costCenterId, erpCostCenters.id))
       .where(and(eq(erpBudgets.orgId, ctx.orgId), inArray(erpCostCenters.projectId, ids)))
 
+    // R38 (R-50/TC-40): the dashboard's per-project "value" now derives from
+    // the project's own active BOQ (root lines only, same rootBoqLineItemsOnly
+    // convention as construction-reports-service.ts#scopeReport -- summing
+    // children too would double-count, same D-3 rule) rather than a manually
+    // typed figure. "Active" = latest non-superseded BOQ, version DESC then
+    // createdAt DESC -- the identical tiebreaker construction-boq-service.ts
+    // #listBoqs() and the R38-fixed scopeReport()/categoryBoqAmountsReport()
+    // already use, kept consistent on purpose (three independent call sites,
+    // one convention). DISTINCT ON is Postgres-native and does this in one
+    // query rather than N -- there is no drizzle query-builder equivalent.
+    const projectIdsSql = sql.join(ids.map((id) => sql`${id}`), sql`, `)
+    const latestBoqPerProject = (await db.execute(sql`
+      SELECT DISTINCT ON (project_id) project_id, id AS boq_id
+      FROM compliance.construction_boqs
+      WHERE org_id = ${ctx.orgId} AND project_id = ANY(ARRAY[${projectIdsSql}]) AND status != 'superseded'
+      ORDER BY project_id, version DESC, created_at DESC
+    `)) as { project_id: string; boq_id: string }[]
+    const boqIdByProject = new Map(latestBoqPerProject.map((r) => [r.project_id, r.boq_id]))
+    const activeBoqIds = Array.from(boqIdByProject.values())
+    const valueByBoq = activeBoqIds.length > 0
+      ? await db.select({ boqId: constructionBoqLineItems.boqId, total: sql<number>`coalesce(sum(${constructionBoqLineItems.amount}), 0)::float` })
+          .from(constructionBoqLineItems)
+          .where(and(inArray(constructionBoqLineItems.boqId, activeBoqIds), isNull(constructionBoqLineItems.parentLineItemId)))
+          .groupBy(constructionBoqLineItems.boqId)
+      : []
+    const valueByBoqMap = new Map(valueByBoq.map((v) => [v.boqId, Number(v.total)]))
+
     const revenueMap = new Map(revenueByProject.map((r) => [r.projectId, Number(r.total)]))
     const expenseMap = new Map(expensesByProject.map((r) => [r.projectId, Number(r.total)]))
     const taskMap = new Map(tasksByProject.map((r) => [r.projectId, { total: Number(r.total), delayed: Number(r.delayed) }]))
 
-    const projectSummaries = projectRows.map((p) => ({
-      id: p.id, name: p.name,
-      revenue: revenueMap.get(p.id) ?? 0,
-      expenses: expenseMap.get(p.id) ?? 0,
-      taskCount: taskMap.get(p.id)?.total ?? 0,
-      delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
+    // R39/R-51: null (not 0) when construction isn't enabled for this org, or
+    // the project has no BOQ yet -- earnedValueReport() throws in the first
+    // case (requireConstructionEnabled) and returns contractValue 0 in the
+    // second, both real "not applicable yet" states, never silently 0.
+    const evByProject = new Map<string, { earnedValue: number; percentByValue: number } | null>()
+    await Promise.all(projectRows.map(async (p) => {
+      try {
+        const ev = await earnedValueReport(ctx, p.id)
+        evByProject.set(p.id, ev.contractValue > 0 ? { earnedValue: ev.earnedValue, percentByValue: ev.percentByValue } : null)
+      } catch {
+        evByProject.set(p.id, null)
+      }
     }))
+
+    const projectSummaries = projectRows.map((p) => {
+      const activeBoqId = boqIdByProject.get(p.id)
+      const ev = evByProject.get(p.id) ?? null
+      return {
+        id: p.id, name: p.name,
+        revenue: revenueMap.get(p.id) ?? 0,
+        expenses: expenseMap.get(p.id) ?? 0,
+        taskCount: taskMap.get(p.id)?.total ?? 0,
+        delayedTaskCount: taskMap.get(p.id)?.delayed ?? 0,
+        // null (not 0) when the project has no BOQ at all yet -- a real "no
+        // scope defined" state, distinct from a real BOQ worth zero.
+        value: activeBoqId ? (valueByBoqMap.get(activeBoqId) ?? 0) : null,
+        earnedValue: ev?.earnedValue ?? null,
+        percentByValue: ev?.percentByValue ?? null,
+      }
+    })
 
     return {
       totalProjects: projectRows.length,

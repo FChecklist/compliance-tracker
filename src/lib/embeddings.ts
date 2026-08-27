@@ -168,15 +168,44 @@ function hashToVector(text: string, dims: number): number[] {
 }
 
 /**
+ * Sentinel passed as `orgId` by callers indexing a genuinely platform-wide
+ * entity (module registry rows, platform_assets with orgId null by design --
+ * see schema.ts's "orgId nullable, same convention as platformAssets"
+ * comments) that has no tenant at all, never a tenant that happens to be
+ * unknown. CRR-018 made orgId non-optional specifically so a caller can no
+ * longer accidentally OMIT it and silently fall through to NULL; this
+ * constant is the one deliberate, typed opt-in path that remains -- every
+ * other caller must pass a real org id or storeEmbedding throws.
+ */
+export const PLATFORM_SCOPE_ORG_ID = "__platform_scope__";
+
+/**
  * Store an embedding for an entity in the database.
  * Upserts based on entity_type + entity_id + content_hash.
+ *
+ * CRR-017/D-1: calls generateEmbeddingUncached (not the cached generateEmbedding)
+ * so it can see isReal and refuse to persist a hash pseudo-vector -- a garbage
+ * vector written to compliance.embeddings is undetectable after the fact and
+ * poisons every retrieval that touches it. CRR-018/D-2: orgId is mandatory --
+ * a NULL org_id was matched by findSimilar's old `OR org_id IS NULL` branch
+ * and became visible to every tenant. CRR-019: is_platform_scope is the
+ * explicit flag that replaces that implicit NULL -- set only via the
+ * PLATFORM_SCOPE_ORG_ID sentinel above, never by omission.
  */
 export async function storeEmbedding(
   entityType: string,
   entityId: string,
   content: string,
-  orgId?: string
+  orgId: string
 ): Promise<void> {
+  if (!orgId) {
+    // CRR-018: an empty string is not a tenant and defeats the check just
+    // as thoroughly as omitting the argument did.
+    throw new Error(
+      `storeEmbedding: orgId must be a non-empty string, or the PLATFORM_SCOPE_ORG_ID sentinel for a genuinely platform-wide entity (got: ${JSON.stringify(orgId)}) -- entity ${entityType}/${entityId}`
+    );
+  }
+  const isPlatformScope = orgId === PLATFORM_SCOPE_ORG_ID;
   const contentHash = createHash("sha256").update(content).digest("hex");
 
   // Check if we already have an embedding for this exact content
@@ -191,8 +220,15 @@ export async function storeEmbedding(
 
   if (existing) return; // Already embedded with same content
 
-  const vector = await generateEmbedding(content);
-  const vectorStr = `[${vector.join(",")}]`;
+  const result = await generateEmbeddingUncached(content);
+  if (!result.isReal) {
+    // CRR-017: no silent skip -- a missing embedding must look like a
+    // failure to the caller, never like a successful, quietly-degraded one.
+    throw new Error(
+      `storeEmbedding: no real embedding provider available for ${entityType}/${entityId} -- refusing to persist a hash pseudo-vector`
+    );
+  }
+  const vectorStr = `[${result.vector.join(",")}]`;
 
   const client = getRawClient();
 
@@ -201,15 +237,17 @@ export async function storeEmbedding(
 
   // Insert new embedding with raw SQL (Drizzle can't handle vector type)
   await client`
-    INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, created_at)
+    INSERT INTO compliance.embeddings (id, entity_type, entity_id, content_hash, content, org_id, embedding, is_real, is_platform_scope, created_at)
     VALUES (
       gen_random_uuid()::text,
       ${entityType},
       ${entityId},
       ${contentHash},
       ${content},
-      ${orgId || null},
+      ${isPlatformScope ? null : orgId},
       ${vectorStr}::vector,
+      ${result.isReal},
+      ${isPlatformScope},
       NOW()
     )
   `;
@@ -218,10 +256,18 @@ export async function storeEmbedding(
 /**
  * Find similar items using cosine similarity via pgvector.
  * Returns results ordered by most similar first.
+ *
+ * CRR-020/021: orgId is mandatory and there is exactly one query path.
+ * findSimilar(query) with no org used to perform a completely unfiltered
+ * vector scan across every tenant -- that branch is gone. The old
+ * `OR e.org_id IS NULL` clause that let Wave 43's platform-wide rows (module
+ * registry etc.) surface for every org is replaced by the explicit
+ * is_platform_scope flag (CRR-019), which only true intent -- not a leak
+ * path -- can set.
  */
 export async function findSimilar(
   query: string,
-  orgId?: string,
+  orgId: string,
   limit: number = 10
 ): Promise<{
   entityType: string;
@@ -229,38 +275,24 @@ export async function findSimilar(
   score: number;
   content: string;
 }[]> {
+  if (!orgId) {
+    throw new Error("findSimilar: orgId is required -- an unscoped vector search is a cross-tenant leak, not a feature");
+  }
   const queryVector = await generateEmbedding(query);
   const vectorStr = `[${queryVector.join(",")}]`;
 
   const client = getRawClient();
 
-  if (orgId) {
-    // Wave 43 (Capability Registry): also match org_id IS NULL rows -- e.g.
-    // moduleRegistry entries are platform-wide, not org-scoped, and were
-    // previously silently excluded from every org-scoped search. Zero
-    // behavior change for the existing compliance-item caller (compliance
-    // items are always org-scoped already, never null-org).
-    const rows = await client`
-      SELECT e.entity_type, e.entity_id, e.content,
-             1 - (e.embedding <=> ${vectorStr}::vector) as score
-      FROM compliance.embeddings e
-      WHERE e.org_id = ${orgId} OR e.org_id IS NULL
-      ORDER BY e.embedding <=> ${vectorStr}::vector
-      LIMIT ${limit}
-    `;
-    return rows.map((r) => ({
-      entityType: r.entity_type as string,
-      entityId: r.entity_id as string,
-      score: Number(r.score),
-      content: r.content as string,
-    }));
-  }
-
-  // No org filter
+  // Wave 43 (Capability Registry): also match is_platform_scope rows -- e.g.
+  // moduleRegistry entries are platform-wide, not org-scoped, and were
+  // previously silently excluded from every org-scoped search. Zero
+  // behavior change for the existing compliance-item caller (compliance
+  // items are always org-scoped already, never platform-scope).
   const rows = await client`
     SELECT e.entity_type, e.entity_id, e.content,
            1 - (e.embedding <=> ${vectorStr}::vector) as score
     FROM compliance.embeddings e
+    WHERE (e.org_id = ${orgId} OR e.is_platform_scope = true) AND e.is_real = true
     ORDER BY e.embedding <=> ${vectorStr}::vector
     LIMIT ${limit}
   `;
