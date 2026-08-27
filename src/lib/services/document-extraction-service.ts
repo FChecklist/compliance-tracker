@@ -345,6 +345,23 @@ export async function chunkAndEmbedSourceObject(ctx: {
         .where(eq(sourceObject.id, sourceObjectId))
     )
 
+    // CRR-223: every chunk write needs its parent's doc_uid (see
+    // storeChunkEmbedding's own StoreChunkEmbeddingInput comment) --
+    // createSourceObject only ever returns the row's `id`, not its doc_uid,
+    // and the ctx.sourceObjectId-supplied branch above never had it in hand
+    // at all, so it is fetched once here, whichever branch produced
+    // sourceObjectId, rather than threading a second value through every
+    // call site of this function.
+    const [sourceObjectRow] = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
+      db.select({ docUid: sourceObject.docUid }).from(sourceObject).where(eq(sourceObject.id, sourceObjectId)).limit(1)
+    )
+    if (!sourceObjectRow) {
+      throw new Error(
+        `chunkAndEmbedSourceObject: no source_object row found for id=${sourceObjectId} -- cannot resolve doc_uid for chunk writes (CRR-223)`
+      )
+    }
+    const docUid = sourceObjectRow.docUid
+
     const policies = await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
       db.select().from(chunkPolicy)
     )
@@ -362,7 +379,7 @@ export async function chunkAndEmbedSourceObject(ctx: {
     )
 
     for (const chunk of chunks) {
-      await storeChunkEmbedding({ orgId: ctx.orgId, sourceObjectId, chunk })
+      await storeChunkEmbedding({ orgId: ctx.orgId, sourceObjectId, docUid, chunk })
     }
 
     await withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, (db) =>
