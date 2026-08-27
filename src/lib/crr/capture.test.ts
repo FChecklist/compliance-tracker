@@ -279,5 +279,44 @@ describe("createSourceObject", () => {
     // DB-side default -- see schema.ts) and must be a non-empty id.
     expect(typeof capturedValues!.docUid).toBe("string")
     expect((capturedValues!.docUid as string).length).toBeGreaterThan(0)
+    // CRR-223: storage_path is derived from doc_uid, not the file name --
+    // the same docUid value written to the row must appear in the path
+    // that was actually uploaded to, and the (sanitized) title must NOT.
+    const docUid = capturedValues!.docUid as string
+    expect(capturedValues!.storagePath).toBe(`org_fields/${docUid}`)
+    expect(capturedValues!.storagePath).toContain(docUid)
+    expect(capturedValues!.storagePath as string).not.toContain("invoice")
+  })
+
+  test("CRR-223: storage path is derived from doc_uid, never from the file name -- renaming the title changes nothing about where the object lives", async () => {
+    const { createSourceObject } = await import("./capture")
+    const storageClient = makeFakeStorageClient()
+    const bytesA = new TextEncoder().encode("crr-223 path content A")
+    const bytesB = new TextEncoder().encode("crr-223 path content B")
+
+    recordWhere("org_path", bytesA)
+    await createSourceObject(
+      { orgId: "org_path", origin: "upload", bytes: bytesA, title: "Very Original Name.pdf" },
+      { storageClient }
+    )
+    recordWhere("org_path", bytesB)
+    await createSourceObject(
+      { orgId: "org_path", origin: "upload", bytes: bytesB, title: "Renamed After The Fact.pdf" },
+      { storageClient }
+    )
+
+    expect(uploadCalls.length).toBe(2)
+    for (const call of uploadCalls) {
+      // Path shape is exactly `${orgId}/${docUid}` -- no file name segment
+      // at all, sanitized or otherwise.
+      expect(call.path.startsWith("org_path/")).toBe(true)
+      expect(call.path).not.toContain("Very Original Name")
+      expect(call.path).not.toContain("Renamed After The Fact")
+      expect(call.path).not.toContain(".pdf")
+      expect(call.path).not.toContain("untitled")
+    }
+    // The two objects still land at different paths (different doc_uids),
+    // proving the path is real per-document identity, not a constant.
+    expect(uploadCalls[0].path).not.toBe(uploadCalls[1].path)
   })
 })
