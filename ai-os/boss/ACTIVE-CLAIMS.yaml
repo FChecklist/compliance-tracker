@@ -40,6 +40,18 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worker task-20260718-112004-retry-1--ai-engineering-quality--ai-mod) -- Review Framework gap-closure: AI Engineering Quality / AI-Modification Readiness"
+    claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    claim: |
+      2 findings, closing in one PR: (1) [Low] Code Readability for AI -- add a CI
+      check requiring a header comment on src/lib/services/*.ts files (new
+      scripts/check-service-header-comments.mjs, wired into
+      .github/workflows/ci.yml); (2) [Medium] AI Modification Readiness -- add an
+      explicit high-risk-files (large + untested) callout section to CLAUDE.md.
+      Verified via grep that neither is already resolved (no existing header-comment
+      enforcement script; no "high-risk"/"readiness" callout in CLAUDE.md). Scope is
+      additive-only: new script + new CI step + new CLAUDE.md section -- not touching
+      permission-service.ts's ERP_ACTION_ROLES table per this task's own instructions.
   - session_label: "claude-code (worker task-20260718-083006-cache---synchronization--cache-utilizati) -- Prompt & Cache Management Framework Phase 2: cache utilization report + prediction [PR #1017, invocation 14/20 2026-08-15: re-verified live state -- required_approving_review_count is now 0 (the prior self-approval deadlock is resolved/no longer blocking), but the branch had drifted 225 commits behind main and gone CONFLICTING -- re-merging main and re-resolving conflicts now to get CI green again before merging]"
     claimed_at: "2026-08-07T (this session)"
     claim: |
@@ -5374,6 +5386,37 @@ active:
       file live before claiming -- no other active entry touches
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
+
+  - session_label: "claude-code (worker task-20260718-072004-ai-platform--ai-platform---general) -- Review Framework gap-closure: AI Platform / BYOAI provider test coverage"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Finding: "[Low] Option to Bring Your Own AI (BYOAI) Integration --
+      not all 6 supported providers are equally validated/tested for BYO
+      keys." Recommended approach: write a test suite hitting
+      src/app/api/settings/model-config/route.ts with a mock key per
+      provider.
+      Verified before starting (per this task's own instruction not to
+      trust the finding's framing blindly): PR #384 (merged 2026-07-16,
+      see recently_completed below) already added the real
+      testProviderConnection() connectivity check and
+      orchestra-model-resolver.test.ts, but that test file only exercises
+      testProviderConnection() directly with openai/groq mock fetches --
+      it never hits the route.ts handler itself (auth/role gate, VALID_
+      PROVIDERS validation, existing-key-reuse-on-update path, persist-
+      after-successful-test flow), and never covers anthropic/google.
+      Also: llm-client.ts's LLMProvider type has 6 values (adds openrouter,
+      cerebras) but the DB's own `ai_provider` Postgres enum
+      (schema.ts) only has 5 (no cerebras) and route.ts's own
+      VALID_PROVIDERS allow-list only has 4 (groq/openai/anthropic/
+      google) -- openrouter/cerebras are platform-internal-only, not
+      BYO-configurable at this route today. Documenting this rather than
+      silently widening VALID_PROVIDERS, which would be a separate,
+      bigger schema-migration decision out of this Low-severity finding's
+      scope.
+      File scope: new src/app/api/settings/model-config/route.test.ts
+      only (test-only addition, matching the finding's own recommended
+      approach). Not touching orchestra-model-resolver.ts,
+      permission-service.ts, or the customer_model_config schema.
 
   - session_label: "claude-code (background sub-agent) -- VERIDIAN Review Framework gap-closure: AI Architecture / Domain Accuracy & Quality"
     claimed_at: "2026-07-18T (this session)"
