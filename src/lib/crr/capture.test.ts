@@ -1,13 +1,24 @@
 /// <reference types="bun-types" />
-// platform.crr_spec CRR-078. @/lib/db/tenant-scoped and @supabase/supabase-js
-// mocked as an in-memory single-org store + a call-counting fake storage
-// client -- same "never touch a live DB from a .test.ts file" discipline
-// task-register-service.test.ts and roster-overrides.test.ts already
-// established for this codebase's DB dependencies (see task-register-
-// service.test.ts's own header). @/lib/db itself is left real (unmocked) so
-// `sourceObject`'s actual Drizzle column objects are used in the `eq(...)`/
-// `and(...)`/`isNull(...)` calls inside capture.ts -- only the connection
-// layer (withTenantContext) and the storage admin client are faked.
+// platform.crr_spec CRR-078. @/lib/db/tenant-scoped is mocked (mock.module)
+// as an in-memory single-org store -- same "never touch a live DB from a
+// .test.ts file" discipline task-register-service.test.ts and roster-
+// overrides.test.ts already established for this codebase's DB
+// dependencies (see task-register-service.test.ts's own header). @/lib/db
+// itself is left real (unmocked) so `sourceObject`'s actual Drizzle column
+// objects are used in the `eq(...)`/`and(...)`/`isNull(...)` calls inside
+// capture.ts -- only the connection layer (withTenantContext) is faked.
+//
+// The storage client is passed via createSourceObject's second `deps`
+// argument (a fake call-counting object, typed as capture.ts's own exported
+// SourceObjectStorageClient), deliberately NOT via
+// mock.module("@supabase/supabase-js", ...) -- that module is imported
+// unmocked, for real, by other unrelated test files (org-branding-
+// service.test.ts's real getPublicUrl() calls), and Bun's mock.module
+// leaks a mocked module across every test FILE in one `bun test` run, not
+// just within this one. An earlier version of this file globally mocked
+// "@supabase/supabase-js" and broke org-branding-service.test.ts in CI even
+// though that file never imports capture.ts or capture.test.ts -- see
+// capture.ts's own createSourceObject doc comment for the same note.
 //
 // The live-DB half of this point's proof (the partial unique index
 // `source_object_org_sha256_unique` actually enforcing the dedup contract
@@ -17,6 +28,7 @@
 // query and its result.
 import { createHash } from "node:crypto"
 import { describe, expect, test, mock, afterEach, beforeEach } from "bun:test"
+import type { SourceObjectStorageClient } from "./capture"
 
 type StoredRow = { id: string; orgId: string; sha256: string; deletedAt: null }
 
@@ -41,6 +53,26 @@ function resetFakes() {
 
 function recordWhere(orgId: string, bytes: Uint8Array) {
   lastWhereArgs = { orgId, sha256: createHash("sha256").update(bytes).digest("hex") }
+}
+
+// Fake of the subset of the real @supabase/supabase-js client capture.ts
+// actually calls (.storage.from(bucket).upload(path, bytes, opts)), typed
+// against capture.ts's own exported SourceObjectStorageClient so this stays
+// in sync with what the real function actually needs -- no `any`. Passed
+// via createSourceObject's `deps.storageClient` -- see this file's header
+// for why this is dependency injection, not mock.module().
+function makeFakeStorageClient(): SourceObjectStorageClient {
+  return {
+    storage: {
+      from: (_bucket: string) => ({
+        upload: async (path: string, bytes: Uint8Array) => {
+          uploadCalls.push({ path, bytesLength: bytes.byteLength })
+          if (uploadShouldFail) return { error: { message: "simulated upload failure" } }
+          return { error: null }
+        },
+      }),
+    },
+  }
 }
 
 // Fake of the subset of the Drizzle query builder capture.ts actually calls:
@@ -96,19 +128,6 @@ beforeEach(() => {
   mock.module("@/lib/db/tenant-scoped", () => ({
     withTenantContext: async (_context: { orgId: string }, fn: (tx: unknown) => Promise<unknown>) => fn(makeTx()),
   }))
-  mock.module("@supabase/supabase-js", () => ({
-    createClient: () => ({
-      storage: {
-        from: (_bucket: string) => ({
-          upload: async (path: string, bytes: Uint8Array) => {
-            uploadCalls.push({ path, bytesLength: bytes.byteLength })
-            if (uploadShouldFail) return { error: { message: "simulated upload failure" } }
-            return { error: null }
-          },
-        }),
-      },
-    }),
-  }))
 })
 
 afterEach(() => {
@@ -121,13 +140,10 @@ describe("createSourceObject", () => {
     const bytes = new TextEncoder().encode("hello world")
     recordWhere("org_1", bytes)
 
-    const id = await createSourceObject({
-      orgId: "org_1",
-      origin: "upload",
-      bytes,
-      title: "hello.txt",
-      mimeType: "text/plain",
-    })
+    const id = await createSourceObject(
+      { orgId: "org_1", origin: "upload", bytes, title: "hello.txt", mimeType: "text/plain" },
+      { storageClient: makeFakeStorageClient() }
+    )
 
     expect(typeof id).toBe("string")
     expect(id.length).toBeGreaterThan(0)
@@ -138,12 +154,16 @@ describe("createSourceObject", () => {
   test("dedup contract: identical bytes captured twice for one org returns the SAME id and does not re-upload", async () => {
     const { createSourceObject } = await import("./capture")
     const bytes = new TextEncoder().encode("identical content, captured twice")
+    const storageClient = makeFakeStorageClient()
     recordWhere("org_dedup", bytes)
 
-    const firstId = await createSourceObject({ orgId: "org_dedup", origin: "upload", bytes, title: "a.txt" })
+    const firstId = await createSourceObject({ orgId: "org_dedup", origin: "upload", bytes, title: "a.txt" }, { storageClient })
     expect(uploadCalls.length).toBe(1)
 
-    const secondId = await createSourceObject({ orgId: "org_dedup", origin: "connector", bytes, title: "a-again.txt" })
+    const secondId = await createSourceObject(
+      { orgId: "org_dedup", origin: "connector", bytes, title: "a-again.txt" },
+      { storageClient }
+    )
 
     expect(secondId).toBe(firstId)
     // The point's own gate_pass: "yields one source_object row" -- exactly
@@ -157,14 +177,15 @@ describe("createSourceObject", () => {
 
   test("different bytes for the same org are NOT deduped -- two rows, two uploads", async () => {
     const { createSourceObject } = await import("./capture")
+    const storageClient = makeFakeStorageClient()
     const bytesA = new TextEncoder().encode("content A")
     const bytesB = new TextEncoder().encode("content B, totally different")
 
     recordWhere("org_multi", bytesA)
-    const idA = await createSourceObject({ orgId: "org_multi", origin: "upload", bytes: bytesA, title: "a.txt" })
+    const idA = await createSourceObject({ orgId: "org_multi", origin: "upload", bytes: bytesA, title: "a.txt" }, { storageClient })
 
     recordWhere("org_multi", bytesB)
-    const idB = await createSourceObject({ orgId: "org_multi", origin: "upload", bytes: bytesB, title: "b.txt" })
+    const idB = await createSourceObject({ orgId: "org_multi", origin: "upload", bytes: bytesB, title: "b.txt" }, { storageClient })
 
     expect(idA).not.toBe(idB)
     expect(uploadCalls.length).toBe(2)
@@ -173,13 +194,14 @@ describe("createSourceObject", () => {
 
   test("the same bytes in two different orgs are NOT deduped across tenants", async () => {
     const { createSourceObject } = await import("./capture")
+    const storageClient = makeFakeStorageClient()
     const bytes = new TextEncoder().encode("shared content, different orgs")
 
     recordWhere("org_a", bytes)
-    const idA = await createSourceObject({ orgId: "org_a", origin: "upload", bytes, title: "shared.txt" })
+    const idA = await createSourceObject({ orgId: "org_a", origin: "upload", bytes, title: "shared.txt" }, { storageClient })
 
     recordWhere("org_b", bytes)
-    const idB = await createSourceObject({ orgId: "org_b", origin: "upload", bytes, title: "shared.txt" })
+    const idB = await createSourceObject({ orgId: "org_b", origin: "upload", bytes, title: "shared.txt" }, { storageClient })
 
     expect(idA).not.toBe(idB)
     expect(uploadCalls.length).toBe(2)
@@ -191,9 +213,9 @@ describe("createSourceObject", () => {
     const bytes = new TextEncoder().encode("this upload will fail")
     recordWhere("org_fail", bytes)
 
-    await expect(createSourceObject({ orgId: "org_fail", origin: "upload", bytes, title: "x.txt" })).rejects.toThrow(
-      /storage upload failed/
-    )
+    await expect(
+      createSourceObject({ orgId: "org_fail", origin: "upload", bytes, title: "x.txt" }, { storageClient: makeFakeStorageClient() })
+    ).rejects.toThrow(/storage upload failed/)
     expect(rows.filter((r) => r.orgId === "org_fail").length).toBe(0)
   })
 
@@ -220,18 +242,21 @@ describe("createSourceObject", () => {
     const { createSourceObject } = await import("./capture")
     const bytes = new TextEncoder().encode("field passthrough check")
 
-    const id = await createSourceObject({
-      orgId: "org_fields",
-      clientId: "client_9",
-      origin: "email",
-      bytes,
-      title: "invoice.pdf",
-      mimeType: "application/pdf",
-      linkedEntityType: "compliance_item",
-      linkedEntityId: "ci_42",
-      businessObjectType: "invoice",
-      createdById: "user_7",
-    })
+    const id = await createSourceObject(
+      {
+        orgId: "org_fields",
+        clientId: "client_9",
+        origin: "email",
+        bytes,
+        title: "invoice.pdf",
+        mimeType: "application/pdf",
+        linkedEntityType: "compliance_item",
+        linkedEntityId: "ci_42",
+        businessObjectType: "invoice",
+        createdById: "user_7",
+      },
+      { storageClient: makeFakeStorageClient() }
+    )
 
     expect(id).toBe("captured-fields-id")
     expect(capturedValues).toBeDefined()
