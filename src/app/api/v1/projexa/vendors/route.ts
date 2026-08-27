@@ -21,6 +21,15 @@ function toVendorShape(s: Awaited<ReturnType<typeof listSuppliers>>[number]) {
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
+  // API_READ_WITHOUT_ROLE_CHECK (found via R43_EXEC_01 investigation, 2026-08-27):
+  // this read had no floor at all -- rank-1 roles (viewer/client_viewer/
+  // external_auditor/stage_0, see ROLE_RANK in auth-guard.ts) could read vendor
+  // commercial terms (payment terms, credit limit). Matches the exact
+  // requireRoleOrScope(ctx, "member", "read") pattern already used identically
+  // by 10 sibling /api/v1/projexa/** and /api/v1/brain/** GET routes -- same
+  // floor the POST handler below already uses for writes.
+  const roleErr = requireRoleOrScope(ctx, "member", "read")
+  if (roleErr) return roleErr
   if (!ctx.orgId) return NextResponse.json({ error: "No organisation on this account" }, { status: 400 })
 
   try {
