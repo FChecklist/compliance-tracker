@@ -140,8 +140,22 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // composer/panel/homeRoute merge mechanics generically. Every other org
   // renders exactly as before via its own hand-rolled layout below: this
   // whole branch is additive, not a rewrite of the legacy flow.
-  const sidebarNode = sidebarCollapsed ? null : (
-    <div className="print:hidden">
+  // R48_SIDEBAR_COLLAPSE_REMOVES_ALL_NAV_01 (compliance-tracker instance):
+  // this used to be `sidebarCollapsed ? null : (...)`, which fully unmounted
+  // <AppSidebar> -- every nav link vanished from the DOM, not just the
+  // screen, on every veriChatV2Enabled org. The shared kit's own AppSidebar
+  // has no icon-rail/collapsed rendering mode to delegate to (its own
+  // `collapsed` prop is `if (collapsed) return null` too), and giving it
+  // one is a veridian-ui-kit change, out of this fix's scope. So instead of
+  // unmounting, the sidebar now always stays mounted and is hidden via
+  // `hidden` (display:none) when collapsed -- component state, DOM nodes
+  // and every <a href> stay present (recoverable, inspectable, and correct
+  // for the exact `document.querySelectorAll("a[href]")` check this fault
+  // was originally found with), the layout column is still reclaimed
+  // (display:none removes it from flow same as unmounting did visually),
+  // and the print stylesheet's `print:hidden` still applies either way.
+  const sidebarNode = (
+    <div className={sidebarCollapsed ? "hidden print:hidden" : "print:hidden"}>
       <AppSidebar overdueCount={overdueCount} noticeCount={noticeCount} accountType={accountType} unreadChatCount={unreadChatCount} unreadAiCount={unreadAiCount} connectedConnectorsCount={connectedConnectorsCount} pmsEnabled={pmsEnabled} firmEnabled={firmEnabled} orgName={orgName} orgLogoUrl={orgLogoUrl} brandName={brandName} />
     </div>
   );
