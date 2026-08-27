@@ -106,12 +106,35 @@ export async function listCustomersPaged(ctx: { orgId: string }, opts: { search?
 
 export type CustomerInput = { customerName: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number }
 
+// A4S14_customers_01: this used to be a raw insert with no uniqueness check
+// at all -- nothing stopped the same org from ending up with two ACTIVE
+// customers of the identical name (verified live: Demo Organization's
+// "Meridian Hospitality Group" existed twice, 5 weeks apart, both
+// isActive=true). *** THE DB, NOT THIS FUNCTION, IS WHAT ENFORCES "ONE
+// ACTIVE CUSTOMER PER NAME PER ORG" *** -- erp_customers_org_active_name_unique
+// (drizzle/0328_erp_customers_active_name_unique.sql's own partial unique
+// index on (org_id, lower(trim(customer_name))) WHERE is_active = true),
+// same "DB is the real backstop, this check is a courtesy" split this
+// codebase already uses for screen_drafts (see draft-service.ts's
+// startDraft()). The check is scoped to ACTIVE rows only, on purpose: a
+// name freed up by mdm-quality-service.ts's mergeDuplicates() (which
+// deactivates the loser rather than deleting it) must stay reusable for a
+// genuinely new customer.
 export async function createCustomer(ctx: { orgId: string }, input: CustomerInput) {
   await requireErpEnabled(ctx.orgId)
-  if (!input.customerName?.trim()) throw new ServiceError("customerName is required", 400)
+  const normalizedName = input.customerName?.trim()
+  if (!normalizedName) throw new ServiceError("customerName is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const existing = await db.query.erpCustomers.findFirst({
+      where: and(
+        eq(erpCustomers.orgId, ctx.orgId),
+        eq(erpCustomers.isActive, true),
+        sql`lower(trim(${erpCustomers.customerName})) = lower(${normalizedName})`,
+      ),
+    })
+    if (existing) throw new ServiceError(`An active customer named "${existing.customerName}" already exists`, 409)
     const [customer] = await db.insert(erpCustomers).values({
-      orgId: ctx.orgId, customerName: input.customerName, gstin: input.gstin, panNumber: input.panNumber,
+      orgId: ctx.orgId, customerName: normalizedName, gstin: input.gstin, panNumber: input.panNumber,
       defaultPaymentTermsDays: input.defaultPaymentTermsDays, creditLimit: input.creditLimit?.toString(),
     }).returning()
     return customer
