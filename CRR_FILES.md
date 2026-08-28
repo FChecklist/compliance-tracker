@@ -39,8 +39,30 @@ directly (the extraction route and its service).
 - `src/lib/services/knowledge-base-service.ts` — referenced from embeddings.ts
   as a storeEmbedding call site; in scope for P6/P7 recall+reuse work.
 
+## P8-CONNECT: connector OAuth scope allow-list gate (CRR-158)
+
+- `src/lib/composio-connectors.ts` — CRR-158's own named `file_path`. Pre-
+  existing Composio client file; this phase adds the scope allow-list data
+  (`GOOGLE_CONNECTOR_SCOPE_ALLOW_LIST`) and the pure gate functions
+  (`evaluateToolkitScopes`/`classifyConnectorActionCategory`/
+  `evaluateConnectorGate`/`getAuthConfigScopes`) alongside the existing
+  OAuth-connect/`executeAction` code -- no existing export changed.
+- `src/lib/composio-connectors.test.ts` — pure gate-function test coverage,
+  appended to the pre-existing `executeAction` suite.
+- `src/lib/services/connector-scope-gate-service.ts` — new. The DB/Composio-
+  touching execution wrapper (`executeGatedConnectorAction`) built on top of
+  the pure gate above; same "logic file / DB-touching service file" split
+  `connector-data-service.ts`/`connector-data-store.ts` already established
+  for this same toolkit.
+- `src/lib/services/connector-scope-gate-service.test.ts` — new, mocked
+  Composio/audit-log boundary, no live DB.
+
 ## Project scaffolding
 
 - `CRR_FILES.md` — this file.
+- `ai-os/boss/ACTIVE-CLAIMS.yaml` — per-session claim registry (AGENTS.md
+  Rule 11), not a CRR pipeline file itself but touched by every CRR session
+  that registers a claim before starting work.
 
-13 files, all verified real touchpoints as of 2026-08-25 (P1-DEFECT close).
+17 files, all verified real touchpoints as of 2026-08-25 (P1-DEFECT close) +
+2026-08-28 (P8-CONNECT / CRR-158 addition, this PR).
