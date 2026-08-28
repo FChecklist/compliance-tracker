@@ -1279,6 +1279,59 @@ async function buildCalculatorNodes(db: TenantDb): Promise<CapabilityNode[]> {
   return [{ key: "calculators", label: "Calculators", leaf: false, children: categoryNodes }]
 }
 
+// Root-cause fix for platform.error_log E-27 ("21 published worker agents
+// with real code references are unreachable"): module_registry.domain is a
+// fixed snake_case taxonomy (project_management, erp, hr, compliance, ...)
+// while workerAgents.domain is a free-text, often hierarchical display
+// string ("Construction > Project Intelligence") that worker-agent-
+// service.ts's own resolveDomainGroupKey()/DOMAIN_GROUP_PREFIXES already
+// treats as a *different*, coarser taxonomy (construction/cross_cutting/
+// finance/india_compliance/general) built for the Agent Hierarchy Registry
+// sidebar. Neither taxonomy was ever the same set of values as
+// module_registry's, so buildBranchNodes()'s old lookup
+// (`eq(workerAgents.domain, domain)`) always missed and every domain
+// silently fell back to the raw module list below -- even domains with
+// real, published, code-backed worker agents.
+//
+// This map bridges the two taxonomies at the fidelity buildBranchNodes
+// actually needs: the full hierarchical path, not the collapsed AHR group
+// key -- "Cross-Cutting > Data Access" and "Cross-Cutting > Reporting" serve
+// different module domains (compliance vs reporting) and must not collapse
+// together the way resolveDomainGroupKey() deliberately collapses them for
+// its own, unrelated purpose. Verified against the real live values in both
+// tables (module_registry.domain / worker_agents.domain, Supabase project
+// pcrjmlpuqsbocqfwoxod, 2026-08-28) -- every domain string on the right of
+// " > " that had at least one published/approved worker agent is covered.
+//
+// Hand-curated, same discipline as DOMAIN_GROUP_PREFIXES: grows only when a
+// new worker-agent domain is proposed, never auto-derived. An unmapped
+// domain is not a regression -- it just falls back to the raw module list,
+// exactly like every domain did before this fix.
+const AGENT_DOMAIN_TO_MODULE_DOMAINS: Record<string, string[]> = {
+  "india compliance > penalty calculation": ["compliance"],
+  "cross-cutting > data access": ["compliance"],
+  "cross-cutting > reporting": ["reporting"],
+  "construction > project intelligence": ["project_management"],
+  "finance > gst reconciliation": ["erp"],
+}
+
+// True when `agentDomain` (a real workerAgents.domain value -- flat or
+// "Category > Subcategory") should be treated as serving `moduleDomain` (a
+// real module_registry.domain snake_case key). Exact case-insensitive
+// equality is checked first -- covers the case both sides already agree
+// (e.g. module_registry's "compliance" and a worker agent proposed directly
+// under the flat domain "compliance") -- then the curated bridge table
+// above for every hierarchical/renamed case that equality can never catch.
+// Exported so this bridge, the actual fix for E-27, is directly
+// unit-testable without touching the DB, matching this file's established
+// pattern for markDeterministic().
+export function agentDomainServesModuleDomain(agentDomain: string | null | undefined, moduleDomain: string): boolean {
+  if (!agentDomain) return false
+  const normalized = agentDomain.trim().toLowerCase()
+  if (normalized === moduleDomain.toLowerCase()) return true
+  return (AGENT_DOMAIN_TO_MODULE_DOMAINS[normalized] ?? []).includes(moduleDomain)
+}
+
 async function buildBranchNodes(db: TenantDb, orgId: string): Promise<CapabilityNode[]> {
   const enablements = await db.query.orgProductBranchEnablements.findMany({
     where: and(eq(orgProductBranchEnablements.orgId, orgId), eq(orgProductBranchEnablements.isEnabled, true)),
@@ -1287,6 +1340,18 @@ async function buildBranchNodes(db: TenantDb, orgId: string): Promise<Capability
 
   const branchIds = enablements.map((e) => e.productBranchId)
   const branches = await db.query.productBranches.findMany({ where: inArray(productBranches.id, branchIds) })
+
+  // Fetched once, filtered in JS per domain below via
+  // agentDomainServesModuleDomain() -- the old code's per-domain
+  // eq(workerAgents.domain, domain) can't express the taxonomy bridge, and
+  // the table is small enough (dozens of rows) that one query up front is
+  // both simpler and cheaper than the old N-queries-per-branch pattern.
+  const eligibleAgents = await db.query.workerAgents.findMany({
+    where: and(
+      inArray(workerAgents.lifecycleStatus, ["approved", "published"]),
+      inArray(workerAgents.tier, ["global", "customer"]),
+    ),
+  })
 
   const tree: CapabilityNode[] = []
   for (const branch of branches) {
@@ -1305,13 +1370,7 @@ async function buildBranchNodes(db: TenantDb, orgId: string): Promise<Capability
     const domainNodes: CapabilityNode[] = []
     for (const domain of domains) {
       const modsInDomain = modules.filter((m) => m.domain === domain)
-      const agents = await db.query.workerAgents.findMany({
-        where: and(
-          inArray(workerAgents.lifecycleStatus, ["approved", "published"]),
-          inArray(workerAgents.tier, ["global", "customer"]),
-          eq(workerAgents.domain, domain)
-        ),
-      })
+      const agents = eligibleAgents.filter((a) => agentDomainServesModuleDomain(a.domain, domain))
       const children: CapabilityNode[] = agents.length > 0
         ? agents.map((a) => ({ key: a.id, label: a.name, leaf: true, codeReference: a.codeReference }))
         : modsInDomain.map((m) => ({ key: m.moduleKey, label: m.displayName, leaf: true }))
