@@ -11,8 +11,7 @@ import { listRisks, createRisk, ServiceError } from "@/lib/services/risk-registe
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const result = await listRisks({ orgId: ctx.orgId, dbUser: ctx.dbUser })

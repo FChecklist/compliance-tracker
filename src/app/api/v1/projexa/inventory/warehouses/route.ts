@@ -11,8 +11,7 @@ import { listWarehouses, createWarehouse, ServiceError } from "@/lib/services/er
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const warehouses = await listWarehouses({ orgId: ctx.orgId })

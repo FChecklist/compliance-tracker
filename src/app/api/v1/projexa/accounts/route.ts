@@ -30,8 +30,7 @@ export async function GET(request: NextRequest) {
   // vendors, dashboard, etc.).
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const accounts = await listAccounts({ orgId: ctx.orgId })

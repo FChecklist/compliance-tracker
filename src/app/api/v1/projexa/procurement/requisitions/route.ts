@@ -12,8 +12,7 @@ import { listPurchaseRequisitions, createPurchaseRequisition, ServiceError } fro
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const requisitions = await listPurchaseRequisitions({ orgId: ctx.orgId })

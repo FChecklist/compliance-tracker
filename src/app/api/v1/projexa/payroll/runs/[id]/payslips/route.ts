@@ -8,8 +8,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const { id } = await params

@@ -20,8 +20,7 @@ function toLeadShape(l: { id: string; name: string; contactEmail: string | null;
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const params = request.nextUrl.searchParams
   try {

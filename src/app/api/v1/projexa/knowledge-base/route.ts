@@ -12,8 +12,7 @@ import { listKbPages, createKbPage, ServiceError } from "@/lib/services/knowledg
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const pages = await listKbPages({ orgId: ctx.orgId })

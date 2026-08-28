@@ -5,8 +5,7 @@ import { listTasks, createTask, ServiceError } from "@/lib/services/task-service
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx, "No organisation found")
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx, "No organisation found")!
 
   try {
     const assistantId = request.nextUrl.searchParams.get("assistantId") ?? undefined

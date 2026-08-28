@@ -20,8 +20,7 @@ function toCustomerShape(c: { id: string; customerName: string; gstin: string | 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const params = request.nextUrl.searchParams
   const wantsPaging = params.has("search") || params.has("page") || params.has("pageSize")

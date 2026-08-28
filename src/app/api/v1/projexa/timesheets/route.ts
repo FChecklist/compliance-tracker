@@ -49,8 +49,7 @@ async function readJsonBody(request: NextRequest): Promise<any> {
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   const issueId = request.nextUrl.searchParams.get("issueId")

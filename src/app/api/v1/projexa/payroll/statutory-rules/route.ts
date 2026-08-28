@@ -8,8 +8,7 @@ import { listStatutoryRules, createStatutoryRule, ServiceError } from "@/lib/ser
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const rules = await listStatutoryRules({ orgId: ctx.orgId })

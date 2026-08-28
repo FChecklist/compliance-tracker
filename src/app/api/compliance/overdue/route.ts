@@ -5,8 +5,7 @@ import { syncOverdue } from "@/lib/services/compliance-service"
 export async function POST(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const result = await syncOverdue({ orgId: ctx.orgId })

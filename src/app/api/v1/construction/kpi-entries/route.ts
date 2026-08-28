@@ -5,8 +5,7 @@ import { listKpiEntries, submitKpiEntry, ServiceError } from "@/lib/services/con
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const kpiDefinitionId = request.nextUrl.searchParams.get("kpiDefinitionId")
   if (!kpiDefinitionId) return NextResponse.json({ error: "kpiDefinitionId query param is required" }, { status: 400 })

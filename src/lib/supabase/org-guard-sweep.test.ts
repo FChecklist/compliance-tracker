@@ -133,9 +133,15 @@ describe("E-52 org-guard sweep: synthetic fixtures prove the detector itself", (
     expect(findSilentOrgGuardViolations(p, src).length).toBe(0)
   })
 
-  test("does NOT flag a route.ts routed through the new requireOrg() shared guard", () => {
-    const src = `const ctx = await requireAuthOrApiKey(request)\n  if (ctx.response) return ctx.response\n  const orgErr = requireOrg(ctx)\n  if (orgErr) return orgErr\n\n  try {\n`
+  test("does NOT flag a route.ts routed through the new requireOrg() shared guard (real call-site shape: `if (!ctx.orgId) return requireOrg(ctx)!` -- deliberately kept as ONE `if` on ctx.orgId itself, not a separate `orgErr` variable, so TS's control-flow narrowing of ctx.orgId to non-null still applies for the rest of the handler)", () => {
+    const src = `const ctx = await requireAuthOrApiKey(request)\n  if (ctx.response) return ctx.response\n  if (!ctx.orgId) return requireOrg(ctx)!\n\n  try {\n`
     const p = write("ok2.ts", src)
+    expect(findSilentOrgGuardViolations(p, src).length).toBe(0)
+  })
+
+  test("does NOT flag the requireOrg() shared-guard shape with a custom reused message", () => {
+    const src = `if (!ctx.orgId) return requireOrg(ctx, "No organisation found")!\n`
+    const p = write("ok2b.ts", src)
     expect(findSilentOrgGuardViolations(p, src).length).toBe(0)
   })
 

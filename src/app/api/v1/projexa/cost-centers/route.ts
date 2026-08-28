@@ -29,8 +29,7 @@ export async function GET(request: NextRequest) {
   // employees/route.ts, vendors/route.ts, dashboard/route.ts -- #1399).
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const costCenters = await listCostCenters({ orgId: ctx.orgId })

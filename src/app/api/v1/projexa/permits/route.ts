@@ -61,8 +61,7 @@ async function toPermitDto(doc: { id: string; name: string; metadata: unknown; e
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  const orgErr = requireOrg(ctx)
-  if (orgErr) return orgErr
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const { searchParams } = request.nextUrl
