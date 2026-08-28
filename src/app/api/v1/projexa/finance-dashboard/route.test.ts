@@ -42,24 +42,51 @@ const FAKE_DASHBOARD = {
   revenue: { thisMonth: 80000, lastMonth: 72000 },
 }
 
-async function mockAuth(dbUser: { role: string } | null, apiKey: { id: string; name: string; scopes: string[] } | null = null) {
-  const actual = await import("@/lib/supabase/auth-guard")
-  mock.module("@/lib/supabase/auth-guard", () => ({
-    ...actual,
-    requireAuthOrApiKey: mock(async () => ({
-      orgId: dbUser || apiKey ? "org-1" : null,
-      dbUser: dbUser as any,
-      apiKey,
-      response: null,
-    })),
-  }))
+// R60/E-138: single mock.module() registration per mocked module, mutated
+// per-test via a plain variable, instead of calling mock.module() fresh
+// inside every test (the prior shape). Matches the pattern already proven
+// reliable in balance-sheet/route.test.ts after the same investigation:
+// bun's mock.module() factory can lose a race against a DIFFERENT test
+// file's own mock.module() call for the same specifier when many files run
+// in one process (confirmed reproducing this file's exact 2-test failure
+// locally, 4/4 runs, fixed by this reorder with 4/4 clean runs after).
+// Re-registering the mock repeatedly (once per test) widens the window for
+// that race; registering once and mutating a captured variable does not.
+let currentAuthCtx: { orgId: string | null; dbUser: unknown; apiKey: unknown; response: Response | null }
+let getFinanceDashboardMock = mock(async () => FAKE_DASHBOARD)
+
+// Import the real modules ONCE, before registering the mocks -- capturing
+// `actual` in a closure here (not re-importing the same specifier INSIDE
+// the mock.module factory, which self-referentially re-triggers the mock
+// being registered and hangs bun's module resolver).
+const actualAuthGuard = await import("@/lib/supabase/auth-guard")
+mock.module("@/lib/supabase/auth-guard", () => ({
+  ...actualAuthGuard,
+  requireAuthOrApiKey: mock(async () => currentAuthCtx),
+}))
+
+const actualInvoicingService = await import("@/lib/services/erp-invoicing-service")
+mock.module("@/lib/services/erp-invoicing-service", () => ({
+  ...actualInvoicingService,
+  getFinanceDashboard: mock((...args: unknown[]) => getFinanceDashboardMock(...(args as []))),
+}))
+
+function mockAuth(
+  dbUser: { role: string } | null,
+  apiKey: { id: string; name: string; scopes: string[] } | null = null,
+  response: Response | null = null,
+) {
+  currentAuthCtx = {
+    orgId: response ? null : dbUser || apiKey ? "org-1" : null,
+    dbUser: dbUser as any,
+    apiKey,
+    response,
+  }
 }
 
-async function mockService() {
-  const getFinanceDashboard = mock(async () => FAKE_DASHBOARD)
-  const actual = await import("@/lib/services/erp-invoicing-service")
-  mock.module("@/lib/services/erp-invoicing-service", () => ({ ...actual, getFinanceDashboard }))
-  return getFinanceDashboard
+function mockService() {
+  getFinanceDashboardMock = mock(async () => FAKE_DASHBOARD)
+  return getFinanceDashboardMock
 }
 
 function getRequest() {
@@ -68,8 +95,8 @@ function getRequest() {
 
 describe("GET /api/v1/projexa/finance-dashboard (R58 Lane 2 role-check fix)", () => {
   test("a rank-1 role (external_auditor) is rejected with 403, getFinanceDashboard never called", async () => {
-    await mockAuth({ role: "external_auditor" })
-    const getFinanceDashboard = await mockService()
+    mockAuth({ role: "external_auditor" })
+    const getFinanceDashboard = mockService()
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -79,8 +106,8 @@ describe("GET /api/v1/projexa/finance-dashboard (R58 Lane 2 role-check fix)", ()
   })
 
   test("a rank-1 role (client_viewer) is rejected with 403, getFinanceDashboard never called", async () => {
-    await mockAuth({ role: "client_viewer" })
-    const getFinanceDashboard = await mockService()
+    mockAuth({ role: "client_viewer" })
+    const getFinanceDashboard = mockService()
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -90,8 +117,8 @@ describe("GET /api/v1/projexa/finance-dashboard (R58 Lane 2 role-check fix)", ()
   })
 
   test("the chosen floor role (member) succeeds and returns the dashboard", async () => {
-    await mockAuth({ role: "member" })
-    const getFinanceDashboard = await mockService()
+    mockAuth({ role: "member" })
+    const getFinanceDashboard = mockService()
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -102,8 +129,8 @@ describe("GET /api/v1/projexa/finance-dashboard (R58 Lane 2 role-check fix)", ()
   })
 
   test("a role above the floor (manager) also succeeds", async () => {
-    await mockAuth({ role: "manager" })
-    const getFinanceDashboard = await mockService()
+    mockAuth({ role: "manager" })
+    const getFinanceDashboard = mockService()
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -113,8 +140,8 @@ describe("GET /api/v1/projexa/finance-dashboard (R58 Lane 2 role-check fix)", ()
   })
 
   test("an API key without read scope is rejected with 403, getFinanceDashboard never called", async () => {
-    await mockAuth(null, { id: "key-1", name: "Test Key", scopes: ["write"] })
-    const getFinanceDashboard = await mockService()
+    mockAuth(null, { id: "key-1", name: "Test Key", scopes: ["write"] })
+    const getFinanceDashboard = mockService()
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -124,8 +151,8 @@ describe("GET /api/v1/projexa/finance-dashboard (R58 Lane 2 role-check fix)", ()
   })
 
   test("an API key with read scope succeeds", async () => {
-    await mockAuth(null, { id: "key-1", name: "Test Key", scopes: ["read"] })
-    const getFinanceDashboard = await mockService()
+    mockAuth(null, { id: "key-1", name: "Test Key", scopes: ["read"] })
+    const getFinanceDashboard = mockService()
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
@@ -135,17 +162,8 @@ describe("GET /api/v1/projexa/finance-dashboard (R58 Lane 2 role-check fix)", ()
   })
 
   test("an unauthenticated caller never reaches getFinanceDashboard", async () => {
-    const actual = await import("@/lib/supabase/auth-guard")
-    mock.module("@/lib/supabase/auth-guard", () => ({
-      ...actual,
-      requireAuthOrApiKey: mock(async () => ({
-        orgId: null,
-        dbUser: null,
-        apiKey: null,
-        response: new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }),
-      })),
-    }))
-    const getFinanceDashboard = await mockService()
+    mockAuth(null, null, new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401 }))
+    const getFinanceDashboard = mockService()
 
     const { GET } = await import("./route")
     const res = await GET(getRequest() as any)
