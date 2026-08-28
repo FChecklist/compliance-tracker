@@ -26,6 +26,28 @@ class FakeServiceError extends Error {
   }
 }
 
+let currentAuthCtx: { orgId: string | null; dbUser: unknown; apiKey: unknown; response: Response | null }
+
+const SAMPLE_REPORT = {
+  asOfDate: "2026-08-27",
+  assets: [{ accountNumber: "1000", netBalance: 500000 }],
+  liabilities: [{ accountNumber: "2000", netBalance: -120000 }],
+  equity: [{ accountNumber: "3000", netBalance: -380000 }],
+  totalAssets: 500000,
+  totalLiabilities: 120000,
+  totalEquity: 380000,
+  isBalanced: true,
+}
+
+const balanceSheetMock = mock(async () => SAMPLE_REPORT)
+
+// These two mock.module() calls must come AFTER the declarations above --
+// bun's mock.module() factory is invoked eagerly (not lazily on first
+// import), so referencing balanceSheetMock here before its own `const`
+// initializer had run threw "Cannot access 'balanceSheetMock' before
+// initialization" (a real TDZ bug, not a route/production defect --
+// confirmed by reproducing it locally, reordering only these declarations,
+// and getting a clean 5/5 pass across repeated runs).
 mock.module("@/lib/supabase/auth-guard", () => ({
   requireAuthOrApiKey: mock(async () => currentAuthCtx),
   requireRoleOrScope,
@@ -35,9 +57,6 @@ mock.module("@/lib/services/erp-financial-report-service", () => ({
   balanceSheet: balanceSheetMock,
   ServiceError: FakeServiceError,
 }))
-
-let currentAuthCtx: { orgId: string | null; dbUser: unknown; apiKey: unknown; response: Response | null }
-const balanceSheetMock = mock(async () => SAMPLE_REPORT)
 
 function setAuth(ctx: { orgId: string | null; role?: string; response?: Response | null }) {
   currentAuthCtx = {
@@ -50,17 +69,6 @@ function setAuth(ctx: { orgId: string | null; role?: string; response?: Response
 
 function getRequest(query = "") {
   return new NextRequest(`http://localhost/api/v1/projexa/balance-sheet${query}`)
-}
-
-const SAMPLE_REPORT = {
-  asOfDate: "2026-08-27",
-  assets: [{ accountNumber: "1000", netBalance: 500000 }],
-  liabilities: [{ accountNumber: "2000", netBalance: -120000 }],
-  equity: [{ accountNumber: "3000", netBalance: -380000 }],
-  totalAssets: 500000,
-  totalLiabilities: 120000,
-  totalEquity: 380000,
-  isBalanced: true,
 }
 
 describe("GET /api/v1/projexa/balance-sheet", () => {
