@@ -107,6 +107,39 @@ jobs:
       # it can never happen. See the script's own header for the same
       # honest-limitation note.
       - run: node scripts/check-migration-collision.mjs --base origin/main
+  migration-integrity-check:
+    name: Migration Integrity Check (AR-12)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      # R60 (2026-08-28), closes the enforcement half of platform.r43_faults
+      # fault_id E102_MIGRATION_LEDGER_LINE_ENDING_HASH_SPLIT: AR-12
+      # (platform.arch_rules) says CI must prove three things agree for every
+      # migration -- the .sql file, the journal entry, and the applied
+      # database row -- and until this job, nothing checked that at all
+      # (`git grep -in "AR-12"` across this whole repo returned zero hits).
+      # See scripts/check-migration-integrity.mjs's own header comment for
+      # the full reasoning, most importantly: a real, already-investigated
+      # CRLF/LF hash split exists in the live ledger (138 rows hashed from a
+      # Windows checkout / 157 from an LF checkout, confirmed live
+      # 2026-08-28) because drizzle-orm hashes raw file bytes with no
+      # line-ending normalization. This job tolerates that split -- rewriting
+      # an already-applied migration file's bytes, or the ledger's recorded
+      # hash, is a real risk to a live system this job does not take
+      # unilaterally -- while still failing on genuine content drift, and
+      # while still failing (regardless of DB access) if .gitattributes ever
+      # stops forcing a single line-ending convention for NEW drizzle/*.sql
+      # files (the piece that stops this exact class of drift recurring).
+      # DATABASE_URL uses the same real secret db-migrate.yml already uses;
+      # unlike that job this one only ever SELECTs (read-only) and, per the
+      # script's own header, treats an unreachable DB as a warning, not a
+      # failure -- prod downtime must not block every PR in the repo from
+      # merging.
+      - run: node scripts/check-migration-integrity.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
   e2e:
     name: E2E Tests
     needs: [build]
