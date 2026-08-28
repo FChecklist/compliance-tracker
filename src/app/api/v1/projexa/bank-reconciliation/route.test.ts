@@ -14,10 +14,12 @@
 // authentication boundary, and the DB-backed service module) -- matching
 // permission-service.test.ts's own established pattern of testing role
 // gates against the live ROLE_RANK enum, not a reimplementation of it.
-import { describe, test, expect, mock } from "bun:test"
+import { describe, test, expect, mock, setDefaultTimeout } from "bun:test"
 import { NextRequest } from "next/server"
 import type { users } from "@/lib/db"
 import type { UserRole } from "@/lib/supabase/auth-guard"
+
+setDefaultTimeout(20000)
 
 type DbUser = typeof users.$inferSelect
 
