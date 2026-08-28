@@ -22,6 +22,12 @@ jobs:
       - uses: oven-sh/setup-bun@v2
       - run: bun install --frozen-lockfile
       - run: bunx tsc --noEmit
+        env:
+          # R60 T7 follow-up: this job crashed with the same V8
+          # OOM/core-dump signature as the Build job (see the NODE_OPTIONS
+          # comment on the build step below) under concurrent CI load from
+          # many PRs re-running at once. Same fix, same reasoning.
+          NODE_OPTIONS: --max-old-space-size=8192
   build:
     name: Build
     needs: [lint, typecheck]
