@@ -6234,6 +6234,22 @@ active:
       at all. Sibling claim in projexa: PermitsListClient.tsx +
       permits/page.tsx (unchanged from my first pass -- projexa's own main
       was NOT stale, confirmed separately).
+  - session_label: "Claude Code (subagent, compliance-tracker worktree wf_bd33ae67-033-8) -- CRR-225: recall/retrieval query layer default-filter + explicit-override"
+    claimed_at: "2026-08-28T (this session)"
+    claim: |
+      platform.crr_spec CRR-225 (depends_on CRR-224, now DONE as of R57
+      2026-08-27 -- compliance.source_object's is_current/supersedes_doc_uid/
+      superseded_by_doc_uid columns already live). Confirmed via `git log
+      --all` and `find` that no recall/retrieval implementation exists yet
+      anywhere in this repo, on main or on the unmerged
+      origin/feat/crr-p3-bridge-core branch (which has capture.ts/embed.ts/
+      chunker.ts under src/lib/crr/ but no recall.ts). New files only:
+      src/lib/crr/recall.ts (recall(), buildRecallConditions(),
+      recallIncludesHistory() -- is_current=true default, asOf/
+      includeSuperseded explicit override) and src/lib/crr/recall.test.ts
+      (CI test asserting both modes via drizzle-orm's own PgDialect SQL
+      compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
+      (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
   - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
     claimed_at: "2026-08-16T (this session, closed same session)"
