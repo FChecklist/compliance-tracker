@@ -2101,6 +2101,13 @@
       "when": 1787839200000,
       "tag": "0328_erp_customers_active_name_unique",
       "breakpoints": true
+    },
+    {
+      "idx": 300,
+      "version": "7",
+      "when": 1787935200000,
+      "tag": "0329_r62_b7_rls_six_tenant_tables_sync",
+      "breakpoints": true
     }
   ]
 }
