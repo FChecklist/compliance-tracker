@@ -40,6 +40,31 @@
 #      session with zero other context can act on them correctly.
 # =====================================================================
 active:
+  - session_label: "claude-code (worktree wf_bd33ae67-033-4) -- CRR-158: OAuth connector scope allow-list gate"
+    claimed_at: "2026-08-28T (this session)"
+    claim: |
+      platform.crr_spec CRR-158, rewritten by the owner ruling of 28 Aug 2026
+      (platform.claude_log id 127): builds the scope allow-list gate for
+      Google Mail/Drive/Sheets/Docs (read+edit+write, per-user), replacing
+      the point's original read-only prohibition. Validation/enforcement
+      layer only -- NOT live Google OAuth enablement, no real account or
+      Composio call touched (CRR-007/COMPOSIO_API_KEY is BLOCKED, standing
+      declined purchase). Scope: new pure gate logic appended to
+      src/lib/composio-connectors.ts (evaluateToolkitScopes/
+      classifyConnectorActionCategory/evaluateConnectorGate/
+      getAuthConfigScopes) + its test file; new
+      src/lib/services/connector-scope-gate-service.ts (DB/Composio-touching
+      execution wrapper: refuses before calling Composio on any gate
+      violation, writes one audit_logs row via the existing logActivity()
+      for every successful write/edit, throws loudly if that audit write
+      itself fails) + its test file. Does not touch connector-data-
+      service.ts/connector-data-store.ts (GAP-CONNECTOR-DATA, read-pull
+      only) or any existing route. No other active claim in this file
+      references composio-connectors.ts, connector_accounts, or CRR-158 as
+      of this claim (checked live before starting). Branch:
+      feat/crr-158-connector-scope-gate. Will not self-merge (Rule 6) --
+      PR left open for review, CRR-158's own DB row updated with real
+      evidence, not marked closed unilaterally.
   - session_label: "claude-code (worker task-20260718-112004-retry-1--ai-engineering-quality--ai-mod) -- Review Framework gap-closure: AI Engineering Quality / AI-Modification Readiness"
     claimed_at: "2026-08-15T (this session, invocation 14/20)"
     claim: |
