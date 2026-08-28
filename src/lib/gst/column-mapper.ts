@@ -129,6 +129,38 @@ export function parseAmount(value: unknown): number {
   return Number.isFinite(n) ? n : 0
 }
 
+// E-43: parseAmount() above gracefully degrades any genuinely-unparseable
+// cell ("not-a-number", "TBD", "N/A", a stray word) to 0 -- correct for a
+// caller that just wants a number, but every GST adapter call site used it
+// directly on raw amount/quantity/rate cells with no upstream check, so a
+// typo or placeholder silently became a real $0 taxable value / tax amount
+// with zero warning (AR-05 violation) -- indistinguishable from a cell that
+// genuinely says "0". Same fix shape as construction-boq-import-service.ts's
+// isMalformedNumericCell() (R-71/TC-51), which solved this exact problem for
+// the BOQ import path first: mirror parseAmount's own cleaning steps, then
+// test what's left against a plain numeric pattern, so every shape
+// parseAmount itself already accepts ("5,000", "AED 50", "(100)") is never
+// flagged and only true garbage is.
+//
+// One real difference from the BOQ version, because it is copied nowhere
+// near verbatim: GST has amount cells the BOQ importer never sees --
+// gstRatePercent columns (aliases include "rate %", "gst %") legitimately
+// carry a trailing "%" ("18%", not just "18"), and parseAmount already
+// tolerates that (parseFloat stops at the first invalid char, so
+// parseFloat("18%") === 18). A bare regex mirror without this trailing-"%"
+// strip would flag every percent-formatted GST-rate cell as malformed even
+// though parseAmount parses it correctly -- so this strips one optional
+// trailing "%" before the numeric test, same as the cleaning steps it mirrors.
+export function isMalformedNumericCell(raw: string): boolean {
+  if (raw === "") return false
+  const cleaned = raw
+    .replace(/[,₹\s]/g, "")
+    .replace(/^[^\d.\-(]+/, "")
+    .replace(/^\((.*)\)$/, "-$1")
+    .replace(/%$/, "")
+  return !/^-?\d+(\.\d+)?$/.test(cleaned)
+}
+
 // Accepts common Indian date formats (dd-mm-yyyy, dd/mm/yyyy, yyyy-mm-dd) and
 // normalizes to ISO. xlsx's own dateNF already yields yyyy-mm-dd for real
 // Excel date cells; this covers CSV/text dates that arrive as plain strings.

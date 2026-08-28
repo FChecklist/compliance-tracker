@@ -83,6 +83,15 @@ export default function GstReconciliationPage() {
     const d = await res.json();
     setUploadOpen(false); setUploadFile(null);
     toast.success(`Staged ${d.stagedCount} rows`);
+    // E-43: a malformed amount/quantity/rate cell no longer silently becomes
+    // 0 -- it's reported in d.warnings (see gst-reconciliation-service.ts's
+    // importFile). Surface it here so it's visible at the moment it happens,
+    // not just discoverable later by re-deriving totals by hand.
+    if (d.warnings?.length) {
+      toast.warning(`${d.warnings.length} cell${d.warnings.length === 1 ? "" : "s"} could not be read as a number and were imported as 0`, {
+        description: d.warnings.slice(0, 3).join("\n") + (d.warnings.length > 3 ? `\n...and ${d.warnings.length - 3} more` : ""),
+      });
+    }
     load();
   };
 
