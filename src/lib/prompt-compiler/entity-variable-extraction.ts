@@ -22,8 +22,21 @@ export function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }
 
-
-const FILE_PATH_RE = /[\w./-]+\.(?:py|js|ts|tsx|jsx|json|yaml|yml|toml|cfg|ini|sh|bash|sql|md|txt|html|css)\b/g
+// FILE_PATH_RE's `[\w./-]+` quantifier has no leading `\b` (unlike the
+// other patterns below), so bun's/JSC's backtracking engine retries a
+// full O(remaining-length) backoff at *every* character position in the
+// input when the required `.` + extension is never found -- O(n) attempts
+// x O(n) backoff each = O(n^2). The MAX_EXTRACTION_INPUT_CHARS cap above
+// bounds n but not n^2 (50_000 chars alone measured ~12s of pure regex
+// time, confirmed 2026-08-28 while diagnosing E-138 -- a real, still-live
+// perf bug the length cap alone didn't fix, not a flaky/mock-leakage
+// failure). Bounding the quantifier itself (real paths are never anywhere
+// near this long) caps the per-position backoff to a small constant,
+// which is what actually eliminates the quadratic blowup; verified this
+// preserves every existing match case (short paths, repeated paths,
+// multi-dot filenames like schema.d.ts) while cutting the pathological
+// 50_000-char/no-match case from ~12s to well under 200ms.
+const FILE_PATH_RE = /[\w./-]{1,400}\.(?:py|js|ts|tsx|jsx|json|yaml|yml|toml|cfg|ini|sh|bash|sql|md|txt|html|css)\b/g
 const URL_RE = /https?:\/\/[^\s<>"{}|\\^`]+/g
 // classifier.py's CODE_REF pattern minus its English-stopword denylist,
 // applied the same way (a capitalized identifier-shaped token).

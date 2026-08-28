@@ -60,7 +60,16 @@ jobs:
       # engine.ts transitively constructs the src/lib/db/index.ts client at
       # module-load time, which throws without *some* connection string
       # present, even though these tests never issue a real query.
-      - run: bun test
+      # R60 E-138: bun's mock.module() mutates a GLOBAL, process-wide module
+      # registry. Without --isolate (a fresh global object per test file),
+      # one file's mock.module() call for a given specifier can leak into or
+      # get overwritten by another file's mock.module() call for the SAME
+      # specifier when many files run in one process -- causing tests to
+      # silently pass by borrowing a different file's leaked mock, or fail
+      # unpredictably when that borrowed state is wrong. Root-caused and
+      # fixed across 7 files in this pass (#1421, #1423-#1428); --isolate
+      # is what actually closes the leak at the CI level going forward.
+      - run: bun test --isolate
         env:
           DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
           APP_RUNTIME_DATABASE_URL: postgresql://app_runtime:placeholder@localhost:5432/postgres
