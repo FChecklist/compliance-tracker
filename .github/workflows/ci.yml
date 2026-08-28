@@ -36,6 +36,16 @@ jobs:
           DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
           NEXT_PUBLIC_SUPABASE_URL: https://placeholder.supabase.co
           NEXT_PUBLIC_SUPABASE_ANON_KEY: placeholder-anon-key
+          # R60 T7: `next build`'s internal type-check pass (distinct from the
+          # standalone `typecheck` job above, which uses plain `tsc --noEmit`
+          # and was passing) was OOM-crashing on ubuntu-latest's default V8
+          # old-space ceiling (~2GB) -- confirmed via the GC-thrash-then-crash
+          # signature in every recent run (e.g. run 33102828718, job Build).
+          # This failed identically on every open PR regardless of that PR's
+          # own diff, so it was a repo-wide infra gap, not a per-PR defect.
+          # ubuntu-latest has 16GB total; 8GB old-space leaves headroom for
+          # the rest of the toolchain (bun, next's own worker processes).
+          NODE_OPTIONS: --max-old-space-size=8192
   unit-tests:
     name: Unit Tests
     runs-on: ubuntu-latest
