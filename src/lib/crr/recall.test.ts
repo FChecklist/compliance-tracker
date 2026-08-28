@@ -150,7 +150,6 @@ const COLUMN_TO_FIELD: Record<string, keyof FixtureRow> = {
 }
 
 function rowMatchesCompiledCondition(row: FixtureRow, sql: string, params: unknown[]): boolean {
-  let paramIdx = 0
   // "<col>" is null  -- e.g. deleted_at, content_erased_at
   for (const m of sql.matchAll(/"(\w+)" is null/g)) {
     const field = COLUMN_TO_FIELD[m[1]]
@@ -173,7 +172,6 @@ function rowMatchesCompiledCondition(row: FixtureRow, sql: string, params: unkno
     const rowValue = row[field] as Date
     if (!(rowValue.getTime() <= value.getTime())) return false
   }
-  void paramIdx
   return true
 }
 
