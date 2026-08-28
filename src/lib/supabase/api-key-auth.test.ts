@@ -107,3 +107,119 @@ describe("validateApiKey: demo-key environment gate", () => {
     expect(result.status).toBe("invalid")
   })
 })
+
+// R43_EXEC_01 (Critical, closed as a false positive by R52/R56/R60 -- the
+// row's own cross-org observation was an id-space mixup, not a real leak;
+// see platform.r43_faults justification). No code fix landed for this row.
+// What IS security-critical, and had zero regression coverage before this
+// suite, is the invariant R52/R56/R60 actually verified by hand each time:
+// validateApiKey() must resolve `context.orgId` ONLY from the DB row matched
+// by the presented Bearer token's hash (via lookupApiKeyByHash) -- never
+// from any other caller-controllable signal on the request (a header, a
+// query param, etc.). If that ever stopped being true, PROJEXA's
+// server-to-server calls (or any other API-key caller) could potentially
+// assert a different tenant's orgId and this function would hand back
+// another org's context, which is the exact cross-tenant leak this fault
+// row worried about. This is a real regression guard, not a restatement of
+// the existing demo-key-gate tests above: confirmed failing (asserts
+// "org-attacker" but got "org-mine") against a deliberately introduced
+// `x-org-id` header override patched into validateApiKey() locally, and
+// passing again once that patch was reverted -- see PR description for the
+// stash/restore output.
+describe("validateApiKey: orgId comes only from the key-hash match (R43_EXEC_01 regression guard)", () => {
+  test("an x-org-id header claiming a different tenant is ignored -- orgId still comes from the key's own row", async () => {
+    mockDbFor({
+      id: "real-key-mine",
+      orgId: "org-mine",
+      name: "My real key",
+      scopes: "read",
+      rateLimitPerMinute: null,
+      isActive: true,
+    })
+
+    const { validateApiKey } = await import("./api-key-auth")
+    const spoofedRequest = new Request("https://example.com/api/v1/projects", {
+      headers: {
+        authorization: "Bearer vk_test_token",
+        // A naive implementation might trust a caller-supplied org header
+        // for multi-tenant routing. validateApiKey() must never do this --
+        // the only trustworthy source of orgId is the row the key's own
+        // hash resolves to.
+        "x-org-id": "org-attacker",
+      },
+    })
+    const result = await validateApiKey(spoofedRequest)
+    expect(result.status).toBe("ok")
+    if (result.status === "ok") {
+      expect(result.context.orgId).toBe("org-mine")
+      expect(result.context.orgId).not.toBe("org-attacker")
+    }
+  })
+
+  test("an orgId query parameter on the request URL is ignored -- orgId still comes from the key's own row", async () => {
+    mockDbFor({
+      id: "real-key-mine",
+      orgId: "org-mine",
+      name: "My real key",
+      scopes: "read",
+      rateLimitPerMinute: null,
+      isActive: true,
+    })
+
+    const { validateApiKey } = await import("./api-key-auth")
+    const spoofedRequest = new Request("https://example.com/api/v1/projects?orgId=org-attacker", {
+      headers: { authorization: "Bearer vk_test_token" },
+    })
+    const result = await validateApiKey(spoofedRequest)
+    expect(result.status).toBe("ok")
+    if (result.status === "ok") {
+      expect(result.context.orgId).toBe("org-mine")
+      expect(result.context.orgId).not.toBe("org-attacker")
+    }
+  })
+
+  test("two different keys (different hashes) resolve to their own, independent orgId -- no cross-key contamination", async () => {
+    // Simulates two tenants' keys by re-mocking hashSHA256 to distinguish
+    // the token, and lookupApiKeyByHash to return each key's own row only
+    // for its own hash -- the closest a unit test can get to proving key A's
+    // request can never come back with key B's orgId.
+    mock.module("@/lib/db", () => ({
+      db: {
+        update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
+        insert: () => ({ values: () => Promise.resolve() }),
+        select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
+      },
+      apiKeys: {}, apiKeyRequestLog: {},
+    }))
+    mock.module("@/lib/api-keys", () => ({
+      hashSHA256: mock(async (token: string) => `hash-of-${token}`),
+    }))
+    mock.module("@/lib/db/preauth-lookups", () => ({
+      lookupApiKeyByHash: mock(async (hash: string) => {
+        if (hash === "hash-of-vk_tenant_a_token") {
+          return { id: "key-a", orgId: "org-a", name: "Tenant A key", scopes: "read", rateLimitPerMinute: null, isActive: true }
+        }
+        if (hash === "hash-of-vk_tenant_b_token") {
+          return { id: "key-b", orgId: "org-b", name: "Tenant B key", scopes: "read", rateLimitPerMinute: null, isActive: true }
+        }
+        return null
+      }),
+    }))
+
+    const { validateApiKey } = await import("./api-key-auth")
+    const resultA = await validateApiKey(new Request("https://example.com/api/v1/projects", {
+      headers: { authorization: "Bearer vk_tenant_a_token" },
+    }))
+    const resultB = await validateApiKey(new Request("https://example.com/api/v1/projects", {
+      headers: { authorization: "Bearer vk_tenant_b_token" },
+    }))
+
+    expect(resultA.status).toBe("ok")
+    expect(resultB.status).toBe("ok")
+    if (resultA.status === "ok" && resultB.status === "ok") {
+      expect(resultA.context.orgId).toBe("org-a")
+      expect(resultB.context.orgId).toBe("org-b")
+      expect(resultA.context.orgId).not.toBe(resultB.context.orgId)
+    }
+  })
+})
