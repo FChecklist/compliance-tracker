@@ -1,15 +1,1 @@
-# AR-12 / E-102 (platform.r43_faults fault_id
-# E102_MIGRATION_LEDGER_LINE_ENDING_HASH_SPLIT): drizzle-orm hashes migration
-# files as raw bytes with no line-ending normalization, so whichever
-# machine/CI runner's checkout convention (LF vs Windows CRLF, controlled by
-# git's core.autocrlf) wrote a file determines the hash baked into
-# drizzle.__drizzle_migrations forever. This does NOT retroactively fix the
-# existing split (that would mean rewriting an already-applied migration
-# file's bytes or its recorded ledger hash -- both real risks to a live
-# system, not taken unilaterally here) -- it only forces every NEW
-# drizzle/*.sql commit to converge on one convention (LF) regardless of which
-# OS or editor authored it, so this specific class of drift cannot recur for
-# any migration added from this point forward. See
-# scripts/check-migration-integrity.mjs for the CI-side enforcement this
-# pairs with.
-drizzle/*.sql text eol=lf
+# TEMP: verification regression -- E-102 CI-run proof, will be reverted in the next commit
