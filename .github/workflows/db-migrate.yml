@@ -1,0 +1,55 @@
+name: Apply DB Migrations (manual)
+
+# R60 T7 (2026-08-28), closes the "nothing is wired" half of
+# platform.error_log E-64: previously `db:migrate` (drizzle-kit migrate)
+# existed only as a package.json script, invoked by nothing -- no CI job, no
+# Vercel build/deploy hook, no prebuild hook (confirmed by reading every
+# workflow in this directory, vercel.json, and package.json's "build" script
+# before adding this file).
+#
+# Deliberately `workflow_dispatch` only, NOT triggered on push/PR to main.
+# Applying migrations automatically on every merge would run untested DDL
+# against the live production database with no human in the loop -- a much
+# bigger blast radius than the gap this closes. This gives every authorized
+# actor (owner or an AI agent under AGENTS.md, which already permits running
+# live DB migrations) a real, one-click, auditable path that did not exist
+# before, without making migrate a silent side effect of every merge.
+#
+# Known limitation this does NOT fix (see platform.error_log E-74): drizzle-kit
+# migrate tracks progress via MAX(created_at) in drizzle.__drizzle_migrations,
+# not a per-entry hash/existence check. A journal entry whose "when" timestamp
+# is lower than one already recorded (e.g. from a merge landing an
+# out-of-order-timestamped migration file) will be silently skipped by this
+# job forever, not just once. As of 2026-08-28, drizzle/0323_construction_boq_
+# parent_unique.sql is exactly such an entry: already applied live via direct
+# DDL, but invisible to this command because of that. Confirm what a run will
+# actually pick up (compare drizzle/meta/_journal.json's "when" values against
+# `select max(created_at) from drizzle.__drizzle_migrations`) before relying on
+# this job for anything time-sensitive.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type "apply" to confirm running drizzle-kit migrate against the live database'
+        required: true
+
+jobs:
+  migrate:
+    name: drizzle-kit migrate
+    runs-on: ubuntu-latest
+    if: github.event.inputs.confirm == 'apply'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - name: Show pending migrations before applying
+        run: |
+          echo "Journal entries newer than the current DB cursor (these are what this run will attempt):"
+          node -e "
+            const j = require('./drizzle/meta/_journal.json');
+            console.log(JSON.stringify(j.entries.slice(-10).map(e => ({idx: e.idx, tag: e.tag, when: e.when})), null, 2));
+          "
+      - name: Apply migrations
+        run: bun run db:migrate
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
