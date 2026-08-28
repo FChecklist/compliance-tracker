@@ -26,7 +26,7 @@
 // qualify, how "expiring" is computed) stays entirely inside
 // listExpiringDocuments/listDocuments.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listExpiringDocuments, listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { createClient } from "@supabase/supabase-js"
 
@@ -61,7 +61,8 @@ async function toPermitDto(doc: { id: string; name: string; metadata: unknown; e
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ permits: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const { searchParams } = request.nextUrl

@@ -9,13 +9,14 @@
 // classification/AI-extraction side effects) -- see createDocumentRecord's
 // own header comment for why that's an acceptable, not accidental, gap.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ documents: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const { searchParams } = request.nextUrl

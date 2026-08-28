@@ -2,13 +2,14 @@
 // master data (Basic, HRA, Special Allowance, statutory deductions, ...) --
 // the building blocks salary structures are assembled from.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listSalaryComponents, createSalaryComponent, ServiceError } from "@/lib/services/erp-payroll-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ components: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const components = await listSalaryComponents({ orgId: ctx.orgId })

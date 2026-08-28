@@ -8,7 +8,7 @@
 // requireAuthOrApiKey so PROJEXA's Bearer-key client can reach it). No new
 // business rule is introduced here.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { departments, organisations } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { eq, asc } from "drizzle-orm"
@@ -18,7 +18,8 @@ import { createId } from "@paralleldrive/cuid2"
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ departments: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const depts = await withTenantContext({ orgId: ctx.orgId }, (db) =>

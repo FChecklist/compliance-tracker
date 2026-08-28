@@ -15,7 +15,7 @@
 // affected" list in that same plan: all construction/field modules already
 // work without an entitlement gate).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import {
   listCategories, createCategory, listActivities, createActivity, ServiceError,
 } from "@/lib/services/construction-progress-service"
@@ -25,7 +25,8 @@ const DEFAULT_CATEGORY_NAME = "General"
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ activities: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })

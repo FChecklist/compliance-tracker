@@ -4,7 +4,7 @@
 // construction-dashboard-service.ts's getProjectDashboard for the join
 // this namespace's /api/v1/projexa/dashboard/{projectId} already computes.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listBudgets, createBudget, ServiceError } from "@/lib/services/erp-budget-service"
 
 function toProjectBudgetShape(b: Awaited<ReturnType<typeof listBudgets>>[number]) {
@@ -14,7 +14,8 @@ function toProjectBudgetShape(b: Awaited<ReturnType<typeof listBudgets>>[number]
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ projectBudgets: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const companyId = request.nextUrl.searchParams.get("companyId") ?? undefined

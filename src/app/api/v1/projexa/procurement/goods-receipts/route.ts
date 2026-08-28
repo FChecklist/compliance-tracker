@@ -5,13 +5,14 @@
 // service's own validation) -- PROJEXA's create-goods-receipt form should
 // source warehouseId from /v1/projexa/inventory/warehouses.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listPurchaseReceipts, createPurchaseReceipt, ServiceError } from "@/lib/services/erp-goods-receipt-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ goodsReceipts: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const goodsReceipts = await listPurchaseReceipts({ orgId: ctx.orgId })

@@ -3,14 +3,15 @@
 // dialog populate a real type dropdown (Task/Bug/Story/...) instead of the
 // create route silently guessing a default with no user-visible choice.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { listIssueTypes } from "@/lib/services/pms-taxonomy-service"
 import { ServiceError } from "@/lib/services/pms-issue-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ types: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const types = await listIssueTypes({ orgId: ctx.orgId })

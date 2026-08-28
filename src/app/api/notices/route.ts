@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listNotices, createNotice, ServiceError } from "@/lib/services/notice-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ notices: [], total: 0, page: 1, limit: 20, totalPages: 0 })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const { searchParams } = request.nextUrl

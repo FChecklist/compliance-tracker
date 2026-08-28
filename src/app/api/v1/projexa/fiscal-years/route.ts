@@ -5,7 +5,7 @@
 // -- this is the read-side lookup that closes that gap. Zero new business
 // logic, matching every other route in this namespace (Wave 124).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { listFiscalYears, ServiceError } from "@/lib/services/erp-accounting-service"
 
 function toFiscalYearShape(fy: Awaited<ReturnType<typeof listFiscalYears>>[number]) {
@@ -15,7 +15,8 @@ function toFiscalYearShape(fy: Awaited<ReturnType<typeof listFiscalYears>>[numbe
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ fiscalYears: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const fiscalYears = await listFiscalYears({ orgId: ctx.orgId })

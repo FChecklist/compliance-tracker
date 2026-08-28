@@ -10,7 +10,7 @@
 // `page`/`pageSize`, so every existing picker/dropdown call site (no query
 // params) keeps getting the full flat array, unchanged.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listCustomers, listCustomersPaged, createCustomer, ServiceError, type CustomerInput } from "@/lib/services/erp-selling-service"
 
 function toCustomerShape(c: { id: string; customerName: string; gstin: string | null; panNumber: string | null; defaultPaymentTermsDays: number | null; creditLimit: string | null; isActive: boolean }) {
@@ -20,7 +20,8 @@ function toCustomerShape(c: { id: string; customerName: string; gstin: string | 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ customers: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   const params = request.nextUrl.searchParams
   const wantsPaging = params.has("search") || params.has("page") || params.has("pageSize")

@@ -2,13 +2,14 @@
 // PF/ESI/Professional-Tax rate master data (never hardcoded -- see
 // erp-payroll-service.ts's own header for why).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listStatutoryRules, createStatutoryRule, ServiceError } from "@/lib/services/erp-payroll-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ rules: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const rules = await listStatutoryRules({ orgId: ctx.orgId })

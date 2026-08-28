@@ -7,7 +7,7 @@
 // filter client-side on that field; the service itself stays org-scoped
 // only, matching listFiscalYears/listSuppliers etc.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listCostCenters, ServiceError } from "@/lib/services/erp-accounting-service"
 
 function toCostCenterShape(cc: Awaited<ReturnType<typeof listCostCenters>>[number]) {
@@ -29,7 +29,8 @@ export async function GET(request: NextRequest) {
   // employees/route.ts, vendors/route.ts, dashboard/route.ts -- #1399).
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
-  if (!ctx.orgId) return NextResponse.json({ costCenters: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const costCenters = await listCostCenters({ orgId: ctx.orgId })

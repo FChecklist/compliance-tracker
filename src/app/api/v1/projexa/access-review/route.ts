@@ -6,13 +6,14 @@
 // a session dbUser (see that function's own comment in
 // access-review-service.ts), so this is no longer read-only.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listAccessReviewCycles, getAccessReviewCycleDetail, createAccessReviewCycle, ServiceError } from "@/lib/services/access-review-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ cycles: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const cycleId = request.nextUrl.searchParams.get("cycleId")

@@ -4,13 +4,14 @@
 // workflow. An RFQ can be raised directly or linked to a prior requisition
 // (requisitionId is optional, matching the service's own schema comment).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listRfqs, createRfq, ServiceError } from "@/lib/services/erp-procurement-workflow-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ rfqs: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const rfqs = await listRfqs({ orgId: ctx.orgId })

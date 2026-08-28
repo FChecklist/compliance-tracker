@@ -4,7 +4,7 @@
 // is an additive, paginated/filtered variant added this wave specifically
 // for this route (native VERIDIAN CRM UI keeps using the flat-array one).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listLeadsPaged, createLead, ServiceError } from "@/lib/services/crm-service"
 
 function toLeadShape(l: { id: string; name: string; contactEmail: string | null; contactPhone: string | null; source: string | null; status: string; ownerId: string | null; companyId: string | null; convertedClientId: string | null; aiScore: number | null; aiRecommendedAction: string | null; nextActionDate: string | null; nextActionNote: string | null; createdAt: Date; updatedAt: Date }) {
@@ -20,7 +20,8 @@ function toLeadShape(l: { id: string; name: string; contactEmail: string | null;
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ leads: [], total: 0, page: 1, pageSize: 25 })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   const params = request.nextUrl.searchParams
   try {

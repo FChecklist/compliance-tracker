@@ -4,13 +4,14 @@
 // wave; never a duplicated/cached balance table). Answers "what stock do I
 // have, and where" -- the core Inventory page question.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { listStockBalances, ServiceError } from "@/lib/services/erp-inventory-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ balances: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const sp = request.nextUrl.searchParams

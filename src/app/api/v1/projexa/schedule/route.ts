@@ -10,14 +10,15 @@
 // PROJEXA's generic task/schedule substrate, not gated behind the
 // separately-purchased PMS product branch.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listIssues, createIssue, ServiceError, type IssueInput } from "@/lib/services/pms-issue-service"
 import { listIssueTypes } from "@/lib/services/pms-taxonomy-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ tasks: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })

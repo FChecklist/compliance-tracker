@@ -5,13 +5,14 @@
 // now calls too (see risk-register-service.ts's own header for the
 // extraction this wave did).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listRisks, createRisk, ServiceError } from "@/lib/services/risk-register-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ risks: [], totalCount: 0, hiddenByScope: 0 })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const result = await listRisks({ orgId: ctx.orgId, dbUser: ctx.dbUser })

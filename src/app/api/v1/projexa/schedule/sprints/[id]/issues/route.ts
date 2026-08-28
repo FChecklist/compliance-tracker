@@ -3,7 +3,7 @@
 // requirePmsEnabled() gate -- see ../../route.ts header for the full
 // reasoning.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listSprintIssues, addIssueToSprint, removeIssueFromSprint, ServiceError } from "@/lib/services/pms-sprint-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -11,7 +11,8 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function GET(_request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(_request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ issues: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const { id } = await params

@@ -8,7 +8,7 @@
 // Bearer-key (apiKey) actor -- see that function's own comment in
 // erp-credit-note-service.ts.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listSalesCreditNotes, createSalesCreditNote, ServiceError } from "@/lib/services/erp-credit-note-service"
 
 function toCreditNoteShape(n: Awaited<ReturnType<typeof listSalesCreditNotes>>[number]) {
@@ -21,7 +21,8 @@ function toCreditNoteShape(n: Awaited<ReturnType<typeof listSalesCreditNotes>>[n
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ creditNotes: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const notes = await listSalesCreditNotes({ orgId: ctx.orgId })

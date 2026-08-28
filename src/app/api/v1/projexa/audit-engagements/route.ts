@@ -3,13 +3,14 @@
 // its own findings (severity + CAPA remediation status), the "findings +
 // remediation tracking" surface. Zero new business logic.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listAuditEngagements, createAuditEngagement, ServiceError } from "@/lib/services/risk-register-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ engagements: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const engagements = await listAuditEngagements({ orgId: ctx.orgId })

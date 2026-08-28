@@ -1,13 +1,14 @@
 // Priority 15 (PROJEXA HR & Payroll, full-depth pass): TDS slab/rate master
 // data (old vs. new regime = two separate records, not a flag).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listIncomeTaxSlabs, createIncomeTaxSlab, ServiceError } from "@/lib/services/erp-payroll-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ slabs: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const slabs = await listIncomeTaxSlabs({ orgId: ctx.orgId })

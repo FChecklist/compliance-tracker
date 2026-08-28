@@ -2,13 +2,14 @@
 // hr-service.ts's leave-request ledger (real requestLeave/listLeaveRequests,
 // not a stub).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listLeaveRequests, requestLeave, ServiceError } from "@/lib/services/hr-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ requests: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const userId = request.nextUrl.searchParams.get("userId") || undefined

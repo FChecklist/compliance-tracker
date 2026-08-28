@@ -5,13 +5,14 @@
 // documentation substrate here, not the separately-purchased VERIDIAN AI
 // PMS product's own surface (that's what /api/pms/wiki/* gates).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listWikiPages, createWikiPage, ServiceError } from "@/lib/services/pms-wiki-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ pages: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })

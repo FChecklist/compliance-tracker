@@ -6,13 +6,14 @@
 // minutes/publish workflow) -- that route is untouched; this is a new,
 // separate module PROJEXA's MoM screen calls instead.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listVeriMeetings, createVeriMeeting, ServiceError } from "@/lib/services/veri-meeting-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ meetings: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const projectId = request.nextUrl.searchParams.get("projectId") ?? undefined

@@ -1,13 +1,14 @@
 // Point 33: material master. GET+POST, matching v1/construction/labour-roster's
 // requireAuthOrApiKey shape (PROJEXA calls this with a Bearer API key).
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listMaterials, createMaterial, ServiceError } from "@/lib/services/construction-materials-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ materials: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })

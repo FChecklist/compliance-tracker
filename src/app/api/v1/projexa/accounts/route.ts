@@ -6,7 +6,7 @@
 // action for this wave, same "read-mostly, basic create only where it
 // clearly makes sense" scope as the rest of Priority 15's accounting slice.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listAccounts, ServiceError } from "@/lib/services/erp-accounting-service"
 
 function toAccountShape(a: Awaited<ReturnType<typeof listAccounts>>[number]) {
@@ -30,7 +30,8 @@ export async function GET(request: NextRequest) {
   // vendors, dashboard, etc.).
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
-  if (!ctx.orgId) return NextResponse.json({ accounts: [] })
+  const orgErr = requireOrg(ctx)
+  if (orgErr) return orgErr
 
   try {
     const accounts = await listAccounts({ orgId: ctx.orgId })
