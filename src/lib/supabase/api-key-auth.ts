@@ -1,6 +1,7 @@
 import { db, apiKeys, apiKeyRequestLog } from "@/lib/db"
 import { eq, and, gte, sql } from "drizzle-orm"
 import { hashSHA256 } from "@/lib/api-keys"
+import { lookupApiKeyByHash } from "@/lib/db/preauth-lookups"
 
 export type ApiKeyContext = {
   orgId: string
@@ -78,7 +79,15 @@ export async function validateApiKey(request: Request): Promise<ValidateApiKeyRe
   if (!token || !token.startsWith("vk_")) return { status: "invalid" }
 
   const keyHash = await hashSHA256(token)
-  const row = await db.query.apiKeys.findFirst({ where: eq(apiKeys.keyHash, keyHash) })
+  // CRR-028 expand step (R-CRR-14, see src/lib/db/preauth-lookups.ts's header
+  // comment): this IS the preauth step -- runs before any tenant context
+  // exists, exactly the same reasoning as this function's own doc comment
+  // above -- so it now goes through the narrow SECURITY DEFINER
+  // compliance.lookup_api_key_by_hash(text) function instead of an
+  // unrestricted `select *`. The pre-existing app_runtime_preauth_read_api_keys
+  // blanket RLS policy is untouched (other call sites still depend on it) --
+  // this alone does not narrow what app_runtime can read.
+  const row = await lookupApiKeyByHash(keyHash)
   if (!row || !row.isActive) return { status: "invalid" }
 
   if (KNOWN_DEMO_KEY_IDS.has(row.id) && !demoKeyAllowlist().has(row.id)) return { status: "invalid" }
