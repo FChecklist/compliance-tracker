@@ -109,13 +109,26 @@ export type DocumentFilters = {
   latestOnly?: boolean
 }
 
+// Extracted (R62 B7) so the AND-filter shape -- each of category/
+// linkedEntityType/linkedEntityId/latestOnly is an independent, composable
+// condition, not a group that all-or-nothing applies -- can be asserted by a
+// real test without a live DB. This is deliberate design, not a bug: a
+// caller that knows only linkedEntityId (not its type) can still find the
+// document by ID alone. See platform.r43_faults
+// R60_T2_DOCUMENTS_TYPE_FILTER_REGRESSION for the live re-verification this
+// codifies, and document-service.filters.test.ts for the regression test.
+export function buildDocumentFilterConditions(orgId: string, filters: DocumentFilters = {}) {
+  const conditions = [eq(documents.orgId, orgId)]
+  if (filters.category) conditions.push(eq(documents.category, filters.category))
+  if (filters.linkedEntityType) conditions.push(eq(documents.linkedEntityType, filters.linkedEntityType))
+  if (filters.linkedEntityId) conditions.push(eq(documents.linkedEntityId, filters.linkedEntityId))
+  if (filters.latestOnly !== false) conditions.push(eq(documents.isLatestVersion, true))
+  return conditions
+}
+
 export async function listDocuments(ctx: { orgId: string }, filters: DocumentFilters = {}) {
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const conditions = [eq(documents.orgId, ctx.orgId)]
-    if (filters.category) conditions.push(eq(documents.category, filters.category))
-    if (filters.linkedEntityType) conditions.push(eq(documents.linkedEntityType, filters.linkedEntityType))
-    if (filters.linkedEntityId) conditions.push(eq(documents.linkedEntityId, filters.linkedEntityId))
-    if (filters.latestOnly !== false) conditions.push(eq(documents.isLatestVersion, true))
+    const conditions = buildDocumentFilterConditions(ctx.orgId, filters)
 
     return db.query.documents.findMany({
       where: and(...conditions),
