@@ -5,6 +5,7 @@ import { db, users, organisations, accessReviewCertifications } from "@/lib/db"
 import { eq, and } from "drizzle-orm"
 import type { User } from "@supabase/supabase-js"
 import { validateApiKey } from "./api-key-auth"
+import { lookupUserByEmail } from "@/lib/db/preauth-lookups"
 import { assignSeat } from "@/lib/org-license-service"
 import { consumeInviteLinkAndProvisionUser } from "@/lib/invite-link-service"
 import { redeemJoinCodeAndProvisionUser } from "@/lib/org-join-code-service"
@@ -263,7 +264,10 @@ async function autoProvisionUser(authUser: User): Promise<typeof users.$inferSel
     // Likely a duplicate-email race with a concurrent request -- re-read
     // whatever the other request created rather than erroring out.
     console.warn("Auto-provision race or failure, re-checking for existing user:", err)
-    return await db.query.users.findFirst({ where: eq(users.email, email) }) ?? null
+    // CRR-027 expand step (see src/lib/db/preauth-lookups.ts): this is the
+    // same preauth-by-email shape as requireAuth()'s primary lookup below,
+    // so it goes through the same narrow SECURITY DEFINER function.
+    return await lookupUserByEmail(email)
   }
 }
 
@@ -273,7 +277,16 @@ export async function requireAuth(): Promise<AuthContext> {
   if (!user) {
     return { user: null, dbUser: null, orgId: null, response: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
   }
-  let dbUser = await db.query.users.findFirst({ where: eq(users.email, user.email!) }) ?? null
+  // CRR-027 expand step (R-CRR-14, see src/lib/db/preauth-lookups.ts's
+  // header comment): this is THE preauth lookup -- runs before any tenant
+  // context exists, on every authenticated request -- so it now goes
+  // through the narrow SECURITY DEFINER compliance.lookup_user_by_email(text)
+  // function instead of an unrestricted `select *`. The pre-existing
+  // app_runtime_preauth_read_users blanket RLS policy is untouched (still
+  // required by 13 other call sites elsewhere in this codebase, see that
+  // file's header) -- this change alone does not narrow what app_runtime can
+  // read, it only stops relying on the blanket policy at this one call site.
+  let dbUser = await lookupUserByEmail(user.email!)
 
   // Link this Supabase Auth identity to its compliance.users row on first
   // sight, regardless of login method (password/magic-link/OAuth all resolve

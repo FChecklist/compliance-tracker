@@ -10,12 +10,20 @@ import { describe, test, expect, mock, afterEach, beforeEach } from "bun:test"
 function mockDbFor(row: Record<string, unknown> | undefined) {
   mock.module("@/lib/db", () => ({
     db: {
-      query: { apiKeys: { findFirst: mock(async () => row) } },
       update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
       insert: () => ({ values: () => Promise.resolve() }),
       select: () => ({ from: () => ({ where: () => Promise.resolve([{ count: 0 }]) }) }),
     },
     apiKeys: {}, apiKeyRequestLog: {},
+  }))
+  // CRR-028 expand step: validateApiKey() now resolves the key via
+  // lookupApiKeyByHash() (src/lib/db/preauth-lookups.ts, calls the
+  // SECURITY DEFINER compliance.lookup_api_key_by_hash function) instead of
+  // db.query.apiKeys.findFirst directly -- mock that module instead of
+  // db.query so this suite exercises the real current call path rather than
+  // a stale one.
+  mock.module("@/lib/db/preauth-lookups", () => ({
+    lookupApiKeyByHash: mock(async () => row ?? null),
   }))
   mock.module("@/lib/api-keys", () => ({ hashSHA256: mock(async () => "hash-doesnt-matter") }))
 }
