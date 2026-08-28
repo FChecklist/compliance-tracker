@@ -7,7 +7,7 @@
 // file-upload UI PROJEXA doesn't have yet -- deliberately left for a
 // follow-up rather than a half-working upload form.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listImports, listLines, ServiceError } from "@/lib/services/erp-bank-reconciliation-service"
 
 export async function GET(request: NextRequest) {
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   // higher one with no precedent anywhere else in /api/v1/projexa/**.
   const roleErr = requireRoleOrScope(ctx, "member", "read")
   if (roleErr) return roleErr
-  if (!ctx.orgId) return NextResponse.json({ imports: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const importId = request.nextUrl.searchParams.get("importId")

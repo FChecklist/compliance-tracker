@@ -526,6 +526,30 @@ export async function resolveActingUser(
   return { user: actingUser, error: null }
 }
 
+// E-52 (R60/R62 sweep, platform.r43_faults fault_id LIKE 'E52_%'): the
+// house pattern this repo's v1 GET handlers kept repeating --
+// `if (!ctx.orgId) return NextResponse.json({ <empty shape> })` -- returns
+// a fake-success 200 with empty/default data on a broken auth/org context,
+// indistinguishable from a real, legitimately-empty tenant. The sibling
+// POST/PUT/DELETE in the SAME file almost always already returned a real
+// 400 for the identical condition (see e544eebe/#1418, the first 4-route
+// fix in this series) -- this is that same fix applied as one shared guard
+// instead of 76 hand-copied one-off edits, so the next new route gets it
+// for free and a future GET can't silently reintroduce the old shape.
+// Structurally typed on `{ orgId }` alone (not AuthContext/
+// CombinedAuthContext specifically) so it works at any call site that has
+// already resolved a ctx with an orgId field, session or API-key alike.
+// See src/lib/supabase/org-guard-sweep.test.ts for the filesystem-walking
+// regression test that fails CI if a new silent-empty-200 orgId guard is
+// ever added outside this function.
+export function requireOrg(
+  ctx: { orgId: string | null },
+  message: string = "No organisation on this account"
+): NextResponse | null {
+  if (ctx.orgId) return null
+  return NextResponse.json({ error: message }, { status: 400 })
+}
+
 // A real logged-in session always has full access -- scopes are an API-key-
 // only concept (a session's actual permissions are governed by role/rank
 // via hasRole()/requireRole(), a separate axis from read/write scopes).

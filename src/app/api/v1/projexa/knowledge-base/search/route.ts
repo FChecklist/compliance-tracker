@@ -1,13 +1,13 @@
 // Priority 17 Wave 1: thin alias over knowledge-base-service.ts's
 // searchKbPages(). No gate -- see ../route.ts header.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireOrg } from "@/lib/supabase/auth-guard"
 import { searchKbPages, ServiceError } from "@/lib/services/knowledge-base-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ pages: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const q = request.nextUrl.searchParams.get("q") ?? ""

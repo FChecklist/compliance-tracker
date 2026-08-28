@@ -10,7 +10,7 @@
 // "My Timesheet" view can reuse the existing per-project listing without
 // adding business logic here beyond a plain array filter.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, requireOrg } from "@/lib/supabase/auth-guard"
 import { listTimeEntriesForProject, listTimeEntriesForIssue, logTime, ServiceError } from "@/lib/services/pms-time-service"
 
 // R43_MGR_02 (production incident, live Vercel runtime telemetry): this
@@ -49,7 +49,7 @@ async function readJsonBody(request: NextRequest): Promise<any> {
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ entries: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   const issueId = request.nextUrl.searchParams.get("issueId")

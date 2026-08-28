@@ -5,7 +5,7 @@
 // route knows how to validate+write its own active table -- see that
 // route's own header comment.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, resolveActingUser, requireOrg } from "@/lib/supabase/auth-guard"
 import { startDraft, DraftLockedError } from "@/lib/screens/draft-service"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
 import { screenDrafts } from "@/lib/db/schema"
@@ -14,7 +14,7 @@ import { and, eq } from "drizzle-orm"
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ draft: null })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const functionId = request.nextUrl.searchParams.get("functionId")
   const objectId = request.nextUrl.searchParams.get("objectId")

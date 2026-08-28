@@ -8,7 +8,7 @@
 // `constructionDrawings` table would fragment retention/versioning/
 // auto-classification that this row already gets for free.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listDocuments, createDocumentRecord, ServiceError } from "@/lib/services/document-service"
 import { createClient } from "@supabase/supabase-js"
 
@@ -48,7 +48,7 @@ async function toDrawingDto(
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ drawings: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   const projectId = request.nextUrl.searchParams.get("projectId")
   if (!projectId) return NextResponse.json({ error: "projectId query param is required" }, { status: 400 })

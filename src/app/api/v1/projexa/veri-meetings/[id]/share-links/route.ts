@@ -5,7 +5,7 @@
 // unchanged (Wave 44) -- no second share mechanism, matching R-C15's own
 // precedent (compliance-tracker#1331) this row explicitly says to reuse.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { createMeetingShareLink, listMeetingShareLinks, ServiceError } from "@/lib/services/veri-meeting-service"
 
 type RouteContext = { params: Promise<{ id: string }> }
@@ -13,7 +13,7 @@ type RouteContext = { params: Promise<{ id: string }> }
 export async function GET(request: NextRequest, { params }: RouteContext) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ links: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const { id } = await params

@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listBudgets, createBudget, ServiceError } from "@/lib/services/erp-budget-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ budgets: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const budgets = await listBudgets({ orgId: ctx.orgId })

@@ -3,13 +3,13 @@
 // employee link are deliberately deferred to a follow-up wave -- see PR
 // description.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, requireOrg } from "@/lib/supabase/auth-guard"
 import { listApplications, createApplication, ServiceError } from "@/lib/services/recruitment-service"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
   if (ctx.response) return ctx.response
-  if (!ctx.orgId) return NextResponse.json({ applications: [] })
+  if (!ctx.orgId) return requireOrg(ctx)!
 
   try {
     const jobOpeningId = request.nextUrl.searchParams.get("jobOpeningId") || undefined
