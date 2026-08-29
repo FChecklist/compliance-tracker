@@ -13,6 +13,18 @@ const DEMO_EMAIL = "democeo@projexa-ai.com";
 const DEMO_PASSWORD = "TestR63Verify_29Aug!";
 
 test("R63: login -> select PROJEXA chain -> dispatch -> real task created", async ({ page }) => {
+  // CI-safety fix (found the hard way -- this failed PR #1454's E2E Tests
+  // job with ERR_CONNECTION_REFUSED at http://localhost:3000/login): this
+  // spec is a manual local-dev diagnostic against a real running `bun run
+  // dev` server on THIS laptop, not a CI-safe test -- no dev server is
+  // started in the CI runner (see ci.yml's e2e job: no `webServer` in
+  // playwright.config.ts, no local build/serve step), and demo-gate-
+  // smoke.spec.ts already establishes the repo's convention for what a
+  // real CI-safe E2E test targets (production, not localhost). GitHub
+  // Actions sets CI=true on every run; skip there rather than failing on
+  // an environment this test was never meant to run against.
+  test.skip(!!process.env.CI, "Local-only manual diagnostic against a running `bun run dev` server -- not wired for CI (no dev server started there).");
+
   await page.goto(`${BASE_URL}/login`);
   await page.getByPlaceholder("you@company.com").fill(DEMO_EMAIL);
   await page.getByPlaceholder("Enter your password").fill(DEMO_PASSWORD);
