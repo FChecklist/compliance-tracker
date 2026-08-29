@@ -7,12 +7,18 @@
 // M26/M27 ask for one narrow interface here, and reusing that larger
 // machinery would re-couple exactly what this pipeline exists to keep simple.
 import { callLLMJson } from "@/lib/llm-client";
+import { resolvePipelineModel } from "@/lib/ai/level-model-registry";
 import type { AiProvider, ClassificationResult, Artifact, ClassifyContext } from "../adapter";
 
 // M26 target models -- exact OpenRouter slugs are an ops/cost decision, not
-// a code one, so both are env-overridable with a documented default.
-const L1_MODEL = process.env.AI_L1_MODEL ?? "deepseek/deepseek-chat";
-const L2_MODEL = process.env.AI_L2_MODEL ?? "deepseek/deepseek-chat-v3.1"; // "Pro" tier per M26; falls back to the same family as L1 if unset rather than a hardcoded guess at a Pro-tier slug
+// a code one. R63 (owner directive, 2026-08-29): resolved fresh on every
+// call via resolvePipelineModel() (an owner-editable platform.
+// pipeline_level_models row, hot-reloaded within 60s, no redeploy) -- these
+// two constants are now ONLY the documented fallback used when no active
+// override row exists, never the live value directly. Env vars still work
+// as the fallback's own override, unchanged for anyone relying on them.
+const L1_MODEL_FALLBACK = process.env.AI_L1_MODEL ?? "deepseek/deepseek-chat";
+const L2_MODEL_FALLBACK = process.env.AI_L2_MODEL ?? "deepseek/deepseek-chat-v3.1"; // "Pro" tier per M26; falls back to the same family as L1 if unset rather than a hardcoded guess at a Pro-tier slug
 
 function requireApiKey(): string {
   const key = process.env.OPENROUTER_API_KEY;
@@ -50,11 +56,12 @@ export const openrouterProvider: AiProvider = {
   async classify(segments: string[], candidateFunctions: string[], context: ClassifyContext): Promise<ClassificationResult[]> {
     if (segments.length === 0) return [];
     const apiKey = requireApiKey();
+    const model = await resolvePipelineModel("pipeline_l1", L1_MODEL_FALLBACK);
     // ONE call for ALL unresolved segments (M27) -- never one call per segment.
     const userMessage = JSON.stringify({ segments, candidateFunctions, context });
     const { data } = await callLLMJson<{ results: ClassificationResult[] }>(
       "openrouter",
-      L1_MODEL,
+      model,
       apiKey,
       CLASSIFY_SYSTEM_PROMPT,
       userMessage,
@@ -79,9 +86,10 @@ export const openrouterProvider: AiProvider = {
 
   async analyse(batchInput: unknown): Promise<Artifact[]> {
     const apiKey = requireApiKey();
+    const model = await resolvePipelineModel("pipeline_l2", L2_MODEL_FALLBACK);
     const { data } = await callLLMJson<{ artifacts: Artifact[] }>(
       "openrouter",
-      L2_MODEL,
+      model,
       apiKey,
       ANALYSE_SYSTEM_PROMPT,
       JSON.stringify(batchInput),

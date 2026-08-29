@@ -11642,6 +11642,30 @@ export const aiModelRegistry = platformSchemaDB.table('ai_model_registry', {
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// R63 (owner directive, 2026-08-29): AI-agnostic pipeline levels -- "level
+// 1/2/3 must not be hardcoded, must be owner-changeable at any time,
+// across VERIDIAN AI OS ERP and every product including PROJEXA-AI.COM."
+// Deliberately its OWN table, not a 5th value bolted onto
+// aiModelRegistry.role above -- that column's own comment already
+// enumerates exactly 4 reserved meanings for orchestra-model-resolver.ts's
+// failover chain; this answers a different question ("which model does
+// src/lib/pipeline's L1/L2 classifier use, platform-wide") and is read by
+// src/lib/ai/level-model-registry.ts. No RLS: platform-wide, same posture
+// as aiModelRegistry/aiRoutingPolicies just above.
+export const pipelineLevelEnum = platformSchemaDB.enum('pipeline_level', ['pipeline_l1', 'pipeline_l2'])
+
+export const pipelineLevelModels = platformSchemaDB.table('pipeline_level_models', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  level: pipelineLevelEnum('level').notNull(),
+  provider: text('provider').notNull(),
+  model: text('model').notNull(),
+  status: aiModelStatusEnum('status').notNull().default('active'),
+  reason: text('reason'),
+  updatedById: text('updated_by_id'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const aiRoutingPolicies = platformSchemaDB.table('ai_routing_policies', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   scope: aiRouterScopeEnum('scope').notNull(),
