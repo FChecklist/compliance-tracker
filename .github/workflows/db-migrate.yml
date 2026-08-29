@@ -50,20 +50,23 @@ jobs:
             console.log(JSON.stringify(j.entries.slice(-10).map(e => ({idx: e.idx, tag: e.tag, when: e.when})), null, 2));
           "
       - name: Apply migrations
-        # Live-tested 2026-08-29, two real issues found and fixed in turn:
+        # Live-tested 2026-08-29, three real issues found and fixed in turn:
         # (1) secrets.DATABASE_URL is the app_runtime role (correct for the
         # app's own queries at runtime) -- but DDL needs a role with
         # schema-owner privileges, which app_runtime deliberately does not
-        # have. (2) Switching to the postgres superuser role via the
-        # PgBouncer transaction-mode POOLER (port 6543, postgres.<ref>@
-        # ...pooler.supabase.com) authenticated fine but then failed on
-        # `CREATE SCHEMA IF NOT EXISTS "drizzle"` -- a known Supabase/
-        # Supavisor limitation, transaction-mode pooling does not reliably
-        # support DDL/session-level operations. Supabase's own guidance:
-        # use the DIRECT connection for migrations, not the pooler.
+        # have. (2) The postgres superuser role via the PgBouncer
+        # TRANSACTION-mode pooler (port 6543) authenticated fine but failed
+        # on `CREATE SCHEMA IF NOT EXISTS "drizzle"` -- transaction-mode
+        # pooling does not reliably support DDL/session-level operations.
+        # (3) The true direct-connection hostname (db.<ref>.supabase.co)
+        # does not resolve for this project (ENOTFOUND) -- direct
+        # connections aren't reachable here (IPv4/network config, not
+        # something this workflow controls). Landed on Supabase's SESSION-
+        # mode pooler instead: same pooler hostname as (2), port 5432 (not
+        # 6543) -- full DDL/session support, and actually reachable.
         # Composed entirely from existing secrets (SUPABASE_PROJECT_REF +
         # SUPABASE_DB_PASS) -- no new secret added, neither value ever
         # read/logged by this session.
         run: bun run db:migrate
         env:
-          DATABASE_URL: "postgresql://postgres:${{ secrets.SUPABASE_DB_PASS }}@db.${{ secrets.SUPABASE_PROJECT_REF }}.supabase.co:5432/postgres"
+          DATABASE_URL: "postgresql://postgres.${{ secrets.SUPABASE_PROJECT_REF }}:${{ secrets.SUPABASE_DB_PASS }}@aws-1-ap-south-1.pooler.supabase.com:5432/postgres"
