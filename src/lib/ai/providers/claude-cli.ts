@@ -23,7 +23,23 @@ const CLAUDE_CLI_TIMEOUT_MS = 60_000;
 // past what's safe to pass as a single shell argument) and capturing stdout.
 function runClaudeCli(prompt: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn("claude", ["-p"], { stdio: ["pipe", "pipe", "pipe"] });
+    // R63 (2026-08-29): real, reproduced Windows bug -- a global npm install
+    // of the `claude` CLI resolves to `claude.cmd` on Windows (confirmed via
+    // `where claude`: both a shebang script and a .cmd shim exist side by
+    // side), and Node's child_process.spawn() does NOT try PATHEXT-based
+    // extensions unless shell:true is set -- without it, this call fails
+    // 100%-reproducibly with `spawn claude ENOENT` on Windows, confirmed
+    // with a minimal, isolated repro matching this exact call shape before
+    // this fix. Naming "claude.cmd" directly (skipping shell:true) was tried
+    // first and is WORSE, not better -- Node throws a SYNCHRONOUS EINVAL for
+    // a bare spawn() of a .cmd/.bat file on some Node versions, uncatchable
+    // via this function's own 'error'-event handler below, confirmed live.
+    // shell:true is the one that actually works, and is safe here: argv is
+    // two fixed literals ("claude","-p"), never user input -- the
+    // args-escaping deprecation warning this triggers is about untrusted
+    // argv content, which does not apply, and the prompt itself still goes
+    // over stdin, untouched by shell parsing either way.
+    const child = spawn("claude", ["-p"], { stdio: ["pipe", "pipe", "pipe"], shell: true });
     let stdout = "";
     let stderr = "";
     const timer = setTimeout(() => {
