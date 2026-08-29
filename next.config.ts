@@ -24,7 +24,15 @@ const nextConfig: NextConfig = {
   // analyze/inline its dynamic requires -- this repo's first use of this
   // option, matching Next.js's own standard guidance for native-binding
   // packages (e.g. sharp).
-  serverExternalPackages: ["@memvid/sdk"],
+  // R63 (owner directive, 2026-08-29): @modelcontextprotocol/sdk's ajv/
+  // ajv-formats dependency chain fails to resolve under Turbopack
+  // ("Module not found: Can't resolve 'ajv/dist/compile/codegen'") --
+  // confirmed live on this repo's own CI (compliance-tracker PR #1448,
+  // run 33242595418), a known category of ajv-vs-bundler export-map
+  // incompatibility, not a bug in this repo's code. Only ever used from
+  // src/app/api/mcp/[token]/route.ts, a server-only route -- externalizing
+  // is the same standard fix @memvid/sdk above already uses.
+  serverExternalPackages: ["@memvid/sdk", "@modelcontextprotocol/sdk"],
 };
 
 // PLATFORM-01 Wave 2 (Workstream 5): wires the already-installed-but-
