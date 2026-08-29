@@ -24,16 +24,22 @@ try {
   console.log("Migrations applied successfully.");
 } catch (err) {
   console.error("Migration failed:", err.message);
+  console.error("own keys:", Object.getOwnPropertyNames(err));
+  console.error("cause:", err.cause ? err.cause.message : null);
+  console.error("cause own keys:", err.cause ? Object.getOwnPropertyNames(err.cause) : null);
+  const src = err.cause ?? err;
   console.error(
     "Details:",
     JSON.stringify(
       {
-        code: err.code,
-        detail: err.detail,
-        hint: err.hint,
-        schema: err.schema_name,
-        table: err.table_name,
-        position: err.position,
+        code: src.code,
+        detail: src.detail,
+        hint: src.hint,
+        schema: src.schema_name,
+        table: src.table_name,
+        position: src.position,
+        severity: src.severity,
+        routine: src.routine,
       },
       null,
       2,
