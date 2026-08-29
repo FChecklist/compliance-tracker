@@ -2122,6 +2122,13 @@
       "when": 1787839203000,
       "tag": "0331_r63_ai_connector_providers",
       "breakpoints": true
+    },
+    {
+      "idx": 303,
+      "version": "7",
+      "when": 1787839204000,
+      "tag": "0332_r63_fix_auth_user_id_wrong_fk_target",
+      "breakpoints": true
     }
   ]
 }
