@@ -50,7 +50,10 @@
           "punchList": "Punch List",
           "scope": "Scope (BOQ)",
           "labour": "Labour",
-          "expenses": "Expenses"
+          "expenses": "Expenses",
+          "permits": "Permits",
+          "materials": "Materials",
+          "schedule": "Schedule"
         }
       },
       "constructionDesign": {

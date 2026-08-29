@@ -50,7 +50,10 @@
           "punchList": "पंच लिस्ट",
           "scope": "स्कोप (BOQ)",
           "labour": "श्रम",
-          "expenses": "व्यय"
+          "expenses": "व्यय",
+          "permits": "परमिट",
+          "materials": "सामग्री",
+          "schedule": "शेड्यूल"
         }
       },
       "constructionDesign": {

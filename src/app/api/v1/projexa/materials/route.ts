@@ -5,8 +5,11 @@
 // naturally for a construction integrator (POST a receipt/issue), so this
 // namespace doesn't duplicate them, only the read-side ledger listing.
 import { NextRequest, NextResponse } from "next/server"
+import { inArray, eq, and } from "drizzle-orm"
 import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
 import { listStockLedger, ServiceError } from "@/lib/services/erp-inventory-service"
+import { db } from "@/lib/db"
+import { erpItems, erpWarehouses } from "@/lib/db/schema"
 
 export async function GET(request: NextRequest) {
   const ctx = await requireAuthOrApiKey(request)
@@ -18,10 +21,38 @@ export async function GET(request: NextRequest) {
       itemId: request.nextUrl.searchParams.get("materialId") ?? undefined,
       warehouseId: request.nextUrl.searchParams.get("warehouseId") ?? undefined,
     })
+
+    // R63/Sumeet-modules gap-closure (2026-08-29): this route's own mapped
+    // output previously exposed only raw itemId/warehouseId UUIDs -- the
+    // one new consumer (the /materials page, built the same day this was
+    // found) needs a real material NAME to be usable at all, not just an
+    // opaque id. erp-inventory-service.ts's own listItemBalances() already
+    // does this exact itemId->erpItems join a few functions over; mirrored
+    // here rather than changing listStockLedger's return shape (other
+    // existing callers of listStockLedger depend on its current shape).
+    const itemIds = [...new Set(entries.map((e) => e.itemId))]
+    const warehouseIds = [...new Set(entries.map((e) => e.warehouseId))]
+    const [items, warehouses] = itemIds.length > 0 || warehouseIds.length > 0
+      ? await Promise.all([
+          itemIds.length > 0
+            ? db.query.erpItems.findMany({ where: and(eq(erpItems.orgId, ctx.orgId), inArray(erpItems.id, itemIds)) })
+            : Promise.resolve([]),
+          warehouseIds.length > 0
+            ? db.query.erpWarehouses.findMany({ where: and(eq(erpWarehouses.orgId, ctx.orgId), inArray(erpWarehouses.id, warehouseIds)) })
+            : Promise.resolve([]),
+        ])
+      : [[], []]
+    const itemMap = new Map(items.map((i) => [i.id, i]))
+    const warehouseMap = new Map(warehouses.map((w) => [w.id, w]))
+
     const materials = entries.map((e) => ({
       id: e.id, materialId: e.itemId, warehouseId: e.warehouseId, postingDate: e.postingDate,
       movementType: e.voucherType, quantityChange: e.quantityChange, valuationRate: e.valuationRate,
       balanceQuantity: e.balanceQty, balanceValue: e.balanceValue, projectId: e.projectId,
+      itemCode: itemMap.get(e.itemId)?.itemCode ?? null,
+      itemName: itemMap.get(e.itemId)?.itemName ?? null,
+      uom: itemMap.get(e.itemId)?.uom ?? null,
+      warehouseName: warehouseMap.get(e.warehouseId)?.warehouseName ?? null,
     }))
     return NextResponse.json({ materials })
   } catch (error) {
