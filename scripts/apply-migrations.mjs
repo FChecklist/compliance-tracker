@@ -16,7 +16,15 @@ if (!databaseUrl) {
   process.exit(1);
 }
 
-const sql = postgres(databaseUrl, { max: 1 });
+// prepare: false -- required when connecting through Supabase's
+// transaction-mode pooler (port 6543). postgres.js prepares statements by
+// default; transaction-mode pooling (Supavisor/PgBouncer) does not
+// support session-scoped prepared statements, which is what was actually
+// causing "CREATE SCHEMA IF NOT EXISTS" to fail (not a permissions or
+// connectivity problem -- both were red herrings chased first). This is
+// Supabase's own documented requirement for using postgres.js with the
+// transaction pooler, not specific to migrations.
+const sql = postgres(databaseUrl, { max: 1, prepare: false });
 const db = drizzle(sql);
 
 try {
