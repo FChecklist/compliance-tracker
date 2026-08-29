@@ -38,6 +38,8 @@ import {
   ServerCrash,
   UserCheck,
   FileWarning,
+  CalendarClock,
+  Package,
   Radio,
   FileSignature,
   CheckCircle2,
@@ -210,6 +212,16 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
         { label: t("sections.construction.items.scope"), href: "/scope", icon: Ruler },
         { label: t("sections.construction.items.labour"), href: "/labour", icon: HardHat },
         { label: t("sections.construction.items.expenses"), href: "/expenses", icon: CircleDollarSign },
+        // R63/Sumeet-modules gap-closure (2026-08-29): backend for all 3 of
+        // these existed pre-wave (permits since Priority 13, materials
+        // since Wave 124, schedule since Priority 16 Part 2 -- see each
+        // route's own header comment) but none had a page or a nav link,
+        // confirmed via a real local browser walkthrough. Pages built the
+        // same day this was found, same list(+create) shell as their
+        // Construction-section siblings above.
+        { label: t("sections.construction.items.permits"), href: "/permits", icon: FileWarning },
+        { label: t("sections.construction.items.materials"), href: "/materials", icon: Package },
+        { label: t("sections.construction.items.schedule"), href: "/schedule", icon: CalendarClock },
         { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
         { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
         { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },
