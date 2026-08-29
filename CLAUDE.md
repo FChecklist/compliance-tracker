@@ -41,10 +41,16 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `bun run db:seed` — seed database (src/db/seed.ts)
 
 ## Env Vars Required
-- `DATABASE_URL` — PostgreSQL connection string (Supabase pooler preferred)
-- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key
+- `DATABASE_URL` — PostgreSQL connection string (Supabase pooler preferred). **This app uses TWO separate Supabase projects, confirmed live 2026-08-29 — don't assume one project's ref covers both:**
+  - `pcrjmlpuqsbocqfwoxod` ("verdian-ai") — the app's own business schema (`platform.*`/`compliance.*`), what `DATABASE_URL`/`APP_RUNTIME_DATABASE_URL` point at.
+  - `evpckeuxgvahguwsaeul` ("projexa") — the actual auth/identity backend, what `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_ANON_KEY` point at (confirmed via real login network requests hitting `evpckeuxgvahguwsaeul.supabase.co/auth/v1/token`). An older note pointing both vars at `pcrjmlpuqsbocqfwoxod` was stale/wrong.
+- `NEXT_PUBLIC_SUPABASE_URL` — Supabase project URL (auth backend — `evpckeuxgvahguwsaeul`, see above)
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY` — Supabase anon key (same project as above)
 - `SUPABASE_SERVICE_ROLE_KEY` — Supabase service role (server-side only)
+
+## Local Dev on Windows — 2 real gotchas (2026-08-29)
+- **`bun run dev` fails** (`bun: command not found: tee`) — the script pipes through `tee dev.log`, which bun's Windows script runner doesn't support. Run the underlying command directly instead: `node scripts/generate-protected-routes.mjs && bunx next dev -p 3000`.
+- **Turbopack panics with `path length ... exceeds max length of filesystem`** if the clone lives at a long/deeply-nested path (e.g. under a deep temp/scratchpad directory). Clone to a short path instead (e.g. `C:\ct\ct`) for any local dev/build work on Windows.
 
 ## High-Risk Files (Large + Untested)
 
