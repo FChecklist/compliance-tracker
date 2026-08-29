@@ -65,9 +65,14 @@ jobs:
         # statements, which transaction-mode pooling does not support.
         # Fixed at the driver level (scripts/apply-migrations.mjs's
         # `prepare: false`), not the connection string.
-        # Composed entirely from existing secrets (SUPABASE_PROJECT_REF +
-        # SUPABASE_DB_PASS) -- no new secret added, neither value ever
-        # read/logged by this session.
+        # secrets.SUPABASE_PROJECT_REF turned out to be stale/wrong --
+        # using it produced "tenant/user postgres.*** not found" at every
+        # port, while the literal, known-correct ref (pcrjmlpuqsbocqfwoxod,
+        # confirmed via this same DB's own Management API project listing)
+        # authenticates correctly. A project ref isn't secret (it's visible
+        # in this project's own dashboard/API URLs) -- hardcoded directly;
+        # only the actual password (SUPABASE_DB_PASS) needs to stay a
+        # secret.
         run: bun run db:migrate
         env:
-          DATABASE_URL: "postgresql://postgres.${{ secrets.SUPABASE_PROJECT_REF }}:${{ secrets.SUPABASE_DB_PASS }}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
+          DATABASE_URL: "postgresql://postgres.pcrjmlpuqsbocqfwoxod:${{ secrets.SUPABASE_DB_PASS }}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
