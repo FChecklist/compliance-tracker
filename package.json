@@ -30,6 +30,7 @@
     "@mdxeditor/editor": "^3.39.1",
     "@memvid/sdk": "^2.0.160",
     "@mlc-ai/web-llm": "^0.2.84",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "@node-saml/node-saml": "^5.1.0",
     "@paralleldrive/cuid2": "^3.3.0",
     "@radix-ui/react-accordion": "^1.2.11",
