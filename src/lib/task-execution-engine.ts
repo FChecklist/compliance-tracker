@@ -4,7 +4,7 @@ import { eq, and, asc, desc, gte, lte, ne, inArray, sql } from "drizzle-orm";
 import { escalatedPlatformConfig } from "@/lib/orchestra-model-resolver";
 import { resolveModel as resolveMotherRouterModel } from "@/lib/ai-router/mother-router";
 import { callLLMJson } from "@/lib/llm-client";
-import { buildPurposeClause, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
+import { buildMultiDomainPurposeClause, resolveOrgDomains, isToolAllowedForDomain, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai";
 import { enforcePolicy, refusalMessageFor } from "@/lib/policy-enforcement-engine";
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver";
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger";
@@ -249,6 +249,47 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   if (codeReference === "list_gst_returns") {
     const { listReturns } = await import("@/lib/services/gst-reconciliation-service");
     return listReturns({ orgId });
+  }
+
+  // R63 gap-closure (2026-08-29, owner directive: "complete the big domain/
+  // tool-scoping fix"): the pipeline's whole candidate set (pipeline/
+  // executor.ts's EXECUTABLE_FUNCTION_IDS) was 8 functions, all construction
+  // -- confirmed live, reproduced ("raise an invoice" refused, VERI ERP's
+  // own chain-pill had nothing to select). ERP and CRM had real, fully-built
+  // service layers (erp-selling-service.ts/crm-service.ts) with real pages
+  // this same session already confirmed live, but zero AI tools reaching
+  // them. These 5 are read-only (matching this file's own established
+  // read/write split -- writes stay structured-dispatch-only, same as
+  // update_compliance_status above), org-scoped, and each a thin wrapper
+  // over an already-tested service function -- same shape as the
+  // construction reads below. Each service call already enforces its own
+  // per-org module enablement (requireErpEnabled/requireSalesEnabled) and
+  // fails honestly (ServiceError, caught by executor.ts's try/catch) for an
+  // org that hasn't purchased that module -- no new enablement logic needed
+  // here.
+  if (codeReference === "list_customers") {
+    const { listCustomers } = await import("@/lib/services/erp-selling-service");
+    return listCustomers({ orgId });
+  }
+
+  if (codeReference === "list_sales_orders") {
+    const { listSalesOrders } = await import("@/lib/services/erp-selling-service");
+    return listSalesOrders({ orgId });
+  }
+
+  if (codeReference === "list_leads") {
+    const { listLeads } = await import("@/lib/services/crm-service");
+    return listLeads({ orgId });
+  }
+
+  if (codeReference === "list_opportunities") {
+    const { listOpportunities } = await import("@/lib/services/crm-service");
+    return listOpportunities({ orgId });
+  }
+
+  if (codeReference === "get_sales_pipeline_overview") {
+    const { getSalesPipelineOverview } = await import("@/lib/services/crm-service");
+    return getSalesPipelineOverview({ orgId });
   }
 
   if (codeReference === "confirm_gst_batch") {
@@ -2003,8 +2044,11 @@ async function executePackageDispatch(
       const modelConfig = (await resolveMotherRouterModel({ scope: "end_user_org", orgId, layerKey: "task_oa" })).resolvedConfig ?? null;
       if (!modelConfig) throw new Error("No LLM provider is configured for this organisation (task_oa layer).");
 
+      // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
+      // hardcoded to "compliance" regardless of what this org has enabled.
+      const orgDomains = await resolveOrgDomains(orgId);
       const systemPrompt =
-        `${buildPurposeClause(DEFAULT_DOMAIN)}\n\n` +
+        `${buildMultiDomainPurposeClause(orgDomains)}\n\n` +
         "You are executing a single pre-approved, narrow instruction package. " +
         "Follow ONLY the numbered steps below, using ONLY the variable values provided. " +
         "Do not reason beyond what is written, and do not use any information beyond the steps and variables given. " +
@@ -2333,7 +2377,10 @@ export async function executeTask(
 
     const agentList = agents.map((a) => `- ${a.name} (${a.tier}${a.domain ? `, ${a.domain}` : ""})`).join("\n");
     const systemPromptTemplate = await resolvePromptTemplate("task_execution.planning_system");
-    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN));
+    // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
+    // hardcoded to "compliance" regardless of what this org has enabled.
+    const orgDomains = await resolveOrgDomains(orgId);
+    const systemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildMultiDomainPurposeClause(orgDomains));
     const memoryBlock = memories.length > 0
       ? `\n\nRelevant memories from this assistant's past work (may or may not apply here):\n${memories.map((m) => `- [${m.category}] ${m.content}`).join("\n")}`
       : "";

@@ -169,3 +169,53 @@ export function seedPhrases(): SeedPhrase[] {
 export function seedSources(): { functionId: string; source: string; phraseCount: number }[] {
   return CATALOGUE.map((c) => ({ functionId: c.functionId, source: c.source, phraseCount: c.phrases.length }));
 }
+
+// R63 gap-closure (2026-08-29, owner directive: "complete the big domain/
+// tool-scoping fix") -- a SEPARATE catalogue, deliberately not merged into
+// CATALOGUE above: R53 Phase 7's own rule ("REGISTER NO FUNCTION OUTSIDE
+// THE 70") is a real, still-true boundary for Sumeet's construction
+// requirement set, and folding these in would misrepresent them as part of
+// that 70. These are the compliance/ERP/CRM read-only functions added to
+// executor.ts's EXECUTORS this same pass -- a different work order
+// (platform-wide AI scope, not Sumeet's construction catalogue), so they
+// get their own list rather than stretching the original's stated
+// boundary. Live-inserted for Demo Organization (ve45lczmkodbiq1m20fy48r5)
+// via direct SQL this same session (there is still no live caller of
+// seedPhrases()/this export -- see this file's own header, unchanged
+// since R53: Level 0's phrase tier is fed by whatever is actually in
+// compliance.phrase_map, not by this file running anywhere in production
+// yet). Kept here so the two don't drift, per this file's own
+// "exactly one list, not two" convention -- just two SEPARATE ones for two
+// separate, non-overlapping scopes.
+const ERP_CRM_COMPLIANCE_CATALOGUE: ReadonlyArray<{ functionId: string; source: string; phrases: readonly string[] }> = [
+  { functionId: "get_overdue_items", source: "compliance domain (DOMAIN_ALLOWED_TOOLS.compliance)", phrases: ["show me overdue items", "overdue items", "what is overdue"] },
+  { functionId: "get_compliance_stats", source: "compliance domain", phrases: ["compliance stats", "show me compliance stats"] },
+  { functionId: "list_departments", source: "compliance domain", phrases: ["list my departments", "show departments"] },
+  { functionId: "list_compliance_items", source: "compliance domain", phrases: ["list compliance items"] },
+  { functionId: "list_notices", source: "compliance domain", phrases: ["show my notices", "list notices"] },
+  { functionId: "list_gst_returns", source: "compliance domain", phrases: ["gst filing status", "what is my gst filing status"] },
+  { functionId: "list_gst_import_batches", source: "compliance domain", phrases: ["gst import batches"] },
+  { functionId: "list_customers", source: "erp domain (2026-08-29 addition)", phrases: ["list my customers", "show me my customers", "customers"] },
+  { functionId: "list_sales_orders", source: "erp domain", phrases: ["list my sales orders", "show me sales orders"] },
+  { functionId: "list_leads", source: "crm domain (2026-08-29 addition)", phrases: ["list my leads", "show me my leads", "leads"] },
+  { functionId: "list_opportunities", source: "crm domain", phrases: ["list my opportunities", "show me my opportunities", "opportunities"] },
+  { functionId: "get_sales_pipeline_overview", source: "crm domain", phrases: ["sales pipeline", "show me the sales pipeline", "pipeline overview"] },
+];
+
+export function seedErpCrmCompliancePhrases(): SeedPhrase[] {
+  const out: SeedPhrase[] = [];
+  const claimed = new Map<string, string>();
+  for (const entry of ERP_CRM_COMPLIANCE_CATALOGUE) {
+    for (const raw of entry.phrases) {
+      const phrase = normaliseForMatch(raw);
+      const existing = claimed.get(phrase);
+      if (existing && existing !== entry.functionId) {
+        throw new Error(`phrase-seed: "${phrase}" is claimed by both ${existing} and ${entry.functionId}. Resolve it in ERP_CRM_COMPLIANCE_CATALOGUE, not at insert time.`);
+      }
+      if (existing) continue;
+      claimed.set(phrase, entry.functionId);
+      out.push({ phrase, functionId: entry.functionId });
+    }
+  }
+  return out;
+}

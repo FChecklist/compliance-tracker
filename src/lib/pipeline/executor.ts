@@ -120,10 +120,46 @@ function makeDispatchExecutor(codeReference: string): (task: ExecutableTask) => 
   };
 }
 
+// R63 gap-closure (2026-08-29, owner directive: "complete the big domain/
+// tool-scoping fix"): before this, EXECUTORS (and therefore
+// EXECUTABLE_FUNCTION_IDS, and therefore run-submission.ts's
+// CANDIDATE_FUNCTION_IDS -- the pipeline's WHOLE candidate set) held exactly
+// 8 functions, all construction. Reproduced live: "raise an invoice" via
+// chat got refused, and the composer's own "VERI ERP" chain-pill had
+// nothing to select (platform.dynamic_chains has 1 row total, for a
+// different org). This pipeline can ALSO run compliance/ERP/CRM read-only
+// dispatchTool() functions -- they already exist in task-execution-
+// engine.ts (compliance since Wave 1-era; erp/crm added this same session)
+// -- they were simply never added to this registry. None of these 12 need
+// a project (org-scoped reads only, matching list_over_budget_projects'
+// own posture above); each service call already enforces its own per-org
+// module enablement (requireErpEnabled/requireSalesEnabled) and fails
+// honestly for an org that hasn't purchased that module.
+const READ_ONLY_ORG_SCOPED_FUNCTION_IDS = [
+  // compliance (DOMAIN_ALLOWED_TOOLS.compliance in purpose-bound-ai.ts,
+  // minus get_task_status which needs task context this pipeline doesn't carry)
+  "get_compliance_stats", "get_overdue_items", "list_departments",
+  "list_compliance_items", "list_notices", "list_gst_import_batches", "list_gst_returns",
+  // erp
+  "list_customers", "list_sales_orders",
+  // crm
+  "list_leads", "list_opportunities", "get_sales_pipeline_overview",
+] as const;
+
+function makeOrgScopedExecutor(codeReference: string): (task: ExecutableTask) => Promise<ExecutionOutcome> {
+  return async (task) => {
+    const result = await withTenantContext({ orgId: task.orgId, userId: task.userId }, (db) =>
+      dispatchTool(db, task.orgId, task.userId, codeReference, {})
+    );
+    return { success: true, result };
+  };
+}
+
 const EXECUTORS: Record<string, (task: ExecutableTask) => Promise<ExecutionOutcome>> = {
   record_work_progress: executeRecordWorkProgress,
   get_construction_project_dashboard: executeGetProjectDashboard,
   ...Object.fromEntries(READ_ONLY_DISPATCH_FUNCTION_IDS.map((ref) => [ref, makeDispatchExecutor(ref)])),
+  ...Object.fromEntries(READ_ONLY_ORG_SCOPED_FUNCTION_IDS.map((ref) => [ref, makeOrgScopedExecutor(ref)])),
 };
 
 /**

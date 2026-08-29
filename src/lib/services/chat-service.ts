@@ -13,7 +13,7 @@ import { createId } from "@paralleldrive/cuid2"
 import { after } from "next/server"
 import { resolveModelConfig, escalatedPlatformConfig } from "@/lib/orchestra-model-resolver"
 import { callLLM, type ChatTurn } from "@/lib/llm-client"
-import { buildPurposeClause, buildUserContextBlock, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
+import { buildMultiDomainPurposeClause, resolveOrgDomains, buildUserContextBlock, DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { resolvePromptTemplate } from "@/lib/prompt-os-resolver"
 import { getPreferredAiResponseLocale } from "@/lib/ai-response-locale"
 import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
@@ -695,7 +695,11 @@ async function generateAiReply(
   try {
     const locale = await getPreferredAiResponseLocale()
     const systemPromptTemplate = await resolvePromptTemplate("chat.ai_thread_system", "production", locale)
-    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN) --
+    // hardcoded "compliance" regardless of what this org actually has
+    // enabled. resolveOrgDomains() names every domain real for THIS org.
+    const orgDomains = await resolveOrgDomains(orgId)
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildMultiDomainPurposeClause(orgDomains))
     // V2-13: glossary + linked-entity context, both best-effort and both
     // appended to the STATIC system prompt (not messageForLlm below) -- see
     // formatGlossaryBlock/formatContextEntityBlock's own headers. Fetched in
@@ -951,7 +955,10 @@ async function generateVeriGroupReply(
   try {
     const locale = await getPreferredAiResponseLocale()
     const systemPromptTemplate = await resolvePromptTemplate("chat.veri_group_participant", "production", locale)
-    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildPurposeClause(DEFAULT_DOMAIN))
+    // R63 gap-closure (2026-08-29): was buildPurposeClause(DEFAULT_DOMAIN),
+    // hardcoded to "compliance" -- same fix as generateAiReply() above.
+    const groupOrgDomains = await resolveOrgDomains(orgId)
+    const purposeSystemPrompt = systemPromptTemplate.replace("{{PURPOSE_CLAUSE}}", buildMultiDomainPurposeClause(groupOrgDomains))
     // V2-13: same glossary + linked-entity wiring as generateAiReply() above.
     const [glossaryTerms, contextEntitySummary] = await Promise.all([
       listGlossaryTerms({ orgId }).catch(() => []),
