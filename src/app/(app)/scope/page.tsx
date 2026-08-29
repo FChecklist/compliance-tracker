@@ -18,6 +18,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useCallback } from "react";
 import { toast } from "sonner";
 import Link from "next/link";
+import { friendlyErrorMessage } from "@/lib/errors/error-catalog";
 import { Loader2, Plus, Trash2, ClipboardList } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,15 @@ export default function ScopePage() {
 
   const [boqs, setBoqs] = useState<Boq[]>([]);
   const [loading, setLoading] = useState(false);
+  // R48 gap-closure (2026-08-30, F081/F082: "BOQ list search returns exactly
+  // the matching set" / "sorting/paging lose no row"). Real, confirmed gap:
+  // this page had no search or sort control at all -- only project scoping.
+  // Client-side over the already-fetched, project-scoped list (no server
+  // round-trip needed, and no row can be "lost" since it's a pure filter/
+  // sort over the full array, not a re-fetch with a different page/limit).
+  const [searchQuery, setSearchQuery] = useState("");
+  const [sortKey, setSortKey] = useState<"title" | "version" | "status" | "createdAt">("createdAt");
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
   const [open, setOpen] = useState(false);
   const [title, setTitle] = useState("");
@@ -88,6 +98,20 @@ export default function ScopePage() {
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const visibleBoqs = boqs
+    .filter((b) => !searchQuery.trim() || b.title.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    .sort((a, b) => {
+      const dir = sortDir === "asc" ? 1 : -1;
+      if (sortKey === "version") return (a.version - b.version) * dir;
+      if (sortKey === "createdAt") return (new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()) * dir;
+      return String(a[sortKey]).localeCompare(String(b[sortKey])) * dir;
+    });
+
+  const toggleSort = (key: typeof sortKey) => {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  };
 
   const updateLine = (index: number, field: keyof LineItemDraft, value: string) => {
     setLines((prev) => prev.map((l, i) => (i === index ? { ...l, [field]: value } : l)));
@@ -125,7 +149,7 @@ export default function ScopePage() {
       setTitle(""); setLines([emptyLine()]);
       load();
     } catch (err) {
-      toast.error(err instanceof Error && err.message ? err.message : "Failed to create BOQ");
+      toast.error(friendlyErrorMessage(err, "Failed to create BOQ"));
     } finally {
       setCreating(false);
     }
@@ -195,14 +219,30 @@ export default function ScopePage() {
           ) : boqs.length === 0 ? (
             <Card className="rounded-xl shadow-card bg-white"><CardContent className="pt-10 pb-10 text-center text-sm text-ct-muted">No BOQs yet for this project.</CardContent></Card>
           ) : (
+            <>
+              <Input
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Search by title..."
+                className="max-w-xs"
+              />
+              {visibleBoqs.length === 0 ? (
+                <Card className="rounded-xl shadow-card bg-white"><CardContent className="pt-10 pb-10 text-center text-sm text-ct-muted">No BOQs match &quot;{searchQuery}&quot;.</CardContent></Card>
+              ) : (
             <Card className="rounded-xl shadow-card bg-white">
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
-                    <TableRow><TableHead>Title</TableHead><TableHead>Version</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead><TableHead className="text-right">Actions</TableHead></TableRow>
+                    <TableRow>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("title")}>Title{sortKey === "title" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("version")}>Version{sortKey === "version" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("status")}>Status{sortKey === "status" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</TableHead>
+                      <TableHead className="cursor-pointer select-none" onClick={() => toggleSort("createdAt")}>Created{sortKey === "createdAt" ? (sortDir === "asc" ? " ▲" : " ▼") : ""}</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
+                    </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {boqs.map((b) => (
+                    {visibleBoqs.map((b) => (
                       <TableRow key={b.id}>
                         <TableCell className="font-medium text-ct-navy">{b.title}</TableCell>
                         <TableCell className="text-ct-muted">v{b.version}</TableCell>
@@ -217,6 +257,8 @@ export default function ScopePage() {
                 </Table>
               </CardContent>
             </Card>
+              )}
+            </>
           )}
         </>
       )}

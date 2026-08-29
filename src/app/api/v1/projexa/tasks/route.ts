@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
         functionId: body.functionId.trim(),
         params: (body.params as Record<string, unknown>) ?? {},
         note: typeof body.rawInput === "string" ? body.rawInput : undefined,
+        role: ctx.dbUser?.role ?? null,
       })
       return NextResponse.json(result, { status: 201 })
     }
@@ -78,6 +79,7 @@ export async function POST(request: NextRequest) {
       projectId,
       selectedChain: body.selectedChain,
       rawInput,
+      role: ctx.dbUser?.role ?? null,
     })
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

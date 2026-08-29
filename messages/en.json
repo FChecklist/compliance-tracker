@@ -53,7 +53,8 @@
           "expenses": "Expenses",
           "permits": "Permits",
           "materials": "Materials",
-          "schedule": "Schedule"
+          "schedule": "Schedule",
+          "drawings": "Drawings & 3D"
         }
       },
       "constructionDesign": {

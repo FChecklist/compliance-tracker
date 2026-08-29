@@ -7,9 +7,37 @@ import {
   constructionCategories, constructionActivities, constructionWorkProgressEntries, constructionBoqLineItems, constructionBoqs, projects,
 } from "@/lib/db"
 import { withTenantContext, type TenantDb } from "@/lib/db/tenant-scoped"
-import { and, eq } from "drizzle-orm"
+import { and, eq, gte, lte } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
+import { listDocuments } from "./document-service"
 export { ServiceError }
+
+// R48 gap-closure (2026-08-29, F039: "Daily progress report with photos" --
+// genuinely missing, confirmed by searching the whole repo for any file
+// with "daily" in its name before writing this: none existed). Composed
+// entirely from real, already-built pieces rather than a new subsystem: the
+// same progress entries listProgressEntries() already returns (filtered to
+// one project + one day, using the dateFrom/dateTo filters added for F086
+// above), plus document-service.ts's existing generic upload/list
+// (linkedEntityType/linkedEntityId are free-text discriminators by design --
+// see that file's own header comment -- so "progress_daily_report" +
+// "<projectId>_<date>" is a real, valid link, not a workaround). "Created"
+// happens implicitly the first time a photo is uploaded against that
+// (projectId, date) key -- there is no separate report row to create or go
+// stale, matching this codebase's read-time-aggregation convention (see
+// construction-reports-service.ts's own header comment on the same
+// preference).
+export function dailyProgressReportLinkId(projectId: string, date: string): string {
+  return `${projectId}_${date}`
+}
+
+export async function getDailyProgressReport(ctx: { orgId: string }, projectId: string, date: string) {
+  const [entries, photos] = await Promise.all([
+    listProgressEntries(ctx, { projectId, dateFrom: date, dateTo: date }),
+    listDocuments(ctx, { linkedEntityType: "progress_daily_report", linkedEntityId: dailyProgressReportLinkId(projectId, date) }),
+  ])
+  return { projectId, date, entries, photos }
+}
 
 async function assertProject(db: TenantDb, orgId: string, projectId: string) {
   const project = await db.query.projects.findFirst({ where: and(eq(projects.id, projectId), eq(projects.orgId, orgId)) })
@@ -60,13 +88,52 @@ export async function createActivity(ctx: { orgId: string }, input: { projectId:
   })
 }
 
-export async function listProgressEntries(ctx: { orgId: string }, filters: { projectId?: string; activityId?: string }) {
+// R48 gap-closure (2026-08-29, F086: "Progress search and filter by date and
+// line"): the only filters here were projectId/activityId -- no way to
+// filter by a date range or by a specific BOQ line item, confirmed by
+// reading the API route (only those 2 params were ever read from the
+// querystring). Added dateFrom/dateTo (inclusive, entryDate is a plain date
+// column) and boqLineItemId (the direct-link column added by R12 point 7)
+// as additional, purely optional filters -- every existing caller that
+// passes none of them keeps getting exactly the same result set as before.
+export async function listProgressEntries(
+  ctx: { orgId: string },
+  filters: { projectId?: string; activityId?: string; boqLineItemId?: string; dateFrom?: string; dateTo?: string }
+) {
   if (!filters.projectId && !filters.activityId) throw new ServiceError("projectId or activityId is required", 400)
   return withTenantContext({ orgId: ctx.orgId }, (db) => {
     const conditions = [eq(constructionWorkProgressEntries.orgId, ctx.orgId)]
     if (filters.projectId) conditions.push(eq(constructionWorkProgressEntries.projectId, filters.projectId))
     if (filters.activityId) conditions.push(eq(constructionWorkProgressEntries.activityId, filters.activityId))
+    if (filters.boqLineItemId) conditions.push(eq(constructionWorkProgressEntries.boqLineItemId, filters.boqLineItemId))
+    if (filters.dateFrom) conditions.push(gte(constructionWorkProgressEntries.entryDate, filters.dateFrom))
+    if (filters.dateTo) conditions.push(lte(constructionWorkProgressEntries.entryDate, filters.dateTo))
     return db.query.constructionWorkProgressEntries.findMany({ where: and(...conditions), orderBy: (t, { desc }) => desc(t.entryDate) })
+  })
+}
+
+// R48 gap-closure (F085: "Progress entry delete recalculates cumulative"):
+// no delete path existed for a progress entry at all, confirmed by reading
+// this whole service file and both API routes before writing this. Every
+// cumulative/earned-value figure this app computes (construction-reports-
+// service.ts's computeEarnedValue, construction-dashboard-service.ts's
+// project value) is derived AT READ TIME by summing constructionWorkProgress
+// Entries rows live -- nothing is denormalized/cached -- so a plain DELETE
+// of the row is sufficient for "recalculates cumulative": the very next read
+// of any dashboard/report/earned-value figure naturally excludes the deleted
+// entry, with no separate recalculation step to write. Scoped the same way
+// every other mutator in this file is (org-scoped via withTenantContext);
+// no status gate like deleteBoq's "draft only" -- a progress entry has no
+// lifecycle states to protect (it is itself the raw, atomic record; deleting
+// a wrong one is the correction mechanism, not a state-machine violation).
+export async function deleteProgressEntry(ctx: { orgId: string }, entryId: string) {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const entry = await db.query.constructionWorkProgressEntries.findFirst({
+      where: and(eq(constructionWorkProgressEntries.id, entryId), eq(constructionWorkProgressEntries.orgId, ctx.orgId)),
+    })
+    if (!entry) throw new ServiceError("Progress entry not found", 404)
+    await db.delete(constructionWorkProgressEntries).where(eq(constructionWorkProgressEntries.id, entryId))
+    return { deleted: true, id: entryId, activityId: entry.activityId, projectId: entry.projectId }
   })
 }
 

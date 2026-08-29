@@ -18,6 +18,7 @@ import { detectHighImpactAction } from "@/lib/high-impact-action-detector";
 import { checkPreCallEscalation, detectLowConfidenceResponse, type EscalationSignal } from "@/lib/floor-tier-escalation";
 import { evaluateGuardrails, recordGuardrailViolation } from "@/lib/guardrail-engine";
 import { registerAllGuardrails, TASK_FREE_TEXT_PLANNING_LEAF } from "@/lib/guardrail-registrations";
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 import { runTaskReflection } from "@/lib/loops/task-reflection";
 import { nextEscalationRung } from "@/lib/escalation-ladder";
 import { evaluateMonitoringRules } from "@/lib/monitoring-engine";
@@ -87,7 +88,13 @@ registerAllGuardrails();
  * write-then-read loop for that assistant's future tasks.
  */
 
-export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }): Promise<unknown> {
+// R48 gap-closure (2026-08-30, F089): optional `role` param, appended last
+// so every existing caller (chain-execution engine internals, fde-service.ts)
+// keeps compiling unchanged and keeps its current (unredacted) behavior --
+// only api/v1/projexa/assistant/route.ts's direct call is wired to pass it
+// today, since that is the one call site with a live session dbUser.role
+// available; see R48_PROGRESS.md's F089 entry for the honest remaining scope.
+export async function dispatchTool(db: TenantDb, orgId: string, userId: string, codeReference: string, context?: { taskId?: string; inputs?: Record<string, unknown> }, role?: string | null): Promise<unknown> {
   assertBusinessRulesBeforeExecution(codeReference, context?.inputs ?? {});
   if (codeReference === "get_compliance_stats") {
     const now = new Date();
@@ -338,11 +345,21 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   // opens its own withTenantContext transaction via the service call
   // (not the `db` already open here) -- same posture as list_gst_import_batches
   // above, acceptable for read-only queries per that branch's own comment.
+  // R48 gap-closure (2026-08-30, F089/F059): same rank check as the API
+  // routes' own redaction. `role` undefined (caller not yet wired to pass
+  // it -- see dispatchTool()'s own comment) is treated as "unknown, don't
+  // redact" to preserve prior behavior for those callers.
+  const financialsAllowed = role ? (ROLE_RANK[role as UserRole] ?? 0) >= ROLE_RANK.manager : true;
+
   if (codeReference === "get_construction_project_dashboard") {
     const projectId = String(context?.inputs?.projectId ?? "");
     if (!projectId) throw new Error("Missing projectId");
     const { getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
-    return getProjectDashboard({ orgId }, projectId);
+    const dashboard = await getProjectDashboard({ orgId }, projectId);
+    if (!financialsAllowed) {
+      return { ...dashboard, budget: null, revenue: null, expenses: null, projectValue: null, earnedValue: null, percentByValue: null, contractValue: null };
+    }
+    return dashboard;
   }
 
   if (codeReference === "list_delayed_activities") {
@@ -352,6 +369,7 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   }
 
   if (codeReference === "get_construction_budget_status") {
+    if (!financialsAllowed) throw new Error("This action requires manager role or higher");
     const projectId = String(context?.inputs?.projectId ?? "");
     if (!projectId) throw new Error("Missing projectId");
     const { budgetVsActual } = await import("@/lib/services/construction-reports-service");
@@ -359,6 +377,7 @@ export async function dispatchTool(db: TenantDb, orgId: string, userId: string, 
   }
 
   if (codeReference === "list_over_budget_projects") {
+    if (!financialsAllowed) throw new Error("This action requires manager role or higher");
     const { getOrgDashboard, getProjectDashboard } = await import("@/lib/services/construction-dashboard-service");
     const orgDashboard = await getOrgDashboard({ orgId });
     // N+1, capped -- matches buildComplianceItemNodes()'s "quick-action
@@ -497,6 +516,47 @@ async function dispatchEngine(db: TenantDb, orgId: string, userId: string, engin
       const name = String(inputs.name ?? "").trim();
       if (!name) throw new Error("name is required");
       return createCampaign({ orgId, userId }, { name, campaignType: inputs.campaignType ? String(inputs.campaignType) : undefined });
+    }
+    // R48/R64 gap-closure (2026-08-30, workstream 2: real erp writes,
+    // matching the exact same safety posture as the crm_create_*_engine
+    // cases above -- capability-tree-service.ts's buildErpQuickCreateNodes()
+    // collects every field via inputFields before this ever runs, so there
+    // is nothing left for an AI to interpret.
+    case "erp_create_customer_engine": {
+      const { createCustomer } = await import("@/lib/services/erp-selling-service");
+      const customerName = String(inputs.customerName ?? "").trim();
+      if (!customerName) throw new Error("customerName is required");
+      return createCustomer(
+        { orgId },
+        {
+          customerName,
+          gstin: inputs.gstin ? String(inputs.gstin) : undefined,
+          creditLimit: inputs.creditLimit != null && inputs.creditLimit !== "" ? Number(inputs.creditLimit) : undefined,
+        }
+      );
+    }
+    case "erp_create_sales_order_engine": {
+      const { createSalesOrder } = await import("@/lib/services/erp-selling-service");
+      const customerId = String(inputs.customerId ?? "").trim();
+      const orderDate = String(inputs.orderDate ?? "").trim();
+      const itemDescription = String(inputs.itemDescription ?? "").trim();
+      const rate = Number(inputs.rate);
+      if (!customerId) throw new Error("customerId is required");
+      if (!orderDate) throw new Error("orderDate is required");
+      if (!itemDescription) throw new Error("itemDescription is required");
+      if (!Number.isFinite(rate)) throw new Error("A valid rate is required");
+      const dbUser = await db.query.users.findFirst({ where: eq(users.id, userId) });
+      if (!dbUser) throw new Error("Acting user not found");
+      return createSalesOrder(
+        { orgId, userId, dbUser },
+        {
+          customerId, orderDate,
+          items: [{
+            description: itemDescription, rate,
+            quantity: inputs.quantity != null && inputs.quantity !== "" ? Number(inputs.quantity) : undefined,
+          }],
+        }
+      );
     }
     // Mathematical Computation Engine (10 of 13 -- see capability-tree-
     // service.ts's comment for the 3 deferred, matrix/model-input ones).

@@ -83,6 +83,7 @@ import {
   Ruler,
   HardHat,
   CircleDollarSign,
+  Box,
 } from "lucide-react";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Badge } from "@/components/ui/badge";
@@ -222,6 +223,12 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
         { label: t("sections.construction.items.permits"), href: "/permits", icon: FileWarning },
         { label: t("sections.construction.items.materials"), href: "/materials", icon: Package },
         { label: t("sections.construction.items.schedule"), href: "/schedule", icon: CalendarClock },
+        // R64/R48 gap-closure (2026-08-30, F076): same "backend existed since
+        // Wave 143, no page/nav link" pattern as the three siblings above --
+        // /api/v1/projexa/drawings has been real since that wave; this repo
+        // never had a UI for it (memory: "Drawings&3D/Design Studio still
+        // open, deliberately not faked" from R63 -- now built).
+        { label: t("sections.construction.items.drawings"), href: "/drawings", icon: Box },
         { label: t("sections.constructionDesign.items.floorPlans"), href: "/floor-plans", icon: LayoutPanelLeft },
         { label: t("sections.constructionDesign.items.moodBoards"), href: "/mood-boards", icon: Palette },
         { label: t("sections.constructionDesign.items.ffe"), href: "/ffe", icon: Sofa },

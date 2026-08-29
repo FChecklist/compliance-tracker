@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, hasRole } from "@/lib/supabase/auth-guard"
 import { REPORT_REGISTRY, ServiceError, type ReportName } from "@/lib/services/construction-reports-service"
 
 function isValidReportName(value: string): value is ReportName {
@@ -14,6 +14,17 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   const { reportName } = await params
   if (!isValidReportName(reportName)) {
     return NextResponse.json({ error: `Unknown report. Valid reports: ${Object.keys(REPORT_REGISTRY).join(", ")}` }, { status: 400 })
+  }
+  // R48 gap-closure (2026-08-30, F003/F059: "sees no budget or margin
+  // figures anywhere"). This dispatcher had no role gate at all -- unlike
+  // the dashboard (fixed separately), a rank-1 viewer or rank-2 member
+  // could call this report by name directly and get real budget/margin
+  // data. Gated only the one report whose whole purpose is that figure,
+  // same minimal-redaction posture as the dashboard fix (other reports
+  // here -- progress, schedule, manpower-cost -- are operational data a
+  // site engineer legitimately needs, not gated).
+  if (reportName === "budget-vs-actual" && ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
+    return NextResponse.json({ error: "This report requires manager role or higher" }, { status: 403 })
   }
 
   const projectId = request.nextUrl.searchParams.get("projectId")
