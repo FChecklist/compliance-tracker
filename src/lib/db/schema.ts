@@ -11666,6 +11666,43 @@ export const pipelineLevelModels = platformSchemaDB.table('pipeline_level_models
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
+// R63 (owner directive, 2026-08-29): per-user AI-delegation link -- shown
+// bottom-left of the chat box, added as an MCP connector in any
+// MCP-compatible client so that AI can submit tasks/chat on the user's
+// behalf. See drizzle/0330_r63_user_ai_links.sql and
+// src/lib/ai-links/user-links.ts (token generation/resolution) and
+// src/app/api/mcp/[token]/route.ts (the actual MCP server).
+export const userAiLinks = platformSchemaDB.table('user_ai_links', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  orgId: text('org_id').notNull(),
+  userId: text('user_id').notNull(),
+  token: text('token').notNull().unique(),
+  status: text('status').notNull().default('active'), // 'active' | 'revoked'
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  lastUsedAt: timestamp('last_used_at'),
+  revokedAt: timestamp('revoked_at'),
+})
+
+// R63 (owner directive, 2026-08-29): data-driven AI-connector provider
+// registry -- which AI clients support one-click MCP connector setup,
+// and how. See drizzle/0331_r63_ai_connector_providers.sql for why this
+// is its own table (not hardcoded UI, not uniform across providers) and
+// src/lib/ai-links/connector-providers.ts for the resolution logic.
+export const aiConnectorProviders = platformSchemaDB.table('ai_connector_providers', {
+  id: text('id').primaryKey().$defaultFn(() => createId()),
+  providerKey: text('provider_key').notNull().unique(),
+  displayName: text('display_name').notNull(),
+  supportLevel: text('support_level').notNull(), // 'native_one_click' | 'requires_paid_plan' | 'enterprise_admin_only' | 'developer_only'
+  deepLinkTemplate: text('deep_link_template'),
+  instructionsMd: text('instructions_md').notNull(),
+  requiresPlan: text('requires_plan'),
+  sortOrder: integer('sort_order').notNull().default(0),
+  status: text('status').notNull().default('active'),
+  sourceNote: text('source_note'),
+  createdAt: timestamp('created_at').notNull().defaultNow(),
+  updatedAt: timestamp('updated_at').notNull().defaultNow(),
+})
+
 export const aiRoutingPolicies = platformSchemaDB.table('ai_routing_policies', {
   id: text('id').primaryKey().$defaultFn(() => createId()),
   scope: aiRouterScopeEnum('scope').notNull(),

@@ -27,6 +27,8 @@ import { ChainRows, pathSegmentDisplay, pathDisplayString, nodeChildrenAt, expan
 import { IntentCommandPalette } from "./IntentCommandPalette";
 import { saveIntent } from "@/lib/browser-intent-cache";
 import { compileInBrowser } from "@/lib/browser-execution/client-compile";
+import { AiConnectorPicker } from "@/components/ai-link/AiConnectorPicker";
+import { Bot } from "lucide-react";
 
 const FIXED_LABELS: Record<string, string> = { discuss: "Discuss", chats: "Chats", todo: "To Do" };
 
@@ -165,6 +167,13 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
   // recall of previous chain+text submissions, opened via "/" or Tab while
   // the chat box is empty. See IntentCommandPalette.tsx / browser-intent-cache.ts.
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // R63 (owner directive, 2026-08-29): the per-user AI-delegation link +
+  // multi-provider connector picker, at the bottom-left of this persistent
+  // composer. Collapsed behind a toggle by default -- this component mounts
+  // once and renders on every page (see the file header comment), so its
+  // always-visible footprint has to stay small; the full picker (a provider
+  // grid) only mounts once the user actually asks for it.
+  const [aiLinkOpen, setAiLinkOpen] = useState(false);
 
   function requestHighImpactConfirmation(category: string | null, categoryLabel: string | null, matchedPhrase: string | null): Promise<ConfirmationResolution> {
     return new Promise((resolve) => setPendingConfirmation({ category, categoryLabel, matchedPhrase, resolve }));
@@ -696,9 +705,25 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
           </div>
         </div>
         <div className="flex items-center justify-between mt-1.5 px-1">
-          <p className="text-[11px] text-ct-muted">
-            {isThreadOpen ? "Enter sends" : isChainMode ? (chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing") : composerMode === "discuss" ? "Enter sends — ask anything, no task selection needed" : "Pick a conversation on the right to start typing"}
-          </p>
+          <div className="flex items-center gap-3 min-w-0">
+            <p className="text-[11px] text-ct-muted truncate">
+              {isThreadOpen ? "Enter sends" : isChainMode ? (chainComplete ? "Enter sends, chain resets after each message" : "Complete the chain above to start typing") : composerMode === "discuss" ? "Enter sends — ask anything, no task selection needed" : "Pick a conversation on the right to start typing"}
+            </p>
+            {/* R63 (owner directive, 2026-08-29): bottom-left of the chat box
+                -- lets the user copy their own AI-delegation link and connect
+                it to Claude/ChatGPT/Gemini/Z.ai/DeepSeek etc, so that AI can
+                submit tasks/chat on their behalf. Collapsed by default, see
+                the aiLinkOpen state comment above. */}
+            <button
+              type="button"
+              onClick={() => setAiLinkOpen((v) => !v)}
+              className="inline-flex items-center gap-1 text-[11px] font-medium text-ct-muted hover:text-ct-saffron transition-colors shrink-0"
+              title="Connect an external AI (Claude, ChatGPT, Gemini, etc) to work on your behalf"
+            >
+              <Bot className="size-3.5" />
+              Connect your AI
+            </button>
+          </div>
           {/* Connectors.docx wave (2026-07-10): minimal discovery affordance
               -- most users never open the sidebar's ADMIN section, so VERI
               Connect (13 one-click OAuth toolkits) was effectively
@@ -710,6 +735,12 @@ export default function VeriComposer({ connectedConnectorsCount = 0 }: { connect
             {connectedConnectorsCount > 0 && <span className="font-semibold">{connectedConnectorsCount}</span>}
           </Link>
         </div>
+
+        {aiLinkOpen && (
+          <div className="mt-1.5">
+            <AiConnectorPicker />
+          </div>
+        )}
 
         {isThreadOpen && (
           <button type="button" onClick={closeThread} className="text-[11.5px] font-semibold text-ct-saffron mt-1">
