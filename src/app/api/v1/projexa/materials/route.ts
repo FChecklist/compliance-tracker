@@ -32,16 +32,14 @@ export async function GET(request: NextRequest) {
     // existing callers of listStockLedger depend on its current shape).
     const itemIds = [...new Set(entries.map((e) => e.itemId))]
     const warehouseIds = [...new Set(entries.map((e) => e.warehouseId))]
-    const [items, warehouses] = itemIds.length > 0 || warehouseIds.length > 0
-      ? await Promise.all([
-          itemIds.length > 0
-            ? db.query.erpItems.findMany({ where: and(eq(erpItems.orgId, ctx.orgId), inArray(erpItems.id, itemIds)) })
-            : Promise.resolve([]),
-          warehouseIds.length > 0
-            ? db.query.erpWarehouses.findMany({ where: and(eq(erpWarehouses.orgId, ctx.orgId), inArray(erpWarehouses.id, warehouseIds)) })
-            : Promise.resolve([]),
-        ])
-      : [[], []]
+    const [items, warehouses] = await Promise.all([
+      itemIds.length > 0
+        ? db.query.erpItems.findMany({ where: and(eq(erpItems.orgId, ctx.orgId), inArray(erpItems.id, itemIds)) })
+        : Promise.resolve([] as (typeof erpItems.$inferSelect)[]),
+      warehouseIds.length > 0
+        ? db.query.erpWarehouses.findMany({ where: and(eq(erpWarehouses.orgId, ctx.orgId), inArray(erpWarehouses.id, warehouseIds)) })
+        : Promise.resolve([] as (typeof erpWarehouses.$inferSelect)[]),
+    ])
     const itemMap = new Map(items.map((i) => [i.id, i]))
     const warehouseMap = new Map(warehouses.map((w) => [w.id, w]))
 
