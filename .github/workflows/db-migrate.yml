@@ -50,6 +50,29 @@ jobs:
             console.log(JSON.stringify(j.entries.slice(-10).map(e => ({idx: e.idx, tag: e.tag, when: e.when})), null, 2));
           "
       - name: Apply migrations
+        # Live-tested 2026-08-29, real issues found and fixed in turn:
+        # (1) secrets.DATABASE_URL is the app_runtime role (correct for the
+        # app's own queries at runtime) -- but DDL needs a role with
+        # schema-owner privileges, which app_runtime deliberately does not
+        # have. Switched to the postgres superuser role.
+        # (2) The true direct-connection hostname (db.<ref>.supabase.co)
+        # does not resolve for this project (ENOTFOUND) -- not reachable.
+        # (3) Supabase's session-mode pooler (port 5432) isn't provisioned
+        # for this project either ("tenant/user ... not found").
+        # (4) Back on the transaction-mode pooler (port 6543, which DID
+        # authenticate correctly) -- the real cause of its "CREATE SCHEMA
+        # IF NOT EXISTS" failure was postgres.js's default prepared
+        # statements, which transaction-mode pooling does not support.
+        # Fixed at the driver level (scripts/apply-migrations.mjs's
+        # `prepare: false`), not the connection string.
+        # secrets.SUPABASE_PROJECT_REF turned out to be stale/wrong --
+        # using it produced "tenant/user postgres.*** not found" at every
+        # port, while the literal, known-correct ref (pcrjmlpuqsbocqfwoxod,
+        # confirmed via this same DB's own Management API project listing)
+        # authenticates correctly. A project ref isn't secret (it's visible
+        # in this project's own dashboard/API URLs) -- hardcoded directly;
+        # only the actual password (SUPABASE_DB_PASS) needs to stay a
+        # secret.
         run: bun run db:migrate
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          DATABASE_URL: "postgresql://postgres.pcrjmlpuqsbocqfwoxod:${{ secrets.SUPABASE_DB_PASS }}@aws-1-ap-south-1.pooler.supabase.com:6543/postgres"
