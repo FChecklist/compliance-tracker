@@ -5411,6 +5411,26 @@ active:
       file live before claiming -- no other active entry touches
       exchange-rate-feed-client.ts, the exchange-rates routes, or the
       exchange-rate area of erp-accounting-service.ts.
+  - session_label: "claude-code (worker task-20260718-123002-retry-2--ai-engineering-quality--techni) -- VERIDIAN Review Framework: AI Engineering Quality / Technical Debt & Complexity gap-closure (5 findings)"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      Closing 5 related findings from the Review Framework's AI Engineering
+      Quality evaluation: Dead Code Detection (add knip or similar to CI),
+      Duplicate Code Detection (add jscpd or similar to CI), Technical Debt
+      Score (composite score from existing trackers), Code Complexity Score
+      (ESLint complexity rule), Refactoring Readiness (prioritize tests for
+      largest/most-changed untested files). Per this task's own instructions,
+      re-verifying each finding against current code before changing
+      anything -- codebase has moved since the evaluation was written.
+      File scope: new scripts/check-*.mjs guardrail(s) following the
+      existing pattern, .github/workflows/*.yml CI wiring, eslint.config.mjs
+      (complexity rule addition only), package.json (devDependency
+      additions + scripts), PROGRESS.md. Explicitly NOT touching
+      src/lib/services/permission-service.ts's ERP_ACTION_ROLES table
+      structure (adding additively only if genuinely needed, which is not
+      expected for this analysis/tooling task). Checked this file live
+      before claiming -- no other active entry (all stale, >4h old) touches
+      dead-code/duplicate-code/complexity tooling or CI guardrail scripts.
 
   - session_label: "claude-code (worker task-20260718-072004-ai-platform--ai-platform---general) -- Review Framework gap-closure: AI Platform / BYOAI provider test coverage"
     claimed_at: "2026-08-15T (this session)"
