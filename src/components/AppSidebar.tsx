@@ -46,6 +46,7 @@ import {
   Layers,
   BookText,
   Wallet,
+  DollarSign,
   Link2,
   BookOpen,
   MessageSquare,
@@ -424,6 +425,11 @@ function getNavSections(t: ReturnType<typeof useTranslations>, overdueCount: num
           label: t("sections.admin.items.settings"),
           href: "/settings",
           icon: Settings,
+        },
+        {
+          label: t("sections.admin.items.finops"),
+          href: "/finops",
+          icon: DollarSign,
         },
         {
           label: t("sections.admin.items.auditLog"),

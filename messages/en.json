@@ -214,7 +214,8 @@
           "departments": "Departments",
           "accessReview": "Access Review",
           "settings": "Settings",
-          "auditLog": "Audit Log"
+          "auditLog": "Audit Log",
+          "finops": "AI FinOps"
         }
       },
       "tools": {
