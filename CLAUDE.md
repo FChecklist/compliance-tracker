@@ -36,6 +36,7 @@ Before doing anything nontrivial in this repo, read these in order — they are 
 - `bun install` — install dependencies
 - `bun run dev` — start dev server (port 3000)
 - `bun run build` — production build
+- `bun test --isolate` — run the test suite. **Always pass `--isolate`, matching `.github/workflows/ci.yml`** — 27+ route.test.ts files mock `@/lib/supabase/auth-guard` via `mock.module()` without restoring it, which (confirmed via a real repro during the R1-R64 recheck, 2026-08-30) leaks a stale/incomplete mock across files in a bare `bun test` run, causing spurious role-gate test failures that look exactly like a live RBAC bug but aren't (module-chain/route.test.ts's own header comment documents the same root cause independently). `--isolate` gives every test file a fresh module graph, eliminating the leak — bare `bun test` is not a reliable signal on this repo and should not be used to diagnose failures.
 - `bun run db:generate` — generate Drizzle migration
 - `bun run db:push` — push schema to Supabase
 - `bun run db:seed` — seed database (src/db/seed.ts)

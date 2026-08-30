@@ -60,7 +60,7 @@ import {
   constructionRfis, constructionSubmittals, constructionPunchListItems, constructionChangeOrders,
   constructionSiteDiaries, constructionExpenseEntries, constructionActivities,
   erpPurchaseOrders, erpSuppliers, erpStockLedgerEntries, erpBudgetLineItems, erpBudgets, erpCostCenters,
-  erpContracts, erpContractBillingSchedules,
+  erpContracts, erpContractBillingSchedules, erpReorderLevels,
   projects,
   interiorMoodBoards, interiorFfeItems, interiorFloorPlans, interiorFloorPlanRooms,
   interiorFurniturePlacements, interiorMaterials, users,
@@ -76,6 +76,7 @@ import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
 import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
 import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
+import { listStockBalances } from "./erp-inventory-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
 import { requireReportDomainEnabled, isReportDomainEnabledForOrg } from "./report-domain-enablement-service"
 import { ServiceError } from "./compliance-service"
@@ -1376,7 +1377,73 @@ async function computeVendorPaymentBehavior(ctx: { orgId: string }, params: Reco
   }
 }
 
+/**
+ * R65 (2026-08-30, reports-engine gap closure): rptdef_kpi_materials_running_low's
+ * own execution_config already pointed at formulaKey "materials_running_low" --
+ * both underlying tables (erp_reorder_levels, erp_stock_ledger_entries)
+ * genuinely exist and are populated by real writes; the report's own
+ * data_gap_note said plainly "the comparison is not wired," not that data
+ * was missing. This is that wiring, reusing erp-inventory-service.ts's
+ * listStockBalances() (the same real-time FIFO-ledger aggregation the
+ * Inventory page's own stock-balance view already relies on) rather than
+ * re-querying the ledger a second way.
+ *
+ * A reorder-level row with warehouseId=null is an org-wide default policy
+ * (see the column's own comment in schema.ts) -- compared against that
+ * item's TOTAL balance across all warehouses, not any one warehouse's.
+ */
+async function computeMaterialsRunningLow(ctx: { orgId: string }, _params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const [reorderLevels, balances] = await Promise.all([
+    withTenantContext({ orgId: ctx.orgId }, (db) => db.query.erpReorderLevels.findMany({ where: eq(erpReorderLevels.orgId, ctx.orgId) })),
+    listStockBalances(ctx, {}),
+  ])
+
+  if (reorderLevels.length === 0) {
+    return { columns: ["Item", "Warehouse", "Current Qty", "Reorder Point", "Shortfall"], rows: [], note: "No reorder levels configured for this org yet -- set one via the Inventory module's reorder-level settings before this report has anything to compare against." }
+  }
+
+  const balanceByItemWarehouse = new Map(balances.map((b) => [`${b.itemId}::${b.warehouseId}`, b]))
+  const balanceByItemTotal = new Map<string, { qty: number; itemCode: string | null; itemName: string | null; uom: string | null }>()
+  for (const b of balances) {
+    const existing = balanceByItemTotal.get(b.itemId)
+    balanceByItemTotal.set(b.itemId, {
+      qty: (existing?.qty ?? 0) + b.qty,
+      itemCode: b.itemCode, itemName: b.itemName, uom: b.uom,
+    })
+  }
+
+  const running_low = reorderLevels
+    .map((rl) => {
+      const reorderPoint = Number(rl.reorderPoint)
+      if (rl.warehouseId) {
+        const b = balanceByItemWarehouse.get(`${rl.itemId}::${rl.warehouseId}`)
+        const qty = b?.qty ?? 0
+        return { itemCode: b?.itemCode ?? null, itemName: b?.itemName ?? null, uom: b?.uom ?? null, warehouseName: b?.warehouseName ?? "(unknown warehouse)", qty, reorderPoint }
+      }
+      const totals = balanceByItemTotal.get(rl.itemId)
+      const qty = totals?.qty ?? 0
+      return { itemCode: totals?.itemCode ?? null, itemName: totals?.itemName ?? null, uom: totals?.uom ?? null, warehouseName: "(all warehouses -- org-wide policy)", qty, reorderPoint }
+    })
+    .filter((r) => r.qty <= r.reorderPoint)
+    .sort((a, b) => (a.qty - a.reorderPoint) - (b.qty - b.reorderPoint)) // most-negative shortfall first
+
+  return {
+    columns: ["Item", "Warehouse", "Current Qty", "Reorder Point", "Shortfall"],
+    rows: running_low.map((r) => ({
+      Item: r.itemName ? `${r.itemCode ?? ""} ${r.itemName}`.trim() : (r.itemCode ?? "(unknown item)"),
+      Warehouse: r.warehouseName,
+      "Current Qty": `${r.qty} ${r.uom ?? ""}`.trim(),
+      "Reorder Point": r.reorderPoint,
+      Shortfall: Math.round((r.reorderPoint - r.qty) * 100) / 100,
+    })),
+    note: running_low.length === 0
+      ? `${reorderLevels.length} reorder level(s) configured -- none currently below their reorder point.`
+      : undefined,
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
+  materials_running_low: computeMaterialsRunningLow,
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
   project_health_index: computeProjectHealthIndex,
