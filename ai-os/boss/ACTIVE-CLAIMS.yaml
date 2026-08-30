@@ -145,36 +145,6 @@ active:
       instructions). No open PR or active claim found for this area at
       claim time (checked `gh pr list --state all` and this file's own
       "pipeline"/"crm_leads"/"crm_opportunities" grep hits).
-  - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure"
-    claimed_at: "2026-08-15T05:35Z (this session)"
-    claim: |
-      SPEC (this task's own prompt.txt, VERIDIAN Review Framework 2 findings):
-      [Low] Error Handling Quality -- ~9% of API routes lack a visible
-      try/catch (recommended: ESLint rule or CI check requiring try/catch +
-      ServiceError handling in every route.ts); [Medium] Logging Quality --
-      no confirmed centralized structured logging utility (recommended: a
-      lightweight structured operational logger, correlation-ID aware,
-      distinct from the compliance audit_logs tables).
-      Re-verified both against current `main` before starting (per the
-      task prompt's own instruction not to trust the finding description
-      unchecked): 72/995 `route.ts` files (7.2%) still have no `try {`
-      anywhere in the file; no centralized structured logger exists
-      anywhere in `src/lib` (`orchestra-execution-logger.ts` is a
-      DB-persisted AI-execution-cost observability helper, unrelated).
-      Both findings still real.
-    scope_note: >-
-      File scope: new `src/lib/logger.ts` + `src/lib/logger.test.ts`, new
-      `scripts/check-route-error-handling.mjs`, `.github/workflows/ci.yml`
-      (new job), and try/catch fixes to a small sample of pre-existing
-      violation files not claimed elsewhere (`src/app/api/approvals/route.ts`,
-      `src/app/api/bcm/route.ts`, `src/app/api/board-evaluation/route.ts`).
-      Not touching `src/lib/services/permission-service.ts` (explicitly
-      out of scope per task prompt) or the ~62 remaining pre-existing
-      try/catch-less routes not listed above (left as documented residual
-      debt -- see this task's own `progress/*.md` for why: mass-editing 65+
-      files risks colliding with several other in-flight workers editing
-      `src/app/api/**` right now, for a Low-severity finding whose own
-      recommended fix is a forward-enforcing check, not a full rewrite).
   - session_label: "claude-code (task-20260718-071005-ai-model-lifecycle---benchmarking--evalu) -- VERIDIAN Review Framework: AI Model Lifecycle & Benchmarking / Evaluation & Promotion Process"
     claimed_at: "2026-08-15T (this session)"
     claim: |
@@ -6342,6 +6312,85 @@ recently_completed:
       trusting the PR description), which posted a real AUDIT: PASS with all 8
       required structured fields after one format correction (Title-Case
       labels, not camelCase).
+  - session_label: "claude-code (task-20260718-065003-ai-engineering-quality--error-handling) -- AI Engineering Quality: Error Handling & Logging gap-closure -- structured logger + route error-handling CI check, PR #1219 merged to main; ci.yml wiring follow-up rebased onto current main and reopened (see this repo's PR history for #1235's replacement) [DONE]"
+    claimed_at: "2026-08-15T05:35Z (this session, closed same session)"
+    claim: |
+      SPEC (this task's own prompt.txt, VERIDIAN Review Framework 2 findings):
+      [Low] Error Handling Quality -- ~9% of API routes lack a visible
+      try/catch (recommended: ESLint rule or CI check requiring try/catch +
+      ServiceError handling in every route.ts); [Medium] Logging Quality --
+      no confirmed centralized structured logging utility (recommended: a
+      lightweight structured operational logger, correlation-ID aware,
+      distinct from the compliance audit_logs tables).
+      Re-verified both against current `main` before starting (per the
+      task prompt's own instruction not to trust the finding description
+      unchecked): 72/995 `route.ts` files (7.2%) still have no `try {`
+      anywhere in the file; no centralized structured logger exists
+      anywhere in `src/lib` (`orchestra-execution-logger.ts` is a
+      DB-persisted AI-execution-cost observability helper, unrelated).
+      Both findings still real.
+
+      Delivered: `src/lib/logger.ts` (JSON-line structured operational
+      logger, correlation-ID helper, `logger.error` Error normalization),
+      `src/lib/logger.test.ts` (11 unit tests), `scripts/check-route-error-handling.mjs`
+      (new CI check, same enforcement class as `check-migration-collision.mjs`
+      -- only fails on new/modified route.ts files, documented honest
+      limitation re: the 65 pre-existing violations), wired into
+      `.github/workflows/ci.yml` as job `route-error-handling`, and 3 sample
+      pre-existing violations fixed (`src/app/api/approvals/route.ts`,
+      `src/app/api/bcm/route.ts`, `src/app/api/board-evaluation/route.ts`).
+      Full verification (unit tests, full suite 2560 pass, typecheck, lint,
+      CI-check dry-run, YAML validity) recorded in this task's own
+      `progress/task-20260718-065003-ai-engineering-quality--error-handling.md`.
+      PR #1219 opened, AUDIT: PASS posted, all CI checks green (Lint,
+      Type Check, Build, Unit Tests, E2E Tests, audit-check, Guardrail
+      Presence Check, etc. -- CodeQL NEUTRAL, not a failure), merged to
+      `main` at commit `5ef3ccfde`.
+
+      STILL OPEN at PR #1219's merge time, corrected from an earlier draft
+      of this entry that wrongly claimed this was resolved: that session's
+      `gh` token (account FChecklist; scopes `gist, read:org, repo`) lacked
+      `workflow` scope, so GitHub rejected every push attempt touching
+      `.github/workflows/ci.yml`. PR #1219's merged diff did **not**
+      include the `ci.yml` change -- verified directly via
+      `gh api repos/FChecklist/compliance-tracker/pulls/1219/files` at the
+      time. The written, ready-to-apply diff was committed at
+      `progress/ci-yml-route-error-handling-check.patch` (one new job,
+      `route-error-handling-check`, same shape as
+      `migration-collision-check`).
+
+      RESOLVED (2026-08-30, rebase of the follow-up PR #1235 onto current
+      main): a session with a `workflow`-scoped push succeeded, confirming
+      that credential wall no longer applies (see
+      GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE in
+      ai-os/MASTER-TRACKER.yaml). The `route-error-handling-check` job is
+      now actually wired into `.github/workflows/ci.yml`, inserted
+      immediately after `migration-collision-check` (main had independently
+      added several more CI jobs -- `migration-integrity-check`,
+      `governance-yaml-parse-check`, `migration-schema-drift-check`,
+      `new-test-coverage`, `test-coverage-gap-report` -- in the 8 months
+      since this task's original branch point; only the new job itself was
+      inserted, none of those were touched or reordered).
+
+      Residual, left as documented debt for a future worker: 62 of the
+      original 65 pre-existing `route.ts` files still lack try/catch. Now
+      that it's wired, the CI check prevents this number from growing but
+      does not retroactively fix it -- same posture as
+      `check-migration-collision.mjs` toward pre-existing migration-number
+      collisions.
+    scope_note: >-
+      File scope: `src/lib/logger.ts`, `src/lib/logger.test.ts`,
+      `scripts/check-route-error-handling.mjs`,
+      `progress/ci-yml-route-error-handling-check.patch` (written diff,
+      applied to `.github/workflows/ci.yml` in the #1235 rebase -- see
+      claim above), `src/app/api/approvals/route.ts`,
+      `src/app/api/bcm/route.ts`, `src/app/api/board-evaluation/route.ts`,
+      this ACTIVE-CLAIMS.yaml entry, this task's own
+      `progress/task-20260718-065003-ai-engineering-quality--error-handling.md`.
+      Did not touch `src/lib/services/permission-service.ts` (explicitly
+      out of scope per task prompt) or the ~62 remaining pre-existing
+      try/catch-less routes (left as documented residual debt). Wiring
+      `.github/workflows/ci.yml` is now done, see claim above.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
