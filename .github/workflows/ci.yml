@@ -204,6 +204,43 @@ jobs:
       - run: node scripts/check-migration-schema-drift.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  new-test-coverage:
+    name: New Test Coverage Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Needs real history to compute a merge-base against origin/main --
+          # the default fetch-depth: 1 checkout only has this PR's own
+          # commit(s), which is not enough for `git merge-base` to find a
+          # common ancestor. See the script's own header for why the diff
+          # (not just static file state, unlike this file's other coverage
+          # checks) is the mechanism here.
+          fetch-depth: 0
+      # VERIDIAN Review Framework gap-closure ("AI Can Safely Modify
+      # Module": "CI gate does not include comprehensive behavioral test
+      # coverage") -- fails the build if this PR touches a
+      # src/lib/services/*.ts file that had zero test coverage before this
+      # PR, and the PR adds no test anywhere. Installed 2026-08-30
+      # (R1-R64/PR-backlog reconciliation pass, rebasing original PR #1259
+      # -- that session's git-push credential lacked the `workflow` OAuth
+      # scope this file needs; this session's own workflow-file pushes
+      # succeeded, confirming that wall no longer applies). See the
+      # script's own header for the honest limitation this does and
+      # doesn't guarantee.
+      - run: node scripts/check-new-test-coverage.mjs
+  test-coverage-gap-report:
+    name: Test Coverage Gap Report Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      # VERIDIAN Review Framework gap-closure ("AI Can Generate Tests for
+      # Module": "No systematic test-generation tooling") -- fails the build
+      # if docs/master/TEST_COVERAGE_GAP.md is stale relative to the current
+      # src/lib/services tree, so the report stays trustworthy instead of
+      # silently rotting the moment a new service file is added. Installed
+      # 2026-08-30, same rebase as new-test-coverage above.
+      - run: node scripts/report-test-coverage-gap.mjs --check
   e2e:
     name: E2E Tests
     needs: [build]
