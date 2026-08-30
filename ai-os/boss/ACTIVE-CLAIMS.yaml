@@ -6306,6 +6306,28 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (task-20260718-075006-audit---governance--complete-audit-stamp) -- Audit & Governance: Complete Audit Stamp gap-closure [DONE, merged via rebase-wt-1234 replacing stale PR #1234]"
+    claimed_at: "2026-08-15T (this session, invocation 14/20)"
+    merged_as: "FChecklist/compliance-tracker PR replacing #1234 (rebased onto current main 2026-08-30 after a 3-way conflict in this file, drizzle/meta/_journal.json, and src/lib/db/schema.ts)."
+    claim: |
+      SPEC (this task's own prompt.txt): [Medium] Complete Audit Stamp
+      (Time, Date, IP, Machine, Session, User, Organization, Office). Gap:
+      no dedicated session_id column and no office/location field on
+      audit_logs; "machine" approximated only by userAgent. Confirmed
+      real by reading src/lib/audit.ts / schema.ts's auditLogs directly
+      (not resolved elsewhere). Scope: src/lib/audit.ts (logActivity() +
+      new deriveSessionId helper), src/lib/db/schema.ts's auditLogs table
+      (+ drizzle/0313_audit_logs_session_office_stamp.sql, renumbered to
+      the next free migration number during the rebase after a collision
+      with an already-merged main migration -- see this file's git
+      history / the replacement PR body for the exact number),
+      src/app/api/audit/route.ts, src/app/(app)/audit/page.tsx,
+      src/lib/audit.test.ts. Did NOT touch
+      src/lib/services/permission-service.ts (out of this task's scope
+      per its own instructions) or session-limit-service.ts's
+      userActiveSessions (read-only reference for the design, not
+      modified). See this task's own progress file for full design
+      rationale: progress/task-20260718-075006-audit---governance--complete-audit-stamp.md.
   - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
     claimed_at: "2026-08-16T (this session, closed same session)"
     merged_as: "FChecklist/veridian-ui-kit PR #8 (v0.3.2 tag), FChecklist/compliance-tracker PR #1293 (dependency bump, real independent audit posted and passing, all 18 CI checks green), FChecklist/projexa PR #72 (dependency bump, all CI green)."
