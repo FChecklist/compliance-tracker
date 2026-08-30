@@ -71,15 +71,40 @@ export async function createSalesCreditNote(
   })
 }
 
-export async function submitSalesCreditNote(ctx: ErpContext, noteId: string) {
+// Real-screen conversion (2026-08-30): widened from ErpContext (real dbUser
+// only) to the same dbUser-or-apiKey actor union createSalesCreditNote above
+// already uses -- this had zero PROJEXA-reachable route despite existing
+// since Wave 52, so every credit note PROJEXA created stayed "draft"
+// forever (no GL reversal ever actually posted). See
+// PROJEXA_REAL_SCREEN_CONVERSION_TRACKER.md module #13 for the full finding.
+export async function submitSalesCreditNote(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  noteId: string
+) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {
     const note = await db.query.erpSalesCreditNotes.findFirst({ where: and(eq(erpSalesCreditNotes.id, noteId), eq(erpSalesCreditNotes.orgId, ctx.orgId)) })
     if (!note) throw new ServiceError("Sales credit note not found", 404)
     if (note.status !== "draft") throw new ServiceError("Only draft credit notes can be submitted", 409)
     const [updated] = await db.update(erpSalesCreditNotes).set({ status: "submitted" }).where(eq(erpSalesCreditNotes.id, noteId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_credit_note.submitted", entityType: "erp_sales_credit_note", entityId: noteId })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_credit_note.submitted", entityType: "erp_sales_credit_note", entityId: noteId }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_credit_note.submitted", entityType: "erp_sales_credit_note", entityId: noteId }
+    )
     return updated
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-credit-note lookup for the
+// Object Page, with its line items -- listSalesCreditNotes never eager-loads
+// items, so this adds that `with` rather than forcing a second round trip.
+export async function getSalesCreditNote(ctx: { orgId: string }, noteId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const note = await db.query.erpSalesCreditNotes.findFirst({ where: and(eq(erpSalesCreditNotes.id, noteId), eq(erpSalesCreditNotes.orgId, ctx.orgId)), with: { items: true, customer: true } })
+    if (!note) throw new ServiceError("Sales credit note not found", 404)
+    return note
   })
 }
 

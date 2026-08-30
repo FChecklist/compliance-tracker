@@ -155,6 +155,20 @@ export async function listPayrollRuns(ctx: { orgId: string }) {
   })
 }
 
+// Real-screen conversion (2026-08-30): single-run lookup for the Payroll
+// Run Object Page -- read-only, no dbUser required (unlike every write
+// action in this file, which stays identity-bridge-blocked -- see
+// PROJEXA_REAL_SCREEN_CONVERSION_TRACKER.md module #21 for why that's a
+// deliberate posture, not a bug, same as Employees' module #8 finding).
+export async function getPayrollRun(ctx: { orgId: string }, runId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const run = await db.query.erpPayrollRuns.findFirst({ where: and(eq(erpPayrollRuns.id, runId), eq(erpPayrollRuns.orgId, ctx.orgId)) })
+    if (!run) throw new ServiceError("Payroll run not found", 404)
+    return run
+  })
+}
+
 export async function createPayrollRun(ctx: ErpContext, input: { month: number; year: number }) {
   await requireErpEnabled(ctx.orgId)
   if (input.month < 1 || input.month > 12) throw new ServiceError("month must be 1-12", 400)

@@ -104,7 +104,7 @@ export async function listCustomersPaged(ctx: { orgId: string }, opts: { search?
   })
 }
 
-export type CustomerInput = { customerName: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number }
+export type CustomerInput = { customerName: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number; isActive?: boolean }
 
 // A4S14_customers_01: this used to be a raw insert with no uniqueness check
 // at all -- nothing stopped the same org from ending up with two ACTIVE
@@ -141,6 +141,20 @@ export async function createCustomer(ctx: { orgId: string }, input: CustomerInpu
   })
 }
 
+// Real-screen conversion (2026-08-30): lightweight single-customer lookup
+// for the Customer Object Page's Edit form -- getCustomerOverview() already
+// existed but does 4 extra joined queries (opportunities/quotations/sales
+// orders/invoices) the edit form has no use for; this is the plain read the
+// Object Page's display header and Edit draft actually need.
+export async function getCustomer(ctx: { orgId: string }, customerId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const customer = await db.query.erpCustomers.findFirst({ where: and(eq(erpCustomers.id, customerId), eq(erpCustomers.orgId, ctx.orgId)) })
+    if (!customer) throw new ServiceError("Customer not found", 404)
+    return customer
+  })
+}
+
 export async function updateCustomer(ctx: { orgId: string }, customerId: string, input: Partial<CustomerInput>) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -152,6 +166,14 @@ export async function updateCustomer(ctx: { orgId: string }, customerId: string,
       ...(input.panNumber !== undefined ? { panNumber: input.panNumber } : {}),
       ...(input.defaultPaymentTermsDays !== undefined ? { defaultPaymentTermsDays: input.defaultPaymentTermsDays } : {}),
       ...(input.creditLimit !== undefined ? { creditLimit: input.creditLimit === null ? null : input.creditLimit.toString() } : {}),
+      // Real-screen conversion (2026-08-30): isActive wasn't accepted here --
+      // the only deactivation path was mdm-quality-service.ts's internal
+      // mergeDuplicates(), so the Customer Object Page had no real Deactivate
+      // action to offer (deleting a customer with real invoice/order history
+      // would either cascade-destroy financial records or violate their FKs --
+      // same "soft-delete, never hard-delete" posture as every other master
+      // entity converted this session, e.g. Materials/Vendors).
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     }).where(eq(erpCustomers.id, customerId)).returning()
     return updated
   })
@@ -275,6 +297,22 @@ export async function createQuotation(
 // getter existed (list/create/revise/status/convert all query inline);
 // added here rather than duplicated in the PDF route, matching this
 // codebase's "business logic lives in the service, routes stay thin" rule.
+// Real-screen conversion (2026-08-30): single-quotation lookup for the
+// Quotation Object Page -- only getQuotationForPdf (org+quotation, built
+// specifically for PDF rendering) existed before; this is the same query
+// without the extra org row, used by a generic detail view.
+export async function getQuotation(ctx: { orgId: string }, quotationId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const quotation = await db.query.erpQuotations.findFirst({
+      where: and(eq(erpQuotations.id, quotationId), eq(erpQuotations.orgId, ctx.orgId)),
+      with: { items: true, customer: true },
+    })
+    if (!quotation) throw new ServiceError("Quotation not found", 404)
+    return quotation
+  })
+}
+
 export async function getQuotationForPdf(ctx: { orgId: string }, quotationId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
@@ -461,6 +499,23 @@ async function fetchSalesOrderPage(db: TenantDb, orgId: string, opts: ListSalesO
     : all
   const items = filtered.slice((page - 1) * pageSize, (page - 1) * pageSize + pageSize)
   return { items, total: filtered.length, page, pageSize }
+}
+
+// Real-screen conversion (2026-08-30): single-sales-order lookup for the
+// Sales Order Object Page -- only listSalesOrders (all, paginated) and
+// getSalesOrderDocumentFlow (the SD-007 document-flow trace, real but
+// never wired to a PROJEXA proxy route until this conversion) existed
+// before.
+export async function getSalesOrder(ctx: { orgId: string }, salesOrderId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const salesOrder = await db.query.erpSalesOrders.findFirst({
+      where: and(eq(erpSalesOrders.id, salesOrderId), eq(erpSalesOrders.orgId, ctx.orgId)),
+      with: { items: true, customer: true },
+    })
+    if (!salesOrder) throw new ServiceError("Sales order not found", 404)
+    return salesOrder
+  })
 }
 
 async function insertSalesOrderRow(

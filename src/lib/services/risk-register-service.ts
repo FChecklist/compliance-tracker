@@ -85,6 +85,28 @@ export async function listRisks(ctx: { orgId: string; dbUser?: typeof users.$inf
   }
 }
 
+// Real-screen conversion (2026-08-30, PROJEXA GRC Object Page): no
+// single-risk getter existed -- only listRisks(). Replicates listRisks' own
+// severity computation AND its department/role visibility scope check
+// exactly, so a direct-by-id fetch can never show a risk a list fetch would
+// have hidden from the same caller.
+export async function getRisk(ctx: { orgId: string; dbUser?: typeof users.$inferSelect | null }, riskId: string) {
+  const [row, resolvedMatrix] = await Promise.all([
+    withTenantContext({ orgId: ctx.orgId }, (db) => db.query.risks.findFirst({ where: and(eq(risks.id, riskId), eq(risks.orgId, ctx.orgId)) })),
+    resolveModuleRule("risks", "severity_matrix", { orgId: ctx.orgId }),
+  ])
+  if (!row) throw new ServiceError("Risk not found", 404)
+  const visible = !ctx.dbUser || BROAD_SCOPE_ROLES.includes(ctx.dbUser.role) || row.ownerDept === ctx.dbUser.departmentId || row.ownerId === ctx.dbUser.id
+  if (!visible) throw new ServiceError("Risk not found", 404)
+  const bands = (resolvedMatrix?.value as { bands?: SeverityBand[] } | undefined)?.bands ?? DEFAULT_SEVERITY_BANDS
+  return {
+    id: row.id, title: row.title, category: row.category, likelihood: row.likelihood, impact: row.impact,
+    severity: severityFromScore(row.likelihood * row.impact, bands),
+    status: row.status, ownerId: row.ownerId, ownerDept: row.ownerDept, linkedControlIds: row.linkedControlIds,
+    updatedAt: row.updatedAt.toISOString(),
+  }
+}
+
 export type RiskInput = { title: string; category?: string; likelihood?: number; impact?: number }
 
 export async function createRisk(ctx: GrcActorCtx, input: RiskInput) {
@@ -248,6 +270,16 @@ export async function advanceAuditFindingCapaStatus(ctx: GrcActorCtx, findingId:
 export async function listPolicies(ctx: { orgId: string }) {
   const rows = await withTenantContext({ orgId: ctx.orgId }, (db) => db.query.policies.findMany({ where: eq(policies.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.title) }))
   return rows.map((p) => ({ id: p.id, title: p.title, category: p.category, version: p.version, status: p.status, attestationRate: p.attestationRate, history: p.history }))
+}
+
+// Real-screen conversion (2026-08-30, PROJEXA GRC Object Page): no
+// single-policy getter existed -- only listPolicies(). Also returns
+// `history` (the real edit/publish audit trail already stored per policy,
+// never surfaced anywhere in PROJEXA's UI before this).
+export async function getPolicy(ctx: { orgId: string }, policyId: string) {
+  const row = await withTenantContext({ orgId: ctx.orgId }, (db) => db.query.policies.findFirst({ where: and(eq(policies.id, policyId), eq(policies.orgId, ctx.orgId)) }))
+  if (!row) throw new ServiceError("Policy not found", 404)
+  return { id: row.id, title: row.title, category: row.category, version: row.version, status: row.status, attestationRate: row.attestationRate, history: row.history }
 }
 
 export async function createPolicy(ctx: GrcActorCtx, input: { title: string; category?: string }) {
