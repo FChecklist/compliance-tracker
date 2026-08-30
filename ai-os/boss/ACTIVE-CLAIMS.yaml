@@ -6306,6 +6306,37 @@ active:
       compilation, no live DB). Not touching capture.ts/embed.ts/chunker.ts
       (they don't exist on this branch's base) or any other CRR P2/P3 file.
 recently_completed:
+  - session_label: "claude-code (task-20260718-081003-crm---sales-modules--accounts---contacts) -- CRM & Sales Modules: Accounts & Contacts remaining gap-closure [DONE, rebased onto current main + merged 2026-08-30 as PR replacing #1238]"
+    claimed_at: "2026-08-15T (this session)"
+    claim: |
+      SPEC (this task's own prompt.txt, VERIDIAN Review Framework 15
+      findings for "Accounts & Contacts"). Branch was ~1331 commits stale
+      (from 2026-07-18) -- rebased onto latest origin/main first, then
+      re-verified every finding against current code before claiming any
+      of them still open.
+      Confirmed ALREADY CLOSED by prior waves (PR #389 + PR #402), no
+      action here: Data Model, CRUD, Business Rule & Validation, Multi-
+      Tenant Isolation, Audit Trail, Access Control/RBAC, Search & Filter
+      half of "Search/Filter/Bulk".
+      Genuinely OPEN, building now: Reporting & Export (report-engine
+      data-source whitelist + REPORT_CATALOG entries), AI Copilot depth
+      (Wave-75-style aiHealthScore analysis for accounts), Bulk half of
+      Search/Filter/Bulk (bulk-reassign), Cross-Module Integration
+      (erpCustomerId/clientId bridge columns), Notification triggers
+      (contact added / account reassigned), Documentation, CSV Import/
+      Export. Localization checked and found not applicable (no CRM
+      monetary field anywhere in this codebase carries a currency column
+      today, accounts included) -- documenting as N/A, not force-adding.
+      File scope: src/lib/db/schema.ts (additive columns only), new
+      drizzle/ migration (renumbered 0314->0335 during the 2026-08-30
+      rebase, real collision with main's own 0314_sales_pipeline_module.sql),
+      src/lib/services/crm-accounts-service.ts,
+      src/lib/services/report-engine-service.ts,
+      src/lib/services/report-catalog-service.ts, src/app/api/crm/
+      accounts/**, src/app/(app)/crm/accounts/** pages, docs/. NOT
+      touching permission-service.ts's shared ERP_ACTION_ROLES table
+      structure (per this task's own instruction) -- existing local
+      ROLE_RANK gate in crm-accounts-service.ts stays as-is.
   - session_label: "Super Boss (Claude Desktop, interactive) -- real 3-screen shell proportions (sidebar ~10% / main ~50% / right panel ~40%) [DONE, merged same session]"
     claimed_at: "2026-08-16T (this session, closed same session)"
     merged_as: "FChecklist/veridian-ui-kit PR #8 (v0.3.2 tag), FChecklist/compliance-tracker PR #1293 (dependency bump, real independent audit posted and passing, all 18 CI checks green), FChecklist/projexa PR #72 (dependency bump, all CI green)."
