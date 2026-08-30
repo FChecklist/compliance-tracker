@@ -19,7 +19,11 @@
     "spike:litert-setup": "node scripts/spike-litert-copy-wasm.mjs && node scripts/spike-litert-build-worker.mjs",
     "spike:litert-embeddings-setup": "node scripts/spike-litert-embeddings-setup.mjs",
     "dep-index": "bun scripts/dependency-index.ts",
-    "check:migration-reversibility": "node scripts/check-migration-reversibility.mjs"
+    "check:migration-reversibility": "node scripts/check-migration-reversibility.mjs",
+    "check:dead-code": "node scripts/check-dead-code.mjs",
+    "check:duplicate-code": "node scripts/check-duplicate-code.mjs",
+    "debt:score": "node scripts/compute-technical-debt-score.mjs",
+    "refactor:priority": "node scripts/list-refactor-priority-candidates.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -125,8 +129,13 @@
     "@types/validator": "^13.15.10",
     "bun-types": "^1.3.4",
     "drizzle-kit": "^0.31.0",
+    "esbuild": "^0.25.12",
     "eslint": "^9",
     "eslint-config-next": "^16.1.1",
+    "js-yaml": "^4.2.0",
+    "jscpd": "^5.0.15",
+    "knip": "^6.32.2",
+    "playwright": "^1.61.1",
     "tailwindcss": "^4",
     "tw-animate-css": "^1.0.7",
     "typescript": "^6.0.3"
