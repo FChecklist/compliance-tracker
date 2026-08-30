@@ -3460,7 +3460,17 @@ open_items:
       recommendation: "Enable GitHub secret scanning (Settings -> Code security -> Secret scanning)
         on all 12 repos currently missing it. Non-destructive, does not require the credential-
         rotation/deletion authorization OCID-054 withheld -- safe to action independently."
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- live gh api check found projexa had already
+        been enabled separately since first_raised; enabled on the remaining 11
+        (claude-control/veridian-scripts/veridian-ai-os/zai-sap-reports-queue/
+        infisuite-reverse-engineering/odoo-reverse-engineering/zoho-reverse-engineering/
+        veridian-ui-kit/global-revenue-engine/veridian-brain/sumeet-spec) via
+        `gh api -X PATCH repos/FChecklist/<repo> -f security_and_analysis[secret_scanning][status]=enabled`,
+        each verified individually afterward via a fresh GET. All 15 real FChecklist repos now
+        have secret scanning enabled. Push protection (a separate, distinct setting) was
+        deliberately left untouched -- out of scope of this gap's own recommendation, and it can
+        block pushes on a detection, a workflow-affecting change this recheck did not have
+        standing to make unilaterally."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
     - id: GAP-GLOBAL-REVENUE-ENGINE-EMPTY-ORPHAN
