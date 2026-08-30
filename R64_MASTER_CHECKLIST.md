@@ -95,13 +95,27 @@ this line is the pointer. Every fn_id must reach VERIFIED-REAL / FIXED / BUILT-N
       testing at 360x800, F051/workstream-2's real capability-tree API + 2 real end-to-end write
       dispatches (erp_create_customer_engine, erp_create_sales_order_engine) creating real DB rows,
       confirmed via GET on the real customers/sales-orders APIs afterward.
-- [ ] ONE PR to compliance-tracker covering all of R64's changes, clear PR body citing every fix
-- [ ] CI green (or same documented pre-existing exceptions as R63's PRs)
-- [ ] Merge
-- [ ] Supabase platform.claude_log: one comprehensive R64 closeout row
-- [ ] Local memory (MEMORY.md + dedicated file) updated
+- [x] ONE PR opened: https://github.com/FChecklist/compliance-tracker/pull/1460 (branch
+      r64-gap-closure-and-r48-audit, 36 files, +1235/-48), full body citing every fix/build
+- [x] CI checked: Lint/TypeCheck/UnitTests/Build/SecretScanning/SecurityPatternCheck/
+      MigrationIntegrityCheck/MigrationCollisionCheck/DocumentationSentinelCheck all PASS. E2E Tests
+      and Vercel both FAIL, but confirmed via `gh run list --branch main` + `gh run view` (same
+      convention as R63's own PRs) that main's own latest CI run ALSO fails on the identical E2E job
+      ("the minted session must resolve to a real org" -- demo-gate-smoke.spec.ts against real
+      production, pre-existing, unrelated to any R64 change) and Vercel fails for the already-
+      documented spend-cap reason -- BEFORE this PR existed. Nothing this PR touched caused either.
+- [x] Merged: owner said "merge it" explicitly (2026-08-30). Squash-merged as commit `a3a08b9e`,
+      matching the exact "(#NNNN)" squash-merge convention every prior R63 PR used. Branch
+      r64-gap-closure-and-r48-audit deleted locally after fast-forwarding main to origin/main.
+- [x] Supabase platform.claude_log: comprehensive R64 closeout row inserted (author=claude-chat,
+      wo=R64, id 157) before the merge, covering every workstream in full
+- [x] Local memory (MEMORY.md index entry + dedicated veridian_r64_gap_closure_and_r48_audit_2026-08-30.md
+      file) updated before the merge; MEMORY.md also compacted from 19.7KB to ~17.2KB per its own
+      size-limit hook
 
 ## Progress log (append-only, newest first — a running diary so a compaction/restart can pick up exactly where this left off)
+- 2026-08-30 (final): PR #1460 merged (commit a3a08b9e) on explicit owner instruction ("merge it").
+  R64 is fully closed: all 5 workstreams done, Supabase + local memory both record the closeout.
 - 2026-08-30: Section #4 (100-function audit/build) COMPLETE — all 100 fn_ids resolved, real code
   read/written for every one, no verdict given without actually reading the implementing code. 15 real
   code changes shipped locally (not yet committed): fixes F002/F046/F056/F059/F060/F088/F089, builds
