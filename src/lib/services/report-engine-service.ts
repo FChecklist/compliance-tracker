@@ -74,7 +74,7 @@ import { recordOrchestraExecution } from "@/lib/orchestra-execution-logger"
 import { enforcePolicy, refusalMessageFor, hasGroundingData } from "@/lib/policy-enforcement-engine"
 import { DEFAULT_DOMAIN } from "@/lib/purpose-bound-ai"
 import { validateClassifications, validatePeriodicity, REPORT_CATEGORY_VALUES, type ReportCategory } from "./report-taxonomy"
-import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport } from "./construction-reports-service"
+import { budgetVsActual, projectCompletionReport, revenueReport, expenseReport, projectPeriodReport } from "./construction-reports-service"
 import { customerPaymentBehaviorReport, vendorPaymentBehaviorReport } from "./erp-invoicing-service"
 import { listStockBalances } from "./erp-inventory-service"
 import { REPORT_CATALOG, type ReportCatalogEntry, type ReportDomain } from "./report-catalog-service"
@@ -1442,8 +1442,99 @@ async function computeMaterialsRunningLow(ctx: { orgId: string }, _params: Recor
   }
 }
 
+/**
+ * R65 (2026-08-30, reports-engine gap closure): rptdef_sales_dashboard's own
+ * execution_config was an honest placeholder ("NOT BUILT -- composite
+ * multi-table summary") under `deterministic_aggregation`, which can only
+ * ever resolve one TABLE_REGISTRY entry per call -- a genuine composite
+ * across 5 tables needs `deterministic_formula` instead (this function),
+ * matching computeEarnedValueAnalysis's own precedent of combining several
+ * real per-table figures into one dashboard-shaped result rather than
+ * re-querying each domain's own already-reportable metric a second way.
+ * Each row here is independently reportable elsewhere (Lead Register,
+ * Sales Pipeline Report, Quotation Report, Won Projects Report, Revenue
+ * Booking Report per this row's own data_gap_note) -- this is the composite
+ * view across all of them, not a replacement for any one.
+ */
+async function computeSalesDashboard(ctx: { orgId: string }): Promise<ReportDefinitionResult> {
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const [leadRows, oppRows, quoteRows, orderRows, invoiceRows] = await Promise.all([
+      db.select({ value: sql<number>`count(*)::float` }).from(crmLeads).where(eq(crmLeads.orgId, ctx.orgId)),
+      db.select({ value: sql<number>`count(*)::float`, total: sql<number>`coalesce(sum(${crmOpportunities.estimatedValue}), 0)::float` })
+        .from(crmOpportunities).where(and(eq(crmOpportunities.orgId, ctx.orgId), inArray(crmOpportunities.stage, ["prospecting", "proposal", "negotiation"]))),
+      db.select({ status: erpQuotations.status, value: sql<number>`count(*)::float` })
+        .from(erpQuotations).where(eq(erpQuotations.orgId, ctx.orgId)).groupBy(erpQuotations.status),
+      db.select({ value: sql<number>`count(*)::float`, total: sql<number>`coalesce(sum(${erpSalesOrders.grandTotal}), 0)::float` })
+        .from(erpSalesOrders).where(eq(erpSalesOrders.orgId, ctx.orgId)),
+      db.select({ value: sql<number>`count(*)::float`, total: sql<number>`coalesce(sum(${erpSalesInvoices.grandTotal}), 0)::float` })
+        .from(erpSalesInvoices).where(eq(erpSalesInvoices.orgId, ctx.orgId)),
+    ])
+
+    const totalLeads = Number(leadRows[0]?.value ?? 0)
+    const openOpportunities = Number(oppRows[0]?.value ?? 0)
+    const openOpportunityValue = Number(oppRows[0]?.total ?? 0)
+    const wonQuotes = Number(quoteRows.find((r) => r.status === "ordered")?.value ?? 0)
+    const lostQuotes = Number(quoteRows.find((r) => r.status === "lost")?.value ?? 0)
+    const totalOrders = Number(orderRows[0]?.value ?? 0)
+    const totalOrderValue = Number(orderRows[0]?.total ?? 0)
+    const totalInvoices = Number(invoiceRows[0]?.value ?? 0)
+    const totalInvoiceValue = Number(invoiceRows[0]?.total ?? 0)
+
+    return {
+      columns: ["Metric", "Value"],
+      rows: [
+        { Metric: "Total Leads", Value: totalLeads },
+        { Metric: "Open Opportunities", Value: openOpportunities },
+        { Metric: "Open Opportunity Value", Value: Math.round(openOpportunityValue) },
+        { Metric: "Quotations Won", Value: wonQuotes },
+        { Metric: "Quotations Lost", Value: lostQuotes },
+        { Metric: "Sales Orders", Value: totalOrders },
+        { Metric: "Sales Order Value", Value: Math.round(totalOrderValue) },
+        { Metric: "Sales Invoices Raised", Value: totalInvoices },
+        { Metric: "Revenue Booked (Invoiced)", Value: Math.round(totalInvoiceValue) },
+      ],
+      note: "Composite across Lead Register (crm_leads), Sales Pipeline (crm_opportunities, still-open stages only -- prospecting/proposal/negotiation, excluding won/lost), Quotation Report (erp_quotations, won/lost counts), Won Projects (erp_sales_orders), and Revenue Booking (erp_sales_invoices) -- see each named report individually for a detailed, filterable breakdown.",
+    }
+  })
+}
+
+/**
+ * R65 (2026-08-30, reports-engine gap closure): rptdef_monthly_project_report's
+ * own data_gap_note said construction-reports-service.ts#weeklyProjectReport()
+ * "computes a fixed 7-day composite window; no monthly-window variant exists
+ * yet -- would need a straightforward generalization of that existing
+ * function, not new data." That generalization is projectPeriodReport()
+ * (same file, this same PR) -- this formula calls it with a calendar-month
+ * window instead of a 7-day one.
+ */
+async function computeMonthlyProjectReport(ctx: { orgId: string }, params: Record<string, unknown>): Promise<ReportDefinitionResult> {
+  const projectId = String(params.projectId ?? "")
+  if (!projectId) throw new ServiceError("projectId is required for the Monthly Project Report", 400)
+  const monthStartInput = typeof params.monthStart === "string" && params.monthStart ? params.monthStart : new Date().toISOString().slice(0, 8) + "01"
+  const start = new Date(monthStartInput)
+  const monthStart = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth(), 1)).toISOString().slice(0, 10)
+  const monthEnd = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth() + 1, 1)).toISOString().slice(0, 10)
+
+  const report = await projectPeriodReport(ctx, projectId, monthStart, monthEnd)
+
+  return {
+    columns: ["Metric", "Value"],
+    rows: [
+      { Metric: "Period", Value: `${report.periodStart} to ${report.periodEnd}` },
+      { Metric: "Progress Entries Logged", Value: report.progressEntriesLogged },
+      { Metric: "Labour Cost", Value: Math.round(report.labourCost) },
+      { Metric: "Workers Present (attendance rows)", Value: report.workersPresent },
+      { Metric: "Site Diary Entries", Value: report.diaryEntries },
+      { Metric: "Expense Total", Value: Math.round(report.expenseTotal) },
+    ],
+    note: "Calendar-month window ([monthStart 1st, next month's 1st)) over the same real composite (work-progress entries, attendance/labour cost, site-diary entries, expenses) weeklyProjectReport() already computes for a 7-day window -- pass params.monthStart (YYYY-MM-01) to pick a specific month, defaults to the current month.",
+  }
+}
+
 export const FORMULA_REGISTRY: Record<string, FormulaFn> = {
   materials_running_low: computeMaterialsRunningLow,
+  sales_dashboard: computeSalesDashboard,
+  monthly_project_report: computeMonthlyProjectReport,
   schedule_performance_index: computeSpi,
   cost_performance_index: computeCpi,
   project_health_index: computeProjectHealthIndex,
