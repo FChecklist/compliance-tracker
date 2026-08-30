@@ -314,28 +314,45 @@ export async function boqBudgetVarianceReport(ctx: { orgId: string }, projectId:
       : []
     const supplierNameById = new Map(suppliers.map((s) => [s.id, s.name]))
 
+    // R48 gap-closure (2026-08-30, F088: "Report figures reconcile to the
+    // database exactly"). Real, confirmed bug: totals below used to sum the
+    // already-ROUNDED per-line display values (each independently rounded
+    // to 2dp) and round again -- cumulative per-line rounding can drift the
+    // total by fractions of a currency unit from the true
+    // SUM(amount*pct/100) a direct SQL query would return, which is exactly
+    // what "to the last unit" rules out. Fixed: keep the raw (unrounded)
+    // budget/variance alongside the rounded display value, and total from
+    // the RAW figures, rounding only once at the very end -- the totals now
+    // reconcile exactly to a raw SQL sum over the same rows.
     const lines = lineItems.map((item) => {
-      const budget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
+      const rawBudget = Number(item.amount) * (Number(item.budgetPercentage) / 100)
       const vendorAmount = item.vendorAmount !== null ? Number(item.vendorAmount) : null
+      const rawVariance = vendorAmount !== null ? vendorAmount - rawBudget : null
       return {
         lineItemId: item.id,
         code: item.itemCode,
         description: item.description,
         amount: Number(item.amount),
         budgetPercentage: Number(item.budgetPercentage),
-        budget: Math.round(budget * 100) / 100,
+        budget: Math.round(rawBudget * 100) / 100,
         vendorId: item.vendorId,
         vendorName: item.vendorId ? (supplierNameById.get(item.vendorId) ?? null) : null,
         vendorAmount,
-        variance: vendorAmount !== null ? Math.round((vendorAmount - budget) * 100) / 100 : null,
+        variance: rawVariance !== null ? Math.round(rawVariance * 100) / 100 : null,
+        _rawBudget: rawBudget,
+        _rawVariance: rawVariance,
       }
     })
 
+    const totalBudget = Math.round(lines.reduce((s, l) => s + l._rawBudget, 0) * 100) / 100
+    const totalVendorAmount = Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100
+    const totalVariance = Math.round(lines.reduce((s, l) => s + (l._rawVariance ?? 0), 0) * 100) / 100
+
     return {
-      lines,
-      totalBudget: Math.round(lines.reduce((s, l) => s + l.budget, 0) * 100) / 100,
-      totalVendorAmount: Math.round(lines.reduce((s, l) => s + (l.vendorAmount ?? 0), 0) * 100) / 100,
-      totalVariance: Math.round(lines.reduce((s, l) => s + (l.variance ?? 0), 0) * 100) / 100,
+      lines: lines.map(({ _rawBudget, _rawVariance, ...line }) => line),
+      totalBudget,
+      totalVendorAmount,
+      totalVariance,
     }
   })
 }

@@ -236,6 +236,22 @@ export default function ScopeDetailPage() {
 
   const total = boq.lineItems.filter((i) => !i.parentLineItemId).reduce((sum, i) => sum + Number(i.amount), 0);
 
+  // R48 gap-closure (2026-08-30, F016: "Running total of child percentages
+  // shown per parent"). Per-child "X% of parent" already existed (line
+  // below), but nothing summed those children back up per parent -- real,
+  // confirmed gap. Grouped once here rather than per-row to avoid an O(n^2)
+  // scan; deliberately NOT clamped/validated against 100 (F015: weights are
+  // NOT forced to sum to 100, so this is a live readout, not a gate).
+  const childPercentTotalByParentId = new Map<string, number>();
+  for (const item of boq.lineItems) {
+    if (item.parentLineItemId && item.breakdownPercentage) {
+      childPercentTotalByParentId.set(
+        item.parentLineItemId,
+        (childPercentTotalByParentId.get(item.parentLineItemId) ?? 0) + Number(item.breakdownPercentage)
+      );
+    }
+  }
+
   return (
     <div className="space-y-4">
       <Link href="/scope" className="inline-flex items-center gap-1 text-xs text-ct-muted hover:text-ct-navy">
@@ -295,6 +311,11 @@ export default function ScopeDetailPage() {
                       {item.itemCode && <span className="ml-2 font-mono text-[10px] text-ct-muted">{item.itemCode}</span>}
                       {item.parentLineItemId && item.breakdownPercentage && (
                         <span className="ml-2 text-[10px] text-ct-muted">{item.breakdownPercentage}% of parent</span>
+                      )}
+                      {!item.parentLineItemId && childPercentTotalByParentId.has(item.id) && (
+                        <span className="ml-2 text-[10px] text-ct-muted">
+                          (children: {childPercentTotalByParentId.get(item.id)}%)
+                        </span>
                       )}
                     </TableCell>
                     <TableCell className="text-ct-muted">{item.unit}</TableCell>

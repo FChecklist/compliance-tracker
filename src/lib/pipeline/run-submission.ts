@@ -41,6 +41,8 @@ export type RunSubmissionInput = {
   projectId?: string | null;
   selectedChain?: unknown;
   rawInput: string;
+  /** R48 gap-closure (2026-08-30, F089) -- see executor.ts's ExecutableTask.role comment. Optional: callers with no role available (e.g. the MCP AI-link route) simply don't get the redaction. */
+  role?: string | null;
 };
 
 export type TaskOutcome = {
@@ -257,6 +259,7 @@ export async function runSubmission(input: RunSubmissionInput): Promise<RunSubmi
       projectId: input.projectId ?? null,
       functionId: c.functionId,
       params: c.params,
+      role: input.role,
     });
     if (outcome.success) {
       await updateTask(input.orgId, taskId, "done", outcome.result, undefined);
@@ -333,6 +336,8 @@ export type RunDirectTaskInput = {
   params?: Record<string, unknown>;
   /** the raw text the user typed alongside the pill, kept for the audit trail. */
   note?: string;
+  /** R48 gap-closure (2026-08-30, F089) -- see RunSubmissionInput.role. */
+  role?: string | null;
 };
 
 export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmissionResult> {
@@ -343,6 +348,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
     mode: input.mode,
     projectId: input.projectId ?? null,
     rawInput: input.note ?? `[pill] ${input.functionId}`,
+    role: input.role,
   };
 
   const submissionId = await withTenantContext({ orgId: input.orgId, userId: input.userId }, async (db) => {
@@ -403,6 +409,7 @@ export async function runDirectTask(input: RunDirectTaskInput): Promise<RunSubmi
       projectId: input.projectId ?? null,
       functionId: input.functionId,
       params,
+      role: input.role,
     });
   }
 

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuthOrApiKey, requireRoleOrScope } from "@/lib/supabase/auth-guard"
+import { requireAuthOrApiKey, requireRoleOrScope, hasRole } from "@/lib/supabase/auth-guard"
 import { getOrgDashboard, ServiceError } from "@/lib/services/construction-dashboard-service"
 
 export async function GET(request: NextRequest) {
@@ -22,6 +22,23 @@ export async function GET(request: NextRequest) {
 
   try {
     const summary = await getOrgDashboard({ orgId: ctx.orgId }, { departmentId: request.nextUrl.searchParams.get("departmentId") ?? undefined })
+    // R48 gap-closure (2026-08-30, F059: "MEMBER cannot see budget or
+    // margin"). This is the REAL route the (app)/construction-dashboard
+    // page calls (confirmed live: it fetches /api/v1/projexa/dashboard, not
+    // /api/construction/dashboard's own copy of this same logic). The
+    // requireRoleOrScope() call above deliberately floors at "member" (see
+    // E-52/API_READ_WITHOUT_ROLE_CHECK comment) -- correct for the page to
+    // load at all, but it never redacted financial figures for that "member"
+    // rank, so a site engineer received the same budget/revenue/expenses as
+    // a manager once the page loaded. Redact server-side instead of gating
+    // the whole route -- a member still needs task counts/delayed counts.
+    if (ctx.dbUser && !hasRole(ctx.dbUser, "manager")) {
+      return NextResponse.json({
+        ...summary,
+        totalBudget: null, totalRevenue: null, totalExpenses: null,
+        projects: summary.projects.map((p) => ({ ...p, revenue: null, expenses: null, earnedValue: null, percentByValue: null })),
+      })
+    }
     return NextResponse.json(summary)
   } catch (error) {
     if (error instanceof ServiceError) return NextResponse.json({ error: error.message }, { status: error.status })

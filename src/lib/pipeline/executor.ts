@@ -12,6 +12,7 @@ import { constructionBoqLineItems, constructionBoqs, constructionActivities } fr
 import { createProgressEntry } from "@/lib/services/construction-progress-service";
 import { getProjectDashboard } from "@/lib/services/construction-dashboard-service";
 import { dispatchTool } from "@/lib/task-execution-engine";
+import { ROLE_RANK, type UserRole } from "@/lib/supabase/auth-guard";
 
 export type ExecutionOutcome = { success: true; result: unknown } | { success: false; error: string };
 
@@ -21,6 +22,22 @@ export type ExecutableTask = {
   projectId: string | null;
   functionId: string;
   params: Record<string, unknown>;
+  /**
+   * R48 gap-closure (2026-08-30, F089: "Assistant respects role and project
+   * scope"). Real, confirmed gap: executeGetProjectDashboard() called
+   * getProjectDashboard() directly (the raw service function), bypassing the
+   * redaction api/v1/projexa/dashboard's own route now applies (F059) --
+   * the AI assistant could hand a "member"-ranked user the same budget/
+   * margin figures the dashboard route itself now withholds from them.
+   * Optional (undefined) rather than required so callers that genuinely
+   * have no role available (the personal MCP AI-link surface,
+   * api/mcp/[token]/route.ts) don't silently break; that surface is
+   * per-user-token-scoped to one specific person by design (not a general
+   * multi-role surface), a narrower risk than the 3 session-based REST
+   * routes this IS wired through (assistant/tasks/submissions), but it is
+   * NOT yet wired -- see R48_PROGRESS.md's F089 entry for the honest status.
+   */
+  role?: string | null;
 };
 
 async function executeRecordWorkProgress(task: ExecutableTask): Promise<ExecutionOutcome> {
@@ -81,6 +98,21 @@ async function executeRecordWorkProgress(task: ExecutableTask): Promise<Executio
 async function executeGetProjectDashboard(task: ExecutableTask): Promise<ExecutionOutcome> {
   if (!task.projectId) return { success: false, error: "no project resolved for this task" };
   const dashboard = await getProjectDashboard({ orgId: task.orgId }, task.projectId);
+  // F089/F059: same redaction the API route applies, for the same reason --
+  // see this file's ExecutableTask.role comment. `task.role` undefined
+  // (role not threaded through by this caller) is treated as "unknown, so
+  // don't redact" to preserve prior behavior for callers not yet wired.
+  const rank = task.role ? (ROLE_RANK[task.role as UserRole] ?? 0) : ROLE_RANK.manager;
+  if (rank < ROLE_RANK.manager) {
+    return {
+      success: true,
+      result: {
+        ...dashboard,
+        budget: null, revenue: null, expenses: null,
+        projectValue: null, earnedValue: null, percentByValue: null, contractValue: null,
+      },
+    };
+  }
   return { success: true, result: dashboard };
 }
 

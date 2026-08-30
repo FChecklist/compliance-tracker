@@ -55,6 +55,7 @@ export async function POST(request: NextRequest) {
       projectId: typeof body.projectId === "string" ? body.projectId : null,
       selectedChain: body.selectedChain,
       rawInput,
+      role: ctx.dbUser?.role ?? null,
     })
     return NextResponse.json(result, { status: 201 })
   } catch (error) {

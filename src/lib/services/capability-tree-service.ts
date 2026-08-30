@@ -1147,6 +1147,41 @@ function buildCrmQuickCreateNodes(): CapabilityNode[] {
   return [{ key: "crm_quick_create", label: "Create", leaf: false, children: leaves }]
 }
 
+// R48/R64 gap-closure (2026-08-30, workstream 2: "writes for erp domain").
+// Real, confirmed gap: buildCrmQuickCreateNodes() above has 4 real write
+// pills (Lead/Opportunity/Activity/Campaign, all form-based -- fixedInputs/
+// inputFields, never LLM-guessed args, same safety convention as
+// update_compliance_status/create_compliance_item); the ERP branch had ZERO
+// write pills of any kind, only reads (PR #1457's 12 functions). Built on
+// the exact same shape: a flat form (no nested-array UI needed anywhere
+// else in this composer, so createSalesOrder's real `items` array is
+// represented here as ONE line item's fields and wrapped into items:[...]
+// at dispatch time -- a genuine simplification for the quick-create pill,
+// not a different code path from the real multi-line service function).
+function buildErpQuickCreateNodes(): CapabilityNode[] {
+  const leaves: CapabilityNode[] = [
+    {
+      key: "erp_create_customer_engine", label: "Create a Customer", leaf: true, engineKey: "erp_create_customer_engine",
+      inputFields: [
+        { key: "customerName", label: "Customer name", type: "text" },
+        { key: "gstin", label: "GSTIN (optional)", type: "text", optional: true },
+        { key: "creditLimit", label: "Credit limit (optional)", type: "number", optional: true },
+      ],
+    },
+    {
+      key: "erp_create_sales_order_engine", label: "Create a Sales Order", leaf: true, engineKey: "erp_create_sales_order_engine",
+      inputFields: [
+        { key: "customerId", label: "Customer ID", type: "text" },
+        { key: "orderDate", label: "Order date (YYYY-MM-DD)", type: "text" },
+        { key: "itemDescription", label: "Line item description", type: "text" },
+        { key: "quantity", label: "Quantity", type: "number", optional: true },
+        { key: "rate", label: "Rate", type: "number" },
+      ],
+    },
+  ]
+  return [{ key: "erp_quick_create", label: "Create", leaf: false, children: leaves }]
+}
+
 export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: string; userId?: string }): Promise<CapabilityNode[]> {
   const tree = await withTenantContext({ orgId: ctx.orgId }, async (db) => {
     const branchNodes = await buildBranchNodes(db, ctx.orgId)
@@ -1160,7 +1195,8 @@ export async function buildCapabilityTree(ctx: { orgId: string; moduleScope?: st
     const reportCatalogNodes = await buildReportCatalogNodes({ orgId: ctx.orgId })
     const learnedCapabilityNodes = await buildLearnedCapabilityNodes(db, ctx.orgId)
     const crmQuickCreateNodes = buildCrmQuickCreateNodes()
-    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes, ...crmQuickCreateNodes]
+    const erpQuickCreateNodes = buildErpQuickCreateNodes()
+    const staticNodes = [...productNodes, ...entityNodes, ...complianceItemNodes, ...calculatorNodes, ...gstReconciliationNodes, ...constructionNodes, ...reportNodes, ...reportCatalogNodes, ...learnedCapabilityNodes, ...crmQuickCreateNodes, ...erpQuickCreateNodes]
 
     const allowedKeys = ctx.moduleScope ? MODULE_SCOPE_TOP_LEVEL_KEYS[ctx.moduleScope] : undefined
     const scopedStaticNodes = allowedKeys ? staticNodes.filter((n) => allowedKeys.includes(n.key)) : staticNodes
@@ -1369,11 +1405,23 @@ async function buildBranchNodes(db: TenantDb, orgId: string): Promise<Capability
     const domains = Array.from(new Set(modules.map((m) => m.domain)))
     const domainNodes: CapabilityNode[] = []
     for (const domain of domains) {
-      const modsInDomain = modules.filter((m) => m.domain === domain)
       const agents = eligibleAgents.filter((a) => agentDomainServesModuleDomain(a.domain, domain))
-      const children: CapabilityNode[] = agents.length > 0
-        ? agents.map((a) => ({ key: a.id, label: a.name, leaf: true, codeReference: a.codeReference }))
-        : modsInDomain.map((m) => ({ key: m.moduleKey, label: m.displayName, leaf: true }))
+      // R48/R64 gap-closure (2026-08-30, F051: "No visible pill may be
+      // unwired -- unwired ones are hidden, not greyed"). Real, confirmed
+      // gap: when a domain had zero eligible worker_agents (confirmed live
+      // for "erp" -- 0 of the real published/approved agents serve that
+      // domain, only Construction/Cross-Cutting/GST/India-Compliance do),
+      // this used to fall back to rendering every module in that domain as
+      // a `leaf: true` pill with NO codeReference at all -- visible,
+      // clickable, and with nothing for dispatchTool()/resolveDynamicChainId
+      // to actually run. That's exactly the "VERI ERP shows 20 clickable
+      // module pills with zero resolvable children" defect. Fixed: a domain
+      // with no eligible agent contributes NO children at all (skip it,
+      // don't fake a leaf) -- if every domain under a branch is unwired,
+      // domainNodes stays empty and the whole branch pill (e.g. "VERI ERP")
+      // correctly disappears too, rather than showing an empty shell.
+      if (agents.length === 0) continue
+      const children: CapabilityNode[] = agents.map((a) => ({ key: a.id, label: a.name, leaf: true, codeReference: a.codeReference }))
       domainNodes.push({ key: domain, label: domain, leaf: false, children })
     }
 

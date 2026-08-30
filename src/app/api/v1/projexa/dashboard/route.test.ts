@@ -27,6 +27,13 @@ function mockAuth(ctx: { orgId: string | null; response?: Response | null; roleE
       response: ctx.response ?? null,
     })),
     requireRoleOrScope: mock(() => ctx.roleErr ?? null),
+    // R48 gap-closure (2026-08-30, F059): the route now also imports
+    // hasRole() to redact financial fields below "manager" rank. These
+    // tests are about the org-resolution/role-gate guards above, not the
+    // redaction feature itself, so the mock returns true unconditionally
+    // -- every existing assertion here (checking the full, unredacted
+    // getOrgDashboard result is returned) keeps its original meaning.
+    hasRole: mock(() => true),
   }))
 }
 

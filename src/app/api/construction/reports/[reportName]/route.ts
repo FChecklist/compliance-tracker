@@ -2,7 +2,7 @@
 // repo's existing custom-report-service.ts posture -- see that file's own
 // comment on why arbitrary query dispatch is avoided on a multi-tenant DB.
 import { NextRequest, NextResponse } from "next/server"
-import { requireAuth } from "@/lib/supabase/auth-guard"
+import { requireAuth, hasRole } from "@/lib/supabase/auth-guard"
 import { REPORT_REGISTRY, ServiceError, type ReportName } from "@/lib/services/construction-reports-service"
 
 function isValidReportName(value: string): value is ReportName {
@@ -10,13 +10,18 @@ function isValidReportName(value: string): value is ReportName {
 }
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ reportName: string }> }) {
-  const { response, orgId } = await requireAuth()
+  const { response, orgId, dbUser } = await requireAuth()
   if (response) return response
   if (!orgId) return NextResponse.json({ error: "No organisation found" }, { status: 400 })
 
   const { reportName } = await params
   if (!isValidReportName(reportName)) {
     return NextResponse.json({ error: `Unknown report. Valid reports: ${Object.keys(REPORT_REGISTRY).join(", ")}` }, { status: 400 })
+  }
+  // R48 gap-closure (2026-08-30, F003/F059) -- see the sibling v1 route's
+  // comment for the full reasoning.
+  if (reportName === "budget-vs-actual" && !hasRole(dbUser, "manager")) {
+    return NextResponse.json({ error: "This report requires manager role or higher" }, { status: 403 })
   }
 
   const projectId = request.nextUrl.searchParams.get("projectId")

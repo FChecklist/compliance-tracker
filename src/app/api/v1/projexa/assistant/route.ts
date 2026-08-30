@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
         projectId: typeof body.projectId === "string" ? body.projectId : null,
         selectedChain: body.selectedChain,
         rawInput: body.rawInput,
+        role: ctx.dbUser?.role ?? null,
       })
       return NextResponse.json(result, { status: 201 })
     } catch (error) {
@@ -73,7 +74,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await withTenantContext({ orgId: ctx.orgId, userId: actorId }, (db) =>
-      dispatchTool(db, ctx.orgId!, actorId, codeReference, { inputs: body.inputs ?? {} })
+      dispatchTool(db, ctx.orgId!, actorId, codeReference, { inputs: body.inputs ?? {} }, ctx.dbUser?.role ?? null)
     )
     return NextResponse.json({ codeReference, result })
   } catch (error) {
