@@ -48,7 +48,7 @@ export async function listSuppliers(ctx: { orgId: string }) {
 // Wave 120 (PROJEXA Vendor Master enhancement): trade/projectId are
 // optional on every existing call site -- unset by default, matching this
 // wave's additive-column posture.
-export type SupplierInput = { supplierName: string; supplierType?: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number; trade?: string; projectId?: string }
+export type SupplierInput = { supplierName: string; supplierType?: string; gstin?: string; panNumber?: string; defaultPaymentTermsDays?: number; creditLimit?: number; trade?: string; projectId?: string; isActive?: boolean }
 
 export async function createSupplier(ctx: { orgId: string }, input: SupplierInput) {
   await requireErpEnabled(ctx.orgId)
@@ -59,6 +59,19 @@ export async function createSupplier(ctx: { orgId: string }, input: SupplierInpu
       gstin: input.gstin, panNumber: input.panNumber, defaultPaymentTermsDays: input.defaultPaymentTermsDays,
       creditLimit: input.creditLimit?.toString(), trade: input.trade, projectId: input.projectId,
     }).returning()
+    return supplier
+  })
+}
+
+// Real-screen conversion (2026-08-30): single-supplier lookup for the
+// Vendor Object Page -- never existed, the same class of gap
+// getMaterial()/getRosterEntry() closed earlier this session (list-and-
+// update existed, single-item read never did).
+export async function getSupplier(ctx: { orgId: string }, supplierId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const supplier = await db.query.erpSuppliers.findFirst({ where: and(eq(erpSuppliers.id, supplierId), eq(erpSuppliers.orgId, ctx.orgId)) })
+    if (!supplier) throw new ServiceError("Supplier not found", 404)
     return supplier
   })
 }
@@ -77,6 +90,7 @@ export async function updateSupplier(ctx: { orgId: string }, supplierId: string,
       ...(input.creditLimit !== undefined ? { creditLimit: input.creditLimit === null ? null : input.creditLimit.toString() } : {}),
       ...(input.trade !== undefined ? { trade: input.trade } : {}),
       ...(input.projectId !== undefined ? { projectId: input.projectId } : {}),
+      ...(input.isActive !== undefined ? { isActive: input.isActive } : {}),
     }).where(eq(erpSuppliers.id, supplierId)).returning()
     return updated
   })

@@ -293,6 +293,19 @@ export async function listSalesInvoicesPaged(ctx: { orgId: string }, filters: Sa
   })
 }
 
+// Real-screen conversion (2026-08-30): single-invoice lookup for the Object
+// Page -- listSalesInvoicesPaged already eager-loads items/customer per row,
+// this just does the same `with` for one id instead of forcing the Object
+// Page to page through the whole list client-side to find one row.
+export async function getSalesInvoice(ctx: { orgId: string }, invoiceId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const invoice = await db.query.erpSalesInvoices.findFirst({ where: and(eq(erpSalesInvoices.id, invoiceId), eq(erpSalesInvoices.orgId, ctx.orgId)), with: { items: true, customer: true } })
+    if (!invoice) throw new ServiceError("Sales invoice not found", 404)
+    return invoice
+  })
+}
+
 // Priority 13 (PROJEXA sales-invoice creation): ctx is intentionally NOT
 // ErpContext here (unlike submitSalesInvoice/createPurchaseInvoice below) --
 // this is the one write in this file a Bearer-API-key caller legitimately
@@ -375,7 +388,17 @@ export async function createSalesInvoice(
   })
 }
 
-export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, input: { revenueAccountId: string }) {
+// Real-screen conversion (2026-08-30): widened from ErpContext (real dbUser
+// only) to the same dbUser-or-apiKey actor union createSalesInvoice above
+// already uses -- this function had zero PROJEXA-reachable route despite
+// existing since Wave 60, so every invoice PROJEXA created stayed "draft"
+// forever (recordSalesInvoicePayment only accepts submitted/
+// partially_paid/overdue, so it could never actually be paid either). See
+// PROJEXA_REAL_SCREEN_CONVERSION_TRACKER.md module #13 for the full finding.
+export async function submitSalesInvoice(
+  ctx: { orgId: string; userId: string } & ({ dbUser: typeof users.$inferSelect; apiKey?: never } | { dbUser?: never; apiKey: { id: string; name: string } }),
+  invoiceId: string, input: { revenueAccountId: string }
+) {
   await requireErpEnabled(ctx.orgId)
   if (!input.revenueAccountId) throw new ServiceError("revenueAccountId is required", 400)
 
@@ -433,7 +456,11 @@ export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, inp
     await db.insert(erpJournalEntryLines).values(lines)
 
     const [updated] = await db.update(erpSalesInvoices).set({ status: "submitted", journalEntryId: je.id }).where(eq(erpSalesInvoices.id, invoiceId)).returning()
-    await logActivity({ tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.submitted", entityType: "erp_sales_invoice", entityId: invoiceId })
+    await logActivity(
+      ctx.dbUser
+        ? { tx: db, orgId: ctx.orgId, dbUser: ctx.dbUser, action: "erp_sales_invoice.submitted", entityType: "erp_sales_invoice", entityId: invoiceId }
+        : { tx: db, orgId: ctx.orgId, apiKey: ctx.apiKey, action: "erp_sales_invoice.submitted", entityType: "erp_sales_invoice", entityId: invoiceId }
+    )
 
     // D15.B2.S1 named event #5, "Revenue Posted -> Revenue Audit" -- this is
     // the real journal-entry posting (the GL lines inserted just above), not
@@ -442,10 +469,11 @@ export async function submitSalesInvoice(ctx: ErpContext, invoiceId: string, inp
     // (defensive, matches this file's own "never assume" discipline
     // elsewhere), even though the draft-only check above makes it true today.
     if (didRevenuePost(invoice.status, updated.status)) {
-      await recordAuditTrigger({
-        tx: db, event: "revenue_posted", entityType: "erp_sales_invoice", entityId: invoiceId, orgId: ctx.orgId,
-        dbUser: ctx.dbUser, details: `Sales Invoice #${invoice.invoiceNumber} posted (journal entry #${je.entryNumber}, ${baseGrandTotal.toFixed(2)}).`,
-      }).catch((err) => console.error(`[audit-trigger] failed to record revenue_posted for invoice ${invoiceId}:`, err))
+      await recordAuditTrigger(
+        ctx.dbUser
+          ? { tx: db, event: "revenue_posted", entityType: "erp_sales_invoice", entityId: invoiceId, orgId: ctx.orgId, dbUser: ctx.dbUser, details: `Sales Invoice #${invoice.invoiceNumber} posted (journal entry #${je.entryNumber}, ${baseGrandTotal.toFixed(2)}).` }
+          : { tx: db, event: "revenue_posted", entityType: "erp_sales_invoice", entityId: invoiceId, orgId: ctx.orgId, apiKey: ctx.apiKey, details: `Sales Invoice #${invoice.invoiceNumber} posted (journal entry #${je.entryNumber}, ${baseGrandTotal.toFixed(2)}).` }
+      ).catch((err) => console.error(`[audit-trigger] failed to record revenue_posted for invoice ${invoiceId}:`, err))
     }
 
     return updated

@@ -187,6 +187,20 @@ export async function createRfq(
   })
 }
 
+// Real-screen conversion (2026-08-30): single-RFQ lookup for the RFQ
+// Object Page -- only listRfqs (all) existed before.
+export async function getRfq(ctx: { orgId: string }, rfqId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const rfq = await db.query.erpRfqs.findFirst({
+      where: and(eq(erpRfqs.id, rfqId), eq(erpRfqs.orgId, ctx.orgId)),
+      with: { items: true, suppliers: true },
+    })
+    if (!rfq) throw new ServiceError("RFQ not found", 404)
+    return rfq
+  })
+}
+
 export async function sendRfq(ctx: ActorCtx, rfqId: string) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId, userId: ctx.userId }, async (db) => {

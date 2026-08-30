@@ -3,7 +3,7 @@
 // item/warehouse pickers and quick-add.
 import { erpItems, erpWarehouses, users } from "@/lib/db"
 import { withTenantContext } from "@/lib/db/tenant-scoped"
-import { eq } from "drizzle-orm"
+import { and, eq } from "drizzle-orm"
 import { ServiceError } from "./compliance-service"
 export { ServiceError }
 import { logActivity } from "@/lib/audit"
@@ -25,6 +25,19 @@ export async function listItems(ctx: { orgId: string }) {
   await requireErpEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
     return db.query.erpItems.findMany({ where: eq(erpItems.orgId, ctx.orgId), orderBy: (t, { asc }) => asc(t.itemName) })
+  })
+}
+
+// Real-screen conversion (2026-08-30, PROJEXA Inventory Object Page): no
+// single-item getter existed -- only listItems(). Surfaces standardBuyingRate/
+// standardSellingRate/hsnSacCode/hasSerialNo, none of which the existing
+// Inventory list UI shows at all despite createItem() always accepting them.
+export async function getItem(ctx: { orgId: string }, itemId: string) {
+  await requireErpEnabled(ctx.orgId)
+  return withTenantContext({ orgId: ctx.orgId }, async (db) => {
+    const item = await db.query.erpItems.findFirst({ where: and(eq(erpItems.id, itemId), eq(erpItems.orgId, ctx.orgId)) })
+    if (!item) throw new ServiceError("Item not found", 404)
+    return item
   })
 }
 
