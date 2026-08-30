@@ -175,48 +175,6 @@ active:
       files risks colliding with several other in-flight workers editing
       `src/app/api/**` right now, for a Low-severity finding whose own
       recommended fix is a forward-enforcing check, not a full rewrite).
-  - session_label: "claude-code (task-20260718-071005-ai-model-lifecycle---benchmarking--evalu) -- VERIDIAN Review Framework: AI Model Lifecycle & Benchmarking / Evaluation & Promotion Process"
-    claimed_at: "2026-08-15T (this session)"
-    claim: |
-      2 findings. Re-verified both against current main (not the original
-      evaluation) before starting, per this task's own instructions.
-      Finding 1 (High, "Model evaluation process before any roster.ts
-      promotion" -- recommended: "Add a CI check requiring recent promptfoo
-      results for roster.ts diffs") is ALREADY RESOLVED: PR #417 (merged
-      2026-07-19) added .github/workflows/ai-prompt-evals.yml, which runs
-      `promptfoo eval -c promptfooconfig.yaml` on every PR whose diff
-      touches src/lib/ai-team/roster.ts (path-filtered, confirmed live in
-      the workflow file). No code change needed there -- documenting as
-      already-closed, not re-doing it.
-      Finding 2 (Critical, "A/B or shadow-testing capability for a
-      candidate model" -- recommended: "Add a rollout-percentage column to
-      the roster config") is a REAL gap, now closed. Discovered mid-flight
-      that a live, DB-backed admin-override layer already exists
-      (roster-overrides.ts + platform.ai_team_role_overrides, built
-      2026-07-18 for a DIFFERENT gap -- BYO/admin model override, not A/B
-      testing) and every real dispatch surface already resolves its
-      effective model through it, not through roster.ts's static array
-      directly. Extended THAT layer instead of adding a parallel
-      candidateModel/rolloutPercentage pair onto roster.ts's static array
-      (a real A/B rollout needs the same live-toggle-without-a-deploy
-      property that table already gives the plain override). Delivered:
-      drizzle/0313 (candidate_model + rollout_percentage columns, NOT
-      applied live -- left for the supervising session), schema.ts,
-      roster-overrides.ts (resolveDispatchModel() -- requires an explicit
-      complexityTier to ever select a candidate, and the candidate must
-      itself be tier-eligible per model-tier-eligibility.ts, so a rollout
-      config can never bypass that guardrail; setRoleRollout/
-      clearRoleRollout admin mutations), team-service.ts's runRole()
-      (optional 5th `rollout` param, zero behavior change when omitted),
-      dispatch/route.ts (tier pre-flight now checks the resolved candidate,
-      one rolloutSeed reused for both the check and the real call so they
-      can never disagree, PATCH extended with an additive `rollout` field,
-      modelVariant surfaced in the response). 20 new tests
-      (roster-overrides.test.ts) + updated route.test.ts's mock. Full
-      suite 2566 pass/0 fail, tsc clean, lint clean, guardrail-presence/
-      asset-registry-coverage/migration-collision checks all pass. Not
-      touching permission-service.ts per this task's own instruction. PR
-      opened against main, not merged, per instructions.
   - session_label: "claude-code (task-20260803-094054-register-ocid-046-discovery-only--declin) -- OCID-046 real discovery inventory (brand/tenant/org/role-rights/function-library models), completion declined [DONE, docs-only]"
     claimed_at: "2026-08-03T09:41Z (this session, closed same session)"
     claim: |
@@ -6362,6 +6320,68 @@ recently_completed:
       trusting the PR description), which posted a real AUDIT: PASS with all 8
       required structured fields after one format correction (Title-Case
       labels, not camelCase).
+  - session_label: "claude-code (task-20260718-071005-ai-model-lifecycle---benchmarking--evalu) -- VERIDIAN Review Framework: AI Model Lifecycle & Benchmarking / Evaluation & Promotion Process [DONE, PR #1221 merged c51aab6a]"
+    claimed_at: "2026-08-15T (this session, closed same session)"
+    claim: |
+      2 findings. Re-verified both against current main (not the original
+      evaluation) before starting, per this task's own instructions.
+      Finding 1 (High, "Model evaluation process before any roster.ts
+      promotion" -- recommended: "Add a CI check requiring recent promptfoo
+      results for roster.ts diffs") is ALREADY RESOLVED: PR #417 (merged
+      2026-07-19) added .github/workflows/ai-prompt-evals.yml, which runs
+      `promptfoo eval -c promptfooconfig.yaml` on every PR whose diff
+      touches src/lib/ai-team/roster.ts (path-filtered, confirmed live in
+      the workflow file). No code change needed there -- documenting as
+      already-closed, not re-doing it.
+      Finding 2 (Critical, "A/B or shadow-testing capability for a
+      candidate model" -- recommended: "Add a rollout-percentage column to
+      the roster config") is a REAL gap, now closed. Discovered mid-flight
+      that a live, DB-backed admin-override layer already exists
+      (roster-overrides.ts + platform.ai_team_role_overrides, built
+      2026-07-18 for a DIFFERENT gap -- BYO/admin model override, not A/B
+      testing) and every real dispatch surface already resolves its
+      effective model through it, not through roster.ts's static array
+      directly. Extended THAT layer instead of adding a parallel
+      candidateModel/rolloutPercentage pair onto roster.ts's static array
+      (a real A/B rollout needs the same live-toggle-without-a-deploy
+      property that table already gives the plain override). Delivered:
+      drizzle/0313 (candidate_model + rollout_percentage columns, NOT
+      applied live -- left for the supervising session), schema.ts,
+      roster-overrides.ts (resolveDispatchModel() -- requires an explicit
+      complexityTier to ever select a candidate, and the candidate must
+      itself be tier-eligible per model-tier-eligibility.ts, so a rollout
+      config can never bypass that guardrail; setRoleRollout/
+      clearRoleRollout admin mutations), team-service.ts's runRole()
+      (optional 5th `rollout` param, zero behavior change when omitted),
+      dispatch/route.ts (tier pre-flight now checks the resolved candidate,
+      one rolloutSeed reused for both the check and the real call so they
+      can never disagree, PATCH extended with an additive `rollout` field,
+      modelVariant surfaced in the response). 20 new tests
+      (roster-overrides.test.ts) + updated route.test.ts's mock. Full
+      suite 2577 pass/0 fail, tsc clean, lint clean, guardrail-presence/
+      asset-registry-coverage/migration-collision/terminology-guardrail
+      checks all pass. Not touching permission-service.ts per this task's
+      own instruction. PR #1221 opened against main; CI surfaced 3 real
+      fixable issues post-open (CodeQL tainted-format-string in
+      resolveDispatchModel()'s error path, terminology-guardrail exemption
+      count-ratchet, and a real additive merge conflict in this same file
+      against a sibling PR #1219 that landed first -- all fixed, commit
+      5c1e7fb5a). The mandatory audit-check job initially showed failing
+      because this session's own AUDIT: PASS comment posted via
+      `issue_comment` re-triggers the check against `main`'s SHA, not the
+      PR head (a real, previously-undocumented quirk of
+      mandatory-audit-check.yml, now recorded in this session's own
+      memory) -- resolved by re-running the original `pull_request`-
+      triggered job, which live-fetches PR comments via the GitHub API
+      and picked up the already-posted verdict. All 8 required branch-
+      protection status checks (Lint, Type Check, Build, audit-check,
+      Guardrail Presence, Asset Registry Coverage, Unit Tests, Metadata
+      Index Coverage) passed; `required_approving_review_count` is 0 on
+      this repo (no self-approval-deadlock hit here), so merged directly.
+      mergeStateStatus stayed UNSTABLE only from two non-required checks
+      (Vercel build-rate-limit, Promptfoo Evals hitting its own 15-minute
+      live-LLM-call timeout) -- both pre-existing/unrelated to this diff,
+      documented, not blockers. Merged as commit c51aab6a.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
