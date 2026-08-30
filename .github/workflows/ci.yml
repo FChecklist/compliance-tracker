@@ -175,6 +175,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
       - run: node scripts/check-governance-yaml-parse.mjs
   migration-schema-drift-check:
     # GAP-MIGRATION-APPLY-NOT-AUTOMATED (ai-os/MASTER-TRACKER.yaml, closed
