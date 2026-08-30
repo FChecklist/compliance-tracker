@@ -5149,6 +5149,24 @@ export const crmAccounts = complianceSchemaDB.table('crm_accounts', {
   // the loop the same way crmLeads.convertedClientId already does for the
   // Wave-1 `clients` table.
   convertedFromLeadId: text('converted_from_lead_id'),
+  // VERIDIAN Review Framework "Accounts & Contacts" gap-closure (Cross-Module
+  // Integration Consistency): an account is the unification point between
+  // the ERP selling identity (erp_customers) and VERIDIAN's own compliance-
+  // client identity (clients), the same bare-text/no-FK/nullable bridge-
+  // column convention crmOpportunities.erpCustomerId/crmLeads.clientId
+  // already established -- not a hard merge of the 3 identity spaces.
+  erpCustomerId: text('erp_customer_id'),
+  clientId: text('client_id'),
+  // AI Copilot / Worker Agent Integration Depth gap-closure: extends the
+  // Wave 75 CRM Intelligence pattern (crmLeads.aiScore / crmOpportunities.
+  // aiWinProbability) to accounts -- analyzeAccountHealth() in
+  // crm-accounts-service.ts populates these. Same shape as
+  // crmOpportunities' ai* columns (score + risk factors + one recommended
+  // action + a timestamp marking whether/when this has ever been run).
+  aiHealthScore: integer('ai_health_score'), // 0-100, higher = healthier account relationship
+  aiRiskFactors: jsonb('ai_risk_factors').notNull().default([]),
+  aiRecommendedAction: text('ai_recommended_action'),
+  aiAnalyzedAt: timestamp('ai_analyzed_at'),
   createdById: text('created_by_id').notNull(),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
