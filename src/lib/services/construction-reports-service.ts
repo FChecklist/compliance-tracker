@@ -51,19 +51,28 @@ export async function workProgressReport(ctx: { orgId: string }, projectId: stri
 }
 
 // 2. Weekly Project Report -- composite: progress/attendance/diary/expenses within a 7-day window.
-export async function weeklyProjectReport(ctx: { orgId: string }, projectId: string, weekStart: string) {
+// R65 (2026-08-30, reports-engine gap closure): rptdef_monthly_project_report's
+// own data_gap_note said this function "computes a fixed 7-day composite
+// window; no monthly-window (weekStart -> monthStart) variant exists yet --
+// would need a straightforward generalization." This is that generalization:
+// the real composite-window computation is extracted into
+// projectPeriodReport() (arbitrary [periodStart, periodEnd) window), and
+// weeklyProjectReport() becomes a thin 7-day-window caller of it -- same
+// real behavior/return shape as before for every existing caller, zero
+// duplication for the new monthly variant (report-engine-service.ts's
+// computeMonthlyProjectReport formula).
+export async function projectPeriodReport(ctx: { orgId: string }, projectId: string, periodStart: string, periodEnd: string) {
   await requireConstructionEnabled(ctx.orgId)
   return withTenantContext({ orgId: ctx.orgId }, async (db) => {
-    const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86400000).toISOString().slice(0, 10)
     const [progressCount] = await db.select({ count: sql<number>`count(*)` }).from(constructionWorkProgressEntries)
-      .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.projectId, projectId), sql`${constructionWorkProgressEntries.entryDate} >= ${weekStart} and ${constructionWorkProgressEntries.entryDate} < ${weekEnd}`))
+      .where(and(eq(constructionWorkProgressEntries.orgId, ctx.orgId), eq(constructionWorkProgressEntries.projectId, projectId), sql`${constructionWorkProgressEntries.entryDate} >= ${periodStart} and ${constructionWorkProgressEntries.entryDate} < ${periodEnd}`))
     const [attendanceCost] = await db.select({ total: sql<number>`coalesce(sum(${constructionAttendance.dailyCost}), 0)::float`, presentCount: sql<number>`count(*) filter (where ${constructionAttendance.status} = 'present')` })
-      .from(constructionAttendance).where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId), sql`${constructionAttendance.attendanceDate} >= ${weekStart} and ${constructionAttendance.attendanceDate} < ${weekEnd}`))
-    const diaryEntries = await db.query.constructionSiteDiaries.findMany({ where: and(eq(constructionSiteDiaries.orgId, ctx.orgId), eq(constructionSiteDiaries.projectId, projectId), gte(constructionSiteDiaries.diaryDate, weekStart), lt(constructionSiteDiaries.diaryDate, weekEnd)) })
+      .from(constructionAttendance).where(and(eq(constructionAttendance.orgId, ctx.orgId), eq(constructionAttendance.projectId, projectId), sql`${constructionAttendance.attendanceDate} >= ${periodStart} and ${constructionAttendance.attendanceDate} < ${periodEnd}`))
+    const diaryEntries = await db.query.constructionSiteDiaries.findMany({ where: and(eq(constructionSiteDiaries.orgId, ctx.orgId), eq(constructionSiteDiaries.projectId, projectId), gte(constructionSiteDiaries.diaryDate, periodStart), lt(constructionSiteDiaries.diaryDate, periodEnd)) })
     const [expenseTotal] = await db.select({ total: sql<number>`coalesce(sum(${constructionExpenseEntries.amount}), 0)::float` }).from(constructionExpenseEntries)
-      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId), gte(constructionExpenseEntries.expenseDate, weekStart), lt(constructionExpenseEntries.expenseDate, weekEnd)))
+      .where(and(eq(constructionExpenseEntries.orgId, ctx.orgId), eq(constructionExpenseEntries.projectId, projectId), gte(constructionExpenseEntries.expenseDate, periodStart), lt(constructionExpenseEntries.expenseDate, periodEnd)))
     return {
-      weekStart, weekEnd,
+      periodStart, periodEnd,
       progressEntriesLogged: Number(progressCount?.count ?? 0),
       labourCost: Number(attendanceCost?.total ?? 0),
       workersPresent: Number(attendanceCost?.presentCount ?? 0),
@@ -71,6 +80,12 @@ export async function weeklyProjectReport(ctx: { orgId: string }, projectId: str
       expenseTotal: Number(expenseTotal?.total ?? 0),
     }
   })
+}
+
+export async function weeklyProjectReport(ctx: { orgId: string }, projectId: string, weekStart: string) {
+  const weekEnd = new Date(new Date(weekStart).getTime() + 7 * 86400000).toISOString().slice(0, 10)
+  const result = await projectPeriodReport(ctx, projectId, weekStart, weekEnd)
+  return { weekStart, weekEnd, progressEntriesLogged: result.progressEntriesLogged, labourCost: result.labourCost, workersPresent: result.workersPresent, diaryEntries: result.diaryEntries, expenseTotal: result.expenseTotal }
 }
 
 // 3. Project Status Report -- reuses the project dashboard verbatim.
