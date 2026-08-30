@@ -15,7 +15,9 @@ That endpoint is always the authoritative, up-to-date schema; this document
 is the human-readable history of what changed and when. All `/api/v1/**`
 routes authenticate via `requireAuthOrApiKey()` (session cookie **or**
 `Authorization: Bearer <api-key>` / API-key header — see
-`src/lib/supabase/auth-guard.ts` and `src/lib/api-key-auth.ts`).
+`src/lib/supabase/auth-guard.ts` and `src/lib/supabase/api-key-auth.ts`).
+Testing safely before pointing real traffic at this surface? See
+[`docs/API_SANDBOX.md`](API_SANDBOX.md).
 
 **How this document is maintained:** compiled directly from the git history
 of `src/app/api/v1/**/route.ts` (every commit that added, removed, or
@@ -27,6 +29,38 @@ same PR (matching the standing convention documented for `AGENTS.md`'s
 change-history habits elsewhere in this repo) rather than backfilling later.
 
 ---
+
+## 2026-07-30
+
+- **CRM auto-distribution + assignment overview** (`8aafc1993`, Task #46) —
+  added `GET /api/v1/projexa/leads/assignment-overview`,
+  `POST /api/v1/projexa/leads/auto-distribute`,
+  `GET /api/v1/projexa/opportunities/assignment-overview`, and
+  `POST /api/v1/projexa/opportunities/auto-distribute` — deterministic
+  round-robin/load-based lead and opportunity assignment plus a read-only
+  per-rep workload overview.
+- **FI-AP-005: Payment Proposal List report** (`035f6fb81`, SAP F110
+  equivalent) — added `GET /api/v1/projexa/payment-proposal-list`.
+- **FI-AP-006: Vendor Payment History / Payment Behavior Analysis**
+  (`49f5b005d`) — added `GET /api/v1/projexa/vendor-payment-behavior`.
+- **FI-AR-006: Customer Payment Behavior / DSO report** (`c8cdd06b9`) —
+  added `GET /api/v1/projexa/customer-payment-behavior`.
+- **SD-007: Sales Order Document-Flow Overview** (`9de54f77c`, SAP VBFA
+  equivalent) — added `GET /api/v1/projexa/sales-order-document-flow/[id]`.
+- **FI-AA-006: Asset-to-GL Reconciliation report** (`1ca47d32b`) — added
+  `GET /api/v1/projexa/asset-to-gl-reconciliation` (also fixed a real
+  pre-existing GL-posting bug found along the way; see commit for detail).
+- **FI-AP-007: Subcontractor Retention Summary report** (`5af1bb3e1`) —
+  added `GET /api/v1/projexa/subcontractor-retention-summary` and
+  `POST /api/v1/projexa/subcontractor-retention-summary/[invoiceId]/release`
+  (retention release action).
+- **FI-AP-008: Subcontractor Payment Application Status report**
+  (`9679d3660`) — added
+  `GET /api/v1/projexa/subcontractor-payment-application-status`.
+- **FI-AR-004: Dunning List** (`b2f703d5a`, overdue AR by aging bucket +
+  dunning level) — added `GET /api/v1/projexa/dunning-list` and
+  `POST /api/v1/projexa/dunning-list/[invoiceId]/record` (record a dunning
+  action against an invoice).
 
 ## 2026-07-28
 
