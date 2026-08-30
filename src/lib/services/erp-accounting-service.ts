@@ -18,8 +18,8 @@ import { startApprovalWorkflow } from "./approval-workflow-service"
 import { logActivity } from "@/lib/audit"
 import { requireErpEnabled } from "./erp-enablement-service"
 import { fetchLiveRates, buildLiveRatePairs, type SkippedCurrency } from "@/lib/exchange-rate-feed-client"
+import { ErpContext } from "./actor-context"
 
-export type ErpContext = { orgId: string; userId: string; dbUser: typeof users.$inferSelect }
 
 export type JournalEntryLineInput = {
   accountId: string

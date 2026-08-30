@@ -6342,6 +6342,37 @@ recently_completed:
       trusting the PR description), which posted a real AUDIT: PASS with all 8
       required structured fields after one format correction (Title-Case
       labels, not camelCase).
+  - session_label: "claude-code (worker task-20260718-075002-architecture---design--engineering-princ) -- VERIDIAN Review Framework gap-closure: Architecture & Design / Engineering Principles (3 findings) [DONE, PR #1228 opened, not yet merged]"
+    completed_at: "2026-08-15T (this session)"
+    merged_as: |
+      PR #1228 (open, not merged -- Rule 6 PR/CI gate). Closed 3 findings in
+      one PR: (1) Low, "Systems-First Engineering Principle" -- audited
+      every real AI/LLM call site, confirmed all route through the central
+      src/lib/llm-client.ts already; gap did not hold up under inspection,
+      documented in docs/adr/0001-centralized-ai-call-site.md rather than
+      making an unnecessary change. (2) Low, "First-Principles Design
+      Methodology" -- new docs/adr/ folder (README + 2 real ADRs). (3)
+      Medium, "Elimination of Duplicate Functionality" -- ran jscpd across
+      src/lib/engines/ + src/lib/services/ (0.80% duplicated lines, 30
+      clones, 258 files -- low overall), then hand-followed jscpd's clone
+      hits to a real, larger duplicate-type cluster it under-counted: the
+      ActorCtx/ErpContext dbUser-or-apiKey actor-context type shape was
+      independently redefined across 22 files in src/lib/services/ (6
+      same-named, 5 under different local names for the identical
+      structure, 18 with the related ErpContext shape, 7 overlapping).
+      Consolidated into new src/lib/services/actor-context.ts; all sites
+      now import it, 5 differently-named exports kept as one-line type
+      aliases for zero external-call-site changes. Did not touch
+      permission-service.ts/ERP_ACTION_ROLES. Verification: tsc --noEmit
+      clean, eslint 0 errors (3 pre-existing warnings), bun test
+      src/lib/services 1202 pass/0 fail, guardrail-presence/doc-
+      quarantine-banner/metadata-index-coverage/doc-cross-reference checks
+      all pass. Branch was 1326 commits behind main at claim time --
+      merged origin/main in, resolved 8 real merge conflicts (mostly
+      import-line collisions with other sessions' concurrent additions to
+      the same files; also found and fixed one more duplicate-type
+      instance, FraudContext in fraud-case-service.ts, surfaced during
+      conflict review) before opening the PR.
   - session_label: "claude-code (task-20260815-044325-pm-approval-of-proposal-62-build-lock-co) -- PM-approval dispatch for proposal 62 (build-lock serialization fix); found already fully closed 9 days earlier (PR #172/#234/#301), re-verified live, opened closure PR #408 [DONE, merged same session]"
     claimed_at: "2026-08-15T04:43Z (this session, closed same session)"
     claim: |
