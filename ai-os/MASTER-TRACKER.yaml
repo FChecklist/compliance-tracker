@@ -1311,7 +1311,18 @@ open_items:
         actually exists live (e.g. spot-check expected tables/columns per
         migration, or a more general drift-detection query), distinct from
         `check-migration-collision.mjs`'s narrower number-collision check.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- built scripts/check-migration-schema-drift.mjs
+        (distinct from check-migration-integrity.mjs/AR-12, which only proves the migration FILE's
+        bytes still match the ledger, not that the DDL actually exists live). Parses CREATE TABLE /
+        (multi-clause) ALTER TABLE ADD COLUMN, replays add/drop in journal order, checks
+        schema-agnostically against information_schema (tolerates a legitimate post-migration
+        schema move, e.g. the real confirmed compliance.worker_agents -> platform.worker_agents,
+        same class of move already closed for product_branches). Verified against real production
+        data before landing: 458 expected tables + 356 expected columns parsed from all 305 real
+        migration files, zero missing live. Wired into ci.yml as migration-schema-drift-check.
+        Would have caught the exact real 0264/email-intelligence incident this gap was raised
+        from -- confirmed via a dedicated regression test reproducing that migration's own DDL
+        shape."
       first_raised: "OCID-020 certification sweep, 2026-08-03 (UMR-20260802-165606-4413, UMR-20260803-012711-18b4)"
       related_but_distinct: |
         Real cross-reference, added 2026-08-03 (`UMR-20260803-025317-0c64`,
@@ -2034,7 +2045,14 @@ open_items:
         workspace was merged-from-main immediately before that retrigger should be treated as a
         higher-than-usual candidate for a false-reject and worth one free retry before treating
         a reject as a real finding requiring a code/content fix.
-      status: open
+      status: "moot 2026-08-30 (R1-R64 recheck) -- the reviewer this bug lived in
+        (scripts/supervisor-entrypoint.sh's Claude-driven review, systemd-unit-based) is no
+        longer active for anything: confirmed via `grep -rl supervisor-entrypoint .github/`
+        (zero hits -- no current GitHub Actions workflow invokes it) and a repo-wide reference
+        search (only old, already-superseded governance markdown files mention it). Casualty of
+        the PM-hierarchy/dispatch-fleet apparatus this reviewer belonged to, superseded by the
+        VERIDIAN-DEV server decommission (2026-08-25, see feedback_bypass_server_direct_work
+        memory) -- not fixed, just no longer live infrastructure to regress."
       first_raised: "compliance-tracker PR #776/#774 re-review rounds, 2026-08-03"
 
     - id: GAP-SELF-MINTED-ARTIFACT-UMR-FABRICATION
@@ -2213,7 +2231,18 @@ open_items:
         `supervisor-entrypoint.sh` to explicitly re-run
         `mandatory-audit-check.yml` itself (not via `issue_comment`), which
         does not have this bug.
-      status: open
+      status: "moot 2026-08-30 (R1-R64 recheck) -- `.github/workflows/mandatory-audit-check.yml`
+        no longer exists in this repo (confirmed via a real file search; current CI workflows are
+        lint/typecheck/build/unit-tests/migration-collision-check/migration-integrity-check/
+        governance-yaml-parse-check/migration-schema-drift-check/e2e -- none named this), and
+        `supervisor-entrypoint.sh` (the systemd-unit-driven autonomous reviewer this bug's
+        workaround depended on) is no longer referenced by any active workflow or process --
+        confirmed via `grep -rl supervisor-entrypoint .github/` (zero hits) and a repo-wide
+        reference search (only old, already-superseded governance markdown files mention it).
+        Both are casualties of the whole PM-hierarchy/dispatch-fleet/UMR-worker apparatus this
+        gap's own reviewer belonged to, superseded by the VERIDIAN-DEV server decommission
+        (2026-08-25, see feedback_bypass_server_direct_work memory) -- not fixed, just no longer
+        live infrastructure for anything to be blocked on."
       first_raised: "Independent Agent-tool review of PR #795, 2026-08-03 (UMR-20260803-085428-9332)"
 
     - id: GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR
@@ -2322,7 +2351,13 @@ open_items:
         `scripts/check-governance-yaml-parse.mjs`) and re-run the same real
         break/restore verification already proven locally, this time against a
         real GitHub Actions run, before merging.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- the credential wall this gap describes was
+        specific to VERIDIAN-DEV's shared server OAuth token, which is moot now that server is
+        decommissioned (2026-08-25). This session's own `git push` of `.github/workflows/ci.yml`
+        (this same PR) succeeded, confirming the `workflow` OAuth scope is available from this
+        environment. Wired the already-written, already-tested `scripts/check-governance-yaml-
+        parse.mjs` into ci.yml as the `governance-yaml-parse-check` job -- no new script needed,
+        the real work was already done back on 2026-08-03, only the push was blocked."
       first_raised: "This session, 2026-08-03, while executing PM decision UMR-20260803-142309-da1f (UMR-20260802-165606-4413, OCID-020)"
 
     - id: GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION
@@ -2362,7 +2397,18 @@ open_items:
         agree on what VERI Chat is actually scoped to. Add a real regression test: send a benign,
         in-scope question from each named domain (at minimum accounting/finance, given this is the one
         caught live) to a fresh test org and assert the reply is not a refusal.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck, found ALREADY fixed by an earlier round --
+        R63 gap-closure, 2026-08-29, per its own comment in purpose-bound-ai.ts) -- discovered
+        this while verifying the gap live, not assumed from the tracker's own stale 'open'
+        status. buildPurposeClause(DEFAULT_DOMAIN) (the single hardcoded 'compliance' clause
+        that caused this contradiction) is no longer called by chat-service.ts's real system
+        prompt assembly. Both real call sites (generateAiReply's main chat path,
+        line ~698-702; the group-participant path, line ~958-961) now call
+        buildMultiDomainPurposeClause(await resolveOrgDomains(orgId)) instead -- names every
+        domain this specific org actually has enabled (compliance always + erp/sales/pms per
+        real enablement checks), reconciling the PURPOSE_CLAUSE with the persona paragraph's own
+        stated domain list. Confirmed by reading both real call sites directly, not just the
+        function definitions."
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-VERI-CHAT-CONFIDENCE-LABEL-NO-REFUSAL-DETECTION
@@ -2393,7 +2439,13 @@ open_items:
         `GAP-VERI-CHAT-PURPOSE-CLAUSE-SCOPE-CONTRADICTION` since a correct fix there should reduce how
         often this path is even exercised, but the confidence-heuristic gap is real and separate
         regardless of that fix.
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- extended LOW_CONFIDENCE_PHRASES
+        (floor-tier-escalation.ts) with real refusal-language patterns (\"i can't help with
+        that,\" \"i'm not able to,\" \"outside my scope,\" \"i'm not allowed to,\" etc.), per this
+        gap's own recommended fix shape. Added a regression test reproducing the exact live
+        refusal reply that surfaced this gap (\"Boss, I'm sorry-I can't help with that.\") plus 3
+        other common refusal phrasings -- all now correctly detected, deriveConfidenceLabel()
+        downgrades them from the previous incorrect \"high\"."
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
 
     - id: GAP-PLAYWRIGHT-BROWSER-MISSING-SYSTEM-LIBS
@@ -2465,6 +2517,17 @@ open_items:
         (every real test this session used the Admin-API-signup + hand-built-cookie pattern instead of
         driving the actual login form's UI).)"
       first_raised: "This session, 2026-08-03, real live test during OCID-052 execution (UMR-20260803-142956-d931, UMR-20260802-165606-4413 OCID-020)"
+      moot_note: "2026-08-30 (R1-R64 recheck): this gap was specific to VERIDIAN-DEV's shared,
+        no-sudo, interactive server environment, which is permanently decommissioned
+        (2026-08-25, see feedback_bypass_server_direct_work memory) -- the LD_LIBRARY_PATH
+        workaround it describes has nothing left to apply to. CI's own e2e job (ci.yml) is
+        unaffected and always was: `bunx playwright install --with-deps chromium` runs a fresh,
+        correctly-provisioned browser install on every GitHub Actions run (ubuntu-latest, real
+        sudo/apt access in that environment), with no shared-server staleness for this class of
+        bug to accumulate in. Not marking status itself 'closed' -- the one genuinely unconfirmed
+        item (a full interactive sign-up/login-form UI flow, as opposed to the
+        Admin-API-signup + hand-built-cookie pattern every real test here used) is still real and
+        untested, just no longer blocked by missing system libraries specifically."
 
     - id: GAP-VERI-CHAT-NO-VISIBLE-DETERMINISTIC-VS-AI-SIGNAL
       name: "End users have no visible way whatsoever to tell a deterministic-routed VERI Chat reply apart from a genuine AI-escalated one on the real, live, primary rendering surface (/home) -- stronger than merely 'unintentional,' the one component with confidence-badge logic is structurally unreachable for the AI thread"
@@ -2765,6 +2828,16 @@ open_items:
       status: "open (real gap confirmed and documented; not authorized for implementation by this
         OCID)"
       first_raised: "task-20260804-045439-register-ocid-058--universal-task-regist, 2026-08-04 (this task's own dispatch, citing UMR-20260804-035943-3c38)"
+      recheck_note: "2026-08-30 (R1-R64 recheck): left untouched, deliberately -- this is a real
+        architectural decision among 3 named options (L/S/XS), explicitly gated on a PM/Owner
+        choice this session has no standing to make unilaterally. Separately, every record type
+        this gap discusses (umr_tasks, work_items, task.yaml, dispatch-owner-task.sh,
+        superboss-register.py) belongs to the PM-hierarchy/dispatch-fleet apparatus superseded by
+        the VERIDIAN-DEV server decommission (2026-08-25) -- current work runs bare on the laptop
+        with no PM/dispatch tier, so this gap's real-world urgency is materially lower than when
+        raised, even though the gap itself (no genuine multi-actor UTR structure) remains
+        technically true of the schema. Left open rather than closed or moot: the schema state
+        this gap describes has not changed, only how much anything currently depends on it has."
 
     - id: GAP-OCID038-TASKENGINE-MOTHERROUTER-UNWIRED
       name: "task-execution-engine.ts and mother-router.ts are not wired to each other -- RESOLVED via scoped Mother Router migration"
@@ -2973,7 +3046,16 @@ open_items:
       detail: "gh repo view FChecklist/projexa's description: 'Frontend for the AI-native construction ERP, built on VERIDIAN AI OS via API.' Per ai-os/EXISTING_MODULE_ENGINE_WIRING_MAP_2026-08-02.md Sec1.9, the projexa repo has its own 11-table schema (not a schemaless pure client). gh api search/code for a compliance-tracker/VERIDIAN API base URL inside the projexa repo returned 0 hits (GitHub code search, not exhaustive, but a real negative signal). May be intentional local caching/offline support, or may be real architectural drift from the repo's own stated design intent -- not resolved this pass."
       size: M
       recommendation: "Whoever picks up cross-repo integration work should read the projexa repo directly (not GitHub code search only) to determine whether it genuinely calls a shared VERIDIAN API anywhere, and reconcile the repo description with real behavior either way."
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- this entry's own discovery_brief below (2026-08-04)
+        already substantively answered the question this gap raised: PROJEXA genuinely IS an
+        extensively-wired thin client (195 real call sites, all local tables tenant/auth/billing/
+        UI-collaboration only, zero construction data persisted locally), matching its stated design
+        intent for the data layer. The recommendation's own action (read the repo directly, reconcile
+        stated vs. real behavior) was already done in that same pass -- just never flipped this
+        entry's status field to match. The one thread the brief itself flags as genuinely NOT unified
+        (auth/session -- PROJEXA runs its own separate Supabase Auth with no user-level SSO to
+        VERIDIAN) is a distinct, already-separately-tracked, owner-sign-off-gated item (the
+        Schedule/Design-Studio cross-system identity-bridge gap), not left open under this entry."
       first_raised: "OCID-038 discovery, 2026-08-03 (this document)"
       discovery_brief: |
         2026-08-04, per PM decision UMR-20260804-011851-676b (discovery/documentation only, no
@@ -3437,7 +3519,10 @@ open_items:
         as a duplicate. Not a destructive/credential-rotation action -- safe to action without the
         Owner authorization OCID-054 was withholding, whenever someone picks up veda-advisors PR
         hygiene."
-      status: open
+      status: "closed 2026-08-30 (R1-R64 recheck) -- both PRs were still open and MERGEABLE 26 days
+        after first_raised (`gh pr diff` confirmed byte-identical, single-line diffs). Merged #13
+        (merge commit, mergedAt 2026-08-30T10:57:00Z, branch deleted), commented on #14 citing #13
+        and closed it as a duplicate. `.env` is no longer tracked on veda-advisors main."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
     - id: GAP-12-REPOS-SECRET-SCANNING-DISABLED
@@ -3503,6 +3588,16 @@ open_items:
         (read each, determine which is canonical, close the rest as superseded with a citation).
         Not actioned by OCID-054 (discovery-only scope)."
       status: open
+      recheck_note: "2026-08-30 (R1-R64 recheck): re-measured live rather than trusting the 26-day-old
+        count -- 30 open PRs, 14 CONFLICTING today (was 24/30). The original OCID-041..046 docs
+        cluster has aged out of the list entirely; today's conflicting set is a different, newer mix
+        (R43/R46/R48/R52/R57/R62 test-guard PRs, AI-governance/FinOps gap-closure PRs, a security
+        CVE pin, and two PRs -- #1298/#1299 -- that are themselves about disposing of a much larger,
+        422-PR historical backlog). Deliberately NOT reconciled in this pass: this is real judgment
+        work across other sessions'/people's in-flight PRs spanning many unrelated topics, not a
+        mechanical or safe-by-inspection fix like the veda-advisors duplicate-PR case above -- closing
+        the wrong one risks discarding real pending work. Left as a genuine, real, appropriately-sized
+        follow-up, with the count corrected so it isn't read as stale."
       first_raised: "task-20260804-040754-register-ocid-054--universal-repository, 2026-08-04 (OCID-054, real org-wide discovery)"
 
   ratified_do_not_build:

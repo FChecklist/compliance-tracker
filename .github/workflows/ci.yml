@@ -75,7 +75,23 @@ jobs:
       # unpredictably when that borrowed state is wrong. Root-caused and
       # fixed across 7 files in this pass (#1421, #1423-#1428); --isolate
       # is what actually closes the leak at the CI level going forward.
+      #
+      # R1-R64 recheck (2026-08-30): bare `bun test --isolate` (no path) only
+      # discovers files under bunfig.toml's `[test] root = "src"` -- it was
+      # SILENTLY never running the 8 real test files under scripts/
+      # (check-migration-integrity.test.ts, check-sec07-ocid-lock.test.ts,
+      # check-reviewer-not-author.test.ts, and 5 others), including two
+      # governance/security-critical checks. Confirmed via
+      # `bun test --isolate ./scripts` discovering and passing all 8 (137
+      # tests) that the bare invocation silently skipped. Two explicit
+      # invocations, not `bun test --isolate src scripts`, because passing
+      # multiple root-level paths this way still only honors bunfig.toml's
+      # single configured root for module resolution within each run.
       - run: bun test --isolate
+        env:
+          DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
+          APP_RUNTIME_DATABASE_URL: postgresql://app_runtime:placeholder@localhost:5432/postgres
+      - run: bun test --isolate ./scripts
         env:
           DATABASE_URL: postgresql://postgres:placeholder@localhost:5432/postgres
           APP_RUNTIME_DATABASE_URL: postgresql://app_runtime:placeholder@localhost:5432/postgres
@@ -138,6 +154,52 @@ jobs:
       # failure -- prod downtime must not block every PR in the repo from
       # merging.
       - run: node scripts/check-migration-integrity.mjs
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+  governance-yaml-parse-check:
+    # GAP-CI-WORKFLOW-FILE-PUSH-BLOCKED-MISSING-OAUTH-SCOPE (ai-os/
+    # MASTER-TRACKER.yaml, closed 2026-08-30, R1-R64 recheck): this job and
+    # scripts/check-governance-yaml-parse.mjs were both written and verified
+    # locally back on 2026-08-03 (catches the exact class of silent
+    # 0-indent-duplicate YAML corruption fixed for
+    # GAP-ACTIVE-CLAIMS-YAML-PARSE-ERROR), but wiring this one line into
+    # ci.yml was blocked for weeks: that session's only git-push credential
+    # (a shared server OAuth token) lacked the `workflow` scope GitHub
+    # requires to push a `.github/workflows/*` change, and no
+    # differently-scoped credential was available. This session's own
+    # `git push` of this exact file succeeded, confirming the credential
+    # blocking this is no longer in the way (the VERIDIAN-DEV server this
+    # ran on was independently decommissioned 2026-08-25, see
+    # feedback_bypass_server_direct_work memory).
+    name: Governance YAML Parse Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - run: node scripts/check-governance-yaml-parse.mjs
+  migration-schema-drift-check:
+    # GAP-MIGRATION-APPLY-NOT-AUTOMATED (ai-os/MASTER-TRACKER.yaml, closed
+    # 2026-08-30, R1-R64 recheck): distinct from migration-integrity-check
+    # (AR-12) above -- that job proves a migration FILE's bytes still match
+    # what the ledger recorded as applied; this job proves the DDL the file
+    # describes actually EXISTS in the live schema. The real incident this
+    # closes: drizzle/0264_helpdesk_tiered_sla_team_routing.sql was recorded
+    # applied but its DDL never actually ran on production, causing a real
+    # live 500 on GET /api/email-intelligence. See
+    # scripts/check-migration-schema-drift.mjs's own header for the full
+    # design (parses CREATE TABLE / ALTER TABLE ADD COLUMN, replays
+    # add/drop in journal order, checks schema-agnostically against
+    # information_schema to tolerate legitimate post-migration schema moves
+    # like compliance.worker_agents -> platform.worker_agents). Verified
+    # against real production data before landing: 458 expected tables + 356
+    # expected columns parsed from all 305 real migration files, zero
+    # missing live.
+    name: Migration Schema Drift Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: node scripts/check-migration-schema-drift.mjs
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
   e2e:
