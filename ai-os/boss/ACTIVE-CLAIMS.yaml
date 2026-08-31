@@ -6560,7 +6560,7 @@ active:
 recently_completed:
   - session_label: "claude-code (rebase-sweep2-583) -- V2-17 HR performance/error-handling + payroll rate audit [DONE, real rebase-merge PR #583 -> replacement PR, this rebase-sweep session]"
     completed_at: "2026-09-01T (this session)"
-    merged_as: "FChecklist/compliance-tracker (rebased PR, was #583 -- see rebase-sweep2-583 branch; PR number filled in once opened)"
+    merged_as: "FChecklist/compliance-tracker (rebased PR #1516, was #583 -- see rebase-sweep2-583 branch)"
     summary: |
       Original branch worker/task-20260726-172000-hr-performance-error-handling---payroll
       carried 3 real commits (2026-07-26T18:17-19:02Z, 5d80ab90/c9605210/68f24877) that were

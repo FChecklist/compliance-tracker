@@ -114,9 +114,10 @@ harness script). Lint, Unit Tests, and the core `hr-dashboard-service.ts`/
 
 ## Remaining
 
-- [ ] Push `rebase-sweep2-583`, open the replacement PR, close #583 as
-      superseded.
-- [ ] Verify real CI green on the replacement PR (modulo documented-ambient
+- [x] Pushed `rebase-sweep2-583`, opened replacement PR
+      https://github.com/FChecklist/compliance-tracker/pull/1516, closed
+      #583 as superseded.
+- [ ] Verify real CI green on PR #1516 (modulo documented-ambient
       E2E/Vercel/Secret-Scanning-predates-PR/Promptfoo), then merge for real
       -- confirmed via `gh pr view --json state,mergedAt` afterward, not
       assumed.
