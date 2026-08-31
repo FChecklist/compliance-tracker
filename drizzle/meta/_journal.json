@@ -2283,6 +2283,13 @@
       "when": 1788285800000,
       "tag": "0503_v2_16_crm_perf_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 326,
+      "version": "7",
+      "when": 1788285900000,
+      "tag": "0504_search_perf_gin_trgm_indexes",
+      "breakpoints": true
     }
   ]
 }
